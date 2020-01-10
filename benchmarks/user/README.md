@@ -291,7 +291,7 @@ More details in this [paper](https://arxiv.org/pdf/1807.03032.pdf).
 
  * The DSE `aggressive` mode might not work in combination with OpenMP if the
    backend compiler is `gcc` version `< 8.3`. This is a known
-   [issue](https://github.com/opesci/devito/issues/320).
+   [issue](https://github.com/devitocodes/devito/issues/320).
 
 ## Do not hesitate to contact us
 

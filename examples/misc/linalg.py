@@ -24,7 +24,7 @@ def option_basic(f):
 
     def callback_opts(ctx, param, value):
         if value is True:
-            return ('blocking,simd,openmp', {'blockalways': True, 'blockinner': True})
+            return ('blocking,simd,openmp', {'blockinner': True})
         else:
             return 'noop'
 

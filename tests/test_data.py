@@ -299,7 +299,7 @@ class TestMetaData(object):
         assert u._offset_owned == ((2, 5), (3, 6), (4, 7))
 
     @skipif('yask')
-    @switchconfig(autopadding=True, platform='skx')  # Platform is to fix pad value
+    @switchconfig(autopadding=True, platform='bdw')  # Platform is to fix pad value
     def test_w_halo_w_autopadding(self):
         grid = Grid(shape=(4, 4, 4))
         u0 = Function(name='u0', grid=grid, space_order=0)
@@ -991,6 +991,66 @@ class TestDataDistributed(object):
                                                [0, 0, 0, 0],
                                                [4, 0, 0, 0],
                                                [0, 0, 0, 0]])
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('shape, slice0, slice1, slice2', [
+        ((31, 31, 31), (slice(None, None, 1), 2, slice(None, None, 1)),
+         (slice(None, None, 1), 0, slice(None, None, 1)),
+         (slice(None, None, 1), 1, slice(None, None, 1))),
+        ((17, 17, 17), (slice(None, None, 1), slice(None, None, 1), 2),
+         (slice(None, None, 1), slice(None, None, 1), 0),
+         (slice(None, None, 1), slice(None, None, 1), 1)),
+        ((8, 8, 8), (slice(None, None, 1), 5, slice(None, None, 1)),
+         (slice(None, None, 1), 1, slice(None, None, 1)),
+         (slice(None, None, 1), 7, slice(None, None, 1)))])
+    def test_niche_slicing2(self, shape, slice0, slice1, slice2):
+        grid = Grid(shape=shape)
+        f = Function(name='f', grid=grid)
+        f.data[:] = 1
+
+        f.data[slice0] = f.data[slice1]
+        f.data[slice0] += f.data[slice2]
+
+        result0 = np.array(f.data[slice0])
+        expected0 = np.full(result0.shape, 2)
+        assert(np.all(result0 == expected0))
+        result1 = np.array(f.data[slice1])
+        expected1 = np.full(result1.shape, 1)
+        assert(np.all(result1 == expected1))
+        result2 = np.array(f.data[slice2])
+        expected2 = np.full(result2.shape, 1)
+        assert(np.all(result2 == expected2))
+
+    @pytest.mark.parallel(mode=4)
+    def test_neg_start_stop(self):
+        grid0 = Grid(shape=(8, 8))
+        f = Function(name='f', grid=grid0, space_order=0, dtype=np.int32)
+        dat = np.arange(64, dtype=np.int32)
+        a = dat.reshape(grid0.shape)
+        f.data[:] = a
+
+        grid1 = Grid(shape=(12, 12))
+        x, y = grid1.dimensions
+        glb_pos_map = grid1.distributor.glb_pos_map
+        h = Function(name='h', grid=grid1, space_order=0, dtype=np.int32)
+
+        slices = (slice(-3, -1, 1), slice(-1, -5, -1))
+
+        h.data[8:10, 0:4] = f.data[slices]
+
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.count_nonzero(h.data[:]) == 0
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.count_nonzero(h.data[:]) == 0
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [47, 46, 45, 44, 0, 0],
+                                               [55, 54, 53, 52, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0]])
+        else:
+            assert np.count_nonzero(h.data[:]) == 0
 
     @pytest.mark.parallel(mode=4)
     def test_indexing_in_views(self):

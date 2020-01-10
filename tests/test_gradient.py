@@ -3,7 +3,7 @@ import pytest
 from numpy import linalg
 
 from conftest import skipif
-from devito import Function, info, clear_cache
+from devito import Function, info
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic import Receiver
 
@@ -11,13 +11,6 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 class TestGradient(object):
-
-    def setup_method(self, method):
-        # Some of these tests are memory intensive as it requires to store the entire
-        # forward wavefield to compute the gradient (nx.ny.nz.nt). We therefore call
-        # 'clear_cache()' to release any remaining memory from the previous tests or
-        # previous instances (different parametrizations) of these tests
-        clear_cache()
 
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
@@ -41,7 +34,7 @@ class TestGradient(object):
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                      kernel=kernel, space_order=space_order,
-                     nbpml=40)
+                     nbl=40)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)
@@ -84,7 +77,7 @@ class TestGradient(object):
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                      kernel=kernel, space_order=space_order,
-                     nbpml=40)
+                     nbl=40)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)
@@ -150,7 +143,7 @@ class TestGradient(object):
         spacing = tuple(15. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                      kernel=kernel, space_order=space_order,
-                     tn=1000., nbpml=10+space_order/2)
+                     tn=1000., nbl=10+space_order/2)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)

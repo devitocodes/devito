@@ -3,7 +3,7 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python>=3.6
+  - python=3
   - numpy>=1.14
   - sympy>=1.4
   - cgen
@@ -28,7 +28,6 @@ dependencies:
   - pip
   - pip:
     - "git+https://github.com/inducer/codepy"
-    - pyzfp>=0.2
     - pyrevolve>=2.1.3
     - py-cpuinfo
     - anytree>=2.4.3

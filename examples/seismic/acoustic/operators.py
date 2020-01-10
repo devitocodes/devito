@@ -23,7 +23,7 @@ def laplacian(field, m, s, kernel):
     if kernel not in ['OT2', 'OT4']:
         raise ValueError("Unrecognized kernel")
 
-    biharmonic = field.laplace2(1/m) if kernel == 'OT4' else 0
+    biharmonic = field.biharmonic(1/m) if kernel == 'OT4' else 0
     return field.laplace + s**2/12 * biharmonic
 
 
@@ -55,7 +55,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     # Define PDE
     eq = m * field.dt2 - H - kwargs.get('q', 0)
     # Add dampening field according to the propagation direction
-    eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
+    eq += damp * field.dt if kwargs.get('forward', True) else damp * field.dt.T
     # Solve the symbolic equation for the field to be updated
     eq_time = solve(eq, next)
     # Get the spacial FD
@@ -183,7 +183,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     if kernel == 'OT2':
         gradient_update = Inc(grad, - u.dt2 * v)
     elif kernel == 'OT4':
-        gradient_update = Inc(grad, - (u.dt2 + s**2 / 12.0 * u.laplace2(m**(-2))) * v)
+        gradient_update = Inc(grad, - (u.dt2 + s**2 / 12.0 * u.biharmonic(m**(-2))) * v)
     # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
 

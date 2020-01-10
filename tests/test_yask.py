@@ -117,10 +117,10 @@ class TestOperatorSimple(object):
             1 4 4 ... 4 1
             1 1 1 ... 1 1
         """
-        grid = Grid(shape=(16, 16, 16))
+        grid = Grid(shape=(17, 17, 17))
         v = TimeFunction(name='yv4D', grid=grid, space_order=space_order)
         v.data_with_halo[:] = 1.
-        op = Operator(Eq(v.forward, v.laplace + 6*v), subs=grid.spacing_map)
+        op = Operator(Eq(v.forward, v.laplace + 6.0*v), subs=grid.spacing_map)
         op(yv4D=v, time=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
@@ -351,7 +351,7 @@ class TestOperatorSimple(object):
         grid = Grid(shape=(4, 4, 4))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
-        op = Operator(Eq(u, u + 1.))
+        op = Operator(Eq(u.forward, u + 1.))
         assert 'run_solution' in str(op)
         assert 'pragma omp' not in str(op)
 
@@ -454,7 +454,7 @@ class TestIsotropicAcoustic(object):
         return (60, 70, 80)
 
     @cached_property
-    def nbpml(self):
+    def nbl(self):
         return 10
 
     @cached_property
@@ -469,7 +469,7 @@ class TestIsotropicAcoustic(object):
     def model(self):
         return demo_model(spacing=[15., 15., 15.], dtype=self.dtype,
                           space_order=self.space_order, shape=self.shape,
-                          nbpml=self.nbpml, preset='layers-isotropic', ratio=3)
+                          nbl=self.nbl, preset='layers-isotropic', ratio=3)
 
     @cached_property
     def time_params(self):
@@ -577,7 +577,7 @@ class TestIsotropicAcoustic(object):
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
         exp_u = 154.05
-        exp_rec = 212.15
+        exp_rec = 251.02
 
         assert np.isclose(np.linalg.norm(self.u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(self.rec.data.reshape(-1)), exp_rec,
@@ -588,8 +588,7 @@ class TestIsotropicAcoustic(object):
         Full acoustic wave test, forward + adjoint operators
         """
         from test_adjoint import TestAdjoint
-        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,
-                                     self.space_order, self.nbpml)
+        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel, self.space_order)
 
     @switchconfig(openmp=True)
     def test_acoustic_adjoint_omp(self):
@@ -598,5 +597,4 @@ class TestIsotropicAcoustic(object):
         sparse loops.
         """
         from test_adjoint import TestAdjoint
-        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,
-                                     self.space_order, self.nbpml)
+        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel, self.space_order)

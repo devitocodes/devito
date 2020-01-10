@@ -17,7 +17,7 @@ from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 
 
-__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes',
+__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
            'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
            'FindAdjacent']
 
@@ -91,7 +91,7 @@ class PrintAST(Visitor):
     def visit_tuple(self, o):
         return '\n'.join([self._visit(i) for i in o])
 
-    def visit_Block(self, o):
+    def visit_List(self, o):
         self._depth += 1
         if self.verbose:
             body = [self._visit(o.header), self._visit(o.body), self._visit(o.footer)]
@@ -112,10 +112,23 @@ class PrintAST(Visitor):
             detail, props = '', ''
         return self.indent + "<%sIteration %s%s>\n%s" % (props, o.dim.name, detail, body)
 
+    def visit_While(self, o):
+        self._depth += 1
+        body = self._visit(o.children)
+        self._depth -= 1
+        return self.indent + "<While %s>\n%s" % (o.condition, body)
+
     def visit_Expression(self, o):
         if self.verbose:
             body = "%s = %s" % (o.expr.lhs, o.expr.rhs)
             return self.indent + "<Expression %s>" % body
+        else:
+            return self.indent + str(o)
+
+    def visit_AugmentedExpression(self, o):
+        if self.verbose:
+            body = "%s %s= %s" % (o.expr.lhs, o.op, o.expr.rhs)
+            return self.indent + "<%s %s>" % (o.__class__.__name__, body)
         else:
             return self.indent + str(o)
 
@@ -218,9 +231,9 @@ class CGen(Visitor):
         return c.Assign(ccode(o.expr.lhs, dtype=o.dtype),
                         ccode(o.expr.rhs, dtype=o.dtype))
 
-    def visit_Increment(self, o):
-        return c.Statement("%s += %s" % (ccode(o.expr.lhs, dtype=o.dtype),
-                                         ccode(o.expr.rhs, dtype=o.dtype)))
+    def visit_AugmentedExpression(self, o):
+        return c.Statement("%s %s= %s" % (ccode(o.expr.lhs, dtype=o.dtype), o.op,
+                                          ccode(o.expr.rhs, dtype=o.dtype)))
 
     def visit_LocalExpression(self, o):
         if o.write.is_Array:
@@ -298,6 +311,15 @@ class CGen(Visitor):
             handle = c.Module(o.pragmas + (handle,))
 
         return handle
+
+    def visit_While(self, o):
+        condition = ccode(o.condition)
+        if o.body:
+            body = flatten(self._visit(i) for i in o.children)
+            return c.While(condition, body)
+        else:
+            # Hack: cgen doesn't support body-less while-loops, i.e. `while(...);`
+            return c.Statement('while(%s)' % condition)
 
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
@@ -380,7 +402,7 @@ class FindSections(Visitor):
         queue.remove(o)
         return ret
 
-    def visit_Simple(self, o, ret=None, queue=None):
+    def visit_ExprStmt(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         if queue is not None:
@@ -388,7 +410,7 @@ class FindSections(Visitor):
         return ret
 
     def visit_Conditional(self, o, ret=None, queue=None):
-        # Essentially like visit_Simple, but also go down through the children
+        # Essentially like visit_ExprStmt, but also go down through the children
         if ret is None:
             ret = self.default_retval()
         if queue is not None:
@@ -398,20 +420,22 @@ class FindSections(Visitor):
         return ret
 
 
-class MapSections(FindSections):
+class MapExprStmts(FindSections):
 
     """
-    Construct a mapper from Simple Nodes (i.e., Nodes that do *not* contain
-    other Nodes, such as Expressions and Calls) to the enclosing Iteration nest.
+    Construct a mapper from ExprStmts, i.e. expression statements such as Calls
+    and Expressions, to their enclosing block (e.g., Iteration, Block).
     """
 
-    def visit_Simple(self, o, ret=None, queue=None):
+    def visit_ExprStmt(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
         return ret
 
     visit_Conditional = FindSections.visit_Node
+
+    visit_Block = FindSections.visit_Iteration
 
 
 class MapNodes(Visitor):
@@ -529,7 +553,7 @@ class FindSymbols(Visitor):
         symbols += self.rule(o)
         return filter_sorted(symbols, key=attrgetter('name'))
 
-    visit_Block = visit_Iteration
+    visit_List = visit_Iteration
     visit_Conditional = visit_Iteration
 
     def visit_Expression(self, o):
@@ -654,18 +678,19 @@ class IsPerfectIteration(Visitor):
     def visit_object(self, o, **kwargs):
         return False
 
-    def visit_tuple(self, o, **kwargs):
-        return all(self._visit(i, **kwargs) for i in o)
+    def visit_tuple(self, o, found=False, nomore=False):
+        nomore = nomore or (found and len(o) > 1)
+        return all(self._visit(i, found=found, nomore=nomore) for i in o)
 
-    def visit_Node(self, o, found=False, **kwargs):
+    def visit_Node(self, o, found=False, nomore=False):
         if not found:
             return False
-        return all(self._visit(i, found=found, **kwargs) for i in o.children)
+        nomore = nomore or len(o.children) > 1
+        return all(self._visit(i, found=found, nomore=nomore) for i in o.children)
 
-    def visit_Conditional(self, o, found=False, **kwargs):
-        if not found:
-            return False
-        return all(self._visit(i, found=found, nomore=True) for i in o.children)
+    def visit_List(self, o, found=False, nomore=False):
+        nomore = nomore or (found and (len(o.children) > 1) or o.header or o.footer)
+        return all(self._visit(i, found=found, nomore=nomore) for i in o.children)
 
     def visit_Iteration(self, o, found=False, nomore=False):
         if found and nomore:
@@ -723,7 +748,7 @@ class Transformer(Visitor):
                     children = [self._visit(i, **kwargs) for i in handle.children]
                     return handle._rebuild(*children, **handle.args_frozen)
                 else:
-                    return handle._rebuild(**handle.args)
+                    return handle
         else:
             children = [self._visit(i, **kwargs) for i in o.children]
             return o._rebuild(*children, **o.args_frozen)

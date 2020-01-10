@@ -1,435 +1,24 @@
-import os
-
 import numpy as np
 from sympy import sin, Abs
 
-from examples.seismic.utils import scipy_smooth
-from devito import (Grid, SubDomain, Function, Constant, mmax,
+
+from devito import (Grid, SubDomain, Function, Constant,
                     SubDimension, Eq, Inc, Operator)
+from devito.builtins import initialize_function, gaussian_smooth
 from devito.tools import as_tuple
 
-__all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
+__all__ = ['Model', 'ModelElastic', 'ModelViscoelastic']
 
 
-def demo_model(preset, **kwargs):
+def initialize_damp(damp, nbl, spacing, mask=False):
     """
-    Utility function to create preset `Model` objects for
-    demonstration and testing purposes. The particular presets are ::
-
-    * `constant-isotropic` : Constant velocity (1.5 km/sec) isotropic model
-    * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
-                      Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad
-                      and phi=.35rad for 3D. 2d/3d is defined from the input shape
-    * 'layers-isotropic': Simple two-layer model with velocities 1.5 km/s
-                 and 2.5 km/s in the top and bottom layer respectively.
-                 2d/3d is defined from the input shape
-    * 'layers-tti': Simple two-layer TTI model with velocities 1.5 km/s
-                    and 2.5 km/s in the top and bottom layer respectively.
-                    Thomsen parameters in the top layer are 0 and in the lower layer
-                    are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.
-                    2d/3d is defined from the input shape
-    * 'circle-isotropic': Simple camembert model with velocities 1.5 km/s
-                 and 2.5 km/s in a circle at the center. 2D only.
-    * 'marmousi2d-isotropic': Loads the 2D Marmousi data set from the given
-                    filepath. Requires the ``opesci/data`` repository
-                    to be available on your machine.
-    * 'marmousi2d-tti': Loads the 2D Marmousi data set from the given
-                    filepath. Requires the ``opesci/data`` repository
-                    to be available on your machine.
-    * 'marmousi3d-tti': Loads the 2D Marmousi data set from the given
-                    filepath. Requires the ``opesci/data`` repository
-                    to be available on your machine.
-    """
-    space_order = kwargs.pop('space_order', 2)
-
-    if preset.lower() in ['constant-elastic']:
-        # A constant single-layer model in a 2D or 3D domain
-        # with velocity 1.5 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        nbpml = kwargs.pop('nbpml', 10)
-        dtype = kwargs.pop('dtype', np.float32)
-        vp = kwargs.pop('vp', 1.5)
-        vs = 0.5 * vp
-        rho = 1.0
-
-        return ModelElastic(space_order=space_order, vp=vp, vs=vs, rho=rho, origin=origin,
-                            shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml,
-                            **kwargs)
-
-    if preset.lower() in ['constant-viscoelastic']:
-        # A constant single-layer model in a 2D or 3D domain
-        # with velocity 2.2 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        nbpml = kwargs.pop('nbpml', 10)
-        dtype = kwargs.pop('dtype', np.float32)
-        vp = kwargs.pop('vp', 2.2)
-        qp = kwargs.pop('qp', 100.)
-        vs = kwargs.pop('vs', 1.2)
-        qs = kwargs.pop('qs', 70.)
-        rho = 2.
-
-        return ModelViscoelastic(space_order=space_order, vp=vp, qp=qp, vs=vs,
-                                 qs=qs, rho=rho, origin=origin, shape=shape,
-                                 dtype=dtype, spacing=spacing, nbpml=nbpml,
-                                 **kwargs)
-
-    if preset.lower() in ['constant-isotropic']:
-        # A constant single-layer model in a 2D or 3D domain
-        # with velocity 1.5 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        nbpml = kwargs.pop('nbpml', 10)
-        dtype = kwargs.pop('dtype', np.float32)
-        vp = kwargs.pop('vp', 1.5)
-
-        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
-
-    elif preset.lower() in ['constant-tti']:
-        # A constant single-layer model in a 2D or 3D domain
-        # with velocity 1.5 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        nbpml = kwargs.pop('nbpml', 10)
-        dtype = kwargs.pop('dtype', np.float32)
-        v = np.empty(shape, dtype=dtype)
-        v[:] = 1.5
-        epsilon = .3*np.ones(shape, dtype=dtype)
-        delta = .2*np.ones(shape, dtype=dtype)
-        theta = .7*np.ones(shape, dtype=dtype)
-        phi = None
-        if len(shape) > 2:
-            phi = .35*np.ones(shape, dtype=dtype)
-
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
-                     delta=delta, theta=theta, phi=phi, **kwargs)
-
-    elif preset.lower() in ['layers-isotropic', 'twolayer-isotropic',
-                            '2layer-isotropic']:
-        # A two-layer model in a 2D or 3D domain with two different
-        # velocities split across the height dimension:
-        # By default, the top part of the domain has 1.5 km/s,
-        # and the bottom part of the domain has 2.5 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
-        nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 3)
-        vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
-
-        # Define a velocity profile in km/s
-        v = np.empty(shape, dtype=dtype)
-        v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
-
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
-
-    elif preset.lower() in ['layers-elastic', 'twolayer-elastic',
-                            '2layer-elastic']:
-        # A two-layer model in a 2D or 3D domain with two different
-        # velocities split across the height dimension:
-        # By default, the top part of the domain has 1.5 km/s,
-        # and the bottom part of the domain has 2.5 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
-        nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 2)
-        vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
-
-        # Define a velocity profile in km/s
-        v = np.empty(shape, dtype=dtype)
-        v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
-
-        vs = 0.5 * v[:]
-        rho = v[:]/vp_top
-
-        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
-                            origin=origin, shape=shape,
-                            dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
-
-    elif preset.lower() in ['layers-viscoelastic', 'twolayer-viscoelastic',
-                            '2layer-viscoelastic']:
-        # A two-layer model in a 2D or 3D domain with two different
-        # velocities split across the height dimension:
-        # By default, the top part of the domain has 1.6 km/s,
-        # and the bottom part of the domain has 2.2 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
-        nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 3)
-        vp_top = kwargs.pop('vp_top', 1.6)
-        qp_top = kwargs.pop('qp_top', 40.)
-        vs_top = kwargs.pop('vs_top', 0.4)
-        qs_top = kwargs.pop('qs_top', 30.)
-        rho_top = kwargs.pop('rho_top', 1.3)
-        vp_bottom = kwargs.pop('vp_bottom', 2.2)
-        qp_bottom = kwargs.pop('qp_bottom', 100.)
-        vs_bottom = kwargs.pop('vs_bottom', 1.2)
-        qs_bottom = kwargs.pop('qs_bottom', 70.)
-        rho_bottom = kwargs.pop('qs_bottom', 2.)
-
-        # Define a velocity profile in km/s
-        vp = np.empty(shape, dtype=dtype)
-        qp = np.empty(shape, dtype=dtype)
-        vs = np.empty(shape, dtype=dtype)
-        qs = np.empty(shape, dtype=dtype)
-        rho = np.empty(shape, dtype=dtype)
-        # Top and bottom P-wave velocity
-        vp[:] = vp_top
-        vp[..., int(shape[-1] / ratio):] = vp_bottom
-        # Top and bottom P-wave quality factor
-        qp[:] = qp_top
-        qp[..., int(shape[-1] / ratio):] = qp_bottom
-        # Top and bottom S-wave velocity
-        vs[:] = vs_top
-        vs[..., int(shape[-1] / ratio):] = vs_bottom
-        # Top and bottom S-wave quality factor
-        qs[:] = qs_top
-        qs[..., int(shape[-1] / ratio):] = qs_bottom
-        # Top and bottom density
-        rho[:] = rho_top
-        rho[..., int(shape[-1] / ratio):] = rho_bottom
-
-        return ModelViscoelastic(space_order=space_order, vp=vp, qp=qp,
-                                 vs=vs, qs=qs, rho=rho, origin=origin,
-                                 shape=shape, dtype=dtype, spacing=spacing,
-                                 nbpml=nbpml, **kwargs)
-
-    elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
-        # A two-layer model in a 2D or 3D domain with two different
-        # velocities split across the height dimension:
-        # By default, the top part of the domain has 1.5 km/s,
-        # and the bottom part of the domain has 2.5 km/s.\
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
-        nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 2)
-        vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
-
-        # Define a velocity profile in km/s
-        v = np.empty(shape, dtype=dtype)
-        v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
-
-        epsilon = scipy_smooth(.3*(v - 1.5))
-        delta = scipy_smooth(.2*(v - 1.5))
-        theta = scipy_smooth(.5*(v - 1.5))
-        phi = None
-        if len(shape) > 2:
-            phi = scipy_smooth(.25*(v - 1.5), shape)
-
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
-                     delta=delta, theta=theta, phi=phi, **kwargs)
-
-    elif preset.lower() in ['layers-tti-noazimuth', 'twolayer-tti-noazimuth',
-                            '2layer-tti-noazimuth']:
-        # A two-layer model in a 2D or 3D domain with two different
-        # velocities split across the height dimension:
-        # By default, the top part of the domain has 1.5 km/s,
-        # and the bottom part of the domain has 2.5 km/s.\
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
-        nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 2)
-        vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
-
-        # Define a velocity profile in km/s
-        v = np.empty(shape, dtype=dtype)
-        v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
-
-        epsilon = .3*(v - 1.5)
-        delta = .2*(v - 1.5)
-        theta = .5*(v - 1.5)
-
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
-                     delta=delta, theta=theta, **kwargs)
-
-    elif preset.lower() in ['circle-isotropic']:
-        # A simple circle in a 2D domain with a background velocity.
-        # By default, the circle velocity is 2.5 km/s,
-        # and the background veloity is 3.0 km/s.
-        dtype = kwargs.pop('dtype', np.float32)
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        nbpml = kwargs.pop('nbpml', 10)
-        vp = kwargs.pop('vp', 3.0)
-        vp_background = kwargs.pop('vp_background', 2.5)
-        r = kwargs.pop('r', 15)
-
-        # Only a 2D preset is available currently
-        assert(len(shape) == 2)
-
-        v = np.empty(shape, dtype=dtype)
-        v[:] = vp_background
-
-        a, b = shape[0] / 2, shape[1] / 2
-        y, x = np.ogrid[-a:shape[0]-a, -b:shape[1]-b]
-        v[x*x + y*y <= r*r] = vp
-
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
-
-    elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
-        shape = (1601, 401)
-        spacing = (7.5, 7.5)
-        origin = (0., 0.)
-        nbpml = kwargs.pop('nbpml', 20)
-
-        # Read 2D Marmousi model from opesc/data repo
-        data_path = kwargs.get('data_path', None)
-        if data_path is None:
-            raise ValueError("Path to opesci/data not found! Please specify with "
-                             "'data_path=<path/to/opesci/data>'")
-        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
-        v = np.fromfile(path, dtype='float32', sep="")
-        v = v.reshape(shape)
-
-        # Cut the model to make it slightly cheaper
-        v = v[301:-300, :]
-
-        return Model(space_order=space_order, vp=v, origin=origin, shape=v.shape,
-                     dtype=np.float32, spacing=spacing, nbpml=nbpml, **kwargs)
-
-    elif preset.lower() in ['marmousi-elastic', 'marmousi2d-elastic']:
-        shape = (1601, 401)
-        spacing = (7.5, 7.5)
-        origin = (0., 0.)
-
-        # Read 2D Marmousi model from opesc/data repo
-        data_path = kwargs.get('data_path', None)
-        if data_path is None:
-            raise ValueError("Path to opesci/data not found! Please specify with "
-                             "'data_path=<path/to/opesci/data>'")
-        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
-        v = np.fromfile(path, dtype='float32', sep="")
-        v = v.reshape(shape)
-
-        # Cut the model to make it slightly cheaper
-        v = v[301:-300, :]
-        vs = .5 * v[:]
-        rho = v[:]/mmax(v[:])
-
-        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
-                            origin=origin, shape=v.shape,
-                            dtype=np.float32, spacing=spacing, nbpml=20)
-
-    elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
-
-        shape_full = (201, 201, 70)
-        shape = (201, 70)
-        spacing = (10., 10.)
-        origin = (0., 0.)
-        nbpml = kwargs.pop('nbpml', 20)
-
-        # Read 2D Marmousi model from opesc/data repo
-        data_path = kwargs.pop('data_path', None)
-        if data_path is None:
-            raise ValueError("Path to opesci/data not found! Please specify with "
-                             "'data_path=<path/to/opesci/data>'")
-        path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
-
-        # velocity
-        vp = 1e-3 * np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiVP.raw'),
-                                dtype='float32', sep="")
-        vp = vp.reshape(shape_full)
-        vp = vp[101, :, :]
-        # Epsilon, in % in file, resale between 0 and 1
-        epsilon = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiEps.raw'),
-                              dtype='float32', sep="") * 1e-2
-        epsilon = epsilon.reshape(shape_full)
-        epsilon = epsilon[101, :, :]
-        # Delta, in % in file, resale between 0 and 1
-        delta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiDelta.raw'),
-                            dtype='float32', sep="") * 1e-2
-        delta = delta.reshape(shape_full)
-        delta = delta[101, :, :]
-        # Theta, in degrees in file, resale in radian
-        theta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiTilt.raw'),
-                            dtype='float32', sep="")
-        theta = np.float32(np.pi / 180 * theta.reshape(shape_full))
-        theta = theta[101, :, :]
-
-        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
-                     dtype=np.float32, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
-                     delta=delta, theta=theta, **kwargs)
-
-    elif preset.lower() in ['marmousi-tti3d', 'marmousi3d-tti']:
-        shape = (201, 201, 70)
-        spacing = (10., 10., 10.)
-        origin = (0., 0., 0.)
-        nbpml = kwargs.pop('nbpml', 20)
-
-        # Read 2D Marmousi model from opesc/data repo
-        data_path = kwargs.pop('data_path', None)
-        if data_path is None:
-            raise ValueError("Path to opesci/data not found! Please specify with "
-                             "'data_path=<path/to/opesci/data>'")
-        path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
-
-        # Velcoity
-        vp = 1e-3 * np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiVP.raw'),
-                                dtype='float32', sep="")
-        vp = vp.reshape(shape)
-        # Epsilon, in % in file, resale between 0 and 1
-        epsilon = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiEps.raw'),
-                              dtype='float32', sep="") * 1e-2
-        epsilon = epsilon.reshape(shape)
-        # Delta, in % in file, resale between 0 and 1
-        delta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiDelta.raw'),
-                            dtype='float32', sep="") * 1e-2
-        delta = delta.reshape(shape)
-        # Theta, in degrees in file, resale in radian
-        theta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiTilt.raw'),
-                            dtype='float32', sep="")
-        theta = np.float32(np.pi / 180 * theta.reshape(shape))
-        # Phi, in degrees in file, resale in radian
-        phi = np.fromfile(os.path.join(data_path, 'marmousi3D/Azimuth.raw'),
-                          dtype='float32', sep="")
-        phi = np.float32(np.pi / 180 * phi.reshape(shape))
-
-        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
-                     dtype=np.float32, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
-                     delta=delta, theta=theta, phi=phi, **kwargs)
-
-    else:
-        raise ValueError("Unknown model preset name")
-
-
-def initialize_damp(damp, nbpml, spacing, mask=False):
-    """
-    Initialise damping field with an absorbing PML layer.
+    Initialise damping field with an absorbing boundary layer.
 
     Parameters
     ----------
     damp : Function
         The damping field for absorbing boundary condition.
-    nbpml : int
+    nbl : int
         Number of points in the damping layer.
     spacing :
         Grid spacing coefficient.
@@ -438,21 +27,21 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40)
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
 
     eqs = [Eq(damp, 1.0)] if mask else []
     for d in damp.dimensions:
         # left
         dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                  thickness=nbpml)
-        pos = Abs((nbpml - (dim_l - d.symbolic_min) + 1) / float(nbpml))
+                                  thickness=nbl)
+        pos = Abs((nbl - (dim_l - d.symbolic_min) + 1) / float(nbl))
         val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
         val = -val if mask else val
         eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
         # right
         dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                   thickness=nbpml)
-        pos = Abs((nbpml - (d.symbolic_max - dim_r) + 1) / float(nbpml))
+                                   thickness=nbl)
+        pos = Abs((nbl - (d.symbolic_max - dim_r) + 1) / float(nbl))
         val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
         val = -val if mask else val
         eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
@@ -461,82 +50,71 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
     Operator(eqs, name='initdamp', dse='noop', dle='noop')()
 
 
-def initialize_function(function, data, nbpml):
-    """
-    Initialize a `Function` with the given ``data``. ``data``
-    does *not* include the PML layers for the absorbing boundary conditions;
-    these are added via padding by this function.
-
-    Parameters
-    ----------
-    function : Function
-        The initialised object.
-    data : ndarray
-        The data array used for initialisation.
-    nbpml : int
-        Number of PML layers for boundary damping.
-    """
-    slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
-    function.data[slices] = data
-    eqs = []
-
-    for d in function.dimensions:
-        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                  thickness=nbpml)
-        to_copy = nbpml
-        eqs += [Eq(function.subs({d: dim_l}), function.subs({d: to_copy}))]
-        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                   thickness=nbpml)
-        to_copy = d.symbolic_max - nbpml
-        eqs += [Eq(function.subs({d: dim_r}), function.subs({d: to_copy}))]
-
-    # TODO: Figure out why yask doesn't like it with dse/dle
-    Operator(eqs, name='padfunc', dse='noop', dle='noop')()
-
-
 class PhysicalDomain(SubDomain):
 
     name = 'phydomain'
 
-    def __init__(self, nbpml):
+    def __init__(self, nbl):
         super(PhysicalDomain, self).__init__()
-        self.nbpml = nbpml
+        self.nbl = nbl
 
     def define(self, dimensions):
-        return {d: ('middle', self.nbpml, self.nbpml) for d in dimensions}
+        return {d: ('middle', self.nbl, self.nbl) for d in dimensions}
 
 
 class GenericModel(object):
     """
     General model class with common properties
     """
-    def __init__(self, origin, spacing, shape, space_order, nbpml=20,
+    def __init__(self, origin, spacing, shape, space_order, nbl=20,
                  dtype=np.float32, subdomains=(), damp_mask=False):
         self.shape = shape
-        self.nbpml = int(nbpml)
+        self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
 
-        # Origin of the computational domain with PML to inject/interpolate
+        # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index
-        origin_pml = tuple([dtype(o - s*nbpml) for o, s in zip(origin, spacing)])
-        phydomain = PhysicalDomain(self.nbpml)
+        origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
+        phydomain = PhysicalDomain(self.nbl)
         subdomains = subdomains + (phydomain, )
-        shape_pml = np.array(shape) + 2 * self.nbpml
+        shape_pml = np.array(shape) + 2 * self.nbl
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
         self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml, dtype=dtype,
                          subdomains=subdomains)
 
-        # Create dampening field as symbol `damp`
-        self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.spacing, mask=damp_mask)
+        if self.nbl != 0:
+            # Create dampening field as symbol `damp`
+            self.damp = Function(name="damp", grid=self.grid)
+            initialize_damp(self.damp, self.nbl, self.spacing, mask=damp_mask)
+            self._physical_parameters = ['damp']
+        else:
+            self.damp = 1 if damp_mask else 0
+            self._physical_parameters = []
 
     def physical_params(self, **kwargs):
         """
         Return all set physical parameters and update to input values if provided
         """
-        known = [getattr(self, i) for i in self._physical_parameters]
+        known = [getattr(self, i) for i in self.physical_parameters]
         return {i.name: kwargs.get(i.name, i) or i for i in known}
+
+    def _gen_phys_param(self, field, name, space_order, is_param=False,
+                        default_value=0):
+        if field is None:
+            return default_value
+        if isinstance(field, np.ndarray):
+            function = Function(name=name, grid=self.grid, space_order=space_order,
+                                parameter=is_param)
+            initialize_function(function, field, self.nbl)
+        else:
+            function = Constant(name=name, value=field)
+        self._physical_parameters.append(name)
+        return function
+
+    @property
+    def physical_parameters(self):
+        return as_tuple(self._physical_parameters)
 
     @property
     def dim(self):
@@ -580,16 +158,6 @@ class GenericModel(object):
         """
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
-    def _gen_phys_param(self, field, name, space_order, default_value=0):
-        if field is None:
-            return default_value
-        if isinstance(field, np.ndarray):
-            function = Function(name=name, grid=self.grid, space_order=space_order)
-            initialize_function(function, field, self.nbpml)
-        else:
-            function = Constant(name=name, value=field)
-        return function
-
 
 class Model(GenericModel):
     """
@@ -607,8 +175,8 @@ class Model(GenericModel):
         Order of the spatial stencil discretisation.
     vp : array_like or float
         Velocity in km/s.
-    nbpml : int, optional
-        The number of PML layers for boundary damping.
+    nbl : int, optional
+        The number of absorbin layers for boundary damping.
     dtype : np.float32 or np.float64
         Defaults to 32.
     epsilon : array_like or float, optional
@@ -628,40 +196,24 @@ class Model(GenericModel):
     damp : Function
         The damping field for absorbing boundary condition.
     """
-    def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
+    def __init__(self, origin, spacing, shape, space_order, vp, nbl=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
                  subdomains=(), **kwargs):
-        super(Model, self).__init__(origin, spacing, shape, space_order, nbpml, dtype,
+        super(Model, self).__init__(origin, spacing, shape, space_order, nbl, dtype,
                                     subdomains)
-
-        physical_parameters = []
 
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
-        physical_parameters.append('vp')
         self._max_vp = np.max(vp)
 
         # Additional parameter fields for TTI operators
         self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
-        if self.epsilon != 0:
-            physical_parameters.append('epsilon')
-            self.scale = np.sqrt(1 + 2 * np.max(epsilon))
-        else:
-            self.scale = 1
+        self.scale = 1 if epsilon is None else np.sqrt(1 + 2 * np.max(epsilon))
 
         self.delta = self._gen_phys_param(delta, 'delta', space_order)
-        if self.delta != 0:
-            physical_parameters.append('delta')
-
         self.theta = self._gen_phys_param(theta, 'theta', space_order)
-        if self.theta != 0:
-            physical_parameters.append('theta')
-
-        self.phi = self._gen_phys_param(phi, 'phi', space_order)
-        if self.phi != 0 and self.grid.dim == 3:
-            physical_parameters.append('phi')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        if self.grid.dim > 2:
+            self.phi = self._gen_phys_param(phi, 'phi', space_order)
 
     @property
     def critical_dt(self):
@@ -674,7 +226,7 @@ class Model(GenericModel):
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*self._max_vp))
-        return self.dtype("%.3f" % dt)
+        return self.dtype("%.3e" % dt)
 
     @property
     def vp(self):
@@ -704,19 +256,34 @@ class Model(GenericModel):
             if vp.shape == self.vp.shape:
                 self.vp.data[:] = vp[:]
             elif vp.shape == self.shape:
-                initialize_function(self._vp, vp, self.nbpml)
+                initialize_function(self._vp, vp, self.nbl)
             else:
                 raise ValueError("Incorrect input size %s for model of size" % vp.shape +
                                  " %s without or %s with padding" % (self.shape,
                                                                      self.vp.shape))
         else:
             self._vp.data = vp
-
         self._max_vp = np.max(vp)
 
     @property
     def m(self):
         return 1 / (self.vp * self.vp)
+
+    def smooth(self, physical_parameters, sigma=5.0):
+        """
+        Apply devito.gaussian_smooth to model physical parameters.
+
+        Parameters
+        ----------
+        physical_parameters : string or tuple of string
+            Names of the fields to be smoothed.
+        sigma : float
+            Standard deviation of the smoothing operator.
+        """
+        model_parameters = self.physical_params()
+        for i in physical_parameters:
+            gaussian_smooth(model_parameters[i], sigma=sigma)
+        return
 
 
 class ModelElastic(GenericModel):
@@ -737,8 +304,8 @@ class ModelElastic(GenericModel):
         P-wave velocity in km/s.
     vs : float or array
         S-wave velocity in km/s.
-    nbpml : int, optional
-        The number of PML layers for boundary damping.
+    nbl : int, optional
+        The number of absorbing layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
@@ -748,35 +315,31 @@ class ModelElastic(GenericModel):
     damp : Function, optional
         The damping field for absorbing boundary condition.
     """
-    def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
+    def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbl=20,
                  dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbpml=nbpml, dtype=dtype,
+                                           nbl=nbl, dtype=dtype,
                                            damp_mask=True)
 
-        physical_parameters = []
+        self.maxvp = np.max(vp)
+        self.lam = self._gen_phys_param((vp**2 - 2 * vs**2)*rho, 'lam', space_order,
+                                        is_param=True)
 
-        self.vp = self._gen_phys_param(vp, 'vp', space_order)
-        physical_parameters.append('vp')
+        self.mu = self._gen_phys_param(vs**2 * rho, 'mu', space_order, is_param=True)
 
-        self.vs = self._gen_phys_param(vs, 'vs', space_order)
-        physical_parameters.append('vs')
-
-        self.rho = self._gen_phys_param(rho, 'rho', space_order)
-        physical_parameters.append('rho')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        self.irho = self._gen_phys_param(1/rho, 'irho', space_order, is_param=True)
 
     @property
     def critical_dt(self):
         """
         Critical computational time step value from the CFL condition.
         """
-        # For a fixed time order this number goes down as the space order increases.
+        # For a fixed time order this number decreases as the space order increases.
         #
         # The CFL condtion is then given by
-        # dt < h / (sqrt(2) * max(vp)))
-        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
+        # dt < h / (sqrt(ndim) * max(vp)))
+        dt = .95*np.min(self.spacing) / (np.sqrt(3)*self.maxvp)
+        return self.dtype("%.3e" % dt)
 
 
 class ModelViscoelastic(ModelElastic):
@@ -801,8 +364,8 @@ class ModelViscoelastic(ModelElastic):
         S-wave velocity in km/s.
     qs : float or array
         S-wave qulaity factor (dimensionless).
-    nbpml : int, optional
-        The number of PML layers for boundary damping.
+    nbl : int, optional
+        The number of absorbing layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
@@ -813,20 +376,14 @@ class ModelViscoelastic(ModelElastic):
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, qp, vs, qs, rho,
-                 nbpml=20, dtype=np.float32):
+                 nbl=20, dtype=np.float32):
         super(ModelViscoelastic, self).__init__(origin, spacing, shape,
                                                 space_order, vp, vs, rho,
-                                                nbpml=nbpml, dtype=dtype)
+                                                nbl=nbl, dtype=dtype)
 
-        physical_parameters = list(self._physical_parameters)
+        self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
-        self.qp = self._gen_phys_param(qp, 'qp', space_order)
-        physical_parameters.append('qp')
-
-        self.qs = self._gen_phys_param(qs, 'qs', space_order)
-        physical_parameters.append('qs')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        self.qs = self._gen_phys_param(qs, 'qs', space_order, is_param=True)
 
     @property
     def critical_dt(self):
@@ -837,5 +394,5 @@ class ModelViscoelastic(ModelElastic):
         # See Blanch, J. O., 1995, "A study of viscous effects in seismic modelling,
         # imaging, and inversion: methodology, computational aspects and sensitivity"
         # for further details:
-        return self.dtype(6.*np.min(self.spacing) /
-                          (7.*np.sqrt(self.grid.dim)*mmax(self.vp)))
+        dt = .85*np.min(self.spacing) / (np.sqrt(self.grid.dim)*self.maxvp)
+        return self.dtype("%.3e" % dt)

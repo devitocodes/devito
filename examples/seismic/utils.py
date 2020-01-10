@@ -1,17 +1,8 @@
-from scipy import ndimage
-
 from devito import error
 from devito.tools import Pickable
 
 from .source import *
-__all__ = ['scipy_smooth', 'AcquisitionGeometry']
-
-
-def scipy_smooth(img, sigma=5):
-    """
-    Smooth the input with scipy ndimage utility
-    """
-    return ndimage.gaussian_filter(img, sigma=sigma)
+__all__ = ['AcquisitionGeometry']
 
 
 class AcquisitionGeometry(Pickable):

@@ -1,5 +1,6 @@
 pip>=9.0.1
 numpy>=1.14
+coverage<5.0
 sympy>=1.4
 scipy
 pytest>=3.6
@@ -18,6 +19,5 @@ pytest-cov
 multidict
 frozendict
 anytree>=2.4.3
-pyzfp>=0.2
 pyrevolve>=2.1.3
 distributed>=1.27

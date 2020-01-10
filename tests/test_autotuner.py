@@ -1,13 +1,9 @@
-from functools import reduce
-from operator import mul
-
 import pytest
 import numpy as np
 from unittest.mock import patch
 
 from conftest import skipif
-from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
-                    switchconfig)
+from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
 from devito.data import LEFT
 
 pytestmark = skipif(['yask', 'ops'], whole_module=True)
@@ -30,73 +26,32 @@ def test_at_is_actually_working(shape, expected):
     in both 2D and 3D operators.
     """
     grid = Grid(shape=shape)
-    infield = Function(name='infield', grid=grid)
-    infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = Function(name='outfield', grid=grid)
+    f = TimeFunction(name='f', grid=grid)
 
-    stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
-    op = Operator(stencil, dle=('blocking', {'openmp': False,
-                                             'blockinner': True,
-                                             'blockalways': True}))
+    eqn = Eq(f.forward, f + 1)
+    op = Operator(eqn, dle=('blocking', {'openmp': False, 'blockinner': True}))
 
     # Run with whatever `configuration` says (by default, basic+preemptive)
-    op(infield=infield, outfield=outfield, autotune=True)
+    op(time_M=0, autotune=True)
     assert op._state['autotuning'][-1]['runs'] == 4
-    assert op._state['autotuning'][-1]['tpr'] == 1
+    assert op._state['autotuning'][-1]['tpr'] == options['squeezer'] + 1
 
     # Now try `aggressive` autotuning
     configuration['autotuning'] = 'aggressive'
-    op(infield=infield, outfield=outfield, autotune=True)
+    op(time_M=0, autotune=True)
     assert op._state['autotuning'][-1]['runs'] == expected
-    assert op._state['autotuning'][-1]['tpr'] == 1
+    assert op._state['autotuning'][-1]['tpr'] == options['squeezer'] + 1
     configuration['autotuning'] = configuration._defaults['autotuning']
 
     # Try again, but using the Operator API directly
-    op(infield=infield, outfield=outfield, autotune='aggressive')
+    op(time_M=0, autotune='aggressive')
     assert op._state['autotuning'][-1]['runs'] == expected
-    assert op._state['autotuning'][-1]['tpr'] == 1
+    assert op._state['autotuning'][-1]['tpr'] == options['squeezer'] + 1
 
     # Similar to above
-    op(infield=infield, outfield=outfield, autotune=('aggressive', 'preemptive'))
+    op(time_M=0, autotune=('aggressive', 'preemptive'))
     assert op._state['autotuning'][-1]['runs'] == expected
-    assert op._state['autotuning'][-1]['tpr'] == 1
-
-
-@switchconfig(log_level='DEBUG')
-def test_timesteps_per_at_run():
-    """
-    Check that each autotuning run (ie with a given block shape) takes
-    ``autotuning.core.options['squeezer']`` timesteps, for an operator
-    performing the increment ``a[t + timeorder, ...] = f(a[t, ...], ...)``.
-    """
-    shape = (30, 30, 30)
-    grid = Grid(shape=shape)
-    x, y, z = grid.dimensions
-    t = grid.stepping_dim
-
-    # Function
-    infield = Function(name='infield', grid=grid)
-    infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = Function(name='outfield', grid=grid)
-    stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
-    op = Operator(stencil, dle=('blocking', {'openmp': False, 'blockalways': True}))
-    op(infield=infield, outfield=outfield, autotune=True)
-    assert op._state['autotuning'][-1]['runs'] == 4
-    assert op._state['autotuning'][-1]['tpr'] == 1
-
-    # TimeFunction with increasing time order; increasing the time order
-    # shouldn't affect how many iterations the autotuner is gonna run
-    for to in [1, 2, 4]:
-        infield = TimeFunction(name='infield', grid=grid, time_order=to)
-        infield.data[:] = np.arange(reduce(mul, infield.shape),
-                                    dtype=np.int32).reshape(infield.shape)
-        outfield = TimeFunction(name='outfield', grid=grid, time_order=to)
-        stencil = Eq(outfield[t + to, x, y, z],
-                     outfield.indexify() + infield.indexify()*3.0)
-        op = Operator(stencil, dle=('blocking', {'openmp': False, 'blockalways': True}))
-        op(infield=infield, outfield=outfield, time=20, autotune=True)
-        assert op._state['autotuning'][-1]['runs'] == 4
-        assert op._state['autotuning'][-1]['tpr'] == options['squeezer'] + 1
+    assert op._state['autotuning'][-1]['tpr'] == options['squeezer'] + 1
 
 
 @switchconfig(profiling='advanced')
@@ -177,15 +132,15 @@ def test_mixed_blocking_nthreads():
 
 
 def test_tti_aggressive():
-    from test_dse import tti_operator
-    wave_solver = tti_operator(dse='aggressive', dle=('advanced', {'openmp': False}))
-    op = wave_solver.op_fwd(kernel='centered', save=False)
+    from test_dse import TestTTI
+    wave_solver = TestTTI().tti_operator(dse='aggressive')
+    op = wave_solver.op_fwd(kernel='centered')
     op.apply(time=0, autotune='aggressive')
     assert op._state['autotuning'][0]['runs'] == 28
 
 
 @switchconfig(develop_mode=False)
-@patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+@patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
@@ -317,6 +272,7 @@ def test_hierarchical_blocking():
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
 
+@switchconfig(platform='cpu64-dummy')  # To fix the core count
 def test_multiple_threads():
     """
     Test autotuning when different ``num_threads`` for a given OpenMP parallel
@@ -331,6 +287,22 @@ def test_multiple_threads():
     assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
+
+
+@switchconfig(platform='knl7210')  # To trigger nested parallelism
+def test_nested_nthreads():
+    grid = Grid(shape=(96, 96, 96))
+    f = TimeFunction(name='f', grid=grid)
+
+    op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': True}))
+    op.apply(time=10, autotune=True)
+
+    assert op._state['autotuning'][0]['runs'] == 6
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
+    assert len(op._state['autotuning'][0]['tuned']) == 3
+    assert 'nthreads' in op._state['autotuning'][0]['tuned']
+    # No tuning for the nested level
+    assert 'nthreads_nested' not in op._state['autotuning'][0]['tuned']
 
 
 def test_few_timesteps():

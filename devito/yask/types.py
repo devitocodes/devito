@@ -9,7 +9,9 @@ from devito.exceptions import InvalidArgument
 from devito.logger import yask as log, yask_warning as warning
 from devito.tools import Signer, memoized_meth, dtype_to_ctype
 import devito.types.basic as basic
+import devito.types.caching as caching
 import devito.types.constant as constant
+import devito.types.dimension as dimension
 import devito.types.dense as dense
 import devito.types.grid as grid
 
@@ -25,9 +27,9 @@ class Constant(constant.Constant):
 
     from_YASK = True
 
-    def __init__(self, *args, **kwargs):
+    def __init_finalize__(self, *args, **kwargs):
         value = kwargs.pop('value', 0.)
-        super(Constant, self).__init__(*args, value=DataScalar(value), **kwargs)
+        super(Constant, self).__init_finalize__(*args, value=DataScalar(value), **kwargs)
 
     @property
     def data(self):
@@ -59,16 +61,23 @@ class Function(dense.Function, Signer):
     from_YASK = True
 
     def __new__(cls, *args, **kwargs):
-        if cls in basic._SymbolCache:
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
+
+        if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **kwargs.get('options', {}))
-            newobj._cached_init()
-        else:
-            # If a Function has no SpaceDimension, than for sure it won't be
-            # used by YASK. We then return a devito.Function, which employs
-            # a standard row-major format for data values
-            indices = cls.__indices_setup__(**kwargs)
-            klass = cls if any(i.is_Space for i in indices) else cls.__base__
-            newobj = cls.__base__.__new__(klass, *args, **kwargs)
+            newobj.__init_cached__(key)
+            return newobj
+
+        # Not in cache. Create a new Function via core.Function
+
+        # If a Function has no SpaceDimension, than for sure it won't be
+        # used by YASK. We then return a devito.Function, which employs
+        # a standard row-major format for data values
+        dimensions, indices = cls.__indices_setup__(**kwargs)
+        klass = cls if any(i.is_Space for i in indices) else cls.__base__
+        newobj = cls.__base__.__new__(klass, *args, **kwargs)
+
         return newobj
 
     def __padding_setup__(self, **kwargs):
@@ -80,6 +89,10 @@ class Function(dense.Function, Signer):
         def wrapper(self):
             if self._data is None:
                 log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
+
+                # Free memory carried by stale symbolic objects
+                # TODO: see issue #944
+                # CacheManager.clear(dump_contexts=False, force=False)
 
                 # Fetch the appropriate context
                 context = contexts.fetch(self.dimensions, self.dtype)
@@ -106,7 +119,13 @@ class Function(dense.Function, Signer):
         return wrapper
 
     def __del__(self):
-        if self._data is not None:
+        if self._data is None:
+            # Perhaps data had never been allocated
+            return
+        if self is self.function:
+            # The original Function (e.g., f(x, y)) is in charge of freeing memory,
+            # while this is a no-op for all other objects derived from it (e.g.,
+            # (e.g., f(x+1, y), f(x, y-2))
             self._data.release_storage()
 
     @property
@@ -191,12 +210,15 @@ class TimeFunction(dense.TimeFunction, Function):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        indices = list(dense.TimeFunction.__indices_setup__(**kwargs))
+        dimensions, indices = dense.TimeFunction.__indices_setup__(**kwargs)
+        dimensions, indices = list(dimensions), list(indices)
         # Never use a SteppingDimension in the yask backend: it is simply
         # unnecessary
         if indices[cls._time_position].is_Stepping:
             indices[cls._time_position] = indices[cls._time_position].root
-        return tuple(indices)
+        if dimensions[cls._time_position].is_Stepping:
+            dimensions[cls._time_position] = dimensions[cls._time_position].root
+        return tuple(dimensions), tuple(indices)
 
     @memoized_meth
     def _arg_defaults(self, alias=None):
@@ -223,6 +245,19 @@ class TimeFunction(dense.TimeFunction, Function):
             super(TimeFunction, self)._arg_check(args, intervals)
 
 
+class YaskTimeDimension(dimension.TimeDimension):
+
+    """
+    A TimeDimension that acts like and can be used in place of SteppingDimension.
+    """
+
+    is_NonlinearDerived = True
+
+    @property
+    def parent(self):
+        return self
+
+
 class Grid(grid.Grid):
 
     def __init__(self, *args, **kwargs):
@@ -239,6 +274,9 @@ class Grid(grid.Grid):
         # In the `yask` backend, the stepping dimension is an alias of the
         # time dimension
         return time_dim
+
+    def _make_time_dim(self, spacing):
+        return YaskTimeDimension(name='time', spacing=spacing)
 
     def __setstate__(self, state):
         super(Grid, self).__setstate__(state)
@@ -284,10 +322,11 @@ class YaskSolnObject(basic.Object):
     _pickle_kwargs = []
 
 
-class CacheManager(basic.CacheManager):
+class CacheManager(caching.CacheManager):
 
     @classmethod
-    def clear(cls):
+    def clear(cls, dump_contexts=True, force=True):
         log("Dumping contexts and symbol caches")
-        contexts.dump()
-        super(CacheManager, cls).clear()
+        if dump_contexts:
+            contexts.dump()
+        super(CacheManager, cls).clear(force=force)

@@ -12,8 +12,8 @@ from devito.ir.iet import (Call, Conditional, Expression, Iteration, CGen, FindN
                            make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, IRREGULAR)
-from devito.ir.support.space import (NullInterval, Interval, IntervalGroup, Forward,
-                                     Backward, IterationSpace)
+from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
+                                     IterationSpace)
 from devito.types import Scalar, Symbol
 from devito.tools import as_tuple
 
@@ -336,9 +336,20 @@ class TestSpace(object):
         assert ix.union(ix4) == Interval(x, -2, 8)
         assert ix.union(ix5) == Interval(x, -3, 2)
         assert ix6.union(ix) == Interval(x, -10, 2)
-        assert ix.union(nully) == IntervalGroup([ix, nully])
-        assert ix.union(iy) == IntervalGroup([ix, iy])
-        assert iy.union(ix) == IntervalGroup([iy, ix])
+
+        # The union of non-compatible Intervals isn't possible, and an exception
+        # is expected
+        ixs1 = Interval(x, -2, 2, stamp=1)
+
+        for i, j in [(ix, nully), (ix, iy), (iy, ix), (ix, ixs1), (ixs1, ix)]:
+            try:
+                i.union(j)
+                assert False  # Shouldn't arrive here
+            except ValueError:
+                assert True
+            except:
+                # No other types of exception expected
+                assert False
 
         # Mixed symbolic and non-symbolic
         c = Constant(name='c')
@@ -467,7 +478,7 @@ class TestDependenceAnalysis(object):
                 assert len(deps) == 2
             else:
                 assert len(deps) == 1
-        dep = deps[0]
+        dep = list(deps)[0]
 
         # Check type
         types = ['flow', 'anti']
@@ -663,7 +674,7 @@ else
         assert [f.name for f in found] == eval(expected)
 
 
-class TestIETAnalysis(object):
+class TestAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
@@ -803,7 +814,7 @@ class TestIETAnalysis(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='speculative')
+        op = Operator(exprs)
 
         iters = FindNodes(Iteration).visit(op)
 

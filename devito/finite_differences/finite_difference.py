@@ -1,12 +1,12 @@
 from sympy import finite_diff_weights
 
-from devito.finite_differences.tools import (form_side, symbolic_weights, left, right,
+from devito.finite_differences.tools import (symbolic_weights, left, right,
                                              generate_indices, centered, check_input,
                                              check_symbolic, direct, transpose)
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
-           'generate_indices', 'form_side']
+           'generate_indices']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
@@ -16,7 +16,7 @@ _PRECISION = 9
 @check_input
 @check_symbolic
 def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
-                     symbolic=False):
+                     symbolic=False, x0=None):
     """
     First-order derivative of a given expression.
 
@@ -35,6 +35,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     matvec : Transpose, optional
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
@@ -72,13 +74,17 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
     >>> (f*g).dx.T.evaluate
     -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x
+
+    Finally the x0 argument allows to choose the origin of the finite-difference
+
+    >>> first_derivative(f, dim=x, x0={x: 1})
+    -f(1, y)/h_x + f(h_x + 1, y)/h_x
     """
     side = side
-    diff = dim.spacing
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind = generate_indices(expr, dim, diff, order, side=side)[0]
+    ind = generate_indices(expr, dim, order, side=side, x0=x0)[0]
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:
@@ -86,22 +92,12 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     else:
         c = finite_diff_weights(1, ind, dim)[-1][-1]
 
-    # Loop through positions
-    deriv = 0
-    all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
-    for i in range(len(ind)):
-        subs = dict([(d, ind[i].subs({dim: d, diff: matvec.val*diff})) for d in all_dims])
-        deriv += expr.subs(subs) * c[i]
-
-    # Evaluate up to _PRECISION digits
-    deriv = deriv.evalf(_PRECISION)
-
-    return deriv
+    return indices_weights_to_fd(expr, dim, ind, c, matvec=matvec.val)
 
 
 @check_input
 @check_symbolic
-def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
+def second_derivative(expr, dim, fd_order, **kwargs):
     """
     Second-order derivative of a given expression.
 
@@ -116,6 +112,8 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
         the resulting stencil.
     stagger : Side, optional
         Shift of the finite-difference approximation.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
@@ -144,14 +142,19 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
     >>> (f*g).dx2.evaluate
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
+
+    Finally the x0 argument allows to choose the origin of the finite-difference
+
+    >>> second_derivative(f, dim=x, fd_order=2, x0={x: 1})
+    -2.0*f(1, y)/h_x**2 + f(1 - h_x, y)/h_x**2 + f(h_x + 1, y)/h_x**2
     """
 
-    return generic_derivative(expr, dim, fd_order, 2, stagger=None, **kwargs)
+    return generic_derivative(expr, dim, fd_order, 2, **kwargs)
 
 
 @check_input
 @check_symbolic
-def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
+def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -168,6 +171,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
         Derivative order, e.g. 2 for a second-order derivative.
     stagger : tuple of Side, optional
         Shift of the finite-difference approximation.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
@@ -182,10 +187,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
     >>> f = Function(name='f', grid=grid, space_order=2)
     >>> g = Function(name='g', grid=grid, space_order=2)
     >>> cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1))
-    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
- 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
- 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
- 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+    -(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y +\
+ (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
 
     Semantically, this is equivalent to
 
@@ -196,23 +199,27 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
     The expanded form is obtained via ``evaluate``
 
     >>> (f*g).dxdy.evaluate
-    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
- 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
- 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
- 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
-    """
+    -(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y +\
+ (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
 
-    stagger = stagger or [None]*len(dims)
-    for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
-        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
+    Finally the x0 argument allows to choose the origin of the finite-difference
+
+    >>> cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1), \
+    x0={x: 1, y: 2})
+    -(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x)/h_y +\
+ (-f(1, h_y + 2)*g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
+    """
+    x0 = kwargs.get('x0', {})
+    for d, fd, dim in zip(deriv_order, fd_order, dims):
+        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0)
 
     return expr
 
 
 @check_input
 @check_symbolic
-def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False,
-                       matvec=direct):
+def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
+                       matvec=direct, x0=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -229,16 +236,20 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
         Derivative order, e.g. 2 for a second-order derivative.
     stagger : Side, optional
         Shift of the finite-difference approximation.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
-    diff = dim.spacing
-
+    # First order derivative with 2nd order FD is highly non-recommended so taking
+    # first order fd that is a lot better
+    if deriv_order == 1 and fd_order == 2 and not symbolic:
+        fd_order = 1
     # Stencil positions
-    indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
+    indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:
@@ -246,15 +257,24 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     else:
         c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
-    # Loop through positions
+    return indices_weights_to_fd(expr, dim, indices, c, matvec=matvec.val)
+
+
+def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
+    """Expression from lists of indices and weights."""
+    diff = dim.spacing
     deriv = 0
-    all_dims = tuple(set((dim,) + tuple(i for i in expr.indices if i.root == dim)))
-    for i in range(len(indices)):
-        subs = dict((d, indices[i].subs({dim: d, diff: matvec.val*diff}))
-                    for d in all_dims)
-        deriv += expr.subs(subs) * c[i]
+    all_dims = tuple(set((expr.indices_ref[dim],) + tuple(expr.indices_ref[dim]
+                         for i in expr.dimensions if i.root is dim)))
 
-    # Evaluate up to _PRECISION digits
-    deriv = deriv.evalf(_PRECISION)
+    d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
+    # Loop through weights
+    for i, c in zip(inds, weights):
+        try:
+            iloc = i.xreplace({dim: d0, diff: matvec*diff})
+        except AttributeError:
+            iloc = i
+        subs = dict((d, iloc) for d in all_dims)
+        deriv += expr.subs(subs) * c
 
-    return deriv
+    return deriv.evalf(_PRECISION)

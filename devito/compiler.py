@@ -1,7 +1,6 @@
 from functools import partial
 from hashlib import sha1
 from os import environ, path
-from time import time
 from distutils import version
 from subprocess import DEVNULL, CalledProcessError, check_output, check_call
 import platform
@@ -225,7 +224,6 @@ class Compiler(GCCToolchain):
         logfile = path.join(self.get_jit_dir(), "%s.log" % hash_key)
         errfile = path.join(self.get_jit_dir(), "%s.err" % hash_key)
 
-        tic = time()
         with change_directory(loc):
             with open(logfile, "w") as lf:
                 with open(errfile, "w") as ef:
@@ -242,8 +240,7 @@ class Compiler(GCCToolchain):
                                                'Compile log in %s\n'
                                                'Compile errors in %s\n' %
                                                (e.cmd, e.returncode, logfile, errfile))
-        toc = time()
-        debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
+        debug("Make <%s>" % " ".join(args))
 
     def jit_compile(self, soname, code):
         """
@@ -291,7 +288,6 @@ class Compiler(GCCToolchain):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
 
-            tic = time()
             # Spinlock in case of MPI
             sleep_delay = 0 if configuration['mpi'] else 1
             _, _, _, recompiled = compile_from_string(
@@ -299,12 +295,8 @@ class Compiler(GCCToolchain):
                 cache_dir=cache_dir,
                 debug=configuration['debug-compiler'],
                 sleep_delay=sleep_delay)
-            toc = time()
 
-        if recompiled:
-            debug("%s: compiled `%s` [%.2f s]" % (self, src_file, toc-tic))
-        else:
-            debug("%s: cache hit `%s` [%.2f s]" % (self, src_file, toc-tic))
+        return recompiled, src_file
 
     def __lookup_cmds__(self):
         self.CC = 'unknown'
@@ -368,9 +360,11 @@ class ClangCompiler(Compiler):
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
 
         if configuration['platform'] == NVIDIAX:
-            # clang has offloading support via OpenMP
-            # TODO: add in the required flags
-            self.cflags += ['-fopenmp']
+            # Clang has offloading support via OpenMP
+            self.cflags.remove('-std=c99')
+            # TODO: Need a generic -march setup
+            # self.cflags += ['-Xopenmp-target', '-march=sm_37']
+            self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
         else:
             if configuration['platform'] in [POWER8, POWER9]:
                 # -march isn't supported on power architectures

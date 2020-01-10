@@ -5,7 +5,6 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.equation import Eq, Inc
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
@@ -15,6 +14,7 @@ from devito.tools import (ReducerMap, flatten, prod, powerset,
 from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.types.basic import Symbol, Scalar
+from devito.types.equation import Eq, Inc
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
@@ -35,22 +35,22 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
     _sub_functions = ()
     """SubFunctions encapsulated within this AbstractSparseFunction."""
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(AbstractSparseFunction, self).__init__(*args, **kwargs)
-            self._npoint = kwargs['npoint']
-            self._space_order = kwargs.get('space_order', 0)
+    def __init_finalize__(self, *args, **kwargs):
+        super(AbstractSparseFunction, self).__init_finalize__(*args, **kwargs)
+        self._npoint = kwargs['npoint']
+        self._space_order = kwargs.get('space_order', 0)
 
-            # Dynamically add derivative short-cuts
-            self._fd = generate_fd_shortcuts(self)
+        # Dynamically add derivative short-cuts
+        self._fd = generate_fd_shortcuts(self)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
         if dimensions is not None:
-            return dimensions
+            return dimensions, dimensions
         else:
-            return (Dimension(name='p_%s' % kwargs["name"]),)
+            dimensions = (Dimension(name='p_%s' % kwargs["name"]),)
+            return dimensions, dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -274,6 +274,9 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         return args
 
+    def _eval_at(self, func):
+        return self
+
     def _arg_values(self, **kwargs):
         # Add value override for own data if it is provided, otherwise
         # use defaults
@@ -324,14 +327,13 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     _time_position = 0
     """Position of time index among the function indices."""
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self._time_dim = self.indices[self._time_position]
-            self._time_order = kwargs.get('time_order', 1)
-            if not isinstance(self.time_order, int):
-                raise ValueError("`time_order` must be int")
+    def __init_finalize__(self, *args, **kwargs):
+        self._time_dim = self.indices[self._time_position]
+        self._time_order = kwargs.get('time_order', 1)
+        if not isinstance(self.time_order, int):
+            raise ValueError("`time_order` must be int")
 
-            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
+        super(AbstractSparseTimeFunction, self).__init_finalize__(*args, **kwargs)
 
     @property
     def time_dim(self):
@@ -342,9 +344,10 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
         if dimensions is not None:
-            return dimensions
+            return dimensions, dimensions
         else:
-            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
+            dims = (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
+            return dims, dims
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -469,30 +472,29 @@ class SparseFunction(AbstractSparseFunction):
 
     _sub_functions = ('coordinates',)
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(SparseFunction, self).__init__(*args, **kwargs)
+    def __init_finalize__(self, *args, **kwargs):
+        super(SparseFunction, self).__init_finalize__(*args, **kwargs)
 
-            # Set up sparse point coordinates
-            coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
-            if isinstance(coordinates, Function):
-                self._coordinates = coordinates
-            else:
-                dimensions = (self.indices[-1], Dimension(name='d'))
-                # Only retain the local data region
-                if coordinates is not None:
-                    coordinates = np.array(coordinates)
-                self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
-                                                dtype=self.dtype, dimensions=dimensions,
-                                                shape=(self.npoint, self.grid.dim),
-                                                space_order=0, initializer=coordinates,
-                                                distributor=self._distributor)
-                if self.npoint == 0:
-                    # This is a corner case -- we might get here, for example, when
-                    # running with MPI and some processes get 0-size arrays after
-                    # domain decomposition. We "touch" the data anyway to avoid the
-                    # case ``self._data is None``
-                    self.coordinates.data
+        # Set up sparse point coordinates
+        coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
+        if isinstance(coordinates, Function):
+            self._coordinates = coordinates
+        else:
+            dimensions = (self.indices[-1], Dimension(name='d'))
+            # Only retain the local data region
+            if coordinates is not None:
+                coordinates = np.array(coordinates)
+            self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
+                                            dtype=self.dtype, dimensions=dimensions,
+                                            shape=(self.npoint, self.grid.dim),
+                                            space_order=0, initializer=coordinates,
+                                            distributor=self._distributor)
+            if self.npoint == 0:
+                # This is a corner case -- we might get here, for example, when
+                # running with MPI and some processes get 0-size arrays after
+                # domain decomposition. We "touch" the data anyway to avoid the
+                # case ``self._data is None``
+                self.coordinates.data
 
     def __distributor_setup__(self, **kwargs):
         """
@@ -579,15 +581,15 @@ class SparseFunction(AbstractSparseFunction):
                       for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
                                          indices[:self.grid.dim])])
 
-    @cached_property
-    def _coordinate_bases(self):
+    def _coordinate_bases(self, field_offset):
         """Symbol for the base coordinates of the reference grid point."""
         indices = self.grid.dimensions
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
-                      for c, o, idx, i in zip(self._coordinate_symbols,
-                                              self.grid.origin,
-                                              self._coordinate_indices,
-                                              indices[:self.grid.dim])])
+                      for c, o, idx, i, of in zip(self._coordinate_symbols,
+                                                  self.grid.origin,
+                                                  self._coordinate_indices,
+                                                  indices[:self.grid.dim],
+                                                  field_offset)])
 
     @memoized_meth
     def _index_matrix(self, offset):
@@ -608,7 +610,7 @@ class SparseFunction(AbstractSparseFunction):
 
         return index_matrix, points
 
-    def _interpolation_indices(self, variables, offset=0):
+    def _interpolation_indices(self, variables, offset=0, field_offset=0):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -633,7 +635,8 @@ class SparseFunction(AbstractSparseFunction):
         temps = [Eq(v, k, implicit_dims=self.dimensions) for k, v in points.items()]
         # Temporaries for the coefficients
         temps.extend([Eq(p, c, implicit_dims=self.dimensions)
-                      for p, c in zip(self._point_symbols, self._coordinate_bases)])
+                      for p, c in zip(self._point_symbols,
+                                      self._coordinate_bases(field_offset))])
 
         return idx_subs, temps
 
@@ -669,8 +672,12 @@ class SparseFunction(AbstractSparseFunction):
 
         variables = list(retrieve_function_carriers(expr))
 
+        # Need to get origin of the field in case it is staggered
+        # TODO: handle each variable staggereing spearately
+        field_offset = variables[0].origin
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interpolation_indices(variables, offset)
+        idx_subs, temps = self._interpolation_indices(variables, offset,
+                                                      field_offset=field_offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         args = [expr.xreplace(v_sub) * b.xreplace(v_sub)
@@ -709,8 +716,11 @@ class SparseFunction(AbstractSparseFunction):
 
         variables = list(retrieve_function_carriers(expr)) + [field]
 
+        # Need to get origin of the field in case it is staggered
+        field_offset = field.origin
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interpolation_indices(variables, offset)
+        idx_subs, temps = self._interpolation_indices(variables, offset,
+                                                      field_offset=field_offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(field.xreplace(vsub), expr.xreplace(vsub) * b,
@@ -1067,43 +1077,42 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
     _sub_functions = ('gridpoints', 'interpolation_coeffs')
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(PrecomputedSparseFunction, self).__init__(*args, **kwargs)
+    def __init_finalize__(self, *args, **kwargs):
+        super(PrecomputedSparseFunction, self).__init_finalize__(*args, **kwargs)
 
-            # Grid points per sparse point (2 in the case of bilinear and trilinear)
-            r = kwargs.get('r')
-            if not isinstance(r, int):
-                raise TypeError('Need `r` int argument')
-            if r <= 0:
-                raise ValueError('`r` must be > 0')
-            self.r = r
+        # Grid points per sparse point (2 in the case of bilinear and trilinear)
+        r = kwargs.get('r')
+        if not isinstance(r, int):
+            raise TypeError('Need `r` int argument')
+        if r <= 0:
+            raise ValueError('`r` must be > 0')
+        self.r = r
 
-            gridpoints = SubFunction(name="%s_gridpoints" % self.name, dtype=np.int32,
-                                     dimensions=(self.indices[-1], Dimension(name='d')),
-                                     shape=(self.npoint, self.grid.dim), space_order=0,
-                                     parent=self)
+        gridpoints = SubFunction(name="%s_gridpoints" % self.name, dtype=np.int32,
+                                 dimensions=(self.indices[-1], Dimension(name='d')),
+                                 shape=(self.npoint, self.grid.dim), space_order=0,
+                                 parent=self)
 
-            gridpoints_data = kwargs.get('gridpoints', None)
-            assert(gridpoints_data is not None)
-            gridpoints.data[:] = gridpoints_data[:]
-            self._gridpoints = gridpoints
+        gridpoints_data = kwargs.get('gridpoints', None)
+        assert(gridpoints_data is not None)
+        gridpoints.data[:] = gridpoints_data[:]
+        self._gridpoints = gridpoints
 
-            interpolation_coeffs = SubFunction(name="%s_interpolation_coeffs" % self.name,
-                                               dimensions=(self.indices[-1],
-                                                           Dimension(name='d'),
-                                                           Dimension(name='i')),
-                                               shape=(self.npoint, self.grid.dim,
-                                                      self.r),
-                                               dtype=self.dtype, space_order=0,
-                                               parent=self)
-            coefficients_data = kwargs.get('interpolation_coeffs', None)
-            assert(coefficients_data is not None)
-            interpolation_coeffs.data[:] = coefficients_data[:]
-            self._interpolation_coeffs = interpolation_coeffs
-            warning("Ensure that the provided interpolation coefficient and grid point " +
-                    "values are computed on the final grid that will be used for other " +
-                    "computations.")
+        interpolation_coeffs = SubFunction(name="%s_interpolation_coeffs" % self.name,
+                                           dimensions=(self.indices[-1],
+                                                       Dimension(name='d'),
+                                                       Dimension(name='i')),
+                                           shape=(self.npoint, self.grid.dim,
+                                                  self.r),
+                                           dtype=self.dtype, space_order=0,
+                                           parent=self)
+        coefficients_data = kwargs.get('interpolation_coeffs', None)
+        assert(coefficients_data is not None)
+        interpolation_coeffs.data[:] = coefficients_data[:]
+        self._interpolation_coeffs = interpolation_coeffs
+        warning("Ensure that the provided interpolation coefficient and grid point " +
+                "values are computed on the final grid that will be used for other " +
+                "computations.")
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """

@@ -38,7 +38,7 @@ class AcousticWaveSolver(object):
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
         self.dt = self.model.critical_dt
         if self.kernel == 'OT4':
-            self.dt *= 1.73
+            self.dt = model.dtype(self.dt*1.73)
 
         # Cache compiler options
         self._kwargs = kwargs

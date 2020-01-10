@@ -1,7 +1,7 @@
 # Devito: Fast Finite Difference Computation from Symbolic Specification
 
-![Build Status](https://travis-ci.org/opesci/devito.svg?branch=master)
-![Code Coverage](https://codecov.io/gh/opesci/devito/branch/master/graph/badge.svg)
+![Build Status](https://travis-ci.org/devitocodes/devito.svg?branch=master)
+![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)
 
 [Devito](http://www.devitoproject.org) is a software to
 implement optimised finite difference (FD) computation from
@@ -18,13 +18,14 @@ are facing issues or just trying it out, join the
 
 ## Quickstart
 
+
 The recommended way to install Devito is with
 [Docker](https://www.docker.com/) and
 [docker-compose](https://docs.docker.com/compose/):
 
 ```sh
 # get the code
-git clone https://github.com/opesci/devito.git
+git clone https://github.com/devitocodes/devito.git
 cd devito
 
 # run the tests
@@ -42,22 +43,21 @@ image is built. Subsequent calls to docker-compose will be much
 quicker.
 
 Alternatively you can use the Conda package manager for installation of
-the necessary software dependencies. Please install either
-[Anaconda](https://www.continuum.io/downloads) or
+the necessary software dependencies. Please
+install either [Anaconda](https://www.continuum.io/downloads) or
 [Miniconda](https://conda.io/miniconda.html) using the instructions
-provided at the download links. You will need the Python 3.6 version.
+provided at the download links. You will need the Python 3 version.
 
 To install Devito, including examples, tests and tutorial notebooks,
 follow these simple passes:
 
 ```sh
-git clone https://github.com/opesci/devito.git
+git clone https://github.com/devitocodes/devito.git
 cd devito
 conda env create -f environment.yml
 source activate devito
 pip install -e .
 ```
-
 ## Examples
 
 At the core of the Devito API are the so-called `Operator` objects, which

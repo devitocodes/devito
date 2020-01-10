@@ -63,8 +63,13 @@ class Profiler(object):
             for i in bundles:
                 for k, v in i.traffic.items():
                     mapper.setdefault(k, []).append(v)
-            traffic = [IntervalGroup.generate('union', *i) for i in mapper.values()]
-            traffic = sum(i.size for i in traffic)
+            traffic = 0
+            for i in mapper.values():
+                try:
+                    traffic += IntervalGroup.generate('union', *i).size
+                except ValueError:
+                    # Over different iteration spaces
+                    traffic += sum(j.size for j in i)
 
             # Each ExpressionBundle lives in its own iteration space
             itermaps = [i.ispace.dimension_map for i in bundles]
@@ -99,7 +104,7 @@ class Profiler(object):
             If provided, the global execution time is derived by a single MPI
             rank, with timers started and stopped right after an MPI barrier.
         """
-        if comm is not MPI.COMM_NULL:
+        if comm and comm is not MPI.COMM_NULL:
             comm.Barrier()
             tic = MPI.Wtime()
             yield
@@ -204,7 +209,9 @@ class AdvancedProfiler(Profiler):
             if grid is not None:
                 dimensions = (grid.time_dim,) + grid.dimensions
                 if all(d.max_name in args for d in dimensions):
-                    nt = args[grid.time_dim.max_name] - args[grid.time_dim.min_name] + 1
+                    max_t = args[grid.time_dim.max_name] or 0
+                    min_t = args[grid.time_dim.min_name] or 0
+                    nt = max_t - min_t + 1
                     points = reduce(mul, (nt,) + grid.shape)
                     summary.add_glb_fdlike(points, self.py_timers[reduce_over])
 
@@ -371,6 +378,7 @@ def create_profile(name):
     else:
         level = configuration['profiling']
     profiler = profiler_registry[level](name)
+
     if profiler.initialized:
         return profiler
     else:

@@ -10,12 +10,13 @@ from sympy import Integer
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
-                           Iteration, LocalExpression, List, Prodder, PARALLEL,
+                           AugmentedExpression, Iteration, List, Prodder, Return,
                            make_efunc, FindNodes, Transformer)
+from devito.ir.support import PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro)
-from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten, generator
+from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
 __all__ = ['HaloExchangeBuilder']
@@ -48,6 +49,7 @@ class HaloExchangeBuilder(object):
 
         obj._cache_halo = OrderedDict()
         obj._cache_dims = OrderedDict()
+        obj._objs = OrderedSet()
         obj._regions = OrderedDict()
         obj._msgs = OrderedDict()
         obj._efuncs = []
@@ -68,7 +70,7 @@ class HaloExchangeBuilder(object):
 
     @property
     def objs(self):
-        return self.msgs + self.regions
+        return list(self._objs) + self.msgs + self.regions
 
     def make(self, hs):
         """
@@ -290,6 +292,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
         self._efuncs.append(haloupdate)
+        self._objs.add(f.grid.distributor._obj_comm)
+        self._objs.add(f.grid.distributor._obj_neighborhood)
 
         return haloupdate, halowait
 
@@ -527,6 +531,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
         self._efuncs.extend([haloupdate, halowait])
+        self._objs.add(f.grid.distributor._obj_comm)
+        self._objs.add(f.grid.distributor._obj_neighborhood)
 
         return haloupdate, halowait
 
@@ -689,6 +695,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
             _, _, haloupdate, halowait = self._cache_dims[f.dimensions]
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
+        self._objs.add(f.grid.distributor._obj_comm)
 
         return haloupdate, halowait
 
@@ -822,22 +829,32 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             return make_efunc('compute%d' % key, iet, hs.arguments)
 
     def _make_poke(self, hs, key, msgs):
-        flag = Symbol(name='flag')
-        initflag = LocalExpression(DummyEq(flag, 0))
+        lflag = Symbol(name='lflag')
+        gflag = Symbol(name='gflag')
 
-        body = [initflag]
+        # Init flags
+        body = [Expression(DummyEq(lflag, 0)),
+                Expression(DummyEq(gflag, 1))]
+
+        # For each msg, build an Iteration calling MPI_Test on all peers
         for msg in msgs:
             dim = Dimension(name='i')
             msgi = IndexedPointer(msg, dim)
 
             rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
+            testrecv = Call('MPI_Test', [rrecv, Byref(lflag), Macro('MPI_STATUS_IGNORE')])
+
             rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
-            testrecv = Call('MPI_Test', [rrecv, Byref(flag), Macro('MPI_STATUS_IGNORE')])
-            testsend = Call('MPI_Test', [rsend, Byref(flag), Macro('MPI_STATUS_IGNORE')])
+            testsend = Call('MPI_Test', [rsend, Byref(lflag), Macro('MPI_STATUS_IGNORE')])
 
-            body.append(Iteration([testsend, testrecv], dim, msg.npeers - 1))
+            update = AugmentedExpression(DummyEq(gflag, lflag), '&')
 
-        return make_efunc('pokempi%d' % key, body)
+            body.append(Iteration([testsend, update, testrecv, update],
+                                  dim, msg.npeers - 1))
+
+        body.append(Return(gflag))
+
+        return make_efunc('pokempi%d' % key, List(body=body), retval='int')
 
     def _call_poke(self, poke):
         return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)

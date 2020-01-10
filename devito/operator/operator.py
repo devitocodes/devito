@@ -6,23 +6,20 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 
-from devito.dle import transform
-from devito.dse import rewrite
-from devito.equation import Eq
 from devito.exceptions import InvalidOperator
-from devito.logger import info, perf, warning
+from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
-from devito.ir.iet import (Callable, MetaCall, iet_build, iet_insert_decls,
-                           iet_insert_casts, derive_parameters)
+from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
 from devito.ir.stree import st_build
+from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.profiling import create_profile
 from devito.symbolics import indexify
+from devito.targets import iet_lower
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
-                          filter_sorted, split)
-from devito.types import Dimension
+                          filter_sorted, split, timed_pass, timed_region)
+from devito.types import Dimension, Eq
 
 __all__ = ['Operator']
 
@@ -129,75 +126,192 @@ class Operator(Callable):
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 
-    def __init__(self, expressions, **kwargs):
+    def __new__(cls, expressions, **kwargs):
+        if expressions is None:
+            # Return a dummy Callable. This is exploited by unpickling. Users
+            # can't do anything useful with it
+            return super(Operator, cls).__new__(cls, **kwargs)
+
+        with timed_region('op-compile') as r:
+            op = cls._build(expressions, **kwargs)
+        op._profiler.py_timers.update(r.timings)
+
+        op._emit_build_profiling()
+
+        return op
+
+    @classmethod
+    def _build(cls, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
         # Input check
         if any(not isinstance(i, Eq) for i in expressions):
             raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
 
-        self.name = kwargs.get("name", "Kernel")
-        subs = kwargs.get("subs", {})
+        name = kwargs.get("name", "Kernel")
         dse = kwargs.get("dse", configuration['dse'])
 
-        # Header files, etc.
-        self._headers = list(self._default_headers)
-        self._includes = list(self._default_includes)
-        self._globals = list(self._default_globals)
+        # Python-level (i.e., compile time) and C-level (i.e., run time) performance
+        profiler = create_profile('timers')
 
-        # Required for compilation
-        self._compiler = configuration['compiler']
-        self._lib = None
-        self._cfunction = None
+        # Lower input expressions to internal expressions (e.g., attaching metadata)
+        expressions = cls._lower_exprs(expressions, **kwargs)
 
-        # References to local or external routines
-        self._func_table = OrderedDict()
-
-        # Internal state. May be used to store information about previous runs,
-        # autotuning reports, etc
-        self._state = self._initialize_state(**kwargs)
-
-        # Form and gather any required implicit expressions
-        expressions = self._add_implicit(expressions)
-
-        # Expression lowering: evaluation of derivatives, indexification,
-        # substitution rules, specialization
-        expressions = [i.evaluate for i in expressions]
-        expressions = [indexify(i) for i in expressions]
-        expressions = self._apply_substitutions(expressions, subs)
-        expressions = self._specialize_exprs(expressions)
-
-        # Expression analysis
-        self._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
-        self._output = filter_sorted(flatten(e.writes for e in expressions))
-        self._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
-
-        # Group expressions based on their iteration space and data dependences,
-        # and apply the Devito Symbolic Engine (DSE) for flop optimization
-        clusters = clusterize(expressions)
-        clusters = rewrite(clusters, mode=set_dse_mode(dse))
-        self._dtype, self._dspace = clusters.meta
+        # Group expressions based on their iteration space and data dependences
+        # Several optimizations are applied (fusion, lifting, flop reduction via DSE, ...)
+        clusters = clusterize(expressions, dse_mode=set_dse_mode(dse))
 
         # Lower Clusters to a Schedule tree
         stree = st_build(clusters)
 
         # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
-        iet, self._profiler = self._profile_sections(iet)
-        iet = self._specialize_iet(iet, **kwargs)
 
-        # Derive all Operator parameters based on the IET
+        # Instrument the IET for C-level profiling
+        iet = profiler.instrument(iet)
+
+        # Wrap the IET with a Callable
         parameters = derive_parameters(iet, True)
+        op = Callable(name, iet, 'int', parameters, ())
 
-        # Finalization: introduce declarations, type casts, etc
-        iet = self._finalize(iet, parameters)
+        # Lower IET to a Target-specific IET
+        op, target_state = cls._specialize_iet(op, **kwargs)
 
-        super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
+        # Make it an actual Operator
+        op = Callable.__new__(cls, **op.args)
+        Callable.__init__(op, **op.args)
 
-    # Read-only fields exposed to the outside world
+        # Header files, etc.
+        op._headers = list(cls._default_headers)
+        op._headers.extend(target_state.headers)
+        op._globals = list(cls._default_globals)
+        op._includes = list(cls._default_includes)
+        op._includes.extend(profiler._default_includes)
+        op._includes.extend(target_state.includes)
 
-    def __call__(self, **kwargs):
-        self.apply(**kwargs)
+        # Required for the jit-compilation
+        op._compiler = configuration['compiler']
+        op._lib = None
+        op._cfunction = None
+
+        # References to local or external routines
+        op._func_table = OrderedDict()
+        op._func_table.update(OrderedDict([(i, MetaCall(None, False))
+                                           for i in profiler._ext_calls]))
+        op._func_table.update(OrderedDict([(i.root.name, i) for i in target_state.funcs]))
+
+        # Internal state. May be used to store information about previous runs,
+        # autotuning reports, etc
+        op._state = cls._initialize_state(**kwargs)
+
+        # Produced by the various compilation passes
+        op._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
+        op._output = filter_sorted(flatten(e.writes for e in expressions))
+        op._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
+        op._dimensions.extend(target_state.dimensions)
+        op._dtype, op._dspace = clusters.meta
+        op._profiler = profiler
+
+        return op
+
+    def __init__(self, *args, **kwargs):
+        # Bypass the silent call to __init__ triggered through the backends engine
+        pass
+
+    # Compilation
+
+    @classmethod
+    def _add_implicit(cls, expressions):
+        """
+        Create and add any associated implicit expressions.
+
+        Implicit expressions are those not explicitly defined by the user
+        but instead are requisites of some specified functionality.
+        """
+        processed = []
+        seen = set()
+        for e in expressions:
+            if e.subdomain:
+                try:
+                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
+                    sub_dims = [d.root for d in e.subdomain.dimensions]
+                    sub_dims.append(e.subdomain.implicit_dimension)
+                    dims = [d for d in dims if d not in frozenset(sub_dims)]
+                    dims.append(e.subdomain.implicit_dimension)
+                    if e.subdomain not in seen:
+                        processed.extend([i.func(*i.args, implicit_dims=dims) for i in
+                                          e.subdomain._create_implicit_exprs()])
+                        seen.add(e.subdomain)
+                    dims.extend(e.subdomain.dimensions)
+                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
+                    processed.append(new_e)
+                except AttributeError:
+                    processed.append(e)
+            else:
+                processed.append(e)
+        return processed
+
+    @classmethod
+    def _initialize_state(cls, **kwargs):
+        return {'optimizations': {k: kwargs.get(k, configuration[k])
+                                  for k in ('dse', 'dle')}}
+
+    @classmethod
+    def _apply_substitutions(cls, expressions, subs):
+        """
+        Transform ``expressions`` by: ::
+
+            * Applying any user-provided symbolic substitution;
+            * Replacing Dimensions with SubDimensions based on expression SubDomains.
+        """
+        processed = []
+        for e in expressions:
+            mapper = subs.copy()
+            if e.subdomain:
+                mapper.update(e.subdomain.dimension_map)
+            processed.append(e.xreplace(mapper))
+        return processed
+
+    @classmethod
+    def _specialize_exprs(cls, expressions):
+        """Transform ``expressions`` into a backend-specific representation."""
+        return [LoweredEq(i) for i in expressions]
+
+    @classmethod
+    @timed_pass
+    def _lower_exprs(cls, expressions, **kwargs):
+        """
+        Expression lowering:
+
+            * Form and gather any required implicit expressions;
+            * Evaluate derivatives;
+            * Flatten vectorial equations;
+            * Indexify Functions;
+            * Apply substitution rules;
+            * Specialize (e.g., index shifting)
+        """
+        subs = kwargs.get("subs", {})
+
+        expressions = cls._add_implicit(expressions)
+        expressions = [i.evaluate for i in expressions]
+        expressions = [j for i in expressions for j in i._flatten]
+        expressions = [indexify(i) for i in expressions]
+        expressions = cls._apply_substitutions(expressions, subs)
+        expressions = cls._specialize_exprs(expressions)
+
+        return expressions
+
+    @classmethod
+    def _specialize_iet(cls, iet, **kwargs):
+        """
+        Transform the IET into a backend-specific representation, such as code
+        to be executed on a GPU or through a lower-level system (e.g., YASK).
+        """
+        dle = kwargs.get("dle", configuration['dle'])
+
+        return iet_lower(iet, *set_dle_mode(dle))
+
+    # Read-only properties exposed to the outside world
 
     @cached_property
     def output(self):
@@ -215,98 +329,6 @@ class Operator(Callable):
     @cached_property
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
-
-    # Compilation
-
-    def _initialize_state(self, **kwargs):
-        return {'optimizations': {k: kwargs.get(k, configuration[k])
-                                  for k in ('dse', 'dle')}}
-
-    def _add_implicit(self, expressions):
-        """
-        Create and add any associated implicit expressions.
-
-        Implicit expressions are those not explicitly defined by the user
-        but instead are requisites of some specified functionality.
-        """
-        processed = []
-        seen = set()
-        for e in expressions:
-            if e.subdomain:
-                try:
-                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
-                    sub_dims = [d.root for d in e.subdomain.dimensions]
-                    dims = [d for d in dims if d not in frozenset(sub_dims)]
-                    dims.append(e.subdomain.implicit_dimension)
-                    if e.subdomain not in seen:
-                        processed.extend([i.func(*i.args, implicit_dims=dims) for i in
-                                          e.subdomain._create_implicit_exprs()])
-                        seen.add(e.subdomain)
-                    dims.extend(e.subdomain.dimensions)
-                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
-                    processed.append(new_e)
-                except AttributeError:
-                    processed.append(e)
-            else:
-                processed.append(e)
-        return processed
-
-    def _apply_substitutions(self, expressions, subs):
-        """
-        Transform ``expressions`` by: ::
-
-            * Applying any user-provided symbolic substitution;
-            * Replacing Dimensions with SubDimensions based on expression SubDomains.
-        """
-        processed = []
-        for e in expressions:
-            mapper = subs.copy()
-            if e.subdomain:
-                mapper.update(e.subdomain.dimension_map)
-            processed.append(e.xreplace(mapper))
-        return processed
-
-    def _specialize_exprs(self, expressions):
-        """Transform ``expressions`` into a backend-specific representation."""
-        return [LoweredEq(i) for i in expressions]
-
-    def _profile_sections(self, iet):
-        """Instrument the IET for C-level profiling."""
-        profiler = create_profile('timers')
-        iet = profiler.instrument(iet)
-        self._includes.extend(profiler._default_includes)
-        self._func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
-        return iet, profiler
-
-    def _specialize_iet(self, iet, **kwargs):
-        """
-        Transform the IET into a backend-specific representation, such as code
-        to be executed on a GPU or through a lower-level system (e.g., YASK).
-        """
-        dle = kwargs.get("dle", configuration['dle'])
-
-        # Apply the Devito Loop Engine (DLE) for loop optimization
-        iet, state = transform(iet, *set_dle_mode(dle))
-
-        self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                             for i in state.efuncs]))
-        self._dimensions.extend(state.dimensions)
-        self._includes.extend(state.includes)
-
-        return iet
-
-    def _finalize(self, iet, parameters):
-        iet = iet_insert_decls(iet, parameters)
-        iet = iet_insert_casts(iet, parameters)
-
-        # Now do the same to each ElementalFunction
-        for k, (root, local) in list(self._func_table.items()):
-            if local:
-                body = iet_insert_decls(root.body, root.parameters)
-                body = iet_insert_casts(body, root.parameters)
-                self._func_table[k] = MetaCall(root._rebuild(body=body), True)
-
-        return iet
 
     # Arguments processing
 
@@ -340,7 +362,9 @@ class Operator(Callable):
         args = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
-        grids = {getattr(p, 'grid', None) for p in overrides + defaults} - {None}
+        grids = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
+        grids.update({getattr(p, 'grid', None) for p in defaults})
+        grids.discard(None)
         if len(grids) > 1 and configuration['mpi']:
             raise ValueError("Multiple Grids found")
         try:
@@ -359,7 +383,7 @@ class Operator(Callable):
 
         # Process Objects (which may need some `args`)
         for o in self.objects:
-            args.update(o._arg_values(args, **kwargs))
+            args.update(o._arg_values(args, grid=grid, **kwargs))
 
         # Sanity check
         for p in self.parameters:
@@ -432,7 +456,7 @@ class Operator(Callable):
         """A unique name for the shared object resulting from JIT compilation."""
         return Signer._digest(self, configuration)
 
-    def _compile(self):
+    def _jit_compile(self):
         """
         JIT-compile the C code generated by the Operator.
 
@@ -440,13 +464,23 @@ class Operator(Callable):
         Operator, reagardless of how many times this method is invoked.
         """
         if self._lib is None:
-            self._compiler.jit_compile(self._soname, str(self.ccode))
+            with self._profiler.timer_on('jit-compile'):
+                recompiled, src_file = self._compiler.jit_compile(self._soname,
+                                                                  str(self.ccode))
+
+            elapsed = self._profiler.py_timers['jit-compile']
+            if recompiled:
+                perf("Operator `%s` jit-compiled `%s` in %.2f s with `%s`" %
+                     (self.name, src_file, elapsed, self._compiler))
+            else:
+                perf("Operator `%s` fetched `%s` in %.2f s from jit-cache" %
+                     (self.name, src_file, elapsed))
 
     @property
     def cfunction(self):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
-            self._compile()
+            self._jit_compile()
             self._lib = self._compiler.load(self._soname)
             self._lib.name = self._soname
 
@@ -457,7 +491,10 @@ class Operator(Callable):
 
         return self._cfunction
 
-    # Execution and profiling
+    # Execution
+
+    def __call__(self, **kwargs):
+        self.apply(**kwargs)
 
     def apply(self, **kwargs):
         """
@@ -522,7 +559,8 @@ class Operator(Callable):
         >>> summary = op.apply(time_M=10)
         """
         # Build the arguments list to invoke the kernel function
-        args = self.arguments(**kwargs)
+        with self._profiler.timer_on('arguments'):
+            args = self.arguments(**kwargs)
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
@@ -545,9 +583,30 @@ class Operator(Callable):
         self._postprocess_arguments(args, **kwargs)
 
         # Output summary of performance achieved
-        return self._profile_output(args)
+        return self._emit_apply_profiling(args)
 
-    def _profile_output(self, args):
+    # Performance profiling
+
+    def _emit_build_profiling(self):
+        if not is_log_enabled_for('PERF'):
+            return
+
+        # Rounder to K decimal places
+        fround = lambda i, n=100: ceil(i * n) / n
+
+        timings = self._profiler.py_timers.copy()
+
+        tot = timings.pop('op-compile')
+        perf("Operator `%s` generated in %.2f s" % (self.name, fround(tot)))
+
+        max_hotspots = 3
+        for i in sorted(timings, key=timings.get, reverse=True)[:max_hotspots]:
+            v = fround(timings[i])
+            perc = fround(v/tot*100, n=10)
+            if perc > 20.:
+                perf("- [Hotspot] %s: %.2f s (%.1f %%)" % (i.lstrip('_'), v, perc))
+
+    def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
@@ -556,6 +615,10 @@ class Operator(Callable):
                                               fround(self._profiler.py_timers['apply'])))
 
         summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
+
+        if not is_log_enabled_for('PERF'):
+            # Do not waste time
+            return summary
 
         if summary.globals:
             indent = " "*2
@@ -601,7 +664,23 @@ class Operator(Callable):
                 perf("%s* %s%s computed in %.2f s"
                      % (indent, name, rank, fround(v.time)))
 
+        # Emit relevant configuration values
         perf("Configuration:  %s" % self._state['optimizations'])
+
+        # Emit relevant performance arguments
+        perf_args = {}
+        for i in self.input + self.dimensions:
+            if not i.is_PerfKnob:
+                continue
+            try:
+                perf_args[i.name] = args[i.name]
+            except KeyError:
+                # Try with the aliases
+                for a in i._arg_names:
+                    if a in args:
+                        perf_args[a] = args[a]
+                        break
+        perf("Performance arguments:  %s" % perf_args)
 
         return summary
 
@@ -658,6 +737,9 @@ class Operator(Callable):
             return state
         else:
             return self.__dict__
+
+    def __getnewargs_ex__(self):
+        return (None,), {}
 
     def __setstate__(self, state):
         soname = state.pop('_soname', None)

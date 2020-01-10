@@ -1,17 +1,19 @@
 import numpy as np
 import pytest
 from unittest.mock import patch
+from cached_property import cached_property
 
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, NODE, Operator, norm, inner, switchconfig)
+                    SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
+                    Eq, Inc, NODE, Operator, norm, inner, configuration, switchconfig,
+                    generic_derivative)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
 from devito.mpi import MPI
 from examples.seismic.acoustic import acoustic_setup
 
-pytestmark = skipif(['yask', 'ops', 'nompi'])
+pytestmark = skipif(['yask', 'ops', 'nompi'], whole_module=True)
 
 
 class TestDistributor(object):
@@ -820,13 +822,21 @@ class TestCodeGeneration(object):
 
         trees = retrieve_iteration_tree(op._func_table['compute0'].root)
         assert len(trees) == 2
-        tree = trees[1]
-        # Make sure `pokempi0` is within the outer Iteration
+        tree = trees[0]
+        # Make sure `pokempi0` is the last node within the outer Iteration
         assert len(tree) == 2
         assert len(tree.root.nodes) == 2
-        call = tree.root.nodes[0]
+        call = tree.root.nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
+        if configuration['openmp']:
+            # W/ OpenMP, we prod until all comms have completed
+            assert call.then_body[0].body[0].is_While
+            # W/ OpenMP, we expect dynamic thread scheduling
+            assert 'dynamic,1' in tree.root.pragmas[0].value
+        else:
+            # W/o OpenMP, it's a different story
+            assert call._single_thread
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
@@ -834,12 +844,20 @@ class TestCodeGeneration(object):
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
         tree = trees[1]
-        # Make sure `pokempi0` is within the inner Iteration over blocks
-        assert len(tree) == 4
+        # Make sure `pokempi0` is the last node within the inner Iteration over blocks
+        assert len(tree) == 2
         assert len(tree.root.nodes[0].nodes) == 2
-        call = tree.root.nodes[0].nodes[0]
+        call = tree.root.nodes[0].nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
+        if configuration['openmp']:
+            # W/ OpenMP, we prod until all comms have completed
+            assert call.then_body[0].body[0].is_While
+            # W/ OpenMP, we expect dynamic thread scheduling
+            assert 'dynamic,1' in tree.root.pragmas[0].value
+        else:
+            # W/o OpenMP, it's a different story
+            assert call._single_thread
 
 
 class TestOperatorAdvanced(object):
@@ -1347,6 +1365,31 @@ class TestOperatorAdvanced(object):
 
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
+    @pytest.mark.parallel(mode=4)
+    def test_haloupdate_multi_op(self):
+        """
+        Test that halo updates are carried out correctly when multiple operators
+        are applied consecutively.
+        """
+        a = np.arange(64).reshape((8, 8))
+        grid = Grid(shape=a.shape, extent=(8, 8))
+
+        so = 3
+        dims = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=so)
+        f.data[:] = a
+
+        fo = Function(name='fo', grid=grid, space_order=so)
+
+        for d in dims:
+            rhs = generic_derivative(f, d, so, 1)
+            expr = Eq(fo, rhs)
+            op = Operator(expr)
+            op.apply()
+            f.data[:, :] = fo.data[:, :]
+
+        assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
+
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     def test_aliases(self):
@@ -1445,9 +1488,64 @@ class TestOperatorAdvanced(object):
         op(time_M=2)
 
         # Expected norms computed "manually" from sequential runs
-        assert np.isclose(norm(ux), 5408.574, rtol=1.e-4)
-        assert np.isclose(norm(uxx), 60904.192, rtol=1.e-4)
-        assert np.isclose(norm(uxy), 58555.359, rtol=1.e-4)
+        assert np.isclose(norm(ux), 6253.4349, rtol=1.e-4)
+        assert np.isclose(norm(uxx), 80001.0304, rtol=1.e-4)
+        assert np.isclose(norm(uxy), 61427.853, rtol=1.e-4)
+
+    @pytest.mark.parallel(mode=2)
+    def test_op_new_dist(self):
+        """
+        Test that an operator made with one distributor produces correct results
+        when executed with a different distributor.
+        """
+        grid = Grid(shape=(10, 10), comm=MPI.COMM_SELF)
+        grid2 = Grid(shape=(10, 10), comm=MPI.COMM_WORLD)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u2 = TimeFunction(name='u2', grid=grid2, space_order=2)
+
+        x, y = np.ix_(np.linspace(-1, 1, grid.shape[0]),
+                      np.linspace(-1, 1, grid.shape[1]))
+        dx = x - 0.5
+        dy = y
+        u.data[0, :, :] = 1.0 * ((dx*dx + dy*dy) < 0.125)
+        u2.data[0, :, :] = 1.0 * ((dx*dx + dy*dy) < 0.125)
+
+        # Create some operator that requires MPI communication
+        eqn = Eq(u.forward, u + 0.000001 * u.laplace)
+        op = Operator(eqn)
+
+        op.apply(u=u, time_M=10)
+        op.apply(u=u2, time_M=10)
+
+        assert abs(norm(u) - norm(u2)) < 1.e-3
+
+
+def gen_serial_norms(shape, so):
+    """
+    Computes the norms of the outputs in serial mode to compare with
+    """
+    try:
+        np.load("norms%s.npy" % len(shape))
+    except:
+        tn = 500.  # Final time
+        nrec = 130  # Number of receivers
+
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
+                                tn=tn, space_order=so, nrec=nrec,
+                                preset='layers-isotropic', dtype=np.float64)
+        # Run forward operator
+        rec, u, _ = solver.forward()
+        Eu = norm(u)
+        Erec = norm(rec)
+
+        # Run adjoint operator
+        srca, v, _ = solver.adjoint(rec=rec)
+        Ev = norm(v)
+        Esrca = norm(srca)
+
+        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca))
 
 
 class TestIsotropicAcoustic(object):
@@ -1455,15 +1553,26 @@ class TestIsotropicAcoustic(object):
     """
     Test the isotropic acoustic wave equation with MPI.
     """
+    _shapes = {1: (60,), 2: (60, 70), 3: (60, 70, 80)}
+    _so = {1: 12, 2: 8, 3: 4}
+    gen_serial_norms((60,), 12)
+    gen_serial_norms((60, 70), 8)
+    gen_serial_norms((60, 70, 80), 4)
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save', [
-        ((60, ), 'OT2', 4, 10, False),
-        ((60, 70), 'OT2', 8, 10, False),
+    @cached_property
+    def norms(self):
+        return {1: np.load("norms1.npy"),
+                2: np.load("norms2.npy"),
+                3: np.load("norms3.npy")}
+
+    @pytest.mark.parametrize('shape,kernel,space_order,save', [
+        ((60, ), 'OT2', 4, False),
+        ((60, 70), 'OT2', 8, False),
     ])
     @pytest.mark.parallel(mode=1)
-    def test_adjoint_codegen(self, shape, kernel, space_order, nbpml, save):
+    def test_adjoint_codegen(self, shape, kernel, space_order, save):
         solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbpml=nbpml, tn=500, space_order=space_order, nrec=130,
+                                tn=500, space_order=space_order, nrec=130,
                                 preset='layers-isotropic', dtype=np.float64)
         op_fwd = solver.op_fwd(save=save)
         fwd_calls = FindNodes(Call).visit(op_fwd)
@@ -1474,64 +1583,56 @@ class TestIsotropicAcoustic(object):
         assert len(fwd_calls) == 1
         assert len(adj_calls) == 1
 
-    def run_adjoint_F(self, shape, kernel, space_order, nbpml, save,
-                      Eu, Erec, Ev, Esrca):
+    def run_adjoint_F(self, nd):
         """
         Unlike `test_adjoint_F` in test_adjoint.py, here we explicitly check the norms
         of all Operator-evaluated Functions. The numbers we check against are derived
         "manually" from sequential runs of test_adjoint::test_adjoint_F
         """
+        Eu, Erec, Ev, Esrca = self.norms[nd]
+        shape = self._shapes[nd]
+        so = self._so[nd]
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
 
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbpml=nbpml, tn=tn, space_order=space_order, nrec=nrec,
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
+                                tn=tn, space_order=so, nrec=nrec,
                                 preset='layers-isotropic', dtype=np.float64)
         # Run forward operator
-        rec, u, _ = solver.forward(save=save)
+        rec, u, _ = solver.forward()
 
-        assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
-        assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
+        assert np.isclose(norm(u) / Eu, 1.0)
+        assert np.isclose(norm(rec) / Erec, 1.0)
 
         # Run adjoint operator
         srca, v, _ = solver.adjoint(rec=rec)
 
-        assert np.isclose(norm(v), Ev, rtol=Ev*1.e-8)
-        assert np.isclose(norm(srca), Esrca, rtol=Esrca*1.e-8)
+        assert np.isclose(norm(v) / Ev, 1.0)
+        assert np.isclose(norm(srca) / Esrca, 1.0)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec)**2
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 385.627, 12993.527, 63818503.321, 101159204.362),
-        ((60, 70), 'OT2', 8, 10, False, 342.925, 867.47, 405805.482, 239444.952),
-        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
-    ])
+    @pytest.mark.parametrize('nd', [1, 2, 3])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag', True), (4, 'overlap', True),
                                 (4, 'overlap2', True), (4, 'full', True)])
-    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
-                       Eu, Erec, Ev, Esrca):
-        self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
+    def test_adjoint_F(self, nd):
+        self.run_adjoint_F(nd)
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
-    ])
     @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
     @switchconfig(openmp=False)
-    def test_adjoint_F_no_omp(self, shape, kernel, space_order, nbpml, save,
-                              Eu, Erec, Ev, Esrca):
+    def test_adjoint_F_no_omp(self):
         """
         ``run_adjoint_F`` with OpenMP disabled. By disabling OpenMP, we can
         practically scale up to higher process counts.
         """
-        self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
+        self.run_adjoint_F(3)
 
 
 if __name__ == "__main__":
-    from devito import configuration
     configuration['mpi'] = True
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
@@ -1542,6 +1643,5 @@ if __name__ == "__main__":
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()
-    TestOperatorAdvanced().test_injection_wodup()
-    # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
-    #                                        153.122, 205.902, 27484.635, 11736.917)
+    # TestOperatorAdvanced().test_injection_wodup()
+    TestIsotropicAcoustic().test_adjoint_F_no_omp()

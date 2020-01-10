@@ -1,14 +1,17 @@
 import numpy as np
 import pytest
 
-from conftest import skipif, EVAL, time, x, y, z
-from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
+from conftest import skipif, time, x, y, z
+from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration)
-from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
-                           retrieve_iteration_tree)
+                    NODE, CELL, dimensions, configuration, TensorFunction,
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction)
+from devito.ir.equations import ClusterizedEq
+from devito.ir.iet import (Callable, Conditional, Expression, Iteration, FindNodes,
+                           IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
-from devito.symbolics import indexify, retrieve_indexed
+from devito.symbolics import ListInitializer, indexify, retrieve_indexed
+from devito.targets.common import DataManager
 from devito.tools import flatten
 from devito.types import Array, Scalar
 
@@ -30,10 +33,6 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
 
 
 class TestCodeGen(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     def test_parameters(self):
         """Tests code generation for Operator parameters."""
@@ -94,7 +93,7 @@ class TestCodeGen(object):
         time_iter = time_iter[0]
 
         # Check uindices in Iteration header
-        signatures = [i._properties for i in time_iter.uindices]
+        signatures = [(i._offset, i._modulo) for i in time_iter.uindices]
         assert len(signatures) == len(exp_uindices)
         assert all(i in signatures for i in exp_uindices)
 
@@ -105,10 +104,6 @@ class TestCodeGen(object):
 
 
 class TestArithmetic(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     @pytest.mark.parametrize('expr, result', [
         ('Eq(a, a + b + 5.)', 10.),
@@ -390,12 +385,17 @@ class TestArithmetic(object):
         assert np.all(u.data[1:4, 4:6, 4:6] == pytest.approx(0.75))
         assert np.sum(u.data[:]) == pytest.approx(12*0.75)
 
+    @pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                       VectorFunction, VectorTimeFunction])
+    def test_tensor(self, func1):
+        grid = Grid(tuple([5]*3))
+        f1 = func1(name="f1", grid=grid)
+        op1 = Operator(Eq(f1, f1.dx))
+        op2 = Operator([Eq(f, f.dx) for f in f1.values()])
+        assert str(op1.ccode) == str(op2.ccode)
+
 
 class TestAllocation(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     @pytest.mark.parametrize('shape', [(20, 20),
                                        (20, 20, 20),
@@ -418,11 +418,14 @@ class TestAllocation(object):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim))
+        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
         f = Function(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape == tuple([11]*ndim)
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple(5 for _ in f.staggered)
+        index = tuple(5 for _ in f.dimensions)
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
 
@@ -438,11 +441,14 @@ class TestAllocation(object):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim))
+        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
         f = TimeFunction(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape[1:] == tuple([11]*ndim)
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple([0] + [5 for _ in f.staggered[1:]])
+        index = tuple([0] + [5 for _ in f.dimensions[1:]])
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
 
@@ -451,10 +457,6 @@ class TestAllocation(object):
 
 
 class TestArguments(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     def verify_arguments(self, arguments, expected):
         """
@@ -496,7 +498,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(g, g + f), dle=('advanced', {'openmp': False}))
+        op = Operator(Eq(f.forward, g + f), dle=('advanced', {'openmp': False}))
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -595,7 +597,7 @@ class TestArguments(object):
         f = TimeFunction(name='f', grid=grid, time_order=0)
 
         # Suppress DLE to work around a know bug with GCC and OpenMP:
-        # https://github.com/opesci/devito/issues/320
+        # https://github.com/devitocodes/devito/issues/320
         op = Operator(Eq(f, 1.), dle=None)
         # TODO: Currently we require the `time` subrange to be set
         # explicitly. Ideally `t` would directly alias with `time`,
@@ -656,7 +658,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         a = TimeFunction(name='a', grid=grid, save=2)
         # Suppress DLE to work around a know bug with GCC and OpenMP:
-        # https://github.com/opesci/devito/issues/320
+        # https://github.com/devitocodes/devito/issues/320
         op = Operator(Eq(a, a + 3), dle=None)
 
         # Run with default value
@@ -963,15 +965,41 @@ class TestArguments(object):
         except:
             assert False
 
+    @skipif('nompi')
+    @pytest.mark.parallel(mode=1)
+    def test_new_distributor(self):
+        """
+        Test that `comm` and `nb` are correctly updated when a different distributor
+        from that it was originally built with is required by an operator.
+        Note that MPI is required to ensure `comm` and `nb` are included in op.objects.
+        """
+        from devito.mpi import MPI
+        grid = Grid(shape=(10, 10), comm=MPI.COMM_SELF)
+        grid2 = Grid(shape=(10, 10), comm=MPI.COMM_WORLD)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u2 = TimeFunction(name='u2', grid=grid2, space_order=2)
+
+        # Create some operator that requires MPI communication
+        eqn = Eq(u.forward, u + u.laplace)
+        op = Operator(eqn)
+        assert op.arguments(u=u, time_M=0)['comm'] is grid.distributor._obj_comm.value
+        assert (op.arguments(u=u, time_M=0)['nb'] is
+                grid.distributor._obj_neighborhood.value)
+        assert op.arguments(u=u2, time_M=0)['comm'] is grid2.distributor._obj_comm.value
+        assert (op.arguments(u=u2, time_M=0)['nb'] is
+                grid2.distributor._obj_neighborhood.value)
+
 
 class TestDeclarator(object):
 
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
-
-    def test_heap_1D_stencil(self, a, b):
-        operator = Operator(Eq(a, a + b + 5.), dse='noop', dle=None)
+    def test_heap_1D_stencil(self):
+        i, j = dimensions('i j')
+        a = Array(name='a', dimensions=(i,))
+        b = Array(name='b', dimensions=(i,))
+        f = Function(name='f', shape=(3,), dimensions=(j,))
+        operator = Operator([Eq(a[i], a[i] + b[i] + 5.), Eq(f[j], a[j])],
+                            dse='noop', dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -985,12 +1013,18 @@ class TestDeclarator(object):
   /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
-  free(a);
-  return 0;""" in str(operator.ccode)
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+        assert "free(a);" in str(operator)
 
-    def test_heap_perfect_2D_stencil(self, a, c):
-        operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
+    def test_heap_perfect_2D_stencil(self):
+        i, j, k = dimensions('i j k')
+        a = Array(name='a', dimensions=(i,))
+        c = Array(name='c', dimensions=(i, j))
+        f = Function(name='f', shape=(3, 3), dimensions=(j, k))
+        operator = Operator([Eq(a[i], c[i, j]),
+                             Eq(c[i, j], c[i, j]*a[i]),
+                             Eq(f[j, k], a[j] + c[j, k])],
+                            dse='noop', dle=None)
         assert """\
   float (*a);
   float (*c)[j_size];
@@ -1010,13 +1044,21 @@ class TestDeclarator(object):
   /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+        assert """\
   free(a);
   free(c);
-  return 0;""" in str(operator.ccode)
+  return 0;""" in str(operator)
 
-    def test_heap_imperfect_2D_stencil(self, a, c):
-        operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle=None)
+    def test_heap_imperfect_2D_stencil(self):
+        i, j, k = dimensions('i j k')
+        a = Array(name='a', dimensions=(i,))
+        c = Array(name='c', dimensions=(i, j))
+        f = Function(name='f', shape=(3, 3), dimensions=(j, k))
+        operator = Operator([Eq(a[i], 0),
+                             Eq(c[i, j], c[i, j]*a[i]),
+                             Eq(f[j, k], a[j] + c[j, k])],
+                            dse='noop', dle=None)
         assert """\
   float (*a);
   float (*c)[j_size];
@@ -1027,7 +1069,7 @@ class TestDeclarator(object):
   /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
-    a[i] = 0.0F;
+    a[i] = 0;
     for (int j = j_m; j <= j_M; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
@@ -1036,13 +1078,19 @@ class TestDeclarator(object):
   /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+        assert """\
   free(a);
   free(c);
-  return 0;""" in str(operator.ccode)
+  return 0;""" in str(operator)
 
-    def test_stack_scalar_temporaries(self, a, t0, t1):
-        operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a, t0*t1*3.)],
+    def test_stack_scalar_temporaries(self):
+        i, j = dimensions('i j')
+        a = Array(name='a', dimensions=(i,))
+        f = Function(name='f', shape=(3,), dimensions=(j,))
+        t0 = Scalar(name='t0')
+        t1 = Scalar(name='t1')
+        operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a[i], t0*t1*3.), Eq(f, a[j])],
                             dse='noop', dle=None)
         assert """\
   float (*a);
@@ -1059,14 +1107,20 @@ class TestDeclarator(object):
   /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
-  free(a);
-  return 0;""" in str(operator.ccode)
-
-    def test_stack_vector_temporaries(self, c_stack, e):
-        operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle=None)
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
         assert """\
-  float c_stack[i_size][j_size] __attribute__((aligned(64)));
+  free(a);
+  return 0;""" in str(operator)
+
+    def test_stack_vector_temporaries(self):
+        i, j, k, s, q = dimensions('i j k s q')
+        c = Array(name='c', dimensions=(i, j), scope='stack')
+        e = Array(name='e', dimensions=(k, s, q, i, j))
+        f = Function(name='f', shape=(3, 3), dimensions=(s, q))
+        operator = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.), Eq(f, c[s, q])],
+                            dse='noop', dle=None)
+        assert """\
+  float c[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
   /* Begin section0 */
@@ -1080,7 +1134,7 @@ class TestDeclarator(object):
         {
           for (int j = j_m; j <= j_M; j += 1)
           {
-            c_stack[i][j] = 1.0F*e[k][s][q][i][j];
+            c[i][j] = 1.0F*e[k][s][q][i][j];
           }
         }
       }
@@ -1089,21 +1143,41 @@ class TestDeclarator(object):
   /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
-  return 0;""" in str(operator.ccode)
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+
+    def test_conditional_declarations(self):
+        a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
+        init_value = ListInitializer([0, 0])
+        list_initialize = Expression(ClusterizedEq(Eq(a, init_value)))
+        iet = Conditional(x < 3, list_initialize, list_initialize)
+        iet = Callable('test', iet, 'void')
+        iet = DataManager.place_definitions.__wrapped__(DataManager(), iet)[0]
+        for i in iet.body[0].children:
+            assert len(i) == 1
+            assert i[0].is_Expression
+            assert i[0].expr.rhs is init_value
 
 
 class TestLoopScheduling(object):
 
-    def test_consistency_coupled_wo_ofs(self, tu, tv, ti0, t0, t1):
+    def test_permutations_without_deps(self):
         """
-        Test that no matter what is the order in which the equations are
-        provided to an Operator, the resulting loop nest is the same.
-        None of the array accesses in the equations use offsets.
+        Test that if none of the Function accesses in the equations use
+        offsets, implying that there are no carried dependences, then no
+        matter the order in which the equations are provided to an Operator
+        the resulting loop nest is the same, and the input ordering of the
+        equations is honored.
         """
-        eq1 = Eq(tu, tv*ti0*t0 + ti0*t1)
-        eq2 = Eq(ti0, tu + t0*3.)
-        eq3 = Eq(tv, ti0*tu)
+        grid = Grid(shape=(4, 4, 4))
+
+        ti0 = Function(name='ti0', grid=grid)
+        ti1 = Function(name='ti1', grid=grid)
+        tu = TimeFunction(name='tu', grid=grid)
+        tv = TimeFunction(name='tv', grid=grid)
+
+        eq1 = Eq(tu, tv*ti0 + ti0)
+        eq2 = Eq(ti0, tu + 3.)
+        eq3 = Eq(tv, ti0*ti1)
         op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
         op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
         op3 = Operator([eq3, eq2, eq1], dse='noop', dle='noop')
@@ -1112,182 +1186,201 @@ class TestLoopScheduling(object):
         assert all(len(i) == 1 for i in trees)
         trees = [i[0] for i in trees]
         for tree in trees:
-            assert IsPerfectIteration().visit(tree[0])
+            assert IsPerfectIteration().visit(tree[1])
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 
-    @pytest.mark.parametrize('exprs', [
-        ('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])', 'Eq(ti1[x,y,z], ti3[x,y,z])',
-         'Eq(ti3[x,y,z], ti1[x,y,z] + 1.)'),
-        ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
-         'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
-         'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
-        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x-3,y+3,z+1])',
-         'Eq(ti1[x+4,y+5,z+3], ti3[x+1,y-4,z+1])',
-         'Eq(ti3[x+7,y,z+2], ti3[x+5,y,z-1] - ti0[x-3,y-2,z-4])')
+    @pytest.mark.parametrize('exprs,fissioned,shared', [
+        # 0) Trivial case
+        (('Eq(u, 1)', 'Eq(v, u.dxl)'), '(1,x)', [0]),
+        # 1) Anti-dependence along x
+        (('Eq(u, 1)', 'Eq(v, u.dxr)'), '(1,x)', [0]),
+        # 2, 3) As above, but with an additional Dimension-independent dependence
+        (('Eq(u, v)', 'Eq(v, u.dxl)'), '(1,x)', [0]),
+        (('Eq(u, v)', 'Eq(v, u.dxr)'), '(1,x)', [0]),
+        # 4) Slightly more convoluted than above, as the additional dependence is
+        # now carried along x
+        (('Eq(u, v)', 'Eq(v, u.dxr)'), '(1,x)', [0]),
+        # 5) No backward carried dependences, no storage related dependences
+        (('Eq(us.forward, vs)', 'Eq(vs, us.dxl)'), '(0,time)', []),
+        # 6) No backward carried dependences, no storage related dependences
+        (('Eq(us.forward, vs)', 'Eq(vs, us.dxr)'), '(0,time)', []),
+        # 7) Three fissionable Eqs
+        (('Eq(u, u.dxl + v.dxr)', 'Eq(v, w.dxr)', 'Eq(w, u*w.dxl)'), '(1,x)', [0]),
+        # 8) There are carried backward dependences, but not in the Dimension
+        # that gets fissioned
+        (('Eq(u.forward, u + v.dx)', 'Eq(v.forward, v + u.forward.dx)'), '(1,x)', [0])
     ])
-    def test_consistency_coupled_w_ofs(self, exprs, ti0, ti1, ti3):
-        """
-        Test that no matter what is the order in which the equations are
-        provided to an Operator, the resulting loop nest is the same.
-        The array accesses in the equations may or may not use offsets;
-        these impact the loop bounds, but not the resulting tree
-        structure.
-        """
-        eq1, eq2, eq3 = EVAL(exprs, ti0.base, ti1.base, ti3.base)
-        op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
-        op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
-        op3 = Operator([eq3, eq2, eq1], dse='noop', dle='noop')
-
-        trees = [retrieve_iteration_tree(i) for i in [op1, op2, op3]]
-        assert all(len(i) == 1 for i in trees)
-        trees = [i[0] for i in trees]
-        for tree in trees:
-            assert IsPerfectIteration().visit(tree[0])
-            exprs = FindNodes(Expression).visit(tree[-1])
-            assert len(exprs) == 3
-
-    def test_fission_for_parallelism(self):
+    def test_fission_for_parallelism(self, exprs, fissioned, shared):
         """
         Test that expressions are scheduled to separate loops if this can
         turn one sequential loop into two parallel loops ("loop fission").
         """
         grid = Grid(shape=(3, 3))
+        t = grid.stepping_dim  # noqa
+        time = grid.time_dim  # noqa
+        x, y = grid.dimensions  # noqa
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+        w = TimeFunction(name='w', grid=grid)  # noqa
+        us = TimeFunction(name='u', grid=grid, save=5)  # noqa
+        vs = TimeFunction(name='v', grid=grid, save=5)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
+
+        op = Operator(eqns)
+
+        # Fission expected
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == len(eqns)
+
+        exp_depth, exp_dim = eval(fissioned)
+        for i in trees:
+            # Some outer loops may still be shared
+            for j in shared:
+                assert i[j] is trees[0][j]
+            # Fission happened
+            assert i[exp_depth].dim is exp_dim
+
+    @pytest.mark.parametrize('exprs', [
+        # 0) Storage related dependence
+        ('Eq(u.forward, v)', 'Eq(v, u.dxl)'),
+        # 1) Backward carried flow-dependence through `v`
+        ('Eq(u, v.forward)', 'Eq(v, u)'),
+        # 2) Backward carried flow-dependence through `vs`
+        ('Eq(us.forward, vs)', 'Eq(vs.forward, us.dxl)'),
+        # 3) Classic coupled forward-marching equations
+        ('Eq(u.forward, u + u.backward + v)', 'Eq(v.forward, v + v.backward + u)'),
+        # 4) Three non-fissionable Eqs
+        ('Eq(u, v.dxl)', 'Eq(v, w.dxl)', 'Eq(w, u*w.dxl)')
+    ])
+    def test_no_fission_as_illegal(self, exprs):
+        """
+        Antithesis of `test_fission_for_parallelism`.
+        """
+        grid = Grid(shape=(3, 3))
         x, y = grid.dimensions
 
-        u = TimeFunction(name='u', grid=grid)
-        v = TimeFunction(name='v', grid=grid)
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+        w = TimeFunction(name='w', grid=grid)  # noqa
+        us = TimeFunction(name='u', grid=grid, save=5)  # noqa
+        vs = TimeFunction(name='v', grid=grid, save=5)  # noqa
 
-        # Fission as an optimization to increase parallelism
-        eqns = [Eq(u, 1), Eq(v, u.dxl)]
-        op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
 
-        # Same story as above, but now with a WAR
-        eqns = [Eq(u, 1), Eq(v, u.dxr)]
         op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
-
-        # Again pretty similar, but with a WAR on `v` -- fission is still
-        # the result of optimization
-        eqns = [Eq(u, v), Eq(v, u.dxl)]
-        op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
 
         # No fission expected
-        eqns = [Eq(u.forward, v), Eq(v, u.dxl)]
-        op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
 
     @pytest.mark.parametrize('exprs,directions,expected,visit', [
-        # WAR 2->3
+        # 0) WAR 2->3, 3 fissioned to maximize parallelism
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '++++', ['xyz', 'xyz'], 'xyzz'),
-        # WAR 1->2, 2->3
+         '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
+        # 1) WAR 1->2, 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
          '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
-        # WAR 1->2, 2->3, RAW 2->3
+        # 2) WAR 1->2, 2->3, RAW 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + ti1[x,y,z+2])'),
          '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
-        # WAR 1->3
+        # 3) WAR 1->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
          '++++', ['xyz', 'xyz'], 'xyzz'),
-        # WAR 1->3
+        # 4) WAR 1->3
         # Like before, but the WAR is along `y`, an inner Dimension
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y+1,z] + 1.)'),
          '+++++', ['xyz', 'xyz'], 'xyzyz'),
-        # WAR 1->2, 2->3; WAW 1->3
+        # 5) WAR 1->2, 2->3; WAW 1->3
         # Similar to the cases above, but the last equation does not iterate over `z`
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+2])',
           'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
          '++++', ['xyz', 'xyz', 'xy'], 'xyzz'),
-        # WAR 1->2; WAW 1->3
+        # 6) WAR 1->2; WAW 1->3
         # Basically like above, but with the time dimension. This should have no impact
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
          '+++++', ['txyz', 'txyz', 'txy'], 'txyzz'),
-        # WAR 1->2, 2->3
+        # 7) WAR 1->2, 2->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
          '++++++', ['txyz', 'txyz', 'txyz'], 'txyzzz'),
-        # WAR 1->2; WAW 1->3
+        # 8) WAR 1->2; WAW 1->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
           'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
          '++++++++', ['txyz', 'txyz', 'ty'], 'txyzxyzy'),
-        # RAW 1->2, WAR 2->3
+        # 9) RAW 1->2, WAR 2->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '+++++++', ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
-        # WAR 1->2; WAW 1->3
+         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzyzyz'),
+        # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t-1,x,y,0], tu[t,x,y,0] + 1.)'),
          '-+++', ['txyz', 'txy'], 'txyz'),
-        # WAR 1->2
+        # 11) WAR 1->2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2] + tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z] + 2)'),
          '-+++', ['txyz'], 'txyz'),
-        # Time goes backward so that information flows in time
+        # 12) Time goes backward so that information flows in time
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-+++', ['txyz'], 'txyz'),
-        # Time goes backward so that information flows in time, interleaved
+        # 13) Time goes backward so that information flows in time, interleaved
         # with independent Eq
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-++++++', ['txyz', 'xyz'], 'txyzxyz'),
-        # Time goes backward so that information flows in time
+        # 14) Time goes backward so that information flows in time
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
          '+++-+++', ['xyz', 'txyz'], 'xyztxyz'),
-        # WAR 2->1
+        # 15) WAR 2->1
         # Here the difference is that we're using SubDimensions
         (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
           'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
          '+++++++', ['txiyizi', 'txiyizi'], 'txiyizixiyizi'),
-        # RAW 3->1; expected=2
+        # 16) RAW 3->1; expected=2
         # Time goes backward, but the third equation should get fused with
         # the first one, as there dependence is carried along time
         (('Eq(tv[t-1,x,y,z], tv[t,x-1,y,z] + tv[t,x+1,y,z])',
           'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
           'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
          '-++++', ['txyz', 'tz'], 'txyzz'),
-        # WAR 2->3, 2->4; expected=4
+        # 17) WAR 2->3, 2->4; expected=4
         (('Eq(tu[t+1,x,y,z], tu[t,x,y,z] + 1.)',
           'Eq(tu[t+1,y,y,y], tu[t+1,y,y,y] + tw[t+1,y,y,y])',
           'Eq(tw[t+1,z,z,z], tw[t+1,z,z,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t+1,x,y,z] + 1.)'),
          '+++++++++', ['txyz', 'ty', 'tz', 'txyz'], 'txyzyzxyz'),
-        # WAR 1->3; expected=2
+        # 18) WAR 1->3; expected=2
         # 5 is expected to be moved before 4 but after 3, to be merged with 3
         (('Eq(tu[t+1,x,y,z], tv[t,x,y,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t,x,y,z] + 1.)',
@@ -1319,7 +1412,7 @@ class TestLoopScheduling(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns, dse='noop', dle='noop')
+        op = Operator(eqns, dse='noop', dle=('noop', {'openmp': False}))
 
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
@@ -1396,13 +1489,21 @@ class TestLoopScheduling(object):
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,0], 0.)'],
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,z], 0.)'],
     ])
-    def test_directly_indexed_expression(self, fa, ti0, t0, exprs):
+    def test_directly_indexed_expression(self, ti0, t0, exprs):
         """
         Test that equations using integer indices are inserted in the right
         loop nest, at the right loop nest depth.
         """
-        eqs = EVAL(exprs, ti0.base, t0)
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions  # noqa
+
+        ti0 = Function(name='ti0', grid=grid, space_order=0)  # noqa
+        f0 = Scalar(name='t0')  # noqa
+
+        eqs = [eval(exprs[0]), eval(exprs[1])]
+
         op = Operator(eqs, dse='noop', dle='noop')
+
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
         assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
@@ -1533,7 +1634,9 @@ class TestLoopScheduling(object):
         eqn3 = Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)
         eqn4 = sf2.interpolate(u2)
 
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4)
+        # Note: DLE disabled only because with OpenMP otherwise there might be more
+        # `trees` than 4
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         # Time loop not shared due to the WAR
@@ -1543,7 +1646,7 @@ class TestLoopScheduling(object):
 
         # Now single, shared time loop expected
         eqn2 = sf1.inject(u1.forward, expr=sf1)
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4)
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)

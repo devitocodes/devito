@@ -5,14 +5,13 @@ from sympy import prod
 from math import floor
 
 from devito.mpi import Distributor
-from devito.parameters import configuration
-from devito.tools import ReducerMap, as_tuple
+from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.constant import Constant
 from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
-from devito.equation import Eq
+from devito.types.equation import Eq
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -131,7 +130,7 @@ class Grid(ArgProvider):
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
             spacing = self._const(name='dt', dtype=self.dtype)
-            self._time_dim = TimeDimension(name='time', spacing=spacing)
+            self._time_dim = self._make_time_dim(spacing)
             self._stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
         elif isinstance(time_dimension, TimeDimension):
             self._time_dim = time_dimension
@@ -255,11 +254,16 @@ class Grid(ArgProvider):
         return Constant
 
     def _make_stepping_dim(self, time_dim, name=None):
-        """Create a stepping dimension for this Grid."""
+        """Create a SteppingDimension for this Grid."""
         if name is None:
             name = '%s_s' % time_dim.name
         return SteppingDimension(name=name, parent=time_dim)
 
+    def _make_time_dim(self, spacing):
+        """Create a TimeDimension for this Grid."""
+        return TimeDimension(name='time', spacing=spacing)
+
+    @memoized_meth
     def _arg_defaults(self):
         """A map of default argument values defined by this Grid."""
         args = ReducerMap()
@@ -267,7 +271,7 @@ class Grid(ArgProvider):
         for k, v in self.dimension_map.items():
             args.update(k._arg_defaults(_min=0, size=v.loc))
 
-        if configuration['mpi']:
+        if self.distributor.is_parallel:
             distributor = self.distributor
             args[distributor._obj_comm.name] = distributor._obj_comm.value
             args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
@@ -516,7 +520,6 @@ class SubDomainSet(SubDomain):
             self.implicit_dimension = n
         self._n_domains = kwargs.get('N', 1)
         self._bounds = kwargs.get('bounds', None)
-        self._implicit_exprs = None
 
     def __subdomain_finalize__(self, dimensions, shape):
         # Create the SubDomain's SubDimensions
