@@ -16,4 +16,4 @@ jobs:
         docker build . --file docker/Dockerfile --tag ${TAG}
         docker run --name testrun ${TAG}
       env:
-        TAG: devito_img-$(date +%s)
+        TAG: devito_img-${{ date "+%s" }}
