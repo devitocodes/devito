@@ -1,6 +1,9 @@
 # Devito: Fast Finite Difference Computation from Symbolic Specification
 
-![Build Status](https://travis-ci.org/devitocodes/devito.svg?branch=master)
+![Build Status for the Core backend](https://github.com/devitocodes/devito/workflows/CI-core/badge.svg)
+![Build Status for the OPS backend](https://github.com/devitocodes/devito/workflows/CI-ops/badge.svg)
+![Build Status for the YASK backend](https://github.com/devitocodes/devito/workflows/CI-yask/badge.svg)
+![Build Status with MPI](https://github.com/devitocodes/devito/workflows/CI-mpi/badge.svg)
 ![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)
 
 [Devito](http://www.devitoproject.org) is a software to
