@@ -13,11 +13,11 @@ jobs:
     steps:
     - uses: actions/checkout@v1
       with:
-        'python-version': '3.x' 
+        python-version: 3.x 
     - name: Run documentation script
       run: |
         #html documentation generation
-        pip install -U sphinx
+        pip install sphinx
         cd docs && make html && cd ..;
         # html documentation generation through doctr
         pip install doctr;
