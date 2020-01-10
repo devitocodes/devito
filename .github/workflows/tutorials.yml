@@ -41,10 +41,5 @@ jobs:
         pip install -e .[extras]
 
     - name: Evaluate cells of example notebooks
-      env:
-        CC: ${{ matrix.gcc-version }}
       run: |
-        for notebook in examples/cfd examples/seismic/tutorials examples/compiler examples/userapi
-        do
-            DEVITO_ARCH=gcc-${{ matrix.gcc-version }} pytest --nbval $notebook
-        done
+        bash .github/workflows/test-notebooks.sh ${{ matrix.gcc-version }}
