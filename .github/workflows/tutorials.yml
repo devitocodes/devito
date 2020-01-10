@@ -31,12 +31,17 @@ jobs:
       run : |
         sudo apt-get install -y g++-${{ matrix.gcc-version }}
 
+    - name: Install MPI
+      run : |
+        sudo apt-get install -y mpich libmpich-dev
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
+        pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-optional.txt
-        pip install -e .
+        pip install -e .[extras]
+
     - name: Evaluate cells of example notebooks
       env:
         CC: ${{ matrix.gcc-version }}
