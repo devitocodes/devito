@@ -16,7 +16,7 @@ jobs:
     - name: Build a binary wheel and source package in dist/
       run: >-
         python setup.py sdist bdist_wheel
-    - name: Publish distribution to Test PyPI repo
+    - name: Publish distribution to fake Test PyPI repo
       uses: pypa/gh-action-pypi-publish@master
       with:
         password: ${{ secrets.test_pypi_password }}
