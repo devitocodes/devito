@@ -15,6 +15,8 @@ jobs:
     name: Test Jupyter notebooks on ${{ matrix.python-version }} and ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
       matrix:
         python-version: ['3.6', '3.7']
         os: [ubuntu-latest]
