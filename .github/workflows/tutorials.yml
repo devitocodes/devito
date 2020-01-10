@@ -12,16 +12,44 @@ on:
 
 jobs:
   test:
-    name: Test Jupyter notebooks on ${{ matrix.python-version }} and ${{ matrix.os }}
+    name: Test Jupyter notebooks on ${{ matrix.python-version }} and ${{ matrix.os }} with ${{ matrix.compiler }}
     runs-on: ${{ matrix.os }}
     strategy:
       # Prevent all build to stop if a single one fails
       fail-fast: false
       matrix:
-        python-version: ['3.6', '3.7']
-        os: [ubuntu-latest]
-        gcc-version: [9]
+        name: [
+          ubuntu-18.04-gcc-9,
+          ubuntu-18.04-clang-9,
+          macOS-10.14-gcc-9,
+          macOS-10.14-xcode-11.0
+          ]
 
+        include:
+
+          - name: ubuntu-18.04-gcc-9
+            os: ubuntu-18.04
+            compiler: gcc
+            version: "9"
+
+          - name: ubuntu-18.04-clang-9
+            os: ubuntu-18.04
+            compiler: clang
+            version: "9"
+
+          - name: macOS-10.14-gcc-9
+            os: macOS-10.14
+            compiler: gcc
+            version: "9"
+
+          - name: macOS-10.14-xcode-11.0
+            os: macOS-10.14
+            compiler: xcode
+            version: "11"
+
+        python-version: ['3.6', '3.7']
+        # os: [ubuntu-latest]
+        # gcc-version: [9]
     steps:
     - uses: actions/checkout@v1
     - name: Set up Python ${{ matrix.python-version }}
@@ -29,13 +57,56 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install GCC ${{ matrix.gcc-version }}
-      run : |
-        sudo apt-get install -y g++-${{ matrix.gcc-version }}
+    - name: Install (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        # Required for libc6-dbg:i386 and g++-multilib packages which are
+        # needed for x86 builds.
+        sudo dpkg --add-architecture i386
+        # clang-3.7 and earlier are not available in Bionic anymore so we get
+        # them from the Xenial repositories instead.
+        sudo add-apt-repository "deb http://dk.archive.ubuntu.com/ubuntu/ xenial main"
+        sudo add-apt-repository "deb http://dk.archive.ubuntu.com/ubuntu/ xenial universe"
+        # LLVM 9 is not in Bionic's repositories so we add the official LLVM repository.
+        if [ "${{ matrix.compiler }}" = "clang" ] && [ "${{ matrix.version }}" = "9" ]; then
+          sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+        fi
 
-    - name: Install MPI
-      run : |
+        sudo apt-get update
+
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
+          sudo apt-get install -y g++-${{ matrix.version }} g++-${{ matrix.version }}-multilib
+          echo "::set-env name=CC::gcc-${{ matrix.version }}"
+          echo "::set-env name=CXX::g++-${{ matrix.version }}"
+        else
+          sudo apt-get install -y clang-${{ matrix.version }} g++-multilib
+          echo "::set-env name=CC::clang-${{ matrix.version }}"
+          echo "::set-env name=CXX::clang++-${{ matrix.version }}"
+        fi
+
         sudo apt-get install -y mpich libmpich-dev
+
+    - name: Install (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install mpich
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
+          brew install gcc@${{ matrix.version }}
+          echo "::set-env name=CC::gcc-${{ matrix.version }}"
+          echo "::set-env name=CXX::g++-${{ matrix.version }}"
+        else
+          sudo xcode-select -switch /Applications/Xcode_${{ matrix.version }}.app
+          echo "::set-env name=CC::clang"
+          echo "::set-env name=CXX::clang++"
+        fi
+
+    # - name: Install GCC ${{ matrix.gcc-version }}
+    #   run : |
+    #     sudo apt-get install -y g++-${{ matrix.gcc-version }}
+
+    # - name: Install MPI
+    #   run : |
+    #     sudo apt-get install -y mpich libmpich-dev
 
     - name: Install dependencies
       run: |
@@ -44,4 +115,4 @@ jobs:
 
     - name: Evaluate cells of example notebooks
       run: |
-        bash .github/workflows/test-notebooks.sh ${{ matrix.gcc-version }}
+        bash .github/workflows/test-notebooks.sh $CC
