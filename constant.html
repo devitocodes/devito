@@ -180,51 +180,6 @@
             
   <div class="section" id="constant">
 <h1>Constant<a class="headerlink" href="#constant" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
-<dt id="devito.types.Constant">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.</code><code class="sig-name descname">Constant</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/constant.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Constant" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.DataSymbol</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.args.ArgProvider</span></code></p>
-<p>Symbol representing a constant, scalar value in symbolic equations.
-A Constant carries a scalar value.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
-<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
-to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
-</ul>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Constant</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;c&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span>
-<span class="go">c</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">data</span>
-<span class="go">0.0</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="mi">4</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">data</span>
-<span class="go">4.0</span>
-</pre></div>
-</div>
-<p class="rubric">Notes</p>
-<p>The parameters must always be given as keyword arguments, since SymPy
-uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the symbolic object.</p>
-<dl class="method">
-<dt id="devito.types.Constant.data">
-<em class="property">property </em><code class="sig-name descname">data</code><a class="headerlink" href="#devito.types.Constant.data" title="Permalink to this definition">¶</a></dt>
-<dd><p>The value of the data object, as a scalar (int, float, …).</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.types.Constant.is_const">
-<em class="property">property </em><code class="sig-name descname">is_const</code><a class="headerlink" href="#devito.types.Constant.is_const" title="Permalink to this definition">¶</a></dt>
-<dd><p>True if the symbol value cannot be modified within an Operator (and thus
-its value is provided by the user directly from Python-land), False otherwise.</p>
-</dd></dl>
-
-</dd></dl>
-
 </div>
 
 
