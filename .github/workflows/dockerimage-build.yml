@@ -11,8 +11,8 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Build the Docker image
-    env:
-          TAG: "devito_img:$(date +%s)"
       run: | 
         docker build . --file docker/Dockerfile --tag ${TAG}
         docker run --name testrun ${TAG}
+      env:
+        TAG: "devito_img-$(date +%s)"
