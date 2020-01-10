@@ -28,14 +28,18 @@ class Cluster(object):
     guards : dict, optional
         Mapper from Dimensions to expr-like, representing the conditions under
         which the Cluster should be computed.
+    properties : dict, optional
+        Mapper from Dimensions to Property, describing the Cluster properties
+        such as its parallel Dimensions.
     """
 
-    def __init__(self, exprs, ispace, dspace, guards=None):
+    def __init__(self, exprs, ispace, dspace, guards=None, properties=None):
         self._exprs = tuple(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                             for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._guards = frozendict(guards or {})
+        self._properties = frozendict(properties or {})
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
@@ -51,17 +55,32 @@ class Cluster(object):
         if not all(root.ispace.is_compatible(c.ispace) for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "incompatible IterationSpace")
+        if not all(root.properties == c.properties for c in clusters):
+            raise ValueError("Cannot build a Cluster from Clusters with "
+                             "non-homogeneous properties")
         exprs = chain(*[c.exprs for c in clusters])
         ispace = IterationSpace.union(*[c.ispace for c in clusters])
         dspace = DataSpace.union(*[c.dspace for c in clusters])
-        return Cluster(exprs, ispace, dspace)
+        return Cluster(exprs, ispace, dspace, properties=root.properties)
 
-    def rebuild(self, exprs):
+    def rebuild(self, *args, **kwargs):
         """
-        Build a new Cluster from a sequence of expressions. All other attributes
-        are inherited from ``self``.
+        Build a new Cluster from the attributes given as keywords. All other
+        attributes are taken from ``self``.
         """
-        return Cluster(exprs, self.ispace, self.dspace, self.guards)
+        # Shortcut for backwards compatibility
+        if args:
+            if len(args) != 1:
+                raise ValueError("rebuild takes at most one positional argument (exprs)")
+            if kwargs.get('exprs'):
+                raise ValueError("`exprs` provided both as arg and kwarg")
+            kwargs['exprs'] = args[0]
+
+        return Cluster(exprs=kwargs.get('exprs', self.exprs),
+                       ispace=kwargs.get('ispace', self.ispace),
+                       dspace=kwargs.get('dspace', self.dspace),
+                       guards=kwargs.get('guards', self.guards),
+                       properties=kwargs.get('properties', self.properties))
 
     @property
     def exprs(self):
@@ -82,6 +101,10 @@ class Cluster(object):
     @property
     def guards(self):
         return self._guards
+
+    @property
+    def properties(self):
+        return self._properties
 
     @cached_property
     def free_symbols(self):

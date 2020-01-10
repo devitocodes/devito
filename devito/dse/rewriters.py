@@ -4,7 +4,7 @@ from time import time
 
 from sympy import cos, sin
 
-from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
+from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup,
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
 from devito.dse.manipulation import (collect_nested, common_subexprs_elimination,
@@ -309,7 +309,8 @@ class AdvancedRewriter(BasicRewriter):
             dspace = DataSpace(cluster.dspace.intervals, parts)
 
             # Create a new Cluster for `alias`
-            alias_clusters.append(Cluster([expression], ispace, dspace))
+            alias_clusters.append(cluster.rebuild(exprs=[expression],
+                                                  ispace=ispace, dspace=dspace))
 
         # Switch temporaries in the expression trees
         processed = [e.xreplace(subs) for e in processed]

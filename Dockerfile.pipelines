@@ -84,14 +84,13 @@ RUN rm -f /usr/bin/gcc && ln -s /usr/bin/gcc-$gccVersion /usr/bin/gcc ;
 ENV PATH=/usr/local/miniconda/bin:$PATH
 
 # Python installs
-RUN if [ $installWithPip == "true" ] ; then \ 
-      if [ $PYTHON_VERSION == "3.6" ] ; then \
-        apt-get install -y python3.6-dev python3-pip ; \
-      rm -f /usr/bin/python && ln -s /usr/bin/python3.6 /usr/bin/python ; \
-      else \
-        apt-get install -y python3.7-dev python3-pip ; \
-      rm -f /usr/bin/python && ln -s /usr/bin/python3.7 /usr/bin/python ; \
+RUN if [ $installWithPip == "true" ] ; then \
+      if [ "$PYTHON_VERSION" == "3.8"] ; then \
+        apt update ; \
+        apt install -y software-properties-common ; \
       fi ; \
+      apt-get install -y python$PYTHON_VERSION-dev python3-pip ; \
+      rm -f /usr/bin/python && ln -s /usr/bin/python$PYTHON_VERSION /usr/bin/python ; \
     else \
       wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh ; \
       bash /tmp/miniconda.sh -b -p /usr/local/miniconda ; \
@@ -113,7 +112,8 @@ RUN if [ $installWithPip == "true" ] ; then \
         python -m pip install --user -e .[extras] ; \
       fi ; \
     else \
-      conda env create -q -f environment.yml ; \
+      sed -i -E 's/(python=)(.*)/\1'$PYTHON_VERSION'/' environment.yml ; \
+      conda env create -q -f environment.yml; \
       source activate devito ; \
       conda update -q conda ; \
       echo $PATH ; \
@@ -121,16 +121,12 @@ RUN if [ $installWithPip == "true" ] ; then \
       if [ $MPI_INSTALL == '1' ] ; then \
         pip install -r requirements-optional.txt ; \
       fi ; \
-      pip install pytest-xdist ; \
-      if [ $DEVITO_BACKEND == "yask" ] ; then \
-        conda install swig ; \ 
-        git clone https://github.com/devitocodes/yask.git /tmp/yask ; \
-        pushd /tmp/yask ; \ 
-          make compiler-api ; \
-          pip install -e . ; \
-        popd ; \
-      fi ; \
       if [ $RUN_EXAMPLES == "true" ] ; then \
+        pip install matplotlib ; \
+      fi ; \
+      pip install pytest-xdist ; \
+
+      if [ $MPI_INSTALL == '1' ] ; then \
         bash scripts/create_ipyparallel_mpi_profile.sh; \
       fi ; \
     fi

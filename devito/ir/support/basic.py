@@ -404,6 +404,11 @@ class Dependence(object):
                 ((self.source.timestamp == self.sink.timestamp) ==
                  (other.source.timestamp == other.sink.timestamp)))
 
+    def __hash__(self):
+        return hash(
+            (self.source, self.sink, self.source.timestamp == self.sink.timestamp)
+        )
+
     @property
     def function(self):
         return self.source.function
@@ -509,6 +514,10 @@ class Dependence(object):
         """
         return self.source.timestamp == -1 or self.sink.timestamp == -1
 
+    @property
+    def is_local(self):
+        return self.function.is_Symbol
+
     @memoized_meth
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence, False otherwise."""
@@ -575,17 +584,11 @@ class Dependence(object):
         return self.source.lex_eq(self.sink) and self.is_indep(dim)
 
     @memoized_meth
-    def is_storage_volatile(self, dims=None):
+    def is_storage_related(self, dims=None):
         """
-        True if a storage-volatile dependence, False otherwise.
-
-        Examples
-        --------
-        * ``self.function`` is a scalar;
-        * ``dim = t`` and `t` is a SteppingDimension appearing in ``self.function``.
+        True if a storage-related dependence, that is multiple iterations
+        cause the access of the same memory location, False otherwise.
         """
-        if self.function.is_AbstractSymbol:
-            return True
         for d in self.findices:
             if (d._defines & set(as_tuple(dims)) and
                     any(i.is_NonlinearDerived for i in d._defines)):
@@ -596,7 +599,7 @@ class Dependence(object):
         return "%s -> %s" % (self.source, self.sink)
 
 
-class DependenceGroup(list):
+class DependenceGroup(set):
 
     @cached_property
     def cause(self):
@@ -630,11 +633,11 @@ class DependenceGroup(list):
 
     def __add__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup(super(DependenceGroup, self).__add__(other))
+        return DependenceGroup(super(DependenceGroup, self).__or__(other))
 
     def __sub__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup([i for i in self if i not in other])
+        return DependenceGroup(super(DependenceGroup, self).__sub__(other))
 
     def project(self, function):
         """
@@ -650,16 +653,6 @@ class Scope(object):
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
-
-        A Scope may be used only if IterationSpaces and Function's Dimensions
-        follow the same ordering.  For example, given ``f(x, y, z)`` and ``g(x,
-        y)``, the IterationSpace must be ``[x, y, z]`` (and not ``[x, z, y]``).
-        In Devito, this is guaranteed by construction -- IterationSpaces are
-        built from a deterministic partial ordering of Dimensions. This
-        condition ensures that the lexicographic ordering of the iterations for
-        the iteration vector ``(x, y, z)`` is ``(0, 0, 0), (0, 0, 1), ..., (0,
-        1, 0), (0, 1, 1), ...``, which greatly simplifies the collection and
-        classification of data dependences.
         """
         exprs = as_tuple(exprs)
 

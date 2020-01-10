@@ -1,9 +1,9 @@
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.iet import Iteration, FindNodes, Transformer, COLLAPSED, VECTOR
+from devito.ir.support import COLLAPSED
 from devito.targets.basic import Target
-from devito.targets.common import (DataManager, Ompizer, ParallelTree, target_pass,
+from devito.targets.common import (DataManager, Ompizer, ParallelTree,
                                    optimize_halospots, mpiize, hoist_prodders)
 
 __all__ = ['DeviceOffloadingTarget']
@@ -107,20 +107,6 @@ class OffloadingOmpizer(Ompizer):
         # no-op for now
         return partree
 
-    @target_pass
-    def make_simd(self, iet, **kwargs):
-        # No SIMD-ization for devices. We then drop the VECTOR property
-        # so that later passes can perform more aggressive transformations
-        mapper = {}
-        for i in FindNodes(Iteration).visit(iet):
-            if i.is_Vectorizable:
-                properties = [p for p in i.properties if p is not VECTOR]
-                mapper[i] = i._rebuild(properties=properties)
-
-        iet = Transformer(mapper).visit(iet)
-
-        return iet, {}
-
 
 class OffloadingDataManager(DataManager):
 
@@ -162,7 +148,6 @@ class DeviceOffloadingTarget(Target):
         optimize_halospots(graph)
         if self.params['mpi']:
             mpiize(graph, mode=self.params['mpi'])
-        self.ompizer.make_simd(graph, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
             self.ompizer.make_parallel(graph)
         hoist_prodders(graph)

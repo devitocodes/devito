@@ -229,15 +229,20 @@ class TestSubDimension(object):
 
     @skipif('yask')
     @pytest.mark.parametrize('exprs,expected,', [
-        (['Eq(u[t, x, yleft], u[t, x, yleft] + 1.)'], ['yleft']),
-        # All outers are parallel, carried dependence in `yleft`, so no SIMD in `yleft`
-        (['Eq(u[t, x, yleft], u[t, x, yleft+1] + 1.)'], []),
+        # All parallel, the innermost Iteration gets vectorized
+        (['Eq(u[time, x, yleft], u[time, x, yleft] + 1.)'], ['yleft']),
+        # All outers are parallel, carried dependence in `yleft`, so the middle
+        # Iteration over `x` gets vectorized
+        (['Eq(u[time, x, yleft], u[time, x, yleft+1] + 1.)'], ['x']),
+        # Only the middle Iteration is parallel, so no vectorization (the Iteration
+        # is left non-vectorised for OpenMP parallelism)
+        (['Eq(u[time+1, x, yleft], u[time, x, yleft+1] + u[time+1, x, yleft+1])'], [])
     ])
     def test_iteration_property_vector(self, exprs, expected):
         """Tests detection of vector Iterations when using subdimensions."""
         grid = Grid(shape=(20, 20))
         x, y = grid.dimensions  # noqa
-        t = grid.time_dim  # noqa
+        time = grid.time_dim  # noqa
 
         # The leftmost 10 elements
         yleft = SubDimension.left(name='yleft', parent=y, thickness=10) # noqa
@@ -248,10 +253,10 @@ class TestSubDimension(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='noop')
+        op = Operator(exprs, dle='simd')
         iterations = FindNodes(Iteration).visit(op)
-        vectorizable = [i.dim.name for i in iterations if i.is_Vectorizable]
-        assert set(vectorizable) == set(expected)
+        vectorized = [i.dim.name for i in iterations if i.is_Vectorized]
+        assert set(vectorized) == set(expected)
 
     def test_subdimmiddle_parallel(self):
         """

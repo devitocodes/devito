@@ -6,17 +6,16 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 
-from conftest import EVAL, skipif
+from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
                     Eq, Operator, switchconfig)
 from devito.exceptions import InvalidArgument
-from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Callable, Expression, Iteration, Conditional, FindNodes,
-                           FindSymbols, iet_analyze, derive_parameters,
+from devito.ir.iet import (Call, Iteration, Conditional, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
-from devito.targets import BlockDimension, NThreads, NThreadsNonaffine, iet_lower
+from devito.targets import BlockDimension, NThreads, NThreadsNonaffine
 from devito.targets.common.openmp import ParallelRegion
 from devito.tools import as_tuple
+from devito.types import Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -250,10 +249,10 @@ class TestNodeParallelism(object):
     @pytest.mark.parametrize('exprs,expected', [
         # trivial 1D
         (['Eq(fa[x], fa[x] + fb[x])'],
-         (True, False)),
+         (True,)),
         # trivial 1D
         (['Eq(t0, fa[x] + fb[x])', 'Eq(fa[x], t0 + 1)'],
-         (True, False)),
+         (True,)),
         # trivial 2D
         (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(fc[x,y], t0 + 1)'],
          (True, False)),
@@ -268,35 +267,40 @@ class TestNodeParallelism(object):
          (False, True)),
         # outermost parallel w/ repeated dimensions, but the compiler is conservative
         # and makes it sequential, as it doesn't like what happens in the inner dims,
-        # where `x`, rather than `y`, is used
+        # where `x`, rather than `y`, is used. The innermost one is instead parallel,
+        # as there are no deps along `y`.
         (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x], t0 + 1)'],
-         (False, False)),
-        # outermost sequential w/ repeated dimensions
-        (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x+1], t0 + 1)'],
-         (False, False)),
+         (False, True)),
         # outermost sequential, innermost sequential (classic skewing example)
         (['Eq(fc[x,y], fc[x,y+1] + fc[x-1,y])'],
          (False, False)),
+        # skewing-like over two Eqs
+        (['Eq(t0, fc[x,y+2] + fc[x-1,y+2])', 'Eq(fc[x,y+1], t0 + 1)'],
+         (False, False)),
         # outermost parallel, innermost sequential w/ double tensor write
         (['Eq(fc[x,y], fc[x,y+1] + fd[x-1,y])', 'Eq(fd[x-1,y+1], fd[x-1,y] + fc[x,y+1])'],
-         (True, False)),
+         (True, False, False)),
         # outermost sequential, innermost parallel w/ mixed dimensions
         (['Eq(fc[x+1,y], fc[x,y+1] + fc[x,y])', 'Eq(fc[x+1,y], 2. + fc[x,y+1])'],
          (False, True)),
     ])
-    def test_iterations_ompized(self, fa, fb, fc, fd, t0, t1, t2, t3,
-                                exprs, expected, iters):
-        scope = [fa, fb, fc, fd, t0, t1, t2, t3]
-        node_exprs = [Expression(DummyEq(EVAL(i, *scope))) for i in exprs]
-        iet = iters[6](iters[7](node_exprs))
+    def test_iterations_ompized(self, exprs, expected):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions  # noqa
 
-        parameters = derive_parameters(iet, True)
-        iet = Callable('kernel', iet, 'int', parameters)
+        fa = Function(name='fa', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+        fb = Function(name='fb', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+        fc = Function(name='fc', grid=grid)  # noqa
+        fd = Function(name='fd', grid=grid)  # noqa
+        t0 = Scalar(name='t0')  # noqa
 
-        iet = iet_analyze(iet)
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
 
-        iet, _ = iet_lower(iet, mode='openmp')
-        iterations = FindNodes(Iteration).visit(iet)
+        op = Operator(eqns, dle='openmp')
+
+        iterations = FindNodes(Iteration).visit(op)
         assert len(iterations) == len(expected)
 
         # Check for presence of pragma omp
@@ -362,10 +366,10 @@ class TestNodeParallelism(object):
         eq = eval(eq)
 
         if blocking:
-            op = Operator(eq, dle=('blocking', 'openmp', {'blockinner': True}))
+            op = Operator(eq, dle=('blocking', 'simd', 'openmp', {'blockinner': True}))
             iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
         else:
-            op = Operator(eq, dle='openmp')
+            op = Operator(eq, dle=('simd', 'openmp'))
             iterations = FindNodes(Iteration).visit(op)
 
         assert len(iterations) == len(expected)
