@@ -13,4 +13,4 @@ jobs:
     - name: Build the Docker image
       run: | 
         docker build . --file docker/Dockerfile --tag devito_img
-        docker run --name testrun devito_img
+        docker run --name testrun devito_img tests
