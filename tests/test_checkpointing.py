@@ -155,8 +155,8 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     """ Run the acoustic example with and without save=True. Make sure the result is the
     same
     """
-    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
-                            space_order=space_order, time_order=time_order)
+    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, dtype=np.float64,
+                            space_order=space_order, time_order=time_order, tn=tn)
     rec, u, summary = solver.forward(save=True)
     last_time_step = solver.geometry.nt-1
     field_last_time_step = np.copy(u.data[last_time_step, :, :])
