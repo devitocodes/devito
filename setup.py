@@ -35,7 +35,7 @@ for ir in optionals:
         opt_reqs += [ir]
 extras_require['extras'] = opt_reqs
 
-setup(name='devito-iamleeg-fork',
+setup(name='devito',
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
       description="Finite Difference DSL for symbolic computation.",
