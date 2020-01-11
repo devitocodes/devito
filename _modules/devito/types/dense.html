@@ -1,0 +1,1566 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.types.dense &mdash; Devito v4.0</title>
+  
+
+  
+  
+    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito v4.0
+          
+
+          
+            
+            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../compiler.html">The Devito Compiler</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito v4.0</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.types.dense</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.types.dense</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">namedtuple</span>
+<span class="kn">from</span> <span class="nn">ctypes</span> <span class="kn">import</span> <span class="n">POINTER</span><span class="p">,</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">c_void_p</span><span class="p">,</span> <span class="n">c_int</span><span class="p">,</span> <span class="n">cast</span><span class="p">,</span> <span class="n">byref</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span><span class="p">,</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">ceil</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="kn">import</span> <span class="n">mul</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">psutil</span> <span class="kn">import</span> <span class="n">virtual_memory</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span> <span class="nn">cgen</span> <span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">Value</span>
+
+<span class="kn">from</span> <span class="nn">devito.builtins</span> <span class="kn">import</span> <span class="n">assign</span>
+<span class="kn">from</span> <span class="nn">devito.data</span> <span class="kn">import</span> <span class="p">(</span><span class="n">DOMAIN</span><span class="p">,</span> <span class="n">OWNED</span><span class="p">,</span> <span class="n">HALO</span><span class="p">,</span> <span class="n">NOPAD</span><span class="p">,</span> <span class="n">FULL</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">CENTER</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">,</span>
+                         <span class="n">Data</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="kn">import</span> <span class="n">InvalidArgument</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">FieldFromPointer</span>
+<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span>
+                          <span class="n">ctypes_to_cstr</span><span class="p">,</span> <span class="n">memoized_meth</span><span class="p">,</span> <span class="n">dtype_to_ctype</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.types.args</span> <span class="kn">import</span> <span class="n">ArgProvider</span>
+<span class="kn">from</span> <span class="nn">devito.types.caching</span> <span class="kn">import</span> <span class="n">CacheManager</span>
+<span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">AbstractFunction</span>
+<span class="kn">from</span> <span class="nn">devito.types.utils</span> <span class="kn">import</span> <span class="n">Buffer</span><span class="p">,</span> <span class="n">NODE</span><span class="p">,</span> <span class="n">CELL</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFunction&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">DiscreteFunction</span><span class="p">(</span><span class="n">AbstractFunction</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tensor symbol representing a discrete function in symbolic equations.</span>
+<span class="sd">    Unlike an Array, a DiscreteFunction carries data.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Users should not instantiate this class directly. Use Function or</span>
+<span class="sd">    SparseFunction (or their subclasses) instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Required by SymPy, otherwise the presence of __getitem__ will make SymPy</span>
+    <span class="c1"># think that a DiscreteFunction is actually iterable, thus breaking many of</span>
+    <span class="c1"># its key routines (e.g., solve)</span>
+    <span class="n">_iterable</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">is_Input</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_DiscreteFunction</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># A `Distributor` to handle domain decomposition (only relevant for MPI)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__distributor_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Staggering metadata</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_staggered</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__staggered_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Now that *all* __X_setup__ hooks have been called, we can let the</span>
+        <span class="c1"># superclass constructor do its job</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># There may or may not be a `Grid` attached to the DiscreteFunction</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Symbolic (finite difference) coefficients</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_coefficients</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coefficients&#39;</span><span class="p">,</span> <span class="s1">&#39;standard&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coefficients</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;standard&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;coefficients must be `standard` or `symbolic`&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Data-related properties and data initialization</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first-touch&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;allocator&#39;</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">())</span>
+        <span class="n">initializer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;initializer&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">initializer</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">callable</span><span class="p">(</span><span class="n">initializer</span><span class="p">):</span>
+            <span class="c1"># Initialization postponed until the first access to .data</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span> <span class="o">=</span> <span class="n">initializer</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">initializer</span><span class="p">,</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+            <span class="c1"># Allocate memory and initialize it. Note that we do *not* hold</span>
+            <span class="c1"># a reference to the user-provided buffer</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">initializer</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">initializer</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># This is a corner case -- we might get here, for example, when</span>
+                <span class="c1"># running with MPI and some processes get 0-size arrays after</span>
+                <span class="c1"># domain decomposition. We touch the data anyway to avoid the</span>
+                <span class="c1"># case ``self._data is None``</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`initializer` must be callable or buffer, not </span><span class="si">%s</span><span class="s2">&quot;</span>
+                             <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">initializer</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="fm">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Quick self == other comparison.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">other</span><span class="o">.</span><span class="vm">__class__</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="c1"># Still need to check for different arguments eg `f(x)` and `f(x+3)`</span>
+        <span class="c1"># Note that hash(f(x)) == hash(f(x+3)), but clearly f(x) != f(x+3)</span>
+        <span class="c1"># However, checking the args by equality may be expensive due to</span>
+        <span class="c1"># sympify(), so here we rather check for idendity</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+
+    <span class="fm">__hash__</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="fm">__hash__</span>  <span class="c1"># Required since we&#39;re overriding __eq__</span>
+
+    <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Allocate memory as a Data.&quot;&quot;&quot;</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">))</span>
+
+                <span class="c1"># Clear up both SymPy and Devito caches to drop unreachable data</span>
+                <span class="n">CacheManager</span><span class="o">.</span><span class="n">clear</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+                <span class="c1"># Allocate the actual data object</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+                                  <span class="n">modulo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_modulo</span><span class="p">,</span> <span class="n">allocator</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">,</span>
+                                  <span class="n">distributor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="p">)</span>
+
+                <span class="c1"># Initialize data</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
+                    <span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
+                        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;`first touch` together with `initializer` causing &quot;</span>
+                                <span class="s2">&quot;redundant data initialization&quot;</span><span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                        <span class="c1"># Perhaps user only wants to initialise the physical domain</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__dtype_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+        <span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dtype</span>
+        <span class="k">elif</span> <span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">grid</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span>
+
+    <span class="k">def</span> <span class="nf">__staggered_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Setup staggering-related metadata. This method assigns:</span>
+
+<span class="sd">            * 0 to non-staggered dimensions;</span>
+<span class="sd">            * 1 to staggered dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">staggered</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">staggered</span> <span class="ow">is</span> <span class="n">CELL</span><span class="p">:</span>
+            <span class="n">staggered</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span>
+        <span class="k">return</span> <span class="n">staggered</span>
+
+    <span class="k">def</span> <span class="nf">__distributor_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+        <span class="c1"># There may or may not be a `Distributor`. In the latter case, the</span>
+        <span class="c1"># DiscreteFunction is to be considered &quot;local&quot; to each MPI rank</span>
+        <span class="k">return</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;distributor&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_data_buffer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,</span>
+<span class="sd">        this *never* returns a view of the data. This method is for internal use only.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_allocated</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_data_alignment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="o">.</span><span class="n">guaranteed_alignment</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_mem_external</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">grid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The Grid on which the discretization occurred.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">staggered</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_staggered</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Form of the coefficients of the function.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coefficients</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_coeff_symbol</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span> <span class="o">==</span> <span class="s1">&#39;symbolic&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;W&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Function was not declared with symbolic &quot;</span>
+                             <span class="s2">&quot;coefficients.&quot;</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain region. The domain constitutes the area of the</span>
+<span class="sd">        data written to by an Operator.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *local* domain region shape.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">shape_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain region. The domain constitutes the area of the</span>
+<span class="sd">        data written to by an Operator.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *local* domain region shape.</span>
+<span class="sd">        Alias to ``self.shape``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">shape_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain+outhalo region. The outhalo is the region</span>
+<span class="sd">        surrounding the domain that may be read by an Operator.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *local* with_halo region shape.</span>
+<span class="sd">        Further, note that the outhalo of inner ranks is typically empty, while</span>
+<span class="sd">        the outhalo of boundary ranks contains a number of elements depending</span>
+<span class="sd">        on the rank position in the decomposed grid (corner, side, ...).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_outhalo</span><span class="p">))</span>
+
+    <span class="n">_shape_with_outhalo</span> <span class="o">=</span> <span class="n">shape_with_halo</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_shape_with_inhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain+inhalo region. The inhalo region comprises the</span>
+<span class="sd">        outhalo as well as any additional &quot;ghost&quot; layers for MPI halo</span>
+<span class="sd">        exchanges. Data in the inhalo region are exchanged when running</span>
+<span class="sd">        Operators to maintain consistent values as in sequential runs.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Typically, this property won&#39;t be used in user code, but it may come</span>
+<span class="sd">        in handy for testing or debugging</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">shape_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the allocated data. It includes the domain and inhalo regions,</span>
+<span class="sd">        as well as any additional padding surrounding the halo.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *local* with_halo region shape.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_with_inhalo</span><span class="p">,</span>
+                                                    <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">shape_global</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Global shape of the domain region. The domain constitutes the area of</span>
+<span class="sd">        the data written to by an Operator.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *global* domain region shape, which is</span>
+<span class="sd">        therefore identical on all MPI ranks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimension_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+            <span class="n">retval</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">size</span><span class="o">.</span><span class="n">glb</span> <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">s</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">retval</span><span class="p">)</span>
+
+    <span class="n">_offset_inhalo</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">_offset_halo</span>
+    <span class="n">_size_inhalo</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">_size_halo</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_size_outhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Number of points in the outer halo region.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_inhalo</span>
+
+        <span class="n">left</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_inhalo</span><span class="o">.</span><span class="n">left</span><span class="p">)]</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                 <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_inhalo</span><span class="o">.</span><span class="n">right</span><span class="p">)]</span>
+
+        <span class="n">Size</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Size&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
+        <span class="n">sizes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Size</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">sizes</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of elements this object is expected to store in memory.</span>
+<span class="sd">        Note that this would need to be combined with self.dtype to give the actual</span>
+<span class="sd">        size in bytes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_mask_modulo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Boolean mask telling which Dimensions support modulo-indexing.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">True</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_mask_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Slice-based mask to access the domain region of the allocated data.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span>
+                     <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_mask_inhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Slice-based mask to access the domain+inhalo region of the allocated data.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">right</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">right</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span>
+                     <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_inhalo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_inhalo</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_mask_outhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Slice-based mask to access the domain+outhalo region of the allocated data.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">j</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">stop</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">stop</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">right</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_outhalo</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Tuple of Decomposition objects, representing the domain decomposition.</span>
+<span class="sd">        None is used as a placeholder for non-decomposed Dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">decomposition</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_dimensions</span><span class="p">}</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_decomposition_outhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Tuple of Decomposition objects, representing the domain+outhalo</span>
+<span class="sd">        decomposition. None is used as a placeholder for non-decomposed Dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_size_inhalo</span><span class="p">[</span><span class="n">d</span><span class="p">])</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">v</span>
+                     <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The domain data values, as a numpy.ndarray.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use :meth:`data_ro`</span>
+<span class="sd">        instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_domain</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The domain data values.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Alias to ``self.data``.</span>
+
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_domain` instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The domain+outhalo data values.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_with_halo` instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_outhalo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition_outhalo</span><span class="p">)</span>
+
+    <span class="n">_data_with_outhalo</span> <span class="o">=</span> <span class="n">data_with_halo</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">_data_with_inhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The domain+inhalo data values.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
+
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_with_inhalo` instead.</span>
+
+<span class="sd">        Typically, this accessor won&#39;t be used in user code to set or read data</span>
+<span class="sd">        values. Instead, it may come in handy for testing or debugging</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_inhalo</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">_data_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The allocated data values, that is domain+inhalo+padding.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
+
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_allocated` instead.</span>
+
+<span class="sd">        Typically, this accessor won&#39;t be used in user code to set or read data</span>
+<span class="sd">        values. Instead, it may come in handy for testing or debugging</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_data_in_region</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">side</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The data values in a given region.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        region : DataRegion</span>
+<span class="sd">            The data region of interest (e.g., OWNED, HALO) for which a view</span>
+<span class="sd">            is produced.</span>
+<span class="sd">        dim : Dimension</span>
+<span class="sd">            The dimension of interest.</span>
+<span class="sd">        side : DataSide</span>
+<span class="sd">            The side of interest (LEFT, RIGHT).</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
+
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back.</span>
+
+<span class="sd">        Typically, this accessor won&#39;t be used in user code to set or read</span>
+<span class="sd">        data values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_offset_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">region</span><span class="o">.</span><span class="n">name</span><span class="p">)[</span><span class="n">dim</span><span class="p">],</span> <span class="n">side</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_size_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">region</span><span class="o">.</span><span class="n">name</span><span class="p">)[</span><span class="n">dim</span><span class="p">],</span> <span class="n">side</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">index_array</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">offset</span><span class="o">+</span><span class="n">size</span><span class="p">)</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="n">dim</span> <span class="k">else</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                       <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">index_array</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_ro_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read-only view of the domain data values.&quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">)</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">view</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_ro_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read-only view of the domain+outhalo data values.&quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_outhalo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition_outhalo</span><span class="p">)</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">view</span>
+
+    <span class="n">_data_ro_with_outhalo</span> <span class="o">=</span> <span class="n">data_ro_with_halo</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">_data_ro_with_inhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read-only view of the domain+inhalo data values.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_inhalo</span><span class="p">]</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">view</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">_data_ro_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read-only view of the domain+inhalo+padding data values.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">view</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">local_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Tuple of slices representing the global indices that logically</span>
+<span class="sd">        belong to the calling MPI rank.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not* using</span>
+<span class="sd">        MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``. On</span>
+<span class="sd">        the other hand, when MPI is used, the local ranges depend on the domain</span>
+<span class="sd">        decomposition, which is carried by ``self.grid``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">glb_slices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">s</span><span class="p">))</span>
+                         <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Tuple of Dimensions defining the physical space.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Space</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_dist_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Tuple of MPI-distributed Dimensions.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">initializer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span>
+
+    <span class="n">_C_structname</span> <span class="o">=</span> <span class="s1">&#39;dataobj&#39;</span>
+    <span class="n">_C_typename</span> <span class="o">=</span> <span class="s1">&#39;struct </span><span class="si">%s</span><span class="s1"> *&#39;</span> <span class="o">%</span> <span class="n">_C_structname</span>
+    <span class="n">_C_field_data</span> <span class="o">=</span> <span class="s1">&#39;data&#39;</span>
+    <span class="n">_C_field_size</span> <span class="o">=</span> <span class="s1">&#39;size&#39;</span>
+    <span class="n">_C_field_nopad_size</span> <span class="o">=</span> <span class="s1">&#39;npsize&#39;</span>
+    <span class="n">_C_field_domain_size</span> <span class="o">=</span> <span class="s1">&#39;dsize&#39;</span>
+    <span class="n">_C_field_halo_size</span> <span class="o">=</span> <span class="s1">&#39;hsize&#39;</span>
+    <span class="n">_C_field_halo_ofs</span> <span class="o">=</span> <span class="s1">&#39;hofs&#39;</span>
+    <span class="n">_C_field_owned_ofs</span> <span class="o">=</span> <span class="s1">&#39;oofs&#39;</span>
+
+    <span class="n">_C_typedecl</span> <span class="o">=</span> <span class="n">Struct</span><span class="p">(</span><span class="n">_C_structname</span><span class="p">,</span>
+                         <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">restrict&#39;</span> <span class="o">%</span> <span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">c_void_p</span><span class="p">),</span> <span class="n">_C_field_data</span><span class="p">),</span>
+                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_size</span><span class="p">),</span>
+                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_nopad_size</span><span class="p">),</span>
+                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_domain_size</span><span class="p">),</span>
+                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_halo_size</span><span class="p">),</span>
+                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_halo_ofs</span><span class="p">),</span>
+                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_owned_ofs</span><span class="p">)])</span>
+
+    <span class="n">_C_ctype</span> <span class="o">=</span> <span class="n">POINTER</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">_C_structname</span><span class="p">,</span> <span class="p">(</span><span class="n">Structure</span><span class="p">,),</span>
+                            <span class="p">{</span><span class="s1">&#39;_fields_&#39;</span><span class="p">:</span> <span class="p">[(</span><span class="n">_C_field_data</span><span class="p">,</span> <span class="n">c_void_p</span><span class="p">),</span>
+                                          <span class="p">(</span><span class="n">_C_field_size</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
+                                          <span class="p">(</span><span class="n">_C_field_nopad_size</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
+                                          <span class="p">(</span><span class="n">_C_field_domain_size</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
+                                          <span class="p">(</span><span class="n">_C_field_halo_size</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
+                                          <span class="p">(</span><span class="n">_C_field_halo_ofs</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
+                                          <span class="p">(</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">))]}))</span>
+
+    <span class="k">def</span> <span class="nf">_C_make_dataobj</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A ctypes object representing the DiscreteFunction that can be passed to</span>
+<span class="sd">        an Operator.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dataobj</span> <span class="o">=</span> <span class="n">byref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_ctype</span><span class="o">.</span><span class="n">_type_</span><span class="p">())</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data_as</span><span class="p">(</span><span class="n">c_void_p</span><span class="p">)</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)(</span><span class="o">*</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="c1"># MPI-related fields</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">npsize</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="nb">sum</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span>
+                                                  <span class="nb">zip</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_padding</span><span class="p">)])</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">dsize</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_size_domain</span><span class="p">)</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">hsize</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="o">*</span><span class="mi">2</span><span class="p">))(</span><span class="o">*</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_size_halo</span><span class="p">))</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">hofs</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="o">*</span><span class="mi">2</span><span class="p">))(</span><span class="o">*</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="p">))</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">oofs</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="o">*</span><span class="mi">2</span><span class="p">))(</span><span class="o">*</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_owned</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">dataobj</span>
+
+    <span class="k">def</span> <span class="nf">_C_as_ndarray</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataobj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cast the data carried by a DiscreteFunction dataobj to an ndarray.&quot;&quot;&quot;</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+        <span class="n">ctype_1d</span> <span class="o">=</span> <span class="n">dtype_to_ctype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">shape</span><span class="p">))</span>
+        <span class="n">buf</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">ctype_1d</span><span class="p">))</span><span class="o">.</span><span class="n">contents</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@memoized_meth</span>
+    <span class="k">def</span> <span class="nf">_C_make_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># Depends on how fields are populated in `_C_make_dataobj`</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span><span class="o">*</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">idx</span>
+
+    <span class="nd">@memoized_meth</span>
+    <span class="k">def</span> <span class="nf">_C_get_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbolic representation of a given data region.&quot;&quot;&quot;</span>
+        <span class="n">ffp</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="n">FieldFromPointer</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">[</span><span class="si">%d</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="n">DOMAIN</span><span class="p">:</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_domain_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">region</span> <span class="ow">is</span> <span class="n">OWNED</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_halo_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">CENTER</span><span class="p">:</span>
+                <span class="c1"># Note: identical to region=HALO, side=CENTER</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_domain_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">))</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_halo_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">region</span> <span class="ow">is</span> <span class="n">HALO</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_halo_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_halo_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">CENTER</span><span class="p">:</span>
+                <span class="c1"># Note: identical to region=OWNED, side=CENTER</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_domain_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_halo_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">))</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_halo_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">region</span> <span class="ow">is</span> <span class="n">NOPAD</span><span class="p">:</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_halo_ofs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">))</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_nopad_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">region</span> <span class="ow">is</span> <span class="n">FULL</span><span class="p">:</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">ffp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_field_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_index</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown region `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">region</span><span class="p">))</span>
+
+        <span class="n">RegionMeta</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;RegionMeta&#39;</span><span class="p">,</span> <span class="s1">&#39;offset size&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">RegionMeta</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Perform the halo exchange with the neighboring processes.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">MPI</span><span class="o">.</span><span class="n">Is_initialized</span><span class="p">()</span> <span class="ow">or</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># Nothing to do</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` cannot perform a halo exchange as it has &quot;</span>
+                               <span class="s2">&quot;no Grid attached&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="n">neighborhood</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">neighborhood</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">comm</span>
+
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_dimensions</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]:</span>
+                <span class="c1"># Get involved peers</span>
+                <span class="n">dest</span> <span class="o">=</span> <span class="n">neighborhood</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">source</span> <span class="o">=</span> <span class="n">neighborhood</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">i</span><span class="o">.</span><span class="n">flip</span><span class="p">()]</span>
+
+                <span class="c1"># Gather send data</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_in_region</span><span class="p">(</span><span class="n">OWNED</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+                <span class="n">sendbuf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+                <span class="c1"># Setup recv buffer</span>
+                <span class="n">shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_in_region</span><span class="p">(</span><span class="n">HALO</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">flip</span><span class="p">())</span><span class="o">.</span><span class="n">shape</span>
+                <span class="n">recvbuf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+                <span class="c1"># Communication</span>
+                <span class="n">comm</span><span class="o">.</span><span class="n">Sendrecv</span><span class="p">(</span><span class="n">sendbuf</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="n">dest</span><span class="p">,</span> <span class="n">recvbuf</span><span class="o">=</span><span class="n">recvbuf</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+
+                <span class="c1"># Scatter received data</span>
+                <span class="k">if</span> <span class="n">recvbuf</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">source</span> <span class="o">!=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">PROC_NULL</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_data_in_region</span><span class="p">(</span><span class="n">HALO</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">flip</span><span class="p">())[:]</span> <span class="o">=</span> <span class="n">recvbuf</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Tuple of argument names introduced by this function.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,)</span>
+
+    <span class="c1"># NOTE: This _arg_defaults, unlike many others, cannot be memoized</span>
+    <span class="c1"># since it leads to halo&#39;s not being updated when required. See</span>
+    <span class="c1"># test_mpi: test_haloupdate_multi_op</span>
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A map of default argument values defined by this symbol.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        alias : DiscreteFunction, optional</span>
+<span class="sd">            To bind the argument values to different names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">({</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_buffer</span><span class="p">})</span>
+
+        <span class="c1"># Collect default dimension arguments from all indices</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">_min</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="p">))</span>
+
+        <span class="c1"># Add MPI-related data structures</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="n">args</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A map of argument values after evaluating user input. If no</span>
+<span class="sd">        user input is provided, return a default value.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        **kwargs</span>
+<span class="sd">            Dictionary of user-provided argument overrides.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Add value override for own data if it is provided, otherwise</span>
+        <span class="c1"># use defaults</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">DiscreteFunction</span><span class="p">):</span>
+                <span class="c1"># Set new values and re-derive defaults</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># We&#39;ve been provided a pure-data replacement (array)</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">new</span><span class="p">}</span>
+                <span class="c1"># Add value overrides for all associated dimensions</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">new</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+                    <span class="n">size</span> <span class="o">=</span> <span class="n">s</span> <span class="o">-</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_size_nodomain</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                    <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">))</span>
+                <span class="c1"># Add MPI-related data structures</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">values</span>
+
+    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check that ``args`` contains legal runtime values bound to ``self``.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        InvalidArgument</span>
+<span class="sd">            If, given the runtime values ``args``, an out-of-bounds array</span>
+<span class="sd">            access would be performed, or if shape/dtype don&#39;t match with</span>
+<span class="sd">            self&#39;s shape/dtype.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;No runtime value for `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Shape </span><span class="si">%s</span><span class="s2"> of runtime value `</span><span class="si">%s</span><span class="s2">` does not match &quot;</span>
+                                  <span class="s2">&quot;dimensions </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
+                                  <span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Data type </span><span class="si">%s</span><span class="s2"> of runtime value `</span><span class="si">%s</span><span class="s2">` does not match the &quot;</span>
+                    <span class="s2">&quot;Function data type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">key</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_arg_check</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_arg_as_ctype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="n">ReducerMap</span><span class="p">({</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_dataobj</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">])})</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span>\
+        <span class="p">[</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="s1">&#39;initializer&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../../function.html#devito.types.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Differentiable</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tensor symbol representing a discrete function in symbolic equations.</span>
+
+<span class="sd">    A Function carries multi-dimensional data and provides operations to create</span>
+<span class="sd">    finite-differences approximations.</span>
+
+<span class="sd">    A Function encapsulates space-varying data; for data that also varies in time,</span>
+<span class="sd">    use TimeFunction instead.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Name of the symbol.</span>
+<span class="sd">    grid : Grid, optional</span>
+<span class="sd">        Carries shape, dimensions, and dtype of the Function. When grid is not</span>
+<span class="sd">        provided, shape and dimensions must be given. For MPI execution, a</span>
+<span class="sd">        Grid is compulsory.</span>
+<span class="sd">    space_order : int or 3-tuple of ints, optional</span>
+<span class="sd">        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also</span>
+<span class="sd">        impacts the number of points available around a generic point of interest.  By</span>
+<span class="sd">        default, ``space_order`` points are available on both sides of a generic point of</span>
+<span class="sd">        interest, including those nearby the grid boundary. Sometimes, fewer points</span>
+<span class="sd">        suffice; in other scenarios, more points are necessary. In such cases, instead of</span>
+<span class="sd">        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization</span>
+<span class="sd">        order (``o``) as well as the number of points on the left (``lp``) and right</span>
+<span class="sd">        (``rp``) sides of a generic point of interest.</span>
+<span class="sd">    shape : tuple of ints, optional</span>
+<span class="sd">        Shape of the domain region in grid points. Only necessary if ``grid`` isn&#39;t given.</span>
+<span class="sd">    dimensions : tuple of Dimension, optional</span>
+<span class="sd">        Dimensions associated with the object. Only necessary if ``grid`` isn&#39;t given.</span>
+<span class="sd">    dtype : data-type, optional</span>
+<span class="sd">        Any object that can be interpreted as a numpy data type. Defaults</span>
+<span class="sd">        to ``np.float32``.</span>
+<span class="sd">    staggered : Dimension or tuple of Dimension or Stagger, optional</span>
+<span class="sd">        Define how the Function is staggered.</span>
+<span class="sd">    initializer : callable or any object exposing the buffer interface, optional</span>
+<span class="sd">        Data initializer. If a callable is provided, data is allocated lazily.</span>
+<span class="sd">    allocator : MemoryAllocator, optional</span>
+<span class="sd">        Controller for memory allocation. To be used, for example, when one wants</span>
+<span class="sd">        to take advantage of the memory hierarchy in a NUMA architecture. Refer to</span>
+<span class="sd">        `default_allocator.__doc__` for more information.</span>
+<span class="sd">    padding : int or tuple of ints, optional</span>
+<span class="sd">        .. deprecated:: shouldn&#39;t be used; padding is now automatically inserted.</span>
+
+<span class="sd">        Allocate extra grid points to maximize data access alignment. When a tuple</span>
+<span class="sd">        of ints, one int per Dimension should be provided.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Creation</span>
+
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, Function</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; f</span>
+<span class="sd">    f(x, y)</span>
+<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid, space_order=2)</span>
+<span class="sd">    &gt;&gt;&gt; g</span>
+<span class="sd">    g(x, y)</span>
+
+<span class="sd">    First-order derivatives through centered finite-difference approximations</span>
+
+<span class="sd">    &gt;&gt;&gt; f.dx</span>
+<span class="sd">    Derivative(f(x, y), x)</span>
+<span class="sd">    &gt;&gt;&gt; f.dy</span>
+<span class="sd">    Derivative(f(x, y), y)</span>
+<span class="sd">    &gt;&gt;&gt; g.dx</span>
+<span class="sd">    Derivative(g(x, y), x)</span>
+<span class="sd">    &gt;&gt;&gt; (f + g).dx</span>
+<span class="sd">    Derivative(f(x, y) + g(x, y), x)</span>
+
+<span class="sd">    First-order derivatives through left/right finite-difference approximations</span>
+
+<span class="sd">    &gt;&gt;&gt; f.dxl</span>
+<span class="sd">    Derivative(f(x, y), x)</span>
+
+<span class="sd">    Note that the fact that it&#39;s a left-derivative isn&#39;t captured in the representation.</span>
+<span class="sd">    However, upon derivative expansion, this becomes clear</span>
+
+<span class="sd">    &gt;&gt;&gt; f.dxl.evaluate</span>
+<span class="sd">    f(x, y)/h_x - f(x - h_x, y)/h_x</span>
+<span class="sd">    &gt;&gt;&gt; f.dxr</span>
+<span class="sd">    Derivative(f(x, y), x)</span>
+
+<span class="sd">    Second-order derivative through centered finite-difference approximation</span>
+
+<span class="sd">    &gt;&gt;&gt; g.dx2</span>
+<span class="sd">    Derivative(g(x, y), (x, 2))</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The parameters must always be given as keyword arguments, since SymPy</span>
+<span class="sd">    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_cache_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Attach additional metadata to self&#39;s cache entry</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nbytes&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Space order</span>
+        <span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">space_order</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_space_order</span> <span class="o">=</span> <span class="n">space_order</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">space_order</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">space_order</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_space_order</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">space_order</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`space_order` must be int or 3-tuple of ints&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Dynamically add derivative short-cuts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fd</span> <span class="o">=</span> <span class="n">generate_fd_shortcuts</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="c1"># Flag whether it is a parameter or a variable.</span>
+        <span class="c1"># Used at operator evaluation to evaluate the Function at the</span>
+        <span class="c1"># variable location (i.e. if the variable is staggered in x the</span>
+        <span class="c1"># parameter has to be computed at x + hx/2)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_parameter</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;parameter&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_parameter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_parameter</span>
+
+    <span class="k">def</span> <span class="nf">_eval_at</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_parameter</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span> <span class="o">==</span> <span class="n">func</span><span class="o">.</span><span class="n">staggered</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="bp">self</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d1</span><span class="p">]:</span> <span class="n">func</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d1</span><span class="p">]</span>
+                          <span class="k">for</span> <span class="n">d1</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">})</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need either `grid` or `dimensions`&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
+
+        <span class="c1"># Staggered indices</span>
+        <span class="n">staggered</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;staggered&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">staggered</span> <span class="ow">in</span> <span class="p">[</span><span class="n">CELL</span><span class="p">,</span> <span class="n">NODE</span><span class="p">]:</span>
+            <span class="n">staggered_indices</span> <span class="o">=</span> <span class="n">dimensions</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">staggered</span><span class="p">):</span>
+                <span class="n">c</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">s</span><span class="p">:</span> <span class="n">s</span> <span class="o">+</span> <span class="n">c</span> <span class="o">*</span> <span class="n">s</span><span class="o">.</span><span class="n">spacing</span><span class="o">/</span><span class="mi">2</span><span class="p">})</span>
+
+            <span class="n">staggered_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">dimensions</span><span class="p">),</span> <span class="n">staggered_indices</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Staggered</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape_global&#39;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need either `grid` or `shape`&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dimensions</span> <span class="o">!=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need `shape` as not all `dimensions` are in `grid`&quot;</span><span class="p">)</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">shape_local</span>
+        <span class="k">elif</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`dimensions` required if both `grid` and &quot;</span>
+                            <span class="s2">&quot;`shape` are provided&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Got `grid`, `dimensions`, and `shape`. We sanity-check that the</span>
+            <span class="c1"># Dimensions in `dimensions` also appearing in `grid` have same size</span>
+            <span class="c1"># (given by `shape`) as that provided in `grid`</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`shape` and `dimensions` must have the &quot;</span>
+                                 <span class="s2">&quot;same number of entries&quot;</span><span class="p">)</span>
+            <span class="n">loc_shape</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+                    <span class="n">size</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimension_map</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">size</span><span class="o">.</span><span class="n">glb</span> <span class="o">!=</span> <span class="n">s</span> <span class="ow">and</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Dimension `</span><span class="si">%s</span><span class="s2">` is given size `</span><span class="si">%d</span><span class="s2">`, &quot;</span>
+                                         <span class="s2">&quot;while `grid` says `</span><span class="si">%s</span><span class="s2">` has size `</span><span class="si">%d</span><span class="s2">` &quot;</span>
+                                         <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">size</span><span class="o">.</span><span class="n">glb</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">loc_shape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">size</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">loc_shape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">loc_shape</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">shape</span>
+
+    <span class="k">def</span> <span class="nf">__halo_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">halo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;halo&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">halo</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">halo</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">space_order</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">halo</span> <span class="o">=</span> <span class="p">(</span><span class="n">space_order</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">space_order</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">space_order</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">left_points</span><span class="p">,</span> <span class="n">right_points</span> <span class="o">=</span> <span class="n">space_order</span>
+                <span class="n">halo</span> <span class="o">=</span> <span class="p">(</span><span class="n">left_points</span><span class="p">,</span> <span class="n">right_points</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`space_order` must be int or 3-tuple of ints&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">halo</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Space</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__padding_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">padding</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;padding&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">padding</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;autopadding&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autopadding&#39;</span><span class="p">]):</span>
+                <span class="c1"># Auto-padding</span>
+                <span class="c1"># 0-padding in all Dimensions except in the Fastest Varying Dimension,</span>
+                <span class="c1"># `fvd`, which is the innermost one</span>
+                <span class="n">padding</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+                <span class="n">fvd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="c1"># Let UB be a function that rounds up a value `x` to the nearest</span>
+                <span class="c1"># multiple of the SIMD vector length, `vl`</span>
+                <span class="n">vl</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">simd_items_per_reg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="n">ub</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">ceil</span><span class="p">(</span><span class="n">x</span> <span class="o">/</span> <span class="n">vl</span><span class="p">))</span> <span class="o">*</span> <span class="n">vl</span>
+                <span class="c1"># Given the HALO and DOMAIN sizes, the right-PADDING is such that:</span>
+                <span class="c1"># * the `fvd` size is a multiple of `vl`</span>
+                <span class="c1"># * it contains *at least* `vl` points</span>
+                <span class="c1"># This way:</span>
+                <span class="c1"># * all first grid points along the `fvd` will be cache-aligned</span>
+                <span class="c1"># * there is enough room to round up the loop trip counts to maximize</span>
+                <span class="c1">#   the effectiveness SIMD vectorization</span>
+                <span class="n">fvd_pad_size</span> <span class="o">=</span> <span class="p">(</span><span class="n">ub</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_size_nopad</span><span class="p">[</span><span class="n">fvd</span><span class="p">])</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_nopad</span><span class="p">[</span><span class="n">fvd</span><span class="p">])</span> <span class="o">+</span> <span class="n">vl</span>
+                <span class="n">padding</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">fvd_pad_size</span><span class="p">))</span>
+                <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">padding</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">padding</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">padding</span><span class="p">)</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Space</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">padding</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">padding</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">padding</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`padding` must be int or </span><span class="si">%d</span><span class="s2">-tuple of ints&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">space_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The space order.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_order</span>
+
+<div class="viewcode-block" id="Function.sum"><a class="viewcode-back" href="../../../function.html#devito.types.Function.sum">[docs]</a>    <span class="k">def</span> <span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a symbolic expression computing the sum of ``p`` points</span>
+<span class="sd">        along the spatial dimensions ``dims``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        p : int, optional</span>
+<span class="sd">            The number of summands. Defaults to the halo size.</span>
+<span class="sd">        dims : tuple of Dimension, optional</span>
+<span class="sd">            The Dimensions along which the sum is computed. Defaults to</span>
+<span class="sd">            ``self``&#39;s spatial dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">dims</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">lp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_inhalo</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+                <span class="n">rp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_inhalo</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">lp</span> <span class="o">=</span> <span class="n">p</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">p</span> <span class="o">%</span> <span class="mi">2</span>
+                <span class="n">rp</span> <span class="o">=</span> <span class="n">p</span> <span class="o">//</span> <span class="mi">2</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="o">-</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">lp</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+            <span class="n">indices</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">d</span> <span class="o">+</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rp</span><span class="p">)])</span>
+            <span class="n">points</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">])</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">points</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Function.avg"><a class="viewcode-back" href="../../../function.html#devito.types.Function.avg">[docs]</a>    <span class="k">def</span> <span class="nf">avg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a symbolic expression computing the average of ``p`` points</span>
+<span class="sd">        along the spatial dimensions ``dims``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        p : int, optional</span>
+<span class="sd">            The number of summands. Defaults to the halo size.</span>
+<span class="sd">        dims : tuple of Dimension, optional</span>
+<span class="sd">            The Dimensions along which the average is computed. Defaults to</span>
+<span class="sd">            ``self``&#39;s spatial dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">dims</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tot</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">tot</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span>\
+        <span class="p">[</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="s1">&#39;shape_global&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="TimeFunction"><a class="viewcode-back" href="../../../timefunction.html#devito.types.TimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tensor symbol representing a discrete function in symbolic equations.</span>
+
+<span class="sd">    A TimeFunction carries multi-dimensional data and provides operations to create</span>
+<span class="sd">    finite-differences approximations, in both space and time.</span>
+
+<span class="sd">    A TimeFunction encapsulates space- and time-varying data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Name of the symbol.</span>
+<span class="sd">    grid : Grid, optional</span>
+<span class="sd">        Carries shape, dimensions, and dtype of the Function. When grid is not</span>
+<span class="sd">        provided, shape and dimensions must be given. For MPI execution, a</span>
+<span class="sd">        Grid is compulsory.</span>
+<span class="sd">    space_order : int or 3-tuple of ints, optional</span>
+<span class="sd">        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also</span>
+<span class="sd">        impacts the number of points available around a generic point of interest.  By</span>
+<span class="sd">        default, ``space_order`` points are available on both sides of a generic point of</span>
+<span class="sd">        interest, including those nearby the grid boundary. Sometimes, fewer points</span>
+<span class="sd">        suffice; in other scenarios, more points are necessary. In such cases, instead of</span>
+<span class="sd">        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization</span>
+<span class="sd">        order (``o``) as well as the number of points on the left (``lp``) and right</span>
+<span class="sd">        (``rp``) sides of a generic point of interest.</span>
+<span class="sd">    time_order : int, optional</span>
+<span class="sd">        Discretization order for time derivatives. Defaults to 1.</span>
+<span class="sd">    shape : tuple of ints, optional</span>
+<span class="sd">        Shape of the domain region in grid points. Only necessary if `grid` isn&#39;t given.</span>
+<span class="sd">    dimensions : tuple of Dimension, optional</span>
+<span class="sd">        Dimensions associated with the object. Only necessary if `grid` isn&#39;t given.</span>
+<span class="sd">    dtype : data-type, optional</span>
+<span class="sd">        Any object that can be interpreted as a numpy data type. Defaults</span>
+<span class="sd">        to `np.float32`.</span>
+<span class="sd">    save : int or Buffer, optional</span>
+<span class="sd">        By default, ``save=None``, which indicates the use of alternating buffers. This</span>
+<span class="sd">        enables cyclic writes to the TimeFunction. For example, if the TimeFunction</span>
+<span class="sd">        ``u(t, x)`` has shape (3, 100), then, in an Operator, ``t`` will assume the</span>
+<span class="sd">        values ``1, 2, 0, 1, 2, 0, 1, ...`` (note that the very first value depends</span>
+<span class="sd">        on the stencil equation in which ``u`` is written.). The default size of the time</span>
+<span class="sd">        buffer when ``save=None`` is ``time_order + 1``.  To specify a different size for</span>
+<span class="sd">        the time buffer, one should use the syntax ``save=Buffer(mysize)``.</span>
+<span class="sd">        Alternatively, if all of the intermediate results are required (or, simply, to</span>
+<span class="sd">        avoid using an alternating buffer), an explicit value for ``save`` ( an integer)</span>
+<span class="sd">        must be provided.</span>
+<span class="sd">    time_dim : Dimension, optional</span>
+<span class="sd">        TimeDimension to be used in the TimeFunction. Defaults to ``grid.time_dim``.</span>
+<span class="sd">    staggered : Dimension or tuple of Dimension or Stagger, optional</span>
+<span class="sd">        Define how the Function is staggered.</span>
+<span class="sd">    initializer : callable or any object exposing the buffer interface, optional</span>
+<span class="sd">        Data initializer. If a callable is provided, data is allocated lazily.</span>
+<span class="sd">    allocator : MemoryAllocator, optional</span>
+<span class="sd">        Controller for memory allocation. To be used, for example, when one wants</span>
+<span class="sd">        to take advantage of the memory hierarchy in a NUMA architecture. Refer to</span>
+<span class="sd">        `default_allocator.__doc__` for more information.</span>
+<span class="sd">    padding : int or tuple of ints, optional</span>
+<span class="sd">        .. deprecated:: shouldn&#39;t be used; padding is now automatically inserted.</span>
+
+<span class="sd">        Allocate extra grid points to maximize data access alignment. When a tuple</span>
+<span class="sd">        of ints, one int per Dimension should be provided.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    Creation</span>
+
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, TimeFunction</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; f = TimeFunction(name=&#39;f&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; f</span>
+<span class="sd">    f(t, x, y)</span>
+<span class="sd">    &gt;&gt;&gt; g = TimeFunction(name=&#39;g&#39;, grid=grid, time_order=2)</span>
+<span class="sd">    &gt;&gt;&gt; g</span>
+<span class="sd">    g(t, x, y)</span>
+
+<span class="sd">    First-order derivatives through centered finite-difference approximations</span>
+
+<span class="sd">    &gt;&gt;&gt; f.dx</span>
+<span class="sd">    Derivative(f(t, x, y), x)</span>
+<span class="sd">    &gt;&gt;&gt; f.dt</span>
+<span class="sd">    Derivative(f(t, x, y), t)</span>
+<span class="sd">    &gt;&gt;&gt; g.dt</span>
+<span class="sd">    Derivative(g(t, x, y), t)</span>
+
+<span class="sd">    When using the alternating buffer protocol, the size of the time dimension</span>
+<span class="sd">    is given by ``time_order + 1``</span>
+
+<span class="sd">    &gt;&gt;&gt; f.shape</span>
+<span class="sd">    (2, 4, 4)</span>
+<span class="sd">    &gt;&gt;&gt; g.shape</span>
+<span class="sd">    (3, 4, 4)</span>
+
+<span class="sd">    One can drop the alternating buffer protocol specifying a value for ``save``</span>
+
+<span class="sd">    &gt;&gt;&gt; h = TimeFunction(name=&#39;h&#39;, grid=grid, save=20)</span>
+<span class="sd">    &gt;&gt;&gt; h</span>
+<span class="sd">    h(time, x, y)</span>
+<span class="sd">    &gt;&gt;&gt; h.shape</span>
+<span class="sd">    (20, 4, 4)</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The parameters must always be given as keyword arguments, since SymPy uses</span>
+<span class="sd">    ``*args`` to (re-)create the dimension arguments of the symbolic object.</span>
+<span class="sd">    If the parameter ``grid`` is provided, the values for ``shape``,</span>
+<span class="sd">    ``dimensions`` and ``dtype`` will be derived from it. When present, the</span>
+<span class="sd">    parameter ``shape`` should only define the spatial shape of the grid. The</span>
+<span class="sd">    temporal dimension will be inserted automatically as the leading dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_TimeFunction</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_TimeDependent</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="sd">&quot;&quot;&quot;Position of time index among the function indices.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_dim&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Check we won&#39;t allocate too much memory for the system</span>
+        <span class="n">available_mem</span> <span class="o">=</span> <span class="n">virtual_memory</span><span class="p">()</span><span class="o">.</span><span class="n">available</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="n">available_mem</span><span class="p">:</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Trying to allocate more memory for symbol </span><span class="si">%s</span><span class="s2"> &quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span>
+                    <span class="s2">&quot;than available on physical device, this will start swapping&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`time_order` must be int&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
+        <span class="n">staggered</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;staggered&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">save</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">)</span>
+            <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+            <span class="n">time_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_dim&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">time_dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">time_dim</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">time_dim</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">save</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">else</span> <span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">time_dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`time_dim` must be a time dimension&quot;</span><span class="p">)</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">dimensions</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_time_position</span><span class="p">,</span> <span class="n">time_dim</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span><span class="p">(</span><span class="n">dimensions</span><span class="o">=</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">staggered</span><span class="o">=</span><span class="n">staggered</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+        <span class="n">save</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>  <span class="c1"># Force to None if 0/False/None/...</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
+        <span class="n">time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need either `grid` or `shape`&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">save</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Ambiguity detected: provide either `grid` and `save` &quot;</span>
+                                <span class="s2">&quot;or just `shape` &quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">shape_local</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">save</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">shape</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_time_position</span><span class="p">,</span> <span class="n">time_order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">save</span><span class="p">,</span> <span class="n">Buffer</span><span class="p">):</span>
+                <span class="n">shape</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_time_position</span><span class="p">,</span> <span class="n">save</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">save</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">shape</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_time_position</span><span class="p">,</span> <span class="n">save</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`save` can be None, int or Buffer, not </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">save</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">time_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The time order.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_order</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the time-forward state of the TimeFunction.&quot;&quot;&quot;</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="n">_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the time-backward state of the TimeFunction.&quot;&quot;&quot;</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="n">_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_time_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_time_buffering</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="n">is_integer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_time_buffering_default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_buffering</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">,</span> <span class="n">Buffer</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_check</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">intervals</span><span class="p">)</span>
+        <span class="n">key_time_size</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_buffering</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span> <span class="o">!=</span> <span class="n">key_time_size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Expected `time_size=</span><span class="si">%d</span><span class="s2">` for runtime &quot;</span>
+                                  <span class="s2">&quot;value `</span><span class="si">%s</span><span class="s2">`, found `</span><span class="si">%d</span><span class="s2">` instead&quot;</span>
+                                  <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">key_time_size</span><span class="p">))</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="s1">&#39;time_dim&#39;</span><span class="p">]</span></div>
+
+
+<span class="k">class</span> <span class="nc">SubFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Function bound to a &quot;parent&quot; DiscreteFunction.</span>
+
+<span class="sd">    A SubFunction hands control of argument binding and halo exchange to its</span>
+<span class="sd">    parent DiscreteFunction.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SubFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__padding_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># SubFunctions aren&#39;t expected to be used in time-consuming loops</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` is a SubFunction, so it can&#39;t be assigned &quot;</span>
+                               <span class="s2">&quot;a value dynamically&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">parent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span>
+
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016-2019, Devito
+
+    </p>
+  </div> 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
