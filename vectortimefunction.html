@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Constant &mdash; Devito v4.0</title>
+  <title>VectorTimeFunction &mdash; Devito v4.0</title>
   
 
   
@@ -37,8 +37,8 @@
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Function" href="function.html" />
-    <link rel="prev" title="Dimension" href="dimension.html" />
+    <link rel="next" title="TensorFunction" href="tensorfunction.html" />
+    <link rel="prev" title="VectorFunction" href="vectorfunction.html" />
     <link href="_static/devito_style.css" rel="stylesheet" type="text/css">
 
 </head>
@@ -94,7 +94,7 @@
 <li class="toctree-l2"><a class="reference internal" href="grids.html">Grids</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="symbolic.html">Symbolic Objects</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="dimension.html">Dimension</a></li>
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Constant</a></li>
+<li class="toctree-l3"><a class="reference internal" href="constant.html">Constant</a></li>
 <li class="toctree-l3"><a class="reference internal" href="function.html">Function</a></li>
 <li class="toctree-l3"><a class="reference internal" href="timefunction.html">TimeFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="sparsefunction.html">SparseFunction</a></li>
@@ -102,7 +102,7 @@
 <li class="toctree-l3"><a class="reference internal" href="precsparsefunction.html">PrecomputedSparseFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="precsparsetimefunction.html">PrecomputedSparseTimeFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="vectorfunction.html">VectorFunction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="vectortimefunction.html">VectorTimeFunction</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">VectorTimeFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="tensorfunction.html">TensorFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="tensortimefunction.html">TensorTimeFunction</a></li>
 </ul>
@@ -163,13 +163,13 @@
         
           <li><a href="symbolic.html">Symbolic Objects</a> &raquo;</li>
         
-      <li>Constant</li>
+      <li>VectorTimeFunction</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/constant.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/vectortimefunction.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -182,49 +182,40 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="constant">
-<h1>Constant<a class="headerlink" href="#constant" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="vectortimefunction">
+<h1>VectorTimeFunction<a class="headerlink" href="#vectortimefunction" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
-<dt id="devito.types.Constant">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.</code><code class="sig-name descname">Constant</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/constant.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Constant" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.DataSymbol</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.args.ArgProvider</span></code></p>
-<p>Symbol representing a constant, scalar value in symbolic equations.
-A Constant carries a scalar value.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
-<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
-to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
-</ul>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Constant</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;c&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span>
-<span class="go">c</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">data</span>
-<span class="go">0.0</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="mi">4</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">data</span>
-<span class="go">4.0</span>
-</pre></div>
-</div>
-<p class="rubric">Notes</p>
-<p>The parameters must always be given as keyword arguments, since SymPy
-uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the symbolic object.</p>
+<dt id="devito.types.VectorTimeFunction">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.</code><code class="sig-name descname">VectorTimeFunction</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/tensor.html#VectorTimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.VectorTimeFunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.tensor.VectorFunction</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.tensor.TensorTimeFunction</span></code></p>
+<p>Time varying VectorFunction.</p>
 <dl class="method">
-<dt id="devito.types.Constant.data">
-<em class="property">property </em><code class="sig-name descname">data</code><a class="headerlink" href="#devito.types.Constant.data" title="Permalink to this definition">¶</a></dt>
-<dd><p>The value of the data object, as a scalar (int, float, …).</p>
+<dt id="devito.types.VectorTimeFunction.backward">
+<em class="property">property </em><code class="sig-name descname">backward</code><a class="headerlink" href="#devito.types.VectorTimeFunction.backward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the time-forward state of the VectorTimeFunction.</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="devito.types.Constant.is_const">
-<em class="property">property </em><code class="sig-name descname">is_const</code><a class="headerlink" href="#devito.types.Constant.is_const" title="Permalink to this definition">¶</a></dt>
-<dd><p>True if the symbol value cannot be modified within an Operator (and thus
-its value is provided by the user directly from Python-land), False otherwise.</p>
+<dt id="devito.types.VectorTimeFunction.forward">
+<em class="property">property </em><code class="sig-name descname">forward</code><a class="headerlink" href="#devito.types.VectorTimeFunction.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the time-forward state of the VectorTimeFunction.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.types.VectorTimeFunction.shape">
+<em class="property">property </em><code class="sig-name descname">shape</code><a class="headerlink" href="#devito.types.VectorTimeFunction.shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>The shape (dimensions) of the matrix as the 2-tuple (rows, cols).</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">zeros</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(2, 3)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">rows</span>
+<span class="go">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">cols</span>
+<span class="go">3</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -239,10 +230,10 @@ its value is provided by the user directly from Python-land), False otherwise.</
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="function.html" class="btn btn-neutral float-right" title="Function" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="tensorfunction.html" class="btn btn-neutral float-right" title="TensorFunction" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="dimension.html" class="btn btn-neutral float-left" title="Dimension" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="vectorfunction.html" class="btn btn-neutral float-left" title="VectorFunction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

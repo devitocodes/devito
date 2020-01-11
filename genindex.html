@@ -172,15 +172,20 @@
  | <a href="#S"><strong>S</strong></a>
  | <a href="#T"><strong>T</strong></a>
  | <a href="#V"><strong>V</strong></a>
+ | <a href="#X"><strong>X</strong></a>
  
 </div>
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="builtins.html#devito.builtins.assign">assign() (in module devito.builtins)</a>
+      <li><a href="operator.html#devito.operator.operator.Operator.apply">apply() (devito.operator.operator.Operator method)</a>
+</li>
+      <li><a href="operator.html#devito.operator.operator.Operator.arguments">arguments() (devito.operator.operator.Operator method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="builtins.html#devito.builtins.assign">assign() (in module devito.builtins)</a>
+</li>
       <li><a href="function.html#devito.types.Function.avg">avg() (devito.types.Function method)</a>
 
       <ul>
@@ -193,20 +198,28 @@
 <h2 id="B">B</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="timefunction.html#devito.types.TimeFunction.backward">backward() (devito.types.TimeFunction property)</a>
+      <li><a href="tensortimefunction.html#devito.types.TensorTimeFunction.backward">backward() (devito.types.TensorTimeFunction property)</a>
+
+      <ul>
+        <li><a href="timefunction.html#devito.types.TimeFunction.backward">(devito.types.TimeFunction property)</a>
 </li>
+        <li><a href="vectortimefunction.html#devito.types.VectorTimeFunction.backward">(devito.types.VectorTimeFunction property)</a>
+</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="grid.html#devito.types.Grid.comm">comm() (devito.types.Grid property)</a>
+      <li><a href="operator.html#devito.operator.operator.Operator.cfunction">cfunction() (devito.operator.operator.Operator property)</a>
 </li>
-      <li><a href="dimension.html#devito.types.dimension.ConditionalDimension">ConditionalDimension (class in devito.types.dimension)</a>
+      <li><a href="grid.html#devito.types.Grid.comm">comm() (devito.types.Grid property)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="dimension.html#devito.types.dimension.ConditionalDimension">ConditionalDimension (class in devito.types.dimension)</a>
+</li>
       <li><a href="constant.html#devito.types.Constant">Constant (class in devito.types)</a>
 </li>
       <li><a href="finite-difference.html#devito.finite_differences.finite_difference.cross_derivative">cross_derivative() (in module devito.finite_differences.finite_difference)</a>
@@ -299,15 +312,19 @@
 </li>
       <li><a href="finite-difference.html#module-devito.finite_differences.finite_difference">devito.finite_differences.finite_difference (module)</a>
 </li>
-      <li><a href="operator.html#module-devito.operator">devito.operator (module)</a>
+      <li><a href="operator.html#module-devito.operator.operator">devito.operator.operator (module)</a>
 </li>
       <li><a href="dimension.html#module-devito.types.dimension">devito.types.dimension (module)</a>
+</li>
+      <li><a href="equation.html#module-devito.types.equation">devito.types.equation (module)</a>
 </li>
       <li><a href="grid.html#devito.types.Grid.dim">dim() (devito.types.Grid property)</a>
 </li>
       <li><a href="dimension.html#devito.types.dimension.Dimension">Dimension (class in devito.types.dimension)</a>
 </li>
       <li><a href="grid.html#devito.types.Grid.dimension_map">dimension_map() (devito.types.Grid property)</a>
+</li>
+      <li><a href="operator.html#devito.operator.operator.Operator.dimensions">dimensions (devito.operator.operator.Operator attribute)</a>
 </li>
       <li><a href="function.html#devito.types.Function.dimensions">dimensions() (devito.types.Function property)</a>
 
@@ -349,6 +366,12 @@
 <h2 id="E">E</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="equation.html#devito.types.equation.Eq">Eq (class in devito.types.equation)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="equation.html#devito.types.equation.Eq.evaluate">evaluate (devito.types.equation.Eq attribute)</a>
+</li>
       <li><a href="grid.html#devito.types.Grid.extent">extent() (devito.types.Grid property)</a>
 </li>
   </ul></td>
@@ -361,10 +384,16 @@
 </li>
       <li><a href="finite-difference.html#devito.finite_differences.finite_difference.first_derivative">first_derivative() (in module devito.finite_differences.finite_difference)</a>
 </li>
+      <li><a href="tensortimefunction.html#devito.types.TensorTimeFunction.forward">forward() (devito.types.TensorTimeFunction property)</a>
+
+      <ul>
+        <li><a href="timefunction.html#devito.types.TimeFunction.forward">(devito.types.TimeFunction property)</a>
+</li>
+        <li><a href="vectortimefunction.html#devito.types.VectorTimeFunction.forward">(devito.types.VectorTimeFunction property)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="timefunction.html#devito.types.TimeFunction.forward">forward() (devito.types.TimeFunction property)</a>
-</li>
       <li><a href="function.html#devito.types.Function">Function (class in devito.types)</a>
 </li>
   </ul></td>
@@ -417,6 +446,8 @@
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="equation.html#devito.types.equation.Inc">Inc (class in devito.types.equation)</a>
+</li>
       <li><a href="dimension.html#devito.types.dimension.IncrDimension">IncrDimension (class in devito.types.dimension)</a>
 </li>
       <li><a href="builtins.html#devito.builtins.initialize_function">initialize_function() (in module devito.builtins)</a>
@@ -435,6 +466,8 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="operator.html#devito.operator.operator.Operator.input">input (devito.operator.operator.Operator attribute)</a>
+</li>
       <li><a href="grid.html#devito.types.Grid.interior">interior() (devito.types.Grid property)</a>
 </li>
       <li><a href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.interpolate">interpolate() (devito.types.PrecomputedSparseFunction method)</a>
@@ -497,11 +530,17 @@
 <h2 id="O">O</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="grid.html#devito.types.Grid.origin">origin() (devito.types.Grid property)</a>
+      <li><a href="operator.html#devito.operator.operator.Operator.objects">objects (devito.operator.operator.Operator attribute)</a>
+</li>
+      <li><a href="operator.html#devito.operator.operator.Operator">Operator (class in devito.operator.operator)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="grid.html#devito.types.Grid.origin">origin() (devito.types.Grid property)</a>
+</li>
       <li><a href="grid.html#devito.types.Grid.origin_offset">origin_offset() (devito.types.Grid property)</a>
+</li>
+      <li><a href="operator.html#devito.operator.operator.Operator.output">output (devito.operator.operator.Operator attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -538,7 +577,17 @@
 </li>
       </ul></li>
       <li><a href="grid.html#devito.types.Grid.shape">shape() (devito.types.Grid property)</a>
+
+      <ul>
+        <li><a href="tensorfunction.html#devito.types.TensorFunction.shape">(devito.types.TensorFunction property)</a>
 </li>
+        <li><a href="tensortimefunction.html#devito.types.TensorTimeFunction.shape">(devito.types.TensorTimeFunction property)</a>
+</li>
+        <li><a href="vectorfunction.html#devito.types.VectorFunction.shape">(devito.types.VectorFunction property)</a>
+</li>
+        <li><a href="vectortimefunction.html#devito.types.VectorTimeFunction.shape">(devito.types.VectorTimeFunction property)</a>
+</li>
+      </ul></li>
       <li><a href="function.html#devito.types.Function.shape_allocated">shape_allocated (devito.types.Function attribute)</a>
 
       <ul>
@@ -560,6 +609,8 @@
 </li>
       </ul></li>
       <li><a href="builtins.html#devito.builtins.smooth">smooth() (in module devito.builtins)</a>
+</li>
+      <li><a href="equation.html#devito.types.equation.solve">solve() (in module devito.types.equation)</a>
 </li>
       <li><a href="function.html#devito.types.Function.space_dimensions">space_dimensions (devito.types.Function attribute)</a>
 
@@ -609,6 +660,8 @@
 </li>
       <li><a href="subdomain.html#devito.types.SubDomain">SubDomain (class in devito.types)</a>
 </li>
+      <li><a href="equation.html#devito.types.equation.Eq.subdomain">subdomain() (devito.types.equation.Eq property)</a>
+</li>
       <li><a href="grid.html#devito.types.Grid.subdomains">subdomains() (devito.types.Grid property)</a>
 </li>
       <li><a href="function.html#devito.types.Function.sum">sum() (devito.types.Function method)</a>
@@ -635,6 +688,10 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="tensorfunction.html#devito.types.TensorFunction">TensorFunction (class in devito.types)</a>
+</li>
+      <li><a href="tensortimefunction.html#devito.types.TensorTimeFunction">TensorTimeFunction (class in devito.types)</a>
+</li>
       <li><a href="grid.html#devito.types.Grid.time_dim">time_dim() (devito.types.Grid property)</a>
 </li>
       <li><a href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.time_order">time_order() (devito.types.PrecomputedSparseTimeFunction property)</a>
@@ -657,7 +714,21 @@
 <h2 id="V">V</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="vectorfunction.html#devito.types.VectorFunction">VectorFunction (class in devito.types)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="vectortimefunction.html#devito.types.VectorTimeFunction">VectorTimeFunction (class in devito.types)</a>
+</li>
       <li><a href="grid.html#devito.types.Grid.volume_cell">volume_cell() (devito.types.Grid property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="X">X</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="equation.html#devito.types.equation.Eq.xreplace">xreplace() (devito.types.equation.Eq method)</a>
 </li>
   </ul></td>
 </tr></table>

@@ -166,8 +166,208 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="module-devito.operator">
-<span id="operator"></span><h1>Operator<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-devito.operator.operator">
+<span id="operator"></span><h1>Operator<a class="headerlink" href="#module-devito.operator.operator" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="devito.operator.operator.Operator">
+<em class="property">class </em><code class="sig-prename descclassname">devito.operator.operator.</code><code class="sig-name descname">Operator</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate, JIT-compile and run C code starting from an ordered sequence
+of symbolic expressions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>expressions</strong> (<em>expr-like</em><em> or </em><em>list</em><em> or </em><em>expr-like</em>) – The (list of) expression(s) defining the Operator computation.</p></li>
+<li><p><strong>**kwargs</strong> – <ul>
+<li><dl class="simple">
+<dt>name<span class="classifier">str</span></dt><dd><p>Name of the Operator, defaults to “Kernel”.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>subs<span class="classifier">dict</span></dt><dd><p>Symbolic substitutions to be applied to <code class="docutils literal notranslate"><span class="pre">expressions</span></code>.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>dse<span class="classifier">str</span></dt><dd><p>Aggressiveness of the Devito Symbolic Engine for flop
+optimization. Defaults to <code class="docutils literal notranslate"><span class="pre">configuration['dse']</span></code>.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>dle<span class="classifier">str</span></dt><dd><p>Aggressiveness of the Devito Loop Engine for loop-level
+optimization. Defaults to <code class="docutils literal notranslate"><span class="pre">configuration['dle']</span></code>.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>The following Operator implements a trivial time-marching method that
+adds 1 to every grid point in <code class="docutils literal notranslate"><span class="pre">u</span></code> at every timestep.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">TimeFunction</span><span class="p">,</span> <span class="n">Operator</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">u</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Multiple expressions can be supplied, and there is no limit to the number of
+expressions in an Operator.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">v</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">u</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+<span class="gp">... </span>               <span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">v</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>Simple boundary conditions can be imposed easily exploiting the “indexed
+notation” for Functions/TimeFunctions.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">u</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+<span class="gp">... </span>               <span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">),</span>
+<span class="gp">... </span>               <span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">),</span>
+<span class="gp">... </span>               <span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">y</span><span class="p">],</span> <span class="mi">0</span><span class="p">),</span>
+<span class="gp">... </span>               <span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">y</span><span class="p">],</span> <span class="mi">0</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>A semantically equivalent computation can be expressed exploiting SubDomains.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">u</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">u</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">subdomain</span><span class="o">=</span><span class="n">grid</span><span class="o">.</span><span class="n">interior</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>By specifying a SubDomain, the Operator constrains the execution of an expression to
+a certain sub-region within the computational domain. Ad-hoc SubDomains can also be
+created in application code – refer to the SubDomain documentation for more info.</p>
+<p>Advanced boundary conditions can be expressed leveraging <cite>SubDomain</cite> and
+<cite>SubDimension</cite>.</p>
+<p>Tensor contractions are supported, but with one caveat: in case of MPI execution, any
+global reductions along an MPI-distributed Dimension should be handled explicitly in
+user code. The following example shows how to implement the matrix-vector
+multiplication <code class="docutils literal notranslate"><span class="pre">Av</span> <span class="pre">=</span> <span class="pre">b</span></code> (inducing a reduction along <code class="docutils literal notranslate"><span class="pre">y</span></code>).</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Inc</span><span class="p">,</span> <span class="n">Function</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">A</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">y</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Inc</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">v</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Dense and sparse computation may be present within the same Operator. In the
+following example, interpolation is used to approximate the value of four
+sparse points placed at the center of the four quadrants at the grid corners.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">SparseFunction</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">extent</span><span class="o">=</span><span class="p">(</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">coordinates</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">),</span> <span class="p">(</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="p">(</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sf</span> <span class="o">=</span> <span class="n">SparseFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;sf&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">npoint</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">f</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">+</span> <span class="n">sf</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The iteration direction is automatically detected by the Devito compiler. Below,
+the Operator runs from <code class="docutils literal notranslate"><span class="pre">time_M</span></code> (maximum point in the time dimension) down to
+<code class="docutils literal notranslate"><span class="pre">time_m</span></code> (minimum point in the time dimension), as opposed to all of the examples
+seen so far, in which the execution along time proceeds from <code class="docutils literal notranslate"><span class="pre">time_m</span></code> to <code class="docutils literal notranslate"><span class="pre">time_M</span></code>
+through unit-step increments.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">backward</span><span class="p">,</span> <span class="n">u</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Loop-level optimisations, including SIMD vectorisation and OpenMP parallelism, are
+automatically discovered and handled by the Devito compiler. For more information,
+refer to the relevant documentation.</p>
+<dl class="method">
+<dt id="devito.operator.operator.Operator.apply">
+<code class="sig-name descname">apply</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.operator.Operator.apply" title="Permalink to this definition">¶</a></dt>
+<dd><p>Execute the Operator.</p>
+<p>With no arguments provided, the Operator runs using the data carried by the
+objects appearing in the input expressions – these are referred to as the
+“default arguments”.</p>
+<p>Optionally, any of the Operator default arguments may be replaced by passing
+suitable key-value arguments. Given <code class="docutils literal notranslate"><span class="pre">apply(k=v,</span> <span class="pre">...)</span></code>, <code class="docutils literal notranslate"><span class="pre">(k,</span> <span class="pre">v)</span></code> may be
+used to:</p>
+<ul class="simple">
+<li><p>replace a Constant. In this case, <code class="docutils literal notranslate"><span class="pre">k</span></code> is the name of the Constant,
+<code class="docutils literal notranslate"><span class="pre">v</span></code> is either a Constant or a scalar value.</p></li>
+<li><p>replace a Function (SparseFunction). Here, <code class="docutils literal notranslate"><span class="pre">k</span></code> is the name of the
+Function, <code class="docutils literal notranslate"><span class="pre">v</span></code> is either a Function or a numpy.ndarray.</p></li>
+<li><p>alter the iteration interval along a Dimension. Consider a generic
+Dimension <code class="docutils literal notranslate"><span class="pre">d</span></code> iterated over by the Operator.  By default, the Operator
+runs over all iterations within the compact interval <code class="docutils literal notranslate"><span class="pre">[d_m,</span> <span class="pre">d_M]</span></code>,
+where <code class="docutils literal notranslate"><span class="pre">d_m</span></code> and <code class="docutils literal notranslate"><span class="pre">d_M</span></code> are, respectively, the smallest and largest
+integers not causing out-of-bounds memory accesses (for the Grid
+Dimensions, this typically implies iterating over the entire physical
+domain). So now <code class="docutils literal notranslate"><span class="pre">k</span></code> can be either <code class="docutils literal notranslate"><span class="pre">d_m</span></code> or <code class="docutils literal notranslate"><span class="pre">d_M</span></code>, while <code class="docutils literal notranslate"><span class="pre">v</span></code>
+is an integer value.</p></li>
+</ul>
+<p class="rubric">Examples</p>
+<p>Consider the following Operator</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">TimeFunction</span><span class="p">,</span> <span class="n">Operator</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">u</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The Operator is run by calling <code class="docutils literal notranslate"><span class="pre">apply</span></code></p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">summary</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The variable <code class="docutils literal notranslate"><span class="pre">summary</span></code> contains information about runtime performance.
+As no key-value parameters are specified, the Operator runs with its
+default arguments, namely <code class="docutils literal notranslate"><span class="pre">u=u,</span> <span class="pre">x_m=0,</span> <span class="pre">x_M=2,</span> <span class="pre">y_m=0,</span> <span class="pre">y_M=2,</span> <span class="pre">time_m=0,</span>
+<span class="pre">time_M=1</span></code>.</p>
+<p>At this point, the same Operator can be used for a completely different
+run, for example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">u2</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">summary</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">u</span><span class="o">=</span><span class="n">u2</span><span class="p">,</span> <span class="n">x_m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y_M</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now, the Operator will run with a different set of arguments, namely
+<code class="docutils literal notranslate"><span class="pre">u=u2,</span> <span class="pre">x_m=1,</span> <span class="pre">x_M=2,</span> <span class="pre">y_m=0,</span> <span class="pre">y_M=1,</span> <span class="pre">time_m=0,</span> <span class="pre">time_M=3</span></code>.</p>
+<p>To run an Operator that only uses buffered TimeFunctions, the maximum
+iteration point along the time dimension must be explicitly specified
+(otherwise, the Operator wouldn’t know how many iterations to run).</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">u3</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u3</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">u3</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">summary</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">time_M</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.operator.operator.Operator.arguments">
+<code class="sig-name descname">arguments</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
+<dd><p>Arguments to run the Operator.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.operator.operator.Operator.cfunction">
+<em class="property">property </em><code class="sig-name descname">cfunction</code><a class="headerlink" href="#devito.operator.operator.Operator.cfunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>The JIT-compiled C function as a ctypes.FuncPtr object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.operator.operator.Operator.dimensions">
+<code class="sig-name descname">dimensions</code><a class="headerlink" href="#devito.operator.operator.Operator.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.operator.operator.Operator.input">
+<code class="sig-name descname">input</code><a class="headerlink" href="#devito.operator.operator.Operator.input" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.operator.operator.Operator.objects">
+<code class="sig-name descname">objects</code><a class="headerlink" href="#devito.operator.operator.Operator.objects" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.operator.operator.Operator.output">
+<code class="sig-name descname">output</code><a class="headerlink" href="#devito.operator.operator.Operator.output" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
 
 

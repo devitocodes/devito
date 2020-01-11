@@ -1,0 +1,437 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.types.equation &mdash; Devito v4.0</title>
+  
+
+  
+  
+    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito v4.0
+          
+
+          
+            
+            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../compiler.html">The Devito Compiler</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito v4.0</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.types.equation</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.types.equation</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;User API to specify equations.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">sympy</span>
+
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">default_rules</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">Evaluable</span><span class="p">,</span> <span class="n">as_tuple</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">Evaluable</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An equal relation between two objects, the left-hand side and the</span>
+<span class="sd">    right-hand side.</span>
+
+<span class="sd">    The left-hand side may be a Function or a SparseFunction. The right-hand</span>
+<span class="sd">    side may be any arbitrary expressions with numbers, Dimensions, Constants,</span>
+<span class="sd">    Functions and SparseFunctions as operands.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lhs : Function or SparseFunction</span>
+<span class="sd">        The left-hand side.</span>
+<span class="sd">    rhs : expr-like, optional</span>
+<span class="sd">        The right-hand side. Defaults to 0.</span>
+<span class="sd">    subdomain : SubDomain, optional</span>
+<span class="sd">        To restrict the computation of the Eq to a particular sub-region in the</span>
+<span class="sd">        computational domain.</span>
+<span class="sd">    coefficients : Substitutions, optional</span>
+<span class="sd">        Can be used to replace symbolic finite difference weights with user</span>
+<span class="sd">        defined weights.</span>
+<span class="sd">    implicit_dims : Dimension or list of Dimension, optional</span>
+<span class="sd">        An ordered list of Dimensions that do not explicitly appear in either the</span>
+<span class="sd">        left-hand side or in the right-hand side, but that should be honored when</span>
+<span class="sd">        constructing an Operator.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, Function, Eq</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; Eq(f, f + 1)</span>
+<span class="sd">    Eq(f(x, y), f(x, y) + 1)</span>
+
+<span class="sd">    Any SymPy expressions may be used in the right-hand side.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import sin</span>
+<span class="sd">    &gt;&gt;&gt; Eq(f, sin(f.dx)**2)</span>
+<span class="sd">    Eq(f(x, y), sin(Derivative(f(x, y), x))**2)</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    An Eq can be thought of as an assignment in an imperative programming language</span>
+<span class="sd">    (e.g., ``a[i] = b[i]*c``).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">subdomain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coefficients</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_subdomain</span> <span class="o">=</span> <span class="n">subdomain</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_substitutions</span> <span class="o">=</span> <span class="n">coefficients</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_implicit_dims</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">implicit_dims</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">subdomain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The SubDomain in which the Eq is defined.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate the Equation or system of Equations.</span>
+
+<span class="sd">        The RHS of the Equation is evaluated at the indices of the LHS if required.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">evaluate</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">_eval_at</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span><span class="o">.</span><span class="n">evaluate</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_evaluate_args</span><span class="p">()</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">subdomain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">subdomain</span><span class="p">,</span>
+                       <span class="n">coefficients</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">substitutions</span><span class="p">,</span>
+                       <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_implicit_dims</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">eq</span><span class="o">.</span><span class="n">_uses_symbolic_coefficients</span><span class="p">:</span>
+            <span class="c1"># NOTE: As Coefficients.py is expanded we will not want</span>
+            <span class="c1"># all rules to be expunged during this procress.</span>
+            <span class="n">rules</span> <span class="o">=</span> <span class="n">default_rules</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">eq</span><span class="o">.</span><span class="n">_symbolic_functions</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="o">**</span><span class="n">eq</span><span class="o">.</span><span class="n">substitutions</span><span class="o">.</span><span class="n">rules</span><span class="p">,</span> <span class="o">**</span><span class="n">rules</span><span class="p">})</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">rules</span><span class="p">):</span>
+                    <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">eq</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_flatten</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Flatten vectorial/tensorial Equation into list of scalar Equations.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+            <span class="c1"># Maps the Equations to retrieve the rhs from relevant lhs</span>
+            <span class="n">eqs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">),</span> <span class="n">as_tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)))</span>
+            <span class="c1"># Get the relevant equations from the lhs structure. .values removes</span>
+            <span class="c1"># the symmetric duplicates and off-diagonal zeros.</span>
+            <span class="n">lhss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">eqs</span><span class="p">[</span><span class="n">l</span><span class="p">],</span> <span class="n">subdomain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">subdomain</span><span class="p">,</span>
+                              <span class="n">coefficients</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">substitutions</span><span class="p">,</span>
+                              <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_implicit_dims</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">lhss</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">substitutions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_substitutions</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">implicit_dims</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_implicit_dims</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_uses_symbolic_coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_symbolic_functions</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_symbolic_functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">_symbolic_functions</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">_symbolic_functions</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">_symbolic_functions</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">_symbolic_functions</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">frozenset</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Failed to retrieve symbolic functions&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Eq.xreplace"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="n">rhs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span>
+                         <span class="n">subdomain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_implicit_dims</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+
+
+<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An increment relation between two objects, the left-hand side and the</span>
+<span class="sd">    right-hand side.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lhs : Function or SparseFunction</span>
+<span class="sd">        The left-hand side.</span>
+<span class="sd">    rhs : expr-like</span>
+<span class="sd">        The right-hand side.</span>
+<span class="sd">    subdomain : SubDomain, optional</span>
+<span class="sd">        To restrict the computation of the Eq to a particular sub-region in the</span>
+<span class="sd">        computational domain.</span>
+<span class="sd">    coefficients : Substitutions, optional</span>
+<span class="sd">        Can be used to replace symbolic finite difference weights with user</span>
+<span class="sd">        defined weights.</span>
+<span class="sd">    implicit_dims : Dimension or list of Dimension, optional</span>
+<span class="sd">        An ordered list of Dimensions that do not explicitly appear in either the</span>
+<span class="sd">        left-hand side or in the right-hand side, but that should be honored when</span>
+<span class="sd">        constructing an Operator.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Inc may be used to express tensor contractions. Below, a summation along</span>
+<span class="sd">    the user-defined Dimension ``i``.</span>
+
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, Dimension, Function, Inc</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; x, y = grid.dimensions</span>
+<span class="sd">    &gt;&gt;&gt; i = Dimension(name=&#39;i&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, shape=(10, 4, 4), dimensions=(i, x, y))</span>
+<span class="sd">    &gt;&gt;&gt; Inc(f, g)</span>
+<span class="sd">    Inc(f(x, y), g(i, x, y))</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    An Inc can be thought of as the augmented assignment &#39;+=&#39; in an imperative</span>
+<span class="sd">    programming language (e.g., ``a[i] += c``).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Inc(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+
+
+<div class="viewcode-block" id="solve"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Algebraically rearrange an Eq w.r.t. a given symbol.</span>
+
+<span class="sd">    This is a wrapper around ``sympy.solve``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    eq : expr-like</span>
+<span class="sd">        The equation to be rearranged.</span>
+<span class="sd">    target : symbol</span>
+<span class="sd">        The symbol w.r.t. which the equation is rearranged. May be a `Function`</span>
+<span class="sd">        or any other symbolic object.</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        Symbolic optimizations applied while rearranging the equation. For more</span>
+<span class="sd">        information. refer to ``sympy.solve.__doc__``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Enforce certain parameters to values that are known to guarantee a quick</span>
+    <span class="c1"># turnaround time</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;rational&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Avoid float indices</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Do not attempt premature optimisation</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;manual&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Force sympy to solve one line at a time for VectorFunction</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">Eq</span><span class="p">):</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span> <span class="k">if</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">eq</span><span class="o">.</span><span class="n">lhs</span>
+    <span class="n">sol</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">evaluate</span><span class="p">,</span> <span class="n">target</span><span class="o">.</span><span class="n">evaluate</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions</span>
+    <span class="kn">from</span> <span class="nn">devito.types</span> <span class="kn">import</span> <span class="n">TensorFunction</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">TensorFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">target</span><span class="o">.</span><span class="n">new_from_mat</span><span class="p">(</span><span class="n">sol</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">sol</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016-2019, Devito
+
+    </p>
+  </div> 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
