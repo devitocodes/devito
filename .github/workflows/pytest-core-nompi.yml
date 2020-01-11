@@ -11,9 +11,9 @@ on:
       - master
 
 jobs:
-  build:
+  ci-linux:
     name: ${{ matrix.name }}
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-16.04
 
     env:
       DEVITO_ARCH: "gcc-${{ matrix.gcc-version }}"
@@ -38,10 +38,6 @@ jobs:
            py37-gcc8-openmp,
            py38-gcc9-openmp
         ]
-        platform: [
-           ubuntu-16.04,
-           macOS-10.14
-        ]        
         include:
             - name: py36-gcc49-openmp
               python-version: 3.6
@@ -99,6 +95,39 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov --cov-config=.coveragerc --cov-report=xml tests/
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  # OSX
+  ci-osx:
+    name: py37-clang-osx
+    runs-on: macos-latest
+
+    env:
+      DEVITO_ARCH: "osx"
+      DEVITO_OPENMP: 0
+      DEVITO_BACKEND: "core"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .
+
+    - name: Test with pytest
+      run: |
+        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_operator.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1

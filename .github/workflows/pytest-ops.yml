@@ -13,11 +13,8 @@ on:
 jobs:
   build:
     name: pytest-ops
-    runs-on: ${{ matrix.platform }}
-    strategy:
-      matrix:
-        platform: [ubuntu-16.04, macOS-10.14]
-    
+    runs-on: ubuntu-16.04
+
     env:
       DEVITO_ARCH: "gcc-7"
       DEVITO_OPENMP: 1
