@@ -2,6 +2,6 @@
 Equation
 ========
 
-.. automodule:: devito.equation
+.. automodule:: devito.types.equation
     :members:
     :show-inheritance:
