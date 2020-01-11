@@ -12,3 +12,7 @@ Symbolic Objects
     sparsetimefunction
     precsparsefunction
     precsparsetimefunction
+    vectorfunction
+    vectortimefunction
+    tensorfunction
+    tensortimefunction
