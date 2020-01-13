@@ -379,9 +379,9 @@ class ModelViscoelastic(ModelElastic):
     """
     def __init__(self, origin, spacing, shape, space_order, vp, qp, vs, qs, rho,
                  nbl=20, subdomains=(), dtype=np.float32):
-        super(ModelViscoelastic, self).__init__(origin, spacing, shape,
-                                                space_order, vp, vs, rho,
-                                                nbl=nbl, subdomains=subdomains, dtype=dtype)
+        super(ModelViscoelastic, self).__init__(origin, spacing, shape, space_order,
+                                                vp, vs, rho, nbl=nbl,
+                                                subdomains=subdomains, dtype=dtype)
 
         self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
