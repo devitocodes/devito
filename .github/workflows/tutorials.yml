@@ -70,10 +70,10 @@ jobs:
       run: |
         py.test --nbval examples/seismic/tutorials/
 
-    - name: MPI notebooks
-      run: |
-        py.test --nbval examples/mpi
-
     - name: User api notebooks
       run: |
         py.test --nbval examples/userapi
+
+    - name: User api notebooks
+      run: |
+        py.test --nbval examples/compiler
