@@ -318,9 +318,9 @@ class ModelElastic(GenericModel):
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbl=20,
-                 dtype=np.float32):
+                 subdomains=(), dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbl=nbl, dtype=dtype,
+                                           nbl=nbl, subdomains=subdomains, dtype=dtype,
                                            damp_mask=True)
 
         self.maxvp = np.max(vp)
@@ -378,10 +378,10 @@ class ModelViscoelastic(ModelElastic):
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, qp, vs, qs, rho,
-                 nbl=20, dtype=np.float32):
+                 nbl=20, subdomains=(), dtype=np.float32):
         super(ModelViscoelastic, self).__init__(origin, spacing, shape,
                                                 space_order, vp, vs, rho,
-                                                nbl=nbl, dtype=dtype)
+                                                nbl=nbl, subdomains=subdomains, dtype=dtype)
 
         self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
