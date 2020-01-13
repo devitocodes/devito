@@ -675,6 +675,12 @@ class IsPerfectIteration(Visitor):
     Return True if an Iteration defines a perfect loop nest, False otherwise.
     """
 
+    def __init__(self, depth=None):
+        super(IsPerfectIteration, self).__init__()
+
+        assert depth is None or isinstance(depth, Iteration)
+        self.depth = depth
+
     def visit_object(self, o, **kwargs):
         return False
 
@@ -695,6 +701,8 @@ class IsPerfectIteration(Visitor):
     def visit_Iteration(self, o, found=False, nomore=False):
         if found and nomore:
             return False
+        if self.depth is o:
+            return True
         nomore = len(o.nodes) > 1
         return all(self._visit(i, found=True, nomore=nomore) for i in o.children)
 
