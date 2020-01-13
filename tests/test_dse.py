@@ -83,11 +83,14 @@ def test_yreplace_time_invariants(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected)
     # divisions (== powers with negative exponenet) are always captured
     (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(ti0, tv**-1*t0)'],
      ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0']),
+    # `compact_temporaries` must detect chains of isolated temporaries
+    (['Eq(t0, tv)', 'Eq(t1, t0)', 'Eq(t2, t1)', 'Eq(tu, t2)'],
+     ['tv[t, x, y, z]'])
 ])
-def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
+def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, t2, exprs, expected):
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed = common_subexprs_elimination(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1),
+    processed = common_subexprs_elimination(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1, t2),
                                             make)
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
