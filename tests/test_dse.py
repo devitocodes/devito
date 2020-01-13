@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch
 from cached_property import cached_property
 
-from conftest import skipif, EVAL  # noqa
+from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
@@ -12,7 +12,7 @@ from devito.dse import common_subexprs_elimination, collect, make_is_time_invari
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul
 from devito.targets import BlockDimension
 from devito.tools import generator
-from devito.types import Scalar, Array
+from devito.types import Scalar
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -57,16 +57,7 @@ def test_scheduling_after_rewrite():
       'Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))'],
      ['t0 + 2.0', 't0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
 ])
-def test_yreplace_time_invariants(exprs, expected):
-    grid = Grid((3, 3, 3))
-    dims = grid.dimensions
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()
-    t0 = Scalar(name='t0').indexify()
-    t1 = Scalar(name='t1').indexify()
+def test_yreplace_time_invariants(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
@@ -93,16 +84,7 @@ def test_yreplace_time_invariants(exprs, expected):
     (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(ti0, tv**-1*t0)'],
      ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0']),
 ])
-def test_common_subexprs_elimination(exprs, expected):
-    grid = Grid((3, 3, 3))
-    dims = grid.dimensions
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()
-    t0 = Scalar(name='t0').indexify()
-    t1 = Scalar(name='t1').indexify()
+def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed = common_subexprs_elimination(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1),
@@ -121,11 +103,7 @@ def test_common_subexprs_elimination(exprs, expected):
     ('1/(fa[x] + fb[x])', '1/(fa[x] + fb[x])'),
     ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
 ])
-def test_pow_to_mul(expr, expected):
-    grid = Grid((4, 5))
-    x, y = grid.dimensions
-    fa = Function(name='fa', grid=grid, dimensions=(x,), shape=(4,))  # noqa
-    fb = Function(name='fb', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+def test_pow_to_mul(fa, fb, expr, expected):
     assert str(pow_to_mul(eval(expr))) == expected
 
 
@@ -167,7 +145,7 @@ def test_pow_to_mul(expr, expected):
      {'fc[x,y] + fd[x+1,y+2]': 'Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])',
       '3.*fc[x-3,y-3] + fd[x+1,y+1]': 'Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])'}),
 ])
-def test_collect_aliases(exprs, expected):
+def test_collect_aliases(fc, fd, exprs, expected):
     grid = Grid(shape=(4, 4))
     x, y = grid.dimensions  # noqa
     xi, yi = grid.interior.dimensions  # noqa
@@ -217,19 +195,9 @@ def test_collect_aliases(exprs, expected):
     ('Eq(t0, t2*t1**-1)', 26, True),
     ('Eq(t0, t1**t2)', 50, True),
 ])
-def test_estimate_cost(expr, expected, estimate):
+def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected, estimate):
     # Note: integer arithmetic isn't counted
-    grid = Grid(shape=(4, 4))
-    x, y = grid.dimensions  # noqa
-
-    t0 = Scalar(name='t0')  # noqa
-    t1 = Scalar(name='t1')  # noqa
-    t2 = Scalar(name='t2')  # noqa
-    fa = Function(name='fa', grid=grid, shape=(4,), dimensions=(x,))  # noqa
-    fb = Function(name='fb', grid=grid, shape=(4,), dimensions=(x,))  # noqa
-    fc = Function(name='fc', grid=grid)  # noqa
-
-    assert estimate_cost(eval(expr), estimate) == expected
+    assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2), estimate) == expected
 
 
 @pytest.mark.parametrize('exprs,exp_u,exp_v', [
