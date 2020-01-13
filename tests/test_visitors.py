@@ -6,41 +6,13 @@ from conftest import skipif
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
-                           Conditional, printAST, Iteration)
-from devito.types import SpaceDimension, Array, Grid
+                           Conditional, printAST)
 
 pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture(scope="module")
-def dims():
-    x, y, z = Grid((3, 3, 3)).dimensions
-    return {'i': SpaceDimension(name='i'),
-            'j': SpaceDimension(name='j'),
-            'k': SpaceDimension(name='k'),
-            'l': SpaceDimension(name='l'),
-            's': SpaceDimension(name='s'),
-            'q': SpaceDimension(name='q'),
-            'x': x, 'y': y, 'z': z}
-
-
-@pytest.fixture(scope="module")
-def iters(dims):
-    return [lambda ex: Iteration(ex, dims['i'], (0, 3, 1)),
-            lambda ex: Iteration(ex, dims['j'], (0, 5, 1)),
-            lambda ex: Iteration(ex, dims['k'], (0, 7, 1)),
-            lambda ex: Iteration(ex, dims['s'], (0, 4, 1)),
-            lambda ex: Iteration(ex, dims['q'], (0, 4, 1)),
-            lambda ex: Iteration(ex, dims['l'], (0, 6, 1)),
-            lambda ex: Iteration(ex, dims['x'], (0, 5, 1)),
-            lambda ex: Iteration(ex, dims['y'], (0, 7, 1)),
-            lambda ex: Iteration(ex, dims['z'], (0, 7, 1))]
-
-
-@pytest.fixture(scope="module")
-def exprs(dims):
-    a = Array(name='a', shape=(3,), dimensions=(dims["i"],)).indexify()
-    b = Array(name='b', shape=(3,), dimensions=(dims["i"],)).indexify()
+def exprs(a, b):
     return [Expression(DummyEq(a, a + b + 5.)),
             Expression(DummyEq(a, b - a)),
             Expression(DummyEq(a, 4 * (b * a))),
