@@ -11,80 +11,50 @@ on:
       - master
 
 jobs:
-  test:
-    name: Test Jupyter notebooks on ${{ matrix.python-version }} and ${{ matrix.os }} with ${{ matrix.compiler }}
+  tutorials:
+    name: Test Jupyter notebooks on ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+
+    env:
+      DEVITO_ARCH: "${{ matrix.compiler }}"
+      DEVITO_OPENMP: 1
+      DEVITO_BACKEND: "core"
+      PYTHON_VERSION: "3.7"
+
     strategy:
       # Prevent all build to stop if a single one fails
       fail-fast: false
       matrix:
         name: [
-          ubuntu-18.04-gcc-9,
-          macOS-10.14-xcode-11.0
+          ubuntu-16.04-gcc-py37,
+          macOS-10.14-gcc-py37
           ]
 
         include:
+          - name: ubuntu-16.04-gcc-py37
+            os: ubuntu-16.04
+            compiler: gcc-7
 
-          - name: ubuntu-18.04-gcc-9
-            os: ubuntu-18.04
-            compiler: gcc
-            version: "9"
-
-          - name: macOS-10.14-xcode-11.0
+          - name: macOS-10.14-gcc-py37
             os: macOS-10.14
-            compiler: xcode
-            version: "11"
-
-        python-version: ['3.6', '3.7']
+            compiler: gcc-9
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: 3.7
 
-    - name: Install (Linux)
-      if: runner.os == 'Linux'
+    - name: Install compilers
       run: |
-        # Required for libc6-dbg:i386 and g++-multilib packages which are
-        # needed for x86 builds.
-        sudo dpkg --add-architecture i386
-        # clang-3.7 and earlier are not available in Bionic anymore so we get
-        # them from the Xenial repositories instead.
-        sudo add-apt-repository "deb http://dk.archive.ubuntu.com/ubuntu/ xenial main"
-        sudo add-apt-repository "deb http://dk.archive.ubuntu.com/ubuntu/ xenial universe"
-        # LLVM 9 is not in Bionic's repositories so we add the official LLVM repository.
-        if [ "${{ matrix.compiler }}" = "clang" ] && [ "${{ matrix.version }}" = "9" ]; then
-          sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
-        fi
-
-        sudo apt-get update
-
-        if [ "${{ matrix.compiler }}" = "gcc" ]; then
-          sudo apt-get install -y g++-${{ matrix.version }} g++-${{ matrix.version }}-multilib
-          echo "::set-env name=CC::gcc-${{ matrix.version }}"
-          echo "::set-env name=CXX::g++-${{ matrix.version }}"
+        if [ "${{ matrix.compiler }}" = "gcc-7" ]; then
+           sudo apt-get install -y mpich libmpich-dev
         else
-          sudo apt-get install -y clang-${{ matrix.version }} g++-multilib
-          echo "::set-env name=CC::clang-${{ matrix.version }}"
-          echo "::set-env name=CXX::clang++-${{ matrix.version }}"
-        fi
-
-        sudo apt-get install -y mpich libmpich-dev
-
-    - name: Install (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        brew install mpich
-        if [ "${{ matrix.compiler }}" = "gcc" ]; then
-          brew install gcc@${{ matrix.version }}
-          echo "::set-env name=CC::gcc-${{ matrix.version }}"
-          echo "::set-env name=CXX::g++-${{ matrix.version }}"
-        else
-          sudo xcode-select -switch /Applications/Xcode_${{ matrix.version }}.app
-          echo "::set-env name=CC::clang"
-          echo "::set-env name=CXX::clang++"
+           brew install gcc
+           brew install mpich
         fi
 
     - name: Install dependencies
@@ -92,6 +62,18 @@ jobs:
         pip install --upgrade pip
         pip install -e .[extras]
 
-    - name: Evaluate cells of example notebooks
+    - name: CFD notebooks
       run: |
-        bash .github/workflows/test-notebooks.sh $CC
+        py.test --nbval examples/cfd
+
+    - name: Seismic notebooks
+      run: |
+        py.test --nbval examples/seismic/tutorials/
+
+    - name: MPI notebooks
+      run: |
+        py.test --nbval examples/mpi
+
+    - name: User api notebooks
+      run: |
+        py.test --nbval examples/userapi
