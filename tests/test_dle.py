@@ -350,26 +350,27 @@ class TestNodeParallelism(object):
         assert op.arguments(time=0, nthreads0=123)['nthreads'] == 123
         assert op.arguments(time=0, nthreads2=123)['nthreads_nonaffine'] == 123
 
-    @pytest.mark.parametrize('eq,expected,blocking', [
-        ('Eq(f, 2*f)', [2, 0, 0], False),
-        ('Eq(u, 2*u)', [0, 2, 0, 0], False),
-        ('Eq(u, 2*u)', [3, 0, 0, 0, 0, 0], True)
+    @pytest.mark.parametrize('eqns,expected,blocking', [
+        ('[Eq(f, 2*f)]', [2, 0, 0], False),
+        ('[Eq(u, 2*u)]', [0, 2, 0, 0], False),
+        ('[Eq(u, 2*u)]', [3, 0, 0, 0, 0, 0], True),
+        ('[Eq(u, 2*u), Eq(f, u.dzr)]', [0, 2, 0, 0, 0], False)
     ])
     @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 1)
     @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_WORK", 0)
-    def test_collapsing(self, eq, expected, blocking):
+    def test_collapsing(self, eqns, expected, blocking):
         grid = Grid(shape=(3, 3, 3))
 
         f = Function(name='f', grid=grid)  # noqa
         u = TimeFunction(name='u', grid=grid)  # noqa
 
-        eq = eval(eq)
+        eqns = eval(eqns)
 
         if blocking:
-            op = Operator(eq, dle=('blocking', 'simd', 'openmp', {'blockinner': True}))
+            op = Operator(eqns, dle=('blocking', 'simd', 'openmp', {'blockinner': True}))
             iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
         else:
-            op = Operator(eq, dle=('simd', 'openmp'))
+            op = Operator(eqns, dle=('simd', 'openmp'))
             iterations = FindNodes(Iteration).visit(op)
 
         assert len(iterations) == len(expected)
