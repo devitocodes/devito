@@ -676,10 +676,17 @@ class Scope(object):
                 v = self.reads.setdefault(e.lhs.function, [])
                 v.append(TimedAccess(e.lhs, 'RI', i, e.ispace))
 
-        # The iterators read symbols too
+        # The iterators symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
         for d in dimensions:
             for j in d.symbolic_size.free_symbols:
+                v = self.reads.setdefault(j.function, [])
+                v.append(TimedAccess(j, 'R', -1))
+
+        # Factor in conditionals
+        conditionals = set().union(*[e.conditionals for e in exprs])
+        for d in conditionals:
+            for j in d.free_symbols:
                 v = self.reads.setdefault(j.function, [])
                 v.append(TimedAccess(j, 'R', -1))
 
