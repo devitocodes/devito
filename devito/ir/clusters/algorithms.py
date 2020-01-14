@@ -28,11 +28,11 @@ def clusterize(exprs, dse_mode=None):
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
 
-    # Apply optimizations
-    clusters = optimize(clusters, dse_mode)
-
     # Introduce conditional Clusters
     clusters = guard(clusters)
+
+    # Apply optimizations
+    clusters = optimize(clusters, dse_mode)
 
     return ClusterGroup(clusters)
 
