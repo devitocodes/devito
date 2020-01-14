@@ -43,6 +43,9 @@ class Blocker(object):
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
+            if not IsPerfectIteration().visit(root):
+                # Don't know how block non-perfect Iteration nests
+                continue
 
             # Apply hierarchical loop blocking to `tree`
             level_0 = []  # Outermost level of blocking
