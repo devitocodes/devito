@@ -1,7 +1,13 @@
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    after_n_builds: 11
+    wait_for_ci: yes
+
 coverage:
   precision: 2
   round: down
-  range: 88...100
+  range: 88...90
 
   status:
     # Learn more at http://docs.codecov.io/docs/codecov-yaml

@@ -97,9 +97,10 @@ jobs:
         pytest --cov --cov-config=.coveragerc --cov-report=xml tests/
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v1.0.5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        name: ${{ matrix.name }}
 
   # OSX
   ci-osx:
@@ -130,6 +131,7 @@ jobs:
         pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_operator.py
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v1.0.5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        name: "py37-clang-osx"
