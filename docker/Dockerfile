@@ -33,7 +33,6 @@ WORKDIR /app
 
 ENV DEVITO_ARCH="gcc"
 ENV DEVITO_OPENMP="0"
-ENV TESTS="/app/tests/"
 
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]

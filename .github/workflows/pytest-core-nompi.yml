@@ -11,9 +11,9 @@ on:
       - master
 
 jobs:
-  ci-linux:
+  pytest:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-16.04
+    runs-on: "${{ matrix.os }}"
 
     env:
       DEVITO_ARCH: "${{ matrix.arch }}"
@@ -21,8 +21,7 @@ jobs:
       DEVITO_BACKEND: "core"
       OMP_NUM_THREADS: 2
       PYTHON_VERSION: "${{ matrix.python-version }}"
-      RUN_CMD:
-      TESTS: "${{ matrix.tests }}"
+      TESTS: "tests/"
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -41,58 +40,59 @@ jobs:
            docker-devito
         ]
         include:
-            - name: py36-gcc49-openmp
-              python-version: 3.6
-              arch: "gcc-4.9"
-              openmp: 1
-              tests: "tests/"
+        - name: py36-gcc49-openmp
+          python-version: 3.6
+          os: ubuntu-16.04
+          arch: "gcc-4.9"
+          openmp: 1
 
-            - name: py37-gcc5-openmp
-              python-version: 3.7
-              arch: "gcc-5"
-              openmp: 1
-              tests: "tests/"
+        - name: py37-gcc5-openmp
+          python-version: 3.7
+          os: ubuntu-16.04
+          arch: "gcc-5"
+          openmp: 1
 
-            - name: py38-gcc6-openmp
-              python-version: 3.8
-              arch: "gcc-6"
-              openmp: 1
-              tests: "tests/"
+        - name: py38-gcc6-openmp
+          python-version: 3.8
+          os: ubuntu-16.04
+          arch: "gcc-6"
+          openmp: 1
 
-            - name: py36-gcc7-openmp
-              python-version: 3.6
-              arch: "gcc-7"
-              openmp: 1
-              tests: "tests/"
+        - name: py36-gcc7-openmp
+          python-version: 3.6
+          os: ubuntu-16.04
+          arch: "gcc-7"
+          openmp: 1
 
-            - name: py37-gcc7-noopenmp
-              python-version: 3.7
-              arch: "gcc-7"
-              openmp: 0
-              tests: "tests/"
+        - name: py37-gcc7-noopenmp
+          python-version: 3.7
+          os: ubuntu-16.04
+          arch: "gcc-7"
+          openmp: 0
 
-            - name: py37-gcc8-openmp
-              python-version: 3.7
-              arch: "gcc-8"
-              openmp: 1
-              tests: "tests/"
+        - name: py37-gcc8-openmp
+          python-version: 3.7
+          os: ubuntu-16.04
+          arch: "gcc-8"
+          openmp: 1
 
-            - name: py38-gcc9-openmp
-              python-version: 3.8
-              arch: "gcc-9"
-              openmp: 1
-              tests: "tests/"
+        - name: py38-gcc9-openmp
+          python-version: 3.8
+          os: ubuntu-16.04
+          arch: "gcc-9"
+          openmp: 1
 
-            - name: py37-clang-osx
-              python-version: 3.8
-              arch: "osx"
-              openmp: 0
-              tests: "tests/test_operator.py"
+        - name: py37-osx
+          python-version: 3.7
+          os: macos-latest
+          arch: "osx"
+          openmp: 0
 
-            - name: docker-devito
-              python-version: 3.6
-              arch: "gcc"
-              openmp: 1
+        - name: docker-devito
+          python-version: 3.6
+          os: ubuntu-16.04
+          arch: "gcc"
+          openmp: 1
 
     steps:
     - name: Checkout devito
@@ -110,10 +110,15 @@ jobs:
           docker build . --file docker/Dockerfile --tag devito_img
           echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
 
-    - name: Install GCC ${{ matrix.gcc-version }}
+    - name: Install GCC ${{ matrix.arch }}
       if: runner.os == 'linux'
       run : |
         sudo apt-get install -y ${{ matrix.arch }}
+
+    - name: Reduce number of tests for OSX
+      if: runner.os == 'macOS'
+      run : |
+        echo "::set-env name=TESTS::tests/test_operator.py"
 
     - name: Install dependencies
       if: matrix.name != 'docker-devito'
@@ -123,7 +128,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        $RUN_CMD pytest --cov --cov-config=.coveragerc --cov-report=xml $TESTS
+        $RUN_CMD pytest -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml $TESTS
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'docker-devito'
