@@ -364,7 +364,7 @@ class Lift(Queue):
                 continue
 
             # Scalars prevent lifting if they are read by another Cluster
-            swrites = {f for f in c.scope.writes if f.is_Scalar}
+            swrites = {f for f in c.scope.writes if f.is_Symbol}
             if any(swrites & set(i.scope.reads) for i in impacted):
                 processed.append(c)
                 continue
