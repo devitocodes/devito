@@ -12,7 +12,7 @@ on:
 
 jobs:
   tutorials:
-    name: Test Jupyter notebooks on ${{ matrix.name }}
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
 
     env:
@@ -20,6 +20,7 @@ jobs:
       DEVITO_OPENMP: ${{ matrix.openmp }}
       DEVITO_BACKEND: "core"
       PYTHON_VERSION: "3.7"
+      RUN_CMD: ""
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -28,7 +29,8 @@ jobs:
         name: [
           ubuntu-16.04-gcc-py37,
           macOS-10.14-gcc-py37,
-          macOS-10.14-clang-py37
+          macOS-10.14-clang-py37,
+          docker-devito
           ]
 
         include:
@@ -47,11 +49,17 @@ jobs:
             compiler: clang
             openmp: 0
 
+          - name: docker-devito
+            os: ubuntu-latest
+            compiler: gcc
+            openmp: 1
+
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
 
     - name: Set up Python 3.7
+      if: matrix.name != 'docker-devito'
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
@@ -65,7 +73,14 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_11.app/Contents/Developer
         fi
 
+    - name: Buiold docker image
+      if: matrix.name == 'docker-devito'
+      run: |
+          docker build . --file docker/Dockerfile --tag devito_img
+          echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
+
     - name: Install dependencies
+      if: matrix.name != 'docker-devito'
       run: |
         pip install --upgrade pip
         pip install -e .
@@ -73,16 +88,16 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-        py.test --nbval examples/seismic/tutorials/
+        $RUN_CMD py.test --nbval examples/seismic/tutorials/
 
     - name: CFD notebooks
       run: |
-        py.test --nbval examples/cfd
+        $RUN_CMD py.test --nbval examples/cfd
 
     - name: User api notebooks
       run: |
-        py.test --nbval examples/userapi
+        $RUN_CMD py.test --nbval examples/userapi
 
     - name: User api notebooks
       run: |
-        py.test --nbval examples/compiler
+        $RUN_CMD py.test --nbval examples/compiler
