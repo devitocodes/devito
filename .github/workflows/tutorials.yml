@@ -17,7 +17,7 @@ jobs:
 
     env:
       DEVITO_ARCH: "${{ matrix.compiler }}"
-      DEVITO_OPENMP: 1
+      DEVITO_OPENMP: ${{ matrix.openmp }}
       DEVITO_BACKEND: "core"
       PYTHON_VERSION: "3.7"
 
@@ -27,17 +27,25 @@ jobs:
       matrix:
         name: [
           ubuntu-16.04-gcc-py37,
-          macOS-10.14-gcc-py37
+          macOS-10.14-gcc-py37,
+          macOS-10.14-clang-py37
           ]
 
         include:
           - name: ubuntu-16.04-gcc-py37
             os: ubuntu-16.04
             compiler: gcc-7
+            openmp: 1
 
           - name: macOS-10.14-gcc-py37
-            os: macOS-10.14
+            os: macos-latest
             compiler: gcc-9
+            openmp: 1
+
+          - name: macOS-10.14-clang-py37
+            os: macos-latest
+            compiler: clang
+            openmp: 0
 
     steps:
     - name: Checkout devito
@@ -48,27 +56,28 @@ jobs:
       with:
         python-version: 3.7
 
-    - name: Install compilers
+    - name: Install compilers for OSX
+      if: runner.os == 'macOS'
       run: |
-        if [ "${{ matrix.compiler }}" = "gcc-7" ]; then
-           sudo apt-get install -y mpich libmpich-dev
+        if [ "${{ matrix.compiler }}" = "gcc-9" ]; then
+          brew install gcc
         else
-           brew install gcc
-           brew install mpich
+          sudo xcode-select -s /Applications/Xcode_11.app/Contents/Developer
         fi
 
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install -e .[extras]
-
-    - name: CFD notebooks
-      run: |
-        py.test --nbval examples/cfd
+        pip install -e .
+        pip install matplotlib
 
     - name: Seismic notebooks
       run: |
         py.test --nbval examples/seismic/tutorials/
+
+    - name: CFD notebooks
+      run: |
+        py.test --nbval examples/cfd
 
     - name: User api notebooks
       run: |
