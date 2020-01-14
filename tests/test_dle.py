@@ -244,6 +244,26 @@ def test_cache_blocking_hierarchical(blockshape0, blockshape1, exception):
         assert False
 
 
+def test_cache_blocking_unsupported():
+    """
+    Test that a non-perfect Iteration nest is not blocked.
+    """
+    grid = Grid(shape=(4, 4, 4))
+
+    u = TimeFunction(name='u', grid=grid, space_order=2)
+    v = TimeFunction(name='v', grid=grid, space_order=2)
+
+    eqns = [Eq(u.forward, v.laplace),
+            Eq(v.forward, u.forward.dz)]
+
+    op = Operator(eqns)
+
+    assert not op._func_table
+
+    trees = retrieve_iteration_tree(op)
+    assert len(trees) == 2
+
+
 class TestNodeParallelism(object):
 
     @pytest.mark.parametrize('exprs,expected', [
