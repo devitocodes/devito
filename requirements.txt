@@ -21,4 +21,4 @@ frozendict
 anytree>=2.4.3
 pyrevolve>=2.1.3
 distributed>=1.27
-git+https://github.com/devitocodes/devitobench@master
+git+https://github.com/devitocodes/devitobench
