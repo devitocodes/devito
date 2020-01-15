@@ -133,6 +133,10 @@ class Cluster(object):
         return any(e.is_Increment for e in self.exprs)
 
     @cached_property
+    def is_scalar(self):
+        return not any(f.is_Function for f in self.scope.writes)
+
+    @cached_property
     def is_dense(self):
         """
         True if the Cluster unconditionally writes into DiscreteFunctions
@@ -140,7 +144,7 @@ class Cluster(object):
         """
         return (not any(e.conditionals for e in self.exprs) and
                 not any(f.is_SparseFunction for f in self.functions) and
-                any(f.is_Function for f in self.scope.writes) and
+                not self.is_scalar and
                 all(a.is_regular for a in self.scope.accesses))
 
     @cached_property
