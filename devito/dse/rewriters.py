@@ -128,7 +128,7 @@ class BasicRewriter(AbstractRewriter):
         extracted in previous passes.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        processed = common_subexprs_elimination(cluster.exprs, make)
+        processed = common_subexprs_elimination(cluster, make)
 
         return cluster.rebuild(processed)
 

@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from sympy import Add, Mul, collect, collect_const
 
-from devito.ir import DummyEq
+from devito.ir import DummyEq, Cluster, Scope
 from devito.symbolics import (count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
                               retrieve_terminals, yreplace)
 from devito.tools import DAG, ReducerMap, split
@@ -151,7 +151,7 @@ def make_is_time_invariant(context):
     return callback
 
 
-def common_subexprs_elimination(exprs, make, mode='default'):
+def common_subexprs_elimination(maybe_exprs, make, mode='default'):
     """
     Perform common sub-expressions elimination, or CSE.
 
@@ -159,7 +159,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
 
     Parameters
     ----------
-    exprs : expr-like or list of expr-like
+    maybe_exprs : expr-like or list of expr-like or Cluster
         One or more expressions to which CSE is applied.
     make : callable
         Build symbols to store temporary, redundant values.
@@ -175,12 +175,37 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     # also ensuring some sort of post-processing
     assert mode == 'default'  # Only supported mode ATM
 
-    processed = list(exprs)
+    # Just for flexibility, accept either Clusters or exprs
+    if isinstance(maybe_exprs, Cluster):
+        cluster = maybe_exprs
+        processed = list(cluster.exprs)
+        scope = cluster.scope
+    else:
+        processed = list(maybe_exprs)
+        scope = Scope(maybe_exprs)
+
+    # Some sub-expressions aren't really "common" -- that's the case of Dimension-
+    # independent data dependences. For example:
+    #
+    # a[i] = ...
+    # ... = ... a[i] + 1 ...
+    # ... = ...
+    # ... = ... a[i] + 1 ...
+    #
+    # `a[i] + 1` will be excluded, as there's a Dimension-independent data dependence
+    # involving `a`
+    exclude = {i.source.indexed for i in scope.d_all.independent()}
+
     mapped = []
     while True:
         # Detect redundancies
         counted = count(mapped + processed, q_xop).items()
         targets = OrderedDict([(k, estimate_cost(k, True)) for k, v in counted if v > 1])
+
+        # Rule out Dimension-independent data dependencies
+        targets = OrderedDict([(k, v) for k, v in targets.items()
+                               if not k.free_symbols & exclude])
+
         if not targets:
             break
 
@@ -284,29 +309,14 @@ def _topological_sort(exprs):
                 # Avoid cyclic dependences, such as
                 # Eq(f, f + 1)
                 continue
-            elif r.is_Indexed and e.lhs in retrieve_terminals(mapper[r].rhs):
-                # Cyclic dependencies stay "as is" ie
-                # [Eq(r1, u + 1), Eq(u, r1 + 2)]
+            elif r.is_Indexed:
+                # Only scalars enforce an ordering
                 continue
             else:
                 dag.add_edge(mapper[r], e, force_add=True)
     processed = dag.topological_sort()
 
     # Append tensor equations at the end in user-provided order
-    processed_ordered = []
-    for p in processed:
-        if p in tensors:
-            # Tensor equation was required for the sorting, add all tensor equations
-            # up to that one to satisfy order
-            j = tensors.index(p)
-            for t in tensors[:j+1]:
-                if t not in processed_ordered:
-                    processed_ordered.extend([t])
-            tensors = tensors[j+1:]
-        else:
-            # Temporary, nothing to do
-            processed_ordered.extend([p])
-    # Add remainging tensor equations
-    processed_ordered.extend(tensors)
+    processed.extend(tensors)
 
-    return processed_ordered
+    return processed
