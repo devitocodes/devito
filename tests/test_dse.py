@@ -94,7 +94,15 @@ def test_yreplace_time_invariants(exprs, expected):
      ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0']),
     # `compact_temporaries` must detect chains of isolated temporaries
     (['Eq(t0, tv)', 'Eq(t1, t0)', 'Eq(t2, t1)', 'Eq(tu, t2)'],
-     ['tv[t, x, y, z]'])
+     ['tv[t, x, y, z]']),
+    # Dimension-independent data dependences should be a stopper for CSE
+    (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
+      'Eq(tw.forward, tv.dt + 1)', 'Eq(tz.forward, tv.dt + 2)'],
+     ['1/h_x', '1/dt', '-r1*tv[t, x, y, z]',
+      '-r2*tu[t, x, y, z] + r2*tu[t, x + 1, y, z] + 1',
+      '-r2*tv[t, x, y, z] + r2*tv[t, x + 1, y, z] + 1',
+      'r0 + r1*tv[t + 1, x, y, z] + 1',
+      'r0 + r1*tv[t + 1, x, y, z] + 2'])
 ])
 def test_cse(exprs, expected):
     """
@@ -103,9 +111,10 @@ def test_cse(exprs, expected):
     grid = Grid((3, 3, 3))
     dims = grid.dimensions
 
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()  # noqa
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()  # noqa
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()  # noqa
+    tu = TimeFunction(name="tu", grid=grid, space_order=2)  # noqa
+    tv = TimeFunction(name="tv", grid=grid, space_order=2)  # noqa
+    tw = TimeFunction(name="tw", grid=grid, space_order=2)  # noqa
+    tz = TimeFunction(name="tz", grid=grid, space_order=2)  # noqa
     ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
     ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
     t0 = Scalar(name='t0')  # noqa
@@ -114,53 +123,15 @@ def test_cse(exprs, expected):
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
-        exprs[i] = DummyEq(eval(e))
+        exprs[i] = DummyEq(indexify(eval(e).evaluate))
 
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
 
-    processed = common_subexprs_elimination(exprs,  make)
+    processed = common_subexprs_elimination(exprs, make)
 
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
-
-
-@pytest.mark.parametrize('expected', [
-    ['Eq(r2, 1/h_x)',
-     'Eq(r1, 1/dt)',
-     'Eq(r0, -r1*a[t, x, y])',
-     'Eq(d[t + 1, x, y],'
-     ' 0.0833333333*r2*d[t, x - 2, y] - 0.666666667*r2*d[t, x - 1, y] +'
-     ' 0.666666667*r2*d[t, x + 1, y] - 0.0833333333*r2*d[t, x + 2, y] + 1)',
-     'Eq(a[t + 1, x, y],'
-     ' 0.0833333333*r2*a[t, x - 2, y] - 0.666666667*r2*a[t, x - 1, y] +'
-     ' 0.666666667*r2*a[t, x + 1, y] - 0.0833333333*r2*a[t, x + 2, y] + 1)',
-     'Eq(b[t + 1, x, y], r0 + r1*a[t + 1, x, y] + 1)',
-     'Eq(c[t + 1, x, y], r0 + r1*a[t + 1, x, y] + 2)']])
-def test_cse_fancy(expected):
-    """
-    Test that verifies that:
-    - Temporaries are sorted according to dependencies
-    - Temporaries are not moved before and equation that defines its rhs
-    """
-    #TODO: Merge this with `test_cse`
-    grid = Grid((10, 10))
-
-    a = TimeFunction(name="a", grid=grid, space_order=4)
-    b = TimeFunction(name="b", grid=grid, space_order=4)
-    c = TimeFunction(name="c", grid=grid, space_order=4)
-    d = TimeFunction(name="d", grid=grid, space_order=4)
-
-    eq1 = DummyEq(indexify(Eq(d.forward, d.dx + 1).evaluate))
-    eq2 = DummyEq(indexify(Eq(a.forward, a.dx + 1).evaluate))
-    eq3 = DummyEq(indexify(Eq(b.forward, a.dt + 1).evaluate))
-    eq4 = DummyEq(indexify(Eq(c.forward, a.dt + 2).evaluate))
-
-    counter = generator()
-    make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed = common_subexprs_elimination([eq1, eq2, eq3, eq4], make)
-
-    assert np.all([str(p) == e for p, e in zip(processed, expected)])
 
 
 @pytest.mark.parametrize('expr,expected', [
