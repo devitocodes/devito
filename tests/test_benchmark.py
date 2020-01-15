@@ -9,7 +9,7 @@ def test_bench(mode, problem):
     """
     Test combinations of modes and problems.
     """
-    # expected version
+    
     command = ['python', 'benchmarks/user/benchmark.py', mode, '-P', problem,
                '-d', '50', '50', '50', '--tn', '50']
     try:
