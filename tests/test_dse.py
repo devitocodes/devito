@@ -299,7 +299,7 @@ def test_time_dependent_split(dse, dle):
 class TestAliases(object):
 
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-    def test_full_shape_after_blocking(self):
+    def test_full_shape(self):
         """
         Check the shape of the Array used to store a DSE-captured aliasing
         expression. The shape is impacted by loop blocking, which reduces the
@@ -342,10 +342,10 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-    def test_contracted_shape_after_blocking(self):
+    def test_contracted_shape(self):
         """
-        Like `test_full_alias_shape_after_blocking`, but a different
-        Operator is used, leading to contracted Arrays (2D instead of 3D).
+        Conceptually like `test_full_shape`, but the Operator used in this test
+        leads to contracted Arrays (2D instead of 3D).
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -383,9 +383,9 @@ class TestAliases(object):
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     def test_full_shape_with_subdims(self):
         """
-        Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
-        SubDimensions) are used. Nevertheless, the temporary shape should still be
-        dictated by the root Dimensions.
+        Like `test_full_shape`, but SubDomains (and therefore SubDimensions) are
+        used. Nevertheless, the temporary shape should still be dictated by the
+        root Dimensions.
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -548,7 +548,7 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    def test_catch_largest_time_invariant(self):
+    def test_catch_largest_invariant(self):
         """
         Make sure the DSE extracts the largest time-invariant sub-expressions
         such that its operation count exceeds a certain threshold.
