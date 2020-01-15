@@ -19,7 +19,7 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
 
         * `platform` is an object of type Platform, that is the architecture
           the generated code should be specializer for.
-        * `mode` is the optimization level (e.g., `advanced`)
+        * `mode` is the optimization level (e.g., `advanced`).
         * `language` is the generated code language (default is C+OpenMP+MPI,
           but in the future it could also be OpenACC or CUDA.
         * `operator` is an object of type Operator.

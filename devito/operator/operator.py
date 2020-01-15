@@ -908,8 +908,8 @@ def parse_kwargs(**kwargs):
         except:
             raise InvalidOperator("Illegal `dse=%s`" % str(dse))
 
-    # Attach `platform` too for convenience, basically so that we don't always have
-    # to query `configuration
+    # Attach `platform` too for convenience, so we don't need `configuration` in
+    # most compilation passes
     kwargs['platform'] = configuration['platform']
 
     return kwargs
