@@ -9,7 +9,6 @@ from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunctio
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import DummyEq, Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
-from devito.dse.manipulation import _topological_sort
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul, indexify
 from devito.targets import BlockDimension
 from devito.tools import generator
@@ -104,14 +103,14 @@ def test_cse(exprs, expected):
     grid = Grid((3, 3, 3))
     dims = grid.dimensions
 
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()
-    t0 = Scalar(name='t0')
-    t1 = Scalar(name='t1')
-    t2 = Scalar(name='t2')
+    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()  # noqa
+    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()  # noqa
+    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()  # noqa
+    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    t0 = Scalar(name='t0')  # noqa
+    t1 = Scalar(name='t1')  # noqa
+    t2 = Scalar(name='t2')  # noqa
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
@@ -127,24 +126,24 @@ def test_cse(exprs, expected):
 
 
 @pytest.mark.parametrize('expected', [
-    ['Eq(r3, 1/h_x)',
-     'Eq(r2, 1/dt)',
+    ['Eq(r2, 1/h_x)',
+     'Eq(r1, 1/dt)',
+     'Eq(r0, -r1*a[t, x, y])',
      'Eq(d[t + 1, x, y],'
-     ' 0.0833333333*r3*d[t, x - 2, y] - 0.666666667*r3*d[t, x - 1, y] +'
-     ' 0.666666667*r3*d[t, x + 1, y] - 0.0833333333*r3*d[t, x + 2, y] + 1)',
+     ' 0.0833333333*r2*d[t, x - 2, y] - 0.666666667*r2*d[t, x - 1, y] +'
+     ' 0.666666667*r2*d[t, x + 1, y] - 0.0833333333*r2*d[t, x + 2, y] + 1)',
      'Eq(a[t + 1, x, y],'
-     ' 0.0833333333*r3*a[t, x - 2, y] - 0.666666667*r3*a[t, x - 1, y] +'
-     ' 0.666666667*r3*a[t, x + 1, y] - 0.0833333333*r3*a[t, x + 2, y] + 1)',
-     'Eq(r1, -r2*a[t, x, y])',
-     'Eq(r0, r2*a[t + 1, x, y])',
-     'Eq(b[t + 1, x, y], r0 + r1 + 1)',
-     'Eq(c[t + 1, x, y], r0 + r1 + 2)']])
-def AAAtest_toposort_after_cse(expected):
+     ' 0.0833333333*r2*a[t, x - 2, y] - 0.666666667*r2*a[t, x - 1, y] +'
+     ' 0.666666667*r2*a[t, x + 1, y] - 0.0833333333*r2*a[t, x + 2, y] + 1)',
+     'Eq(b[t + 1, x, y], r0 + r1*a[t + 1, x, y] + 1)',
+     'Eq(c[t + 1, x, y], r0 + r1*a[t + 1, x, y] + 2)']])
+def test_cse_fancy(expected):
     """
     Test that verifies that:
     - Temporaries are sorted according to dependencies
     - Temporaries are not moved before and equation that defines its rhs
     """
+    #TODO: Merge this with `test_cse`
     grid = Grid((10, 10))
 
     a = TimeFunction(name="a", grid=grid, space_order=4)
@@ -160,7 +159,6 @@ def AAAtest_toposort_after_cse(expected):
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed = common_subexprs_elimination([eq1, eq2, eq3, eq4], make)
-    #processed = _topological_sort(processed)
 
     assert np.all([str(p) == e for p, e in zip(processed, expected)])
 
