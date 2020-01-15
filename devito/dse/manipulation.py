@@ -5,7 +5,7 @@ from sympy import Add, Mul, collect, collect_const
 from devito.ir import DummyEq, Cluster, Scope
 from devito.symbolics import (count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
                               retrieve_terminals, yreplace)
-from devito.tools import DAG, ReducerMap, split
+from devito.tools import ReducerMap
 from devito.types import Dimension, Symbol
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'make_is_time_invariant']
@@ -227,9 +227,6 @@ def common_subexprs_elimination(maybe_exprs, make, mode='default'):
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
     processed = _compact_temporaries(processed)
 
-    # Perform topological sorting so that reads-after-writes are honored
-    processed = _topological_sort(processed)
-
     return processed
 
 
@@ -287,36 +284,5 @@ def _compact_temporaries(exprs):
             handle, _ = yreplace(e, mapper, repeat=True)
             assert len(handle) == 1
             processed.extend(handle)
-
-    return processed
-
-
-def _topological_sort(exprs):
-    """
-    Topologically sort the temporaries in a list of equations.
-    """
-    mapper = {e.lhs: e for e in exprs}
-    assert len(mapper) == len(exprs)  # Expect SSA
-
-    # Build DAG and topologically-sort temporaries
-    temporaries, tensors = split(exprs, lambda e: not e.lhs.is_Indexed)
-    dag = DAG(nodes=temporaries)
-    for e in temporaries:
-        for r in retrieve_terminals(e.rhs):
-            if r not in mapper:
-                continue
-            elif mapper[r] is e:
-                # Avoid cyclic dependences, such as
-                # Eq(f, f + 1)
-                continue
-            elif r.is_Indexed:
-                # Only scalars enforce an ordering
-                continue
-            else:
-                dag.add_edge(mapper[r], e, force_add=True)
-    processed = dag.topological_sort()
-
-    # Append tensor equations at the end in user-provided order
-    processed.extend(tensors)
 
     return processed
