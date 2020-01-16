@@ -167,11 +167,12 @@
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="kn">import</span> <span class="n">clusterize</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">derive_parameters</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="kn">import</span> <span class="n">st_build</span>
+<span class="kn">from</span> <span class="nn">devito.operator.registry</span> <span class="kn">import</span> <span class="n">operator_selector</span>
 <span class="kn">from</span> <span class="nn">devito.operator.profiling</span> <span class="kn">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.passes</span> <span class="kn">import</span> <span class="n">Graph</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">indexify</span>
-<span class="kn">from</span> <span class="nn">devito.targets</span> <span class="kn">import</span> <span class="n">iet_lower</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">DAG</span><span class="p">,</span> <span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span>
                           <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">split</span><span class="p">,</span> <span class="n">timed_pass</span><span class="p">,</span> <span class="n">timed_region</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">Eq</span>
@@ -287,10 +288,18 @@
             <span class="c1"># can&#39;t do anything useful with it</span>
             <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Operator</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
+        <span class="c1"># Parse input arguments</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="n">parse_kwargs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># The Operator type for the given target</span>
+        <span class="bp">cls</span> <span class="o">=</span> <span class="n">operator_selector</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Lower to a JIT-compilable object</span>
         <span class="k">with</span> <span class="n">timed_region</span><span class="p">(</span><span class="s1">&#39;op-compile&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
             <span class="n">op</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_build</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">py_timers</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">timings</span><span class="p">)</span>
 
+        <span class="c1"># Emit info about how long it took to perform the lowering</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_emit_build_profiling</span><span class="p">()</span>
 
         <span class="k">return</span> <span class="n">op</span>
@@ -303,46 +312,32 @@
         <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Only `devito.Eq` expressions are allowed.&quot;</span><span class="p">)</span>
 
-        <span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;Kernel&quot;</span><span class="p">)</span>
-        <span class="n">dse</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dse&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">])</span>
-
         <span class="c1"># Python-level (i.e., compile time) and C-level (i.e., run time) performance</span>
         <span class="n">profiler</span> <span class="o">=</span> <span class="n">create_profile</span><span class="p">(</span><span class="s1">&#39;timers&#39;</span><span class="p">)</span>
 
-        <span class="c1"># Lower input expressions to internal expressions (e.g., attaching metadata)</span>
+        <span class="c1"># Lower input expressions</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="c1"># Group expressions based on their iteration space and data dependences</span>
-        <span class="c1"># Several optimizations are applied (fusion, lifting, flop reduction via DSE, ...)</span>
-        <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">dse_mode</span><span class="o">=</span><span class="n">set_dse_mode</span><span class="p">(</span><span class="n">dse</span><span class="p">))</span>
+        <span class="c1"># Group expressions based on iteration spaces and data dependences</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower_clusters</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="c1"># Lower Clusters to a Schedule tree</span>
-        <span class="n">stree</span> <span class="o">=</span> <span class="n">st_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
+        <span class="c1"># Lower Clusters to a ScheduleTree</span>
+        <span class="n">stree</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower_stree</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="c1"># Lower Schedule tree to an Iteration/Expression tree (IET)</span>
-        <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
-
-        <span class="c1"># Instrument the IET for C-level profiling</span>
-        <span class="n">iet</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">instrument</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
-
-        <span class="c1"># Wrap the IET with a Callable</span>
-        <span class="n">parameters</span> <span class="o">=</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="n">op</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">())</span>
-
-        <span class="c1"># Lower IET to a Target-specific IET</span>
-        <span class="n">op</span><span class="p">,</span> <span class="n">target_state</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_iet</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Lower ScheduleTree to an Iteration/Expression Tree</span>
+        <span class="n">iet</span><span class="p">,</span> <span class="n">byproduct</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower_iet</span><span class="p">(</span><span class="n">stree</span><span class="p">,</span> <span class="n">profiler</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Make it an actual Operator</span>
-        <span class="n">op</span> <span class="o">=</span> <span class="n">Callable</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">op</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">op</span> <span class="o">=</span> <span class="n">Callable</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">iet</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
         <span class="n">Callable</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="o">**</span><span class="n">op</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
 
         <span class="c1"># Header files, etc.</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_headers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_default_headers</span><span class="p">)</span>
-        <span class="n">op</span><span class="o">.</span><span class="n">_headers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">target_state</span><span class="o">.</span><span class="n">headers</span><span class="p">)</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_headers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">byproduct</span><span class="o">.</span><span class="n">headers</span><span class="p">)</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_globals</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_default_globals</span><span class="p">)</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_includes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_default_includes</span><span class="p">)</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">_default_includes</span><span class="p">)</span>
-        <span class="n">op</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">target_state</span><span class="o">.</span><span class="n">includes</span><span class="p">)</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">byproduct</span><span class="o">.</span><span class="n">includes</span><span class="p">)</span>
 
         <span class="c1"># Required for the jit-compilation</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_compiler</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
@@ -353,7 +348,7 @@
         <span class="n">op</span><span class="o">.</span><span class="n">_func_table</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
                                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">profiler</span><span class="o">.</span><span class="n">_ext_calls</span><span class="p">]))</span>
-        <span class="n">op</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">target_state</span><span class="o">.</span><span class="n">funcs</span><span class="p">]))</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">byproduct</span><span class="o">.</span><span class="n">funcs</span><span class="p">]))</span>
 
         <span class="c1"># Internal state. May be used to store information about previous runs,</span>
         <span class="c1"># autotuning reports, etc</span>
@@ -363,7 +358,7 @@
         <span class="n">op</span><span class="o">.</span><span class="n">_input</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">reads</span> <span class="o">+</span> <span class="n">e</span><span class="o">.</span><span class="n">writes</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">writes</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
-        <span class="n">op</span><span class="o">.</span><span class="n">_dimensions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">target_state</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_dimensions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">byproduct</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_dtype</span><span class="p">,</span> <span class="n">op</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">clusters</span><span class="o">.</span><span class="n">meta</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_profiler</span> <span class="o">=</span> <span class="n">profiler</span>
 
@@ -373,7 +368,7 @@
         <span class="c1"># Bypass the silent call to __init__ triggered through the backends engine</span>
         <span class="k">pass</span>
 
-    <span class="c1"># Compilation</span>
+    <span class="c1"># Compilation -- Expression level</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_add_implicit</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">):</span>
@@ -429,7 +424,9 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_exprs</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Transform ``expressions`` into a backend-specific representation.&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Backend hook for specialization at the Expression level.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">LoweredEq</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
 
     <span class="nd">@classmethod</span>
@@ -452,19 +449,97 @@
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">_flatten</span><span class="p">]</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">indexify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_apply_substitutions</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">subs</span><span class="p">)</span>
+
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">expressions</span>
 
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_specialize_iet</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Transform the IET into a backend-specific representation, such as code</span>
-<span class="sd">        to be executed on a GPU or through a lower-level system (e.g., YASK).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dle</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dle&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">])</span>
+    <span class="c1"># Compilation -- Cluster level</span>
 
-        <span class="k">return</span> <span class="n">iet_lower</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="o">*</span><span class="n">set_dle_mode</span><span class="p">(</span><span class="n">dle</span><span class="p">))</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_specialize_clusters</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">clusters</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Backend hook for specialization at the Cluster level.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">clusters</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@timed_pass</span>
+    <span class="k">def</span> <span class="nf">_lower_clusters</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Clusters lowering:</span>
+
+<span class="sd">            * Group expressions into Clusters;</span>
+<span class="sd">            * Optimize Clusters for performance (flops, data locality, ...);</span>
+<span class="sd">            * Introduce guards for conditional Clusters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">dse_mode</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">])</span>
+
+        <span class="n">clusters</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_clusters</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">clusters</span>
+
+    <span class="c1"># Compilation -- ScheduleTree level</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_specialize_stree</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">stree</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Backend hook for specialization at the Schedule tree level.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">stree</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@timed_pass</span>
+    <span class="k">def</span> <span class="nf">_lower_stree</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">clusters</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Schedule tree lowering:</span>
+
+<span class="sd">            * Turn a sequence of Clusters into a ScheduleTree;</span>
+<span class="sd">            * Derive and attach metadata for distributed-memory parallelism;</span>
+<span class="sd">            * Derive sections for performance profiling</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">stree</span> <span class="o">=</span> <span class="n">st_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
+
+        <span class="n">stree</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_stree</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">stree</span>
+
+    <span class="c1"># Compilation -- Iteration/Expression tree level</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_specialize_iet</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">graph</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Backend hook for specialization at the Iteration/Expression tree level.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">graph</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_lower_iet</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">stree</span><span class="p">,</span> <span class="n">profiler</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Iteration/Expression tree lowering:</span>
+
+<span class="sd">            * Turn a ScheduleTree into an Iteration/Expression tree;</span>
+<span class="sd">            * Perform analysis to detect optimization opportunities;</span>
+<span class="sd">            * Introduce distributed-memory, shared-memory, and SIMD parallelism;</span>
+<span class="sd">            * Introduce optimizations for data locality;</span>
+<span class="sd">            * Finalize (e.g., symbol definitions, array casts)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;Kernel&quot;</span><span class="p">)</span>
+
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
+
+        <span class="c1"># Instrument the IET for C-level profiling</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">instrument</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+        <span class="c1"># Wrap the IET with a Callable</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">())</span>
+
+        <span class="c1"># Lower IET to a target-specific IET</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="n">Graph</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_iet</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">graph</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">graph</span>
 
     <span class="c1"># Read-only properties exposed to the outside world</span>
 
@@ -936,38 +1011,63 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">comm</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_NULL</span>
 
 
-<span class="k">def</span> <span class="nf">set_dse_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">mode</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s1">&#39;noop&#39;</span>
-    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">mode</span>
+<span class="k">def</span> <span class="nf">parse_kwargs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parse keyword arguments provided to an Operator. This routine is</span>
+<span class="sd">    especially useful for backwards compatibility.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># `dle`</span>
+    <span class="n">dle</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;dle&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dle</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dle</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">mode</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="n">dle</span><span class="p">,</span> <span class="p">{}</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dle</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dle</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">mode</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="s1">&#39;noop&#39;</span><span class="p">,</span> <span class="p">{}</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dle</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dle</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">mode</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="n">dle</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mode</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dle</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])),</span> <span class="n">dle</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mode</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dle</span><span class="p">)),</span> <span class="p">{}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `dle=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">dle</span><span class="p">))</span>
+
+    <span class="c1"># `dle`, options</span>
+    <span class="n">options</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;blockinner&#39;</span><span class="p">,</span>
+                       <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dle-options&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;blockinner&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+    <span class="n">options</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;blocklevels&#39;</span><span class="p">,</span>
+                       <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dle-options&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;blocklevels&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+    <span class="n">options</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
+    <span class="n">options</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;mpi&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">])</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span>
+
+    <span class="c1"># `dle`, mode</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;noop&#39;</span>
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;noop&#39;</span><span class="p">:</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">,</span> <span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="n">options</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="ow">or</span> <span class="s1">&#39;noop&#39;</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mode</span>
+
+    <span class="c1"># `dse`</span>
+    <span class="n">dse</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;dse&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dse</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;noop&#39;</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dse</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dse</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dse</span><span class="p">)</span>
         <span class="k">except</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal DSE mode </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `dse=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">dse</span><span class="p">))</span>
 
+    <span class="c1"># Attach `platform` too for convenience, so we don&#39;t need `configuration` in</span>
+    <span class="c1"># most compilation passes</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
 
-<span class="k">def</span> <span class="nf">set_dle_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">mode</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">mode</span><span class="p">,</span> <span class="p">{}</span>
-    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">mode</span><span class="p">,</span> <span class="p">{}</span>
-    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;noop&#39;</span><span class="p">,</span> <span class="p">{}</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">mode</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mode</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])),</span> <span class="n">mode</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mode</span><span class="p">)),</span> <span class="p">{}</span>
-    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal DLE mode </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
-
-
-<span class="k">def</span> <span class="nf">is_threaded</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">set_dle_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">kwargs</span>
 </pre></div>
 
            </div>
