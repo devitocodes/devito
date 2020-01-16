@@ -191,9 +191,9 @@ def common_subexprs_elimination(maybe_exprs, make, mode='default'):
     # a[i] = ...
     # ... = ... a[i] + 1 ...
     #
-    # `a[i] + 1` will be excluded, as there's a Dimension-independent data dependence
-    # involving `a`
-    exclude = {i.source.indexed for i in scope.d_all.independent()}
+    # `a[i] + 1` will be excluded, as there's a flow Dimension-independent data
+    # dependence involving `a`
+    exclude = {i.source.indexed for i in scope.d_flow.independent()}
 
     mapped = []
     while True:
