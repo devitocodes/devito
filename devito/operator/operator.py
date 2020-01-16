@@ -166,10 +166,10 @@ class Operator(Callable):
         # Group expressions based on iteration spaces and data dependences
         clusters = cls._lower_clusters(expressions, **kwargs)
 
-        # Turn Clusters into a Schedule tree
+        # Lower Clusters to a ScheduleTree
         stree = cls._lower_stree(clusters, **kwargs)
 
-        # Lower Schedule tree to an Iteration/Expression tree
+        # Lower ScheduleTree to an Iteration/Expression Tree
         iet, byproduct = cls._lower_iet(stree, profiler, **kwargs)
 
         # Make it an actual Operator
@@ -367,7 +367,7 @@ class Operator(Callable):
             * Perform analysis to detect optimization opportunities;
             * Introduce distributed-memory, shared-memory, and SIMD parallelism;
             * Introduce optimizations for data locality;
-            * Finalization (e.g., symbol definitions, array casts)
+            * Finalize (e.g., symbol definitions, array casts)
         """
         name = kwargs.get("name", "Kernel")
 
