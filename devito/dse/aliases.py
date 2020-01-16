@@ -260,7 +260,7 @@ class Alias(object):
 
     @property
     def dimensions(self):
-        return tuple(i for i, _ in self.Tdistances)
+        return frozenset(i for i, _ in self.Tdistances)
 
     @property
     def anti_stencil(self):
