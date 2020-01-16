@@ -2,7 +2,7 @@ name: Documentation
 
 on:
   push:
-    branches:    
+    branches:
       - master         # Push events on master branch
 
 jobs:
@@ -18,18 +18,17 @@ jobs:
         python-version: '3.x'
     - name: Install Sphinx
       run: |
-        python -m pip install --upgrade pip 
+        python -m pip install --upgrade pip
         pip install sphinx sphinx_rtd_theme
         pip install -e .
 
     - name: Generate documentation
       working-directory: docs
       run: make html
-        
+
     - name: Deploy
       uses: peaceiris/actions-gh-pages@v2
       env:
         PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
         PUBLISH_BRANCH: gh-pages
         PUBLISH_DIR: ./docs/_build/html
-        

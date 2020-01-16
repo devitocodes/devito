@@ -11,7 +11,7 @@ from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
                        filter_iterations)
 from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
-from devito.targets.common.engine import target_pass
+from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import Constant, Symbol
 
@@ -350,7 +350,7 @@ class Ompizer(object):
 
         return partree
 
-    @target_pass
+    @iet_pass
     def make_parallel(self, iet):
         """
         Create a new IET with shared-memory parallelism via OpenMP pragmas.
@@ -389,7 +389,7 @@ class Ompizer(object):
 
         return iet, {'args': args, 'includes': ['omp.h']}
 
-    @target_pass
+    @iet_pass
     def make_simd(self, iet, **kwargs):
         """
         Create a new IET with SIMD parallelism via OpenMP pragmas.

@@ -12,7 +12,7 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt
-    
+
 ADD ./devito /app/devito
 ADD ./tests /app/tests
 ADD ./examples /app/examples
