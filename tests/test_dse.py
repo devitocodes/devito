@@ -78,18 +78,24 @@ def test_yreplace_time_invariants(exprs, expected):
 
 
 @pytest.mark.parametrize('exprs,expected', [
-    # simple
+    # Simple cases
+    (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, t0 + t1)', 'Eq(ti1, t0 + t1)'],
+     ['t0 + t1', '2/r0', 'r0', 'r0']),
+    (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, 2/(t0 + t1) + 1)', 'Eq(ti1, 2/(t0 + t1) + 1)'],
+     ['1/(t0 + t1)', '2*r5', 'r3 + 1', 'r3', 'r2', 'r2']),
     (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
      ['ti0[x, y, z] + ti1[x, y, z]',
       'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)']),
-    # across expressions
+    (['Eq(tu, t0/t1)', 'Eq(ti0, 2 + t0/t1)', 'Eq(ti1, 2 + t0/t1)'],
+     ['t0/t1', 'r2 + 2', 'r2', 'r1', 'r1']),
+    # Across expressions
     (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
      ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0']),
-    # intersecting
+    # Intersecting
     pytest.param(['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
                  ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'],
                  marks=pytest.mark.xfail),
-    # divisions (== powers with negative exponenet) are always captured
+    # Divisions (== powers with negative exponenet) are always captured
     (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(ti0, tv**-1*t0)'],
      ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0']),
     # `compact_temporaries` must detect chains of isolated temporaries
@@ -102,7 +108,25 @@ def test_yreplace_time_invariants(exprs, expected):
       '-r2*tu[t, x, y, z] + r2*tu[t, x + 1, y, z] + 1',
       '-r2*tv[t, x, y, z] + r2*tv[t, x + 1, y, z] + 1',
       'r0 + r1*tv[t + 1, x, y, z] + 1',
-      'r0 + r1*tv[t + 1, x, y, z] + 2'])
+      'r0 + r1*tv[t + 1, x, y, z] + 2']),
+    # Fancy use case with lots of temporaries
+    (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
+      'Eq(tw.forward, tv.dt.dx2.dy2 + 1)', 'Eq(tz.forward, tv.dt.dy2.dx2 + 2)'],
+     ['h_x**(-2)', 'h_y**(-2)', '1/h_x', '1/dt', '-r9*tv[t, x, y, z]',
+      '-r9*tv[t, x - 1, y, z] + r9*tv[t + 1, x - 1, y, z]',
+      '-r9*tv[t, x + 1, y, z] + r9*tv[t + 1, x + 1, y, z]',
+      '-r9*tv[t, x, y - 1, z] + r9*tv[t + 1, x, y - 1, z]',
+      '-r9*tv[t, x - 1, y - 1, z] + r9*tv[t + 1, x - 1, y - 1, z]',
+      '-r9*tv[t, x + 1, y - 1, z] + r9*tv[t + 1, x + 1, y - 1, z]',
+      '-r9*tv[t, x, y + 1, z] + r9*tv[t + 1, x, y + 1, z]',
+      '-r9*tv[t, x - 1, y + 1, z] + r9*tv[t + 1, x - 1, y + 1, z]',
+      '-r9*tv[t, x + 1, y + 1, z] + r9*tv[t + 1, x + 1, y + 1, z]',
+      '-r10*tu[t, x, y, z] + r10*tu[t, x + 1, y, z] + 1',
+      '-r10*tv[t, x, y, z] + r10*tv[t, x + 1, y, z] + 1',
+      'r11*(r0*r12 + r1*r12 - 2.0*r12*r2) + r11*(r12*r3 + r12*r4 - 2.0*r12*r5) - '
+      '2.0*r11*(r12*r6 + r12*r7 - 2.0*r12*(r8 + r9*tv[t + 1, x, y, z])) + 1',
+      'r12*(r0*r11 + r11*r3 - 2.0*r11*r6) + r12*(r1*r11 + r11*r4 - 2.0*r11*r7) - '
+      '2.0*r12*(r11*r2 + r11*r5 - 2.0*r11*(r8 + r9*tv[t + 1, x, y, z])) + 2']),
 ])
 def test_cse(exprs, expected):
     """
