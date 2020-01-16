@@ -133,6 +133,9 @@ def fold_blockable_tree(iet, blockinner=True):
                 if len(i) >= 2:
                     groups.append(i)
         for i in groups:
+            # Performance heuristic: give up if fold length > 2:
+            if len(i) > 2:
+                continue
             # Pre-condition: they all must be perfect iterations
             if any(not IsPerfectIteration().visit(j) for j in i):
                 continue
