@@ -84,8 +84,12 @@ def cire(cluster, template, platform, mode):
     # Search aliasing expressions
     aliases = collect(exprs)
 
-    # Rule out aliasing expressions with a bad trade-off saved-flops/memory-allocated
+    # Rule out aliasing expressions with a bad flops/memory trade-off
     candidates, processed = choose(exprs, aliases)
+
+    if not candidates:
+        # Do not waste time
+        return cluster
 
     # Create Aliases and assign them to Clusters
     clusters, subs = process(cluster, candidates, processed, aliases, template, platform)
@@ -216,22 +220,29 @@ def choose(exprs, aliases):
 
 
 def process(cluster, candidates, processed, aliases, template, platform):
-    """
-    Create Clusters from aliasing expressions.
-    """
     clusters = []
     subs = {}
     for origin, alias in aliases.items():
         if all(i not in candidates for i in alias.aliased):
             continue
 
+        # The memory scope of the Array
+        # TODO: this has required refinements for a long time
+        if len([i for i in alias.writeto if i.dim.is_Incr]) >= 1:
+            scope = 'stack'
+        else:
+            scope = 'heap'
+
         # Create a temporary to store `alias`
         array = Array(name=template(), dimensions=alias.writeto.dimensions,
                       halo=[(abs(i.lower), abs(i.upper)) for i in alias.writeto],
-                      dtype=cluster.dtype, scope='stack' if alias.fits_stack else 'heap')
+                      dtype=cluster.dtype, scope=scope)
 
         # The expression computing `alias`
-        expression = Eq(array[aliases.index(origin)], origin.xreplace(subs))
+        offsets = [0 if alias.writeto[i].is_Null else alias.writeto[i].lower
+                   for i in aliases.index(origin)]
+        indices = [i - o for i, o in zip(aliases.index(origin), offsets)]
+        expression = Eq(array[indices], origin.xreplace(subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
@@ -408,6 +419,12 @@ def calculate_COM(group):
     return COM, distances
 
 
+class ShiftedDimension(IncrDimension):
+
+    def __new__(cls, d, name):
+        return super().__new__(cls, d, 0, d.symbolic_size - 1, step=1, name=name)
+
+
 class Aliases(OrderedDict):
 
     def __init__(self):
@@ -419,14 +436,15 @@ class Aliases(OrderedDict):
         self[alias] = Alias(alias, aliased, distances)
 
         # Update the index_mapper
-        for d in self[alias].writeto.dimensions:
+        for d in self[alias].dimensions:
             if d in self.index_mapper:
                 continue
-            if d.is_Incr:
-                # IncrDimensions, if present, must be substituted such that we
-                # stay in bounds when indexing into the alias
-                self.index_mapper[d] = IncrDimension(d, 0, d.symbolic_size - 1, 1,
-                                                     "%ss" % d.name)
+            elif isinstance(d, ShiftedDimension):
+                self.index_mapper[d.parent] = d
+            elif d.is_Incr:
+                # IncrDimensions must be substituted with ShiftedDimensions
+                # such that we don't go out-of-array-bounds at runtime
+                self.index_mapper[d] = ShiftedDimension(d, "%ss" % d.name)
 
     def get(self, key):
         ret = super(Aliases, self).get(key)
@@ -495,27 +513,21 @@ class Alias(object):
 
         # Overestimated write-to region
         intervals = [Interval(d, *v) for d, v in relaxed_diameter.items()]
-        intervals = IntervalGroup(intervals)
 
-        if len(intervals) == 5:
-            from IPython import embed; embed()
+        # Optimization: no need to have a data Dimension over ShiftedDimensions
+        intervals = [i for i in intervals if not isinstance(i.dim, ShiftedDimension)]
 
-        # Optimization: only retain those Interval along which the redundancies
-        # have been captured
+        # Optimization: only retain those Interval along which some redundancies
+        # have been detected
         dep_inducing = [i for i in intervals if any(i.offsets)]
         try:
             if dep_inducing:
                 index = intervals.index(dep_inducing[0])
-                intervals = IntervalGroup(intervals[index:])
+                intervals = intervals[index:]
         except IndexError:
             perf_adv("Couldn't optimize some of the detected redundancies")
 
-        return intervals
-
-    @property
-    def fits_stack(self):
-        #TODO: improve me
-        return len([i for i in self.writeto if not i.dim.is_Incr])
+        return IntervalGroup(intervals)
 
     def add(self, aliased, distance):
         aliased = self.aliased + [aliased]

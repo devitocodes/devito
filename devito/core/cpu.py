@@ -75,6 +75,8 @@ class CPU64Operator(CPU64NoopOperator):
         # Reduce flops
         clusters = extract_increments(clusters, template)
         clusters = cire(clusters, template, platform, 'sops')
+        #TODO
+        clusters = cire(clusters, template, platform, 'sops')
         clusters = factorize(clusters)
         clusters = cse(clusters, template)
         clusters = optimize_pows(clusters)
