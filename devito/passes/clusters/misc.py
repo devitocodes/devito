@@ -7,7 +7,8 @@ from devito.symbolics import pow_to_mul, xreplace_indices
 from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
-__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows']
+__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows',
+           'extract_increments']
 
 
 class Lift(Queue):
@@ -192,3 +193,25 @@ def optimize_pows(cluster, *args):
     Convert integer powers into Muls, such as ``a**2 => a*a``.
     """
     return cluster.rebuild(exprs=[pow_to_mul(e) for e in cluster.exprs])
+
+
+@dse_pass(mode='sparse')
+def extract_increments(cluster, template, *args):
+    """
+    Extract the RHSs of non-local tensor expressions performing an associative
+    and commutative increment, and assign them to temporaries.
+    """
+    processed = []
+    for e in cluster.exprs:
+        if e.is_Increment and e.lhs.function.is_Input:
+            handle = Scalar(name=template(), dtype=e.dtype).indexify()
+            if e.rhs.is_Number or e.rhs.is_Symbol:
+                extracted = e.rhs
+            else:
+                extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
+            processed.extend([e.func(handle, extracted, is_Increment=False),
+                              e.func(e.lhs, handle)])
+        else:
+            processed.append(e)
+
+    return cluster.rebuild(processed)
