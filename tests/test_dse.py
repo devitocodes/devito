@@ -312,7 +312,7 @@ class TestAliases(object):
         f = Function(name='f', grid=grid)
         f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
@@ -338,7 +338,7 @@ class TestAliases(object):
         # Check numerical output
         op0(time_M=1)
         exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
@@ -355,7 +355,7 @@ class TestAliases(object):
         f = Function(name='f', grid=grid)
         f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
 
         # Leads to 2D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
@@ -378,7 +378,7 @@ class TestAliases(object):
         # Check numerical output
         op0(time_M=1)
         exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
@@ -396,7 +396,7 @@ class TestAliases(object):
         f = Function(name='f', grid=grid)
         f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
@@ -423,7 +423,7 @@ class TestAliases(object):
         # Check numerical output
         op0(time_M=1)
         exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
