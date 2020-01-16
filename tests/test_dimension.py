@@ -7,7 +7,7 @@ import pytest
 from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig)
-from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
+from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
 from devito.types import Array
 
 
@@ -819,3 +819,79 @@ class TestConditionalDimension(object):
             F[i] = i if i < stop_value else stop_value
 
         assert np.all(f.data == F)
+
+    def test_no_fusion_simple(self):
+        """
+        If ConditionalDimensions are present, then Clusters must not be fused so
+        that ultimately Eqs get scheduled to different loop nests.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        # No ConditionalDimensions yet. Will be fused and optimized
+        eqns = [Eq(f.forward, f + 1),
+                Eq(h, f + 1),
+                Eq(g, f + 1)]
+
+        op = Operator(eqns)
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        assert len(exprs) == 4
+        assert exprs[1].expr.rhs is exprs[0].output
+        assert exprs[2].expr.rhs is exprs[0].output
+        assert exprs[3].expr.rhs is exprs[0].output
+
+        # Now with a ConditionalDimension. No fusion, no optimization
+        ctime = ConditionalDimension(name='ctime', parent=time, condition=time > 4)
+
+        eqns = [Eq(f.forward, f + 1),
+                Eq(h, f + 1),
+                Eq(g, f + 1, implicit_dims=[ctime])]
+
+        op = Operator(eqns)
+        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        assert len(exprs) == 3
+        assert exprs[1].expr.rhs is exprs[0].output
+        assert exprs[2].expr.rhs is exprs[0].output
+        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        assert len(exprs) == 1
+
+    def test_no_fusion_convoluted(self):
+        """
+        Conceptually like `test_no_fusion_simple`, but with more expressions
+        and non-trivial data flow.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        ctime = ConditionalDimension(name='ctime', parent=time, condition=time > 4)
+
+        eqns = [Eq(f.forward, f + 1),
+                Eq(h, f + 1),
+                Eq(g, f + 1, implicit_dims=[ctime]),
+                Eq(f.forward, f + 1, implicit_dims=[ctime]),
+                Eq(f.forward, f + 1),
+                Eq(g, f + 1)]
+
+        op = Operator(eqns)
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        assert len(exprs) == 3
+        assert exprs[1].expr.rhs is exprs[0].output
+        assert exprs[2].expr.rhs is exprs[0].output
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        assert len(exprs) == 2
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
+        assert len(exprs) == 3
+        assert exprs[1].expr.rhs is exprs[0].output
+        assert exprs[2].expr.rhs is exprs[0].output
