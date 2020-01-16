@@ -1049,15 +1049,6 @@ class Array(AbstractFunction):
     def free_symbols(self):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
-    def update(self, **kwargs):
-        self._shape = kwargs.get('shape', self.shape)
-        self._dimensions = kwargs.get('dimensions', self.dimensions)
-        self._dtype = kwargs.get('dtype', self.dtype)
-        self._halo = kwargs.get('halo', self._halo)
-        self._padding = kwargs.get('padding', self._padding)
-        self._scope = kwargs.get('scope', self._scope)
-        assert self._scope in ['heap', 'stack']
-
     # Pickling support
     _pickle_kwargs = AbstractFunction._pickle_kwargs + ['dimensions', 'scope']
 
