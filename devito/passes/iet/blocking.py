@@ -8,8 +8,8 @@ from devito.ir import (Expression, Iteration, List, FindAdjacent, FindNodes,
                        IsPerfectIteration, Transformer, PARALLEL, AFFINE, make_efunc,
                        compose_nodes, filter_iterations, retrieve_iteration_tree)
 from devito.exceptions import InvalidArgument
+from devito.passes.iet.engine import iet_pass
 from devito.symbolics import as_symbol, xreplace_indices
-from devito.targets.common.engine import target_pass
 from devito.tools import all_equal, as_tuple, flatten
 from devito.types import IncrDimension, Scalar
 
@@ -24,7 +24,7 @@ class Blocker(object):
 
         self.nblocked = 0
 
-    @target_pass
+    @iet_pass
     def make_blocking(self, iet):
         """
         Apply loop blocking to PARALLEL Iteration trees.
@@ -43,6 +43,9 @@ class Blocker(object):
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
+            if not IsPerfectIteration().visit(root):
+                # Don't know how block non-perfect Iteration nests
+                continue
 
             # Apply hierarchical loop blocking to `tree`
             level_0 = []  # Outermost level of blocking

@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from sympy import S
 
-from conftest import EVAL, time, x, y, z, skipif  # noqa
+from conftest import EVAL, skipif  # noqa
 from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
                     Operator, Dimension, SubDimension, switchconfig)
 from devito.ir.equations import DummyEq, LoweredEq
@@ -14,13 +14,29 @@ from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
-from devito.types import Scalar, Symbol
+from devito.types import Scalar, Symbol, Array
 from devito.tools import as_tuple
 
-pytestmark = skipif(['yask', 'ops'])
+pytestmark = skipif(['yask', 'ops'], whole_module=True)
 
 
 class TestVectorHierarchy(object):
+
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
+
+    @pytest.fixture
+    def x(self, grid):
+        return grid.dimensions[0]
+
+    @pytest.fixture
+    def y(self, grid):
+        return grid.dimensions[1]
+
+    @pytest.fixture
+    def z(self, grid):
+        return grid.dimensions[2]
 
     @pytest.fixture
     def v_num(self):
@@ -33,13 +49,21 @@ class TestVectorHierarchy(object):
         return v2, v3, v4, v11, v13, v23
 
     @pytest.fixture
-    def v_literal(self):
+    def v_literal(self, x, y):
         vx = Vector(x)
         vxy = Vector(x, y)
         vx1y = Vector(x + 1, y)
         s = Scalar(name='s', nonnegative=True)
         vs3 = Vector(s + 3, smart=True)
         return vx, vxy, vx1y, vs3
+
+    @pytest.fixture
+    def fa(self, grid, x):
+        return Array(name='fa', shape=(3,), dimensions=(x,)).indexed
+
+    @pytest.fixture
+    def fc(self, grid, x, y):
+        return Array(name='fc', shape=(3, 5), dimensions=(x, y)).indexed
 
     @pytest.fixture
     def ii_num(self, fa, fc):
@@ -50,14 +74,14 @@ class TestVectorHierarchy(object):
         return fa4, fc00, fc11, fc23
 
     @pytest.fixture
-    def ii_literal(self, fa, fc):
+    def ii_literal(self, fa, fc, x, y):
         fax = IterationInstance(fa[x])
         fcxy = IterationInstance(fc[x, y])
         fcx1y = IterationInstance(fc[x + 1, y])
         return fax, fcxy, fcx1y
 
     @pytest.fixture
-    def ta_literal(self, fc):
+    def ta_literal(self, fc, x, y):
         intervals = [Interval(x, 0, 0), Interval(y, 0, 0)]
         fwd_ispace = IterationSpace(intervals, directions={x: Forward, y: Forward})
         mixed_ispace = IterationSpace(intervals, directions={x: Backward, y: Forward})
@@ -104,7 +128,7 @@ class TestVectorHierarchy(object):
         assert v2 <= vs3
         assert vs3 > v2
 
-    def test_iteration_instance_arithmetic(self, dims, ii_num, ii_literal):
+    def test_iteration_instance_arithmetic(self, x, y, ii_num, ii_literal):
         """
         Tests arithmetic operations involving objects of type IterationInstance.
         """
@@ -142,7 +166,7 @@ class TestVectorHierarchy(object):
             except:
                 assert False
 
-    def test_iteration_instance_distance(self, dims, ii_num, ii_literal):
+    def test_iteration_instance_distance(self, ii_num, ii_literal):
         """
         Tests calculation of vector distance between objects of type IterationInstance.
         """
@@ -196,7 +220,7 @@ class TestVectorHierarchy(object):
         assert fcxy <= fcxy
         assert fcxy < fcx1y
 
-    def test_timed_access_distance(self, ta_literal):
+    def test_timed_access_distance(self, x, y, ta_literal):
         """
         Tests comparison of objects of type TimedAccess.
         """
@@ -258,7 +282,19 @@ class TestVectorHierarchy(object):
 
 class TestSpace(object):
 
-    def test_intervals_intersection(self):
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
+
+    @pytest.fixture
+    def x(self, grid):
+        return grid.dimensions[0]
+
+    @pytest.fixture
+    def y(self, grid):
+        return grid.dimensions[1]
+
+    def test_intervals_intersection(self, x, y):
         nullx = NullInterval(x)
 
         # All nulls
@@ -307,7 +343,7 @@ class TestSpace(object):
         assert ix8.intersection(ix9) == Interval(x, s - 1, s + 1)
         assert ix9.intersection(ix8) == Interval(x, s - 1, s + 1)
 
-    def test_intervals_union(self):
+    def test_intervals_union(self, x, y):
         nullx = NullInterval(x)
 
         # All nulls
@@ -369,7 +405,7 @@ class TestSpace(object):
         assert ix9.union(ix10) == ix9
         assert ix10.union(ix9) == ix9
 
-    def test_intervals_subtract(self):
+    def test_intervals_subtract(self, x, y):
         nullx = NullInterval(x)
 
         # All nulls
@@ -401,6 +437,26 @@ class TestSpace(object):
 
 
 class TestDependenceAnalysis(object):
+
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
+
+    @pytest.fixture
+    def ti0(self, grid):
+        return Array(name='ti0', shape=(3, 5, 7), dimensions=grid.dimensions).indexify()
+
+    @pytest.fixture
+    def ti1(self, grid):
+        return Array(name='ti1', shape=(3, 5, 7), dimensions=grid.dimensions).indexify()
+
+    @pytest.fixture
+    def ti3(self, grid):
+        return Array(name='ti3', shape=(3, 5, 7), dimensions=grid.dimensions).indexify()
+
+    @pytest.fixture
+    def fa(self, grid):
+        return Array(name='fa', dimensions=(grid.dimensions[0],), shape=(3,)).indexed
 
     @pytest.mark.parametrize('indexed,expected', [
         ('u[x,y,z]', (AFFINE, AFFINE, AFFINE)),
@@ -450,7 +506,7 @@ class TestDependenceAnalysis(object):
         ('Eq(ti0[x,fa[y],z], ti0[x,y,z])', 'all,carried,y,irregular'),
         ('Eq(ti0[x,y,z], ti0[x-1,fa[y],z])', 'flow,carried,x,regular'),
     ])
-    def test_single_eq(self, expr, expected, ti0, ti1, fa):
+    def test_single_eq(self, expr, expected, ti0, ti1, fa, grid):
         """
         Tests data dependences within a single equation consisting of only two Indexeds.
 
@@ -503,7 +559,7 @@ class TestDependenceAnalysis(object):
 
         # Check mode restricted to the cause
         assert getattr(dep, 'is_%s' % mode)(cause)
-        non_causes = [i for i in [x, y, z] if i is not cause]
+        non_causes = [i for i in grid.dimensions if i is not cause]
         assert all(not getattr(dep, 'is_%s' % mode)(i) for i in non_causes)
 
         # Check if it's regular or irregular
@@ -581,7 +637,17 @@ class TestDependenceAnalysis(object):
 
 class TestIETConstruction(object):
 
-    def test_conditional(self, fc):
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
+
+    @pytest.fixture
+    def fc(self, grid):
+        return Array(name='fc', dimensions=(grid.dimensions[0], grid.dimensions[1]),
+                     shape=(3, 5)).indexed
+
+    def test_conditional(self, fc, grid):
+        x, y, _ = grid.dimensions
         then_body = Expression(DummyEq(fc[x, y], fc[x, y] + 1))
         else_body = Expression(DummyEq(fc[x, y], fc[x, y] + 2))
         conditional = Conditional(x < 3, then_body, else_body)

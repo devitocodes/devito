@@ -6,15 +6,13 @@ JIT-compile, and run kernels.
 import os
 import sys
 
-from devito.yask.targets import YaskTarget, YaskCustomTarget
-from devito.yask.utils import namespace
-
 from devito.archinfo import Arm, Cpu64, CPU64, Power
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
+from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, configuration, add_sub_configuration
-from devito.targets import CPU64NoopTarget, targets
 from devito.tools import make_tempdir
+from devito.yask.utils import namespace
 
 
 def exit(emsg):
@@ -67,12 +65,12 @@ sys.path.append(os.path.join(namespace['yask-pylib']))
 
 # Need a custom compiler to compile YASK kernels
 # This is derived from the user-selected compiler
-class YaskCompiler(configuration['compiler'].__class__):
+class YASKCompiler(configuration['compiler'].__class__):
 
     def __init__(self, *args, **kwargs):
         kwargs['cpp'] = True
         kwargs['suffix'] = configuration['compiler'].suffix
-        super(YaskCompiler, self).__init__(*args, **kwargs)
+        super(YASKCompiler, self).__init__(*args, **kwargs)
         self.cflags = [i for i in configuration['compiler'].cflags
                        if not i.startswith('-std')] + ['-std=c++11']
         # Tell the compiler where to get YASK header files and shared objects
@@ -82,7 +80,7 @@ class YaskCompiler(configuration['compiler'].__class__):
 
 
 yask_configuration = Parameters('yask')
-yask_configuration.add('compiler', YaskCompiler())
+yask_configuration.add('compiler', YASKCompiler())
 callback = lambda i: eval(i) if i else ()
 yask_configuration.add('folding', (), callback=callback, impacts_jit=False)
 yask_configuration.add('blockshape', (), callback=callback, impacts_jit=False)
@@ -100,14 +98,16 @@ env_vars_mapper = {
 
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
-# Add YASK-specific Targets
-targets.add(CPU64NoopTarget, Cpu64, 'noop')
-targets.add(YaskTarget, Cpu64, 'advanced')
-targets.add(YaskCustomTarget, Cpu64, 'custom')
+from devito.yask.operator import YASKNoopOperator, YASKOperator, YASKCustomOperator  # noqa
+
+# Add YASK-specific Operators
+operator_registry.add(YASKNoopOperator, Cpu64, 'noop')
+operator_registry.add(YASKOperator, Cpu64, 'advanced')
+operator_registry.add(YASKCustomOperator, Cpu64, 'custom')
 
 # The following used by backends.backendSelector
+Operator = YASKOperator
 from devito.types import SparseFunction, SparseTimeFunction  # noqa
 from devito.yask.types import CacheManager, Grid, Constant, Function, TimeFunction  # noqa
-from devito.yask.operator import OperatorYASK as Operator  # noqa
 
 log("Backend successfully initialized!")

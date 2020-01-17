@@ -28,11 +28,11 @@ def clusterize(exprs, dse_mode=None):
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
 
-    # Apply optimizations
-    clusters = optimize(clusters, dse_mode)
-
     # Introduce conditional Clusters
     clusters = guard(clusters)
+
+    # Apply optimizations
+    clusters = optimize(clusters, dse_mode)
 
     return ClusterGroup(clusters)
 
@@ -364,7 +364,7 @@ class Lift(Queue):
                 continue
 
             # Scalars prevent lifting if they are read by another Cluster
-            swrites = {f for f in c.scope.writes if f.is_Scalar}
+            swrites = {f for f in c.scope.writes if f.is_Symbol}
             if any(swrites & set(i.scope.reads) for i in impacted):
                 processed.append(c)
                 continue
@@ -382,11 +382,14 @@ def fuse(clusters):
     """
     Fuse sub-sequences of Clusters with compatible IterationSpace.
     """
+    # Grouping key = <same iteration space, same conditionals>
+    key = lambda c: (set(c.itintervals), c.guards)
+
     processed = []
-    for k, g in groupby(clusters, key=lambda c: set(c.itintervals)):
+    for k, g in groupby(clusters, key=key):
         maybe_fusible = list(g)
 
-        if len(maybe_fusible) == 1 or any(c.guards for c in maybe_fusible):
+        if len(maybe_fusible) == 1:
             processed.extend(maybe_fusible)
         else:
             try:

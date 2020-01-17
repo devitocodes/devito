@@ -9,8 +9,8 @@ import cgen as c
 
 from devito.ir import (ArrayCast, Element, Expression, List, LocalExpression,
                        FindNodes, MapExprStmts, Transformer)
+from devito.passes.iet.engine import iet_pass
 from devito.symbolics import ccode
-from devito.targets.common.engine import target_pass
 from devito.tools import flatten
 
 __all__ = ['DataManager']
@@ -91,7 +91,7 @@ class DataManager(object):
         """Place a Function in the high bandwidth memory."""
         return
 
-    @target_pass
+    @iet_pass
     def place_definitions(self, iet):
         """
         Create a new IET with symbols allocated/deallocated in some memory space.
@@ -144,7 +144,7 @@ class DataManager(object):
 
         return iet, {}
 
-    @target_pass
+    @iet_pass
     def place_casts(self, iet):
         """
         Create a new IET with the necessary type casts.

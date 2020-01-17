@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
+from itertools import permutations
 
-from conftest import skipif, time, x, y, z
+from conftest import skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
@@ -10,9 +11,9 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
+from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
-from devito.targets.common import DataManager
-from devito.tools import flatten
+from devito.tools import flatten, powerset
 from devito.types import Array, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
@@ -409,51 +410,45 @@ class TestAllocation(object):
         assert(np.allclose(m2.data, 0))
         assert(np.array_equal(m.data, m2.data))
 
-    @pytest.mark.parametrize('stagg, ndim', [
-        (NODE, 2), (y, 2), (x, 2), (CELL, 2),
-        (NODE, 3), (x, 3), (y, 3), (z, 3),
-        ((x, y), 3), ((x, z), 3), ((y, z), 3), (CELL, 3),
-    ])
-    def test_staggered(self, stagg, ndim):
+    @pytest.mark.parametrize('ndim', [2, 3])
+    def test_staggered(self, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
-        f = Function(name='f', grid=grid, staggered=stagg)
-        assert f.data.shape == tuple([11]*ndim)
-        # Add a non-staggered field to ensure that the auto-derived
-        # dimension size arguments are at maximum
-        g = Function(name='g', grid=grid)
-        # Test insertion into a central point
-        index = tuple(5 for _ in f.dimensions)
-        set_f = Eq(f[index], 2.)
-        set_g = Eq(g[index], 3.)
+        grid = Grid(shape=tuple([11]*ndim))
+        for stagg in tuple(powerset(grid.dimensions))[1::] + (NODE, CELL):
+            f = Function(name='f', grid=grid, staggered=stagg)
+            assert f.data.shape == tuple([11]*ndim)
+            # Add a non-staggered field to ensure that the auto-derived
+            # dimension size arguments are at maximum
+            g = Function(name='g', grid=grid)
+            # Test insertion into a central point
+            index = tuple(5 for _ in f.dimensions)
+            set_f = Eq(f[index], 2.)
+            set_g = Eq(g[index], 3.)
 
-        Operator([set_f, set_g])()
-        assert f.data[index] == 2.
+            Operator([set_f, set_g])()
+            assert f.data[index] == 2.
 
-    @pytest.mark.parametrize('stagg, ndim', [
-        (NODE, 2), (y, 2), (x, 2), ((x, y), 2),
-        (NODE, 3), (x, 3), (y, 3), (z, 3),
-        ((x, y), 3), ((x, z), 3), ((y, z), 3), ((x, y, z), 3),
-    ])
-    def test_staggered_time(self, stagg, ndim):
+    @pytest.mark.parametrize('ndim', [2, 3])
+    def test_staggered_time(self, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
-        f = TimeFunction(name='f', grid=grid, staggered=stagg)
-        assert f.data.shape[1:] == tuple([11]*ndim)
-        # Add a non-staggered field to ensure that the auto-derived
-        # dimension size arguments are at maximum
-        g = TimeFunction(name='g', grid=grid)
-        # Test insertion into a central point
-        index = tuple([0] + [5 for _ in f.dimensions[1:]])
-        set_f = Eq(f[index], 2.)
-        set_g = Eq(g[index], 3.)
+        grid = Grid(shape=tuple([11]*ndim))
+        for stagg in tuple(powerset(grid.dimensions))[1::] + (NODE,):
+            f = TimeFunction(name='f', grid=grid, staggered=stagg)
+            assert f.data.shape[1:] == tuple([11]*ndim)
+            # Add a non-staggered field to ensure that the auto-derived
+            # dimension size arguments are at maximum
+            g = TimeFunction(name='g', grid=grid)
+            # Test insertion into a central point
+            index = tuple([0] + [5 for _ in f.dimensions[1:]])
+            set_f = Eq(f[index], 2.)
+            set_g = Eq(g[index], 3.)
 
-        Operator([set_f, set_g])()
-        assert f.data[index] == 2.
+            Operator([set_f, set_g])()
+            assert f.data[index] == 2.
 
 
 class TestArguments(object):
@@ -1146,6 +1141,7 @@ class TestDeclarator(object):
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
 
     def test_conditional_declarations(self):
+        x = Dimension(name="x")
         a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
         init_value = ListInitializer([0, 0])
         list_initialize = Expression(ClusterizedEq(Eq(a, init_value)))
@@ -1457,12 +1453,15 @@ class TestLoopScheduling(object):
         assert middle[-1].nodes[0].exprs[0].expr.rhs == indexify(eq1.rhs)
         assert inner[-1].nodes[0].exprs[0].expr.rhs == indexify(eq2.rhs)
 
-    def test_equations_emulate_bc(self, t0):
+    def test_equations_emulate_bc(self):
         """
         Test that bc-like equations get inserted into the same loop nest
         as the "main" equations.
         """
-        grid = Grid(shape=(3, 3, 3), dimensions=(x, y, z), time_dimension=time)
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        time = grid.time_dim
+        t0 = Scalar(name='t0')
         a = Function(name='a', grid=grid)
         b = TimeFunction(name='b', grid=grid, save=6)
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
@@ -1474,7 +1473,13 @@ class TestLoopScheduling(object):
         assert len(trees) == 4
         assert all(id(trees[0][0]) == id(i[0]) for i in trees)
 
-    def test_different_section_nests(self, tu, ti0, t0, t1):
+    def test_different_section_nests(self):
+        grid = Grid((3, 3, 3))
+        tu = TimeFunction(name='tu', grid=grid, space_order=4)
+        t0 = Scalar(name='t0')
+        t1 = Scalar(name='t1')
+        ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=grid.dimensions,
+                    scope='heap').indexify()
         eq1 = Eq(ti0, t0*3.)
         eq2 = Eq(tu, ti0 + t1*3.)
         op = Operator([eq1, eq2], dse='noop', dle='noop')
@@ -1489,7 +1494,7 @@ class TestLoopScheduling(object):
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,0], 0.)'],
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,z], 0.)'],
     ])
-    def test_directly_indexed_expression(self, ti0, t0, exprs):
+    def test_directly_indexed_expression(self, exprs):
         """
         Test that equations using integer indices are inserted in the right
         loop nest, at the right loop nest depth.
@@ -1498,7 +1503,7 @@ class TestLoopScheduling(object):
         x, y, z = grid.dimensions  # noqa
 
         ti0 = Function(name='ti0', grid=grid, space_order=0)  # noqa
-        f0 = Scalar(name='t0')  # noqa
+        t0 = Scalar(name='t0')  # noqa
 
         eqs = [eval(exprs[0]), eval(exprs[1])]
 
@@ -1509,52 +1514,48 @@ class TestLoopScheduling(object):
         assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
         assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
 
-    @pytest.mark.parametrize('shape, dimensions', [((11, 11), (x, y)),
-                                                   ((11, 11), (y, x)),
-                                                   ((11, 11, 11), (x, y, z)),
-                                                   ((11, 11, 11), (x, z, y)),
-                                                   ((11, 11, 11), (y, x, z)),
-                                                   ((11, 11, 11), (y, z, x)),
-                                                   ((11, 11, 11), (z, x, y)),
-                                                   ((11, 11, 11), (z, y, x))])
-    def test_equations_mixed_densedata_timedata(self, shape, dimensions):
+    @pytest.mark.parametrize('shape', [(11, 11), (11, 11, 11)])
+    def test_equations_mixed_densedata_timedata(self, shape):
         """
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        grid = Grid(shape=shape, dimensions=dimensions, dtype=np.float64)
-        time = grid.time_dim
-        a = TimeFunction(name='a', grid=grid, time_order=2, space_order=2)
-        p_aux = Dimension(name='p_aux')
-        b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
-                     space_order=2, dtype=np.float64)
-        b.data_with_halo[:] = 1.0
-        b2 = Function(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dimensions,
-                      space_order=2, dtype=np.float64)
-        b2.data_with_halo[:] = 1.0
-        eqns = [Eq(a.forward, a.laplace + 1.),
-                Eq(b, time*b*a + b)]
-        eqns2 = [Eq(a.forward, a.laplace + 1.),
-                 Eq(b2, time*b2*a + b2)]
-        subs = {x.spacing: 2.5, y.spacing: 1.5, z.spacing: 2.0}
-        op = Operator(eqns, subs=subs, dle='noop')
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert all(trees[0][i] is trees[1][i] for i in range(3))
+        dims0 = Grid(shape).dimensions
+        for dims in permutations(dims0):
+            grid = Grid(shape=shape, dimensions=dims, dtype=np.float64)
+            time = grid.time_dim
+            a = TimeFunction(name='a', grid=grid, time_order=2, space_order=2)
+            p_aux = Dimension(name='p_aux')
+            b = Function(name='b', shape=shape + (10,), dimensions=dims + (p_aux,),
+                         space_order=2, dtype=np.float64)
+            b.data_with_halo[:] = 1.0
+            b2 = Function(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dims,
+                          space_order=2, dtype=np.float64)
+            b2.data_with_halo[:] = 1.0
+            eqns = [Eq(a.forward, a.laplace + 1.),
+                    Eq(b, time*b*a + b)]
+            eqns2 = [Eq(a.forward, a.laplace + 1.),
+                     Eq(b2, time*b2*a + b2)]
+            subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim])}
 
-        op2 = Operator(eqns2, subs=subs, dle='noop')
-        trees = retrieve_iteration_tree(op2)
-        assert len(trees) == 2
+            op = Operator(eqns, subs=subs, dle='noop')
+            trees = retrieve_iteration_tree(op)
+            assert len(trees) == 2
+            assert all(trees[0][i] is trees[1][i] for i in range(3))
 
-        # Verify both operators produce the same result
-        op(time=10)
-        a.data_with_halo[:] = 0.
-        op2(time=10)
+            op2 = Operator(eqns2, subs=subs, dle='noop')
+            trees = retrieve_iteration_tree(op2)
+            assert len(trees) == 2
 
-        for i in range(10):
-            assert(np.allclose(b2.data[i, ...].reshape(-1),
-                               b.data[..., i].reshape(-1),
-                               rtol=1e-9))
+            # Verify both operators produce the same result
+            op(time=10)
+            a.data_with_halo[:] = 0.
+            op2(time=10)
+
+            for i in range(10):
+                assert(np.allclose(b2.data[i, ...].reshape(-1),
+                                   b.data[..., i].reshape(-1),
+                                   rtol=1e-9))
 
     def test_equations_mixed_timedim_stepdim(self):
         """"
