@@ -1,7 +1,10 @@
 from collections.abc import Sequence
 
-from devito.tools import visitor
+from sympy import diff
 
+from devito.tools import GenericVisitor, flatten
+from devito.symbolics import retrieve_function_carriers, indexify
+from devito.types import Eq
 
 class ExpressionSet(Sequence):
     def __init__(self):
@@ -24,36 +27,52 @@ class ExpressionSet(Sequence):
 
 
 class Adjoint(ExpressionSet):
-    def __init__(self, expressions, substitutions):
-        self.original_expressions = expressions
+    def __init__(self, expressions, substitutions=None, ignores=None):
+        if substitutions is None:
+            substitutions = {}
+        if ignores is None:
+            ignores = []
+        self.expressions = expressions
         self.substitutions = substitutions
+        self.ignores = ignores
+        super().__init__()
 
     def generate_expressions(self):
-        return Differentiator(self.substitutions).visit(self.expressions)
+        return Differentiator(self.substitutions, self.ignores).visit(self.expressions)
 
 
 class Differentiator(GenericVisitor):
-    def __init__(self, substitutions):
+    def __init__(self, substitutions, ignores):
         self._substitutions = substitutions
-        super(GenericVisitor, self).__init__()
+        self._ignores = ignores
+        super().__init__()
+
+    def visit_object(self, node):
+        raise ValueError("Can not differentiate %s. Need a substituting Function" % str(node))
         
-    def visit_Sequence(self, nodes):
-        return [self.visit(x) for x in nodes]
+    def visit_list(self, nodes):
+        return flatten([self.visit(x) for x in nodes])
 
     def visit_Indexed(self, node):
-        return self.visit(node.function)[node.indices]
+        return self.visit(node.function).indexed[node.indices]
 
     def visit_Function(self, node):
-        assert(node in self.substitutions.keys())
-    
-        return self.substitutions[node]
+        if (node.function in self._substitutions.keys()):
+            return self._substitutions[node.function]
+        elif node.function in self._ignores:
+            return node.function
+        else:
+            raise ValueError("Can not differentiate %s. Need a substituting Function" % str(node))
 
     def visit_Eq(self, e):
-        indexeds = retrieve_indexed(e.rhs, mode='all', deep=True)
+        e = indexify(e)  # sympy.diff() seems to not like u() like functions. wants u[] instead
+        indexeds = retrieve_function_carriers(e.rhs, mode='all')
         adjoint_lhs = self.visit(e.lhs)
-
+        
         differentiated_expressions = []
         for i in indexeds:
+            if i.function in self._ignores:
+                continue
             i_d = self.visit(i)
             differentiated_expressions.append(Eq(i_d, diff(e.rhs, i) * adjoint_lhs))
         return differentiated_expressions
