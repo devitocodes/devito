@@ -7,12 +7,12 @@ from cached_property import cached_property
 
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
+from devito.operations import LinearInterpolator, PrecomputedInterpolator
 from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
 from devito.tools import ReducerMap, flatten, prod, filter_ordered, memoized_meth
 from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension
 from devito.types.basic import Symbol, Scalar
-from devito.interpolators import LinearInterpolator, PrecomputedInterpolator
 from devito.types.equation import Eq
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
