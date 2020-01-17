@@ -1,0 +1,52 @@
+name: CI-mpi
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: pytest-mpi
+    runs-on: ubuntu-16.04
+
+    env:
+      DEVITO_ARCH: "gcc-7"
+      DEVITO_OPENMP: 1
+      DEVITO_BACKEND: "core"
+      CC: "gcc-7"
+      CXX: "g++-7"
+      PYTHON_VERSION: "3.7"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+
+    - name: Install MPI
+      run : |
+        sudo apt-get install -y mpich libmpich-dev
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .[extras]
+
+    - name: Test with pytest
+      run: |
+        pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1.0.5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: pytest-mpi

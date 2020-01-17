@@ -4,7 +4,7 @@ from sympy import sin, Abs
 
 from devito import (Grid, SubDomain, Function, Constant,
                     SubDimension, Eq, Inc, Operator)
-from devito.builtins import initialize_function, gaussian_smooth
+from devito.builtins import initialize_function, gaussian_smooth, mmax
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic']
@@ -204,7 +204,6 @@ class Model(GenericModel):
 
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
-        self._max_vp = np.max(vp)
 
         # Additional parameter fields for TTI operators
         self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
@@ -214,6 +213,10 @@ class Model(GenericModel):
         self.theta = self._gen_phys_param(theta, 'theta', space_order)
         if self.grid.dim > 2:
             self.phi = self._gen_phys_param(phi, 'phi', space_order)
+
+    @property
+    def _max_vp(self):
+        return mmax(self.vp)
 
     @property
     def critical_dt(self):
@@ -263,7 +266,6 @@ class Model(GenericModel):
                                                                      self.vp.shape))
         else:
             self._vp.data = vp
-        self._max_vp = np.max(vp)
 
     @property
     def m(self):
@@ -316,9 +318,9 @@ class ModelElastic(GenericModel):
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbl=20,
-                 dtype=np.float32):
+                 subdomains=(), dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbl=nbl, dtype=dtype,
+                                           nbl=nbl, subdomains=subdomains, dtype=dtype,
                                            damp_mask=True)
 
         self.maxvp = np.max(vp)
@@ -376,10 +378,10 @@ class ModelViscoelastic(ModelElastic):
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, qp, vs, qs, rho,
-                 nbl=20, dtype=np.float32):
-        super(ModelViscoelastic, self).__init__(origin, spacing, shape,
-                                                space_order, vp, vs, rho,
-                                                nbl=nbl, dtype=dtype)
+                 nbl=20, subdomains=(), dtype=np.float32):
+        super(ModelViscoelastic, self).__init__(origin, spacing, shape, space_order,
+                                                vp, vs, rho, nbl=nbl,
+                                                subdomains=subdomains, dtype=dtype)
 
         self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 

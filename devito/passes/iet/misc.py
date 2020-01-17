@@ -1,17 +1,17 @@
-"""Misc Target passes."""
+"""Misc optimization passes."""
 
 import cgen
 
 from devito.ir.iet import (Iteration, List, Prodder, FindSymbols, FindNodes,
                            Transformer, filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
-from devito.targets.common.blocking import BlockDimension
-from devito.targets.common.engine import target_pass
+from devito.passes.iet.blocking import BlockDimension
+from devito.passes.iet.engine import iet_pass
 
 __all__ = ['avoid_denormals', 'loop_wrapping', 'minimize_remainders', 'hoist_prodders']
 
 
-@target_pass
+@iet_pass
 def avoid_denormals(iet):
     """
     Introduce nodes in the Iteration/Expression tree that will expand to C
@@ -26,7 +26,7 @@ def avoid_denormals(iet):
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
 
-@target_pass
+@iet_pass
 def loop_wrapping(iet):
     """
     Emit a performance message if WRAPPABLE Iterations are found,
@@ -40,7 +40,7 @@ def loop_wrapping(iet):
     return iet, {}
 
 
-@target_pass
+@iet_pass
 def minimize_remainders(iet, **kwargs):
     """
     Adjust ROUNDABLE Iteration bounds so as to avoid the insertion of remainder
@@ -71,7 +71,7 @@ def minimize_remainders(iet, **kwargs):
     return iet, {}
 
 
-@target_pass
+@iet_pass
 def hoist_prodders(iet):
     """
     Move Prodders within the outer levels of an Iteration tree.

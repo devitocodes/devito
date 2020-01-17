@@ -720,6 +720,13 @@ class ConditionalDimension(DerivedDimension):
     def index(self):
         return self if self.indirect is True else self.parent
 
+    @property
+    def free_symbols(self):
+        retval = super(ConditionalDimension, self).free_symbols
+        if self.condition is not None:
+            retval |= self.condition.free_symbols
+        return retval
+
     # Pickling support
     _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition', 'indirect']
 

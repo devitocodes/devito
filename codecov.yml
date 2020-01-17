@@ -1,17 +1,20 @@
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    wait_for_ci: yes
+
 coverage:
   precision: 2
   round: down
-  range: 88...100
+  range: 80...90
 
   status:
     # Learn more at http://docs.codecov.io/docs/codecov-yaml
     project:
       default:
         enabled: yes
-        target: auto
+        target: 1
         threshold: 0.1
     patch:
       default:
-        enabled: yes
-        target: auto
-        threshold: 0.1
+        enabled: off

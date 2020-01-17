@@ -2,6 +2,6 @@
 Operator
 ========
 
-.. automodule:: devito.operator
+.. automodule:: devito.operator.operator
     :members:
     :undoc-members:

@@ -1,12 +1,12 @@
 import cgen as c
 
+from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.ir.support import COLLAPSED
-from devito.targets.basic import Target
-from devito.targets.common import (DataManager, Ompizer, ParallelTree,
-                                   optimize_halospots, mpiize, hoist_prodders)
+from devito.passes import (DataManager, Ompizer, ParallelTree, optimize_halospots,
+                           mpiize, hoist_prodders)
 
-__all__ = ['DeviceOffloadingTarget']
+__all__ = ['DeviceOffloadingOperator']
 
 
 class OffloadingOmpizer(Ompizer):
@@ -131,27 +131,27 @@ class OffloadingDataManager(DataManager):
         storage._high_bw_mem[obj] = (decl, alloc, free)
 
 
-class DeviceOffloadingTarget(Target):
+class DeviceOffloadingOperator(OperatorCore):
 
-    def __init__(self, params, platform):
-        super(DeviceOffloadingTarget, self).__init__(params, platform)
+    @classmethod
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
 
-        # Shared-memory parallelizer
-        self.ompizer = OffloadingOmpizer()
-
-        # Data manager (declarations, definitions, movemented between
-        # host and device, ...)
-        self.data_manager = OffloadingDataManager()
-
-    def _pipeline(self, graph):
-        # Optimization and parallelism
+        # Distributed-memory parallelism
         optimize_halospots(graph)
-        if self.params['mpi']:
-            mpiize(graph, mode=self.params['mpi'])
-        if self.params['openmp']:
-            self.ompizer.make_parallel(graph)
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # Shared-memory parallelism
+        if options['openmp']:
+            OffloadingOmpizer().make_parallel(graph)
+
+        # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        self.data_manager.place_definitions(graph)
-        self.data_manager.place_casts(graph)
+        data_manager = OffloadingDataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph

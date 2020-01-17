@@ -16,7 +16,7 @@ from devito.yask.utils import namespace
 from devito.yask.transformer import make_yask_ast
 
 
-class YaskKernel(object):
+class YASKKernel(object):
 
     """
     A wrapper for a YASK kernel solution.
@@ -31,11 +31,11 @@ class YaskKernel(object):
         Parameters
         ----------
         name : str
-            Unique name of this YaskKernel.
+            Unique name of this YASKKernel.
         yc_soln
-            The YaskCompiler solution.
+            The YASKCompiler solution.
         local_vars : list of Array, optional
-            A local var is necessary to run the YaskKernel, but it can be
+            A local var is necessary to run the YASKKernel, but it can be
             deallocated upon returning to Python-land.  For example, local
             vars could be used to implement the temporary arrays introduced by
             the DSE.  This parameter tells which of the ``yc_soln``'s vars are
@@ -159,7 +159,7 @@ class YaskKernel(object):
 
     def pre_apply(self, toshare):
         """
-        Set up the YaskKernel before it's called from within an Operator.
+        Set up the YASKKernel before it's called from within an Operator.
 
         Parameters
         ----------
@@ -244,10 +244,10 @@ class YaskKernel(object):
         return ctypes.cast(int(self.soln), namespace['type-solution'])
 
     def __repr__(self):
-        return "YaskKernel [%s]" % self.name
+        return "YASKKernel [%s]" % self.name
 
 
-class YaskContext(Signer):
+class YASKContext(Signer):
 
     _hookcounter = 0
     """
@@ -259,7 +259,7 @@ class YaskContext(Signer):
         """
         Proxy between Devito and YASK.
 
-        A YaskContext contains YaskKernel and Data having common SpaceDimensions
+        A YASKContext contains YASKKernel and Data having common SpaceDimensions
         and TimeDimension.
 
         Parameters
@@ -299,8 +299,8 @@ class YaskContext(Signer):
         # 'hook' kernel solution: allocates memory
 
         # A unique name for the 'hook' compiler and kernel solutions
-        suffix = Signer._digest(self, obj, configuration, YaskContext._hookcounter)
-        YaskContext._hookcounter += 1
+        suffix = Signer._digest(self, obj, configuration, YASKContext._hookcounter)
+        YASKContext._hookcounter += 1
         name = namespace['jit-hook'](suffix)
 
         # Create 'hook' compiler solution
@@ -324,7 +324,7 @@ class YaskContext(Signer):
         yc_hook.new_var('template_var', dimensions)
 
         # Create 'hook' kernel solution from `yc_hook`
-        yk_hook = YaskKernel(name, yc_hook)
+        yk_hook = YASKKernel(name, yc_hook)
 
         # Create YASK kernel variable for `obj`. YASK knows how to
         # create a variable of these dimesions because of the
@@ -390,9 +390,9 @@ class YaskContext(Signer):
 
     def make_yk_solution(self, name, yc_soln, local_vars):
         """
-        Create a YaskKernel using ``yc_soln`` as YASK compiler solution.
+        Create a YASKKernel using ``yc_soln`` as YASK compiler solution.
         """
-        soln = YaskKernel(name, yc_soln, local_vars)
+        soln = YASKKernel(name, yc_soln, local_vars)
         self.solutions.append(soln)
         return soln
 
@@ -400,7 +400,7 @@ class YaskContext(Signer):
         return tuple(i.name for i in self.dimensions)
 
     def __repr__(self):
-        return ("YaskContext: %s\n"
+        return ("YASKContext: %s\n"
                 "- domain: %s\n"
                 "- vars:   [%s]\n"
                 "- solns:  [%s]\n") % (self.name,
@@ -438,29 +438,29 @@ class ContextManager(OrderedDict):
 
     def fetch(self, dimensions, dtype):
         """
-        Fetch the YaskContext in ``self`` uniquely identified by ``dimensions`` and
+        Fetch the YASKContext in ``self`` uniquely identified by ``dimensions`` and
         ``dtype``.
         """
         key = self._getkey(None, dtype, dimensions)
 
         context = self.get(key, self._partial_map.get(key))
         if context is not None:
-            log("Fetched existing YaskContext from cache")
+            log("Fetched existing YASKContext from cache")
             return context
         else:
-            exit("Couldn't find YaskContext for key=`%s`" % str(key))
+            exit("Couldn't find YASKContext for key=`%s`" % str(key))
 
     def putdefault(self, grid):
         """
         Derive a unique key ``K`` from a Grid`; if ``K`` is in ``self``,
-        return the pre-existing YaskContext ``self[K]``, otherwise create a
+        return the pre-existing YASKContext ``self[K]``, otherwise create a
         new context ``C``, set ``self[K] = C`` and return ``C``.
         """
         assert grid is not None
 
         key = self._getkey(grid, grid.dtype)
 
-        # Does a YaskContext exist already corresponding to this key?
+        # Does a YASKContext exist already corresponding to this key?
         if key in self:
             return self[key]
 
@@ -473,8 +473,8 @@ class ContextManager(OrderedDict):
                     "Grids, and some of them share identical Dimensions? ")
             self.dump()
 
-        # Create a new YaskContext
-        context = YaskContext('ctx%d' % self._ncontexts, grid)
+        # Create a new YASKContext
+        context = YASKContext('ctx%d' % self._ncontexts, grid)
         self._ncontexts += 1
 
         self[key] = context

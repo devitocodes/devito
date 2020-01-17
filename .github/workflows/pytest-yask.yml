@@ -1,0 +1,65 @@
+name: CI-yask
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: pytest-yask
+    runs-on: ubuntu-16.04
+
+    env:
+      DEVITO_ARCH: "gcc-7"
+      DEVITO_OPENMP: 1
+      DEVITO_BACKEND: "yask"
+      OMP_NUM_THREADS: 2
+      CC: "gcc-7"
+      CXX: "g++-7"
+      YC_CC: "gcc-7"
+      YC_CXX: "g++-7"
+      PYTHON_VERSION: "3.7"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+
+    - name: Checkout yask
+      uses: actions/checkout@v2
+      with:
+        repository: devitocodes/yask
+        path: yask
+
+    - name: Install yask
+      run : |
+        sudo apt-get update
+        sudo apt-get install -y swig
+        make compiler-api
+        pip install -e .
+      working-directory: yask
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .
+
+    - name: Test with pytest
+      run: |
+        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1.0.5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: pytest-yask
