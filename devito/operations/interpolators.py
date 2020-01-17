@@ -12,6 +12,8 @@ from devito.types.basic import Scalar
 from devito.types.dense import SubFunction
 from devito.types.dimension import ConditionalDimension, Dimension, DefaultDimension
 
+__all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
+
 
 class UnevaluatedSparseOperation(Evaluable):
 
