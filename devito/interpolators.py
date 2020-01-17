@@ -1,7 +1,8 @@
+from abc import ABC, abstractmethod
+from functools import partial
+
 import sympy
 import numpy as np
-
-from abc import ABC, abstractmethod
 from cached_property import cached_property
 
 from devito.logger import warning
@@ -21,19 +22,20 @@ class UnevaluatedSparseOperation(Evaluable):
 
     Parameters
     ----------
-    interpolator : Interpolator
-        Interpolator object that will be used to evaluate the Operation.
-    *args, **kwargs
-        The arguments passed to the corresponding method.
+    callback : callable
+        A routine generating the symbolic expressions for the operation.
     """
+
     subdomain = None
 
-    def __init__(self, interpolator, *args, **kwargs):
-        assert(isinstance(interpolator, GenericInterpolator))
+    def __init__(self, callback):
+        self.callback = callback
 
-        self.interpolator = interpolator
-        self._args = args
-        self._kwargs = kwargs
+    @property
+    def evaluate(self):
+        return_value = self.callback()
+        assert(all(isinstance(i, Eq) for i in return_value))
+        return return_value
 
     def __add__(self, other):
         return flatten([self, other])
@@ -49,19 +51,9 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __init__(self, interpolator, field, expr, *args, **kwargs):
-        self.field = field
-        self.expr = expr
-        args = tuple([field, expr] + list(args))
-        super().__init__(interpolator, *args, **kwargs)
-
-    @property
-    def evaluate(self):
-        return_value = self.interpolator._inject(*self._args, **self._kwargs)
-        assert(all(isinstance(i, Eq) for i in return_value))
-        return return_value
-
     def __repr__(self):
+        #TODO
+        from IPython import embed; embed()
         return "Injection(%s into %s)" % (repr(self.expr), repr(self.field))
 
 
@@ -72,18 +64,9 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __init__(self, interpolator, expr, *args, **kwargs):
-        self.expr = expr
-        args = tuple([expr] + list(args))
-        super().__init__(interpolator, *args, **kwargs)
-
-    @property
-    def evaluate(self):
-        return_value = self.interpolator._interpolate(*self._args, **self._kwargs)
-        assert(all(isinstance(i, Eq) for i in return_value))
-        return return_value
-
     def __repr__(self):
+        #TODO
+        from IPython import embed; embed()
         return "Interpolation(%s into %s)" % repr(self.expr,
                                                   repr(self.interpolator.sfunction))
 
@@ -91,7 +74,7 @@ class Interpolation(UnevaluatedSparseOperation):
 class GenericInterpolator(ABC):
 
     """
-    Abstract base class defining the interface for an interpolator
+    Abstract base class defining the interface for an interpolator.
     """
 
     @abstractmethod
@@ -206,53 +189,40 @@ class LinearInterpolator(GenericInterpolator):
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
         """
+        def callback(self, expr, offset, increment, self_subs):
+            # Derivatives must be evaluated before the introduction of indirect accesses
+            try:
+                expr = expr.evaluate
+            except AttributeError:
+                # E.g., a generic SymPy expression or a number
+                pass
 
-        return Interpolation(self, expr, offset, increment, self_subs)
+            variables = list(retrieve_function_carriers(expr))
 
-    def _interpolate(self, expr, offset=0, increment=False, self_subs={}):
-        """
-        Generate equations interpolating an arbitrary expression into ``self``.
+            # Need to get origin of the field in case it is staggered
+            # TODO: handle each variable staggereing spearately
+            field_offset = variables[0].origin
+            # List of indirection indices for all adjacent grid points
+            idx_subs, temps = self._interpolation_indices(variables, offset,
+                                                          field_offset=field_offset)
 
-        Parameters
-        ----------
-        expr : expr-like
-            Input expression to interpolate.
-        offset : int, optional
-            Additional offset from the boundary.
-        increment: bool, optional
-            If True, generate increments (Inc) rather than assignments (Eq).
-        """
-        # Derivatives must be evaluated before the introduction of indirect accesses
-        try:
-            expr = expr.evaluate
-        except AttributeError:
-            # E.g., a generic SymPy expression or a number
-            pass
+            # Substitute coordinate base symbols into the interpolation coefficients
+            args = [expr.xreplace(v_sub) * b.xreplace(v_sub)
+                    for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
 
-        variables = list(retrieve_function_carriers(expr))
+            # Accumulate point-wise contributions into a temporary
+            rhs = Scalar(name='sum', dtype=self.sfunction.dtype)
+            summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
+            summands.extend([Inc(rhs, i, implicit_dims=self.sfunction.dimensions)
+                            for i in args])
 
-        # Need to get origin of the field in case it is staggered
-        # TODO: handle each variable staggereing spearately
-        field_offset = variables[0].origin
-        # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                      field_offset=field_offset)
+            # Write/Incr `self`
+            lhs = self.sfunction.subs(self_subs)
+            last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
 
-        # Substitute coordinate base symbols into the interpolation coefficients
-        args = [expr.xreplace(v_sub) * b.xreplace(v_sub)
-                for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
+            return temps + summands + last
 
-        # Accumulate point-wise contributions into a temporary
-        rhs = Scalar(name='sum', dtype=self.sfunction.dtype)
-        summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
-        summands.extend([Inc(rhs, i, implicit_dims=self.sfunction.dimensions)
-                        for i in args])
-
-        # Write/Incr `self`
-        lhs = self.sfunction.subs(self_subs)
-        last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
-
-        return temps + summands + last
+        return Interpolation(partial(callback, self, expr, offset, increment, self_subs))
 
     def inject(self, field, expr, offset=0):
         """
@@ -267,42 +237,30 @@ class LinearInterpolator(GenericInterpolator):
         offset : int, optional
             Additional offset from the boundary.
         """
-        return Injection(self, field, expr, offset)
+        def callback(self, field, expr, offset):
+            # Derivatives must be evaluated before the introduction of indirect accesses
+            try:
+                expr = expr.evaluate
+            except AttributeError:
+                # E.g., a generic SymPy expression or a number
+                pass
 
-    def _inject(self, field, expr, offset=0):
-        """
-        Generate equations injecting an arbitrary expression into a field.
+            variables = list(retrieve_function_carriers(expr)) + [field]
 
-        Parameters
-        ----------
-        field : Function
-            Input field into which the injection is performed.
-        expr : expr-like
-            Injected expression.
-        offset : int, optional
-            Additional offset from the boundary.
-        """
-        # Derivatives must be evaluated before the introduction of indirect accesses
-        try:
-            expr = expr.evaluate
-        except AttributeError:
-            # E.g., a generic SymPy expression or a number
-            pass
+            # Need to get origin of the field in case it is staggered
+            field_offset = field.origin
+            # List of indirection indices for all adjacent grid points
+            idx_subs, temps = self._interpolation_indices(variables, offset,
+                                                          field_offset=field_offset)
 
-        variables = list(retrieve_function_carriers(expr)) + [field]
+            # Substitute coordinate base symbols into the interpolation coefficients
+            eqns = [Inc(field.xreplace(vsub), expr.xreplace(vsub) * b,
+                        implicit_dims=self.sfunction.dimensions)
+                    for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
 
-        # Need to get origin of the field in case it is staggered
-        field_offset = field.origin
-        # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                      field_offset=field_offset)
+            return temps + eqns
 
-        # Substitute coordinate base symbols into the interpolation coefficients
-        eqns = [Inc(field.xreplace(vsub), expr.xreplace(vsub) * b,
-                    implicit_dims=self.sfunction.dimensions)
-                for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
-
-        return temps + eqns
+        return Injection(partial(callback, self, field, expr, offset))
 
 
 class PrecomputedInterpolator(GenericInterpolator):
@@ -352,35 +310,23 @@ class PrecomputedInterpolator(GenericInterpolator):
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
         """
-        return Interpolation(self, expr, offset, increment, self_subs)
+        def callback(self, expr, offset, increment, self_subs):
+            expr = indexify(expr)
 
-    def _interpolate(self, expr, offset=0, increment=False, self_subs={}):
-        """
-        Generate equations interpolating an arbitrary expression into ``self``.
+            p, _, _ = self.obj.interpolation_coeffs.indices
+            dim_subs = []
+            coeffs = []
+            for i, d in enumerate(self.obj.grid.dimensions):
+                rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
+                dim_subs.append((d, INT(rd + self.obj.gridpoints[p, i])))
+                coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
+            # Apply optional time symbol substitutions to lhs of assignment
+            lhs = self.obj.subs(self_subs)
+            rhs = prod(coeffs) * expr.subs(dim_subs)
 
-        Parameters
-        ----------
-        expr : expr-like
-            Input expression to interpolate.
-        offset : int, optional
-            Additional offset from the boundary.
-        increment: bool, optional
-            If True, generate increments (Inc) rather than assignments (Eq).
-        """
-        expr = indexify(expr)
+            return [Eq(lhs, lhs + rhs)]
 
-        p, _, _ = self.obj.interpolation_coeffs.indices
-        dim_subs = []
-        coeffs = []
-        for i, d in enumerate(self.obj.grid.dimensions):
-            rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + self.obj.gridpoints[p, i])))
-            coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
-        # Apply optional time symbol substitutions to lhs of assignment
-        lhs = self.obj.subs(self_subs)
-        rhs = prod(coeffs) * expr.subs(dim_subs)
-
-        return [Eq(lhs, lhs + rhs)]
+        return Interpolation(partial(callback, self, expr, offset, increment, self_subs))
 
     def inject(self, field, expr, offset=0):
         """
@@ -395,16 +341,19 @@ class PrecomputedInterpolator(GenericInterpolator):
         offset : int, optional
             Additional offset from the boundary.
         """
-        expr = indexify(expr)
-        field = indexify(field)
+        def callback(self, field, expr, offset):
+            expr = indexify(expr)
+            field = indexify(field)
 
-        p, _ = self.gridpoints.indices
-        dim_subs = []
-        coeffs = []
-        for i, d in enumerate(self.grid.dimensions):
-            rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
-            coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
-        rhs = prod(coeffs) * expr
-        field = field.subs(dim_subs)
-        return [Eq(field, field + rhs.subs(dim_subs))]
+            p, _ = self.gridpoints.indices
+            dim_subs = []
+            coeffs = []
+            for i, d in enumerate(self.grid.dimensions):
+                rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
+                dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
+                coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
+            rhs = prod(coeffs) * expr
+            field = field.subs(dim_subs)
+            return [Eq(field, field + rhs.subs(dim_subs))]
+
+        return Injection(partial(callback, self, field, expr, offset))
