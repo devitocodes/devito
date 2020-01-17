@@ -24,11 +24,15 @@ class DataSide(Tag):
 
     def __init__(self, name, val, flipto=None):
         super(DataSide, self).__init__(name, val)
+        self.flipto = flipto
         if flipto is not None:
-            self.flip = lambda: flipto
-            flipto.flip = lambda: self
+            flipto.flipto = self
+
+    def flip(self):
+        if self.flipto is not None:
+            return self.flipto
         else:
-            self.flip = lambda: self
+            return self
 
     def __str__(self):
         return self.name

@@ -16,6 +16,9 @@ from devito.types.equation import Eq
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
 
+GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
+
+
 class Grid(ArgProvider):
 
     """
@@ -231,7 +234,7 @@ class Grid(ArgProvider):
     @property
     def dimension_map(self):
         """Map between SpaceDimensions and their global/local size."""
-        return {d: namedtuple('Size', 'glb loc')(g, l)
+        return {d: GlobalLocal(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
     @property

@@ -90,6 +90,10 @@ class Signer(object):
         return Signer._sign(self._signature_items())
 
 
+def wrapper(cls, args, kwargs):
+    return cls.__new__(cls, *args, **kwargs)
+
+
 class Pickable(object):
 
     """
@@ -132,8 +136,6 @@ class Pickable(object):
             return ret
         else:
             # Instead of the following wrapper function, we could use Python's copyreg
-            def wrapper(cls, args, kwargs):
-                return cls.__new__(cls, *args, **kwargs)
             _, (_, args, kwargs), state, iter0, iter1 = ret
             return (wrapper, (reconstructor, args, kwargs), state, iter0, iter1)
 
