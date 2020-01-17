@@ -9,7 +9,7 @@ import ctypes
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
-from devito.ir.clusters import clusterize
+from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
 from devito.ir.stree import stree_build
 from devito.operator.registry import operator_selector
@@ -321,7 +321,7 @@ class Operator(Callable):
 
         clusters = cls._specialize_clusters(clusters, profiler=profiler, **kwargs)
 
-        return clusters
+        return ClusterGroup(clusters)
 
     # Compilation -- ScheduleTree level
 
