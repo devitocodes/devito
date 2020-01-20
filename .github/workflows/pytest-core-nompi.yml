@@ -29,66 +29,66 @@ jobs:
 
       matrix:
         name: [
-           py36-gcc49-openmp,
-           py37-gcc5-openmp,
-           py38-gcc6-openmp,
-           py36-gcc7-openmp,
-           py37-gcc7-noopenmp,
-           py37-gcc8-openmp,
-           py38-gcc9-openmp,
-           py37-osx,
-           docker-devito
+           pytest-ubuntu-py36-gcc49-omp,
+           pytest-ubuntu-py37-gcc5-omp,
+           pytest-ubuntu-py38-gcc6-omp,
+           pytest-ubuntu-py36-gcc7-omp,
+           pytest-ubuntu-py37-gcc7-noomp,
+           pytest-ubuntu-py37-gcc8-omp,
+           pytest-ubuntu-py38-gcc9-omp,
+           pytest-osx-py37-clang-omp,
+           pytest-docker-py36-gcc-omp
         ]
         include:
-        - name: py36-gcc49-openmp
+        - name: pytest-ubuntu-py36-gcc49-omp
           python-version: 3.6
           os: ubuntu-16.04
           arch: "gcc-4.9"
           openmp: 1
 
-        - name: py37-gcc5-openmp
+        - name: pytest-ubuntu-py37-gcc5-omp
           python-version: 3.7
           os: ubuntu-16.04
           arch: "gcc-5"
           openmp: 1
 
-        - name: py38-gcc6-openmp
+        - name: pytest-ubuntu-py38-gcc6-omp
           python-version: 3.8
           os: ubuntu-16.04
           arch: "gcc-6"
           openmp: 1
 
-        - name: py36-gcc7-openmp
+        - name: pytest-ubuntu-py36-gcc7-omp
           python-version: 3.6
           os: ubuntu-16.04
           arch: "gcc-7"
           openmp: 1
 
-        - name: py37-gcc7-noopenmp
+        - name: pytest-ubuntu-py37-gcc7-noomp
           python-version: 3.7
           os: ubuntu-16.04
           arch: "gcc-7"
           openmp: 0
 
-        - name: py37-gcc8-openmp
+        - name: pytest-ubuntu-py37-gcc8-omp
           python-version: 3.7
           os: ubuntu-16.04
           arch: "gcc-8"
           openmp: 1
 
-        - name: py38-gcc9-openmp
+        - name: pytest-ubuntu-py38-gcc9-omp
           python-version: 3.8
           os: ubuntu-16.04
           arch: "gcc-9"
           openmp: 1
 
-        - name: py37-osx
+        - name: pytest-osx-py37-clang-omp
           python-version: 3.7
           os: macos-latest
           arch: "osx"
           openmp: 0
 
-        - name: docker-devito
+        - name: pytest-docker-py36-gcc-omp
           python-version: 3.6
           os: ubuntu-16.04
           arch: "gcc"
@@ -99,13 +99,13 @@ jobs:
       uses: actions/checkout@v1
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: matrix.name != 'docker-devito'
+      if: matrix.name != 'pytest-docker-py36-gcc-omp'
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Build docker image
-      if: matrix.name == 'docker-devito'
+      if: matrix.name == 'pytest-docker-py36-gcc-omp'
       run: |
           docker build . --file docker/Dockerfile --tag devito_img
           echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
@@ -121,7 +121,7 @@ jobs:
         echo "::set-env name=TESTS::tests/test_operator.py"
 
     - name: Install dependencies
-      if: matrix.name != 'docker-devito'
+      if: matrix.name != 'pytest-docker-py36-gcc-omp'
       run: |
         pip install --upgrade pip
         pip install -e .
@@ -131,8 +131,8 @@ jobs:
         $RUN_CMD pytest -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml $TESTS
 
     - name: Upload coverage to Codecov
-      if: matrix.name != 'docker-devito'
-      uses: codecov/codecov-action@v1
+      if: matrix.name != 'pytest-docker-py36-gcc-omp'
+      uses: codecov/codecov-action@v1.0.5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        name: "py37-clang-osx"
+        name: ${{ matrix.name }}

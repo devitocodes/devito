@@ -27,29 +27,29 @@ jobs:
       fail-fast: false
       matrix:
         name: [
-          ubuntu-16.04-gcc-py37,
-          macOS-10.14-gcc-py37,
-          macOS-10.14-clang-py37,
-          docker-devito
+          tutos-ubuntu-gcc-py37,
+          tutos-osx-gcc-py37,
+          tutos-osx-clang-py37,
+          tutos-docker-gcc-py36
           ]
 
         include:
-          - name: ubuntu-16.04-gcc-py37
+          - name: tutos-ubuntu-gcc-py37
             os: ubuntu-16.04
             compiler: gcc-7
             openmp: 1
 
-          - name: macOS-10.14-gcc-py37
+          - name: tutos-osx-gcc-py37
             os: macos-latest
             compiler: gcc-9
             openmp: 1
 
-          - name: macOS-10.14-clang-py37
+          - name: tutos-osx-clang-py37
             os: macos-latest
             compiler: clang
             openmp: 0
 
-          - name: docker-devito
+          - name: tutos-docker-gcc-py36
             os: ubuntu-latest
             compiler: gcc
             openmp: 1
@@ -59,7 +59,7 @@ jobs:
       uses: actions/checkout@v1
 
     - name: Set up Python 3.7
-      if: matrix.name != 'docker-devito'
+      if: matrix.name != 'tutos-docker-gcc-py36'
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
@@ -75,14 +75,14 @@ jobs:
         # dask error on osx, skip dask tuto
         echo "::set-env name=SKIP::--deselect=examples/seismic/tutorials/04_dask.ipynb"
 
-    - name: Buiold docker image
-      if: matrix.name == 'docker-devito'
+    - name: Build docker image
+      if: matrix.name == 'tutos-docker-gcc-py36'
       run: |
           docker build . --file docker/Dockerfile --tag devito_img
           echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
 
     - name: Install dependencies
-      if: matrix.name != 'docker-devito'
+      if: matrix.name != 'tutos-docker-gcc-py36'
       run: |
         python -m pip install --upgrade pip
         pip install -e .
