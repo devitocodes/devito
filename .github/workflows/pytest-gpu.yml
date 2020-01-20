@@ -1,0 +1,58 @@
+name: 'Azure VM deployment'
+description: 'Deploy a VM to Azure'
+inputs:
+    azure-credentials:
+        description: 'Azure credentials'
+        required: true
+        default: 'GithubActionsRG'
+    # azure-client-id:
+    #     description: 'Azure credentials'
+    #     required: true
+    #     default: 'GithubActionsRG'
+    # azure-client-secret:
+    #     description: 'Azure credentials'
+    #     required: true
+    #     default: 'GithubActionsRG'
+    # azure-tenant-id:
+    #     description: 'Azure credentials'
+    #     required: true
+    #     default: 'GithubActionsRG'
+    azure-resource-group:
+        description: 'Azure resource group'
+        required: true
+        default: 'GithubActionsRG'
+    azure-vm-name:
+        description: 'Azure VM name'
+        required: true
+        default: 'GithubActionsVM'
+    azure-vm-size:
+        description: 'Azure VM size'
+        required: true
+        default: 'Standard_DS2_v2'
+outputs:
+    stdout:
+        description: 'Stdout'
+    stderr:
+        description: 'Stderr'
+runs:
+    using: 'docker'
+    image: 'Dockerfile'
+    env:
+        HOME: /home/runner/
+    args:
+        - ${{ inputs.azure-credentials }}
+        # - ${{ inputs.azure-client-id }}
+        # - ${{ inputs.azure-client-secret }}
+        # - ${{ inputs.azure-tenant-id }}
+        - ${{ inputs.azure-resource-group }}
+        - ${{ inputs.azure-vm-name }}
+        - ${{ inputs.azure-vm-size }}
+
+
+# default mounts
+# -v "/var/run/docker.sock":"/var/run/docker.sock"
+# -v "/home/runner/work/_temp/_github_home":"/github/home"
+# -v "/home/runner/work/_temp/_github_workflow":"/github/workflow"
+# -v "/home/runner/work/devito/devito":"/github/workspace"
+# desired
+# /home/runner/.azure
