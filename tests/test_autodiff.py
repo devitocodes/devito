@@ -1,6 +1,6 @@
 import pytest
 
-from devito import Grid, Function, Eq, TimeFunction, solve
+from devito import Grid, Function, Eq, TimeFunction, solve, Operator
 from devito.autodiff import Adjoint
 
 
@@ -115,6 +115,10 @@ def test_pde_stencil():
     pde = m * u.dt2 - u.laplace + damp * u.dt
 
     stencil = Eq(u.forward, solve(pde, u.forward))
+
+    op = Operator([stencil])
+
+    print(op)
 
     adj = Adjoint([stencil], {u: ub}, [damp, m]).collection
     print(stencil)
