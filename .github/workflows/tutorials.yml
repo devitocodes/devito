@@ -1,0 +1,105 @@
+name: Jupyter Notebooks
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  tutorials:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    env:
+      DEVITO_ARCH: "${{ matrix.compiler }}"
+      DEVITO_OPENMP: ${{ matrix.openmp }}
+      DEVITO_BACKEND: "core"
+      PYTHON_VERSION: "3.7"
+      RUN_CMD: ""
+
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+      matrix:
+        name: [
+          tutos-ubuntu-gcc-py37,
+          tutos-osx-gcc-py37,
+          tutos-osx-clang-py37,
+          tutos-docker-gcc-py36
+          ]
+
+        include:
+          - name: tutos-ubuntu-gcc-py37
+            os: ubuntu-16.04
+            compiler: gcc-7
+            openmp: 1
+
+          - name: tutos-osx-gcc-py37
+            os: macos-latest
+            compiler: gcc-9
+            openmp: 1
+
+          - name: tutos-osx-clang-py37
+            os: macos-latest
+            compiler: clang
+            openmp: 0
+
+          - name: tutos-docker-gcc-py36
+            os: ubuntu-latest
+            compiler: gcc
+            openmp: 1
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Set up Python 3.7
+      if: matrix.name != 'tutos-docker-gcc-py36'
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+
+    - name: Install compilers for OSX
+      if: runner.os == 'macOS'
+      run: |
+        if [ "${{ matrix.compiler }}" = "gcc-9" ]; then
+          brew install gcc
+        else
+          sudo xcode-select -s /Applications/Xcode_11.app/Contents/Developer
+        fi
+        # dask error on osx, skip dask tuto
+        echo "::set-env name=SKIP::--deselect=examples/seismic/tutorials/04_dask.ipynb"
+
+    - name: Build docker image
+      if: matrix.name == 'tutos-docker-gcc-py36'
+      run: |
+          docker build . --file docker/Dockerfile --tag devito_img
+          echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
+
+    - name: Install dependencies
+      if: matrix.name != 'tutos-docker-gcc-py36'
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install matplotlib
+
+    - name: Seismic notebooks
+      run: |
+        $RUN_CMD py.test --nbval $SKIP examples/seismic/tutorials/
+
+    - name: CFD notebooks
+      run: |
+        $RUN_CMD py.test --nbval examples/cfd
+
+    - name: User api notebooks
+      run: |
+        $RUN_CMD py.test --nbval examples/userapi
+
+    - name: User api notebooks
+      run: |
+        $RUN_CMD py.test --nbval examples/compiler
