@@ -7,10 +7,10 @@ from cached_property import cached_property
 from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
-from devito.ir import DummyEq, Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
+from devito.ir import DummyEq, Stencil, FindSymbols, retrieve_iteration_tree  # noqa
+from devito.passes.iet import BlockDimension
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul, indexify
-from devito.targets import BlockDimension
 from devito.tools import generator
 from devito.types import Scalar, Array
 

@@ -12,11 +12,12 @@ from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
 from devito.ir.stree import st_build
+from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
+from devito.passes import Graph
 from devito.symbolics import indexify
-from devito.targets import iet_lower
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
 from devito.types import Dimension, Eq
@@ -132,10 +133,18 @@ class Operator(Callable):
             # can't do anything useful with it
             return super(Operator, cls).__new__(cls, **kwargs)
 
+        # Parse input arguments
+        kwargs = parse_kwargs(**kwargs)
+
+        # The Operator type for the given target
+        cls = operator_selector(**kwargs)
+
+        # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
         op._profiler.py_timers.update(r.timings)
 
+        # Emit info about how long it took to perform the lowering
         op._emit_build_profiling()
 
         return op
@@ -148,46 +157,32 @@ class Operator(Callable):
         if any(not isinstance(i, Eq) for i in expressions):
             raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
 
-        name = kwargs.get("name", "Kernel")
-        dse = kwargs.get("dse", configuration['dse'])
-
         # Python-level (i.e., compile time) and C-level (i.e., run time) performance
         profiler = create_profile('timers')
 
-        # Lower input expressions to internal expressions (e.g., attaching metadata)
+        # Lower input expressions
         expressions = cls._lower_exprs(expressions, **kwargs)
 
-        # Group expressions based on their iteration space and data dependences
-        # Several optimizations are applied (fusion, lifting, flop reduction via DSE, ...)
-        clusters = clusterize(expressions, dse_mode=set_dse_mode(dse))
+        # Group expressions based on iteration spaces and data dependences
+        clusters = cls._lower_clusters(expressions, **kwargs)
 
-        # Lower Clusters to a Schedule tree
-        stree = st_build(clusters)
+        # Lower Clusters to a ScheduleTree
+        stree = cls._lower_stree(clusters, **kwargs)
 
-        # Lower Schedule tree to an Iteration/Expression tree (IET)
-        iet = iet_build(stree)
-
-        # Instrument the IET for C-level profiling
-        iet = profiler.instrument(iet)
-
-        # Wrap the IET with a Callable
-        parameters = derive_parameters(iet, True)
-        op = Callable(name, iet, 'int', parameters, ())
-
-        # Lower IET to a Target-specific IET
-        op, target_state = cls._specialize_iet(op, **kwargs)
+        # Lower ScheduleTree to an Iteration/Expression Tree
+        iet, byproduct = cls._lower_iet(stree, profiler, **kwargs)
 
         # Make it an actual Operator
-        op = Callable.__new__(cls, **op.args)
+        op = Callable.__new__(cls, **iet.args)
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
         op._headers = list(cls._default_headers)
-        op._headers.extend(target_state.headers)
+        op._headers.extend(byproduct.headers)
         op._globals = list(cls._default_globals)
         op._includes = list(cls._default_includes)
         op._includes.extend(profiler._default_includes)
-        op._includes.extend(target_state.includes)
+        op._includes.extend(byproduct.includes)
 
         # Required for the jit-compilation
         op._compiler = configuration['compiler']
@@ -198,7 +193,7 @@ class Operator(Callable):
         op._func_table = OrderedDict()
         op._func_table.update(OrderedDict([(i, MetaCall(None, False))
                                            for i in profiler._ext_calls]))
-        op._func_table.update(OrderedDict([(i.root.name, i) for i in target_state.funcs]))
+        op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
 
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
@@ -208,7 +203,7 @@ class Operator(Callable):
         op._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
         op._output = filter_sorted(flatten(e.writes for e in expressions))
         op._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
-        op._dimensions.extend(target_state.dimensions)
+        op._dimensions.extend(byproduct.dimensions)
         op._dtype, op._dspace = clusters.meta
         op._profiler = profiler
 
@@ -218,7 +213,7 @@ class Operator(Callable):
         # Bypass the silent call to __init__ triggered through the backends engine
         pass
 
-    # Compilation
+    # Compilation -- Expression level
 
     @classmethod
     def _add_implicit(cls, expressions):
@@ -274,7 +269,9 @@ class Operator(Callable):
 
     @classmethod
     def _specialize_exprs(cls, expressions):
-        """Transform ``expressions`` into a backend-specific representation."""
+        """
+        Backend hook for specialization at the Expression level.
+        """
         return [LoweredEq(i) for i in expressions]
 
     @classmethod
@@ -297,19 +294,97 @@ class Operator(Callable):
         expressions = [j for i in expressions for j in i._flatten]
         expressions = [indexify(i) for i in expressions]
         expressions = cls._apply_substitutions(expressions, subs)
+
         expressions = cls._specialize_exprs(expressions)
 
         return expressions
 
-    @classmethod
-    def _specialize_iet(cls, iet, **kwargs):
-        """
-        Transform the IET into a backend-specific representation, such as code
-        to be executed on a GPU or through a lower-level system (e.g., YASK).
-        """
-        dle = kwargs.get("dle", configuration['dle'])
+    # Compilation -- Cluster level
 
-        return iet_lower(iet, *set_dle_mode(dle))
+    @classmethod
+    def _specialize_clusters(cls, clusters, **kwargs):
+        """
+        Backend hook for specialization at the Cluster level.
+        """
+        return clusters
+
+    @classmethod
+    @timed_pass
+    def _lower_clusters(cls, expressions, **kwargs):
+        """
+        Clusters lowering:
+
+            * Group expressions into Clusters;
+            * Optimize Clusters for performance (flops, data locality, ...);
+            * Introduce guards for conditional Clusters
+        """
+        clusters = clusterize(expressions, dse_mode=kwargs['dse'])
+
+        clusters = cls._specialize_clusters(clusters)
+
+        return clusters
+
+    # Compilation -- ScheduleTree level
+
+    @classmethod
+    def _specialize_stree(cls, stree, **kwargs):
+        """
+        Backend hook for specialization at the Schedule tree level.
+        """
+        return stree
+
+    @classmethod
+    @timed_pass
+    def _lower_stree(cls, clusters, **kwargs):
+        """
+        Schedule tree lowering:
+
+            * Turn a sequence of Clusters into a ScheduleTree;
+            * Derive and attach metadata for distributed-memory parallelism;
+            * Derive sections for performance profiling
+        """
+        stree = st_build(clusters)
+
+        stree = cls._specialize_stree(stree)
+
+        return stree
+
+    # Compilation -- Iteration/Expression tree level
+
+    @classmethod
+    def _specialize_iet(cls, graph, **kwargs):
+        """
+        Backend hook for specialization at the Iteration/Expression tree level.
+        """
+        return graph
+
+    @classmethod
+    def _lower_iet(cls, stree, profiler, **kwargs):
+        """
+        Iteration/Expression tree lowering:
+
+            * Turn a ScheduleTree into an Iteration/Expression tree;
+            * Perform analysis to detect optimization opportunities;
+            * Introduce distributed-memory, shared-memory, and SIMD parallelism;
+            * Introduce optimizations for data locality;
+            * Finalize (e.g., symbol definitions, array casts)
+        """
+        name = kwargs.get("name", "Kernel")
+
+        iet = iet_build(stree)
+
+        # Instrument the IET for C-level profiling
+        iet = profiler.instrument(iet)
+
+        # Wrap the IET with a Callable
+        parameters = derive_parameters(iet, True)
+        iet = Callable(name, iet, 'int', parameters, ())
+
+        # Lower IET to a target-specific IET
+        graph = Graph(iet)
+        graph = cls._specialize_iet(graph, **kwargs)
+
+        return graph.root, graph
 
     # Read-only properties exposed to the outside world
 
@@ -781,35 +856,60 @@ class ArgumentsMap(dict):
         return self.grid.comm if self.grid is not None else MPI.COMM_NULL
 
 
-def set_dse_mode(mode):
-    if not mode:
-        return 'noop'
-    elif isinstance(mode, str):
-        return mode
+def parse_kwargs(**kwargs):
+    """
+    Parse keyword arguments provided to an Operator. This routine is
+    especially useful for backwards compatibility.
+    """
+    # `dle`
+    dle = kwargs.pop("dle", configuration['dle'])
+
+    if not dle or isinstance(dle, str):
+        mode, options = dle, {}
+    elif isinstance(dle, tuple):
+        if len(dle) == 0:
+            mode, options = 'noop', {}
+        elif isinstance(dle[-1], dict):
+            if len(dle) == 2:
+                mode, options = dle
+            else:
+                mode, options = tuple(flatten(i.split(',') for i in dle[:-1])), dle[-1]
+        else:
+            mode, options = tuple(flatten(i.split(',') for i in dle)), {}
+    else:
+        raise InvalidOperator("Illegal `dle=%s`" % str(dle))
+
+    # `dle`, options
+    options.setdefault('blockinner',
+                       configuration['dle-options'].get('blockinner', False))
+    options.setdefault('blocklevels',
+                       configuration['dle-options'].get('blocklevels', None))
+    options.setdefault('openmp', configuration['openmp'])
+    options.setdefault('mpi', configuration['mpi'])
+    kwargs['options'] = options
+
+    # `dle`, mode
+    if mode is None:
+        mode = 'noop'
+    elif mode == 'noop':
+        mode = tuple(i for i in ['mpi', 'openmp'] if options[i]) or 'noop'
+    kwargs['mode'] = mode
+
+    # `dse`
+    dse = kwargs.pop("dse", configuration['dse'])
+
+    if not dse:
+        kwargs['dse'] = 'noop'
+    elif isinstance(dse, str):
+        kwargs['dse'] = dse
     else:
         try:
-            return ','.join(mode)
+            kwargs['dse'] = ','.join(dse)
         except:
-            raise TypeError("Illegal DSE mode %s." % str(mode))
+            raise InvalidOperator("Illegal `dse=%s`" % str(dse))
 
+    # Attach `platform` too for convenience, so we don't need `configuration` in
+    # most compilation passes
+    kwargs['platform'] = configuration['platform']
 
-def set_dle_mode(mode):
-    if not mode:
-        return mode, {}
-    elif isinstance(mode, str):
-        return mode, {}
-    elif isinstance(mode, tuple):
-        if len(mode) == 0:
-            return 'noop', {}
-        elif isinstance(mode[-1], dict):
-            if len(mode) == 2:
-                return mode
-            else:
-                return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
-        else:
-            return tuple(flatten(i.split(',') for i in mode)), {}
-    raise TypeError("Illegal DLE mode %s." % str(mode))
-
-
-def is_threaded(mode):
-    return set_dle_mode(mode)[1].get('openmp', configuration['openmp'])
+    return kwargs

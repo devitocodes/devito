@@ -3,13 +3,13 @@ from devito.ir.iet import (Call, HaloSpot, Iteration, List, FindAdjacent,
 from devito.ir.support import PARALLEL
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder, HaloScheme
-from devito.targets.common.engine import target_pass
+from devito.passes.iet.engine import iet_pass
 from devito.tools import generator
 
 __all__ = ['optimize_halospots', 'mpiize']
 
 
-@target_pass
+@iet_pass
 def optimize_halospots(iet):
     """
     Optimize the HaloSpots in ``iet``.
@@ -113,7 +113,7 @@ def optimize_halospots(iet):
     return iet, {}
 
 
-@target_pass
+@iet_pass
 def mpiize(iet, **kwargs):
     """
     Add MPI routines performing halo exchanges to emit distributed-memory

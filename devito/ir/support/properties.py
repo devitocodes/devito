@@ -32,7 +32,7 @@ WRAPPABLE = Property('wrappable')
 """
 A modulo-N Dimension (i.e., cycling over i, i+1, i+2, ..., i+N-1) that could
 safely be turned into a modulo-K Dimension, with K < N. For example:
-u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...]).
+u[t+1, ...] = f(u[t, ...]) + u[t-1, ...] --> u[t+1, ...] = f(u[t, ...]) + u[t+1, ...].
 """
 
 ROUNDABLE = Property('roundable')

@@ -11,18 +11,17 @@ on:
       - master
 
 jobs:
-  ci-linux:
+  pytest:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-16.04
+    runs-on: "${{ matrix.os }}"
 
     env:
-      DEVITO_ARCH: "gcc-${{ matrix.gcc-version }}"
+      DEVITO_ARCH: "${{ matrix.arch }}"
       DEVITO_OPENMP: ${{ matrix.openmp }}
       DEVITO_BACKEND: "core"
       OMP_NUM_THREADS: 2
-      CC: "gcc-${{ matrix.gcc-version }}"
-      CXX: "g++-${{ matrix.gcc-version }}"
       PYTHON_VERSION: "${{ matrix.python-version }}"
+      TESTS: "tests/"
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -30,108 +29,110 @@ jobs:
 
       matrix:
         name: [
-           py36-gcc49-openmp,
-           py37-gcc5-openmp,
-           py38-gcc6-openmp,
-           py36-gcc7-openmp,
-           py37-gcc7-noopenmp,
-           py37-gcc8-openmp,
-           py38-gcc9-openmp
+           pytest-ubuntu-py36-gcc49-omp,
+           pytest-ubuntu-py37-gcc5-omp,
+           pytest-ubuntu-py38-gcc6-omp,
+           pytest-ubuntu-py36-gcc7-omp,
+           pytest-ubuntu-py37-gcc7-noomp,
+           pytest-ubuntu-py37-gcc8-omp,
+           pytest-ubuntu-py38-gcc9-omp,
+           pytest-osx-py37-clang-omp,
+           pytest-docker-py36-gcc-omp
         ]
         include:
-            - name: py36-gcc49-openmp
-              python-version: 3.6
-              gcc-version: 4.9
-              openmp: 1
+        - name: pytest-ubuntu-py36-gcc49-omp
+          python-version: 3.6
+          os: ubuntu-16.04
+          arch: "gcc-4.9"
+          openmp: 1
 
-            - name: py37-gcc5-openmp
-              python-version: 3.7
-              gcc-version: 5
-              openmp: 1
+        - name: pytest-ubuntu-py37-gcc5-omp
+          python-version: 3.7
+          os: ubuntu-16.04
+          arch: "gcc-5"
+          openmp: 1
 
-            - name: py38-gcc6-openmp
-              python-version: 3.8
-              gcc-version: 6
-              openmp: 1
+        - name: pytest-ubuntu-py38-gcc6-omp
+          python-version: 3.8
+          os: ubuntu-16.04
+          arch: "gcc-6"
+          openmp: 1
 
-            - name: py36-gcc7-openmp
-              python-version: 3.6
-              gcc-version: 7
-              openmp: 1
+        - name: pytest-ubuntu-py36-gcc7-omp
+          python-version: 3.6
+          os: ubuntu-16.04
+          arch: "gcc-7"
+          openmp: 1
 
-            - name: py37-gcc7-noopenmp
-              python-version: 3.7
-              gcc-version: 7
-              openmp: 0
+        - name: pytest-ubuntu-py37-gcc7-noomp
+          python-version: 3.7
+          os: ubuntu-16.04
+          arch: "gcc-7"
+          openmp: 0
 
-            - name: py37-gcc8-openmp
-              python-version: 3.7
-              gcc-version: 8
-              openmp: 1
+        - name: pytest-ubuntu-py37-gcc8-omp
+          python-version: 3.7
+          os: ubuntu-16.04
+          arch: "gcc-8"
+          openmp: 1
 
-            - name: py38-gcc9-openmp
-              python-version: 3.8
-              gcc-version: 9
-              openmp: 1
+        - name: pytest-ubuntu-py38-gcc9-omp
+          python-version: 3.8
+          os: ubuntu-16.04
+          arch: "gcc-9"
+          openmp: 1
+
+        - name: pytest-osx-py37-clang-omp
+          python-version: 3.7
+          os: macos-latest
+          arch: "osx"
+          openmp: 0
+
+        - name: pytest-docker-py36-gcc-omp
+          python-version: 3.6
+          os: ubuntu-16.04
+          arch: "gcc"
+          openmp: 1
 
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
 
     - name: Set up Python ${{ matrix.python-version }}
+      if: matrix.name != 'pytest-docker-py36-gcc-omp'
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install GCC ${{ matrix.gcc-version }}
+    - name: Build docker image
+      if: matrix.name == 'pytest-docker-py36-gcc-omp'
+      run: |
+          docker build . --file docker/Dockerfile --tag devito_img
+          echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
+
+    - name: Install GCC ${{ matrix.arch }}
+      if: runner.os == 'linux'
       run : |
-        sudo apt-get install -y g++-${{ matrix.gcc-version }}
+        sudo apt-get install -y ${{ matrix.arch }}
+
+    - name: Reduce number of tests for OSX
+      if: runner.os == 'macOS'
+      run : |
+        echo "::set-env name=TESTS::tests/test_operator.py"
 
     - name: Install dependencies
+      if: matrix.name != 'pytest-docker-py36-gcc-omp'
       run: |
         pip install --upgrade pip
         pip install -e .
 
     - name: Test with pytest
       run: |
-        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/
+        $RUN_CMD pytest -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml $TESTS
 
     - name: Upload coverage to Codecov
+      if: matrix.name != 'pytest-docker-py36-gcc-omp'
       uses: codecov/codecov-action@v1.0.5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
-
-  # OSX
-  ci-osx:
-    name: py37-clang-osx
-    runs-on: macos-latest
-
-    env:
-      DEVITO_ARCH: "osx"
-      DEVITO_OPENMP: 0
-      DEVITO_BACKEND: "core"
-
-    steps:
-    - name: Checkout devito
-      uses: actions/checkout@v1
-
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.7
-
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -e .
-
-    - name: Test with pytest
-      run: |
-        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_operator.py
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1.0.5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        name: "py37-clang-osx"

@@ -5,34 +5,35 @@ backend as well) are used to run Devito on standard CPU architectures.
 """
 
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
+from devito.core.cpu import (CPU64NoopOperator, CPU64Operator, Intel64Operator,
+                             ArmOperator, PowerOperator, CustomOperator)
+from devito.core.gpu import DeviceOffloadingOperator
+from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, add_sub_configuration
-from devito.targets import (CPU64Target, Intel64Target, ArmTarget, PowerTarget,
-                            CPU64NoopTarget, CustomTarget, DeviceOffloadingTarget,
-                            targets)
 
 core_configuration = Parameters('core')
 env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
-# Add core-specific Targets
-targets.add(CPU64NoopTarget, Cpu64, 'noop')
-targets.add(CPU64Target, Cpu64, 'advanced')
-targets.add(CustomTarget, Cpu64, 'custom')
+# Add core-specific Operators
+operator_registry.add(CPU64NoopOperator, Cpu64, 'noop')
+operator_registry.add(CPU64Operator, Cpu64, 'advanced')
+operator_registry.add(CustomOperator, Cpu64, 'custom')
 
-targets.add(CPU64NoopTarget, Intel64, 'noop')
-targets.add(Intel64Target, Intel64, 'advanced')
-targets.add(CustomTarget, Intel64, 'custom')
+operator_registry.add(CPU64NoopOperator, Intel64, 'noop')
+operator_registry.add(Intel64Operator, Intel64, 'advanced')
+operator_registry.add(CustomOperator, Intel64, 'custom')
 
-targets.add(CPU64NoopTarget, Arm, 'noop')
-targets.add(ArmTarget, Arm, 'advanced')
-targets.add(CustomTarget, Arm, 'custom')
+operator_registry.add(CPU64NoopOperator, Arm, 'noop')
+operator_registry.add(ArmOperator, Arm, 'advanced')
+operator_registry.add(CustomOperator, Arm, 'custom')
 
-targets.add(CPU64NoopTarget, Power, 'noop')
-targets.add(PowerTarget, Power, 'advanced')
-targets.add(CustomTarget, Power, 'custom')
+operator_registry.add(CPU64NoopOperator, Power, 'noop')
+operator_registry.add(PowerOperator, Power, 'advanced')
+operator_registry.add(CustomOperator, Power, 'custom')
 
-targets.add(CPU64NoopTarget, Device, 'noop')
-targets.add(DeviceOffloadingTarget, Device, 'advanced')
+operator_registry.add(CPU64NoopOperator, Device, 'noop')
+operator_registry.add(DeviceOffloadingOperator, Device, 'advanced')
 
 # The following used by backends.backendSelector
 from devito.core.operator import OperatorCore as Operator  # noqa

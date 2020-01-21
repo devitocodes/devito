@@ -28,7 +28,7 @@ class TestSubDimension(object):
 
         eqn = [Eq(u.forward, u + 2, subdomain=interior)]
 
-        op = Operator(eqn, dle='noop')
+        op = Operator(eqn)
         op.apply(time_M=2)
         assert np.all(u.data[1, 1:-1, 1:-1, 1:-1] == 6.)
         assert np.all(u.data[1, :, 0] == 0.)
