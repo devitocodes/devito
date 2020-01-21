@@ -76,7 +76,6 @@ class TestOffloading(object):
 
         shape = (101, 101)
         extent = (1000, 1000)
-        spacing = (10., 10.)
         origin = (0., 0.)
 
         v = np.empty(shape, dtype=np.float32)

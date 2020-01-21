@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
-                    Eq, Operator, switchconfig)
+                    Eq, Operator)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
 from devito.passes import BlockDimension, NThreads, NThreadsNonaffine
@@ -561,4 +561,3 @@ def test_minimize_reminders_due_to_autopadding():
     u.data_with_halo[:] = 0.
     op1(time_M=1)
     assert np.all(u.data == exp)
->>>>>>> 160b086b... tests: Add test gpu.
