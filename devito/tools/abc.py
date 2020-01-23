@@ -90,10 +90,6 @@ class Signer(object):
         return Signer._sign(self._signature_items())
 
 
-def wrapper(cls, args, kwargs):
-    return cls.__new__(cls, *args, **kwargs)
-
-
 class Pickable(object):
 
     """
@@ -121,6 +117,10 @@ class Pickable(object):
     _pickle_kwargs = []
     """The keyword arguments that need to be passed to __new__ upon unpickling."""
 
+    @staticmethod
+    def wrapper(cls, args, kwargs):
+        return cls.__new__(cls, *args, **kwargs)
+
     @property
     def _pickle_reconstruct(self):
         """
@@ -137,7 +137,7 @@ class Pickable(object):
         else:
             # Instead of the following wrapper function, we could use Python's copyreg
             _, (_, args, kwargs), state, iter0, iter1 = ret
-            return (wrapper, (reconstructor, args, kwargs), state, iter0, iter1)
+            return (Pickable.wrapper, (reconstructor, args, kwargs), state, iter0, iter1)
 
     def __getnewargs_ex__(self):
         return (tuple(getattr(self, i) for i in self._pickle_args),
