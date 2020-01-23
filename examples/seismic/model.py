@@ -340,7 +340,7 @@ class ModelElastic(GenericModel):
         #
         # The CFL condtion is then given by
         # dt < h / (sqrt(ndim) * max(vp)))
-        dt = .95*np.min(self.spacing) / (np.sqrt(3.)*self.maxvp)
+        dt = .85*np.min(self.spacing) / (np.sqrt(3.)*self.maxvp)
         return self.dtype("%.3e" % dt)
 
 
