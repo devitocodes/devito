@@ -184,13 +184,13 @@ def process(candidates, aliases, cluster, template):
 
         # Optimization: no need to retain a SpaceDimension if it does not
         # induce a flow/anti dependence (below, `i.offsets` captures this, by
-        # telling how much halo will be needed to honour such dependences)
+        # telling how much halo will be required to honour such dependences)
         dep_inducing = [i for i in writeto if any(i.offsets)]
         try:
             index = writeto.index(dep_inducing[0])
             writeto = IntervalGroup(writeto[index:])
         except IndexError:
-            perf_adv("Couldn't optimize some of the detected redundancies")
+            perf_adv("Could not optimize some of the detected redundancies")
 
         # Create a temporary to store `alias`
         dimensions = [d.root for d in writeto.dimensions]

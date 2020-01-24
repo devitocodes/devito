@@ -42,7 +42,7 @@ def _cse(exprs, make, mode='default'):
     # - it sometimes "captures too much", losing factorization opportunities;
     # - very slow
     # TODO: a second "sympy" mode will be provided, relying on SymPy's CSE() but
-    # also ensuring some sort of post-processing
+    # also ensuring some form of post-processing
     assert mode == 'default'  # Only supported mode ATM
 
     processed = list(exprs)

@@ -297,7 +297,7 @@ class IntervalGroup(PartialOrderTuple):
     def _normalize(func):
         """
         A simple decorator to normalize the input of operator methods that
-        expect an IntervalGroup as operand.
+        expect an IntervalGroup as an operand.
         """
         def wrapper(self, o):
             if not isinstance(o, IntervalGroup):
