@@ -3,7 +3,8 @@ from itertools import product
 
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
-                           Transformer, XSubs, make_efunc, retrieve_iteration_tree)
+                           Transformer, XSubs, make_efunc, retrieve_iteration_tree,
+                           compose_nodes)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper, flatten, is_integer, split, timed_pass
 from devito.types import ConditionalDimension
@@ -142,27 +143,36 @@ def lower_incr_dims(iet):
             ranges.append(((i.symbolic_min, maxb, i.dim.step),
                            (maxb + 1, i.symbolic_max, i.symbolic_max - maxb)))
 
+        # Remove any offsets
+        # E.g., `x = x_m + 2 to x_M - 2` --> `x = x_m to x_M`
+        outer = [i._rebuild(limits=(i.dim.root.symbolic_min, i.dim.root.symbolic_max,
+                                    i.step))
+                 for i in outer]
+
         # Create the ElementalFunction
-        dynamic_parameters = flatten((i.dim, i.step) for i in outer)
+        name = "bf%d" % len(mapper)
+        body = compose_nodes(outer)
+        dynamic_parameters = flatten((i.symbolic_bounds, i.step) for i in outer)
         dynamic_parameters.extend([i.step for i in inner if not is_integer(i.step)])
-        efunc = make_efunc("bf%d" % len(mapper), root, dynamic_parameters)
+        efunc = make_efunc(name, body, dynamic_parameters)
+
         efuncs.append(efunc)
 
         # Create the ElementalCalls
-        body = []
+        calls = []
         for p in product(*ranges):
             dynamic_args_mapper = {}
             for i, (m, M, b) in zip(outer, p):
-                dynamic_args_mapper[i.dim] = (m, M)
-                dynamic_args_mapper[i.step] = (b,)
+                dynamic_args_mapper[i.symbolic_min] = m
+                dynamic_args_mapper[i.symbolic_max] = M
+                dynamic_args_mapper[i.step] = b
                 for j in inner:
                     if j.dim.root is i.dim.root and not is_integer(j.step):
                         value = j.step if b is i.step else b
                         dynamic_args_mapper[j.step] = (value,)
-            call = efunc.make_call(dynamic_args_mapper)
-            body.append(List(body=call))
+            calls.append(efunc.make_call(dynamic_args_mapper))
 
-        mapper[root] = List(body=body)
+        mapper[root] = List(body=calls)
 
     iet = Transformer(mapper).visit(iet)
 
