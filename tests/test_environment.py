@@ -29,4 +29,4 @@ def test_python_version():
     # Installed version
     i_ver = platform.python_version()
 
-    assert i_ver.startswith(e_ver)
+    assert e_ver is None or i_ver.startswith(e_ver)
