@@ -128,7 +128,7 @@ class Parallelism(Detector):
 
             test1 = len(prev) > 0 and any(dep.is_carried(i) for i in prev)
             if test1:
-                is_parallel_indep &= (dep.distance_mapper[d] == 0)
+                is_parallel_indep &= (dep.distance_mapper[d.root] == 0)
                 continue
 
             if not dep.is_increment:
