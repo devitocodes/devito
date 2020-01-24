@@ -368,9 +368,6 @@ class Iteration(Node):
         If an expression, it represents the for-loop max point; in this case, the
         min point is 0 and the step increment is unitary. If a 3-tuple, the
         format is ``(min point, max point, stepping)``.
-    offsets : 2-tuple of ints, optional
-        Additional offsets ``(min_ofs, max_ofs)`` to be honoured by the for-loop.
-        Defaults to (0, 0).
     direction: IterationDirection, optional
         The for-loop direction. Accepted:
         - ``Forward``: i += stepping (defaults)
@@ -389,8 +386,8 @@ class Iteration(Node):
 
     _traversable = ['nodes']
 
-    def __init__(self, nodes, dimension, limits, offsets=None, direction=None,
-                 properties=None, pragmas=None, uindices=None):
+    def __init__(self, nodes, dimension, limits, direction=None, properties=None,
+                 pragmas=None, uindices=None):
         self.nodes = as_tuple(nodes)
         self.dim = dimension
         self.index = self.dim.name
@@ -404,10 +401,6 @@ class Iteration(Node):
             self.limits = (self.dim.symbolic_min, limits, self.dim.step)
         else:
             self.limits = (0, limits, 1)
-
-        # Record offsets to later adjust loop limits accordingly
-        self.offsets = (0, 0) if offsets is None else as_tuple(offsets)
-        assert len(self.offsets) == 2
 
         # Track this Iteration's properties, pragmas and unbounded indices
         properties = as_tuple(properties)
@@ -477,7 +470,7 @@ class Iteration(Node):
         except TypeError:
             # A symbolic expression
             pass
-        return (_min + self.offsets[0], _max + self.offsets[1])
+        return (_min, _max)
 
     @property
     def symbolic_size(self):
@@ -501,9 +494,6 @@ class Iteration(Node):
         """
         _min = _min if _min is not None else self.limits[0]
         _max = _max if _max is not None else self.limits[1]
-
-        _min = _min + self.offsets[0]
-        _max = _max + self.offsets[1]
 
         return (_min, _max)
 

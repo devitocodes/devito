@@ -112,7 +112,7 @@ class PrintAST(Visitor):
         body = self._visit(o.children)
         self._depth -= 1
         if self.verbose:
-            detail = '::%s::%s::%s' % (o.index, o.limits, o.offsets)
+            detail = '::%s::%s' % (o.index, o.limits)
             props = [str(i) for i in o.properties]
             props = '[%s] ' % ','.join(props) if props else ''
         else:
@@ -273,25 +273,8 @@ class CGen(Visitor):
     def visit_Iteration(self, o):
         body = flatten(self._visit(i) for i in o.children)
 
-        # Start
-        if o.offsets[0] != 0:
-            _min = str(o.limits[0] + o.offsets[0])
-            try:
-                _min = eval(_min)
-            except (NameError, TypeError):
-                pass
-        else:
-            _min = o.limits[0]
-
-        # Bound
-        if o.offsets[1] != 0:
-            _max = str(o.limits[1] + o.offsets[1])
-            try:
-                _max = eval(_max)
-            except (NameError, TypeError):
-                pass
-        else:
-            _max = o.limits[1]
+        _min = o.limits[0]
+        _max = o.limits[1]
 
         # For backward direction flip loop bounds
         if o.direction == Backward:
