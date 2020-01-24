@@ -171,6 +171,9 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Grid&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDomain&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDomainSet&#39;</span><span class="p">]</span>
 
 
+<span class="n">GlobalLocal</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;GlobalLocal&#39;</span><span class="p">,</span> <span class="s1">&#39;glb loc&#39;</span><span class="p">)</span>
+
+
 <div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../../grid.html#devito.types.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
@@ -386,7 +389,7 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dimension_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Map between SpaceDimensions and their global/local size.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Size&#39;</span><span class="p">,</span> <span class="s1">&#39;glb loc&#39;</span><span class="p">)(</span><span class="n">g</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">GlobalLocal</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_local</span><span class="p">)}</span>
 
     <span class="nd">@property</span>
