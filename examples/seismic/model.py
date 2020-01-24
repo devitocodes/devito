@@ -324,12 +324,12 @@ class ModelElastic(GenericModel):
                                            damp_mask=True)
 
         self.maxvp = np.max(vp)
-        self.lam = self._gen_phys_param((vp**2 - 2 * vs**2)*rho, 'lam', space_order,
+        self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)*rho, 'lam', space_order,
                                         is_param=True)
 
         self.mu = self._gen_phys_param(vs**2 * rho, 'mu', space_order, is_param=True)
 
-        self.irho = self._gen_phys_param(1/rho, 'irho', space_order, is_param=True)
+        self.irho = self._gen_phys_param(1./rho, 'irho', space_order, is_param=True)
 
     @property
     def critical_dt(self):
@@ -340,7 +340,7 @@ class ModelElastic(GenericModel):
         #
         # The CFL condtion is then given by
         # dt < h / (sqrt(ndim) * max(vp)))
-        dt = .95*np.min(self.spacing) / (np.sqrt(3)*self.maxvp)
+        dt = .85*np.min(self.spacing) / (np.sqrt(3.)*self.maxvp)
         return self.dtype("%.3e" % dt)
 
 
