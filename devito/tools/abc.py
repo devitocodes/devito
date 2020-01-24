@@ -117,6 +117,10 @@ class Pickable(object):
     _pickle_kwargs = []
     """The keyword arguments that need to be passed to __new__ upon unpickling."""
 
+    @staticmethod
+    def _pickle_wrapper(cls, args, kwargs):
+        return cls.__new__(cls, *args, **kwargs)
+
     @property
     def _pickle_reconstruct(self):
         """
@@ -132,10 +136,14 @@ class Pickable(object):
             return ret
         else:
             # Instead of the following wrapper function, we could use Python's copyreg
-            def wrapper(cls, args, kwargs):
-                return cls.__new__(cls, *args, **kwargs)
             _, (_, args, kwargs), state, iter0, iter1 = ret
-            return (wrapper, (reconstructor, args, kwargs), state, iter0, iter1)
+            return (
+                Pickable._pickle_wrapper,
+                (reconstructor, args, kwargs),
+                state,
+                iter0,
+                iter1,
+            )
 
     def __getnewargs_ex__(self):
         return (tuple(getattr(self, i) for i in self._pickle_args),

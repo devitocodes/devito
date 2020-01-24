@@ -16,6 +16,10 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'ModuloDimension', 'IncrDimension']
 
 
+Thickness = namedtuple('Thickness', 'left right')
+SubDimensionOffset = namedtuple('SubDimensionOffset', 'value extreme thickness')
+
+
 class Dimension(ArgProvider):
 
     """
@@ -496,11 +500,8 @@ class SubDimension(DerivedDimension):
     def __init_finalize__(self, name, parent, left, right, thickness, local):
         super().__init_finalize__(name, parent)
         self._interval = sympy.Interval(left, right)
-        self._thickness = self._Thickness(*thickness)
+        self._thickness = Thickness(*thickness)
         self._local = local
-
-    _Thickness = namedtuple('Thickness', 'left right')
-    _SDO = namedtuple('SubDimensionOffset', 'value extreme thickness')
 
     @classmethod
     def _symbolic_thickness(cls, name):
@@ -580,11 +581,19 @@ class SubDimension(DerivedDimension):
         try:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_min,
+                symbolic_thickness
+            )
         except TypeError:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_max,
+                symbolic_thickness
+            )
 
     @cached_property
     def _offset_right(self):
@@ -593,11 +602,19 @@ class SubDimension(DerivedDimension):
         try:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_min,
+                symbolic_thickness
+            )
         except TypeError:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_max,
+                symbolic_thickness
+            )
 
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):
