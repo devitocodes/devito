@@ -7,29 +7,28 @@ from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
 from devito.ir.support import IterationSpace
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
-from devito.tools import flatten, timed_pass
+from devito.tools import flatten
 
-__all__ = ['st_build']
+__all__ = ['stree_build']
 
 
-@timed_pass
-def st_build(clusters):
+def stree_build(clusters):
     """
     Create a ScheduleTree from a ClusterGroup.
     """
     # ClusterGroup -> Schedule tree
-    stree = st_schedule(clusters)
+    stree = stree_schedule(clusters)
 
     # Add in section nodes
-    stree = st_section(stree)
+    stree = stree_section(stree)
 
     # Add in halo update nodes
-    stree = st_make_halo(stree)
+    stree = stree_make_halo(stree)
 
     return stree
 
 
-def st_schedule(clusters):
+def stree_schedule(clusters):
     """
     Arrange an iterable of Clusters into a ScheduleTree.
     """
@@ -81,7 +80,7 @@ def st_schedule(clusters):
     return stree
 
 
-def st_make_halo(stree):
+def stree_make_halo(stree):
     """
     Add NodeHalos to a ScheduleTree. A NodeHalo captures the halo exchanges
     that should take place before executing the sub-tree; these are described
@@ -120,7 +119,7 @@ def st_make_halo(stree):
     return stree
 
 
-def st_section(stree):
+def stree_section(stree):
     """
     Add NodeSections to a ScheduleTree. A NodeSection, or simply "section",
     defines a sub-tree with the following properties:

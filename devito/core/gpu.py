@@ -2,9 +2,12 @@ import cgen as c
 
 from devito.core.operator import OperatorCore
 from devito.data import FULL
+from devito.ir.clusters import Toposort
 from devito.ir.support import COLLAPSED
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes import (DataManager, Ompizer, ParallelTree, optimize_halospots,
                            mpiize, hoist_prodders)
+from devito.tools import generator, timed_pass
 
 __all__ = ['DeviceOffloadingOperator']
 
@@ -134,6 +137,35 @@ class OffloadingDataManager(DataManager):
 class DeviceOffloadingOperator(OperatorCore):
 
     @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
+        # but it will have to change
+
+        # To create temporaries
+        counter = generator()
+        template = lambda: "r%d" % counter()
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = Toposort().process(clusters)
+        clusters = fuse(clusters)
+
+        # Flop reduction via the DSE
+        clusters = rewrite(clusters, template, **kwargs)
+
+        # Lifting
+        clusters = Lift().process(clusters)
+
+        # Lifting may create fusion opportunities, which in turn may enable
+        # further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters, template)
+        clusters = scalarize(clusters, template)
+
+        return clusters
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
 

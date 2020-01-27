@@ -4,11 +4,12 @@ from functools import cmp_to_key
 from devito.ir.clusters.queue import Queue
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, AFFINE,
                                WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
 
 
+@timed_pass(name='lowering.Clusters.Analysis')
 def analyze(clusters):
     state = State()
 
@@ -54,11 +55,11 @@ class Detector(Queue):
         #     <some other clusters>
         #
         # then retain only the "common" properties, that is those along `t`
-        properties = defaultdict(list)
+        properties = defaultdict(set)
         for c in clusters:
             v = self.state.properties.get(c, {})
             for i in prefix:
-                properties[i.dim].extend(v.get(i.dim, []))
+                properties[i.dim].update(v.get(i.dim, set()))
         return properties
 
     def process(self, elements):
@@ -78,7 +79,7 @@ class Detector(Queue):
         if retval is not None:
             for c in clusters:
                 properties = self.state.properties.setdefault(c, {})
-                properties.setdefault(d, []).append(retval)
+                properties.setdefault(d, set()).add(retval)
 
         return clusters
 
@@ -195,12 +196,6 @@ class Rounding(Detector):
             return
 
         scope = self._fetch_scope(clusters)
-
-        # All non-scalar writes must be over Arrays, that is temporaries, otherwise
-        # we would end up overwriting user data
-        writes = [w for w in scope.writes if w.is_Tensor]
-        if any(not w.is_Array for w in writes):
-            return
 
         # All accessed Functions must have enough room in the PADDING region
         # so that `i`'s trip count can safely be rounded up
