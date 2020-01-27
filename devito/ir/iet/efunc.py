@@ -18,6 +18,8 @@ class ElementalFunction(Callable):
     ``dynamic_parameters``.
     """
 
+    is_ElementalFunction = True
+
     def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline'),
                  dynamic_parameters=None):
         super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)

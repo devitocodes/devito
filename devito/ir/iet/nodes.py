@@ -41,6 +41,7 @@ class Node(Signer):
     is_Increment = False
     is_ForeignExpression = False
     is_Callable = False
+    is_ElementalFunction = False
     is_Call = False
     is_List = False
     is_Element = False
