@@ -136,10 +136,14 @@ class CustomOperator(CPU64Operator):
 
         inner = options['blockinner']
         levels = options['blocklevels'] or cls.BLOCK_LEVELS
-        blocker = Blocking(inner, levels)
 
         return {
-            'blocking': partial(blocker.process)
+            'toposort': Toposort().process,
+            'fuse': fuse,
+            'blocking': Blocking(inner, levels).process,
+
+            # Pre-baked composite passes
+            'topofuse': lambda i: fuse(Toposort().process(i))
         }
 
 
@@ -151,13 +155,13 @@ class CustomOperator(CPU64Operator):
         ompizer = Ompizer()
 
         return {
-            'denormals': partial(avoid_denormals),
-            'optcomms': partial(optimize_halospots),
-            'wrapping': partial(loop_wrapping),
-            'openmp': partial(ompizer.make_parallel),
+            'denormals': avoid_denormals,
+            'optcomms': optimize_halospots,
+            'wrapping': loop_wrapping,
+            'openmp': ompizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
-            'prodders': partial(hoist_prodders)
+            'prodders': hoist_prodders
         }
 
     @classmethod
