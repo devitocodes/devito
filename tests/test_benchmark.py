@@ -1,5 +1,6 @@
 import pytest
-from os import path
+import os
+
 from conftest import skipif
 from devito import configuration
 from subprocess import check_call
@@ -10,12 +11,12 @@ pytestmark = skipif(['yask', 'ops'])
 
 @pytest.mark.parametrize('mode', ['bench'])
 @pytest.mark.parametrize('problem', ['acoustic', 'tti', 'elastic', 'viscoelastic'])
-def test_bench(mode, problem, script_loc):
+def test_bench(mode, problem):
     """
     Test the Devito benchmark framework on various combinations of modes and problems.
     """
 
-    t = 4
+    tn = 4
     nx, ny, nz = 16, 16, 16
 
     if configuration['openmp']:
@@ -23,13 +24,11 @@ def test_bench(mode, problem, script_loc):
     else:
         nthreads = 1
 
-    baseline = str(script_loc)
-    devito_path = 'devito/'
-    baseline = baseline[:baseline.index(devito_path) + len(devito_path)]
+    baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
 
     command_bench = ['python', '%sbenchmarks/user/benchmark.py' % baseline, mode,
                      '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
-                     '%d' % t, '-x', '1']
+                     '%d' % tn, '-x', '1']
     check_call(command_bench)
 
     dir_name = 'results/'
@@ -39,7 +38,7 @@ def test_bench(mode, problem, script_loc):
     arch = 'arch[unknown]'
     shape = 'shape[%d,%d,%d]' % (nx, ny, nz)
     nbl = 'nbl[10]'
-    tn = 'tn[%d]' % t
+    t = 'tn[%d]' % tn
     so = 'so[2]'
     to = 'to[2]'
     dse = 'dse[advanced]'
@@ -51,19 +50,19 @@ def test_bench(mode, problem, script_loc):
     rank = 'rank[0]'
     bkend = 'bkend[core]'
 
-    bench_corename = path.join('_'.join([base_filename, arch, shape, nbl, tn,
-                               so, to, dse, dle, at, nt, mpi, np, rank]))
+    bench_corename = os.path.join('_'.join([base_filename, arch, shape, nbl, t,
+                                  so, to, dse, dle, at, nt, mpi, np, rank]))
 
     bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
-    assert path.isfile(bench_filename)
+    assert os.path.isfile(bench_filename)
 
     command_plot = ['python', '%sbenchmarks/user/benchmark.py' % baseline, 'plot',
                     '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
-                    '%d' % t, '--max-bw', '12.8', '--flop-ceil', '80', 'linpack']
+                    '%d' % tn, '--max-bw', '12.8', '--flop-ceil', '80', 'linpack']
     check_call(command_plot)
 
-    plot_corename = path.join('_'.join([base_filename, shape, so, to, arch,
-                              bkend, at]))
+    plot_corename = os.path.join('_'.join([base_filename, shape, so, to, arch,
+                                 bkend, at]))
     plot_filename = "%s%s" % (dir_name, plot_corename)
 
-    assert path.isfile(plot_filename)
+    assert os.path.isfile(plot_filename)
