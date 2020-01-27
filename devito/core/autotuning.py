@@ -122,7 +122,7 @@ def autotune(operator, args, level, mode):
                 if int(evaluate(stack_footprint, **at_args)) > options['stack_limit']:
                     continue
             except TypeError:
-                warning("couldn't determine stack size; skipping run %s" % str(i))
+                warning("could not determine stack size; skipping run %s" % str(i))
                 continue
             except AttributeError:
                 assert stack_footprint == 0
@@ -156,7 +156,7 @@ def autotune(operator, args, level, mode):
         best.pop(None, None)
         log("selected <%s>" % (','.join('%s=%s' % i for i in best.items())))
     except ValueError:
-        warning("couldn't perform any runs")
+        warning("could not perform any runs")
         return args, {}
 
     # Update the argument list with the tuned arguments

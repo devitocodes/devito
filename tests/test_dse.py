@@ -7,8 +7,10 @@ from cached_property import cached_property
 from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
-from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
 from devito.ir import DummyEq, Stencil, FindSymbols, retrieve_iteration_tree  # noqa
+from devito.passes.clusters.aliases import collect
+from devito.passes.clusters.cse import _cse
+from devito.passes.clusters.utils import make_is_time_invariant
 from devito.passes.iet import BlockDimension
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul, indexify
 from devito.tools import generator
@@ -129,9 +131,7 @@ def test_yreplace_time_invariants(exprs, expected):
       '2.0*r12*(r11*r2 + r11*r5 - 2.0*r11*(r8 + r9*tv[t + 1, x, y, z])) + 2']),
 ])
 def test_cse(exprs, expected):
-    """
-    Test common sub-expressions elimination.
-    """
+    """Test common subexpressions elimination."""
     grid = Grid((3, 3, 3))
     dims = grid.dimensions
 
@@ -151,9 +151,7 @@ def test_cse(exprs, expected):
 
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
-
-    processed = common_subexprs_elimination(exprs, make)
-
+    processed = _cse(exprs, make)
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
 
@@ -341,7 +339,7 @@ def test_time_dependent_split(dse, dle):
 
 class TestAliases(object):
 
-    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape_after_blocking(self):
         """
         Check the shape of the Array used to store a DSE-captured aliasing
@@ -384,7 +382,7 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_contracted_shape_after_blocking(self):
         """
         Like `test_full_alias_shape_after_blocking`, but a different
@@ -423,7 +421,7 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape_with_subdims(self):
         """
         Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
@@ -543,7 +541,7 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
-    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_from_different_nests(self):
         """
         Check that aliases arising from two sets of equations A and B,
@@ -588,6 +586,59 @@ class TestAliases(object):
         op0(time_M=1)
         exp = np.copy(u.data[:])
         u.data_with_halo[:] = 0.
+        op1(time_M=1)
+        assert np.all(u.data == exp)
+
+    @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    def test_minimize_remainders_due_to_autopadding(self):
+        """
+        Check that the bounds of the Iteration computing the DSE-captured aliasing
+        expressions are relaxed (i.e., slightly larger) so that backend-compiler-generated
+        remainder loops are avoided.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.5
+
+        # Leads to 3D aliases
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+        op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
+        op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
+
+        x0_blk_size = op1.parameters[-2]
+        y0_blk_size = op1.parameters[-1]
+        z_size = op1.parameters[4]
+
+        # Check Array shape
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 3
+        assert a.halo == ((1, 1), (1, 1), (1, 1))
+        assert a.padding == ((0, 0), (0, 0), (0, 30))
+        assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
+        assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
+        assert Add(*a.symbolic_shape[2].args) == z_size + 32
+
+        # Check loop bounds
+        trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+        assert len(trees) == 2
+        expected_rounded = trees[0].inner
+        assert expected_rounded.symbolic_max ==\
+            z.symbolic_max + (z.symbolic_max - z.symbolic_min + 3) % 16 + 1
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
@@ -749,7 +800,7 @@ def test_acoustic_rewrite_basic():
 def test_custom_rewriter():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse=('extract_sop', 'factorize',
-                                     'extract_invariants', 'gcse'))
+                                     'extract_invariants', 'cire'))
 
     assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
     assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)

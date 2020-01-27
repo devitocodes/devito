@@ -128,6 +128,11 @@ class Function(dense.Function, Signer):
             # (e.g., f(x+1, y), f(x, y-2))
             self._data.release_storage()
 
+    @cached_property
+    def _honors_autopadding(self):
+        # We don't know whether this holds or not, so we act conservatively
+        return False
+
     @property
     @_allocate_memory
     def _data_buffer(self):
