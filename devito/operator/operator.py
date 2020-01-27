@@ -678,7 +678,7 @@ class Operator(Callable):
         max_hotspots = 3
         threshold = 20.
 
-        def pprint(timings, indent=''):
+        def _emit_timings(timings, indent=''):
             timings.pop('total', None)
             entries = sorted(timings, key=lambda i: timings[i]['total'], reverse=True)
             for i in entries[:max_hotspots]:
@@ -686,9 +686,9 @@ class Operator(Callable):
                 perc = fround(v/tot*100, n=10)
                 if perc > threshold:
                     perf("%s%s: %.2f s (%.1f %%)" % (indent, i.lstrip('_'), v, perc))
-                    pprint(timings[i], ' '*len(indent) + ' * ')
+                    _emit_timings(timings[i], ' '*len(indent) + ' * ')
 
-        pprint(timings, '  * ')
+        _emit_timings(timings, '  * ')
 
         if self._profiler._ops:
             ops = ['%d --> %d' % i for i in self._profiler._ops]
