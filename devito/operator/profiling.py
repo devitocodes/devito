@@ -39,6 +39,9 @@ class Profiler(object):
     def __init__(self, name):
         self.name = name
 
+        # Operation reductions observed in sections
+        self._ops = []
+
         # C-level code sections
         self._sections = OrderedDict()
 
@@ -119,6 +122,13 @@ class Profiler(object):
             yield
             toc = seq_time()
         self.py_timers[name] = toc - tic
+
+    def record_ops_variation(self, initial, final):
+        """
+        Record the variation in operation count experienced by a section due to
+        a flop-reducing transformation.
+        """
+        self._ops.append((initial, final))
 
     def summary(self, args, dtype, reduce_over=None):
         """

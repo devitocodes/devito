@@ -49,6 +49,17 @@ and "regular".
 """
 
 
+def normalize_properties(properties):
+    properties = set(properties)
+
+    if SEQUENTIAL in properties:
+        properties -= {PARALLEL, PARALLEL_IF_ATOMIC}
+    elif PARALLEL_IF_ATOMIC in properties:
+        properties -= {PARALLEL}
+
+    return properties
+
+
 class HaloSpotProperty(Tag):
     pass
 

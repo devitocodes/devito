@@ -10,7 +10,7 @@ from devito.types import ConditionalDimension
 __all__ = ['iet_build']
 
 
-@timed_pass
+@timed_pass(name='lowering.IET')
 def iet_build(stree):
     """
     Create an Iteration/Expression tree (IET) from a ScheduleTree.

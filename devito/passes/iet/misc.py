@@ -2,13 +2,13 @@
 
 import cgen
 
-from devito.ir.iet import (Iteration, List, Prodder, FindSymbols, FindNodes,
-                           Transformer, filter_iterations, retrieve_iteration_tree)
+from devito.ir.iet import (Iteration, List, Prodder, FindNodes, Transformer,
+                           filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
 from devito.passes.iet.blocking import BlockDimension
 from devito.passes.iet.engine import iet_pass
 
-__all__ = ['avoid_denormals', 'loop_wrapping', 'minimize_remainders', 'hoist_prodders']
+__all__ = ['avoid_denormals', 'loop_wrapping', 'hoist_prodders']
 
 
 @iet_pass
@@ -37,37 +37,6 @@ def loop_wrapping(iet):
             continue
         perf_adv("Functions using modulo iteration along Dimension `%s` "
                  "may safely allocate a one slot smaller buffer" % i.dim)
-    return iet, {}
-
-
-@iet_pass
-def minimize_remainders(iet, **kwargs):
-    """
-    Adjust ROUNDABLE Iteration bounds so as to avoid the insertion of remainder
-    loops by the backend compiler.
-    """
-    simd_items_per_reg = kwargs.pop('simd_items_per_reg')
-
-    roundable = [i for i in FindNodes(Iteration).visit(iet) if i.is_Roundable]
-
-    mapper = {}
-    for i in roundable:
-        functions = FindSymbols().visit(i)
-
-        # Get the SIMD vector length
-        dtypes = {f.dtype for f in functions if f.is_Tensor}
-        assert len(dtypes) == 1
-        vl = simd_items_per_reg(dtypes.pop())
-
-        # Round up `i`'s max point so that at runtime only vector iterations
-        # will be performed (i.e., remainder loops won't be necessary)
-        m, M, step = i.limits
-        limits = (m, M + (i.symbolic_size % vl), step)
-
-        mapper[i] = i._rebuild(limits=limits)
-
-    iet = Transformer(mapper).visit(iet)
-
     return iet, {}
 
 
