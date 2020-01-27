@@ -432,7 +432,11 @@ class Dependence(object):
 
     @cached_property
     def distance_mapper(self):
-        return {i: j for i, j in zip(self.findices, self.distance)}
+        retval = {}
+        for i, j in zip(self.findices, self.distance):
+            for d in i._defines:
+                retval[d] = j
+        return retval
 
     @cached_property
     def cause(self):
