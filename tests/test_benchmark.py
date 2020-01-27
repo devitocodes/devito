@@ -10,17 +10,26 @@ pytestmark = skipif(['yask', 'ops'])
 
 @pytest.mark.parametrize('mode', ['bench'])
 @pytest.mark.parametrize('problem', ['acoustic', 'tti', 'elastic', 'viscoelastic'])
-def test_bench(mode, problem):
+def test_bench(mode, problem, script_loc):
     """
     Test the Devito benchmark framework on various combinations of modes and problems.
     """
+
+    t = 4
+    nx, ny, nz = 16, 16, 16
+
     if configuration['openmp']:
         nthreads = configuration['platform'].cores_physical
     else:
         nthreads = 1
 
-    command_bench = ['python', 'benchmarks/user/benchmark.py', mode, '-P', problem,
-                     '-d', '16', '16', '16', '--tn', '4', '-x', '1']
+    baseline = str(script_loc)
+    devito_path = 'devito/'
+    baseline = baseline[:baseline.index(devito_path) + len(devito_path)]
+
+    command_bench = ['python', '%sbenchmarks/user/benchmark.py' % baseline, mode,
+                     '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
+                     '%d' % t, '-x', '1']
     check_call(command_bench)
 
     dir_name = 'results/'
@@ -28,9 +37,9 @@ def test_bench(mode, problem):
     base_filename = problem
     filename_suffix = '.json'
     arch = 'arch[unknown]'
-    shape = 'shape[16,16,16]'
+    shape = 'shape[%d,%d,%d]' % (nx, ny, nz)
     nbl = 'nbl[10]'
-    tn = 'tn[4]'
+    tn = 'tn[%d]' % t
     so = 'so[2]'
     to = 'to[2]'
     dse = 'dse[advanced]'
@@ -48,9 +57,9 @@ def test_bench(mode, problem):
     bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
     assert path.isfile(bench_filename)
 
-    command_plot = ['python', 'benchmarks/user/benchmark.py', 'plot', '-P', problem,
-                    '-d', '16', '16', '16', '--tn', '4', '--max-bw', '12.8',
-                    '--flop-ceil', '80', 'linpack']
+    command_plot = ['python', '%sbenchmarks/user/benchmark.py' % baseline, 'plot',
+                    '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
+                    '%d' % t, '--max-bw', '12.8', '--flop-ceil', '80', 'linpack']
     check_call(command_plot)
 
     plot_corename = path.join('_'.join([base_filename, shape, so, to, arch,
