@@ -16,11 +16,3 @@ class InvalidOperator(DevitoError):
 
 class VisitorException(DevitoError):
     pass
-
-
-class DSEException(DevitoError):
-    pass
-
-
-class DLEException(DevitoError):
-    pass

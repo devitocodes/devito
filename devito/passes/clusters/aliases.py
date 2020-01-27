@@ -3,10 +3,66 @@ from collections import OrderedDict, namedtuple
 from sympy import Indexed
 import numpy as np
 
-from devito.ir.support import IterationInstance, LabeledVector, Stencil
-from devito.symbolics import retrieve_indexed
+from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, IterationSpace,
+                       Interval, IntervalGroup, LabeledVector, Stencil,
+                       detect_accesses, build_intervals)
+from devito.logger import perf_adv
+from devito.passes.clusters.utils import dse_pass, make_is_time_invariant
+from devito.symbolics import estimate_cost, retrieve_indexed
+from devito.types import Array, Eq
 
-__all__ = ['collect']
+__all__ = ['cire']
+
+
+MIN_COST_ALIAS = 10
+"""
+Minimum operation count of an aliasing expression to be lifted into
+a vector temporary.
+"""
+
+MIN_COST_ALIAS_INV = 50
+"""
+Minimum operation count of a time-invariant aliasing expression to be
+lifted into a vector temporary. Time-invariant aliases are lifted outside
+of the time-marching loop, thus they will require vector temporaries as big
+as the entire grid.
+"""
+
+
+@dse_pass
+def cire(cluster, template, *args):
+    """
+    Cross-iteration redundancies elimination.
+
+    Examples
+    --------
+    1) temp = (a[x,y,z]+b[x,y,z])*c[t,x,y,z]
+       >>>
+       ti[x,y,z] = a[x,y,z] + b[x,y,z]
+       temp = ti[x,y,z]*c[t,x,y,z]
+
+    2) temp1 = 2.0*a[x,y,z]*b[x,y,z]
+       temp2 = 3.0*a[x,y,z+1]*b[x,y,z+1]
+       >>>
+       ti[x,y,z] = a[x,y,z]*b[x,y,z]
+       temp1 = 2.0*ti[x,y,z]
+       temp2 = 3.0*ti[x,y,z+1]
+    """
+    exprs = cluster.exprs
+
+    # Collect all aliasing expressions
+    aliases = collect(exprs)
+
+    # Heuristically determine the best (trade-off flops/memory) aliasing expressions
+    candidates, processed = extract(exprs, aliases)
+
+    # Create Aliases from aliasing expressions and assign them to Clusters
+    clusters, subs = process(candidates, aliases, cluster, template)
+
+    # Make sure to access the newly created tensor temporaries where necessary
+    processed = [e.xreplace(subs) for e in processed]
+
+    return clusters + [cluster.rebuild(processed)]
 
 
 def collect(exprs):
@@ -26,17 +82,17 @@ def collect(exprs):
                  a[i+2] + b[i],
                  a[i-1] + b[i-1])
 
-    The following expressions in ``exprs`` alias to ``a[i] + b[i]``: ::
+    The following expressions in ``exprs`` alias to ``a[i] + b[i]``:
 
-        a[i+1] + b[i+1] : same operands and operations, distance along i = 1
-        a[i-1] + b[i-1] : same operands and operations, distance along i = -1
+        * a[i+1] + b[i+1] : same operands and operations, distance along i = 1
+        * a[i-1] + b[i-1] : same operands and operations, distance along i = -1
 
-    Whereas the following do not: ::
+    Whereas the following do not:
 
-        a[i+1] + b[j+1] : because at least one index differs
-        a[i] + c[i] : because at least one of the operands differs
-        a[i+2] - b[i+2] : because at least one operation differs
-        a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
+        * a[i+1] + b[j+1] : because at least one index differs
+        * a[i] + c[i] : because at least one of the operands differs
+        * a[i+2] - b[i+2] : because at least one operation differs
+        * a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
     """
     # Determine the potential aliases
     candidates = []
@@ -86,6 +142,101 @@ def collect(exprs):
                 aliases[i.alias] = i.relax(ideal_anti_stencil)
 
     return aliases
+
+
+def extract(exprs, aliases):
+    """
+    Extract the candidate aliases.
+    """
+    is_time_invariant = make_is_time_invariant(exprs)
+    time_invariants = {e.rhs: is_time_invariant(e) for e in exprs}
+
+    processed = []
+    candidates = OrderedDict()
+    for e in exprs:
+        # Cost check (to keep the memory footprint under control)
+        naliases = len(aliases.get(e.rhs))
+        cost = estimate_cost(e, True)*naliases
+        test0 = lambda: cost >= MIN_COST_ALIAS and naliases > 1
+        test1 = lambda: cost >= MIN_COST_ALIAS_INV and time_invariants[e.rhs]
+        if test0() or test1():
+            candidates[e.rhs] = e.lhs
+        else:
+            processed.append(e)
+
+    return candidates, processed
+
+
+def process(candidates, aliases, cluster, template):
+    """
+    Create Clusters from aliasing expressions.
+    """
+    clusters = []
+    subs = {}
+    for origin, alias in aliases.items():
+        if all(i not in candidates for i in alias.aliased):
+            continue
+
+        # The write-to Intervals
+        writeto = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, (0, 0)))
+                   for i in cluster.ispace.intervals if not i.dim.is_Time]
+        writeto = IntervalGroup(writeto)
+
+        # Optimization: no need to retain a SpaceDimension if it does not
+        # induce a flow/anti dependence (below, `i.offsets` captures this, by
+        # telling how much halo will be required to honour such dependences)
+        dep_inducing = [i for i in writeto if any(i.offsets)]
+        try:
+            index = writeto.index(dep_inducing[0])
+            writeto = IntervalGroup(writeto[index:])
+        except IndexError:
+            perf_adv("Could not optimize some of the detected redundancies")
+
+        # Create a temporary to store `alias`
+        dimensions = [d.root for d in writeto.dimensions]
+        halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
+        array = Array(name=template(), dimensions=dimensions, halo=halo,
+                      dtype=cluster.dtype)
+
+        # Build up the expression evaluating `alias`
+        access = tuple(i.dim - i.lower for i in writeto)
+        expression = Eq(array[access], origin.xreplace(subs))
+
+        # Create the substitution rules so that we can use the newly created
+        # temporary in place of the aliasing expressions
+        for aliased, distance in alias.with_distance:
+            assert all(i.dim in distance.labels for i in writeto)
+            access = [i.dim - i.lower + distance[i.dim] for i in writeto]
+            if aliased in candidates:
+                # It would *not* be in `candidates` if part of a composite alias
+                subs[candidates[aliased]] = array[access]
+            subs[aliased] = array[access]
+
+        # Construct the `alias` IterationSpace
+        intervals, sub_iterators, directions = cluster.ispace.args
+        ispace = IterationSpace(intervals.add(writeto), sub_iterators, directions)
+
+        # Optimize the `alias` IterationSpace: if possible, the innermost
+        # IterationInterval is rounded up to a multiple of the vector length
+        try:
+            it = ispace.itintervals[-1]
+            if ROUNDABLE in cluster.properties[it.dim]:
+                from devito.parameters import configuration
+                vl = configuration['platform'].simd_items_per_reg(cluster.dtype)
+                ispace = ispace.add(Interval(it.dim, 0, it.interval.size % vl))
+        except (TypeError, KeyError):
+            pass
+
+        # Construct the `alias` DataSpace
+        mapper = detect_accesses(expression)
+        parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals)
+                 for k, v in mapper.items() if k}
+        dspace = DataSpace(cluster.dspace.intervals, parts)
+
+        # Create a new Cluster for `alias`
+        clusters.append(cluster.rebuild(exprs=[expression], ispace=ispace, dspace=dspace))
+
+    return clusters, subs
 
 
 # Helpers

@@ -1,7 +1,6 @@
 from functools import reduce
 from operator import mul
 
-from sympy import Add
 import numpy as np
 import pytest
 from unittest.mock import patch
@@ -10,8 +9,7 @@ from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
                     Eq, Operator, switchconfig)
 from devito.exceptions import InvalidArgument
-from devito.ir.iet import (Call, Iteration, Conditional, FindNodes, FindSymbols,
-                           retrieve_iteration_tree)
+from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
 from devito.passes import BlockDimension, NThreads, NThreadsNonaffine
 from devito.passes.iet.openmp import ParallelRegion
 from devito.tools import as_tuple
@@ -483,7 +481,7 @@ class TestNestedParallelism(object):
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
-    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     @patch("devito.passes.iet.openmp.Ompizer.NESTED", 0)
     @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 10000)
     def test_multiple_subnests(self):
@@ -558,56 +556,3 @@ class TestOffloading(object):
                 ('omp target exit data map(from: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-
-
-@switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
-@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-def test_minimize_reminders_due_to_autopadding():
-    """
-    Check that the bounds of the Iteration computing the DSE-captured aliasing
-    expressions are relaxed (i.e., slightly larger) so that backend-compiler-generated
-    remainder loops are avoided.
-    """
-    grid = Grid(shape=(3, 3, 3))
-    x, y, z = grid.dimensions  # noqa
-    t = grid.stepping_dim
-
-    f = Function(name='f', grid=grid)
-    f.data_with_halo[:] = 1.
-    u = TimeFunction(name='u', grid=grid, space_order=3)
-    u.data_with_halo[:] = 0.
-
-    # Leads to 3D aliases
-    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
-                         (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
-    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
-
-    x0_blk_size = op1.parameters[-2]
-    y0_blk_size = op1.parameters[-1]
-    z_size = op1.parameters[4]
-
-    # Check Array shape
-    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 1
-    a = arrays[0]
-    assert len(a.dimensions) == 3
-    assert a.halo == ((1, 1), (1, 1), (1, 1))
-    assert a.padding == ((0, 0), (0, 0), (0, 30))
-    assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
-    assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
-    assert Add(*a.symbolic_shape[2].args) == z_size + 32
-
-    # Check loop bounds
-    trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
-    assert len(trees) == 2
-    expected_rounded = trees[0].inner
-    assert expected_rounded.symbolic_max ==\
-        z.symbolic_max + (z.symbolic_max - z.symbolic_min + 3) % 16 + 1
-
-    # Check numerical output
-    op0(time_M=1)
-    exp = np.copy(u.data[:])
-    u.data_with_halo[:] = 0.
-    op1(time_M=1)
-    assert np.all(u.data == exp)

@@ -7,13 +7,16 @@ import numpy as np
 
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
+from devito.ir.clusters import Toposort
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.passes import DataManager, Ompizer, avoid_denormals, loop_wrapping, iet_pass
-from devito.tools import Signer, as_tuple, filter_ordered, flatten
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
+                               iet_pass)
+from devito.tools import Signer, as_tuple, filter_ordered, flatten, generator, timed_pass
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
@@ -154,6 +157,35 @@ class YASKOperator(Operator):
                 for e in expressions]
 
     @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
+        # but it will have to change
+
+        # To create temporaries
+        counter = generator()
+        template = lambda: "r%d" % counter()
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = Toposort().process(clusters)
+        clusters = fuse(clusters)
+
+        # Flop reduction via the DSE
+        clusters = rewrite(clusters, template, **kwargs)
+
+        # Lifting
+        clusters = Lift().process(clusters)
+
+        # Lifting may create fusion opportunities, which in turn may enable
+        # further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters, template)
+        clusters = scalarize(clusters, template)
+
+        return clusters
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         """
         Transform the Iteration/Expression tree to offload the computation of
@@ -272,6 +304,7 @@ class YASKOperator(Operator):
 class YASKNoopOperator(YASKOperator):
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         yk_solns = kwargs['yk_solns']
 

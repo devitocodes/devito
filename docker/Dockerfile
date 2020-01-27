@@ -16,6 +16,7 @@ RUN python3 -m venv /venv && \
 ADD ./devito /app/devito
 ADD ./tests /app/tests
 ADD ./examples /app/examples
+ADD ./benchmarks /app/benchmarks
 COPY setup.cfg /app/
 
 ADD docker/run-jupyter.sh /jupyter
