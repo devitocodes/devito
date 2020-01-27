@@ -7,6 +7,9 @@ import os
 from devito import clear_cache, configuration, warning, set_log_level
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
+
+from benchmarks.tools import Benchmark, Executor, RooflinePlotter
+
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
@@ -314,7 +317,6 @@ def plot(problem, **kwargs):
                 % (problem, model_type[problem]['default-section']))
         section = model_type[problem]['default-section']
 
-    RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
 
     bench.load()
@@ -391,12 +393,7 @@ def plot(problem, **kwargs):
 
 
 def get_ob_bench(problem, resultsdir, parameters):
-    """Return a special ``devitobench.Benchmark`` to manage performance runs."""
-    try:
-        from devitobench import Benchmark
-    except:
-        raise ImportError('Could not import devitobench utility package.\n'
-                          'Please install https://github.com/devitocodes/devitobench')
+    """Return a special ``Benchmark`` to manage performance runs."""
 
     class DevitoBenchmark(Benchmark):
 
@@ -434,11 +431,6 @@ def get_ob_bench(problem, resultsdir, parameters):
 
 def get_ob_exec(func):
     """Return a special ``devitobench.Executor`` to execute performance runs."""
-    try:
-        from devitobench import Executor
-    except:
-        raise ImportError('Could not import devitobench utility package.\n'
-                          'Please install https://github.com/devito/devitobench')
 
     class DevitoExecutor(Executor):
 
@@ -457,17 +449,6 @@ def get_ob_exec(func):
                 self.register(timings[key], measure="timings", event=key.name)
 
     return DevitoExecutor(func)
-
-
-def get_ob_plotter():
-    try:
-        from devitobench import RooflinePlotter
-    except:
-        raise ImportError('Could not import devitobench utility package.\n'
-                          'Please install https://github.com/devitocodes/devitobench'
-                          'To plot performance results, make sure to have the'
-                          'Matplotlib package installed')
-    return RooflinePlotter
 
 
 if __name__ == "__main__":
