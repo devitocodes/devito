@@ -550,20 +550,32 @@ class SubDomainSet(SubDomain):
         if distributor and distributor.is_parallel:
             # Now create local bounds based on distributor
             processed = []
-            for i in range(len(self._global_bounds)):
-                j = int(np.floor(i/len(distributor.decomposition)))
-                b = self._global_bounds[i]
-                d = distributor.decomposition[j]
-                bounds = np.zeros(b.shape, dtype=b.dtype)
-                for k in range(b.size):
-                    bound = d.index_glb_to_loc(b[k])
-                    if bound:
-                        bounds[k] = bound
-                    elif np.mod(i, 2) == 0:
-                        bounds[k] = -1
+            d_m = self._global_bounds[0::2]
+            d_M = self._global_bounds[1::2]
+            for dim, d, m, M in zip(dimensions, distributor.decomposition, d_m, d_M):
+                assert(m.size == M.size)
+                bounds_m = np.zeros(m.shape, dtype=m.dtype)
+                bounds_M = np.zeros(m.shape, dtype=m.dtype)
+                for j in range(m.size):
+                    lmin = m[j]
+                    lmax = d.glb_max - M[j]
+
+                    if lmin < d.loc_abs_min:
+                        bounds_m[j] = 0
+                    elif lmin > d.loc_abs_max:
+                        bounds_m[j] = -1
                     else:
-                        bounds[k] = -2
-                processed.append(bounds)
+                        bounds_m[j] = d.index_glb_to_loc(lmin)
+
+                    if lmax < d.loc_abs_min:
+                        bounds_M[j] = -1
+                    elif lmax >= d.loc_abs_max:
+                        bounds_M[j] = 0
+                    else:
+                        bounds_M[j] = d.loc_rel_max - d.index_glb_to_loc(lmax)
+
+                processed.append(bounds_m)
+                processed.append(bounds_M)
             self._local_bounds = as_tuple(processed)
         else:
             # Not distributed and hence local and global bounds are
