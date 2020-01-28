@@ -53,7 +53,7 @@ job_specifications:
         processes_per_node: %(ppn)s
         options:
           - --bind-to socket
-    command: python3 devito/benchmarks/user/benchmark.py bench -P acoustic --tn %(tn)s -d %(shape)s --resultsdir $AZ_BATCH_NODE_SHARED_DIR/results_bench -x 3
+    command: python3 devito/benchmarks/user/benchmark.py bench -P acoustic --tn %(tn)s -d %(shape)s -so %(space_order)s --resultsdir $AZ_BATCH_NODE_SHARED_DIR/results_bench -x 3
 """  # noqa
 
     # Generate one PBS file for each `np` value
