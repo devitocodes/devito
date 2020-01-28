@@ -193,21 +193,20 @@ class LinePlotter(Plotter):
     def add_line(self, xvalues, yvalues, label=None, style=None,
                  annotations=None, secondary=False):
         """
-        Adds a single line to the plot of from a set of measurements
+        Adds a single line to the plot of from a set of measurements.
 
         Parameters
         ----------
-        yvalue :
-            List of Y values of the  measurements
-        xvalue :
-            List of X values of the  measurements
-        label :
-            Optional legend label for data line
-        style :
+        xvalue : array_like
+            List of X values of the measurements.
+        yvalue : array_like
+            List of Y values of the measurements.
+        label : str, optional
+            Optional legend label for data line.
+        style : str, optional
             Plotting style to use, defaults to black line ('-k')
-        annotations:
-            Point annotation strings to be place next
-            to each point on the line.
+        annotations: str, optional
+            Point annotation strings to be place next to each point on the line.
         """
         style = style or 'k-'
 
@@ -234,11 +233,11 @@ class BarchartPlotter(Plotter):
     Parameters
     ----------
     figname : str
-        Name of output file
+        Name of output file.
     plotdir : str
-        Directory to store the plot in
+        Directory to store the plot in.
     title : str
-        Plot title to be printed on top
+        Plot title to be printed on top.
 
     Example usage:
 
@@ -272,18 +271,18 @@ class BarchartPlotter(Plotter):
 
     def add_value(self, value, grouplabel=None, color=None, label=None):
         """
-        Adds a single point measurement to the barchart plot
+        Adds a single point measurement to the barchart plot.
 
         Parameters
         ----------
         value : str
-            Y-value of the given point measurement
+            Y-value of the given point measurement.
         grouplabel : str
-            Group label to be put on the X-axis
+            Group label to be put on the X-axis.
         color : str
-            Optional plotting color for data point
+            Optional plotting color for data point.
         label : str
-            Optional legend label for data point
+            Optional legend label for data point.
         """
         # Record all points keyed by group and legend labels
         self.values[grouplabel][label] = value
@@ -300,11 +299,11 @@ class RooflinePlotter(Plotter):
     Parameters
     ----------
     figname : str
-        Name of output file
+        Name of output file.
     plotdir : str
-        Directory to store the plot in
+        Directory to store the plot in.
     title : str
-        Plot title to be printed on top
+        Plot title to be printed on top.
     max_bw : float
         Maximum achievable memory bandwidth in GB/s.
         This defines the slope of the roofline.
@@ -431,26 +430,24 @@ class RooflinePlotter(Plotter):
 
         Parameters
         ----------
-        gflops :
-            Achieved performance in GFlops/s (y axis value)
-        oi :
-            Operational intensity in Flops/Byte (x axis value)
-        marker :
-            Optional plotting marker for point data
-        color :
-            Optional plotting color for point data
-        label :
-            Optional legend label for point data
-        oi_line :
-            Draw a vertical dotted line for the OI value
-        point_annotate :
-            Optional text to print next to point
-        perf_annotate :
-            Optional text showing the performance achieved
-            relative to the peak
-        oi_annotate :
-            Optional text or options dict to add an annotation
-            to the vertical OI line
+        gflops : float
+            Achieved performance in GFlops/s (y axis value).
+        oi : float
+            Operational intensity in Flops/Byte (x axis value).
+        marker : str, optional
+            Plotting marker for point data.
+        color : str, optional
+            Plotting color for point data.
+        label : str, optional
+            Optional legend label for point data.
+        oi_line : bool, optional
+            Draw a vertical dotted line for the OI value.
+        point_annotate : str, optional
+            Text to print next to point.
+        perf_annotate : str, optional
+            Text showing the performance achieved relative to the peak.
+        oi_annotate : str or Dict, optional
+            Add an annotation to the vertical OI line.
         """
         self.xvals += [oi]
         self.yvals += [gflops]
