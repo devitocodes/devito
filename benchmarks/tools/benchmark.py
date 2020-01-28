@@ -1,5 +1,3 @@
-from .utils import bench_print
-
 from argparse import ArgumentParser
 from collections import OrderedDict
 from collections.abc import Iterable

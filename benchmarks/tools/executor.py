@@ -1,6 +1,6 @@
-from .utils import bench_print
-
 from collections import defaultdict
+from devito.logger import info
+
 
 __all__ = ['Executor']
 
@@ -70,29 +70,26 @@ class Executor(object):
         Execute a single benchmark repeatedly, including
         setup, teardown and postprocessing methods.
         """
-        bench_print("Running %d repeats - parameters: %s" % (repeats,
-                    ', '.join(['%s: %s' % (k, v) for k, v in params.items()])),
-                    comm=self.comm)
+        info("Running %d repeats - parameters: %s" % (repeats,
+             ', '.join(['%s: %s' % (k, v) for k, v in params.items()])))
 
         self.reset()
         for i in range(warmups):
-            bench_print("--- Warmup %d ---" % i, timestamp=True, comm=self.comm)
+            info("--- Warmup %d ---" % i)
             self.setup(**params)
             self.run(**params)
             self.teardown(**params)
-            bench_print("--- Warmup %d finished ---" % i,
-                        post=1, timestamp=True, comm=self.comm)
+            info("--- Warmup %d finished ---" % i)
 
         self.reset()
         for i in range(repeats):
-            bench_print("--- Run %d ---" % i, timestamp=True, comm=self.comm)
+            info("--- Run %d ---" % i)
             self.setup(**params)
             self.run(**params)
             self.teardown(**params)
-            bench_print("--- Run %d finished ---" % i,
-                        post=1, timestamp=True, comm=self.comm)
+            info("--- Run %d finished ---" % i)
 
-        bench_print("", post=2, comm=self.comm)
+        info("")
 
         # Average timings across repeats
         for event in self.timings.keys():

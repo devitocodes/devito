@@ -3,6 +3,7 @@ from math import log, floor, ceil
 from os import path, makedirs
 from collections import namedtuple, defaultdict, OrderedDict
 from collections.abc import Mapping
+from devito.logger import info, warning
 
 try:
     import matplotlib as mpl
@@ -21,7 +22,6 @@ try:
     import brewer2mpl as b2m
 except ImportError:
     b2m = None
-from .utils import bench_print
 
 
 __all__ = ['Plotter', 'LinePlotter', 'RooflinePlotter', 'BarchartPlotter',
@@ -87,7 +87,7 @@ class Plotter(object):
 
     def __init__(self, plotdir='plots'):
         if mpl is None or plt is None:
-            bench_print("Matplotlib/PyPlot not found - unable to plot.")
+            warning("Matplotlib/PyPlot not found - unable to plot.")
             raise ImportError("Could not import matplotlib or pyplot")
         self.plotdir = plotdir
 
@@ -116,7 +116,7 @@ class Plotter(object):
         if not path.exists(self.plotdir):
             makedirs(self.plotdir)
         figpath = path.join(self.plotdir, figname)
-        bench_print("Plotting %s " % figpath)
+        info("Plotting %s " % figpath)
         figure.savefig(figpath, format='pdf', facecolor='white',
                        orientation='landscape', bbox_inches='tight')
 
@@ -419,7 +419,7 @@ class RooflinePlotter(Plotter):
                 fancycolor = self.fancycolor.available.pop(0)
                 self.fancycolor.mapper[usercolor] = fancycolor
             except IndexError:
-                bench_print("No more fancycolor available")
+                warning("No more fancycolor available")
             return fancycolor
         else:
             return self.fancycolor.mapper[usercolor]
