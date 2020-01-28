@@ -6,42 +6,62 @@ __all__ = ['Executor']
 
 
 class Executor(object):
-    """ Abstract container class for a single benchmark data point.
+    """
+    Abstract container class for a single benchmark data point.
 
-    :param comm: The MPI communicator over which the benchmark is run.
+    Parameters
+    ----------
+    # TOFIX?
+    comm: Class mpi4py.MPI.Intracomm
+        The MPI communicator over which the benchmark is run.
     """
 
     def __init__(self, comm=None):
         self.comm = comm
 
     def setup(self, **kwargs):
-        """ Prepares a single benchmark invocation. """
+        """
+        Prepares a single benchmark invocation.
+        """
         pass
 
     def teardown(self, **kwargs):
-        """ Cleans up a single benchmark invocation. """
+        """
+        Cleans up a single benchmark invocation.
+        """
         pass
 
     def postprocess(self, **kwargs):
-        """ Global post-processing method to collect meta-data. """
+        """
+        Global post-processing method to collect meta-data.
+        """
         pass
 
     def reset(self):
-        """Reset the data dictionaries"""
+        """
+        Reset the data dictionaries.
+        """
         self.meta = {}
         self.timings = defaultdict(lambda: defaultdict(float))
 
     def run(self, **kwargs):
-        """ This methods needs to be overridden byt the user. """
+        """
+        This methods needs to be overridden byt the user.
+        """
         raise NotImplementedError("No custom executor function specified")
 
     def register(self, value, event='execute', measure='time'):
         """
         Register a single timing value for a given event key.
 
-        :param event: key for the measured event, ie. 'assembly' or 'solve'
-        :param value: measured value to store
-        :param measure: name of the value type, eg. 'time' or 'flops'
+        Parameters
+        ----------
+        event : str
+            key for the measured event, ie. 'assembly' or 'solve'
+        value : float
+            measured value to store
+        measure : str
+            name of the value type, eg. 'time' or 'flops'
         """
         self.timings[event][measure] += value
 

@@ -224,7 +224,7 @@ class TestLocDataIDX(object):
     ])
     def test_loc_data_idx(self, idx, expected):
         """
-        Test loc_data_idx located in devio/data/utils.py
+        Test loc_data_idx located in devito/data/utils.py
         """
         idx = eval(idx)
         expected = eval(expected)

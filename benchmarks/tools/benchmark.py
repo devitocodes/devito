@@ -1,10 +1,12 @@
 from .utils import bench_print
 
 from argparse import ArgumentParser
-from collections import OrderedDict, Iterable
+from collections import OrderedDict
+from collections.abc import Iterable
 from itertools import product
 from datetime import datetime
 from os import path, makedirs
+from devito.logger import warning
 
 import json
 
@@ -26,15 +28,20 @@ def get_argparsers(**kwargs):
 
 
 class Benchmark(object):
-    """Class storing performance data for a set of benchmark runs
+    """
+    Performance data for a set of benchmark runs
     indexed by a multi-parameter key.
 
-    :param parameters: Dict of parameter names and value ranges that
-                       defines the parameter space for this benchmark.
-    :param resultsdir: Optional, define directory to store results in;
-                       default: 'results'.
-    :param name: Optional, set name of the benchmark instance;
-                 default: 'Benchmark'.
+    Parameters
+    ----------
+    parameters : Dict
+        Dict of parameter names and value ranges that define
+        the parameter space for this benchmark.
+    resultsdir : str, optional
+        Define directory name to store results in.
+        Defaults in 'results'.
+    name: str, optional
+        Set name of the benchmark instance. Defaults in 'Benchmark'.
     """
 
     def __init__(self, parameters, resultsdir='results', name='Benchmark'):
@@ -49,7 +56,9 @@ class Benchmark(object):
 
     @property
     def params(self):
-        """ Lexicographically sorted parameter key """
+        """
+        Lexicographically sorted parameter key.
+        """
         return tuple(sorted(self._params))
 
     @property
@@ -57,9 +66,13 @@ class Benchmark(object):
         return self.timings and self.meta
 
     def values(self, keys=None):
-        """ Sorted dict of parameter-value mappings for all parameters
+        """
+        Sorted dict of parameter-value mappings for all parameters.
 
-        :param keys: Optional key-value dict to generate a subset of values
+        Parameters
+        ----------
+        keys : Dict or dict-like, optional
+            Key-value dict to generate a subset of values.
         """
         # Ensure all values are lists
         values = [(k, [v]) if not isinstance(v, list) else (k, v) for
@@ -74,23 +87,35 @@ class Benchmark(object):
         return valdict
 
     def sweep(self, keys=None):
-        """ List of value mappings for each instance of a parameter sweep.
+        """
+        List of value mappings for each instance of a parameter sweep.
 
-        :param keys: Dict with parameter value mappings over which to sweep
+        Parameters
+        ----------
+        keys : Dict or dict-like, optional
+            Dict with parameter value mappings over which to sweep.
         """
         values = self.values(keys=keys)
         return [OrderedDict(zip(self.params, v)) for v in product(*values.values())]
 
     def param_string(self, params):
-        """ Convert parameter tuple to string """
+        """
+        Convert parameter tuple to string.
+        """
         return '_'.join(['%s%s' % p for p in params])
 
     def lookup(self, params={}, event=None, measure='time', category='timings'):
-        """ Lookup a set of results accoridng to a parameter set.
+        """
+        Lookup a set of results accoridng to a parameter set.
 
-        :param params: Parameter set by which to filter results
-        :param event: Optional, one or more events for which to retrieve data.
-        :param category: Either 'timings' or 'meta'
+        Parameters
+        ----------
+        params : Dict
+            Parameter set by which to filter results.
+        event : , optional
+            One or more events for which to retrieve data.
+        category : str
+            Either 'timings' or 'meta'.
         """
         assert(category in ['timings', 'meta'])
         result = OrderedDict()
@@ -121,7 +146,9 @@ class Benchmark(object):
             self.meta[tuple(params.items())] = executor.meta
 
     def save(self):
-        """ Save all timing results in individually keyed files. """
+        """
+        Save all timing results in individually keyed files.
+        """
         if not path.exists(self.resultsdir):
             makedirs(self.resultsdir)
         timestamp = datetime.now().strftime('%Y-%m-%dT%H%M%S')
@@ -137,7 +164,9 @@ class Benchmark(object):
                 json.dump(datadict, f, indent=4)
 
     def load(self):
-        """ Load timing results from individually keyed files. """
+        """
+        Load timing results from individually keyed files.
+        """
         for params in self.sweep():
             filename = '%s_%s.json' % (self.name, self.param_string(params.items()))
             try:
@@ -146,4 +175,4 @@ class Benchmark(object):
                     self.timings[tuple(params.items())] = datadict['timings']
                     self.meta[tuple(params.items())] = datadict['meta']
             except:
-                bench_print("WARNING: Could not load file: %s" % filename)
+                warning("WARNING: Could not load file: %s" % filename)

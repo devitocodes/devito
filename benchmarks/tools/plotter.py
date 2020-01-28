@@ -1,7 +1,9 @@
 import numpy as np
 from math import log, floor, ceil
 from os import path, makedirs
-from collections import Mapping, namedtuple, defaultdict, OrderedDict
+from collections import namedtuple, defaultdict, OrderedDict
+from collections.abc import Mapping
+
 try:
     import matplotlib as mpl
     import matplotlib.pyplot as plt
@@ -27,7 +29,10 @@ __all__ = ['Plotter', 'LinePlotter', 'RooflinePlotter', 'BarchartPlotter',
 
 
 def scale_limits(minval, maxval, base, type='log'):
-    """ Compute axis values from min and max values """
+    """
+    Compute axis values from min and max values.
+    """
+
     if type == 'log':
         basemin = floor(log(minval, base))
         basemax = ceil(log(maxval, base))
@@ -44,8 +49,9 @@ def scale_limits(minval, maxval, base, type='log'):
 
 
 class AxisScale(object):
-    """Utility class to describe and configure axis value labelling."""
-
+    """
+    Utility class to describe and configure axis value labelling.
+    """
     def __init__(self, scale='log', base=2., dtype=np.float32,
                  minval=None, maxval=None):
         self.scale = scale
@@ -65,8 +71,9 @@ class AxisScale(object):
 
 
 class Plotter(object):
-    """ Plotting utility that provides data and basic diagram utilities. """
-
+    """
+    Plotting utility that provides data and basic diagram utilities.
+    """
     figsize = (6, 4)
     dpi = 300
     marker = ['D', 'o', '^', 'v']
@@ -115,11 +122,17 @@ class Plotter(object):
 
 
 class LinePlotter(Plotter):
-    """Line plotter for generating scaling or error-cost plots
+    """
+    Line plotter for generating scaling or error-cost plots.
 
-    :params figname: Name of output file
-    :params plotdir: Directory to store the plot in
-    :params title: Plot title to be printed on top
+    Parameters
+    ----------
+    figname : str
+        Name of output file.
+    plotdir : str
+        Directory to store the plot in.
+    title : str
+        Plot title to be printed on top.
 
     Example usage:
 
@@ -179,14 +192,22 @@ class LinePlotter(Plotter):
 
     def add_line(self, xvalues, yvalues, label=None, style=None,
                  annotations=None, secondary=False):
-        """Adds a single line to the plot of from a set of measurements
+        """
+        Adds a single line to the plot of from a set of measurements
 
-        :param yvalue: List of Y values of the  measurements
-        :param xvalue: List of X values of the  measurements
-        :param label: Optional legend label for data line
-        :param style: Plotting style to use, defaults to black line ('-k')
-        :param annotations: Point annotation strings to be place next
-                            to each point on the line.
+        Parameters
+        ----------
+        yvalue :
+            List of Y values of the  measurements
+        xvalue :
+            List of X values of the  measurements
+        label :
+            Optional legend label for data line
+        style :
+            Plotting style to use, defaults to black line ('-k')
+        annotations:
+            Point annotation strings to be place next
+            to each point on the line.
         """
         style = style or 'k-'
 
@@ -207,11 +228,17 @@ class LinePlotter(Plotter):
 
 
 class BarchartPlotter(Plotter):
-    """Barchart plotter for generating direct comparison plots.
+    """
+    Barchart plotter for generating direct comparison plots.
 
-    :params figname: Name of output file
-    :params plotdir: Directory to store the plot in
-    :params title: Plot title to be printed on top
+    Parameters
+    ----------
+    figname : str
+        Name of output file
+    plotdir : str
+        Directory to store the plot in
+    title : str
+        Plot title to be printed on top
 
     Example usage:
 
@@ -244,12 +271,19 @@ class BarchartPlotter(Plotter):
         self.save_figure(self.fig, self.figname)
 
     def add_value(self, value, grouplabel=None, color=None, label=None):
-        """Adds a single point measurement to the barchart plot
+        """
+        Adds a single point measurement to the barchart plot
 
-        :param value: Y-value of the given point measurement
-        :param grouplabel: Group label to be put on the X-axis
-        :param color: Optional plotting color for data point
-        :param label: Optional legend label for data point
+        Parameters
+        ----------
+        value : str
+            Y-value of the given point measurement
+        grouplabel : str
+            Group label to be put on the X-axis
+        color : str
+            Optional plotting color for data point
+        label : str
+            Optional legend label for data point
         """
         # Record all points keyed by group and legend labels
         self.values[grouplabel][label] = value
@@ -260,24 +294,34 @@ class BarchartPlotter(Plotter):
 
 
 class RooflinePlotter(Plotter):
-    """Roofline plotter for generating generic roofline plots.
+    """
+    Roofline plotter for generating generic roofline plots.
 
-    :params figname: Name of output file
-    :params plotdir: Directory to store the plot in
-    :params title: Plot title to be printed on top
-    :params max_bw: Maximum achievable memory bandwidth in GB/s.
-                    This defines the slope of the roofline.
-    :params flop_ceils: An iterable of 2-tuple (float, str); the float
-                        represents the maximum achievable performance
-                        in GFlops/s; the str indicates how the performance
-                        ceil was obtained (e.g., ideal peak, linpack)
-    :params with_yminorticks: Show minor ticks on yaxis.
-    :params fancycolors: Use beautiful colors, using the user-provided
-                         colors as key to establish a 1-to-1 mapping
-                         between user-provided colors and the new ones.
-    :params legend: Additional arguments for legend entries, default:
-                    {loc='best', ncol=2, fancybox=True, fontsize=10}.
-                    Pass the string ``'drop'`` to show no legend.
+    Parameters
+    ----------
+    figname : str
+        Name of output file
+    plotdir : str
+        Directory to store the plot in
+    title : str
+        Plot title to be printed on top
+    max_bw : float
+        Maximum achievable memory bandwidth in GB/s.
+        This defines the slope of the roofline.
+    flop_ceils : tuple(float, str)
+        Represents the maximum achievable performance
+        in GFlops/s; the str indicates how the performance
+        ceil was obtained (e.g., ideal peak, linpack)
+    with_yminorticks : bool, optional
+        Show minor ticks on yaxis.
+    fancycolors : bool, optional
+        Use beautiful colors, using the user-provided
+        colors as key to establish a 1-to-1 mapping
+        between user-provided colors and the new ones.
+    legend : str, optional
+        Additional arguments for legend entries, default:
+        {loc='best', ncol=2, fancybox=True, fontsize=10}.
+        Pass the string ``'drop'`` to show no legend.
 
     Example usage:
 
@@ -290,6 +334,7 @@ class RooflinePlotter(Plotter):
     def __init__(self, figname='roofline', plotdir='plots', title=None,
                  max_bw=None, flop_ceils=None, with_yminorticks=False,
                  fancycolor=False, legend=None):
+
         super(RooflinePlotter, self).__init__(plotdir=plotdir)
         self.figname = figname
         self.title = title
@@ -381,19 +426,31 @@ class RooflinePlotter(Plotter):
 
     def add_point(self, gflops, oi, marker=None, color=None, label=None, oi_line=True,
                   point_annotate=None, perf_annotate=None, oi_annotate=None):
-        """Adds a single point measurement to the roofline plot
+        """
+        Adds a single point measurement to the roofline plot.
 
-        :param gflops: Achieved performance in GFlops/s (y axis value)
-        :param oi: Operational intensity in Flops/Byte (x axis value)
-        :param marker: Optional plotting marker for point data
-        :param color: Optional plotting color for point data
-        :param label: Optional legend label for point data
-        :param oi_line: Draw a vertical dotted line for the OI value
-        :param point_annotate: Optional text to print next to point
-        :param perf_annotate: Optional text showing the performance achieved
-                              relative to the peak
-        :param oi_annotate: Optional text or options dict to add an annotation
-                            to the vertical OI line
+        Parameters
+        ----------
+        gflops :
+            Achieved performance in GFlops/s (y axis value)
+        oi :
+            Operational intensity in Flops/Byte (x axis value)
+        marker :
+            Optional plotting marker for point data
+        color :
+            Optional plotting color for point data
+        label :
+            Optional legend label for point data
+        oi_line :
+            Draw a vertical dotted line for the OI value
+        point_annotate :
+            Optional text to print next to point
+        perf_annotate :
+            Optional text showing the performance achieved
+            relative to the peak
+        oi_annotate :
+            Optional text or options dict to add an annotation
+            to the vertical OI line
         """
         self.xvals += [oi]
         self.yvals += [gflops]
