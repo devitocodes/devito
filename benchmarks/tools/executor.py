@@ -1,4 +1,5 @@
 from collections import defaultdict
+
 from devito.logger import info
 
 

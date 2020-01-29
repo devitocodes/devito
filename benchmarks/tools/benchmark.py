@@ -4,9 +4,9 @@ from collections.abc import Iterable
 from itertools import product
 from datetime import datetime
 from os import path, makedirs
-from devito.logger import warning
-
 import json
+
+from devito.logger import warning
 
 
 __all__ = ['Benchmark']

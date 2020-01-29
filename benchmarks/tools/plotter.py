@@ -3,6 +3,7 @@ from math import log, floor, ceil
 from os import path, makedirs
 from collections import namedtuple, defaultdict, OrderedDict
 from collections.abc import Mapping
+
 from devito.logger import info, warning
 
 try:
