@@ -48,21 +48,9 @@ def test_bench(mode, problem):
     mpi = 'mpi[False]'
     np = 'np[1]'
     rank = 'rank[0]'
-    bkend = 'bkend[core]'
 
     bench_corename = os.path.join('_'.join([base_filename, arch, shape, nbl, t,
                                   so, to, dse, dle, at, nt, mpi, np, rank]))
 
     bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
     assert os.path.isfile(bench_filename)
-
-    command_plot = ['python', '%sbenchmarks/user/benchmark.py' % baseline, 'plot',
-                    '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
-                    '%d' % tn, '--max-bw', '12.8', '--flop-ceil', '80', 'linpack']
-    check_call(command_plot)
-
-    plot_corename = os.path.join('_'.join([base_filename, shape, so, to, arch,
-                                 bkend, at]))
-    plot_filename = "%s%s" % (dir_name, plot_corename)
-
-    assert os.path.isfile(plot_filename)
