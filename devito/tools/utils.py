@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from functools import reduce
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
+import types
 
 import numpy as np
 import sympy
@@ -156,6 +157,8 @@ def filter_ordered(elements, key=None):
     key : callable, optional
         Conversion key used during equality comparison.
     """
+    if isinstance(elements, types.GeneratorType):
+        elements = list(elements)
     seen = set()
     if key is None:
         try:
@@ -168,13 +171,15 @@ def filter_ordered(elements, key=None):
 
 def filter_ordered_index(elements, key=None):
     """
-    Filter elements in a list while preserving order.
+    Indices of filtered elements in a list while preserving order.
 
     Parameters
     ----------
     key : callable, optional
         Conversion key used during equality comparison.
     """
+    if isinstance(elements, types.GeneratorType):
+        elements = list(elements)
     seen = set()
     if key is None:
         _, inds = np.unique(elements, return_index=True)

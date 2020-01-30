@@ -244,7 +244,7 @@ def default_rules(obj, functions):
     # Determine which 'rules' are missing
     sym = get_sym(functions)
     terms = obj.find(sym)
-    args_present = filter_ordered([term.args[1:] for term in terms])
+    args_present = filter_ordered(term.args[1:] for term in terms)
 
     subs = obj.substitutions
     if subs:
