@@ -9,7 +9,8 @@ from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
 from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
-from devito.tools import ReducerMap, flatten, prod, filter_ordered, memoized_meth
+from devito.tools import (ReducerMap, flatten, prod, filter_ordered, memoized_meth,
+                          filter_ordered_index)
 from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension
 from devito.types.basic import Symbol, Scalar
@@ -164,8 +165,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         """
         ret = list(self._dist_scatter_mask)
         mask = ret[self._sparse_position]
-        ret[self._sparse_position] = [mask.tolist().index(i)
-                                      for i in filter_ordered(mask)]
+        ret[self._sparse_position] = filter_ordered_index(mask)
+
         return tuple(ret)
 
     @property
