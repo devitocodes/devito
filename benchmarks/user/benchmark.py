@@ -8,7 +8,7 @@ from devito import clear_cache, configuration, warning, set_log_level
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
 
-from benchmarks.tools import Benchmark, Executor, RooflinePlotter
+from benchmarks.user.tools import Benchmark, Executor, RooflinePlotter
 
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
