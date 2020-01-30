@@ -19,7 +19,7 @@ from devito.parameters import configuration
 from devito.passes import Graph
 from devito.symbolics import indexify
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
-                          filter_sorted, split, timed_pass, timed_region)
+                          filter_sorted, split, timed_pass, timed_region, Evaluable)
 from devito.types import Dimension, Eq
 
 __all__ = ['Operator']
@@ -154,8 +154,8 @@ class Operator(Callable):
         expressions = as_tuple(expressions)
 
         # Input check
-        if any(not isinstance(i, Eq) for i in expressions):
-            raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
+        if any(not isinstance(i, Evaluable) for i in expressions):
+            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
 
         # Python-level (i.e., compile time) and C-level (i.e., run time) performance
         profiler = create_profile('timers')
@@ -290,7 +290,7 @@ class Operator(Callable):
         subs = kwargs.get("subs", {})
 
         expressions = cls._add_implicit(expressions)
-        expressions = [i.evaluate for i in expressions]
+        expressions = flatten([i.evaluate for i in expressions])
         expressions = [j for i in expressions for j in i._flatten]
         expressions = [indexify(i) for i in expressions]
         expressions = cls._apply_substitutions(expressions, subs)

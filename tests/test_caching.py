@@ -501,11 +501,15 @@ class TestCaching(object):
 
         cur_cache_size = len(_SymbolCache)
 
-        u.inject(expr=u, field=u)
+        i = u.inject(expr=u, field=u)
 
         # created: ii_u_0*2 (Symbol and ConditionalDimension), ii_u_1*2, ii_u_2*2,
         # ii_u_3*2, px, py, u_coords (as indexified),
         ncreated = 2+2+2+2+1+1+1
+        # Note that injection is now lazy so no new symbols should be created
+        assert len(_SymbolCache) == cur_cache_size
+        i.evaluate
+
         assert len(_SymbolCache) == cur_cache_size + ncreated
 
         # No new symbolic obejcts are created
@@ -514,6 +518,7 @@ class TestCaching(object):
 
         # Let's look at clear_cache now
         del u
+        del i
         clear_cache()
         # At this point, not all children objects have been cleared. In particular, the
         # ii_u_* Symbols are still alive, as well as p_u and h_p_u. This is because
