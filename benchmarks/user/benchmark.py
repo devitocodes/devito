@@ -8,7 +8,7 @@ from devito import clear_cache, configuration, warning, set_log_level
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
 
-from benchmarks.user.tools import Benchmark, Executor, RooflinePlotter
+from benchmarks.user.tools import Driver, Executor, RooflinePlotter
 
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
@@ -393,9 +393,9 @@ def plot(problem, **kwargs):
 
 
 def get_ob_bench(problem, resultsdir, parameters):
-    """Return a special ``Benchmark`` to manage performance runs."""
+    """Return a special ``Driver`` to manage performance runs."""
 
-    class DevitoBenchmark(Benchmark):
+    class DevitoDriver(Driver):
 
         def param_string(self, params):
             devito_params, params = OrderedDict(), dict(params)
@@ -426,11 +426,11 @@ def get_ob_bench(problem, resultsdir, parameters):
 
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
-    return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
+    return DevitoDriver(name=problem, resultsdir=resultsdir, parameters=parameters)
 
 
 def get_ob_exec(func):
-    """Return a special ``devitobench.Executor`` to execute performance runs."""
+    """Return a special ``Executor`` to execute performance runs."""
 
     class DevitoExecutor(Executor):
 

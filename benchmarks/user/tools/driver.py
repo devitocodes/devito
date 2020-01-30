@@ -8,12 +8,13 @@ import json
 from devito.logger import warning
 
 
-__all__ = ['Benchmark']
+__all__ = ['Driver']
 
 
-class Benchmark(object):
+class Driver(object):
+
     """
-    Performance data for a set of benchmark runs indexed by a multi-parameter key.
+    Run experiments and store performance data indexed by a multi-parameter key.
 
     Parameters
     ----------
