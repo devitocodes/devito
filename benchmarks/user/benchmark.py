@@ -7,6 +7,9 @@ import os
 from devito import clear_cache, configuration, warning, set_log_level
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
+
+from benchmarks.user.tools import Driver, Executor, RooflinePlotter
+
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
@@ -314,7 +317,6 @@ def plot(problem, **kwargs):
                 % (problem, model_type[problem]['default-section']))
         section = model_type[problem]['default-section']
 
-    RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
 
     bench.load()
@@ -391,14 +393,9 @@ def plot(problem, **kwargs):
 
 
 def get_ob_bench(problem, resultsdir, parameters):
-    """Return a special ``devitobench.Benchmark`` to manage performance runs."""
-    try:
-        from devitobench import Benchmark
-    except:
-        raise ImportError('Could not import devitobench utility package.\n'
-                          'Please install https://github.com/devitocodes/devitobench')
+    """Return a special ``Driver`` to manage performance runs."""
 
-    class DevitoBenchmark(Benchmark):
+    class DevitoDriver(Driver):
 
         def param_string(self, params):
             devito_params, params = OrderedDict(), dict(params)
@@ -429,21 +426,16 @@ def get_ob_bench(problem, resultsdir, parameters):
 
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
-    return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
+    return DevitoDriver(name=problem, resultsdir=resultsdir, parameters=parameters)
 
 
 def get_ob_exec(func):
-    """Return a special ``devitobench.Executor`` to execute performance runs."""
-    try:
-        from devitobench import Executor
-    except:
-        raise ImportError('Could not import devitobench utility package.\n'
-                          'Please install https://github.com/devito/devitobench')
+    """Return a special ``Executor`` to execute performance runs."""
 
     class DevitoExecutor(Executor):
 
         def __init__(self, func):
-            super(DevitoExecutor, self).__init__(comm=MPI.COMM_WORLD)
+            super(DevitoExecutor, self).__init__()
             self.func = func
 
         def run(self, *args, **kwargs):
@@ -457,17 +449,6 @@ def get_ob_exec(func):
                 self.register(timings[key], measure="timings", event=key.name)
 
     return DevitoExecutor(func)
-
-
-def get_ob_plotter():
-    try:
-        from devitobench import RooflinePlotter
-    except:
-        raise ImportError('Could not import devitobench utility package.\n'
-                          'Please install https://github.com/devitocodes/devitobench'
-                          'To plot performance results, make sure to have the'
-                          'Matplotlib package installed')
-    return RooflinePlotter
 
 
 if __name__ == "__main__":
