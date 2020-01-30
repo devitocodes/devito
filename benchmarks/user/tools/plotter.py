@@ -30,6 +30,7 @@ __all__ = ['Plotter', 'LinePlotter', 'RooflinePlotter', 'BarchartPlotter',
 
 
 def scale_limits(minval, maxval, base, type='log'):
+
     """
     Compute axis values from min and max values.
     """
@@ -50,9 +51,11 @@ def scale_limits(minval, maxval, base, type='log'):
 
 
 class AxisScale(object):
+
     """
     Utility class to describe and configure axis value labelling.
     """
+
     def __init__(self, scale='log', base=2., dtype=np.float32,
                  minval=None, maxval=None):
         self.scale = scale
@@ -72,9 +75,11 @@ class AxisScale(object):
 
 
 class Plotter(object):
+
     """
     Plotting utility that provides data and basic diagram utilities.
     """
+
     figsize = (6, 4)
     dpi = 300
     marker = ['D', 'o', '^', 'v']
@@ -123,6 +128,7 @@ class Plotter(object):
 
 
 class LinePlotter(Plotter):
+
     """
     Line plotter for generating scaling or error-cost plots.
 
@@ -135,8 +141,8 @@ class LinePlotter(Plotter):
     title : str
         Plot title to be printed on top.
 
-    Example usage:
-
+    Examples
+    --------
     with LinePlotter(figname=..., plotdir=...) as plot:
         plot.add_line(y_values, x_values, label='Strong scaling')
     """
@@ -205,7 +211,7 @@ class LinePlotter(Plotter):
         label : str, optional
             Optional legend label for data line.
         style : str, optional
-            Plotting style to use, defaults to black line ('-k')
+            Plotting style to use, defaults to black line ('-k').
         annotations: str, optional
             Point annotation strings to be place next to each point on the line.
         """
@@ -228,6 +234,7 @@ class LinePlotter(Plotter):
 
 
 class BarchartPlotter(Plotter):
+
     """
     Barchart plotter for generating direct comparison plots.
 
@@ -240,8 +247,8 @@ class BarchartPlotter(Plotter):
     title : str
         Plot title to be printed on top.
 
-    Example usage:
-
+    Examples
+    --------
     with BarchartPlotter(figname=..., plotdir=...) as barchart:
         barchart.add_point(gflops[0], oi[0], label='Point A')
         barchart.add_point(gflops[1], oi[1], label='Point B')
@@ -294,24 +301,25 @@ class BarchartPlotter(Plotter):
 
 
 class RooflinePlotter(Plotter):
+
     """
     Roofline plotter for generating generic roofline plots.
 
     Parameters
     ----------
-    figname : str
+    figname : str, optional
         Name of output file.
-    plotdir : str
+    plotdir : str, optional
         Directory to store the plot in.
-    title : str
+    title : str, optional
         Plot title to be printed on top.
-    max_bw : float
+    max_bw : float, optional
         Maximum achievable memory bandwidth in GB/s.
         This defines the slope of the roofline.
-    flop_ceils : tuple(float, str)
+    flop_ceils : tuple(float, str), optional
         Represents the maximum achievable performance
         in GFlops/s; the str indicates how the performance
-        ceil was obtained (e.g., ideal peak, linpack)
+        ceil was obtained (e.g., ideal peak, linpack).
     with_yminorticks : bool, optional
         Show minor ticks on yaxis.
     fancycolors : bool, optional
@@ -323,8 +331,8 @@ class RooflinePlotter(Plotter):
         {loc='best', ncol=2, fancybox=True, fontsize=10}.
         Pass the string ``'drop'`` to show no legend.
 
-    Example usage:
-
+    Examples
+    --------
     with RooflinePlotter(figname=..., plotdir=...,
                          max_bw=..., flop_ceils=...) as roofline:
         roofline.add_point(gflops[0], oi[0], label='Point A')

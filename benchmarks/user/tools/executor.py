@@ -7,18 +7,10 @@ __all__ = ['Executor']
 
 
 class Executor(object):
+
     """
     Abstract container class for a single benchmark data point.
-
-    Parameters
-    ----------
-    # TOFIX?
-    comm: Class mpi4py.MPI.Intracomm
-        The MPI communicator over which the benchmark is run.
     """
-
-    def __init__(self, comm=None):
-        self.comm = comm
 
     def setup(self, **kwargs):
         """
@@ -47,7 +39,7 @@ class Executor(object):
 
     def run(self, **kwargs):
         """
-        This methods needs to be overridden byt the user.
+        This method needs to be overridden by the user.
         """
         raise NotImplementedError("No custom executor function specified")
 

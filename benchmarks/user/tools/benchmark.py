@@ -1,4 +1,3 @@
-from argparse import ArgumentParser
 from collections import OrderedDict
 from collections.abc import Iterable
 from itertools import product
@@ -12,34 +11,19 @@ from devito.logger import warning
 __all__ = ['Benchmark']
 
 
-def get_argparsers(**kwargs):
-    """
-    Utility that creates the root arguemnt parser and the sub-parser for each mode.
-    """
-    parser = ArgumentParser(**kwargs)
-    subparsers = parser.add_subparsers(dest='mode', help="Mode of operation")
-    help = 'Perform benchmarking runs on target machine'
-    parser_bench = subparsers.add_parser('bench', help=help)
-    help = 'Plot diagrams from stored results'
-    parser_plot = subparsers.add_parser('plot', help=help)
-    return parser, parser_bench, parser_plot
-
-
 class Benchmark(object):
     """
-    Performance data for a set of benchmark runs
-    indexed by a multi-parameter key.
+    Performance data for a set of benchmark runs indexed by a multi-parameter key.
 
     Parameters
     ----------
-    parameters : Dict
-        Dict of parameter names and value ranges that define
-        the parameter space for this benchmark.
+    parameters : dict
+        Dict of parameter names and value ranges that define the parameter
+        space for this benchmark.
     resultsdir : str, optional
-        Define directory name to store results in.
-        Defaults in 'results'.
-    name: str, optional
-        Set name of the benchmark instance. Defaults in 'Benchmark'.
+        Define directory name to store results in. Defaults to 'results'.
+    name : str, optional
+        Set name of the benchmark instance. Defaults to 'Benchmark'.
     """
 
     def __init__(self, parameters, resultsdir='results', name='Benchmark'):
@@ -90,7 +74,7 @@ class Benchmark(object):
 
         Parameters
         ----------
-        keys : Dict or dict-like, optional
+        keys : dict or dict-like, optional
             Dict with parameter value mappings over which to sweep.
         """
         values = self.values(keys=keys)
@@ -104,15 +88,17 @@ class Benchmark(object):
 
     def lookup(self, params={}, event=None, measure='time', category='timings'):
         """
-        Lookup a set of results accoridng to a parameter set.
+        Lookup a set of results according to a parameter set.
 
         Parameters
         ----------
-        params : Dict
+        params : dict
             Parameter set by which to filter results.
-        event : , optional
+        event : str or iterable of str, optional
             One or more events for which to retrieve data.
-        category : str
+        measure : str, optional
+            The results measure, for example 'time'.
+        category : str, optional
             Either 'timings' or 'meta'.
         """
         assert(category in ['timings', 'meta'])
@@ -132,8 +118,8 @@ class Benchmark(object):
 
     def execute(self, executor, warmups=1, repeats=3):
         """
-        Main execution function that invokes the given executor
-        for each combination of the parameter sweep.
+        Main execution function that invokes the given executor for each
+        combination of the parameter sweep.
         """
         for params in self.sweep():
             # Execute the benchmark
@@ -173,4 +159,4 @@ class Benchmark(object):
                     self.timings[tuple(params.items())] = datadict['timings']
                     self.meta[tuple(params.items())] = datadict['meta']
             except:
-                warning("WARNING: Could not load file: %s" % filename)
+                warning("Could not load file: %s" % filename)

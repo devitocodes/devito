@@ -435,7 +435,7 @@ def get_ob_exec(func):
     class DevitoExecutor(Executor):
 
         def __init__(self, func):
-            super(DevitoExecutor, self).__init__(comm=MPI.COMM_WORLD)
+            super(DevitoExecutor, self).__init__()
             self.func = func
 
         def run(self, *args, **kwargs):
