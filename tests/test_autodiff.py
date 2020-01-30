@@ -116,7 +116,7 @@ def test_pde_stencil():
 
     stencil = Eq(u.forward, solve(pde, u.forward))
 
-    op = Operator([stencil])
+    op = Operator([stencil], dse='basic')
 
     print(op)
 
