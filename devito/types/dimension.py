@@ -7,13 +7,17 @@ from cached_property import cached_property
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, dtype_to_cstr, memoized_meth
+from devito.tools import Pickable, dtype_to_cstr, is_integer, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
            'ModuloDimension', 'IncrDimension']
+
+
+Thickness = namedtuple('Thickness', 'left right')
+SubDimensionOffset = namedtuple('SubDimensionOffset', 'value extreme thickness')
 
 
 class Dimension(ArgProvider):
@@ -267,9 +271,15 @@ class Dimension(ArgProvider):
 
         if self.max_name not in args:
             raise InvalidArgument("No runtime value for %s" % self.max_name)
-        if interval.is_Defined and args[self.max_name] + interval.upper >= size:
-            raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
-                                                                 args[self.max_name]))
+        if interval.is_Defined:
+            if is_integer(interval.upper):
+                upper = interval.upper
+            else:
+                # Autopadding causes non-integer upper limit
+                upper = interval.upper.subs(args)
+            if args[self.max_name] + upper >= size:
+                raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
+                                                                     args[self.max_name]))
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
@@ -496,11 +506,8 @@ class SubDimension(DerivedDimension):
     def __init_finalize__(self, name, parent, left, right, thickness, local):
         super().__init_finalize__(name, parent)
         self._interval = sympy.Interval(left, right)
-        self._thickness = self._Thickness(*thickness)
+        self._thickness = Thickness(*thickness)
         self._local = local
-
-    _Thickness = namedtuple('Thickness', 'left right')
-    _SDO = namedtuple('SubDimensionOffset', 'value extreme thickness')
 
     @classmethod
     def _symbolic_thickness(cls, name):
@@ -580,11 +587,19 @@ class SubDimension(DerivedDimension):
         try:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_min,
+                symbolic_thickness
+            )
         except TypeError:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_max,
+                symbolic_thickness
+            )
 
     @cached_property
     def _offset_right(self):
@@ -593,11 +608,19 @@ class SubDimension(DerivedDimension):
         try:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_min,
+                symbolic_thickness
+            )
         except TypeError:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
+            return SubDimensionOffset(
+                int(val),
+                self.parent.symbolic_max,
+                symbolic_thickness
+            )
 
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):

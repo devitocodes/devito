@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from sympy import Symbol
-import cloudpickle as pickle
+import pickle
 
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,

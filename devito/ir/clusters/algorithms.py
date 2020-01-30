@@ -7,15 +7,13 @@ from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import Queue
-from devito.symbolics import CondEq, xreplace_indices
-from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator, timed_pass
-from devito.types import Scalar
+from devito.symbolics import CondEq
+from devito.tools import DAG, as_tuple, flatten, timed_pass
 
-__all__ = ['clusterize']
+__all__ = ['clusterize', 'guard', 'Toposort']
 
 
-@timed_pass
-def clusterize(exprs, dse_mode=None):
+def clusterize(exprs):
     """
     Turn a sequence of LoweredEqs into a sequence of Clusters.
     """
@@ -31,8 +29,8 @@ def clusterize(exprs, dse_mode=None):
     # Introduce conditional Clusters
     clusters = guard(clusters)
 
-    # Apply optimizations
-    clusters = optimize(clusters, dse_mode)
+    # Determine relevant computational properties (e.g., parallelism)
+    clusters = analyze(clusters)
 
     return ClusterGroup(clusters)
 
@@ -204,6 +202,10 @@ class Schedule(Queue):
           Dimension in both Clusters.
     """
 
+    @timed_pass(name='lowering.Clusters.Schedule')
+    def process(self, clusters):
+        return self._process_fdta(clusters, 1)
+
     def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:
             return clusters
@@ -282,214 +284,6 @@ class Schedule(Queue):
         return test
 
 
-def optimize(clusters, dse_mode):
-    """
-    Optimize a topologically-ordered sequence of Clusters by applying the
-    following transformations:
-
-        * [cross-cluster] Fusion
-        * [intra-cluster] Several flop-reduction passes via the DSE
-        * [cross-cluster] Lifting
-        * [cross-cluster] Scalarization
-        * [cross-cluster] Arrays Elimination
-    """
-    # To create temporaries
-    counter = generator()
-    template = lambda: "r%d" % counter()
-
-    # Toposort+Fusion (the former to expose more fusion opportunities)
-    clusters = Toposort().process(clusters)
-    clusters = fuse(clusters)
-
-    # Flop reduction via the DSE
-    from devito.dse import rewrite
-    clusters = rewrite(clusters, template, mode=dse_mode)
-
-    # Lifting
-    clusters = Lift().process(clusters)
-
-    # Lifting may create fusion opportunities
-    clusters = fuse(clusters)
-
-    # Fusion may create opportunities to eliminate Arrays (thus shrinking the
-    # working set) if these store identical expressions
-    clusters = eliminate_arrays(clusters, template)
-
-    # Fusion may create scalarization opportunities
-    clusters = scalarize(clusters, template)
-
-    # Determine computational properties (e.g., parallelism) that will be
-    # necessary for the later passes
-    clusters = analyze(clusters)
-
-    return ClusterGroup(clusters)
-
-
-class Lift(Queue):
-
-    """
-    Remove invariant Dimensions from Clusters to avoid redundant computation.
-
-    Notes
-    -----
-    This is analogous to the compiler transformation known as
-    "loop-invariant code motion".
-    """
-
-    def callback(self, clusters, prefix):
-        if not prefix:
-            # No iteration space to be lifted from
-            return clusters
-
-        hope_invariant = {i.dim for i in prefix}
-
-        lifted = []
-        processed = []
-        for n, c in enumerate(clusters):
-            # Increments prevent lifting
-            if c.has_increments:
-                processed.append(c)
-                continue
-
-            # Is `c` a real candidate -- is there at least one invariant Dimension?
-            if c.used_dimensions & hope_invariant:
-                processed.append(c)
-                continue
-
-            impacted = set(processed) | set(clusters[n+1:])
-
-            # None of the Functions appearing in a lifted Cluster can be written to
-            if any(c.functions & set(i.scope.writes) for i in impacted):
-                processed.append(c)
-                continue
-
-            # Scalars prevent lifting if they are read by another Cluster
-            swrites = {f for f in c.scope.writes if f.is_Symbol}
-            if any(swrites & set(i.scope.reads) for i in impacted):
-                processed.append(c)
-                continue
-
-            # Perform lifting, which requires contracting the iteration space
-            key = lambda d: d not in hope_invariant
-            ispace = c.ispace.project(key).reset()
-            dspace = c.dspace.project(key).reset()
-            lifted.append(c.rebuild(ispace=ispace, dspace=dspace))
-
-        return lifted + processed
-
-
-def fuse(clusters):
-    """
-    Fuse sub-sequences of Clusters with compatible IterationSpace.
-    """
-    # Grouping key = <same iteration space, same conditionals>
-    key = lambda c: (set(c.itintervals), c.guards)
-
-    processed = []
-    for k, g in groupby(clusters, key=key):
-        maybe_fusible = list(g)
-
-        if len(maybe_fusible) == 1:
-            processed.extend(maybe_fusible)
-        else:
-            try:
-                # Perform fusion
-                fused = Cluster.from_clusters(*maybe_fusible)
-                processed.append(fused)
-            except ValueError:
-                # We end up here if, for example, some Clusters have same
-                # iteration Dimensions but different (partial) orderings
-                processed.extend(maybe_fusible)
-
-    return processed
-
-
-def scalarize(clusters, template):
-    """
-    Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
-    into Scalars.
-    """
-    processed = []
-    for c in clusters:
-        # Get any Arrays appearing only in `c`
-        impacted = set(clusters) - {c}
-        arrays = {i for i in c.scope.writes if i.is_Array}
-        arrays -= set().union(*[i.scope.reads for i in impacted])
-
-        # Turn them into scalars
-        #
-        # r[x,y,z] = g(b[x,y,z])                 t0 = g(b[x,y,z])
-        # ... = r[x,y,z] + r[x,y,z+1]`  ---->    t1 = g(b[x,y,z+1])
-        #                                        ... = t0 + t1
-        mapper = {}
-        exprs = []
-        for e in c.exprs:
-            f = e.lhs.function
-            if f in arrays:
-                for i in filter_ordered(i.indexed for i in c.scope[f]):
-                    mapper[i] = Scalar(name=template(), dtype=f.dtype)
-
-                    assert len(f.indices) == len(e.lhs.indices) == len(i.indices)
-                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
-                                zip(f.indices, e.lhs.indices, i.indices)}
-
-                    handle = e.func(mapper[i], e.rhs.xreplace(mapper))
-                    handle = xreplace_indices(handle, shifting)
-                    exprs.append(handle)
-            else:
-                exprs.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
-
-        processed.append(c.rebuild(exprs))
-
-    return processed
-
-
-def eliminate_arrays(clusters, template):
-    """
-    Eliminate redundant expressions stored in Arrays.
-    """
-    mapper = {}
-    processed = []
-    for c in clusters:
-        if not c.is_dense:
-            processed.append(c)
-            continue
-
-        # Search for any redundant RHSs
-        seen = {}
-        for e in c.exprs:
-            f = e.lhs.function
-            if not f.is_Array:
-                continue
-            v = seen.get(e.rhs)
-            if v is not None:
-                # Found a redundant RHS
-                mapper[f] = v
-            else:
-                seen[e.rhs] = f
-
-        if not mapper:
-            # Do not waste time
-            processed.append(c)
-            continue
-
-        # Replace redundancies
-        subs = {}
-        for f, v in mapper.items():
-            for i in filter_ordered(i.indexed for i in c.scope[f]):
-                subs[i] = v[f.indices]
-        exprs = []
-        for e in c.exprs:
-            if e.lhs.function in mapper:
-                # Drop the write
-                continue
-            exprs.append(e.xreplace(subs))
-
-        processed.append(c.rebuild(exprs))
-
-    return processed
-
-
 def guard(clusters):
     """
     Split Clusters containing conditional expressions into separate Clusters.
@@ -513,4 +307,4 @@ def guard(clusters):
             guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
             processed.append(c.rebuild(exprs=list(g), guards=guards))
 
-    return processed
+    return ClusterGroup(processed)

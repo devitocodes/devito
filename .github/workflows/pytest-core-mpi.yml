@@ -40,10 +40,17 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -e .[extras]
+        ipcluster start --profile=mpi -n 4 --daemon
 
     - name: Test with pytest
       run: |
         pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
+
+    - name: Test mpi notebook
+      run : |
+        # Currently not tested due to issue #859
+        # py.test --nbval examples/mpi
+        ipcluster stop --profile=mpi
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.5

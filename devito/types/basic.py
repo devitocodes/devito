@@ -24,6 +24,10 @@ __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
            'LocalObject', 'CompositeObject']
 
 
+Size = namedtuple('Size', 'left right')
+Offset = namedtuple('Offset', 'left right')
+
+
 class Basic(object):
 
     """
@@ -830,7 +834,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         left = tuple(zip(*self._halo))[0]
         right = tuple(zip(*self._halo))[1]
 
-        Size = namedtuple('Size', 'left right')
         sizes = tuple(Size(i, j) for i, j in self._halo)
 
         return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
@@ -841,7 +844,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         left = tuple(self._size_halo.right)
         right = tuple(self._size_halo.left)
 
-        Size = namedtuple('Size', 'left right')
         sizes = tuple(Size(i.right, i.left) for i in self._size_halo)
 
         return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
@@ -852,7 +854,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         left = tuple(zip(*self._padding))[0]
         right = tuple(zip(*self._padding))[1]
 
-        Size = namedtuple('Size', 'left right')
         sizes = tuple(Size(i, j) for i, j in self._padding)
 
         return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
@@ -869,7 +870,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         left = tuple(i for i, _ in np.add(self._halo, self._padding))
         right = tuple(i for _, i in np.add(self._halo, self._padding))
 
-        Size = namedtuple('Size', 'left right')
         sizes = tuple(Size(i, j) for i, j in np.add(self._halo, self._padding))
 
         return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
@@ -886,7 +886,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         left = tuple(self._size_padding.left)
         right = tuple(np.add(np.add(left, self._size_halo.left), self._size_domain))
 
-        Offset = namedtuple('Offset', 'left right')
         offsets = tuple(Offset(i, j) for i, j in zip(left, right))
 
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
@@ -897,7 +896,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         left = tuple(self._offset_domain)
         right = tuple(np.add(self._offset_halo.left, self._size_domain))
 
-        Offset = namedtuple('Offset', 'left right')
         offsets = tuple(Offset(i, j) for i, j in zip(left, right))
 
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)

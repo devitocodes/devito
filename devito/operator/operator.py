@@ -9,9 +9,9 @@ import ctypes
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
-from devito.ir.clusters import clusterize
+from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
-from devito.ir.stree import st_build
+from devito.ir.stree import stree_build
 from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
 from devito.mpi import MPI
@@ -164,7 +164,7 @@ class Operator(Callable):
         expressions = cls._lower_exprs(expressions, **kwargs)
 
         # Group expressions based on iteration spaces and data dependences
-        clusters = cls._lower_clusters(expressions, **kwargs)
+        clusters = cls._lower_clusters(expressions, profiler, **kwargs)
 
         # Lower Clusters to a ScheduleTree
         stree = cls._lower_stree(clusters, **kwargs)
@@ -275,7 +275,7 @@ class Operator(Callable):
         return [LoweredEq(i) for i in expressions]
 
     @classmethod
-    @timed_pass
+    @timed_pass(name='lowering.Expressions')
     def _lower_exprs(cls, expressions, **kwargs):
         """
         Expression lowering:
@@ -309,20 +309,19 @@ class Operator(Callable):
         return clusters
 
     @classmethod
-    @timed_pass
-    def _lower_clusters(cls, expressions, **kwargs):
+    def _lower_clusters(cls, expressions, profiler, **kwargs):
         """
         Clusters lowering:
 
             * Group expressions into Clusters;
-            * Optimize Clusters for performance (flops, data locality, ...);
-            * Introduce guards for conditional Clusters
+            * Introduce guards for conditional Clusters.
         """
-        clusters = clusterize(expressions, dse_mode=kwargs['dse'])
+        # Build a sequence of Clusters from a sequence of Eqs
+        clusters = clusterize(expressions)
 
-        clusters = cls._specialize_clusters(clusters)
+        clusters = cls._specialize_clusters(clusters, profiler=profiler, **kwargs)
 
-        return clusters
+        return ClusterGroup(clusters)
 
     # Compilation -- ScheduleTree level
 
@@ -334,7 +333,7 @@ class Operator(Callable):
         return stree
 
     @classmethod
-    @timed_pass
+    @timed_pass(name='lowering.ScheduleTree')
     def _lower_stree(cls, clusters, **kwargs):
         """
         Schedule tree lowering:
@@ -343,7 +342,8 @@ class Operator(Callable):
             * Derive and attach metadata for distributed-memory parallelism;
             * Derive sections for performance profiling
         """
-        stree = st_build(clusters)
+        # Build a ScheduleTree from a sequence of Clusters
+        stree = stree_build(clusters)
 
         stree = cls._specialize_stree(stree)
 
@@ -371,6 +371,7 @@ class Operator(Callable):
         """
         name = kwargs.get("name", "Kernel")
 
+        # Build an IET from a ScheduleTree
         iet = iet_build(stree)
 
         # Instrument the IET for C-level profiling
@@ -675,11 +676,23 @@ class Operator(Callable):
         perf("Operator `%s` generated in %.2f s" % (self.name, fround(tot)))
 
         max_hotspots = 3
-        for i in sorted(timings, key=timings.get, reverse=True)[:max_hotspots]:
-            v = fround(timings[i])
-            perc = fround(v/tot*100, n=10)
-            if perc > 20.:
-                perf("- [Hotspot] %s: %.2f s (%.1f %%)" % (i.lstrip('_'), v, perc))
+        threshold = 20.
+
+        def _emit_timings(timings, indent=''):
+            timings.pop('total', None)
+            entries = sorted(timings, key=lambda i: timings[i]['total'], reverse=True)
+            for i in entries[:max_hotspots]:
+                v = fround(timings[i]['total'])
+                perc = fround(v/tot*100, n=10)
+                if perc > threshold:
+                    perf("%s%s: %.2f s (%.1f %%)" % (indent, i.lstrip('_'), v, perc))
+                    _emit_timings(timings[i], ' '*len(indent) + ' * ')
+
+        _emit_timings(timings, '  * ')
+
+        if self._profiler._ops:
+            ops = ['%d --> %d' % i for i in self._profiler._ops]
+            perf("Flops reduction after symbolic optimization: [%s]" % ' ; '.join(ops))
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""

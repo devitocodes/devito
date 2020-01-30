@@ -2,10 +2,11 @@ from functools import partial
 
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
-from devito.passes import (DataManager, Blocker, Ompizer, avoid_denormals,
-                           optimize_halospots, mpiize, loop_wrapping,
-                           minimize_remainders, hoist_prodders)
-from devito.tools import as_tuple
+from devito.ir.clusters import Toposort
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.iet import (DataManager, Blocker, Ompizer, avoid_denormals,
+                               optimize_halospots, mpiize, loop_wrapping, hoist_prodders)
+from devito.tools import as_tuple, generator, timed_pass
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
            'ArmOperator', 'CustomOperator']
@@ -14,6 +15,35 @@ __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperat
 class CPU64NoopOperator(OperatorCore):
 
     @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        """
+        Optimize Clusters for better runtime performance.
+        """
+        # To create temporaries
+        counter = generator()
+        template = lambda: "r%d" % counter()
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = Toposort().process(clusters)
+        clusters = fuse(clusters)
+
+        # Flop reduction via the DSE
+        clusters = rewrite(clusters, template, **kwargs)
+
+        # Lifting
+        clusters = Lift().process(clusters)
+
+        # Lifting may create fusion opportunities, which in turn may enable
+        # further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters, template)
+        clusters = scalarize(clusters, template)
+
+        return clusters
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         # Symbol definitions
         data_manager = DataManager()
@@ -32,6 +62,7 @@ class CPU64Operator(CPU64NoopOperator):
     """
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
@@ -56,7 +87,6 @@ class CPU64Operator(CPU64NoopOperator):
             ompizer.make_parallel(graph)
 
         # Misc optimizations
-        minimize_remainders(graph, simd_items_per_reg=platform.simd_items_per_reg)
         hoist_prodders(graph)
 
         # Symbol definitions
@@ -92,12 +122,11 @@ class CustomOperator(CPU64Operator):
             'openmp': partial(ompizer.make_parallel),
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
-            'minrem': partial(minimize_remainders,
-                              simd_items_per_reg=platform.simd_items_per_reg),
             'prodders': partial(hoist_prodders)
         }
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         passes = as_tuple(kwargs['mode'])

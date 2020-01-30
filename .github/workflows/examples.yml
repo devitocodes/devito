@@ -1,0 +1,75 @@
+name: Examples
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  tutorials:
+    name: Examples with conda install
+    runs-on: ubuntu-latest
+
+    env:
+      DEVITO_ARCH: gcc-7
+      DEVITO_OPENMP: 1
+      DEVITO_BACKEND: "core"
+      PYTHON_VERSION: "3.7"
+
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Setup conda
+      uses: goanpeca/setup-miniconda@v1
+      with:
+       activate-environment: devito
+       environment-file: environment.yml
+       python-version: 3.7
+       auto-activate-base: false
+
+    - name: Install dependencies
+      # See setup-miniconda README, necessary to activate environment
+      shell: bash -l {0}
+      run: |
+        pip install -e .
+        pip install matplotlib
+
+    - name: Seismic acoustic examples
+      shell: bash -l {0}
+      run: |
+        python examples/seismic/acoustic/acoustic_example.py --full
+        python examples/seismic/acoustic/acoustic_example.py --full --checkpointing
+        python examples/seismic/acoustic/acoustic_example.py --constant --full
+
+    - name: Seismic tti examples
+      shell: bash -l {0}
+      run: |
+        python examples/seismic/tti/tti_example.py -a basic
+        python examples/seismic/tti/tti_example.py -a basic --noazimuth
+
+    - name: Seismic elastic examples
+      shell: bash -l {0}
+      run: |
+        py.test examples/seismic/elastic/elastic_example.py
+        py.test examples/seismic/viscoelastic/viscoelastic_example.py
+
+    - name: Linear algebra example
+      shell: bash -l {0}
+      run: |
+        python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec
+
+    - name: CFD examples
+      shell: bash -l {0}
+      run: |
+        python examples/cfd/example_diffusion.py
+        py.test examples/cfd/example_diffusion.py

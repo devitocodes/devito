@@ -24,10 +24,13 @@ from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integ
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, Size
 from devito.types.utils import Buffer, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction']
+
+
+RegionMeta = namedtuple('RegionMeta', 'offset size')
 
 
 class DiscreteFunction(AbstractFunction, ArgProvider):
@@ -313,7 +316,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
                  for d, i in zip(self.dimensions, self._size_inhalo.right)]
 
-        Size = namedtuple('Size', 'left right')
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
         return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
@@ -685,7 +687,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         else:
             raise ValueError("Unknown region `%s`" % str(region))
 
-        RegionMeta = namedtuple('RegionMeta', 'offset size')
         return RegionMeta(offset, size)
 
     def _halo_exchange(self):

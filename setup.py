@@ -9,28 +9,24 @@ with open('requirements-optional.txt') as f:
     optionals = f.read().splitlines()
 
 reqs = []
-links = []
 for ir in required:
     if ir[0:3] == 'git':
-        links += [ir + '#egg=' + ir.split('/')[-1] + '-0']
-        reqs += [ir.split('/')[-1]]
+        name = ir.split('/')[-1]
+        reqs += ['%s @ %s@master' % (name, ir)]
     else:
         reqs += [ir]
 
 opt_reqs = []
-opt_links = []
 extras_require = {}
 for ir in optionals:
     # For conditionals like pytest=2.1; python == 3.6
     if ';' in ir:
         entries = ir.split(';')
         extras_require[entries[1]] = entries[0]
-    # Git repos
-    # This is still a bit of an issue because it can only catch
-    # version not master
+    # Git repos, install master
     if ir[0:3] == 'git':
-        opt_links += [ir + '#egg=' + ir.split('/')[-1] + '-0']
-        opt_reqs += [ir.split('/')[-1]]
+        name = ir.split('/')[-1]
+        opt_reqs += ['%s @ %s@master' % (name, ir)]
     else:
         opt_reqs += [ir]
 extras_require['extras'] = opt_reqs
@@ -53,5 +49,4 @@ setup(name='devito',
       packages=find_packages(exclude=['docs', 'tests', 'examples']),
       install_requires=reqs,
       extras_require=extras_require,
-      dependency_links=links,
       test_suite='tests')
