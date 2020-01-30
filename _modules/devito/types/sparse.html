@@ -161,15 +161,14 @@
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
+<span class="kn">from</span> <span class="nn">devito.operations</span> <span class="kn">import</span> <span class="n">LinearInterpolator</span><span class="p">,</span> <span class="n">PrecomputedInterpolator</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span><span class="p">,</span>
-                          <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">memoized_meth</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">memoized_meth</span>
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SubFunction</span>
-<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
+<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Scalar</span>
-<span class="kn">from</span> <span class="nn">devito.types.equation</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
+<span class="kn">from</span> <span class="nn">devito.types.equation</span> <span class="kn">import</span> <span class="n">Eq</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SparseFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SparseTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;PrecomputedSparseFunction&#39;</span><span class="p">,</span>
            <span class="s1">&#39;PrecomputedSparseTimeFunction&#39;</span><span class="p">]</span>
@@ -248,6 +247,18 @@
 <span class="sd">        sparse points.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Implement an interpolation operation from the grid onto the given sparse points</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">interpolator</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Implement an injection operation from a sparse point onto the grid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">interpolator</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_support</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -629,7 +640,7 @@
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">SparseFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-
+        <span class="bp">self</span><span class="o">.</span><span class="n">interpolator</span> <span class="o">=</span> <span class="n">LinearInterpolator</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="c1"># Set up sparse point coordinates</span>
         <span class="n">coordinates</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coordinates&#39;</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coordinates_data&#39;</span><span class="p">))</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
@@ -667,48 +678,6 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">coordinates_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_interpolation_coeffs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Symbolic expression for the coefficients for sparse point interpolation</span>
-<span class="sd">        according to:</span>
-
-<span class="sd">            https://en.wikipedia.org/wiki/Bilinear_interpolation.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        Matrix of coefficient expressions.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Grid indices corresponding to the corners of the cell ie x1, y1, z1</span>
-        <span class="n">indices1</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">1&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
-        <span class="n">indices2</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">2&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
-        <span class="c1"># 1, x1, y1, z1, x1*y1, ...</span>
-        <span class="n">indices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">powerset</span><span class="p">(</span><span class="n">indices1</span><span class="p">))</span>
-        <span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
-        <span class="n">point_sym</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">powerset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_point_symbols</span><span class="p">))</span>
-        <span class="n">point_sym</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
-        <span class="c1"># 1, px. py, pz, px*py, ...</span>
-        <span class="n">A</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">ref_A</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span> <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">]</span>
-        <span class="c1"># Create the matrix with the same increment order as the point increment</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_point_increments</span><span class="p">:</span>
-            <span class="c1"># substitute x1 by x2 if increment in that dimension</span>
-            <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">indices1</span><span class="p">[</span><span class="n">d</span><span class="p">],</span> <span class="n">indices2</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">indices1</span><span class="p">[</span><span class="n">d</span><span class="p">])</span>
-                        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)))</span>
-            <span class="n">A</span> <span class="o">+=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">ref_A</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]]</span>
-
-        <span class="n">A</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Matrix</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
-        <span class="c1"># Coordinate values of the sparse point</span>
-        <span class="n">p</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Matrix</span><span class="p">([[</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">ind</span><span class="p">)]</span> <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">point_sym</span><span class="p">])</span>
-
-        <span class="c1"># reference cell x1:0, x2:h_x</span>
-        <span class="n">left</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">a</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">indices1</span><span class="p">)</span>
-        <span class="n">right</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">b</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indices2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">))</span>
-        <span class="n">reference_cell</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">left</span><span class="p">,</span> <span class="o">**</span><span class="n">right</span><span class="p">}</span>
-        <span class="c1"># Substitute in interpolation matrix</span>
-        <span class="n">A</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">reference_cell</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">A</span><span class="o">.</span><span class="n">inv</span><span class="p">()</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">p</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_point_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -765,36 +734,6 @@
 
         <span class="k">return</span> <span class="n">index_matrix</span><span class="p">,</span> <span class="n">points</span>
 
-    <span class="k">def</span> <span class="nf">_interpolation_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">field_offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate interpolation indices for the DiscreteFunctions in ``variables``.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">index_matrix</span><span class="p">,</span> <span class="n">points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index_matrix</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span>
-
-        <span class="n">idx_subs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">index_matrix</span><span class="p">):</span>
-            <span class="c1"># Introduce ConditionalDimension so that we don&#39;t go OOB</span>
-            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
-            <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
-                <span class="n">p</span> <span class="o">=</span> <span class="n">points</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
-                <span class="n">lb</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">And</span><span class="p">(</span><span class="n">p</span> <span class="o">&gt;=</span> <span class="n">d</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-                <span class="n">ub</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">And</span><span class="p">(</span><span class="n">p</span> <span class="o">&lt;=</span> <span class="n">d</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-                <span class="n">condition</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">And</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-                <span class="n">mapper</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">ConditionalDimension</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">,</span>
-                                                 <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">,</span> <span class="n">indirect</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-            <span class="c1"># Track Indexed substitutions</span>
-            <span class="n">idx_subs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
-
-        <span class="c1"># Temporaries for the indirection dimensions</span>
-        <span class="n">temps</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">points</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
-        <span class="c1"># Temporaries for the coefficients</span>
-        <span class="n">temps</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
-                      <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_point_symbols</span><span class="p">,</span>
-                                      <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_bases</span><span class="p">(</span><span class="n">field_offset</span><span class="p">))])</span>
-
-        <span class="k">return</span> <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span>
-
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">gridpoints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -804,85 +743,6 @@
             <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">floor</span><span class="p">((</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="o">.</span><span class="n">data</span><span class="p">)</span><span class="o">/</span><span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="o">.</span><span class="n">data</span><span class="p">))</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span>
                              <span class="nb">zip</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)))</span>
         <span class="k">return</span> <span class="n">ret</span>
-
-<div class="viewcode-block" id="SparseFunction.interpolate"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">self_subs</span><span class="o">=</span><span class="p">{}):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate equations interpolating an arbitrary expression into ``self``.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        expr : expr-like</span>
-<span class="sd">            Input expression to interpolate.</span>
-<span class="sd">        offset : int, optional</span>
-<span class="sd">            Additional offset from the boundary.</span>
-<span class="sd">        increment: bool, optional</span>
-<span class="sd">            If True, generate increments (Inc) rather than assignments (Eq).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Derivatives must be evaluated before the introduction of indirect accesses</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">evaluate</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="c1"># E.g., a generic SymPy expression or a number</span>
-            <span class="k">pass</span>
-
-        <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
-
-        <span class="c1"># Need to get origin of the field in case it is staggered</span>
-        <span class="c1"># TODO: handle each variable staggereing spearately</span>
-        <span class="n">field_offset</span> <span class="o">=</span> <span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">origin</span>
-        <span class="c1"># List of indirection indices for all adjacent grid points</span>
-        <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span>
-                                                      <span class="n">field_offset</span><span class="o">=</span><span class="n">field_offset</span><span class="p">)</span>
-
-        <span class="c1"># Substitute coordinate base symbols into the interpolation coefficients</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">v_sub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">v_sub</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">v_sub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_coeffs</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)]</span>
-
-        <span class="c1"># Accumulate point-wise contributions into a temporary</span>
-        <span class="n">rhs</span> <span class="o">=</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-        <span class="n">summands</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)]</span>
-        <span class="n">summands</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">Inc</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span><span class="p">])</span>
-
-        <span class="c1"># Write/Incr `self`</span>
-        <span class="n">lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">self_subs</span><span class="p">)</span>
-        <span class="n">last</span> <span class="o">=</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span> <span class="k">if</span> <span class="n">increment</span> <span class="k">else</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span>
-
-        <span class="k">return</span> <span class="n">temps</span> <span class="o">+</span> <span class="n">summands</span> <span class="o">+</span> <span class="n">last</span></div>
-
-<div class="viewcode-block" id="SparseFunction.inject"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction.inject">[docs]</a>    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate equations injecting an arbitrary expression into a field.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        field : Function</span>
-<span class="sd">            Input field into which the injection is performed.</span>
-<span class="sd">        expr : expr-like</span>
-<span class="sd">            Injected expression.</span>
-<span class="sd">        offset : int, optional</span>
-<span class="sd">            Additional offset from the boundary.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Derivatives must be evaluated before the introduction of indirect accesses</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">evaluate</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="c1"># E.g., a generic SymPy expression or a number</span>
-            <span class="k">pass</span>
-
-        <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span> <span class="o">+</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span>
-
-        <span class="c1"># Need to get origin of the field in case it is staggered</span>
-        <span class="n">field_offset</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">origin</span>
-        <span class="c1"># List of indirection indices for all adjacent grid points</span>
-        <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span>
-                                                      <span class="n">field_offset</span><span class="o">=</span><span class="n">field_offset</span><span class="p">)</span>
-
-        <span class="c1"># Substitute coordinate base symbols into the interpolation coefficients</span>
-        <span class="n">eqns</span> <span class="o">=</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">vsub</span><span class="p">),</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="p">,</span>
-                    <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">vsub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_coeffs</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)]</span>
-
-        <span class="k">return</span> <span class="n">temps</span> <span class="o">+</span> <span class="n">eqns</span></div>
 
 <div class="viewcode-block" id="SparseFunction.guard"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction.guard">[docs]</a>    <span class="k">def</span> <span class="nf">guard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -1237,92 +1097,11 @@
 
         <span class="c1"># Grid points per sparse point (2 in the case of bilinear and trilinear)</span>
         <span class="n">r</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;r&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Need `r` int argument&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">r</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;`r` must be &gt; 0&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">r</span> <span class="o">=</span> <span class="n">r</span>
+        <span class="n">gridpoints</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;gridpoints&#39;</span><span class="p">)</span>
+        <span class="n">interpolation_coeffs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;interpolation_coeffs&#39;</span><span class="p">)</span>
 
-        <span class="n">gridpoints</span> <span class="o">=</span> <span class="n">SubFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_gridpoints&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
-                                 <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)),</span>
-                                 <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">),</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-                                 <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
-
-        <span class="n">gridpoints_data</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;gridpoints&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="k">assert</span><span class="p">(</span><span class="n">gridpoints_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">gridpoints</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">gridpoints_data</span><span class="p">[:]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_gridpoints</span> <span class="o">=</span> <span class="n">gridpoints</span>
-
-        <span class="n">interpolation_coeffs</span> <span class="o">=</span> <span class="n">SubFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_interpolation_coeffs&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-                                           <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
-                                                       <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">),</span>
-                                                       <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)),</span>
-                                           <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span>
-                                                  <span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">),</span>
-                                           <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-                                           <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
-        <span class="n">coefficients_data</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;interpolation_coeffs&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="k">assert</span><span class="p">(</span><span class="n">coefficients_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">interpolation_coeffs</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">coefficients_data</span><span class="p">[:]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_coeffs</span> <span class="o">=</span> <span class="n">interpolation_coeffs</span>
-        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Ensure that the provided interpolation coefficient and grid point &quot;</span> <span class="o">+</span>
-                <span class="s2">&quot;values are computed on the final grid that will be used for other &quot;</span> <span class="o">+</span>
-                <span class="s2">&quot;computations.&quot;</span><span class="p">)</span>
-
-<div class="viewcode-block" id="PrecomputedSparseFunction.interpolate"><a class="viewcode-back" href="../../../precsparsefunction.html#devito.types.PrecomputedSparseFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">self_subs</span><span class="o">=</span><span class="p">{}):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate equations interpolating an arbitrary expression into ``self``.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        expr : expr-like</span>
-<span class="sd">            Input expression to interpolate.</span>
-<span class="sd">        offset : int, optional</span>
-<span class="sd">            Additional offset from the boundary.</span>
-<span class="sd">        increment: bool, optional</span>
-<span class="sd">            If True, generate increments (Inc) rather than assignments (Eq).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">expr</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-
-        <span class="n">p</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">interpolation_coeffs</span><span class="o">.</span><span class="n">indices</span>
-        <span class="n">dim_subs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
-            <span class="n">rd</span> <span class="o">=</span> <span class="n">DefaultDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;r</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">)</span>
-            <span class="n">dim_subs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">INT</span><span class="p">(</span><span class="n">rd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
-            <span class="n">coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">interpolation_coeffs</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">rd</span><span class="p">])</span>
-        <span class="c1"># Apply optional time symbol substitutions to lhs of assignment</span>
-        <span class="n">lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">self_subs</span><span class="p">)</span>
-        <span class="n">rhs</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)</span> <span class="o">*</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim_subs</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">lhs</span> <span class="o">+</span> <span class="n">rhs</span><span class="p">)]</span></div>
-
-<div class="viewcode-block" id="PrecomputedSparseFunction.inject"><a class="viewcode-back" href="../../../precsparsefunction.html#devito.types.PrecomputedSparseFunction.inject">[docs]</a>    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate equations injecting an arbitrary expression into a field.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        field : Function</span>
-<span class="sd">            Input field into which the injection is performed.</span>
-<span class="sd">        expr : expr-like</span>
-<span class="sd">            Injected expression.</span>
-<span class="sd">        offset : int, optional</span>
-<span class="sd">            Additional offset from the boundary.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">expr</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="n">field</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
-
-        <span class="n">p</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="o">.</span><span class="n">indices</span>
-        <span class="n">dim_subs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
-            <span class="n">rd</span> <span class="o">=</span> <span class="n">DefaultDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;r</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">)</span>
-            <span class="n">dim_subs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">INT</span><span class="p">(</span><span class="n">rd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
-            <span class="n">coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">interpolation_coeffs</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">rd</span><span class="p">])</span>
-        <span class="n">rhs</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)</span> <span class="o">*</span> <span class="n">expr</span>
-        <span class="n">field</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim_subs</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">field</span> <span class="o">+</span> <span class="n">rhs</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim_subs</span><span class="p">))]</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">interpolator</span> <span class="o">=</span> <span class="n">PrecomputedInterpolator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">gridpoints</span><span class="p">,</span>
+                                                    <span class="n">interpolation_coeffs</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">gridpoints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

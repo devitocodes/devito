@@ -351,32 +351,14 @@ If not specified, defaults to <code class="docutils literal notranslate"><span c
 
 <dl class="method">
 <dt id="devito.types.SparseFunction.inject">
-<code class="sig-name descname">inject</code><span class="sig-paren">(</span><em class="sig-param">field</em>, <em class="sig-param">expr</em>, <em class="sig-param">offset=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseFunction.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SparseFunction.inject" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generate equations injecting an arbitrary expression into a field.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>field</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input field into which the injection is performed.</p></li>
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Injected expression.</p></li>
-<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
-</ul>
-</dd>
-</dl>
+<code class="sig-name descname">inject</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseFunction.inject" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implement an injection operation from a sparse point onto the grid</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.types.SparseFunction.interpolate">
-<code class="sig-name descname">interpolate</code><span class="sig-paren">(</span><em class="sig-param">expr</em>, <em class="sig-param">offset=0</em>, <em class="sig-param">increment=False</em>, <em class="sig-param">self_subs={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generate equations interpolating an arbitrary expression into <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Input expression to interpolate.</p></li>
-<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
-<li><p><strong>increment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, generate increments (Inc) rather than assignments (Eq).</p></li>
-</ul>
-</dd>
-</dl>
+<code class="sig-name descname">interpolate</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implement an interpolation operation from the grid onto the given sparse points</p>
 </dd></dl>
 
 <dl class="method">
