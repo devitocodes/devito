@@ -111,12 +111,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         The grid points surrounding each sparse point within the radius of self's
         injection/interpolation operators.
         """
-        return self._build_support(points=self.gridpoints)
-
-    @memoized_meth
-    def _build_support(self, points=None):
         ret = []
-        points = points or self.gridpoints
+        points = self.gridpoints
         for i in points:
             support = [range(max(0, j - self._radius + 1), min(M, j + self._radius + 1))
                        for j, M in zip(i, self.grid.shape)]
@@ -597,7 +593,7 @@ class SparseFunction(AbstractSparseFunction):
             raise ValueError("No coordinates attached to this SparseFunction")
         ret = []
         for coords in self.coordinates.data._local:
-            ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
+            ret.append(tuple(int(np.floor(c - o.data)/i.spacing.data) for c, o, i in
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return tuple(ret)
 
