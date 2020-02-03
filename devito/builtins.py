@@ -34,6 +34,9 @@ class memoized_op(object):
             while more_args:
                 try:
                     #expr
+        def query(i):
+            return q_leaf(i) or q_function(i)
+        query = lambda i: q_leaf(i) or q_function(i)
 
         # FIXME: Assuming 1 equation for now
         lhs_args = get_args(f)
