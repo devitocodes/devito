@@ -17,8 +17,8 @@ grid = Grid(shape=(100, 100))
 f = Function(name='f', grid=grid, dtype=np.int32)
 g = Function(name='g', grid=grid, dtype=np.int32)
 
-assign(f, 5, save=True)
-assign(g, 3, save=True)
+assign(f, 3*f*g+5*g, save=True)
+assign(g, 2*g*f+1*f, save=True)
 
 a = Constant(name='a')
 a.data = 2.0

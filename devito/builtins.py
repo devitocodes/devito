@@ -20,26 +20,51 @@ class memoized_op(object):
     #def __init__(self, func, *args, **kwargs):
     def __init__(self, func):
         self.func = func
-        self.op = None
+        #self.op = None
         #self.rhs = None
 
     def __call__(self, f, rhs=0, *args, **kwargs):
-        # Process rhs here
-        if isinstance(rhs, int):
-            processed = dv.Constant(name='rhs')
-            processed.data = rhs
-        # Now do op chaching etc
-        if not self.op:
-            #self.rhs = rhs
-            f, self.op = self.func(f, processed)
-            return f
-        #elif type(self.op.parameters[1]) == type(rhs):
-        else:
-            self.op(f=f, rhs=processed)
-            return f
+        from devito.symbolics import search                                                                                                                                                                          
+        from devito.symbolics.queries import q_function, q_leaf
+        search(eq, lambda i: q_leaf(i) or q_function(i), deep=True)  
+        from IPython import embed; embed()
+        def get_args(expr):
+            args = []
+            more_args = True
+            while more_args:
+                try:
+                    #expr
+
+        # FIXME: Assuming 1 equation for now
+        lhs_args = get_args(f)
+        rhs_args = get_args(rhs)
+        args = lhs_args | rhs_args
+        lhsm, rhsm = create_minimal_expressions(f, rhs, args)
+
+        obj = hashit(lhsm, rhsm, ...)
+        try:
+            cache = obj.__cache_gen
+        except AttributeError:
+            cache = obj.__cache_gen = {}
+        it = cache[key] if key in cache else self.func(*args, **kwargs)
+        cache[key], result = tee(it)
+
+        ## Process rhs here
+        #if isinstance(rhs, int):
+            #processed = dv.Constant(name='rhs')
+            #processed.data = rhs
+        ## Now do op chaching etc
+        #if not self.op:
+            ##self.rhs = rhs
+            #f, self.op = self.func(f, processed)
+            #return f
+        ##elif type(self.op.parameters[1]) == type(rhs):
         #else:
-            ##from IPython import embed; embed()
-            #raise NotImplementedError
+            #self.op(f=f, rhs=processed)
+            #return f
+        ##else:
+            ###from IPython import embed; embed()
+            ##raise NotImplementedError
 
 
         #from IPython import embed; embed()
