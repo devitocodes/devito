@@ -24,8 +24,27 @@ class Blocking(Queue):
         super(Blocking, self).__init__()
 
     @timed_pass(name='specializing.Clusters.blocking')
-    def process(self, elements):
-        return super(Blocking, self).process(elements)
+    def process(self, clusters):
+        # Preprocess: heuristic: drop TILABLE from innermost Dimensions to
+        # maximize vectorization
+        processed = []
+        for c in clusters:
+            ntilable = len([i for i in c.properties.values() if TILABLE in i])
+            ntilable -= int(not self.inner)
+            if ntilable <= 1:
+                properties = {k: v - {TILABLE} for k, v in c.properties.items()}
+                processed.append(c.rebuild(properties=properties))
+            elif not self.inner:
+                d = c.itintervals[-1].dim
+                properties = dict(c.properties)
+                properties[d] = properties[d] - {TILABLE}
+                processed.append(c.rebuild(properties=properties))
+            else:
+                processed.append(c)
+
+        processed = super(Blocking, self).process(processed)
+
+        return processed
 
     def callback(self, clusters, prefix):
         if not prefix:
