@@ -13,8 +13,7 @@ from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
-           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list',
-           'filter_ordered_index']
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list']
 
 
 def prod(iterable, initial=1):
@@ -167,26 +166,6 @@ def filter_ordered(elements, key=None):
         except:
             return sorted(list(set(elements)), key=elements.index)
     return [e for e in elements if not (key(e) in seen or seen.add(key(e)))]
-
-
-def filter_ordered_index(elements, key=None):
-    """
-    Indices of filtered elements in a list while preserving order.
-
-    Parameters
-    ----------
-    key : callable, optional
-        Conversion key used during equality comparison.
-    """
-    if isinstance(elements, types.GeneratorType):
-        elements = list(elements)
-    seen = set()
-    if key is None:
-        _, inds = np.unique(elements, return_index=True)
-        inds.sort()
-        return inds.tolist()
-    lst_e = elements.tolist()
-    return [lst_e.index(e) for e in lst_e if not (key(e) in seen or seen.add(key(e)))]
 
 
 def filter_sorted(elements, key=None):

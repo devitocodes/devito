@@ -4,7 +4,7 @@ from sympy.abc import a, b, c, d, e
 import time
 
 from conftest import skipif
-from devito.tools import toposort, filter_ordered, filter_ordered_index
+from devito.tools import toposort, filter_ordered
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -34,16 +34,4 @@ def test_sorting():
     t2 = time.time()
     # This one is slightly faster
     assert t2 - t1 < .5 * (t1 - t0)
-    assert sort_key == sort_nokey
-
-
-def test_sorting_index():
-    key = lambda x: x
-    array = np.random.rand(10000)
-    t0 = time.time()
-    sort_key = filter_ordered_index(array, key=key)
-    t1 = time.time()
-    sort_nokey = filter_ordered_index(array)
-    t2 = time.time()
-    assert t2 - t1 < .05 * (t1 - t0)
     assert sort_key == sort_nokey
