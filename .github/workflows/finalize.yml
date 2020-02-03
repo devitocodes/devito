@@ -1,0 +1,19 @@
+# Workflow for actions to be performed upon a merge into a master
+# i.e. once all other workflows have succeeded
+
+name: build
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - master
+
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged
+    steps:
+      - name: finalize
+        run: |
+          echo "Successfully merged into master."
