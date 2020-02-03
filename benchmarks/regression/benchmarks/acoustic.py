@@ -9,6 +9,8 @@ class IsotropicAcoustic(object):
 
     repeat = 3
 
+    timeout = 600.0
+
     # Default shape for loop blocking
     x0_blk0_size = 16
     y0_blk0_size = 16
