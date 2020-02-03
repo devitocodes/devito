@@ -131,10 +131,6 @@ class LoweredEq(sympy.Eq, IREq):
             if d in oobs:
                 iintervals.append(i.zero())
                 dintervals.append(i)
-            elif d.is_Sub:
-                v = Interval(d, d._offset_left.thickness, d._offset_right.thickness)
-                iintervals.append(v)
-                dintervals.append(v)
             else:
                 iintervals.append(i.zero())
                 dintervals.append(i.zero())

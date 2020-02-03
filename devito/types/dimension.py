@@ -154,14 +154,6 @@ class Dimension(ArgProvider):
         return sympy.S.One
 
     @cached_property
-    def extreme_min(self):
-        return self.symbolic_min
-
-    @cached_property
-    def extreme_max(self):
-        return self.symbolic_max
-
-    @cached_property
     def size_name(self):
         return "%s_size" % self.name
 
@@ -560,14 +552,6 @@ class SubDimension(DerivedDimension):
     def symbolic_size(self):
         # The size must be given as a function of the parent's size
         return self.symbolic_max - self.symbolic_min + 1
-
-    @cached_property
-    def extreme_min(self):
-        return self._offset_left.extreme
-
-    @cached_property
-    def extreme_max(self):
-        return self._offset_right.extreme
 
     @property
     def local(self):

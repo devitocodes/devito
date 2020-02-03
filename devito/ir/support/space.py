@@ -103,9 +103,7 @@ class Interval(AbstractInterval):
     """
     Interval(dim, lower, upper)
 
-    Create an Interval of size:
-
-        (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
+    Create the Interval ``[dim.symbolic_min - lower, dim.symbolic_max + upper]``
     """
 
     is_Defined = True
@@ -116,7 +114,7 @@ class Interval(AbstractInterval):
         super(Interval, self).__init__(dim, stamp)
         self.lower = lower
         self.upper = upper
-        self.size = (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
+        self.size = (dim.symbolic_max - dim.symbolic_min + 1) + (upper - lower)
 
     def __repr__(self):
         return "%s[%s,%s]<%d>" % (self.dim, self.lower, self.upper, self.stamp)
