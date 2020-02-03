@@ -348,20 +348,22 @@ def generate_nthreads(nthreads, args, level):
         # 1) num_threads == num_physical_cores
         # 2) num_threads == num_logical_cores
         platform = configuration['platform']
+        name = nthreads.name
         if platform in (KNL, KNL7210):
-            ret.extend([((nthreads.name, platform.cores_physical),),
-                        ((nthreads.name, platform.cores_physical * 2),),
-                        ((nthreads.name, platform.cores_logical),)])
+            cases = filter_ordered([platform.cores_physical,
+                                    platform.cores_physical * 2,
+                                    platform.cores_logical])
         else:
-            ret.extend([((nthreads.name, platform.cores_physical),),
-                        ((nthreads.name, platform.cores_logical),)])
+            cases = filter_ordered([platform.cores_physical,
+                                    platform.cores_logical])
+        ret.extend([((name, nthread),) for nthread in cases])
 
         if basic not in ret:
             warning("skipping `%s`; perhaps you've set OMP_NUM_THREADS to a "
                     "non-standard value while attempting autotuning in "
                     "`max` mode?" % dict(basic))
 
-    return filter_ordered(ret)
+    return ret
 
 
 options = {

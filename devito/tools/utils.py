@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from functools import reduce
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
+import types
 
 import numpy as np
 import sympy
@@ -147,22 +148,31 @@ def single_or(l):
 
 
 def filter_ordered(elements, key=None):
-    """Filter elements in a list while preserving order.
+    """
+    Filter elements in a list while preserving order.
 
     Parameters
     ----------
     key : callable, optional
         Conversion key used during equality comparison.
     """
+    if isinstance(elements, types.GeneratorType):
+        elements = list(elements)
     seen = set()
     if key is None:
-        key = lambda x: x
+        try:
+            unordered, inds = np.unique(elements, return_index=True)
+            return unordered[np.argsort(inds)].tolist()
+        except:
+            return sorted(list(set(elements)), key=elements.index)
     return [e for e in elements if not (key(e) in seen or seen.add(key(e)))]
 
 
 def filter_sorted(elements, key=None):
-    """Filter elements in a list and sort them by key. The default key is
-    ``operator.attrgetter('name')``."""
+    """
+    Filter elements in a list and sort them by key. The default key is
+    ``operator.attrgetter('name')``.
+    """
     if key is None:
         key = attrgetter('name')
     return sorted(filter_ordered(elements, key=key), key=key)
