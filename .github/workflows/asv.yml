@@ -39,13 +39,21 @@ jobs:
     - name: Setup asv
       run: |
         bash benchmarks/regression/merge_history.sh
-        asv machine --yes
+        cp merge_history.txt benchmarks/regression/
+        asv machine --config benchmarks/regression/asv.conf.json --yes
 
     - name: Run benchmarks
       run: |
-        asv run HASHFILE:merge_history.txt
+        asv run -v --show-stderr --config benchmarks/regression/asv.conf.json HASHFILE:merge_history.txt
 
-    - name: Upload results
+    - name: Create results (html)
       run: |
-        asv publish
-        asv gh-pages
+          asv publish --config benchmarks/regression/asv.conf.json
+
+    - name: Deploy results to devitocodes/devito-performance/gh-pages
+      uses: peaceiris/actions-gh-pages@v2
+      env:
+        PERSONAL_TOKEN: ${{ secrets.ASV_TOKEN }}
+        EXTERNAL_REPOSITORY: devitocodes/devito-performance
+        PUBLISH_BRANCH: gh-pages
+        PUBLISH_DIR: ./benchmarks/regression/.asv/html
