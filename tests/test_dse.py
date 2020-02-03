@@ -7,7 +7,8 @@ from cached_property import cached_property
 from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
-from devito.ir import DummyEq, Stencil, FindSymbols, retrieve_iteration_tree  # noqa
+from devito.ir import (DummyEq, Expression, Stencil, FindNodes, FindSymbols,  # noqa
+                       retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
 from devito.passes.clusters.utils import make_is_time_invariant
@@ -443,10 +444,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dle=('noop', {'openmp': True}))
         op1 = Operator(eqn, dle=('advanced', {'openmp': True}))
 
-        xi0_blk_size = op1.parameters[-3]
-        yi0_blk_size = op1.parameters[-2]
-        z_size = op1.parameters[4]
-        from IPython import embed; embed()
+        xi0_blk_size = op1.parameters[7]
+        yi0_blk_size = op1.parameters[12]
+        z_M, z_m, zi_ltkn, zi_rtkn = op1.parameters[-5:-1]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -457,7 +457,7 @@ class TestAliases(object):
         assert a.halo == ((1, 1), (1, 1), (1, 1))
         assert Add(*a.symbolic_shape[0].args) == xi0_blk_size + 2
         assert Add(*a.symbolic_shape[1].args) == yi0_blk_size + 2
-        assert Add(*a.symbolic_shape[2].args) == z_size + 2
+        assert Add(*a.symbolic_shape[2].args) == z_M - z_m - zi_ltkn - zi_rtkn + 3
         # Check numerical output
         op0(time_M=1)
         exp = np.copy(u.data[:])
@@ -612,9 +612,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
 
-        x0_blk_size = op1.parameters[-2]
-        y0_blk_size = op1.parameters[-1]
-        z_size = op1.parameters[4]
+        x0_blk_size = op1.parameters[5]
+        y0_blk_size = op1.parameters[8]
+        z_size = op1.parameters[-1]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -660,11 +660,21 @@ class TestAliases(object):
 
         op = Operator(Eq(e.forward, deriv + e))
 
-        # We expect two temporary Arrays, one for each `sqrt` subexpr
+        # We expect four temporary Arrays, two of which for the `sqrt` subexpr
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 2
-        assert all(i._mem_heap and not i._mem_external for i in arrays)
+        assert len(arrays) == 4
 
+        exprs = FindNodes(Expression).visit(op)
+        sqrt_exprs = exprs[:2]
+        assert all(e.write in arrays for e in sqrt_exprs)
+        assert all(e.expr.rhs.is_Pow for e in sqrt_exprs)
+        assert all(e.write._mem_heap and not e.write._mem_external for e in sqrt_exprs)
+
+        tmp_exprs = exprs[2:4]
+        assert all(e.write in arrays for e in tmp_exprs)
+        assert all(e.write._mem_heap and not e.write._mem_external for e in tmp_exprs)
+
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1000)
     def test_catch_duplicate_from_different_clusters(self):
         """
         Check that the compiler is able to detect redundant aliases when these
@@ -868,26 +878,31 @@ class TestTTI(object):
         assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-1)
         assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-1)
 
-        # Also check that DLE's loop blocking with DSE=aggressive does the right thing
-        # There should be exactly two IncrDimensions; bugs in the past were generating
-        # either code with no blocking (zero IncrDimensions) or code with four
-        # IncrDimensions (i.e., Iteration folding was somewhat broken)
+        # With optimizations enabled, there should be exactly four IncrDimensions
         op = operator.op_fwd(kernel='centered')
         block_dims = [i for i in op.dimensions if i.is_Incr]
-        assert len(block_dims) == 2
+        assert len(block_dims) == 4
+        x, x0_blk0, y, y0_blk0 = block_dims
+        assert x.parent is x0_blk0
+        assert y.parent is y0_blk0
+        assert not x._defines & y._defines
 
-        # Also, in this operator, we expect six temporary Arrays:
-        # * four Arrays are allocated on the heap
+        # Also, in this operator, we expect seven temporary Arrays:
+        # * five Arrays are allocated on the heap
         # * two Arrays are allocated on the stack and only appear within an efunc
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 5
         assert all(i._mem_heap and not i._mem_external for i in arrays)
-        arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root)
-                  if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
         assert len(arrays) == 7
         assert all(not i._mem_external for i in arrays)
         assert len([i for i in arrays if i._mem_heap]) == 5
         assert len([i for i in arrays if i._mem_stack]) == 2
+
+        # We expect exactly 6 scalar expressions to compute the stack-scoped Arrays
+        body = op._func_table['bf0'].root.body[-1].nodes[0].nodes[0]
+        exprs = FindNodes(Expression).visit(body)
+        assert len([i for i in exprs if i.is_scalar]) == 6
 
     @skipif(['nompi'])
     @pytest.mark.parallel(mode=[(1, 'full')])
