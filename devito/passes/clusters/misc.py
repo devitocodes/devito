@@ -119,10 +119,11 @@ def scalarize(clusters, template):
         #                                        ... = t0 + t1
         mapper = {}
         exprs = []
-        for e in c.exprs:
+        for n, e in enumerate(c.exprs):
             f = e.lhs.function
             if f in arrays:
-                for i in filter_ordered(i.indexed for i in c.scope[f]):
+                indexeds = [i.indexed for i in c.scope[f] if i.timestamp > n]
+                for i in filter_ordered(indexeds):
                     mapper[i] = Scalar(name=template(), dtype=f.dtype)
 
                     assert len(f.indices) == len(e.lhs.indices) == len(i.indices)
