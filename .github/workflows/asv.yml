@@ -20,7 +20,6 @@ jobs:
       DEVITO_OPENMP: 1
       CC: "gcc-9"
       CXX: "g++-9"
-      PYTHON_VERSION: "3.7"
 
     steps:
     - name: Checkout devito
