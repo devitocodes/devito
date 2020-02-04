@@ -226,37 +226,46 @@ def process(cluster, candidates, processed, aliases, template, platform):
         if all(i not in candidates for i in alias.aliased):
             continue
 
+        # The write-to region, as an IntervalGroup
+        #TODO: cleanup
+        writeto = IntervalGroup(alias.writeto,
+                                relations=cluster.ispace.intervals.relations)
+
         # The memory scope of the Array
         # TODO: this has required refinements for a long time
-        if len([i for i in alias.writeto if i.dim.is_Incr]) >= 1:
+        if len([i for i in writeto if i.dim.is_Incr]) >= 1:
             scope = 'stack'
         else:
             scope = 'heap'
 
         # Create a temporary to store `alias`
-        array = Array(name=template(), dimensions=alias.writeto.dimensions,
-                      halo=[(abs(i.lower), abs(i.upper)) for i in alias.writeto],
+        array = Array(name=template(), dimensions=writeto.dimensions,
+                      halo=[(abs(i.lower), abs(i.upper)) for i in writeto],
                       dtype=cluster.dtype, scope=scope)
 
+        # The access Dimensions may differ from `writeto.dimensions`. This may
+        # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
+        dimensions = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
+
         # The expression computing `alias`
-        offsets = [0 if alias.writeto[i].is_Null else alias.writeto[i].lower
-                   for i in aliases.index(origin)]
-        indices = [i - o for i, o in zip(aliases.index(origin), offsets)]
+        #TODO: cleanup
+        offsets = [0 if writeto[d].is_Null else writeto[d].lower for d in dimensions]
+        indices = [d - o for d, o in zip(dimensions, offsets)]
         expression = Eq(array[indices], origin.xreplace(subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
         for aliased, distance in alias.with_distance:
-            assert all(i.dim in distance.labels for i in alias.writeto)
-            offsets = [-i.lower + distance[i.dim] for i in alias.writeto]
-            indices = [i + o for i, o in zip(aliases.index(origin), offsets)]
+            assert all(i.dim in distance.labels for i in writeto)
+            offsets = [-i.lower + distance[i.dim] for i in writeto]
+            indices = [d + o for d, o in zip(dimensions, offsets)]
             if aliased in candidates:
                 # It would *not* be in `candidates` if part of a composite alias
                 subs[candidates[aliased]] = array[indices]
             subs[aliased] = array[indices]
 
         # Construct the `alias` IterationSpace
-        ispace = cluster.ispace.add(alias.writeto).augment(aliases.index_mapper)
+        ispace = cluster.ispace.add(writeto).augment(aliases.index_mapper)
 
         # Optimize the `alias` IterationSpace: if possible, the innermost
         # IterationInterval is rounded up to a multiple of the vector length
@@ -455,11 +464,6 @@ class Aliases(OrderedDict):
                 return v.aliased
         return []
 
-    def index(self, key):
-        if key not in self:
-            raise KeyError
-        return [self.index_mapper.get(d, d) for d in self[key].writeto.dimensions]
-
 
 class Alias(object):
 
@@ -504,7 +508,7 @@ class Alias(object):
     @cached_property
     def writeto(self):
         """
-        The written data region, as an IntervalGroup.
+        The written data region, as a list of Intervals.
         """
         # A map telling the min/max offsets along each Dimension. "relaxed"
         # because it includes the ghost offsets too
@@ -527,7 +531,7 @@ class Alias(object):
         except IndexError:
             perf_adv("Couldn't optimize some of the detected redundancies")
 
-        return IntervalGroup(intervals)
+        return intervals
 
     def add(self, aliased, distance):
         aliased = self.aliased + [aliased]
