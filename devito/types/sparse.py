@@ -112,8 +112,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         injection/interpolation operators.
         """
         ret = []
-        points = self.gridpoints
-        for i in points:
+        for i in self.gridpoints:
             support = [range(max(0, j - self._radius + 1), min(M, j + self._radius + 1))
                        for j, M in zip(i, self.grid.shape)]
             ret.append(tuple(product(*support)))
