@@ -173,7 +173,7 @@ class Distributor(AbstractDistributor):
         MPI.COMM_WORLD.
     """
 
-    def __init__(self, shape, dimensions, input_comm=None):
+    def __init__(self, shape, dimensions, input_comm=None, topology=None):
         super(Distributor, self).__init__(shape, dimensions)
 
         if configuration['mpi']:
@@ -189,14 +189,17 @@ class Distributor(AbstractDistributor):
                     self._input_comm.Free()
             atexit.register(cleanup)
 
-            # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
-            # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
-            # * topology[0] >= topology[1] >= topology[2]
-            # * topology[0] * topology[1] * topology[2] == self._input_comm.size
-            # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
-            # some properties through our own wrapper (e.g., OpenMPI v3 does not
-            # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
-            self._topology = compute_dims(self._input_comm.size, len(shape))
+            if topology is None:
+                # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
+                # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
+                # * topology[0] >= topology[1] >= topology[2]
+                # * topology[0] * topology[1] * topology[2] == self._input_comm.size
+                # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
+                # some properties through our own wrapper (e.g., OpenMPI v3 does not
+                # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
+                self._topology = compute_dims(self._input_comm.size, len(shape))
+            else:
+                self._topology = topology
 
             if self._input_comm is not input_comm:
                 # By default, Devito arranges processes into a cartesian topology.
