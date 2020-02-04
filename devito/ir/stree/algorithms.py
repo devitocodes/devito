@@ -63,7 +63,7 @@ def stree_schedule(clusters):
             mapper[i] = root
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, c.halo_scheme, root)
+        NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, root)
 
         # Add in Conditionals
         drop_guarded = None
@@ -87,8 +87,13 @@ def stree_make_halo(stree):
     by means of a HaloScheme.
     """
     # Build a HaloScheme for each expression bundle
-    halo_schemes = {n: n.halo_scheme for n in findall(stree, lambda i: i.is_Exprs)
-                    if n.halo_scheme is not None}
+    halo_schemes = {}
+    for n in findall(stree, lambda i: i.is_Exprs):
+        try:
+            halo_schemes[n] = HaloScheme(n.exprs, n.ispace)
+        except HaloSchemeException as e:
+            if configuration['mpi']:
+                raise RuntimeError(str(e))
 
     # Split a HaloScheme based on where it should be inserted
     # For example, it's possible that, for a given HaloScheme, a Function's

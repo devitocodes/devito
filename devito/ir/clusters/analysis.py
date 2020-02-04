@@ -21,22 +21,8 @@ def analyze(clusters):
     clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
-    #TODO
-    from devito.mpi import HaloScheme, HaloSchemeException
-
-    processed = []
-    for c in clusters:
-        # Derive properties
-        properties = state.properties.get(c)
-
-        # Derive HaloScheme
-        try:
-            halo_scheme = HaloScheme(c.exprs, c.ispace)
-        except HaloSchemeException as e:
-            if configuration['mpi']:
-                raise RuntimeError(str(e))
-
-        processed.append(c.rebuild(properties=properties, halo_scheme=halo_scheme))
+    # Reconstruct Clusters attaching the discovered properties
+    processed = [c.rebuild(properties=state.properties.get(c)) for c in clusters]
 
     return processed
 
