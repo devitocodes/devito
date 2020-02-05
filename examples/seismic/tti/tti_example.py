@@ -1,29 +1,17 @@
-import numpy as np
 from argparse import ArgumentParser
 from devito import configuration
-from examples.seismic import demo_model, AcquisitionGeometry
+from examples.seismic import demo_model, setup_geometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
 def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
               space_order=4, nbl=10, preset='layers-tti', **kwargs):
 
-    nrec = 101
     # Two layer model for true velocity
     model = demo_model(preset, shape=shape, spacing=spacing, nbl=nbl)
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    if len(shape) > 1:
-        src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    if len(shape) > 1:
-        rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
-        rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+    # Source and receiver geometries
+    geometry = setup_geometry(model, tn)
 
     return AnisotropicWaveSolver(model, geometry,
                                  space_order=space_order, **kwargs)

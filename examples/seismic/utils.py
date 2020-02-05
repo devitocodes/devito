@@ -1,8 +1,49 @@
+import numpy as np
+
 from devito import error
 from devito.tools import Pickable
 
 from .source import *
-__all__ = ['AcquisitionGeometry']
+
+__all__ = ['AcquisitionGeometry', 'setup_geometry']
+
+
+def setup_geometry(model, tn):
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, model.dim))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    if model.dim > 1:
+        src_coordinates[0, -1] = model.origin[-1] + 2 * model.spacing[-1]
+
+    rec_coordinates = setup_rec_coords(model)
+
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+
+    return geometry
+
+
+def setup_rec_coords(model):
+    nrecx = model.shape[0]
+    recx = np.linspace(model.origin[0], model.domain_size[0], nrecx)
+
+    if model.dim == 1:
+        return recx.reshape((nrecx, 1))
+    elif model.dim == 2:
+        rec_coordinates = np.empty((nrecx, model.dim))
+        rec_coordinates[:, 0] = recx
+        rec_coordinates[:, -1] = model.origin[-1] + 2 * model.spacing[-1]
+        return rec_coordinates
+    else:
+        nrecy = model.shape[1]
+        recy = np.linspace(model.origin[1], model.domain_size[1], nrecy)
+        rec_coordinates = np.empty((nrecx*nrecy, model.dim))
+        rec_coordinates[:, 0] = np.array([recx[i] for i in range(nrecx)
+                                          for j in range(nrecy)])
+        rec_coordinates[:, 1] = np.array([recy[j] for i in range(nrecx)
+                                          for j in range(nrecy)])
+        rec_coordinates[:, -1] = model.origin[-1] + 2 * model.spacing[-1]
+        return rec_coordinates
 
 
 class AcquisitionGeometry(Pickable):

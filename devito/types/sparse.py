@@ -120,11 +120,16 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
     @property
     def _dist_datamap(self):
+        return self._build_dist_datamap(support=self._support)
+
+    @memoized_meth
+    def _build_dist_datamap(self, support=None):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
         ret = {}
-        for i, s in enumerate(self._support):
+        support = support or self._support
+        for i, s in enumerate(support):
             # Sparse point `i` is "required" by the following ranks
             for r in self.grid.distributor.glb_to_rank(s):
                 ret.setdefault(r, []).append(i)
@@ -587,9 +592,9 @@ class SparseFunction(AbstractSparseFunction):
             raise ValueError("No coordinates attached to this SparseFunction")
         ret = []
         for coords in self.coordinates.data._local:
-            ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
+            ret.append(tuple(int(np.floor(c - o.data)/i.spacing.data) for c, o, i in
                              zip(coords, self.grid.origin, self.grid.dimensions)))
-        return ret
+        return tuple(ret)
 
     def guard(self, expr=None, offset=0):
         """

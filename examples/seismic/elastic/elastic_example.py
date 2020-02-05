@@ -4,30 +4,18 @@ from argparse import ArgumentParser
 from devito import configuration
 from devito.logger import info
 from examples.seismic.elastic import ElasticWaveSolver
-from examples.seismic import demo_model, AcquisitionGeometry
+from examples.seismic import demo_model, setup_geometry
 
 
 def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
                   nbl=10, constant=False, **kwargs):
 
-    nrec = 2*shape[0]
     preset = 'constant-elastic' if constant else 'layers-elastic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
 
     # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    if len(shape) > 1:
-        src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    if len(shape) > 1:
-        rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
-        rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+    geometry = setup_geometry(model, tn)
 
     # Create solver object to provide relevant operators
     solver = ElasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
@@ -50,8 +38,8 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_elastic():
     _, _, _, [rec1, rec2, v, tau] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec1), 31.356693, atol=1e-3, rtol=0)
-    assert np.isclose(norm(rec2), 1.2663578, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec1), 23.7273, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 0.99306, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":
