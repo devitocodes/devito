@@ -3,10 +3,9 @@ from itertools import product
 
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
-                           Transformer, XSubs, make_efunc, retrieve_iteration_tree,
-                           compose_nodes)
+                           Transformer, XSubs)
 from devito.symbolics import IntDiv, xreplace_indices
-from devito.tools import as_mapper, flatten, is_integer, split, timed_pass
+from devito.tools import as_mapper, timed_pass
 from devito.types import ConditionalDimension
 
 __all__ = ['iet_build', 'iet_lower_dims']
@@ -55,14 +54,13 @@ def iet_lower_dims(iet):
     """
     Lower the DerivedDimensions in ``iet``.
     """
-    iet = lower_stepping_dims(iet)
-    iet = lower_conditional_dims(iet)
-    iet, efuncs = lower_incr_dims(iet)
+    iet = _lower_stepping_dims(iet)
+    iet = _lower_conditional_dims(iet)
 
-    return iet, efuncs
+    return iet
 
 
-def lower_stepping_dims(iet):
+def _lower_stepping_dims(iet):
     """
     Lower SteppingDimensions: index functions involving SteppingDimensions are
     turned into ModuloDimensions.
@@ -95,7 +93,7 @@ def lower_stepping_dims(iet):
     return iet
 
 
-def lower_conditional_dims(iet):
+def _lower_conditional_dims(iet):
     """
     Lower ConditionalDimensions: index functions involving ConditionalDimensions
     are turned into integer-division expressions.
@@ -114,66 +112,3 @@ def lower_conditional_dims(iet):
     iet = XSubs(mapper).visit(iet)
 
     return iet
-
-
-def lower_incr_dims(iet):
-    """
-    Lower IncrDimensions: Iterations over IncrDimensions are recast as
-    ElementalFunctions; multiple ElementalCalls are inserted so as to iterate
-    over both the "main" and any of the "remainder" regions induced by the
-    IncrDimension's step (which, obviously, isn't known until runtime).
-    """
-    efuncs = []
-    mapper = {}
-    for tree in retrieve_iteration_tree(iet):
-        iterations = [i for i in tree if i.dim.is_Incr]
-        if not iterations:
-            continue
-
-        root = iterations[0]
-        if root in mapper:
-            continue
-
-        outer, inner = split(iterations, lambda i: not i.dim.parent.is_Incr)
-
-        # Compute the iteration ranges
-        ranges = []
-        for i in outer:
-            maxb = i.symbolic_max - (i.symbolic_size % i.dim.step)
-            ranges.append(((i.symbolic_min, maxb, i.dim.step),
-                           (maxb + 1, i.symbolic_max, i.symbolic_max - maxb)))
-
-        # Remove any offsets
-        # E.g., `x = x_m + 2 to x_M - 2` --> `x = x_m to x_M`
-        outer = [i._rebuild(limits=(i.dim.root.symbolic_min, i.dim.root.symbolic_max,
-                                    i.step))
-                 for i in outer]
-
-        # Create the ElementalFunction
-        name = "bf%d" % len(mapper)
-        body = compose_nodes(outer)
-        dynamic_parameters = flatten((i.symbolic_bounds, i.step) for i in outer)
-        dynamic_parameters.extend([i.step for i in inner if not is_integer(i.step)])
-        efunc = make_efunc(name, body, dynamic_parameters)
-
-        efuncs.append(efunc)
-
-        # Create the ElementalCalls
-        calls = []
-        for p in product(*ranges):
-            dynamic_args_mapper = {}
-            for i, (m, M, b) in zip(outer, p):
-                dynamic_args_mapper[i.symbolic_min] = m
-                dynamic_args_mapper[i.symbolic_max] = M
-                dynamic_args_mapper[i.step] = b
-                for j in inner:
-                    if j.dim.root is i.dim.root and not is_integer(j.step):
-                        value = j.step if b is i.step else b
-                        dynamic_args_mapper[j.step] = (value,)
-            calls.append(efunc.make_call(dynamic_args_mapper))
-
-        mapper[root] = List(body=calls)
-
-    iet = Transformer(mapper).visit(iet)
-
-    return iet, efuncs

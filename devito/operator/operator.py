@@ -403,14 +403,14 @@ class Operator(Callable):
         iet = profiler.instrument(iet)
 
         # Lower all DerivedDimensions
-        iet, efuncs = iet_lower_dims(iet)
+        iet = iet_lower_dims(iet)
 
         # Wrap the IET with a Callable
         parameters = derive_parameters(iet, True)
         iet = Callable(name, iet, 'int', parameters, ())
 
         # Lower IET to a target-specific IET
-        graph = Graph(iet, *efuncs)
+        graph = Graph(iet)
         graph = cls._specialize_iet(graph, **kwargs)
 
         return graph.root, graph
