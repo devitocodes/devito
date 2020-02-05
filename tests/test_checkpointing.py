@@ -8,7 +8,6 @@ from conftest import skipif
 from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
-from examples.seismic import Receiver
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -122,16 +121,13 @@ def test_forward_with_breaks(shape, kernel, space_order):
     spacing = tuple([15.0 for _ in shape])
     tn = 500.
     time_order = 2
-    nrec = shape[0]
 
     solver = acoustic_setup(shape=shape, spacing=spacing, tn=tn,
                             space_order=space_order, kernel=kernel)
 
     grid = solver.model.grid
 
-    rec = Receiver(name='rec', grid=grid, time_range=solver.geometry.time_axis,
-                   npoint=nrec)
-    rec.coordinates.data[:, :] = solver.geometry.rec_positions
+    rec = solver.geometry.rec
 
     dt = solver.model.critical_dt
 
