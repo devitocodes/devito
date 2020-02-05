@@ -342,8 +342,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if all(options is None for i in options):
         options = None
 
-    # TODO: Figure out why yask doesn't like it with dse/dle
-    assign(lhs, rhs, options=options, name=name, dse='noop', dle='noop')
+    assign(lhs, rhs, options=options, name=name)
 
 
 # Reduction-inducing builtins
