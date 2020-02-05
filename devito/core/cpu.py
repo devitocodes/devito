@@ -6,8 +6,9 @@ from devito.ir.clusters import Toposort
 from devito.passes.clusters import (Blocking, Lift, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows, scalarize)
-from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, optimize_halospots,
-                               mpiize, loop_wrapping, hoist_prodders)
+from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
+                               optimize_halospots, loop_wrapping, hoist_prodders,
+                               relax_incr_dimensions)
 from devito.tools import as_tuple, generator, timed_pass
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
@@ -103,6 +104,9 @@ class CPU64Operator(CPU64NoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
+        # Lower IncrDimensions so that blocks of arbitrary shape may be used
+        relax_incr_dimensions(graph)
+
         # Shared-memory and SIMD-level parallelism
         ompizer = Ompizer()
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
@@ -112,7 +116,7 @@ class CPU64Operator(CPU64NoopOperator):
         # Misc optimizations
         hoist_prodders(graph)
 
-        # Symbol definitions
+        # Symbol lowering and definitions
         data_manager = DataManager()
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -141,9 +145,9 @@ class CustomOperator(CPU64Operator):
             'toposort': Toposort().process,
             'fuse': fuse,
             'blocking': Blocking(inner, levels).process,
-
             # Pre-baked composite passes
-            'topofuse': lambda i: fuse(Toposort().process(i))
+            'topofuse':\
+                lambda i: fuse(Toposort().process(i))
         }
 
 
@@ -158,6 +162,7 @@ class CustomOperator(CPU64Operator):
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
             'wrapping': loop_wrapping,
+            'blocking': relax_incr_dimensions,
             'openmp': ompizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
