@@ -497,8 +497,7 @@
     <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">options</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options</span><span class="p">):</span>
         <span class="n">options</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="c1"># TODO: Figure out why yask doesn&#39;t like it with dse/dle</span>
-    <span class="n">assign</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dse</span><span class="o">=</span><span class="s1">&#39;noop&#39;</span><span class="p">,</span> <span class="n">dle</span><span class="o">=</span><span class="s1">&#39;noop&#39;</span><span class="p">)</span></div>
+    <span class="n">assign</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span></div>
 
 
 <span class="c1"># Reduction-inducing builtins</span>
