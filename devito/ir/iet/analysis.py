@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
+from devito.ir.iet import (Iteration, HaloSpot, FindNodes, MapNodes, Transformer,
                            retrieve_iteration_tree)
 from devito.ir.support import OVERLAPPABLE, hoistable, useless, Scope
 from devito.tools import as_tuple
@@ -92,14 +92,15 @@ def mark_halospot_hoistable(analysis):
     Update ``analysis`` detecting the ``hoistable`` HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
-    for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(analysis.iet).items():
-        for hs in halo_spots:
+    for tree in analysis.trees:
+        scope = analysis.scopes[tree.root]
+
+        for hs in FindNodes(HaloSpot).visit(tree.root):
             if hs in properties:
                 # Already went through this HaloSpot
                 continue
 
             found = []
-            scope = analysis.scopes[i]
             for f, hse in hs.fmapper.items():
                 # The sufficient condition for `f`'s halo-update to be
                 # `hoistable` is that there are no `hs.dimensions`-induced
