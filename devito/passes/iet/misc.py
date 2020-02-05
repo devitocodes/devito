@@ -53,7 +53,7 @@ def hoist_prodders(iet):
         for prodder in FindNodes(Prodder).visit(tree.root):
             if prodder._periodic:
                 try:
-                    key = lambda i: i.dim.is_Incr
+                    key = lambda i: i.dim.is_Incr and i.dim.step != 1
                     candidate = filter_iterations(tree, key)[-1]
                 except IndexError:
                     # Fallback: use the outermost Iteration
