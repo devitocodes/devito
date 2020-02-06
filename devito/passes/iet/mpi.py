@@ -124,10 +124,11 @@ def _merge_halospots(iet):
             for f in hs.fmapper:
                 test = True
                 for dep in scope.d_flow.project(f):
-                    if not (dep.cause & set(hs.dimensions)):
-                        continue
-                    if all(not any(dep.read.touched_halo(c.root)) for c in dep.cause):
-                        continue
+                    if not dep.is_indep():
+                        if not (dep.cause & set(hs.dimensions)):
+                            continue
+                        if all(not any(dep.read.touched_halo(c.root)) for c in dep.cause):
+                            continue
                     test = False
                     break
                 if test:
