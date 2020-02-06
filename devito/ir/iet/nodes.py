@@ -939,20 +939,6 @@ class HaloSpot(Node):
         return self._properties
 
     @property
-    def hoistable(self):
-        for i in self.properties:
-            if i.name == 'hoistable':
-                return i.val
-        return ()
-
-    @property
-    def useless(self):
-        for i in self.properties:
-            if i.name == 'useless':
-                return i.val
-        return ()
-
-    @property
     def is_Overlappable(self):
         return OVERLAPPABLE in self.properties
 
