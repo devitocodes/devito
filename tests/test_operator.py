@@ -12,7 +12,7 @@ from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedLi
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
-from devito.symbolics import ListInitializer, freeze, indexify, retrieve_indexed
+from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset
 from devito.types import Array, Scalar
 
@@ -1507,9 +1507,9 @@ class TestLoopScheduling(object):
         assert len(outer) == 1 and len(middle) == 2 and len(inner) == 3
         assert outer[0] == middle[0] == inner[0]
         assert middle[1] == inner[1]
-        assert outer[-1].nodes[0].exprs[0].expr.rhs == freeze(indexify(eq0.rhs))
-        assert middle[-1].nodes[0].exprs[0].expr.rhs == freeze(indexify(eq1.rhs))
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == freeze(indexify(eq2.rhs))
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == indexify(eq0.rhs)
+        assert middle[-1].nodes[0].exprs[0].expr.rhs == indexify(eq1.rhs)
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == indexify(eq2.rhs)
 
     def test_equations_emulate_bc(self):
         """
@@ -1543,8 +1543,8 @@ class TestLoopScheduling(object):
         op = Operator([eq1, eq2], dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == freeze(eq1.rhs)
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == freeze(eq2.rhs)
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
 
     @pytest.mark.parametrize('exprs', [
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
@@ -1569,8 +1569,8 @@ class TestLoopScheduling(object):
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == freeze(eqs[0].rhs)
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == freeze(eqs[1].rhs)
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
 
     @pytest.mark.parametrize('shape', [(11, 11), (11, 11, 11)])
     def test_equations_mixed_functions(self, shape):

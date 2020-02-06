@@ -361,9 +361,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dle=('noop', {'openmp': True}))
         op1 = Operator(eqn, dle=('advanced', {'openmp': True}))
 
-        x0_blk_size = op1.parameters[5]
-        y0_blk_size = op1.parameters[8]
-        z_size = op1.parameters[-2]
+        x0_blk_size = op1.parameters[2]
+        y0_blk_size = op1.parameters[3]
+        z_size = op1.parameters[4]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -403,8 +403,8 @@ class TestAliases(object):
         op0 = Operator(eqn, dle=('noop', {'openmp': True}))
         op1 = Operator(eqn, dle=('advanced', {'openmp': True}))
 
-        y0_blk_size = op1.parameters[8]
-        z_size = op1.parameters[-2]
+        y0_blk_size = op1.parameters[2]
+        z_size = op1.parameters[3]
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array]
@@ -444,9 +444,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dle=('noop', {'openmp': True}))
         op1 = Operator(eqn, dle=('advanced', {'openmp': True}))
 
-        xi0_blk_size = op1.parameters[7]
-        yi0_blk_size = op1.parameters[12]
-        z_M, z_m, zi_ltkn, zi_rtkn = op1.parameters[-5:-1]
+        xi0_blk_size = op1.parameters[2]
+        yi0_blk_size = op1.parameters[3]
+        z_M, z_m, zi_ltkn, zi_rtkn = op1.parameters[4:8]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -612,9 +612,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
 
-        x0_blk_size = op1.parameters[5]
-        y0_blk_size = op1.parameters[8]
-        z_size = op1.parameters[-1]
+        x0_blk_size = op1.parameters[2]
+        y0_blk_size = op1.parameters[3]
+        z_size = op1.parameters[4]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -900,8 +900,9 @@ class TestTTI(object):
         assert len([i for i in arrays if i._mem_stack]) == 2
 
         # We expect exactly 6 scalar expressions to compute the stack-scoped Arrays
-        body = op._func_table['bf0'].root.body[-1].nodes[0].nodes[0]
-        exprs = FindNodes(Expression).visit(body)
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 2
+        exprs = FindNodes(Expression).visit(trees[0][2])
         assert len([i for i in exprs if i.is_scalar]) == 6
 
     @skipif(['nompi'])
@@ -917,7 +918,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 177), (16, 311)
+        (8, 177), (16, 313)
     ])
     def test_tti_rewrite_aggressive_opcounts(self, space_order, expected):
         op = self.tti_operator(dse='aggressive', space_order=space_order)
