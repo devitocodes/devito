@@ -75,11 +75,3 @@ def normalize_properties(*args):
         properties.update(p - drop)
 
     return properties
-
-
-class HaloSpotProperty(Tag):
-    pass
-
-
-OVERLAPPABLE = HaloSpotProperty('overlappable')
-"""The HaloSpot supports computation-communication overlap."""

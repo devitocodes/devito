@@ -12,8 +12,8 @@ import cgen as c
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
-                               WRAPPABLE, ROUNDABLE, AFFINE, TILABLE, OVERLAPPABLE,
-                               Property, Forward, detect_io)
+                               WRAPPABLE, ROUNDABLE, AFFINE, TILABLE, Property,
+                               Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
@@ -886,7 +886,7 @@ class HaloSpot(Node):
 
     _traversable = ['body']
 
-    def __init__(self, halo_scheme, body=None, properties=None):
+    def __init__(self, halo_scheme, body=None):
         super(HaloSpot, self).__init__()
         self._halo_scheme = halo_scheme
         if isinstance(body, Node):
@@ -897,14 +897,10 @@ class HaloSpot(Node):
             self._body = List()
         else:
             raise ValueError("`body` is expected to be a single Node")
-        self._properties = as_tuple(properties)
 
     def __repr__(self):
-        properties = ""
-        if self.properties:
-            properties = "[%s]" % ','.join(str(i) for i in self.properties)
         functions = "(%s)" % ",".join(i.name for i in self.functions)
-        return "<%s%s%s>" % (self.__class__.__name__, functions, properties)
+        return "<%s%s>" % (self.__class__.__name__, functions)
 
     @property
     def halo_scheme(self):
@@ -933,14 +929,6 @@ class HaloSpot(Node):
     @property
     def body(self):
         return self._body
-
-    @property
-    def properties(self):
-        return self._properties
-
-    @property
-    def is_Overlappable(self):
-        return OVERLAPPABLE in self.properties
 
     @property
     def functions(self):

@@ -228,8 +228,13 @@ def mpiize(iet, **kwargs):
     user_heb = HaloExchangeBuilder(mode, **generators)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
-        heb = user_heb if hs.is_Overlappable else sync_heb
+        # Not all HaloExchangeBuilders are guaranteed to work unless all of the
+        # inner Iterations are PARALLEL
+        iterations = FindNodes(Iteration).visit(hs)
+        heb = user_heb if all(i.is_Parallel for i in iterations) else sync_heb
+
         mapper[hs] = heb.make(hs)
+
     efuncs = sync_heb.efuncs + user_heb.efuncs
     objs = filter_sorted(sync_heb.objs + user_heb.objs)
     iet = Transformer(mapper, nested=True).visit(iet)
