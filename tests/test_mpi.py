@@ -794,6 +794,26 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op._func_table['bf1'].root)
         assert len(calls) == 0
 
+    @pytest.mark.parallel(mode=1)
+    def test_hoist_haloupdate_from_innerloop(self):
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=4)
+        g = Function(name='g', grid=grid, space_order=2)
+
+        eqns = [Eq(g, f.dzl + f.dzr + 1),
+                Eq(f, g)]
+
+        op = Operator(eqns, dle=('advanced', {'openmp': False}))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+        # Also make sure the Call is at the right place in the IET
+        assert op.body[-1].body[0].body[0].body[0].body[0].is_Call
+        assert op.body[-1].body[0].body[0].body[0].body[1].is_Iteration
+
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
