@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Iteration, HaloSpot, FindNodes, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import OVERLAPPABLE, hoistable, useless, Scope
+from devito.ir.support import OVERLAPPABLE, Scope
 from devito.tools import as_tuple
 
 __all__ = ['iet_analyze']
@@ -32,9 +32,7 @@ def propertizer(func):
 
 
 def iet_analyze(iet):
-    analysis = mark_halospot_useless(iet)
-    analysis = mark_halospot_hoistable(analysis)
-    analysis = mark_halospot_overlappable(analysis)
+    analysis = mark_halospot_overlappable(iet)
 
     # Decorate the Iteration/Expression tree with the found properties
     mapper = OrderedDict()
@@ -45,91 +43,6 @@ def iet_analyze(iet):
     processed = Transformer(mapper, nested=True).visit(iet)
 
     return processed
-
-
-@propertizer
-def mark_halospot_useless(analysis):
-    """
-    Update ``analysis`` detecting the ``useless`` HaloSpots within ``analysis.iet``.
-    """
-    properties = OrderedDict()
-
-    # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
-    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
-        if any(i.is_Sequential for i in iterations if i.dim.root in hs.dimensions):
-            properties[hs] = useless(hs.functions)
-            continue
-
-    # If a Function is never written to, or if all HaloSpot reads pertain to an increment
-    # expression, then the HaloSpot is useless
-    for tree in analysis.trees:
-        scope = analysis.scopes[tree.root]
-
-        for hs, v in MapNodes(HaloSpot).visit(tree.root).items():
-            if hs in properties:
-                continue
-
-            found = []
-            for f in hs.fmapper:
-                if not scope.writes.get(f):
-                    found.append(f)
-                    continue
-
-                if all(i.is_Expression for i in v):
-                    reads = Scope([i.expr for i in v]).reads.get(f, [])
-                    if all(r.is_increment for r in reads):
-                        found.append(f)
-
-            if found:
-                properties[hs] = useless(tuple(found))
-
-    analysis.update(properties)
-
-
-@propertizer
-def mark_halospot_hoistable(analysis):
-    """
-    Update ``analysis`` detecting the ``hoistable`` HaloSpots within ``analysis.iet``.
-    """
-    properties = OrderedDict()
-    for tree in analysis.trees:
-        scope = analysis.scopes[tree.root]
-
-        for hs in FindNodes(HaloSpot).visit(tree.root):
-            if hs in properties:
-                # Already went through this HaloSpot
-                continue
-
-            found = []
-            for f, hse in hs.fmapper.items():
-                # The sufficient condition for `f`'s halo-update to be
-                # `hoistable` is that there are no `hs.dimensions`-induced
-                # flow-dependences touching the halo
-                test = True
-                for dep in scope.d_flow.project(f):
-                    test = not (dep.cause & set(hs.dimensions))
-                    if test:
-                        continue
-
-                    test = dep.write.is_increment
-                    if test:
-                        continue
-
-                    test = all(not any(dep.read.touched_halo(c.root)) for c in dep.cause)
-                    if test:
-                        continue
-
-                    # `dep` is indeed a flow-dependence touching the halo of distributed
-                    # Dimension, so we must assume it's non-hoistable
-                    break
-
-                if test:
-                    found.append(f)
-
-            if found:
-                properties[hs] = hoistable(tuple(found))
-
-    analysis.update(properties)
 
 
 @propertizer
