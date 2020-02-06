@@ -12,8 +12,7 @@ from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize, freeze, guard
-from devito.ir.iet import (Callable, MetaCall, derive_parameters, iet_build,
-                           iet_analyze, iet_lower_dims)
+from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
 from devito.ir.stree import stree_build
 from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
@@ -386,7 +385,6 @@ class Operator(Callable):
         Iteration/Expression tree lowering:
 
             * Turn a ScheduleTree into an Iteration/Expression tree;
-            * Perform analysis to detect optimization opportunities;
             * Introduce distributed-memory, shared-memory, and SIMD parallelism;
             * Introduce optimizations for data locality;
             * Finalize (e.g., symbol definitions, array casts)
@@ -395,9 +393,6 @@ class Operator(Callable):
 
         # Build an IET from a ScheduleTree
         iet = iet_build(stree)
-
-        # Data dependence analysis to derive further computational properties
-        iet = iet_analyze(iet)
 
         # Instrument the IET for C-level profiling
         iet = profiler.instrument(iet)
