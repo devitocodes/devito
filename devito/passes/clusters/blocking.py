@@ -52,27 +52,8 @@ class Blocking(Queue):
 
         d = prefix[-1].dim
 
-        processed = []
-        for c in clusters:
-            if TILABLE not in c.properties[d]:
-                processed.append(c)
-            elif self.inner is False and (d is c.itintervals[-1].dim):
-                # By default, the innermost Dimension isn't tiled. This behaviour
-                # may have been overwritten by the user, in which case `self.inner`
-                # will be False
-                processed.append(c)
-            else:
-                processed.append(self._callback(c, d))
-                self.nblocked[d] += 1
-
-        return processed
-
-    def _callback(self, cluster, d):
-        # Actually apply blocking
-
-        name = self.template % (d.name, self.nblocked[d], '%d')
-
         # Create the block Dimensions (in total `self.levels` Dimensions)
+        name = self.template % (d.name, self.nblocked[d], '%d')
 
         bd = IncrDimension(d, d.symbolic_min, d.symbolic_max, name=name % 0)
         block_dims = [bd]
@@ -84,18 +65,28 @@ class Blocking(Queue):
         bd = IncrDimension(bd, bd, bd + bd.step - 1, 1, d.name)
         block_dims.append(bd)
 
-        # Exploit the newly created IncrDimensions in the new IterationSpace
-        ispace = decompose(cluster.ispace, d, block_dims)
+        processed = []
+        for c in clusters:
+            if TILABLE in c.properties[d]:
+                ispace = decompose(c.ispace, d, block_dims)
 
-        # Use the innermost BlockDimension in place of `d` within the expressions
-        exprs = [e.xreplace({d: bd}) for e in cluster.exprs]
+                # Use the innermost IncrDimension in place of `d`
+                exprs = [e.xreplace({d: bd}) for e in c.exprs]
 
-        # The new Cluster properties
-        properties = dict(cluster.properties)
-        properties.pop(d)
-        properties.update({bd: cluster.properties[d] - {TILABLE} for bd in block_dims})
+                # The new Cluster properties
+                properties = dict(c.properties)
+                properties.pop(d)
+                properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
 
-        return cluster.rebuild(exprs=exprs, ispace=ispace, properties=properties)
+                processed.append(c.rebuild(exprs=exprs, ispace=ispace,
+                                           properties=properties))
+            else:
+                processed.append(c)
+
+        # Make sure to use unique IncrDimensions
+        self.nblocked[d] += int(any(TILABLE in c.properties[d] for c in clusters))
+
+        return processed
 
 
 def decompose(ispace, d, block_dims):
