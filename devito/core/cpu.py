@@ -5,7 +5,7 @@ from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.passes.clusters import (Blocking, Lift, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
-                                    fuse, optimize_pows, scalarize)
+                                    freeze, fuse, optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
                                optimize_halospots, loop_wrapping, hoist_prodders,
                                relax_incr_dimensions)
@@ -81,6 +81,7 @@ class CPU64Operator(CPU64NoopOperator):
         clusters = factorize(clusters)
         clusters = cse(clusters, template)
         clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
 
         # The previous passes may have created fusion opportunities, which in
         # turn may enable further optimizations
