@@ -6,6 +6,7 @@ import click
 import os
 from devito import (clear_cache, configuration, info, warning, set_log_level,
                     switchconfig)
+from devito.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
 
@@ -49,10 +50,10 @@ def benchmark():
 
     \b
     There are three main 'execution modes':
-    run: a single run with given DSE/DLE levels
+    run: a single run with given optimization level
     run-jit-backdoor: a single run using the DEVITO_JIT_BACKDOOR to
                       experiment with manual customizations
-    bench: complete benchmark with multiple DSE/DLE levels
+    bench: complete benchmark with multiple optimization levels
     test: tests numerical correctness with different parameters
 
     Further, this script can generate a roofline plot from a benchmark
@@ -91,11 +92,8 @@ def option_performance(f):
 
     _preset = {
         # Fixed
-        'O1': {'dse': 'basic', 'dle': 'advanced'},
-        'O2': {'dse': 'advanced', 'dle': 'advanced'},
-        'O3': {'dse': 'aggressive', 'dle': 'advanced'},
-        # Parametric
-        'dse': {'dse': ['basic', 'advanced', 'aggressive'], 'dle': 'advanced'},
+        'O1': {'dle': 'noop'},
+        'O2': {'dle': 'advanced'},
     }
 
     def from_preset(ctx, param, value):
@@ -110,7 +108,10 @@ def option_performance(f):
     def config_blockshape(ctx, param, value):
         if value:
             # Block innermost loops if a full block shape is provided
-            configuration['dle-options']['blockinner'] = True
+            # Note: see https://github.com/devitocodes/devito/issues/320 for why
+            # we use blockinner=True only if the backend compiler is Intel
+            flag = isinstance(configuration['compiler'], IntelCompiler)
+            configuration['dle-options']['blockinner'] = flag
             # Normalize value:
             # 1. integers, not strings
             # 2. sanity check the (hierarchical) blocking shape
@@ -144,7 +145,10 @@ def option_performance(f):
                 # Make sure to always run in preemptive mode
                 configuration['autotuning'] = [value, 'preemptive']
                 # We apply blocking to all parallel loops, including the innermost ones
-                configuration['dle-options']['blockinner'] = True
+                # Note: see https://github.com/devitocodes/devito/issues/320 for why
+                # we use blockinner=True only if the backend compiler is Intel
+                flag = isinstance(configuration['compiler'], IntelCompiler)
+                configuration['dle-options']['blockinner'] = flag
                 level = value
         else:
             level = False
@@ -153,17 +157,14 @@ def option_performance(f):
     options = [
         click.option('-bm', '--bench-mode', is_eager=True,
                      callback=from_preset, expose_value=False, default='O2',
-                     type=click.Choice(['O1', 'O2', 'O3', 'dse']),
+                     type=click.Choice(['O1', 'O2']),
                      help='Choose what to benchmark; ignored if execmode=run'),
         click.option('--arch', default='unknown',
                      help='Architecture on which the simulation is/was run'),
-        click.option('--dse', callback=from_value,
-                     type=click.Choice(['noop'] + configuration._accepted['dse']),
-                     help='Devito symbolic engine (DSE) mode'),
         click.option('--dle', callback=from_value,
                      type=click.Choice([str(i) if type(i) is tuple else i
                                         for i in configuration._accepted['dle']]),
-                     help='Devito loop engine (DLE) mode'),
+                     help='Optimization level'),
         click.option('-bs', '--block-shape', callback=config_blockshape, multiple=True,
                      is_eager=True, help='Loop-blocking shape, bypass autotuning'),
         click.option('-a', '--autotune', default='aggressive', callback=config_autotuning,
@@ -270,7 +271,7 @@ def test(problem, **kwargs):
     Test numerical correctness with different parameters.
     """
     run = model_type[problem]['run']
-    sweep_options = ('space_order', 'time_order', 'dse', 'dle', 'autotune')
+    sweep_options = ('space_order', 'time_order', 'dle', 'autotune')
 
     last_res = None
     for params in sweep(kwargs, keys=sweep_options):
@@ -371,7 +372,7 @@ def plot(problem, **kwargs):
     time = bench.lookup(params=kwargs, measure="timings", event=section)
 
     # What plot am I?
-    modes = [i for i in ['dse', 'dle', 'autotune']
+    modes = [i for i in ['dle', 'autotune']
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
     # Filename
@@ -380,7 +381,7 @@ def plot(problem, **kwargs):
     )
 
     # Legend setup. Do not plot a legend if there's no variation in performance
-    # options (dse, dle, autotune)
+    # options (dle, autotune)
     if modes:
         legend = {'loc': 'upper left', 'fontsize': 7, 'ncol': 4}
     else:
@@ -447,7 +448,6 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['tn'] = params['tn']
             devito_params['so'] = params['space_order']
             devito_params['to'] = params['time_order']
-            devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
             devito_params['at'] = params['autotune']
 
