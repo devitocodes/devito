@@ -171,15 +171,13 @@ class CustomOperator(CPU64Operator):
         }
 
     @classmethod
-    def _compile(cls, expressions, **kwargs):
-        #TODO: before merging, update this to _build
-
+    def _build(cls, expressions, **kwargs):
         # Sanity check
         passes = as_tuple(kwargs['mode'])
         if any(i not in cls._known_passes for i in passes):
             raise InvalidOperator("Unknown passes `%s`" % str(passes))
 
-        return super(CustomOperator, cls)._compile(expressions, **kwargs)
+        return super(CustomOperator, cls)._build(expressions, **kwargs)
 
     @classmethod
     @timed_pass(name='specializing.Clusters')

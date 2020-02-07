@@ -11,7 +11,7 @@ from devito.compiler import compiler_registry
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
-from devito.ir.clusters import clusterize, guard
+from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
 from devito.ir.stree import stree_build
 from devito.operator.registry import operator_selector
@@ -321,7 +321,9 @@ class Operator(Callable):
         Clusters lowering:
 
             * Group expressions into Clusters;
-            * Introduce guards for conditional Clusters.
+            * Introduce guards for conditional Clusters;
+            * Analyze Clusters to detect computational properties such
+              as parallelism.
         """
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions)
@@ -331,14 +333,11 @@ class Operator(Callable):
 
         clusters = cls._specialize_clusters(clusters, **kwargs)
 
-        # Handle ConditionalDimensions
-        clusters = guard(clusters)
-
         # Operation count after specialization
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
         profiler.record_ops_variation(init_ops, final_ops)
 
-        return clusters
+        return ClusterGroup(clusters)
 
     # Compilation -- ScheduleTree level
 

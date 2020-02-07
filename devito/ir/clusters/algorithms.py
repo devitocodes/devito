@@ -10,7 +10,7 @@ from devito.ir.clusters.queue import Queue
 from devito.symbolics import CondEq
 from devito.tools import DAG, as_tuple, flatten, timed_pass
 
-__all__ = ['clusterize', 'guard', 'Toposort']
+__all__ = ['clusterize', 'Toposort']
 
 
 def clusterize(exprs):
@@ -26,7 +26,7 @@ def clusterize(exprs):
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
 
-    # Introduce conditional Clusters
+    # Handle ConditionalDimensions
     clusters = guard(clusters)
 
     # Determine relevant computational properties (e.g., parallelism)
