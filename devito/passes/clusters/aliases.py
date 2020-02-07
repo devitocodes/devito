@@ -108,11 +108,16 @@ def extract(cluster, template, mode):
     if mode in ['invariants', 'all']:
         rule = make_is_time_invariant(cluster.exprs)
         costmodel = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
+
         exprs, _ = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
 
     if mode in ['sops', 'all']:
-        rule = q_sum_of_product
+        # Rule out symbols inducing Dimension-independent data dependences
+        exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
+
+        rule = lambda e: q_sum_of_product(e) and not e.free_symbols & exclude
         costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
+
         exprs, _ = yreplace(cluster.exprs, make, rule, costmodel)
 
     return exprs
