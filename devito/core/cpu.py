@@ -133,7 +133,7 @@ ArmOperator = CPU64Operator
 class CustomOperator(CPU64Operator):
 
     _known_passes = ('blocking', 'denormals', 'optcomms', 'wrapping', 'openmp',
-                     'mpi', 'simd', 'prodders')
+                     'mpi', 'simd', 'prodders', 'topofuse', 'toposort', 'fuse')
 
     @classmethod
     def _make_clusters_passes_mapper(cls, **kwargs):
@@ -176,7 +176,7 @@ class CustomOperator(CPU64Operator):
 
         # Sanity check
         passes = as_tuple(kwargs['mode'])
-        if set(passes) > set(cls._known_passes):
+        if any(i not in cls._known_passes for i in passes):
             raise InvalidOperator("Unknown passes `%s`" % str(passes))
 
         return super(CustomOperator, cls)._compile(expressions, **kwargs)
