@@ -161,6 +161,36 @@ def test_cache_blocking_structure_subdims():
     assert not tree[4].dim.is_Incr and tree[4].dim is zi and tree[4].dim.parent is z
 
 
+@pytest.mark.parallel(mode=[(1, 'full')])  # Shortcut to put loops in nested efuncs
+def test_cache_blocking_structure_multiple_efuncs():
+    """
+    Test cache blocking in multiple nested elemental functions.
+    """
+    grid = Grid(shape=(4, 4, 4))
+    x, y, z = grid.dimensions
+
+    u = TimeFunction(name="u", grid=grid, space_order=2)
+    U = TimeFunction(name="U", grid=grid, space_order=2)
+    src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1,
+                             coordinates=np.array([(0.5, 0.5, 0.5)]))
+
+    eqns = [Eq(u.forward, u.dx)]
+    eqns += src.inject(field=u.forward, expr=src)
+    eqns += [Eq(U.forward, U.dx + u.forward)]
+
+    op = Operator(eqns)
+
+    for i in ['bf0', 'bf1']:
+        assert i in op._func_table
+        iters = FindNodes(Iteration).visit(op._func_table[i].root)
+        assert len(iters) == 5
+        assert iters[0].dim.parent is x
+        assert iters[1].dim.parent is y
+        assert iters[4].dim is z
+        assert iters[2].dim.parent is iters[0].dim
+        assert iters[3].dim.parent is iters[1].dim
+
+
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
 @pytest.mark.parametrize("blockshape", [2, (3, 3), (9, 20), (2, 9, 11), (7, 15, 23)])

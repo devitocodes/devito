@@ -918,16 +918,16 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 177), (16, 313)
+        (8, 180), (16, 318)
     ])
     def test_tti_rewrite_aggressive_opcounts(self, space_order, expected):
-        op = self.tti_operator(dse='aggressive', space_order=space_order)
+        op = self.tti_operator(space_order=space_order)
         sections = list(op.op_fwd(kernel='centered')._profiler._sections.values())
         assert sections[1].sops == expected
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 206), (12, 398)
+        (4, 198), (12, 390)
     ])
     def test_tti_v2_rewrite_aggressive_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
@@ -964,7 +964,7 @@ class TestTTI(object):
 
         eqns = [Eq(u.forward, (2*u - u.backward) + s**2/m * (e * H2u + H1v)),
                 Eq(v.forward, (2*v - v.backward) + s**2/m * (d * H2v + H1v))]
-        op = Operator(eqns, dse='aggressive')
+        op = Operator(eqns)
 
         sections = list(op._profiler._sections.values())
         assert len(sections) == 2
