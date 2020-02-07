@@ -244,11 +244,12 @@ def test_cache_blocking_hierarchical(blockshape0, blockshape1, exception):
         assert False
 
 
-def test_cache_blocking_unsupported():
+@pytest.mark.parametrize("blockinner", [True, False])
+def test_cache_blocking_imperfect_nest(blockinner):
     """
-    Test that a non-perfect Iteration nest is not blocked.
+    Test that a non-perfect Iteration nest is blocked correctly.
     """
-    grid = Grid(shape=(4, 4, 4))
+    grid = Grid(shape=(4, 4, 4), dtype=np.float64)
 
     u = TimeFunction(name='u', grid=grid, space_order=2)
     v = TimeFunction(name='v', grid=grid, space_order=2)
@@ -256,12 +257,33 @@ def test_cache_blocking_unsupported():
     eqns = [Eq(u.forward, v.laplace),
             Eq(v.forward, u.forward.dz)]
 
-    op = Operator(eqns)
+    op0 = Operator(eqns, dle='noop')
+    op1 = Operator(eqns, dle=('advanced', {'blockinner': blockinner}))
 
-    assert not op._func_table
-
-    trees = retrieve_iteration_tree(op)
+    # First, check the generated code
+    trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
     assert len(trees) == 2
+    assert len(trees[0]) == len(trees[1])
+    assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4]))
+    assert trees[0][4] is not trees[1][4]
+    assert trees[0].root.dim.is_Incr
+    assert trees[1].root.dim.is_Incr
+    assert op1.parameters[8] is trees[0][0].step
+    assert op1.parameters[11] is trees[0][1].step
+
+    u.data[:] = 0.2
+    v.data[:] = 1.5
+    op0(time_M=0)
+
+    u1 = TimeFunction(name='u1', grid=grid, space_order=2)
+    v1 = TimeFunction(name='v1', grid=grid, space_order=2)
+
+    u1.data[:] = 0.2
+    v1.data[:] = 1.5
+    op1(u=u1, v=v1, time_M=0)
+
+    assert np.all(u.data == u1.data)
+    assert np.all(v.data == v1.data)
 
 
 class TestNodeParallelism(object):
