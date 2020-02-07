@@ -261,7 +261,7 @@ class Operator(Callable):
     @classmethod
     def _apply_substitutions(cls, expressions, subs):
         """
-        Transform ``expressions`` by: ::
+        Transform ``expressions`` by:
 
             * Applying any user-provided symbolic substitution;
             * Replacing Dimensions with SubDimensions based on expression SubDomains.
@@ -771,10 +771,7 @@ class Operator(Callable):
                 perf("%s* %s%s computed in %.2f s"
                      % (indent, name, rank, fround(v.time)))
 
-        # Emit relevant configuration values
-        perf("Configuration:  %s" % self._state['optimizations'])
-
-        # Emit relevant performance arguments
+        # Emit performance mode and arguments
         perf_args = {}
         for i in self.input + self.dimensions:
             if not i.is_PerfKnob:
@@ -787,7 +784,8 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
-        perf("Performance arguments:  %s" % perf_args)
+        perf("Performance[mode=%s] arguments: %s" % (self._state['optimizations'],
+                                                     perf_args))
 
         return summary
 
