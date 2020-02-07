@@ -1043,156 +1043,122 @@ class TestArguments(object):
 @skipif('device')
 class TestDeclarator(object):
 
-    def test_heap_1D_stencil(self):
+    def test_heap_1D(self):
         i, j = dimensions('i j')
+
         a = Array(name='a', dimensions=(i,))
         b = Array(name='b', dimensions=(i,))
         f = Function(name='f', shape=(3,), dimensions=(j,))
-        operator = Operator([Eq(a[i], a[i] + b[i] + 5.), Eq(f[j], a[j])], dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    a[i] = a[i] + b[i] + 5.0F;
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert "free(a);" in str(operator)
 
-    def test_heap_perfect_2D_stencil(self):
+        op = Operator([Eq(a[i], a[i] + b[i] + 5.),
+                       Eq(f[j], a[j])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
+                                   '((aligned (64))) = (float (*)) f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+
+    def test_heap_perfect_2D(self):
         i, j, k = dimensions('i j k')
+
         a = Array(name='a', dimensions=(i,))
         c = Array(name='c', dimensions=(i, j))
         f = Function(name='f', shape=(3, 3), dimensions=(j, k))
-        operator = Operator([Eq(a[i], c[i, j]),
-                             Eq(c[i, j], c[i, j]*a[i]),
-                             Eq(f[j, k], a[j] + c[j, k])],
-                            dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float (*c)[j_size];
-  posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    for (int j = j_m; j <= j_M; j += 1)
-    {
-      a[i] = c[i][j];
-      c[i][j] = a[i]*c[i][j];
-    }
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert """\
-  free(a);
-  free(c);
-  return 0;""" in str(operator)
 
-    def test_heap_imperfect_2D_stencil(self):
+        op = Operator([Eq(a[i], c[i, j]),
+                       Eq(c[i, j], c[i, j]*a[i]),
+                       Eq(f[j, k], a[j] + c[j, k])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
+                                   'f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
+        assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
+                                             'sizeof(float[i_size][j_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[1]) == 'free(c);'
+
+    def test_heap_imperfect_2D(self):
         i, j, k = dimensions('i j k')
+
         a = Array(name='a', dimensions=(i,))
         c = Array(name='c', dimensions=(i, j))
         f = Function(name='f', shape=(3, 3), dimensions=(j, k))
-        operator = Operator([Eq(a[i], 0),
-                             Eq(c[i, j], c[i, j]*a[i]),
-                             Eq(f[j, k], a[j] + c[j, k])],
-                            dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float (*c)[j_size];
-  posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    a[i] = 0;
-    for (int j = j_m; j <= j_M; j += 1)
-    {
-      c[i][j] = a[i]*c[i][j];
-    }
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert """\
-  free(a);
-  free(c);
-  return 0;""" in str(operator)
 
-    def test_stack_scalar_temporaries(self):
+        op = Operator([Eq(a[i], 0),
+                       Eq(c[i, j], c[i, j]*a[i]),
+                       Eq(f[j, k], a[j] + c[j, k])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
+                                   'f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
+        assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
+                                             'sizeof(float[i_size][j_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[1]) == 'free(c);'
+
+    def test_stack_scalars(self):
         i, j = dimensions('i j')
+
         a = Array(name='a', dimensions=(i,))
         f = Function(name='f', shape=(3,), dimensions=(j,))
         t0 = Scalar(name='t0')
         t1 = Scalar(name='t1')
-        operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a[i], t0*t1*3.), Eq(f, a[j])],
-                            dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float t0 = 1.00000000000000F;
-  float t1 = 2.00000000000000F;
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    a[i] = 3.0F*t0*t1;
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert """\
-  free(a);
-  return 0;""" in str(operator)
 
-    def test_stack_vector_temporaries(self):
+        op = Operator([Eq(t0, 1.),
+                       Eq(t1, 2.),
+                       Eq(a[i], t0*t1*3.),
+                       Eq(f, a[j])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
+                                   '((aligned (64))) = (float (*)) f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+
+        assert op.body[1].body[1].body[0].is_ExpressionBundle
+        assert str(op.body[1].body[1].body[0].body[0]) == 'float t0 = 1.00000000000000F;'
+        assert str(op.body[1].body[1].body[0].body[1]) == 'float t1 = 2.00000000000000F;'
+
+    def test_stack_arrays(self):
         i, j, k, s, q = dimensions('i j k s q')
+
         c = Array(name='c', dimensions=(i, j), scope='stack')
         e = Array(name='e', dimensions=(k, s, q, i, j))
         f = Function(name='f', shape=(3, 3), dimensions=(s, q))
-        operator = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.), Eq(f, c[s, q])],
-                            dle=None)
-        assert """\
-  float c[i_size][j_size] __attribute__((aligned(64)));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int k = k_m; k <= k_M; k += 1)
-  {
-    for (int s = s_m; s <= s_M; s += 1)
-    {
-      for (int q = q_m; q <= q_M; q += 1)
-      {
-        for (int i = i_m; i <= i_M; i += 1)
-        {
-          for (int j = j_m; j <= j_M; j += 1)
-          {
-            c[i][j] = 1.0F*e[k][s][q][i][j];
-          }
-        }
-      }
-    }
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+
+        op = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.),
+                       Eq(f, c[s, q])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
+                                   'f_vec->data;')
+
+        assert op.body[1].is_Element
+        assert str(op.body[1]) == 'float c[i_size][j_size] __attribute__((aligned(64)));'
 
     def test_conditional_declarations(self):
         x = Dimension(name="x")
