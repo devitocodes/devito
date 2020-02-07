@@ -42,7 +42,6 @@ def test_bench(mode, problem):
     t = 'tn[%d]' % tn
     so = 'so[2]'
     to = 'to[2]'
-    dse = 'dse[advanced]'
     dle = 'dle[advanced]'
     at = 'at[aggressive]'
     nt = 'nt[%d]' % nthreads
@@ -51,7 +50,7 @@ def test_bench(mode, problem):
     rank = 'rank[0]'
 
     bench_corename = os.path.join('_'.join([base_filename, arch, shape, nbl, t,
-                                  so, to, dse, dle, at, nt, mpi, np, rank]))
+                                  so, to, dle, at, nt, mpi, np, rank]))
 
     bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
     assert os.path.isfile(bench_filename)
