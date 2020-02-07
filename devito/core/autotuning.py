@@ -10,7 +10,7 @@ from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
 from devito.symbolics import evaluate
-from devito.tools import filter_ordered, flatten, prod
+from devito.tools import filter_ordered, flatten, is_integer, prod
 
 __all__ = ['autotune']
 
@@ -87,7 +87,7 @@ def autotune(operator, args, level, mode):
     # Perform autotuning
     timings = {}
     for n, tree in enumerate(trees):
-        blockable = [i.dim for i in tree if i.dim.is_Incr]
+        blockable = [i.dim for i in tree if not is_integer(i.step)]
 
         # Tunable arguments
         try:
