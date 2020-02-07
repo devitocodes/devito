@@ -3,12 +3,12 @@ from itertools import groupby
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
 from devito.passes.clusters.utils import dse_pass
-from devito.symbolics import pow_to_mul, xreplace_indices
+from devito.symbolics import pow_to_mul, xreplace_indices, freeze as _freeze
 from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
 __all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows',
-           'extract_increments']
+           'extract_increments', 'freeze']
 
 
 class Lift(Queue):
@@ -216,3 +216,12 @@ def extract_increments(cluster, template, *args):
             processed.append(e)
 
     return cluster.rebuild(processed)
+
+
+@dse_pass(mode='all')
+def freeze(cluster):
+    """
+    Prevent future symbolic manipulations (e.g., xreplace, subs, ...) from
+    altering the arithmetic structure of the expressions.
+    """
+    return cluster.rebuild([_freeze(e) for e in cluster.exprs])
