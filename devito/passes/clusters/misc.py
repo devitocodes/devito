@@ -188,7 +188,7 @@ def eliminate_arrays(clusters, template):
     return processed
 
 
-@dse_pass
+@dse_pass(mode='all')
 def optimize_pows(cluster, *args):
     """
     Convert integer powers into Muls, such as ``a**2 => a*a``.
