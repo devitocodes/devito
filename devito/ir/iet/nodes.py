@@ -44,6 +44,7 @@ class Node(Signer):
     is_ElementalFunction = False
     is_Call = False
     is_List = False
+    is_ArrayCast = False
     is_Element = False
     is_Section = False
     is_HaloSpot = False
@@ -707,6 +708,8 @@ class ArrayCast(Node):
     """
     A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
     """
+
+    is_ArrayCast = True
 
     def __init__(self, function):
         self.function = function
