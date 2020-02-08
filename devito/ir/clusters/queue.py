@@ -22,6 +22,16 @@ class Queue(object):
     def process(self, elements):
         return self._process_fdta(elements, 1)
 
+    def _make_key(self, element, level):
+        itintervals = element.itintervals[:level]
+
+        subkey = self._make_key_hook(element, level)
+
+        return (itintervals,) + subkey
+
+    def _make_key_hook(self, element, level):
+        return ()
+
     def _process_fdta(self, elements, level, prefix=None):
         """
         fdta -> First Divide Then Apply
@@ -30,7 +40,8 @@ class Queue(object):
 
         # Divide part
         processed = []
-        for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
+        for k, g in groupby(elements, key=lambda i: self._make_key(i, level)):
+            pfx = k[0]
             if level > len(pfx):
                 # Base case
                 processed.extend(list(g))
@@ -49,7 +60,8 @@ class Queue(object):
         """
         # Divide part
         processed = []
-        for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
+        for k, g in groupby(elements, key=lambda i: self._make_key(i, level)):
+            pfx = k[0]
             if level > len(pfx):
                 # Base case
                 processed.extend(list(g))
