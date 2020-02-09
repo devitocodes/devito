@@ -49,6 +49,18 @@ class Blocking(Queue):
 
         return processed
 
+    def _process_fdta(self, clusters, level, prefix=None):
+        # Truncate recursion in case of TILABLE, non-perfect sub-nests, as
+        # it's an unsupported case
+        if prefix:
+            d = prefix[-1].dim
+            test0 = any(TILABLE in c.properties[d] for c in clusters)
+            test1 = len({c.itintervals[:level] for c in clusters}) > 1
+            if test0 and test1:
+                return self.callback(clusters, prefix)
+
+        return super(Blocking, self)._process_fdta(clusters, level, prefix)
+
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
