@@ -32,7 +32,7 @@ WRAPPABLE = Property('wrappable')
 """
 A modulo-N Dimension (i.e., cycling over i, i+1, i+2, ..., i+N-1) that could
 safely be turned into a modulo-K Dimension, with K < N. For example:
-u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...]).
+u[t+1, ...] = f(u[t, ...]) + u[t-1, ...] --> u[t+1, ...] = f(u[t, ...]) + u[t+1, ...].
 """
 
 ROUNDABLE = Property('roundable')
@@ -47,6 +47,17 @@ A Dimension used to index into tensor objects only through affine and regular
 accesses functions. See :mod:`basic.py` for rigorous definitions of "affine"
 and "regular".
 """
+
+
+def normalize_properties(properties):
+    properties = set(properties)
+
+    if SEQUENTIAL in properties:
+        properties -= {PARALLEL, PARALLEL_IF_ATOMIC}
+    elif PARALLEL_IF_ATOMIC in properties:
+        properties -= {PARALLEL}
+
+    return properties
 
 
 class HaloSpotProperty(Tag):

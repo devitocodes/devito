@@ -9,8 +9,8 @@ from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
+from devito.passes import BlockDimension
 from devito.symbolics import evaluate
-from devito.targets import BlockDimension
 from devito.tools import filter_ordered, flatten, prod
 
 __all__ = ['autotune']
@@ -122,7 +122,7 @@ def autotune(operator, args, level, mode):
                 if int(evaluate(stack_footprint, **at_args)) > options['stack_limit']:
                     continue
             except TypeError:
-                warning("couldn't determine stack size; skipping run %s" % str(i))
+                warning("could not determine stack size; skipping run %s" % str(i))
                 continue
             except AttributeError:
                 assert stack_footprint == 0
@@ -156,7 +156,7 @@ def autotune(operator, args, level, mode):
         best.pop(None, None)
         log("selected <%s>" % (','.join('%s=%s' % i for i in best.items())))
     except ValueError:
-        warning("couldn't perform any runs")
+        warning("could not perform any runs")
         return args, {}
 
     # Update the argument list with the tuned arguments
@@ -348,20 +348,22 @@ def generate_nthreads(nthreads, args, level):
         # 1) num_threads == num_physical_cores
         # 2) num_threads == num_logical_cores
         platform = configuration['platform']
+        name = nthreads.name
         if platform in (KNL, KNL7210):
-            ret.extend([((nthreads.name, platform.cores_physical),),
-                        ((nthreads.name, platform.cores_physical * 2),),
-                        ((nthreads.name, platform.cores_logical),)])
+            cases = filter_ordered([platform.cores_physical,
+                                    platform.cores_physical * 2,
+                                    platform.cores_logical])
         else:
-            ret.extend([((nthreads.name, platform.cores_physical),),
-                        ((nthreads.name, platform.cores_logical),)])
+            cases = filter_ordered([platform.cores_physical,
+                                    platform.cores_logical])
+        ret.extend([((name, nthread),) for nthread in cases])
 
         if basic not in ret:
             warning("skipping `%s`; perhaps you've set OMP_NUM_THREADS to a "
                     "non-standard value while attempting autotuning in "
                     "`max` mode?" % dict(basic))
 
-    return filter_ordered(ret)
+    return ret
 
 
 options = {

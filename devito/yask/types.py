@@ -20,7 +20,7 @@ from devito.yask.utils import namespace
 from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'Grid', 'CacheManager',
-           'YaskVarObject', 'YaskSolnObject']
+           'YASKVarObject', 'YASKSolnObject']
 
 
 class Constant(constant.Constant):
@@ -127,6 +127,11 @@ class Function(dense.Function, Signer):
             # while this is a no-op for all other objects derived from it (e.g.,
             # (e.g., f(x+1, y), f(x, y-2))
             self._data.release_storage()
+
+    @cached_property
+    def _honors_autopadding(self):
+        # We don't know whether this holds or not, so we act conservatively
+        return False
 
     @property
     @_allocate_memory
@@ -245,7 +250,7 @@ class TimeFunction(dense.TimeFunction, Function):
             super(TimeFunction, self)._arg_check(args, intervals)
 
 
-class YaskTimeDimension(dimension.TimeDimension):
+class YASKTimeDimension(dimension.TimeDimension):
 
     """
     A TimeDimension that acts like and can be used in place of SteppingDimension.
@@ -263,7 +268,7 @@ class Grid(grid.Grid):
     def __init__(self, *args, **kwargs):
         super(Grid, self).__init__(*args, **kwargs)
 
-        # Initialize a new YaskContext for this Grid
+        # Initialize a new YASKContext for this Grid
         contexts.putdefault(self)
 
     @property
@@ -276,7 +281,7 @@ class Grid(grid.Grid):
         return time_dim
 
     def _make_time_dim(self, spacing):
-        return YaskTimeDimension(name='time', spacing=spacing)
+        return YASKTimeDimension(name='time', spacing=spacing)
 
     def __setstate__(self, state):
         super(Grid, self).__setstate__(state)
@@ -285,13 +290,13 @@ class Grid(grid.Grid):
 
 
 basic.Basic.from_YASK = False
-basic.Basic.is_YaskVarObject = False
+basic.Basic.is_VarObject = False
 basic.Array.from_YASK = True
 
 
-class YaskVarObject(basic.Object):
+class YASKVarObject(basic.Object):
 
-    is_YaskVarObject = True
+    is_VarObject = True
 
     dtype = namespace['type-var']
     value = None
@@ -309,7 +314,7 @@ class YaskVarObject(basic.Object):
     _pickle_kwargs = []
 
 
-class YaskSolnObject(basic.Object):
+class YASKSolnObject(basic.Object):
 
     dtype = namespace['type-solution']
     value = None

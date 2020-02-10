@@ -5,10 +5,9 @@ from pyrevolve import Revolver
 import numpy as np
 
 from conftest import skipif
-from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig
+from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
-from examples.seismic import Receiver
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -122,16 +121,13 @@ def test_forward_with_breaks(shape, kernel, space_order):
     spacing = tuple([15.0 for _ in shape])
     tn = 500.
     time_order = 2
-    nrec = shape[0]
 
     solver = acoustic_setup(shape=shape, spacing=spacing, tn=tn,
                             space_order=space_order, kernel=kernel)
 
     grid = solver.model.grid
 
-    rec = Receiver(name='rec', grid=grid, time_range=solver.geometry.time_axis,
-                   npoint=nrec)
-    rec.coordinates.data[:, :] = solver.geometry.rec_positions
+    rec = solver.geometry.rec
 
     dt = solver.model.critical_dt
 
@@ -155,8 +151,8 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     """ Run the acoustic example with and without save=True. Make sure the result is the
     same
     """
-    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
-                            space_order=space_order, time_order=time_order)
+    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, dtype=np.float64,
+                            space_order=space_order, time_order=time_order, tn=tn)
     rec, u, summary = solver.forward(save=True)
     last_time_step = solver.geometry.nt-1
     field_last_time_step = np.copy(u.data[last_time_step, :, :])
@@ -167,7 +163,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
-def test_index_alignment(const):
+def test_index_alignment():
     """ A much simpler test meant to ensure that the forward and reverse indices are
     correctly aligned (i.e. u * v , where u is the forward field and v the reverse field
     corresponds to the correct timesteps in u and v). The forward operator does u = u + 1
@@ -184,6 +180,7 @@ def test_index_alignment(const):
     and hence grad = 0*0 + 1*1 + 2*2 + 3*3 = sum(n^2) where n -> [0, nt]
     If the test fails, the resulting number can tell you how the fields are misaligned
     """
+    const = Constant(name="constant")
     n = 4
     grid = Grid(shape=(2, 2))
     order_of_eqn = 1

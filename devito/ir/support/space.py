@@ -294,16 +294,30 @@ class IntervalGroup(PartialOrderTuple):
             # Cyclic dependence detected, there is no common partial ordering
             return False
 
+    def _normalize(func):
+        """
+        A simple decorator to normalize the input of operator methods that
+        expect an IntervalGroup as an operand.
+        """
+        def wrapper(self, o):
+            if not isinstance(o, IntervalGroup):
+                o = IntervalGroup(as_tuple(o))
+            return func(self, o)
+        return wrapper
+
+    @_normalize
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
         return IntervalGroup(intervals, relations=(self.relations | o.relations))
 
+    @_normalize
     def add(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.add(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
         return IntervalGroup(intervals, relations=(self.relations | o.relations))
 
+    @_normalize
     def subtract(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
@@ -594,6 +608,10 @@ class IterationSpace(Space):
                 ret = sub_iterators.setdefault(k, [])
                 ret.extend([d for d in v if d not in ret])
         return IterationSpace(intervals, sub_iterators, directions)
+
+    def add(self, other):
+        return IterationSpace(self.intervals.add(other), self.sub_iterators,
+                              self.directions)
 
     def reset(self):
         return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)

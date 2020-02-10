@@ -342,8 +342,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if all(options is None for i in options):
         options = None
 
-    # TODO: Figure out why yask doesn't like it with dse/dle
-    assign(lhs, rhs, options=options, name=name, dse='noop', dle='noop')
+    assign(lhs, rhs, options=options, name=name)
 
 
 # Reduction-inducing builtins
@@ -500,6 +499,9 @@ def mmin(f):
     if isinstance(f, dv.Constant):
         return f.data
     elif isinstance(f, dv.Function):
+        # yask doesn't have data_ro_domain
+        if dv.configuration['backend'] == 'yask':
+            return np.min(f.data[:])
         with MPIReduction(f, op=dv.mpi.MPI.MIN) as mr:
             mr.n.data[0] = np.min(f.data_ro_domain).item()
         return mr.v.item()
@@ -519,6 +521,9 @@ def mmax(f):
     if isinstance(f, dv.Constant):
         return f.data
     elif isinstance(f, dv.Function):
+        # yask doesn't have data_ro_domain
+        if dv.configuration['backend'] == 'yask':
+            return np.max(f.data[:])
         with MPIReduction(f, op=dv.mpi.MPI.MAX) as mr:
             mr.n.data[0] = np.max(f.data_ro_domain).item()
         return mr.v.item()

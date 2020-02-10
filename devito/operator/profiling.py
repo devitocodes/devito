@@ -22,17 +22,25 @@ from devito.types import CompositeObject
 __all__ = ['Timer', 'create_profile']
 
 
+SectionData = namedtuple('SectionData', 'ops sops points traffic itermaps')
+PerfKey = namedtuple('PerfKey', 'name rank')
+PerfInput = namedtuple('PerfInput', 'time ops points traffic sops itershapes')
+PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
+
+
 class Profiler(object):
 
     _default_includes = []
     _default_libs = []
     _ext_calls = []
 
-    SectionData = namedtuple('SectionData', 'ops sops points traffic itermaps')
     """Metadata for a profiled code section."""
 
     def __init__(self, name):
         self.name = name
+
+        # Operation reductions observed in sections
+        self._ops = []
 
         # C-level code sections
         self._sections = OrderedDict()
@@ -82,8 +90,7 @@ class Profiler(object):
                 points.append(reduce(mul, i.shape)*len(writes))
             points = sum(points)
 
-            self._sections[section] = self.SectionData(ops, sops, points,
-                                                       traffic, itermaps)
+            self._sections[section] = SectionData(ops, sops, points, traffic, itermaps)
 
         # Transform the Iteration/Expression tree introducing the C-level timers
         mapper = {i: TimedList(timer=self.timer, lname=i.name, body=i) for i in sections}
@@ -115,6 +122,13 @@ class Profiler(object):
             yield
             toc = seq_time()
         self.py_timers[name] = toc - tic
+
+    def record_ops_variation(self, initial, final):
+        """
+        Record the variation in operation count experienced by a section due to
+        a flop-reducing transformation.
+        """
+        self._ops.append((initial, final))
 
     def summary(self, args, dtype, reduce_over=None):
         """
@@ -281,10 +295,6 @@ class Timer(CompositeObject):
 
 class PerformanceSummary(OrderedDict):
 
-    PerfKey = namedtuple('PerfKey', 'name rank')
-    PerfInput = namedtuple('PerfInput', 'time ops points traffic sops itershapes')
-    PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
-
     def __init__(self, *args, **kwargs):
         super(PerformanceSummary, self).__init__(*args, **kwargs)
         self.input = OrderedDict()
@@ -300,10 +310,10 @@ class PerformanceSummary(OrderedDict):
         if ops == 0 or traffic == 0:
             return
 
-        k = self.PerfKey(name, rank)
+        k = PerfKey(name, rank)
 
         if ops is None:
-            self[k] = self.PerfEntry(time, 0.0, 0.0, 0.0, 0, [])
+            self[k] = PerfEntry(time, 0.0, 0.0, 0.0, 0, [])
         else:
             gflops = float(ops)/10**9
             gpoints = float(points)/10**9
@@ -311,9 +321,9 @@ class PerformanceSummary(OrderedDict):
             gpointss = gpoints/time
             oi = float(ops/traffic)
 
-            self[k] = self.PerfEntry(time, gflopss, gpointss, oi, sops, itershapes)
+            self[k] = PerfEntry(time, gflopss, gpointss, oi, sops, itershapes)
 
-        self.input[k] = self.PerfInput(time, ops, points, traffic, sops, itershapes)
+        self.input[k] = PerfInput(time, ops, points, traffic, sops, itershapes)
 
     def add_glb_vanilla(self, time):
         """
@@ -338,7 +348,7 @@ class PerformanceSummary(OrderedDict):
         gpointss = gpoints/time
         oi = float(ops/traffic)
 
-        self.globals['vanilla'] = self.PerfEntry(time, gflopss, gpointss, oi, None, None)
+        self.globals['vanilla'] = PerfEntry(time, gflopss, gpointss, oi, None, None)
 
     def add_glb_fdlike(self, points, time):
         """
@@ -355,7 +365,7 @@ class PerformanceSummary(OrderedDict):
         gpoints = float(points)/10**9
         gpointss = gpoints/time
 
-        self.globals['fdlike'] = self.PerfEntry(time, None, gpointss, None, None, None)
+        self.globals['fdlike'] = PerfEntry(time, None, gpointss, None, None, None)
 
     @property
     def gflopss(self):

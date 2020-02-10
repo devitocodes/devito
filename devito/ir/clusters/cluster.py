@@ -5,7 +5,8 @@ from cached_property import cached_property
 from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import IterationSpace, DataSpace, Scope, detect_io
+from devito.ir.support import (IterationSpace, DataSpace, Scope, detect_io,
+                               normalize_properties)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten
 
@@ -55,13 +56,22 @@ class Cluster(object):
         if not all(root.ispace.is_compatible(c.ispace) for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "incompatible IterationSpace")
-        if not all(root.properties == c.properties for c in clusters):
+        if not all(root.guards == c.guards for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
-                             "non-homogeneous properties")
+                             "non-homogeneous guards")
+
         exprs = chain(*[c.exprs for c in clusters])
         ispace = IterationSpace.union(*[c.ispace for c in clusters])
         dspace = DataSpace.union(*[c.dspace for c in clusters])
-        return Cluster(exprs, ispace, dspace, properties=root.properties)
+
+        guards = root.guards
+
+        properties = {}
+        for c in clusters:
+            for d, v in c.properties.items():
+                properties[d] = normalize_properties(properties.get(d, v) | v)
+
+        return Cluster(exprs, ispace, dspace, guards, properties)
 
     def rebuild(self, *args, **kwargs):
         """
@@ -133,6 +143,10 @@ class Cluster(object):
         return any(e.is_Increment for e in self.exprs)
 
     @cached_property
+    def is_scalar(self):
+        return not any(f.is_Function for f in self.scope.writes)
+
+    @cached_property
     def is_dense(self):
         """
         True if the Cluster unconditionally writes into DiscreteFunctions
@@ -140,7 +154,7 @@ class Cluster(object):
         """
         return (not any(e.conditionals for e in self.exprs) and
                 not any(f.is_SparseFunction for f in self.functions) and
-                any(f.is_Function for f in self.scope.writes) and
+                not self.is_scalar and
                 all(a.is_regular for a in self.scope.accesses))
 
     @cached_property

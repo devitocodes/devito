@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from conftest import unit_box, points, skipif
-from devito import Operator, norm
+from conftest import skipif
+from devito import Operator, norm, Function, Grid, SparseFunction
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
@@ -113,18 +113,23 @@ class TestAdjoint(object):
         Verify that p.inject is the adjoint of p.interpolate for a
         devito SparseFunction p
         """
-        a = unit_box(shape=shape)
+        grid = Grid(shape)
+        a = Function(name="a", grid=grid)
         a.data[:] = 0.
-        c = unit_box(shape=shape, name='c', grid=a.grid)
+        c = Function(name='c', grid=grid)
         c.data[:] = 27.
 
         assert a.grid == c.grid
         # Inject receiver
-        p = points(a.grid, ranges=coords, npoints=npoints)
+        p = SparseFunction(name="p", grid=grid, npoint=npoints)
+        for i, r in enumerate(coords):
+            p.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
         p.data[:] = 1.2
         expr = p.inject(field=a, expr=p)
         # Read receiver
-        p2 = points(a.grid, name='points2', ranges=coords, npoints=npoints)
+        p2 = SparseFunction(name="p2", grid=grid, npoint=npoints)
+        for i, r in enumerate(coords):
+            p2.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
         expr2 = p2.interpolate(expr=c)
         Operator(expr + expr2)(a=a, c=c)
         # < P x, y > - < x, P^T y>
