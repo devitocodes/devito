@@ -3,7 +3,7 @@ from itertools import chain
 from cached_property import cached_property
 from sympy import S
 
-from devito.ir.support.space import Any, Backward
+from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import retrieve_terminals, q_monoaffine
 from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
@@ -201,15 +201,7 @@ class TimedAccess(IterationInstance):
         obj.mode = mode
         obj.timestamp = timestamp
 
-        if ispace is None:
-            obj.intervals = []
-            obj.directions = []
-        else:
-            obj.intervals = ispace.intervals
-            # We use `.root` as if a DerivedDimension is in `directions`, then so is
-            # its parent, and the parent (root) direction cannot differ from that
-            # of its child
-            obj.directions = [ispace.directions.get(i.root, Any) for i in obj.findices]
+        obj.ispace = ispace or IterationSpace([])
 
         return obj
 
@@ -221,8 +213,7 @@ class TimedAccess(IterationInstance):
         return (isinstance(other, TimedAccess) and
                 self.function is other.function and
                 self.mode == other.mode and
-                self.intervals == other.intervals and
-                self.directions == other.directions and
+                self.ispace == other.ispace and
                 super(TimedAccess, self).__eq__(other))
 
     def __hash__(self):
@@ -231,6 +222,18 @@ class TimedAccess(IterationInstance):
     @property
     def name(self):
         return self.function.name
+
+    @property
+    def intervals(self):
+        return self.ispace.intervals
+
+    @property
+    def directions(self):
+        return self.ispace.directions
+
+    @property
+    def itintervals(self):
+        return self.ispace.itintervals
 
     @property
     def is_read(self):
@@ -328,10 +331,9 @@ class TimedAccess(IterationInstance):
         # * If mismatching `directions`, set the distance to infinity
         # * If direction is Backward, flip the sign
         ret = []
-        for i, i0, d0, i1, d1 in zip(distance, self.intervals, self.directions,
-                                     other.intervals, other.directions):
-            if d0 is d1 and i0 == i1:
-                ret.append(-i if d0 is Backward else i)
+        for i, it0, it1 in zip(distance, self.itintervals, other.itintervals):
+            if it0.direction is it1.direction and it0.interval == it1.interval:
+                ret.append(-i if it0.direction is Backward else i)
             else:
                 ret.append(S.Infinity)
                 break
