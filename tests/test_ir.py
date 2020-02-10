@@ -435,6 +435,19 @@ class TestSpace(object):
         assert ix5.subtract(ix4) == Interval(x, -1, 1)
         assert ix5.subtract(ix) == Interval(x, c - 1, c + 7)
 
+    def test_intervals_switch(self, x, y):
+        nullx = NullInterval(x)
+        nully = NullInterval(y)
+
+        assert nullx.switch(y) == nully
+
+        ix = Interval(x, 2, -2)
+        iy = Interval(y, 2, -2)
+
+        assert ix.switch(y) == iy
+        assert iy.switch(x) == ix
+        assert ix.switch(y).switch(x) == ix
+
 
 class TestDependenceAnalysis(object):
 
