@@ -511,7 +511,13 @@ class Dependence(object):
 
     @cached_property
     def is_regular(self):
-        return self.source.is_regular and self.sink.is_regular
+        # Note: what we do below is stronger than something along the lines of
+        # `self.source.is_regular and self.sink.is_regular`
+        # `source` and `sink` may be regular in isolation, but the dependence
+        # itself could be irregular, as the two TimedAccesses may stem from
+        # different iteration spaces. Instead if the distance is an integer
+        # vector, it is guaranteed that the iteration space is the same
+        return all(is_integer(i) for i in self.distance)
 
     @cached_property
     def is_irregular(self):
