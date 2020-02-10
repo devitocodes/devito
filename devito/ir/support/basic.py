@@ -102,6 +102,8 @@ class IterationInstance(LabeledVector):
         for i, fi in zip(self, self.findices):
             if q_monoaffine(i, fi, self.findices):
                 aindices.append(fi)
+            elif isinstance(i, Dimension):
+                aindices.append(i)
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 aindices.append(dims.pop() if len(dims) == 1 else None)
