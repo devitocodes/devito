@@ -67,6 +67,7 @@ class AbstractInterval(object):
     flip = negate
     lift = negate
     reset = negate
+    switch = negate
 
 
 class NullInterval(AbstractInterval):
@@ -80,11 +81,11 @@ class NullInterval(AbstractInterval):
         return hash(self.dim)
 
     def _rebuild(self):
-        return NullInterval(self.dim)
+        return NullInterval(self.dim, self.stamp)
 
     @property
     def relaxed(self):
-        return NullInterval(self.dim.root)
+        return NullInterval(self.dim.root, self.stamp)
 
     def union(self, o):
         if self.dim is o.dim:
@@ -92,6 +93,9 @@ class NullInterval(AbstractInterval):
         else:
             raise ValueError("Cannot compute union of Intervals over "
                              "different Dimensions")
+
+    def switch(self, d):
+        return NullInterval(d, self.stamp)
 
 
 class Interval(AbstractInterval):
@@ -184,6 +188,9 @@ class Interval(AbstractInterval):
     def reset(self):
         return Interval(self.dim, self.lower, self.upper, 0)
 
+    def switch(self, d):
+        return Interval(d, self.lower, self.upper, self.stamp)
+
 
 class IntervalGroup(PartialOrderTuple):
 
@@ -206,6 +213,12 @@ class IntervalGroup(PartialOrderTuple):
         # No need to look at the relations -- if the partial ordering is the same,
         # then then IntervalGroups are considered equal
         return len(self) == len(o) and all(i == j for i, j in zip(self, o))
+
+    def __contains__(self, d):
+        for i in self:
+            if i.dim is d:
+                return True
+        return False
 
     def __hash__(self):
         return hash(tuple(self))
@@ -591,7 +604,9 @@ class IterationSpace(Space):
             return IterationSpace(IntervalGroup())
         elif len(others) == 1:
             return others[0]
+
         intervals = IntervalGroup.generate('union', *[i.intervals for i in others])
+
         directions = {}
         for i in others:
             for k, v in i.directions.items():
@@ -602,11 +617,13 @@ class IterationSpace(Space):
                     # Clash detected
                     raise ValueError("Cannot compute the union of `IterationSpace`s "
                                      "with incompatible directions")
+
         sub_iterators = {}
         for i in others:
             for k, v in i.sub_iterators.items():
                 ret = sub_iterators.setdefault(k, [])
                 ret.extend([d for d in v if d not in ret])
+
         return IterationSpace(intervals, sub_iterators, directions)
 
     def add(self, other):
@@ -619,7 +636,7 @@ class IterationSpace(Space):
     def project(self, cond):
         """
         Create a new IterationSpace in which only some Dimensions
-        in ``self`` are retained. In particular, a dimension ``d`` in ``self`` is
+        in ``self`` are retained. In particular, a Dimension ``d`` in ``self`` is
         retained if:
 
             * either ``cond(d)`` is true (``cond`` is a callable),
@@ -629,9 +646,13 @@ class IterationSpace(Space):
             func = cond
         else:
             func = lambda i: i in cond
+
         intervals = [i for i in self.intervals if func(i.dim)]
+
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
+
         directions = {k: v for k, v in self.directions.items() if func(k)}
+
         return IterationSpace(intervals, sub_iterators, directions)
 
     def is_compatible(self, other):
