@@ -1022,8 +1022,8 @@ class TestDeclarator(object):
                             dse='noop', dle=None)
         assert """\
   float (*a);
-  float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
+  float (*c)[j_size];
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
@@ -1056,8 +1056,8 @@ class TestDeclarator(object):
                             dse='noop', dle=None)
         assert """\
   float (*a);
-  float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
+  float (*c)[j_size];
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
