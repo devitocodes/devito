@@ -109,7 +109,7 @@ class Parallelism(Detector):
 
             (d_1, ..., d_i) = 0, OR
             (d_1, ..., d_{i-1}) > 0, OR
-            the write is known to be an associative and commutative increment
+            the 'write' is known to be an associative and commutative increment
     """
 
     def _callback(self, clusters, d, prefix):
