@@ -216,10 +216,7 @@ class IntervalGroup(PartialOrderTuple):
         return len(self) == len(o) and all(i == j for i, j in zip(self, o))
 
     def __contains__(self, d):
-        for i in self:
-            if i.dim is d:
-                return True
-        return False
+        return any(i.dim is d for i in self)
 
     def __hash__(self):
         return hash(tuple(self))
