@@ -56,6 +56,60 @@ class TestOffloading(object):
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
 
+    @switchconfig(platform='nvidiaX')
+    def test_multiple_loops(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        eqns = [Eq(f, g*2),
+                Eq(u.forward, u + v*f),
+                Eq(v.forward, u.forward.dx + v*f + 4)]
+
+        op = Operator(eqns, dle=('noop', {'openmp': True}))
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+
+        # All loop nests must have been parallelized
+        assert trees[0][0].pragmas[0].value ==\
+            'omp target teams distribute parallel for collapse(3)'
+        assert trees[1][1].pragmas[0].value ==\
+            'omp target teams distribute parallel for collapse(3)'
+        assert trees[2][1].pragmas[0].value ==\
+            'omp target teams distribute parallel for collapse(3)'
+
+        # Check `u` and `v`
+        for i, f in enumerate([u, v], 1):
+            assert op.body[4].header[i].value ==\
+                ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
+                 {'n': f.name})
+            assert op.body[4].footer[i].value ==\
+                ('omp target exit data map(from: %(n)s[0:%(n)s_vec->size[0]]'
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
+                 {'n': f.name})
+
+        # Check `f`
+        assert op.body[4].header[0].value ==\
+            ('omp target enter data map(to: f[0:f_vec->size[0]]'
+             '[0:f_vec->size[1]][0:f_vec->size[2]])')
+        assert op.body[4].footer[0].value ==\
+            ('omp target exit data map(from: f[0:f_vec->size[0]]'
+            '[0:f_vec->size[1]][0:f_vec->size[2]])')
+
+        # Check `g` -- note that unlike `f`, this one should be `delete` upon
+        # exit, not `from`
+        assert op.body[4].header[3].value ==\
+            ('omp target enter data map(to: g[0:g_vec->size[0]]'
+             '[0:g_vec->size[1]][0:g_vec->size[2]])')
+        assert op.body[4].footer[3].value ==\
+            ('omp target exit data map(delete: g[0:g_vec->size[0]]'
+            '[0:g_vec->size[1]][0:g_vec->size[2]])')
+
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
 
