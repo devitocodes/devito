@@ -5,8 +5,8 @@ from devito.data import FULL
 from devito.ir.clusters import Toposort
 from devito.ir.support import COLLAPSED
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
-from devito.passes import (DataManager, Ompizer, ParallelTree, optimize_halospots,
-                           mpiize, hoist_prodders)
+from devito.passes.iet import (DataManager, Ompizer, ParallelTree, optimize_halospots,
+                               mpiize, hoist_prodders)
 from devito.tools import generator, timed_pass
 
 __all__ = ['DeviceOffloadingOperator']
@@ -117,21 +117,22 @@ class OffloadingDataManager(DataManager):
         if obj in storage._high_bw_mem:
             return
 
-        decl = c.Comment("no-op")
         alloc = OffloadingOmpizer._map_alloc(obj)
         free = OffloadingOmpizer._map_delete(obj)
 
-        storage._high_bw_mem[obj] = (decl, alloc, free)
+        storage._high_bw_mem[obj] = (None, alloc, free)
 
-    def _map_function_on_high_bw_mem(self, obj, storage):
+    def _map_function_on_high_bw_mem(self, obj, storage, read_only=False):
         if obj in storage._high_bw_mem:
             return
 
-        decl = c.Comment("no-op")
         alloc = OffloadingOmpizer._map_to(obj)
-        free = OffloadingOmpizer._map_from(obj)
+        if read_only is False:
+            free = OffloadingOmpizer._map_from(obj)
+        else:
+            free = OffloadingOmpizer._map_delete(obj)
 
-        storage._high_bw_mem[obj] = (decl, alloc, free)
+        storage._high_bw_mem[obj] = (None, alloc, free)
 
 
 class DeviceOffloadingOperator(OperatorCore):
@@ -183,7 +184,7 @@ class DeviceOffloadingOperator(OperatorCore):
 
         # Symbol definitions
         data_manager = OffloadingDataManager()
-        data_manager.place_definitions(graph)
+        data_manager.place_definitions(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_casts(graph)
 
         return graph
