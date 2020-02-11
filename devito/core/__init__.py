@@ -7,8 +7,8 @@ backend as well) are used to run Devito on standard CPU architectures.
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
 from devito.core.cpu import (CPU64NoopOperator, CPU64Operator, Intel64Operator,
                              ArmOperator, PowerOperator, CustomOperator)
-from devito.core.gpu import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
-                             DeviceOpenMPCustomOperator)
+from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
+                                    DeviceOpenMPCustomOperator)
 from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, add_sub_configuration
 
