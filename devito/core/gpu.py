@@ -1,18 +1,22 @@
+from functools import partial
+
 import cgen as c
 
 from devito.core.operator import OperatorCore
 from devito.data import FULL
+from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.ir.support import COLLAPSED
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes.iet import (DataManager, Ompizer, ParallelTree, optimize_halospots,
                                mpiize, hoist_prodders)
-from devito.tools import generator, timed_pass
+from devito.tools import as_tuple, generator, timed_pass
 
-__all__ = ['DeviceOffloadingOperator']
+__all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
+           'DeviceOpenMPCustomOperator']
 
 
-class OffloadingOmpizer(Ompizer):
+class DeviceOmpizer(Ompizer):
 
     COLLAPSE_NCORES = 1
     """
@@ -41,7 +45,7 @@ class OffloadingOmpizer(Ompizer):
     def __init__(self, key=None):
         if key is None:
             key = lambda i: i.is_ParallelRelaxed
-        super(OffloadingOmpizer, self).__init__(key=key)
+        super(DeviceOmpizer, self).__init__(key=key)
 
     @classmethod
     def _map_data(cls, f):
@@ -111,14 +115,14 @@ class OffloadingOmpizer(Ompizer):
         return partree
 
 
-class OffloadingDataManager(DataManager):
+class DeviceDataManager(DataManager):
 
     def _alloc_array_on_high_bw_mem(self, obj, storage):
         if obj in storage._high_bw_mem:
             return
 
-        alloc = OffloadingOmpizer._map_alloc(obj)
-        free = OffloadingOmpizer._map_delete(obj)
+        alloc = DeviceOmpizer._map_alloc(obj)
+        free = DeviceOmpizer._map_delete(obj)
 
         storage._high_bw_mem[obj] = (None, alloc, free)
 
@@ -126,16 +130,16 @@ class OffloadingDataManager(DataManager):
         if obj in storage._high_bw_mem:
             return
 
-        alloc = OffloadingOmpizer._map_to(obj)
+        alloc = DeviceOmpizer._map_to(obj)
         if read_only is False:
-            free = OffloadingOmpizer._map_from(obj)
+            free = DeviceOmpizer._map_from(obj)
         else:
-            free = OffloadingOmpizer._map_delete(obj)
+            free = DeviceOmpizer._map_delete(obj)
 
         storage._high_bw_mem[obj] = (None, alloc, free)
 
 
-class DeviceOffloadingOperator(OperatorCore):
+class DeviceOpenMPNoopOperator(OperatorCore):
 
     @classmethod
     @timed_pass(name='specializing.Clusters')
@@ -171,19 +175,90 @@ class DeviceOffloadingOperator(OperatorCore):
         options = kwargs['options']
 
         # Distributed-memory parallelism
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # Shared-memory parallelism
+        assert options['openmp']
+        DeviceOmpizer().make_parallel(graph)
+
+        # Symbol definitions
+        data_manager = DeviceDataManager()
+        data_manager.place_definitions(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_casts(graph)
+
+        return graph
+
+
+class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+
+        # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
         # Shared-memory parallelism
-        if options['openmp']:
-            OffloadingOmpizer().make_parallel(graph)
+        assert options['openmp']
+        DeviceOmpizer().make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = OffloadingDataManager()
+        data_manager = DeviceDataManager()
+        data_manager.place_definitions(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_casts(graph)
+
+        return graph
+
+
+class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
+
+    @classmethod
+    def _make_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+
+        ompizer = DeviceOmpizer()
+
+        return {
+            'optcomms': partial(optimize_halospots),
+            'openmp': partial(ompizer.make_parallel),
+            'mpi': partial(mpiize, mode=options['mpi']),
+            'prodders': partial(hoist_prodders)
+        }
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                passes_mapper[i](graph)
+            except KeyError:
+                raise InvalidOperator("Unknown passes `%s`" % str(passes))
+
+        # Force-call `mpi` if requested via global option
+        if 'mpi' not in passes and options['mpi']:
+            passes_mapper['mpi'](graph)
+
+        # `openmp` must have been enabled
+        if 'openmp' not in passes:
+            assert options['openmp']
+            passes_mapper['openmp'](graph)
+
+        # Symbol definitions
+        data_manager = DeviceDataManager()
         data_manager.place_definitions(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_casts(graph)
 
