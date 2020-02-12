@@ -812,7 +812,7 @@ class Section(List):
     computation unit).
     """
 
-    is_Sequence = True
+    is_Section = True
 
     def __init__(self, name, body=None):
         super(Section, self).__init__(body=body)
