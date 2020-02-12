@@ -762,6 +762,38 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
+    @pytest.mark.parallel(mode=1)
+    def test_hoist_haloupdate_with_subdims(self):
+        """
+        This test stems from https://github.com/devitocodes/devito/issues/1119
+
+        Ensure SubDimensions are treated just like any other Dimensions when it
+        gets to placing halo exchanges.
+        """
+        grid = Grid(shape=(20, 20, 20))
+
+        u = TimeFunction(name="u", grid=grid, space_order=2)
+        U = TimeFunction(name="U", grid=grid, space_order=2)
+
+        eqns = [Eq(u.forward, u.dx, subdomain=grid.interior),
+                Eq(U.forward, U.dx + u.forward)]
+
+        op = Operator(eqns)
+
+        assert len(op._func_table) == 6
+
+        # There are exactly two halo exchange calls in the Operator body
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2 + 8  # 8 are due to loop blocking
+        assert calls[0].name == 'haloupdate0'
+        assert calls[1].name == 'haloupdate0'
+
+        # ... and none in the created efuncs
+        calls = FindNodes(Call).visit(op._func_table['bf0'].root)
+        assert len(calls) == 0
+        calls = FindNodes(Call).visit(op._func_table['bf1'].root)
+        assert len(calls) == 0
+
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
