@@ -68,12 +68,14 @@ def hoist_prodders(iet):
 
 
 @iet_pass
-def relax_incr_dimensions(iet):
+def relax_incr_dimensions(iet, **kwargs):
     """
     Recast Iterations over IncrDimensions as ElementalFunctions; insert
     ElementalCalls to iterate over the "main" and "remainder" regions induced
     by the IncrDimensions.
     """
+    counter = kwargs['counter']
+
     efuncs = []
     mapper = {}
     for tree in retrieve_iteration_tree(iet):
@@ -101,7 +103,7 @@ def relax_incr_dimensions(iet):
                  for i in outer]
 
         # Create the ElementalFunction
-        name = "bf%d" % len(mapper)
+        name = "bf%d" % counter()
         body = compose_nodes(outer)
         dynamic_parameters = flatten((i.symbolic_bounds, i.step) for i in outer)
         dynamic_parameters.extend([i.step for i in inner if not is_integer(i.step)])

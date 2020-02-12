@@ -106,7 +106,7 @@ class CPU64Operator(CPU64NoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, counter=generator())
 
         # Shared-memory and SIMD-level parallelism
         ompizer = Ompizer()
@@ -163,7 +163,7 @@ class CustomOperator(CPU64Operator):
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
             'wrapping': loop_wrapping,
-            'blocking': relax_incr_dimensions,
+            'blocking': partial(relax_incr_dimensions, counter=generator()),
             'openmp': ompizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
