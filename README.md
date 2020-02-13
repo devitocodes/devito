@@ -19,40 +19,25 @@ are facing issues or just trying it out, join the
 
 ## Quickstart
 
-The recommended way to install Devito uses the Conda package manager
-for installation of the necessary software dependencies. Please
-install either [Anaconda](https://www.continuum.io/downloads) or
-[Miniconda](https://conda.io/miniconda.html) using the instructions
-provided at the download links. You will need the Python 3 version.
-
-To install Devito, including examples, tests and tutorial notebooks,
-follow these simple passes:
-
-```sh
-git clone https://github.com/devitocodes/devito.git
-cd devito
-conda env create -f environment.yml
-source activate devito
-pip install -e .
+The easiest way to try Devito is through Docker using the following commands:
 ```
-
-Alternatively, you can also install and run Devito via
-[Docker](https://www.docker.com/):
-
-```sh
 # get the code
 git clone https://github.com/devitocodes/devito.git
 cd devito
 
-# run the tests
-docker-compose run devito /tests
-
 # start a jupyter notebook server on port 8888
 docker-compose up devito
-
-# start a bash shell with devito
-docker-compose run devito /bin/bash
 ```
+After running the last command above, the terminal will display a URL like
+`https://127.0.0.1:8888/?token=XXX`. Copy-paste this URL into a browser window
+to start a [Jupyter](https://jupyter.org/) notebook session where you can go
+through the [tutorials](https://github.com/devitocodes/devito/tree/master/examples)
+provided with Devito or create your own notebooks.
+
+[See here](http://devitocodes.github.io/devito/download.html) for detailed installation
+instructions and other options. Also look at the
+[installation issues](https://github.com/devitocodes/devito/wiki/Installation-Issues) we
+have seen in the past. 
 
 ## Examples
 
