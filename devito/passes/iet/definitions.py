@@ -11,9 +11,9 @@ from devito.ir import (ArrayCast, Element, Expression, List, LocalExpression,
                        FindNodes, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import ccode
-from devito.tools import filter_sorted, flatten
+from devito.tools import flatten
 
-__all__ = ['DataManager']
+__all__ = ['DataManager', 'Storage']
 
 
 class Storage(object):
@@ -87,9 +87,25 @@ class DataManager(object):
 
         storage._high_bw_mem[obj] = (decl, alloc, free)
 
-    def _map_function_on_high_bw_mem(self, obj, storage, read_only=False):
-        """Place a Function in the high bandwidth memory."""
-        return
+    def _dump_storage(self, iet, storage):
+        # Introduce symbol definitions going in the low latency memory
+        mapper = dict(storage._on_low_lat_mem)
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Introduce symbol definitions going in the high bandwidth memory
+        header = []
+        footer = []
+        for decl, alloc, free in storage._on_high_bw_mem:
+            if decl is None:
+                header.append(alloc)
+            else:
+                header.extend([decl, alloc])
+            footer.append(free)
+        if header or footer:
+            body = List(header=header, body=iet.body, footer=footer)
+            iet = iet._rebuild(body=body)
+
+        return iet
 
     @iet_pass
     def place_definitions(self, iet, **kwargs):
@@ -103,7 +119,6 @@ class DataManager(object):
         """
         storage = Storage()
 
-        # Collect and declare symbols
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression:
                 if k.is_definition:
@@ -131,37 +146,7 @@ class DataManager(object):
                     # E.g., a generic SymPy expression
                     pass
 
-        # Place symbols in a memory space
-        if not iet.is_ElementalFunction:
-            writes = set()
-            reads = set()
-            for efunc in kwargs.get('efuncs', []):
-                for i in FindNodes(Expression).visit(efunc):
-                    if i.write.is_Function:
-                        writes.add(i.write)
-                    reads = (reads | {r for r in i.reads if r.is_Function}) - writes
-
-            for i in filter_sorted(writes):
-                self._map_function_on_high_bw_mem(i, storage)
-            for i in filter_sorted(reads):
-                self._map_function_on_high_bw_mem(i, storage, read_only=True)
-
-        # Introduce symbol definitions going in the low latency memory
-        mapper = dict(storage._on_low_lat_mem)
-        iet = Transformer(mapper, nested=True).visit(iet)
-
-        # Introduce symbol definitions going in the high bandwidth memory
-        header = []
-        footer = []
-        for decl, alloc, free in storage._on_high_bw_mem:
-            if decl is None:
-                header.append(alloc)
-            else:
-                header.extend([decl, alloc])
-            footer.append(free)
-        if header or footer:
-            body = List(header=header, body=iet.body, footer=footer)
-            iet = iet._rebuild(body=body)
+        iet = self._dump_storage(iet, storage)
 
         return iet, {}
 

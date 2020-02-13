@@ -6,10 +6,12 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
+from devito.ir.iet import MapExprStmts
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
-from devito.passes.iet import (DataManager, Ompizer, ParallelIteration, ParallelTree,
-                               optimize_halospots, mpiize, hoist_prodders)
-from devito.tools import as_tuple, generator, timed_pass
+from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
+                               ParallelTree, optimize_halospots, mpiize, hoist_prodders,
+                               iet_pass)
+from devito.tools import as_tuple, filter_sorted, generator, timed_pass
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -137,6 +139,7 @@ class DeviceDataManager(DataManager):
         storage._high_bw_mem[obj] = (decl, alloc, free)
 
     def _map_function_on_high_bw_mem(self, obj, storage, read_only=False):
+        """Place a Function in the high bandwidth memory."""
         if obj in storage._high_bw_mem:
             return
 
@@ -148,6 +151,40 @@ class DeviceDataManager(DataManager):
             free = DeviceOmpizer._map_delete(obj)
 
         storage._high_bw_mem[obj] = (None, alloc, free)
+
+    @iet_pass
+    def place_ondevice(self, iet, **kwargs):
+        efuncs = kwargs['efuncs']
+
+        storage = Storage()
+
+        if iet.is_ElementalFunction:
+            return iet, {}
+
+        # Collect written and read-only symbols
+        writes = set()
+        reads = set()
+        for efunc in efuncs:
+            for i, v in MapExprStmts().visit(efunc).items():
+                if not i.is_Expression:
+                    # No-op
+                    continue
+                if not any(isinstance(j, DeviceParallelIteration) for j in v):
+                    # Not an offloaded Iteration tree
+                    continue
+                if i.write.is_Function:
+                    writes.add(i.write)
+                reads = (reads | {r for r in i.reads if r.is_Function}) - writes
+
+        # Update `storage`
+        for i in filter_sorted(writes):
+            self._map_function_on_high_bw_mem(i, storage)
+        for i in filter_sorted(reads):
+            self._map_function_on_high_bw_mem(i, storage, read_only=True)
+
+        iet = self._dump_storage(iet, storage)
+
+        return iet, {}
 
 
 class DeviceOpenMPNoopOperator(OperatorCore):
@@ -195,7 +232,8 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # Symbol definitions
         data_manager = DeviceDataManager()
-        data_manager.place_definitions(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
         return graph
@@ -222,7 +260,8 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
         # Symbol definitions
         data_manager = DeviceDataManager()
-        data_manager.place_definitions(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
         return graph
@@ -270,7 +309,8 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
         # Symbol definitions
         data_manager = DeviceDataManager()
-        data_manager.place_definitions(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
         return graph
