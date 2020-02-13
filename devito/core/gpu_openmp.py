@@ -127,12 +127,12 @@ class DeviceDataManager(DataManager):
         if obj in storage._high_bw_mem:
             return
 
-        decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
-        decl = c.Value(obj._C_typedata, decl)
+        super(DeviceDataManager, self)._alloc_array_on_high_bw_mem(obj, storage)
 
-        alloc = DeviceOmpizer._map_alloc(obj)
+        decl, alloc, free = storage._high_bw_mem[obj]
 
-        free = DeviceOmpizer._map_delete(obj)
+        alloc = c.Collection([alloc, DeviceOmpizer._map_alloc(obj)])
+        free = c.Collection([DeviceOmpizer._map_delete(obj), free])
 
         storage._high_bw_mem[obj] = (decl, alloc, free)
 
