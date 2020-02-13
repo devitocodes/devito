@@ -1,4 +1,5 @@
 import numpy as np
+from sympy import cos
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, switchconfig,
@@ -10,6 +11,10 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 class TestOffloading(object):
+
+    """
+    Test GPU offloading via OpenMP.
+    """
 
     @switchconfig(platform='nvidiaX')
     def test_basic(self):
@@ -109,6 +114,23 @@ class TestOffloading(object):
         assert op.body[4].footer[3].value ==\
             ('omp target exit data map(delete: g[0:g_vec->size[0]]'
             '[0:g_vec->size[1]][0:g_vec->size[2]])')
+
+    @switchconfig(platform='nvidiaX')
+    def test_arrays(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+
+        eqn = Eq(u.forward, u*cos(f*2))
+
+        op = Operator(eqn, dse='aggressive', dle=('noop', {'openmp': True}))
+
+        assert str(op.body[2].header[0]) == 'float (*r1)[y_size][z_size];'
+        assert op.body[2].header[1].value == ('omp target enter data map(alloc: '
+                                              'r1[0:x_size][0:y_size][0:z_size])')
+        assert op.body[2].footer[0].value == ('omp target exit data map(delete: '
+                                              'r1[0:x_size][0:y_size][0:z_size])')
 
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
