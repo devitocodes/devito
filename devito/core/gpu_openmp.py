@@ -121,16 +121,21 @@ class DeviceDataManager(DataManager):
         if obj in storage._high_bw_mem:
             return
 
+        decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
+        decl = c.Value(obj._C_typedata, decl)
+
         alloc = DeviceOmpizer._map_alloc(obj)
+
         free = DeviceOmpizer._map_delete(obj)
 
-        storage._high_bw_mem[obj] = (None, alloc, free)
+        storage._high_bw_mem[obj] = (decl, alloc, free)
 
     def _map_function_on_high_bw_mem(self, obj, storage, read_only=False):
         if obj in storage._high_bw_mem:
             return
 
         alloc = DeviceOmpizer._map_to(obj)
+
         if read_only is False:
             free = DeviceOmpizer._map_from(obj)
         else:
