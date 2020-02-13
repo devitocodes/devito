@@ -681,6 +681,8 @@ class Scope(object):
         self.reads = {}
         self.writes = {}
 
+        self.initialized = set()
+
         for i, e in enumerate(exprs):
             # Reads
             for j in retrieve_terminals(e.rhs):
@@ -697,6 +699,10 @@ class Scope(object):
             if e.is_Increment:
                 v = self.reads.setdefault(e.lhs.function, [])
                 v.append(TimedAccess(e.lhs, 'RI', i, e.ispace))
+
+            # If writing to a scalar, we have an initialization
+            if not e.is_Increment and e.is_scalar:
+                self.initialized.add(e.lhs.function)
 
         # The iterators symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
