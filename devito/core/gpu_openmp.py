@@ -6,14 +6,25 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.ir.support import COLLAPSED
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
-from devito.passes.iet import (DataManager, Ompizer, ParallelTree, optimize_halospots,
-                               mpiize, hoist_prodders)
+from devito.passes.iet import (DataManager, Ompizer, ParallelIteration, ParallelTree,
+                               optimize_halospots, mpiize, hoist_prodders)
 from devito.tools import as_tuple, generator, timed_pass
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
+
+
+class DeviceParallelIteration(ParallelIteration):
+
+    @classmethod
+    def _make_construct(cls, **kwargs):
+        return 'omp target teams distribute parallel for'
+
+    @classmethod
+    def _make_clauses(cls, **kwargs):
+        kwargs['chunk_size'] = False
+        return super(DeviceParallelIteration, cls)._make_clauses(**kwargs)
 
 
 class DeviceOmpizer(Ompizer):
@@ -30,8 +41,6 @@ class DeviceOmpizer(Ompizer):
 
     lang = dict(Ompizer.lang)
     lang.update({
-        'par-for-teams': lambda i:
-            c.Pragma('omp target teams distribute parallel for collapse(%d)' % i),
         'map-enter-to': lambda i, j:
             c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
@@ -91,11 +100,8 @@ class DeviceOmpizer(Ompizer):
         ncollapse = 1 + len(collapsable)
 
         # Prepare to build a ParallelTree
-        omp_pragma = self.lang['par-for-teams'](ncollapse)
-
         # Create a ParallelTree
-        body = root._rebuild(pragmas=root.pragmas + (omp_pragma,),
-                             properties=root.properties + (COLLAPSED(ncollapse),))
+        body = DeviceParallelIteration(ncollapse=ncollapse, **root.args)
         partree = ParallelTree([], body, nthreads=nthreads)
 
         collapsed = [partree] + collapsable

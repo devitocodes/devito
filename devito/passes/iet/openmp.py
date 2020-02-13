@@ -15,7 +15,8 @@ from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import Constant, Symbol
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer', 'ParallelTree']
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer',
+           'ParallelIteration', 'ParallelTree']
 
 
 def ncores():
@@ -87,44 +88,56 @@ class ParallelRegion(Block):
 
 class ParallelIteration(Iteration):
 
-    def __init__(self, *args, parallel=False, ncollapse=None, chunk_size=None,
-                 nthreads=None, reduction=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         kwargs.pop('pragmas', None)
-        pragma = self._make_header(parallel, ncollapse, chunk_size, nthreads, reduction)
+        pragma = self._make_header(**kwargs)
 
-        properties = as_tuple(kwargs.pop('properties', None)) + (COLLAPSED(ncollapse),)
+        properties = as_tuple(kwargs.pop('properties', None))
+        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
 
-        self.parallel = parallel
-        self.ncollapse = ncollapse
-        self.chunk_size = chunk_size
-        self.nthreads = nthreads
-        self.reduction = reduction
+        self.parallel = kwargs.pop('parallel', False)
+        self.ncollapse = kwargs.pop('ncollapse', None)
+        self.chunk_size = kwargs.pop('chunk_size', None)
+        self.nthreads = kwargs.pop('nthreads', None)
+        self.reduction = kwargs.pop('reduction', None)
 
         super(ParallelIteration, self).__init__(*args, pragmas=[pragma],
                                                 properties=properties, **kwargs)
 
     @classmethod
-    def _make_header(cls, parallel, ncollapse, chunk_size, nthreads, reduction):
-        template = 'omp%sfor collapse(%d) schedule(dynamic,%s)%s'
+    def _make_header(cls, **kwargs):
+        construct = cls._make_construct(**kwargs)
+        clauses = cls._make_clauses(**kwargs)
+
+        header = ' '.join([construct] + clauses)
+
+        return c.Pragma(header)
+
+    @classmethod
+    def _make_construct(cls, parallel=False, **kwargs):
         if parallel:
-            parallel = ' parallel '
+            return 'omp parallel for'
         else:
-            parallel = ' '
-        if ncollapse is None:
-            ncollapse = 1
-        if chunk_size is None:
-            chunk_size = 1
+            return 'omp for'
+
+    @classmethod
+    def _make_clauses(cls, ncollapse=None, chunk_size=None, nthreads=None,
+                      reduction=None, **kwargs):
+        clauses = []
+
+        clauses.append('collapse(%d)' % (ncollapse or 1))
+
+        if chunk_size is not False:
+            clauses.append('schedule(dynamic,%s)' % (chunk_size or 1))
+
         if nthreads:
-            nthreads = 'num_threads(%s)' % nthreads
+            clauses.append('num_threads(%s)' % nthreads)
+
         if reduction:
             args = ','.join(str(i) for i in reduction)
-            reduction = 'reduction(+:%s)' % args
-        extras = [i for i in [nthreads, reduction] if i is not None]
-        if extras:
-            extras = ' %s' % (' '.join(extras))
-        else:
-            extras = ''
-        return c.Pragma(template % (parallel, ncollapse, chunk_size, extras))
+            clauses.append('reduction(+:%s)' % args)
+
+        return clauses
 
 
 class ParallelTree(List):
