@@ -588,9 +588,6 @@ class Dependence(object):
                 return False
             elif dim is None:
                 return self.distance == 0
-            elif self.source.is_local and self.sink.is_local:
-                # A dependence between two locally declared scalars
-                return True
             else:
                 # Note: below, `i in self._defined_findices` is to check whether `i`
                 # is actually (one of) the reduction dimension(s), in which case
