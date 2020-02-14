@@ -318,14 +318,16 @@ class HaloScheme(object):
 
     @cached_property
     def dimensions(self):
+        retval = set()
         for i in set().union(*self.halos.values()):
-            if isinstance(i.dim, tuple):
-                return i.dim
-        return ()
+            if isinstance(i.dim, tuple) or i.side is CENTER:
+                continue
+            retval.add(i.dim)
+        return retval
 
     @cached_property
     def arguments(self):
-        return set(self.dimensions) | set(flatten(self.honored.values()))
+        return self.dimensions | set(flatten(self.honored.values()))
 
     def project(self, functions):
         """
