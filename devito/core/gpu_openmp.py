@@ -167,9 +167,9 @@ class DeviceDataManager(DataManager):
                 if not any(isinstance(j, DeviceParallelIteration) for j in v):
                     # Not an offloaded Iteration tree
                     continue
-                if i.write.is_Function:
+                if i.write.is_DiscreteFunction:
                     writes.add(i.write)
-                reads = (reads | {r for r in i.reads if r.is_Function}) - writes
+                reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
 
         # Update `storage`
         for i in filter_sorted(writes):
