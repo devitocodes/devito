@@ -126,11 +126,14 @@ class TestOffloading(object):
 
         op = Operator(eqn, dse='aggressive', dle=('noop', {'openmp': True}))
 
+        assert len(op.body[2].header) == 4
         assert str(op.body[2].header[0]) == 'float (*r1)[y_size][z_size];'
         assert op.body[2].header[1].contents[0].text ==\
             'posix_memalign((void**)&r1, 64, sizeof(float[x_size][y_size][z_size]))'
         assert op.body[2].header[1].contents[1].value ==\
             'omp target enter data map(alloc: r1[0:x_size][0:y_size][0:z_size])'
+
+        assert len(op.body[2].footer) == 3
         assert op.body[2].footer[0].contents[0].value ==\
             'omp target exit data map(delete: r1[0:x_size][0:y_size][0:z_size])'
         assert op.body[2].footer[0].contents[1].text == 'free(r1)'
