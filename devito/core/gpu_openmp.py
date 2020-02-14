@@ -7,6 +7,7 @@ from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.ir.iet import MapExprStmts
+from devito.logger import warning
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
@@ -185,6 +186,15 @@ class DeviceDataManager(DataManager):
 class DeviceOpenMPNoopOperator(OperatorCore):
 
     @classmethod
+    def _build(cls, *args, **kwargs):
+        # Strictly unneccesary, but make it clear that this Operator *will*
+        # generate OpenMP code, bypassing any `openmp=False` provided in
+        # input to Operator
+        kwargs['options'].pop('openmp')
+
+        return super(DeviceOpenMPNoopOperator, cls)._build(*args, **kwargs)
+
+    @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
@@ -221,8 +231,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # Shared-memory parallelism
-        assert options['openmp']
+        # GPU parallelism via OpenMP offloading
         DeviceOmpizer().make_parallel(graph)
 
         # Symbol definitions
@@ -246,8 +255,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # Shared-memory parallelism
-        assert options['openmp']
+        # GPU parallelism via OpenMP offloading
         DeviceOmpizer().make_parallel(graph)
 
         # Misc optimizations
@@ -264,6 +272,10 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
 class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
+    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders')
+    _known_passes_disabled = ('blocking', 'denormals', 'wrapping', 'simd')
+    assert not (set(_known_passes) & set(_known_passes_disabled))
+
     @classmethod
     def _make_passes_mapper(cls, **kwargs):
         options = kwargs['options']
@@ -276,6 +288,20 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders)
         }
+
+    @classmethod
+    def _build(cls, expressions, **kwargs):
+        # Sanity check
+        passes = as_tuple(kwargs['mode'])
+        for i in passes:
+            if i not in cls._known_passes:
+                if i in cls._known_passes_disabled:
+                    warning("Got explicit pass `%s`, but it's unsupported on an "
+                            "Operator of type `%s`" % (i, str(cls)))
+                else:
+                    raise InvalidOperator("Unknown pass `%s`" % i)
+
+        return super(DeviceOpenMPCustomOperator, cls)._build(expressions, **kwargs)
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -291,15 +317,14 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             try:
                 passes_mapper[i](graph)
             except KeyError:
-                raise InvalidOperator("Unknown passes `%s`" % str(passes))
+                pass
 
         # Force-call `mpi` if requested via global option
         if 'mpi' not in passes and options['mpi']:
             passes_mapper['mpi'](graph)
 
-        # `openmp` must have been enabled
+        # GPU parallelism via OpenMP offloading
         if 'openmp' not in passes:
-            assert options['openmp']
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
