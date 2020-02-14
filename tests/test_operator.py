@@ -103,6 +103,7 @@ class TestCodeGen(object):
         assert(i.indices[i.function._time_position].modulo == exp_mods[i.function.name]
                for i in flatten(retrieve_indexed(i) for i in exprs))
 
+    @skipif('device')
     def test_timedlist_wraps_time_if_parallel(self):
         """
         Test that if the time loop is parallel, then it must be wrapped by a
@@ -1000,6 +1001,7 @@ class TestArguments(object):
                 grid2.distributor._obj_neighborhood.value)
 
 
+@skipif('device')
 class TestDeclarator(object):
 
     def test_heap_1D_stencil(self):
