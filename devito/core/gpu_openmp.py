@@ -53,11 +53,6 @@ class DeviceOmpizer(Ompizer):
             c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
     })
 
-    def __init__(self, key=None):
-        if key is None:
-            key = lambda i: i.is_ParallelRelaxed
-        super(DeviceOmpizer, self).__init__(key=key)
-
     @classmethod
     def _map_data(cls, f):
         if f.is_Array:
