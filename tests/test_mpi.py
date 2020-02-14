@@ -1552,6 +1552,49 @@ class TestOperatorAdvanced(object):
 
         assert abs(norm(u) - norm(u2)) < 1.e-3
 
+    @pytest.mark.parallel(mode=[(4, 'full')])
+    def test_misc_subdims(self):
+        """
+        Test MPI full mode with an Operator having:
+
+            * A middle SubDimension in which at least of the extremes has
+              thickness 0;
+            * A left SubDimension.
+
+        Thus, only one of the two distributed Dimensions (x and y) induces
+        a halo exchange
+
+        Derived from issue https://github.com/devitocodes/devito/issues/1121
+        """
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        u.data_with_halo[:] = 1.
+
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=0, thickness_right=1)
+        yl = SubDimension.left(name='yl', parent=y, thickness=1)
+
+        # A 5 point stencil expression
+        eqn = Eq(u[t+1, xi, yl], (u[t, xi, yl] + u[t, xi-1, yl] + u[t, xi+1, yl] +
+                                  u[t, xi, yl-1] + u[t, xi, yl+1]))
+
+        op = Operator(eqn)
+
+        # Halo exchanges metadata check-up
+        msgs = [i for i in op.parameters if i.name.startswith('msg')]
+        assert len(msgs) == 1
+        msg = msgs.pop()
+        assert len(msg.halos) == 2
+
+        op(time_M=0)
+
+        # Also try running it
+        assert np.all(u.data[1, :-1, :1] == 5.)
+        assert np.all(u.data[1, -1:] == 1.)
+        assert np.all(u.data[1, :, 1:] == 1.)
+
 
 def gen_serial_norms(shape, so):
     """
