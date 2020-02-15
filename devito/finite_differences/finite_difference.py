@@ -264,6 +264,8 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
 def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     """Expression from lists of indices and weights."""
     diff = dim.spacing
+    if len(all_dims) == 0:
+        return 0
 
     d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
 
