@@ -452,7 +452,7 @@ class Scalar(Symbol, ArgProvider):
         return kwargs.get('dtype', np.float32)
 
 
-class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evaluable):
+class AbstractTensor(sympy.FunctionMatrix, Basic, Cached, Pickable, Evaluable):
     """
     Base class for vector and tensor valued functions. It inherits from and
     mimicks the behavior of a sympy.ImmutableDenseMatrix.
@@ -490,14 +490,13 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
     def _cache_key(cls, *args, **kwargs):
         return cls
 
+    @classmethod
     def __new__(cls, *args, **kwargs):
-        options = kwargs.get('options', {})
-
         key = cls._cache_key(*args, **kwargs)
         obj = cls._cache_get(key)
 
         if obj is not None:
-            newobj = sympy.Matrix.__new__(cls, *args, **options)
+            newobj = sympy.FunctionMatrix.__new__(cls, *args, **kwargs)
             newobj.__init_cached__(key)
             return newobj
 
@@ -508,8 +507,10 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
         newcls = type(name, (cls,), dict(cls.__dict__))
 
         # Create the new Function object and invoke __init__
-        comps = cls.__subfunc_setup__(*args, **kwargs)
-        newobj = sympy.ImmutableDenseMatrix.__new__(newcls, comps)
+        comps, ndims = cls.__subfunc_setup__(*args, **kwargs)
+        fun = sympy.Function(name.upper())
+        newobj = sympy.FunctionMatrix.__new__(newcls, ndims[0], ndims[1], fun)
+        newobj._comps = np.asarray(comps)
         # Initialization. The following attributes must be available
         newobj._indices = indices
         newobj._name = name
@@ -522,6 +523,9 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
         return newobj
 
     __hash__ = Cached.__hash__
+
+    def doit(self, **hint):
+        return self
 
     def __init_finalize__(self, *args, **kwargs):
         pass
@@ -548,14 +552,6 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
     @property
     def dtype(self):
         return self._dtype
-
-    @classmethod
-    def _new2(cls, *args, **kwargs):
-        """Bypass sympy `_new` that hard codes `Matrix.__new__` to call our own."""
-        return cls.__new__(cls, *args, **kwargs)
-
-    def applyfunc(self, f):
-        return self._new2(self.rows, self.cols, [f(x) for x in self])
 
 
 class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
