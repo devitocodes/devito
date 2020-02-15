@@ -249,7 +249,7 @@ class TestVectorHierarchy(object):
 
     def test_timed_access_distance(self, x, y, ta_literal):
         """
-        Tests comparison of objects of type TimedAccess.
+        Test the comparison of objects of type TimedAccess.
         """
         (tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1,
          tcyx_irr0, tcxx_irr1, tcxy_irr2) = ta_literal

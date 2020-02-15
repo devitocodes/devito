@@ -254,13 +254,13 @@ class Tiling(Detector):
         return self._process_fdta(elements, 1)
 
     def _callback(self, clusters, d, prefix):
-        # A Dimension TILABLE only if it's PARALLEL and AFFINE
+        # A Dimension is TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
         if not {PARALLEL, AFFINE} <= properties[d]:
             return
 
         # In addition, we use the heuristic that we do not consider
-        # TILEABLE a Dimension that is not embedded in at least one
+        # TILABLE a Dimension that is not embedded in at least one
         # SEQUENTIAL Dimension. This is to rule out tiling when the
         # computation is not expected to be expensive
         if not any(SEQUENTIAL in properties[i.dim] for i in prefix[:-1]):

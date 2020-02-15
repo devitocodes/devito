@@ -1557,7 +1557,7 @@ class TestOperatorAdvanced(object):
         """
         Test MPI full mode with an Operator having:
 
-            * A middle SubDimension in which at least of the extremes has
+            * A middle SubDimension in which at least one of the extremes has
               thickness 0;
             * A left SubDimension.
 

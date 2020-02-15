@@ -18,8 +18,8 @@ PARALLEL = Property('parallel')
 
 PARALLEL_INDEP = Property('parallel=')
 """
-A fully parallel Dimension; parallelism is due to all dependences having
-distance 0 (i.e., distance vector is '='). This is stronger than PARALLEL.
+A fully parallel Dimension, where all dependences have dependence distance
+equals to 0 (i.e., the distance vector is '='). This is stronger than PARALLEL.
 """
 
 PARALLEL_IF_ATOMIC = Property('parallel_if_atomic')

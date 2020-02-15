@@ -86,7 +86,8 @@ def _cse(maybe_exprs, make, mode='default'):
         mapped = [e.xreplace(mapper) for e in mapped]
         mapped = [DummyEq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
 
-        # Update `exclude` for the same reasons as above
+        # Update `exclude` for the same reasons as above -- to rule out CSE across
+        # Dimension-independent data dependences
         exclude.update({i for i in mapper.values()})
 
         # Prepare for the next round

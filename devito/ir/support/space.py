@@ -212,7 +212,7 @@ class IntervalGroup(PartialOrderTuple):
 
     def __eq__(self, o):
         # No need to look at the relations -- if the partial ordering is the same,
-        # then then IntervalGroups are considered equal
+        # then the IntervalGroups are considered equal
         return len(self) == len(o) and all(i == j for i, j in zip(self, o))
 
     def __contains__(self, d):
