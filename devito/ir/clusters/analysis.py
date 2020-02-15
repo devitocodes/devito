@@ -2,8 +2,8 @@ from collections import defaultdict
 from functools import cmp_to_key
 
 from devito.ir.clusters.queue import Queue
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, AFFINE,
-                               WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
+                               AFFINE, WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
@@ -75,11 +75,14 @@ class Detector(Queue):
         # Apply the actual callback
         retval = self._callback(clusters, d, prefix)
 
+        # Normalize retval
+        retval = set(as_tuple(retval))
+
         # Update `self.state`
-        if retval is not None:
+        if retval:
             for c in clusters:
                 properties = self.state.properties.setdefault(c, {})
-                properties.setdefault(d, set()).add(retval)
+                properties.setdefault(d, set()).update(retval)
 
         return clusters
 
@@ -87,20 +90,33 @@ class Detector(Queue):
 class Parallelism(Detector):
 
     """
-    Detect SEQUENTIAL, PARALLEL, and PARALLEL_IF_ATOMIC Dimensions.
+    Detect SEQUENTIAL, PARALLEL, PARALLEL_INDEP and PARALLEL_IF_ATOMIC Dimensions.
+
+    Consider an IterationSpace over `n` Dimensions. Let `(d_1, ..., d_n)` be the
+    distance vector of a dependence. Let `i` be the `i-th` Dimension of the
+    IterationSpace. Then:
+
+        * `i` is PARALLEL_INDEP if all dependences have distance vectors:
+
+            (d_1, ..., d_i) = 0
+
+        * `i` is PARALLEL if all dependences have distance vectors:
+
+            (d_1, ..., d_i) = 0, OR
+            (d_1, ..., d_{i-1}) > 0
+
+        * `i` is PARALLEL_IF_ATOMIC if all dependences have distance vectors:
+
+            (d_1, ..., d_i) = 0, OR
+            (d_1, ..., d_{i-1}) > 0, OR
+            the 'write' is known to be an associative and commutative increment
     """
 
     def _callback(self, clusters, d, prefix):
         # All Dimensions up to and including `i-1`
         prev = flatten(i.dim._defines for i in prefix[:-1])
 
-        # The i-th Dimension is PARALLEL if for all dependences (d_1, ..., d_n):
-        # test0 := (d_1, ..., d_i) = 0, OR
-        # test1 := (d_1, ..., d_{i-1}) > 0
-
-        # The i-th Dimension is PARALLEL_IF_ATOMIC if for all dependeces:
-        # test0 OR test1 OR the write is an associative and commutative increment
-
+        is_parallel_indep = True
         is_parallel_atomic = False
 
         scope = self._fetch_scope(clusters)
@@ -112,6 +128,7 @@ class Parallelism(Detector):
 
             test1 = len(prev) > 0 and any(dep.is_carried(i) for i in prev)
             if test1:
+                is_parallel_indep &= (dep.distance_mapper.get(d.root) == 0)
                 continue
 
             if not dep.is_increment:
@@ -122,6 +139,8 @@ class Parallelism(Detector):
 
         if is_parallel_atomic:
             return PARALLEL_IF_ATOMIC
+        elif is_parallel_indep:
+            return {PARALLEL, PARALLEL_INDEP}
         else:
             return PARALLEL
 
@@ -235,13 +254,13 @@ class Tiling(Detector):
         return self._process_fdta(elements, 1)
 
     def _callback(self, clusters, d, prefix):
-        # A Dimension TILABLE only if it's PARALLEL and AFFINE
+        # A Dimension is TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
-        if not {PARALLEL, AFFINE} <= set(properties[d]):
+        if not {PARALLEL, AFFINE} <= properties[d]:
             return
 
         # In addition, we use the heuristic that we do not consider
-        # TILEABLE a Dimension that is not embedded in at least one
+        # TILABLE a Dimension that is not embedded in at least one
         # SEQUENTIAL Dimension. This is to rule out tiling when the
         # computation is not expected to be expensive
         if not any(SEQUENTIAL in properties[i.dim] for i in prefix[:-1]):

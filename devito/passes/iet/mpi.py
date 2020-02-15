@@ -4,7 +4,7 @@ from devito.ir.support import PARALLEL
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.passes.iet.engine import iet_pass
-from devito.tools import generator
+from devito.tools import filter_sorted, generator
 
 __all__ = ['optimize_halospots', 'mpiize']
 
@@ -130,7 +130,7 @@ def mpiize(iet, **kwargs):
         heb = user_heb if hs.is_Overlappable else sync_heb
         mapper[hs] = heb.make(hs)
     efuncs = sync_heb.efuncs + user_heb.efuncs
-    objs = sync_heb.objs + user_heb.objs
+    objs = filter_sorted(sync_heb.objs + user_heb.objs)
     iet = Transformer(mapper, nested=True).visit(iet)
 
     # Must drop the PARALLEL tag from the Iterations within which halo

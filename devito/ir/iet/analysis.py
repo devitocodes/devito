@@ -71,11 +71,14 @@ def mark_halospot_useless(analysis):
 
             found = []
             for f in hs.fmapper:
-                test0 = not scope.writes.get(f)
-                test1 = (all(i.is_Expression for i in v) and
-                         all(r.is_increment for r in Scope([i.expr for i in v]).reads[f]))
-                if test0 or test1:
+                if not scope.writes.get(f):
                     found.append(f)
+                    continue
+
+                if all(i.is_Expression for i in v):
+                    reads = Scope([i.expr for i in v]).reads.get(f, [])
+                    if all(r.is_increment for r in reads):
+                        found.append(f)
 
             if found:
                 properties[hs] = useless(tuple(found))

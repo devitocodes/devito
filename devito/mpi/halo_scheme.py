@@ -80,11 +80,10 @@ class HaloScheme(object):
         for i in ispace.intervals:
             if not i.dim._defines & set(self.dimensions):
                 continue
-            elif i.dim.is_Sub:
-                ltk, lv = i.dim.thickness.left
-                rtk, rv = i.dim.thickness.right
-                self._honored[i.dim.root] = frozenset([(ltk if lv else 0,
-                                                        rtk if rv else 0)])
+            elif i.dim.is_Sub and not i.dim.local:
+                ltk, _ = i.dim.thickness.left
+                rtk, _ = i.dim.thickness.right
+                self._honored[i.dim.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
 
     def __repr__(self):
@@ -319,14 +318,16 @@ class HaloScheme(object):
 
     @cached_property
     def dimensions(self):
+        retval = set()
         for i in set().union(*self.halos.values()):
-            if isinstance(i.dim, tuple):
-                return i.dim
-        return ()
+            if isinstance(i.dim, tuple) or i.side is CENTER:
+                continue
+            retval.add(i.dim)
+        return retval
 
     @cached_property
     def arguments(self):
-        return set(self.dimensions) | set(flatten(self.honored.values()))
+        return self.dimensions | set(flatten(self.honored.values()))
 
     def project(self, functions):
         """

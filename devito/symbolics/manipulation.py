@@ -172,6 +172,7 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
                     return expr.func(*(matching + other), evaluate=False), False
 
     # Process the provided expressions
+    built = []
     for expr in as_tuple(exprs):
         assert expr.is_Equality
         root = expr.rhs
@@ -192,10 +193,10 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
                 rebuilt.append(expr.func(expr.lhs, ret, evaluate=False))
                 break
 
-    # Post-process the output
-    found = [Eq(v, k) for k, v in found.items()]
+        # Construct Eqs for temporaries
+        built.extend(expr.func(v, k) for k, v in list(found.items())[len(built):])
 
-    return found + rebuilt, found
+    return built + rebuilt, built
 
 
 def xreplace_indices(exprs, mapper, key=None, only_rhs=False):

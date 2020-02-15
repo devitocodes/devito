@@ -1,8 +1,9 @@
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping
 from functools import reduce
+from operator import attrgetter
 
-from devito.tools.utils import filter_sorted, flatten
+from devito.tools.utils import flatten
 
 __all__ = ['toposort']
 
@@ -63,7 +64,10 @@ def toposort(data):
         ordered = set(item for item, dep in mapper.items() if not dep)
         if not ordered:
             break
-        processed = filter_sorted(ordered) + processed
+        try:
+            processed = sorted(ordered, key=attrgetter('name')) + processed
+        except AttributeError:
+            processed = sorted(ordered) + processed
         mapper = OrderedDict([(item, (dep - ordered)) for item, dep in mapper.items()
                               if item not in ordered])
     if len(processed) != len(set(flatten(data) + flatten(data.values()))):

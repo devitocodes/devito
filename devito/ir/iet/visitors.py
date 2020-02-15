@@ -100,6 +100,12 @@ class PrintAST(Visitor):
         self._depth -= 1
         return self.indent + "%s\n%s" % (o.__repr__(), '\n'.join(body))
 
+    def visit_TimedList(self, o):
+        self._depth += 1
+        body = [self._visit(o.body)]
+        self._depth -= 1
+        return self.indent + "%s\n%s" % (o.__repr__(), '\n'.join(body))
+
     def visit_Iteration(self, o):
         self._depth += 1
         body = self._visit(o.children)

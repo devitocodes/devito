@@ -87,7 +87,8 @@ def iet_lower_dimensions(iet):
         # different modulo extent. The `t+1` indices above are therefore conceptually
         # different, so they will be replaced with the proper ModuloDimension through
         # two different calls to `xreplace`
-        groups = as_mapper(i.uindices, lambda d: d.modulo)
+        mindices = [d for d in i.uindices if d.is_Modulo]
+        groups = as_mapper(mindices, lambda d: d.modulo)
         for k, v in groups.items():
             mapper = {d.origin: d for d in v}
             rule = lambda i: i.function.is_TimeFunction and i.function._time_size == k

@@ -40,7 +40,10 @@ class Cluster(object):
         self._ispace = ispace
         self._dspace = dspace
         self._guards = frozendict(guards or {})
-        self._properties = frozendict(properties or {})
+
+        properties = dict(properties or {})
+        properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
+        self._properties = frozendict(properties)
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
@@ -69,7 +72,7 @@ class Cluster(object):
         properties = {}
         for c in clusters:
             for d, v in c.properties.items():
-                properties[d] = normalize_properties(properties.get(d, v) | v)
+                properties[d] = normalize_properties(properties.get(d, v), v)
 
         return Cluster(exprs, ispace, dspace, guards, properties)
 
@@ -119,6 +122,10 @@ class Cluster(object):
     @cached_property
     def free_symbols(self):
         return set().union(*[e.free_symbols for e in self.exprs])
+
+    @cached_property
+    def dimensions(self):
+        return set().union(*[i._defines for i in self.ispace.dimensions])
 
     @cached_property
     def used_dimensions(self):

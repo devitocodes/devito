@@ -18,6 +18,8 @@ class ElementalFunction(Callable):
     ``dynamic_parameters``.
     """
 
+    is_ElementalFunction = True
+
     def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline'),
                  dynamic_parameters=None):
         super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
@@ -48,14 +50,16 @@ class ElementalCall(Call):
         arguments = list(as_tuple(arguments))
         dynamic_args_mapper = dynamic_args_mapper or {}
         for k, v in dynamic_args_mapper.items():
+            tv = as_tuple(v)
+
             # Sanity check
             if k not in self._mapper:
                 raise ValueError("`k` is not a dynamic parameter" % k)
-            if len(self._mapper[k]) != len(v):
+            if len(self._mapper[k]) != len(tv):
                 raise ValueError("Expected %d values for dynamic parameter `%s`, given %d"
-                                 % (len(self._mapper[k]), k, len(v)))
+                                 % (len(self._mapper[k]), k, len(tv)))
             # Create the argument list
-            for i, j in zip(self._mapper[k], v):
+            for i, j in zip(self._mapper[k], tv):
                 arguments[i] = j if incr is False else (arguments[i] + j)
 
         super(ElementalCall, self).__init__(name, arguments)

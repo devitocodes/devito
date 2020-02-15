@@ -3,7 +3,7 @@ from itertools import chain
 from cached_property import cached_property
 from sympy import S
 
-from devito.ir.support.space import Any, Backward
+from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import retrieve_terminals, q_monoaffine
 from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
@@ -87,9 +87,10 @@ class IterationInstance(LabeledVector):
                 try:
                     # There's still hope it's regular if a DerivedDimension is used
                     candidate = dims.pop()
-                    if candidate.root is fi and q_monoaffine(i, candidate, self.findices):
-                        index_mode.append(AFFINE)
-                        continue
+                    if fi in candidate._defines:
+                        if q_monoaffine(i, candidate, self.findices):
+                            index_mode.append(AFFINE)
+                            continue
                 except (KeyError, AttributeError):
                     pass
                 index_mode.append(IRREGULAR)
@@ -101,6 +102,8 @@ class IterationInstance(LabeledVector):
         for i, fi in zip(self, self.findices):
             if q_monoaffine(i, fi, self.findices):
                 aindices.append(fi)
+            elif isinstance(i, Dimension):
+                aindices.append(i)
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 aindices.append(dims.pop() if len(dims) == 1 else None)
@@ -200,15 +203,7 @@ class TimedAccess(IterationInstance):
         obj.mode = mode
         obj.timestamp = timestamp
 
-        if ispace is None:
-            obj.intervals = []
-            obj.directions = []
-        else:
-            obj.intervals = ispace.intervals
-            # We use `.root` as if a DerivedDimension is in `directions`, then so is
-            # its parent, and the parent (root) direction cannot differ from that
-            # of its child
-            obj.directions = [ispace.directions.get(i.root, Any) for i in obj.findices]
+        obj.ispace = ispace or IterationSpace([])
 
         return obj
 
@@ -220,8 +215,7 @@ class TimedAccess(IterationInstance):
         return (isinstance(other, TimedAccess) and
                 self.function is other.function and
                 self.mode == other.mode and
-                self.intervals == other.intervals and
-                self.directions == other.directions and
+                self.ispace == other.ispace and
                 super(TimedAccess, self).__eq__(other))
 
     def __hash__(self):
@@ -230,6 +224,18 @@ class TimedAccess(IterationInstance):
     @property
     def name(self):
         return self.function.name
+
+    @property
+    def intervals(self):
+        return self.ispace.intervals
+
+    @property
+    def directions(self):
+        return self.ispace.directions
+
+    @property
+    def itintervals(self):
+        return self.ispace.itintervals
 
     @property
     def is_read(self):
@@ -254,6 +260,21 @@ class TimedAccess(IterationInstance):
     @property
     def is_local(self):
         return self.function.is_Symbol
+
+    @cached_property
+    def is_regular(self):
+        if not super(TimedAccess, self).is_regular:
+            return False
+
+        # The order of the `aindices` must match the order of the iteration
+        # space Dimensions
+        positions = []
+        for d in self.aindices:
+            for n, i in enumerate(self.intervals):
+                if i.dim._defines & d._defines:
+                    positions.append(n)
+                    break
+        return positions == sorted(positions)
 
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
@@ -301,7 +322,7 @@ class TimedAccess(IterationInstance):
         # Compute distance up to `limit`, ignoring `directions` for the moment
         if findex is None:
             findex = self.findices[-1]
-            limit = self.rank + 1
+            limit = self.rank
         else:
             try:
                 limit = self._cached_findices_index[findex] + 1
@@ -312,9 +333,9 @@ class TimedAccess(IterationInstance):
         # * If mismatching `directions`, set the distance to infinity
         # * If direction is Backward, flip the sign
         ret = []
-        for i, d0, d1 in zip(distance, self.directions, other.directions):
-            if d0 is d1:
-                ret.append(-i if d0 is Backward else i)
+        for i, it0, it1 in zip(distance, self.itintervals, other.itintervals):
+            if it0.direction is it1.direction and it0.interval == it1.interval:
+                ret.append(-i if it0.direction is Backward else i)
             else:
                 ret.append(S.Infinity)
                 break
@@ -431,7 +452,11 @@ class Dependence(object):
 
     @cached_property
     def distance_mapper(self):
-        return {i: j for i, j in zip(self.findices, self.distance)}
+        retval = {}
+        for i, j in zip(self.findices, self.distance):
+            for d in i._defines:
+                retval[d] = j
+        return retval
 
     @cached_property
     def cause(self):
