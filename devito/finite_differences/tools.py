@@ -95,59 +95,51 @@ def deriv_name(dims, orders):
     return ''.join(name)
 
 
-def generate_fd_shortcuts(function):
+def generate_fd_shortcuts(dims, so, to=0):
     """Create all legal finite-difference derivatives for the given Function."""
-    dimensions = function.dimensions
-    s_fd_order = function.space_order
-    t_fd_order = function.time_order if (function.is_TimeFunction or
-                                         function.is_SparseTimeFunction) else 0
-    orders = tuple(t_fd_order if i.is_Time else s_fd_order for i in dimensions)
+    orders = tuple(to if i.is_Time else so for i in dims)
 
     from devito.finite_differences.derivative import Derivative
 
-    def deriv_function(expr, deriv_order, dims, fd_order, side=None, **kwargs):
+    def diff_f(expr, deriv_order, dims, fd_order, side=None, **kwargs):
         return Derivative(expr, *as_tuple(dims), deriv_order=deriv_order,
                           fd_order=fd_order, side=side, **kwargs)
 
-    all_combs = dim_with_order(dimensions, orders)
+    all_combs = dim_with_order(dims, orders)
 
     derivatives = {}
 
     # All conventional FD shortcuts
     for o in all_combs:
-        fd_dims = tuple(d for d, o_d in zip(dimensions, o) if o_d > 0)
-        d_orders = tuple(o_d for d, o_d in zip(dimensions, o) if o_d > 0)
-        fd_orders = tuple(t_fd_order if d.is_Time else s_fd_order for d in fd_dims)
-        deriv = partial(deriv_function, deriv_order=d_orders, dims=fd_dims,
-                        fd_order=fd_orders)
+        fd_dims = tuple(d for d, o_d in zip(dims, o) if o_d > 0)
+        d_orders = tuple(o_d for d, o_d in zip(dims, o) if o_d > 0)
+        fd_orders = tuple(to if d.is_Time else so for d in fd_dims)
+        deriv = partial(diff_f, deriv_order=d_orders, dims=fd_dims, fd_order=fd_orders)
         name_fd = deriv_name(fd_dims, d_orders)
         dname = (d.root.name for d in fd_dims)
         desciption = 'derivative of order %s w.r.t dimension %s' % (d_orders, dname)
         derivatives[name_fd] = (deriv, desciption)
 
     # Add non-conventional, non-centered first-order FDs
-    for d, o in zip(dimensions, orders):
+    for d, o in zip(dims, orders):
         name = 't' if d.is_Time else d.root.name
-        if function.is_Staggered or o == 2:
+        if o == 2:
             # Add centered first derivatives if staggered
-            deriv = partial(deriv_function, deriv_order=1, dims=d,
-                            fd_order=o, side=centered)
+            deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=centered)
             name_fd = 'd%sc' % name
             desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
             derivatives[name_fd] = (deriv, desciption)
-        if not function.is_Staggered:
-            # Left
-            deriv = partial(deriv_function, deriv_order=1,
-                            dims=d, fd_order=o, side=left)
-            name_fd = 'd%sl' % name
-            desciption = 'left first order derivative w.r.t dimension %s' % d.name
-            derivatives[name_fd] = (deriv, desciption)
-            # Right
-            deriv = partial(deriv_function, deriv_order=1,
-                            dims=d, fd_order=o, side=right)
-            name_fd = 'd%sr' % name
-            desciption = 'right first order derivative w.r.t dimension %s' % d.name
-            derivatives[name_fd] = (deriv, desciption)
+        # if not function.is_Staggered:
+        # Left
+        deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=left)
+        name_fd = 'd%sl' % name
+        desciption = 'left first order derivative w.r.t dimension %s' % d.name
+        derivatives[name_fd] = (deriv, desciption)
+        # Right
+        deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=right)
+        name_fd = 'd%sr' % name
+        desciption = 'right first order derivative w.r.t dimension %s' % d.name
+        derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
 

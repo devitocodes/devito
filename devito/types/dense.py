@@ -935,7 +935,7 @@ class Function(DiscreteFunction, Differentiable):
             raise TypeError("`space_order` must be int or 3-tuple of ints")
 
         # Dynamically add derivative short-cuts
-        self._fd = generate_fd_shortcuts(self)
+        self._fd = generate_fd_shortcuts(self.dimensions, self.space_order)
 
         # Flag whether it is a parameter or a variable.
         # Used at operator evaluation to evaluate the Function at the
@@ -1239,7 +1239,9 @@ class TimeFunction(Function):
         self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
         self._time_order = kwargs.get('time_order', 1)
         super(TimeFunction, self).__init_finalize__(*args, **kwargs)
-
+        # Dynamically add derivative short-cuts
+        self._fd = generate_fd_shortcuts(self.dimensions, self.space_order,
+                                         to=self._time_order)
         # Check we won't allocate too much memory for the system
         available_mem = virtual_memory().available
         if np.dtype(self.dtype).itemsize * self.size > available_mem:

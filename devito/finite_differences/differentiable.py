@@ -48,21 +48,6 @@ class Differentiable(sympy.Expr, Evaluable):
                    default=100)
 
     @cached_property
-    def is_TimeDependent(self):
-        # Default False, True if anything is time dependent in the expression
-        return any(getattr(i, 'is_TimeDependent', False) for i in self._args_diff)
-
-    @cached_property
-    def is_VectorValued(self):
-        # Default False, True if is a vector valued expression
-        return any(getattr(i, 'is_VectorValued', False) for i in self._args_diff)
-
-    @cached_property
-    def is_TensorValued(self):
-        # Default False, True if is a tensor valued expression
-        return any(getattr(i, 'is_TensorValued', False) for i in self._args_diff)
-
-    @cached_property
     def grid(self):
         grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
         if len(grids) > 1:
@@ -95,6 +80,10 @@ class Differentiable(sympy.Expr, Evaluable):
     @cached_property
     def is_Staggered(self):
         return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
+
+    @cached_property
+    def is_TimeDependent(self):
+        return any([i.is_Time for i in self.dimensions])
 
     @cached_property
     def _fd(self):

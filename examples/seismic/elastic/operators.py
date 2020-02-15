@@ -57,10 +57,11 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     lam, mu, ro = model.lam, model.mu, model.irho
 
     dt = model.critical_dt
+    gv = grad(v.forward)
     u_v = Eq(v.forward, model.damp * v + model.damp * dt * ro * div(tau))
     u_t = Eq(tau.forward, model.damp * tau +
              model.damp * dt * lam * diag(div(v.forward)) +
-             model.damp * dt * mu * (grad(v.forward) + grad(v.forward).T))
+             model.damp * dt * mu * (gv + gv.T))
 
     srcrec = src_rec(v, tau, model, geometry)
     op = Operator([u_v] + [u_t] + srcrec, subs=model.spacing_map, name="ForwardElastic")
