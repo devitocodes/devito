@@ -222,20 +222,10 @@ def run_jit_backdoor(problem, **kwargs):
     configuration['develop-mode'] = False
 
     setup = model_type[problem]['setup']
-    options = {}
 
     time_order = kwargs.pop('time_order')[0]
     space_order = kwargs.pop('space_order')[0]
     autotune = kwargs.pop('autotune')
-    block_shapes = as_tuple(kwargs.pop('block_shape'))
-
-    # Should a specific block-shape be used? Useful if one wants to skip
-    # the autotuning pass as a good block-shape is already known
-    # Note: the following piece of code is horribly *hacky*, but it works for now
-    for i, block_shape in enumerate(block_shapes):
-        for n, level in enumerate(block_shape):
-            for d, s in zip(['x', 'y', 'z'], level):
-                options['%s%d_blk%d_size' % (d, i, n)] = s
 
     info("Preparing simulation...")
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
@@ -246,11 +236,11 @@ def run_jit_backdoor(problem, **kwargs):
         configuration['jit-backdoor'] = True
         solver.op_fwd(None)
         configuration['log-level'] = 'PERF'
-        solver.forward(autotune=autotune, **options)
+        solver.forward(autotune=autotune)
     except ValueError:
         configuration['jit-backdoor'] = False
         configuration['log-level'] = 'INFO'
-        solver.forward(autotune=autotune, **options)
+        solver.forward(autotune=autotune)
 
         op = solver.op_fwd(None)
         cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
