@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import click
 import os
-from devito import clear_cache, configuration, warning, set_log_level
+from devito import clear_cache, configuration, info, warning, set_log_level
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
 
@@ -44,11 +44,13 @@ model_type = {
 @click.group()
 def benchmark():
     """
-    Benchmarking script for seismic forward operators.
+    Benchmarking script for seismic operators.
 
     \b
     There are three main 'execution modes':
     run: a single run with given DSE/DLE levels
+    run-jit-backdoor: a single run using the DEVITO_JIT_BACKDOOR to
+                      experiment with manual customizations
     bench: complete benchmark with multiple DSE/DLE levels
     test: tests numerical correctness with different parameters
 
@@ -175,9 +177,7 @@ def option_performance(f):
 @option_simulation
 @option_performance
 def cli_run(problem, **kwargs):
-    """
-    A single run with a specific set of performance parameters.
-    """
+    """`click` interface for the `run` mode."""
     configuration['develop-mode'] = False
 
     run(problem, **kwargs)
@@ -207,13 +207,62 @@ def run(problem, **kwargs):
     solver.forward(autotune=autotune, **options)
 
 
+@benchmark.command(name='run-jit-backdoor')
+@option_simulation
+@option_performance
+def cli_run_jit_backdoor(problem, **kwargs):
+    """`click` interface for the `run_jit_backdoor` mode."""
+    run_jit_backdoor(problem, **kwargs)
+
+
+def run_jit_backdoor(problem, **kwargs):
+    """
+    A single run using the DEVITO_JIT_BACKDOOR to test kernel customization.
+    """
+    configuration['develop-mode'] = False
+
+    setup = model_type[problem]['setup']
+    options = {}
+
+    time_order = kwargs.pop('time_order')[0]
+    space_order = kwargs.pop('space_order')[0]
+    autotune = kwargs.pop('autotune')
+    block_shapes = as_tuple(kwargs.pop('block_shape'))
+
+    # Should a specific block-shape be used? Useful if one wants to skip
+    # the autotuning pass as a good block-shape is already known
+    # Note: the following piece of code is horribly *hacky*, but it works for now
+    for i, block_shape in enumerate(block_shapes):
+        for n, level in enumerate(block_shape):
+            for d, s in zip(['x', 'y', 'z'], level):
+                options['%s%d_blk%d_size' % (d, i, n)] = s
+
+    info("Preparing simulation...")
+    solver = setup(space_order=space_order, time_order=time_order, **kwargs)
+
+    info("Running wave propagation Operator...")
+    try:
+        # Speculatively assume the generated code is already in cache
+        configuration['jit-backdoor'] = True
+        solver.op_fwd(None)
+        configuration['log-level'] = 'PERF'
+        solver.forward(autotune=autotune, **options)
+    except ValueError:
+        configuration['jit-backdoor'] = False
+        configuration['log-level'] = 'INFO'
+        solver.forward(autotune=autotune, **options)
+
+        op = solver.op_fwd(None)
+        cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
+        info("You may now edit the generated code in `%s`. "
+             "Then save the file, and re-run this benchmark." % cfile)
+
+
 @benchmark.command(name='test')
 @option_simulation
 @option_performance
 def cli_test(problem, **kwargs):
-    """
-    Test numerical correctness with different parameters.
-    """
+    """`click` interface for the `test` mode."""
     set_log_level('ERROR')
 
     test(problem, **kwargs)
@@ -246,9 +295,7 @@ def test(problem, **kwargs):
 @option_simulation
 @option_performance
 def cli_bench(problem, **kwargs):
-    """
-    Complete benchmark with multiple simulation and performance parameters.
-    """
+    """`click` interface for the `bench` mode."""
     configuration['develop-mode'] = False
 
     bench(problem, **kwargs)
@@ -290,9 +337,7 @@ def bench(problem, **kwargs):
 @option_simulation
 @option_performance
 def cli_plot(problem, **kwargs):
-    """
-    Plotting mode to generate plots for performance analysis.
-    """
+    """`click` interface for the `plot` mode."""
     plot(problem, **kwargs)
 
 
