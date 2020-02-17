@@ -550,7 +550,7 @@ class SubDimension(DerivedDimension):
 
     @cached_property
     def symbolic_size(self):
-        # The size must be given as a function of the parent's size
+        # The size must be given as a function of the parent's symbols
         return self.symbolic_max - self.symbolic_min + 1
 
     @property
@@ -935,8 +935,7 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def symbolic_size(self):
-        #TODO: previously was called max_step
-        #TODO: check this: previously it was self.parent.symbolic_max - self.parent.symbolic_min + 1
+        # The size must be given as a function of the parent's symbols
         return self.symbolic_max - self.symbolic_min + 1
 
     @cached_property
@@ -974,7 +973,7 @@ class IncrDimension(DerivedDimension):
 
     def _arg_defaults(self, **kwargs):
         # TODO: need a heuristic to pick a default incr size
-        #TODO: move default value to __new__
+        # TODO: move default value to __new__
         try:
             return {self.step.name: 8}
         except AttributeError:
@@ -1029,7 +1028,7 @@ class IncrDimension(DerivedDimension):
 
     # Pickling support
     _pickle_args = ['parent', 'symbolic_min', 'symbolic_max']
-    _pickle_kwargs = ['step', 'name']  #TODO: check: step was pickle_args before
+    _pickle_kwargs = ['step', 'name']
 
 
 def dimensions(names):
