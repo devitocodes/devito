@@ -75,9 +75,9 @@ class CPU64Operator(CPU64NoopOperator):
 
         # Reduce flops
         clusters = extract_increments(clusters, template)
-        clusters = cire(clusters, template, platform, 'sops')
-        #TODO
-        clusters = cire(clusters, template, platform, 'sops')
+        for _ in range(2):
+            # Experimentation showed that `2` is a good number
+            clusters = cire(clusters, template, platform, 'sops')
         clusters = factorize(clusters)
         clusters = cse(clusters, template)
         clusters = optimize_pows(clusters)
@@ -117,7 +117,7 @@ class CPU64Operator(CPU64NoopOperator):
         # Misc optimizations
         hoist_prodders(graph)
 
-        # Symbol lowering and definitions
+        # Symbol definitions
         data_manager = DataManager()
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
