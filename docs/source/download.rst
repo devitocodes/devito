@@ -95,7 +95,7 @@ follow these:
 
    git clone https://github.com/devitocodes/devito.git
    cd devito
-   conda env create -f environment.yml
+   conda env create -f environment-dev.yml
    source activate devito
    pip install -e .
 
