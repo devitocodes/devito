@@ -227,25 +227,29 @@ def run_jit_backdoor(problem, **kwargs):
     space_order = kwargs.pop('space_order')[0]
     autotune = kwargs.pop('autotune')
 
+    set_log_level('INFO', comm=MPI.COMM_WORLD)
+
     info("Preparing simulation...")
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
 
-    info("Running wave propagation Operator...")
-    try:
-        # Speculatively assume the generated code is already in cache
-        configuration['jit-backdoor'] = True
-        solver.op_fwd(None)
-        configuration['log-level'] = 'PERF'
-        solver.forward(autotune=autotune)
-    except ValueError:
-        configuration['jit-backdoor'] = False
-        configuration['log-level'] = 'INFO'
-        solver.forward(autotune=autotune)
+    # Generate code (but do not JIT yet)
+    op = solver.op_fwd(None)
 
-        op = solver.op_fwd(None)
-        cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
+    # Get the filename in the JIT cache
+    cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
+
+    if not os.path.exists(cfile):
+        # First time we run this problem, let's generate and jit-compile code
+        op.cfunction
         info("You may now edit the generated code in `%s`. "
              "Then save the file, and re-run this benchmark." % cfile)
+        return
+
+    info("Running wave propagation Operator...")
+
+    configuration['jit-backdoor'] = True
+    set_log_level('PERF', comm=MPI.COMM_WORLD)
+    solver.forward(autotune=autotune)
 
 
 @benchmark.command(name='test')
