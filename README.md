@@ -3,21 +3,68 @@
 [![Build Status for the Core backend](https://github.com/devitocodes/devito/workflows/CI-core/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-core)
 [![Build Status with MPI](https://github.com/devitocodes/devito/workflows/CI-mpi/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-mpi)
 [![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)](https://codecov.io/gh/devitocodes/devito)
+[![Slack Status](https://img.shields.io/badge/chat-on%20slack-%234A154B)](https://opesci-slackin.now.sh)
 
-[Devito](http://www.devitoproject.org) is a software to
-implement optimised finite difference (FD) computation from
-high-level symbolic problem definitions. Starting from symbolic
-equations defined in [SymPy](http://www.sympy.org/en/index.html),
-Devito employs automated code generation and just-in-time (JIT)
-compilation to execute FD kernels on multiple computer platforms.
+[Devito](http://www.devitoproject.org) is a Python package to implement
+optimised tensor computation from high-level symbolic problem definitions.
+Devito builds on [SymPy](http://www.sympy.org/en/index.html) and employs
+automated code generation and just-in-time (JIT) compilation to execute
+optimized computational kernels on multiple computer platforms, including
+CPUs, GPUs, and clusters thereof.
 
-## Get in touch
+- [About Devito](#about-devito)
+- [Installation](#installation)
+- [Resources](#resources)
+- [Performance](#performance)
+- [Get in touch](#get-in-touch)
 
-If you're using Devito, we would like to hear from you. Whether you
-are facing issues or just trying it out, join the
-[conversation](https://opesci-slackin.now.sh).
+## About Devito
 
-## Quickstart
+Devito provides a symbolic language to implement matrix-free operators, that is
+operators that do not require the explicit creation of a dense or sparse
+matrix. A typical use case is explicit finite difference (FD) methods for
+approximating partial differential equations. For example, a 2D diffusion
+operator may be implemented as follows
+
+```python
+>>> grid = Grid(shape=(10, 10))
+>>> f = TimeFunction(name='f', grid=grid, space_order=2)
+>>> eqn = Eq(f.dt, 0.5 * f.laplace)
+>>> op = Operator(Eq(f.forward, solve(eqn, f.forward)))
+```
+
+An `Operator` generates low-level code from an ordered collection of `Eq`. This
+code may also be compiled and executed
+
+```python
+>>> op(t=timesteps)
+```
+
+There is virtually no limit to the type of matrix-free operators that one can
+implement with Devito. The Devito compiler will automatically analyze the input,
+detect and apply optimizations (including single- and multi-node parallelism),
+and eventually generate code with arbitrarily complex loop nests, as required
+by the symbolic specification -- clearly, all this is hidden away to the user.
+
+Key features include:
+
+* A tensor language to express FD operators.
+* Straightforward mechanisms to dynamically adjust the discretizion.
+* Constructs to express sparse operators (e.g., interpolation), classic linear
+  operators (e.g., convolutions), and tensor contractions.
+* Seamless support for adjoint operators.
+* A flexible API to define custom stencils, sub-domains, sub-sampling,
+  staggered grids.
+* Distributed NumPy arrays over multi-node (MPI) domain decompositions.
+* Generation of highly optimized parallel code (SIMD vectorization,
+  CPU/GPU/multi-node parallelism, blocking, aggressive symbolic transformations
+  for FLOPs reduction, etc.).
+* Inspection and customization of the generated code.
+* Autotuning framework to ease performance tuning.
+* Smooth integration with with popular Python packages such as NumPy, SymPy,
+  Dask and SciPy.
+
+## Installation
 
 The easiest way to try Devito is through Docker using the following commands:
 ```
@@ -39,82 +86,29 @@ instructions and other options. Also look at the
 [installation issues](https://github.com/devitocodes/devito/wiki/Installation-Issues) we
 have seen in the past. 
 
-## Examples
+## Resources
 
-At the core of the Devito API are the so-called `Operator` objects, which
-allow the creation and execution of efficient FD kernels from SymPy
-expressions. Examples of how to define operators are provided:
+To learn how to use Devito,
+[here](https://github.com/devitocodes/devito/blob/master/examples) is a good
+place to start, with lots of examples and tutorials.
 
-* A set of introductory notebook tutorials introducing the basic
-  features of Devito operators can be found under
-  `examples/cfd`. These tutorials cover a range of well-known examples
-  from Computational Fluid Dynamics (CFD) and are based on the excellent
-  introductory blog ["CFD Python:12 steps to
-  Navier-Stokes"](http://lorenabarba.com/blog/cfd-python-12-steps-to-navier-stokes/)
-  by the Lorena A. Barba group. To run these, simply go into the tutorial
-  directory and run `jupyter notebook`.
-* A set of tutorial notebooks for seismic inversion examples is available in
-  `examples/seismic/tutorials`.
-* A set of tutorial notebooks concerning the Devito compiler can be found in
-  `examples/compiler`.
-* Devito with MPI can be explored in `examples/mpi`.
-* Example implementations of acoustic forward, adjoint, gradient and born
-  operators for use in full-waveform inversion (FWI) methods can be found in
-  `examples/seismic/acoustic`.
-* An advanced example of a Tilted Transverse Isotropy forward operator
-  for use in FWI can be found in `examples/seismic/tti`.
-* A benchmark script for the acoustic and TTI forward operators can be
-  found in `benchmarks/user/benchmark.py`.
+The [website](https://www.devitoproject.org/) also provides access to other
+info, including documentation and instructions for citations.
 
+## Performance
 
-## Compilation
+If you are interested in any of the following
 
-Devito's JIT compiler engine supports multiple backends, with provided
-presets for the most common compiler toolchains. By default, Devito
-will use the default GNU compiler `g++`, but other toolchains may be
-selected by setting the `DEVITO_ARCH` environment variable to one of
-the following values:
- * `gcc` or `gnu` - Standard GNU compiler toolchain
- * `clang` or `osx` - Mac OSX compiler toolchain via `clang`
- * `intel` or `icpc` - Intel compiler toolchain via `icpc`
+* Generation of parallel code (CPU, GPU, multi-node via MPI);
+* Performance tuning;
+* Benchmarking Devito;
+* Any other aspect concerning the application performance;
 
-Thread parallel execution via OpenMP can also be enabled by setting
-`DEVITO_OPENMP=1`.
+then you should take a look at this
+[README](https://github.com/devitocodes/devito/blob/master/benchmarks/user/README.md).
 
-For the full list of available environment variables and their
-possible values, simply run:
+## Get in touch
 
-```py
-from devito import print_defaults
-print_defaults()
-```
-
-Or with Docker, run:
-
-```sh
-docker-compose run devito /print-defaults
-```
-
-## Performance optimizations
-
-Devito supports two classes of performance optimizations:
- * Flop-count optimizations - They aim to reduce the operation count of an FD
-   kernel. These include, for example, code motion, factorization, and
-   detection of cross-stencil redundancies. The flop-count optimizations
-   are performed by routines built on top of SymPy, implemented in the
-   Devito Symbolic Engine (DSE), a sub-module of Devito.
- * Loop optimizations - Examples include SIMD vectorization and parallelism
-   (via code annotations) and loop blocking. These are performed by the Devito
-   Loop Engine (DLE), another sub-module of Devito.
-
-Further, [YASK](https://github.com/intel/yask) is being integrated as a Devito
-backend, for optimized execution on Intel architectures.
-
-Devito supports automatic auto-tuning of block sizes when loop blocking is
-enabled. Enabling auto-tuning is simple: it can be done by passing the special
-flag `autotune=True` to an `Operator`. Auto-tuning parameters can be set
-through the special environment variable `DEVITO_AUTOTUNING`.
-
-For more information on how to drive Devito for maximum run-time performance,
-see [here](benchmarks/user/README.md) or ask the developers on the Slack
-channel linked above.
+If you're using Devito, we would like to hear from you. Whether you
+are facing issues or just trying it out, join the
+[conversation](https://opesci-slackin.now.sh).
