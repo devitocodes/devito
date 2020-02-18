@@ -1,4 +1,4 @@
-# Devito: Fast Finite Difference Computation from Symbolic Specification
+# Devito: Fast Tensor Computation from Symbolic Specification
 
 [![Build Status for the Core backend](https://github.com/devitocodes/devito/workflows/CI-core/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-core)
 [![Build Status with MPI](https://github.com/devitocodes/devito/workflows/CI-mpi/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-mpi)
@@ -93,7 +93,7 @@ To learn how to use Devito,
 place to start, with lots of examples and tutorials.
 
 The [website](https://www.devitoproject.org/) also provides access to other
-info, including documentation and instructions for citations.
+info, including documentation and instructions for citing us.
 
 ## Performance
 
@@ -104,8 +104,8 @@ If you are interested in any of the following
 * Benchmarking Devito;
 * Any other aspect concerning the application performance;
 
-then you should take a look at this
-[README](https://github.com/devitocodes/devito/blob/master/benchmarks/user/README.md).
+then you should take a look at the README available
+[here](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
 
 ## Get in touch
 

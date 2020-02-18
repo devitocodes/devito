@@ -1,4 +1,4 @@
-## How to navigate the examples
+## How to navigate this directory
 
 Examples and tutorials are provided in the form of single Python files, as Jupyter
 notebooks, or as mini-app built on top of Devito.
