@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import click
 import os
-from devito import clear_cache, configuration, warning, set_log_level
+from devito import clear_cache, configuration, info, warning, set_log_level
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
 
@@ -44,11 +44,13 @@ model_type = {
 @click.group()
 def benchmark():
     """
-    Benchmarking script for seismic forward operators.
+    Benchmarking script for seismic operators.
 
     \b
     There are three main 'execution modes':
     run: a single run with given DSE/DLE levels
+    run-jit-backdoor: a single run using the DEVITO_JIT_BACKDOOR to
+                      experiment with manual customizations
     bench: complete benchmark with multiple DSE/DLE levels
     test: tests numerical correctness with different parameters
 
@@ -175,9 +177,7 @@ def option_performance(f):
 @option_simulation
 @option_performance
 def cli_run(problem, **kwargs):
-    """
-    A single run with a specific set of performance parameters.
-    """
+    """`click` interface for the `run` mode."""
     configuration['develop-mode'] = False
 
     run(problem, **kwargs)
@@ -207,13 +207,53 @@ def run(problem, **kwargs):
     solver.forward(autotune=autotune, **options)
 
 
+@benchmark.command(name='run-jit-backdoor')
+@option_simulation
+@option_performance
+def cli_run_jit_backdoor(problem, **kwargs):
+    """`click` interface for the `run_jit_backdoor` mode."""
+    run_jit_backdoor(problem, **kwargs)
+
+
+def run_jit_backdoor(problem, **kwargs):
+    """
+    A single run using the DEVITO_JIT_BACKDOOR to test kernel customization.
+    """
+    configuration['develop-mode'] = False
+
+    setup = model_type[problem]['setup']
+
+    time_order = kwargs.pop('time_order')[0]
+    space_order = kwargs.pop('space_order')[0]
+    autotune = kwargs.pop('autotune')
+
+    info("Preparing simulation...")
+    solver = setup(space_order=space_order, time_order=time_order, **kwargs)
+
+    # Generate code (but do not JIT yet)
+    op = solver.op_fwd(None)
+
+    # Get the filename in the JIT cache
+    cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
+
+    if not os.path.exists(cfile):
+        # First time we run this problem, let's generate and jit-compile code
+        op.cfunction
+        info("You may now edit the generated code in `%s`. "
+             "Then save the file, and re-run this benchmark." % cfile)
+        return
+
+    info("Running wave propagation Operator...")
+
+    configuration['jit-backdoor'] = True
+    solver.forward(autotune=autotune)
+
+
 @benchmark.command(name='test')
 @option_simulation
 @option_performance
 def cli_test(problem, **kwargs):
-    """
-    Test numerical correctness with different parameters.
-    """
+    """`click` interface for the `test` mode."""
     set_log_level('ERROR')
 
     test(problem, **kwargs)
@@ -246,9 +286,7 @@ def test(problem, **kwargs):
 @option_simulation
 @option_performance
 def cli_bench(problem, **kwargs):
-    """
-    Complete benchmark with multiple simulation and performance parameters.
-    """
+    """`click` interface for the `bench` mode."""
     configuration['develop-mode'] = False
 
     bench(problem, **kwargs)
@@ -290,9 +328,7 @@ def bench(problem, **kwargs):
 @option_simulation
 @option_performance
 def cli_plot(problem, **kwargs):
-    """
-    Plotting mode to generate plots for performance analysis.
-    """
+    """`click` interface for the `plot` mode."""
     plot(problem, **kwargs)
 
 
