@@ -227,8 +227,6 @@ def run_jit_backdoor(problem, **kwargs):
     space_order = kwargs.pop('space_order')[0]
     autotune = kwargs.pop('autotune')
 
-    set_log_level('INFO', comm=MPI.COMM_WORLD)
-
     info("Preparing simulation...")
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
 
@@ -248,7 +246,6 @@ def run_jit_backdoor(problem, **kwargs):
     info("Running wave propagation Operator...")
 
     configuration['jit-backdoor'] = True
-    set_log_level('PERF', comm=MPI.COMM_WORLD)
     solver.forward(autotune=autotune)
 
 
