@@ -17,12 +17,17 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v1
 
+    - name: extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+
     - name: look for ps1 file
       run: |
         ls '${{ env.OUTPUT_PATH }}/PSA'
     - name: deploy VM
       env:
-        RESOURCE_GROUP: RhodriGpu
+        RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
         RESOURCE_GROUP_REGION: uksouth
         SERVER_NAME: gpu_ci_vm
       run: >
@@ -36,9 +41,11 @@ jobs:
         -serverName $SERVER_NAME
         -adminLogin ${{ secrets.ADMIN_LOGIN }}
         -adminPassword ${{ secrets.ADMIN_PASSWORD }}
+
     - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g RhodriGpu -n gpu_ci_vm --query publicIps -o tsv)
+      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} -n gpu_ci_vm --query publicIps -o tsv)
       id: host
+
     - name: executing remote ssh commands test
       uses: fifsky/ssh-action@master
       with:
@@ -49,7 +56,7 @@ jobs:
           conda activate devito
           cd ~/programs/devito
           git fetch
-          git checkout test_gpu
+          git checkout ${{ steps.extract_branch.outputs.branch }}
           git pull
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test -s -x --cov devito tests/test_gpu.py
         host: ${{ steps.host.outputs.action_host }}

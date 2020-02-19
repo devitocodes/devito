@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from conftest import skipif
 from devito import Grid, TimeFunction, Eq, Operator, switchconfig
