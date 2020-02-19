@@ -669,7 +669,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     """
 
     def _make_region(self, hs, key):
-        return MPIRegion('reg%d' % key, hs.arguments, hs.omapper.owned)
+        return MPIRegion('reg', key, hs.arguments, hs.omapper.owned)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -1024,7 +1024,10 @@ class MPIMsgEnriched(MPIMsg):
 
 class MPIRegion(CompositeObject):
 
-    def __init__(self, name, arguments, owned):
+    def __init__(self, name, key, arguments, owned):
+        name = "%s%d" % (name, key)
+        pname = "region%d" % key
+
         self._owned = owned
 
         # Sorting for deterministic codegen
@@ -1037,7 +1040,8 @@ class MPIRegion(CompositeObject):
                 fields.append((i.max_name, c_int))
             else:
                 fields.append((i.name, c_int))
-        super(MPIRegion, self).__init__(name, 'region', fields)
+
+        super(MPIRegion, self).__init__(name, pname, fields)
 
     def __value_setup__(self, dtype, value):
         # We eventually produce an array of `struct region` that is as big as
