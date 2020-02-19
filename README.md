@@ -23,7 +23,7 @@ CPUs, GPUs, and clusters thereof.
 Devito provides a functional language to implement sophisticated operators that
 can be made up of multiple stencil computations, boundary conditions, sparse
 operations (e.g., interpolation), and much more.  A typical use case is
-explicit finite difference (FD) methods for approximating partial differential
+explicit finite difference methods for approximating partial differential
 equations. For example, a 2D diffusion operator may be implemented with Devito
 as follows
 
@@ -34,22 +34,21 @@ as follows
 >>> op = Operator(Eq(f.forward, solve(eqn, f.forward)))
 ```
 
-An `Operator` generates low-level code from an ordered collection of `Eq`. This
-code may also be compiled and executed
+An `Operator` generates low-level code from an ordered collection of `Eq` (just
+one in this simple example). This code may also be compiled and executed
 
 ```python
 >>> op(t=timesteps)
 ```
 
-There is virtually no limit to the type of matrix-free operators that one can
-implement with Devito. The Devito compiler will automatically analyze the input,
-detect and apply optimizations (including single- and multi-node parallelism),
-and eventually generate code with arbitrarily complex loop nests, as required
-by the symbolic specification -- clearly, all this is hidden away to the user.
+There is virtually no limit to the complexity of an `Operator` -- the Devito
+compiler will automatically analyze the input, detect and apply optimizations
+(including single- and multi-node parallelism), and eventually generate code
+with suitable loops and expressions.
 
 Key features include:
 
-* A functional language to express FD operators.
+* A functional language to express finite difference operators.
 * Straightforward mechanisms to dynamically adjust the discretizion.
 * Constructs to express sparse operators (e.g., interpolation), classic linear
   operators (e.g., convolutions), and tensor contractions.
@@ -63,7 +62,8 @@ Key features include:
 * Inspection and customization of the generated code.
 * Autotuning framework to ease performance tuning.
 * Smooth integration with with popular Python packages such as NumPy, SymPy,
-  Dask and SciPy.
+  Dask, and SciPy, as well as machine learning frameworks such as TensorFlow
+  and PyTorch.
 
 ## Installation
 
