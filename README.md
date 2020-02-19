@@ -1,4 +1,4 @@
-# Devito: Fast Tensor Computation from Symbolic Specification
+# Devito: Fast Stencil Computation from Symbolic Specification
 
 [![Build Status for the Core backend](https://github.com/devitocodes/devito/workflows/CI-core/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-core)
 [![Build Status with MPI](https://github.com/devitocodes/devito/workflows/CI-mpi/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-mpi)
@@ -6,7 +6,7 @@
 [![Slack Status](https://img.shields.io/badge/chat-on%20slack-%234A154B)](https://opesci-slackin.now.sh)
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
-optimised tensor computation from high-level symbolic problem definitions.
+optimised stencil computation from high-level symbolic problem definitions.
 Devito builds on [SymPy](http://www.sympy.org/en/index.html) and employs
 automated code generation and just-in-time (JIT) compilation to execute
 optimized computational kernels on multiple computer platforms, including
@@ -20,11 +20,12 @@ CPUs, GPUs, and clusters thereof.
 
 ## About Devito
 
-Devito provides a symbolic language to implement matrix-free operators, that is
-operators that do not require the explicit creation of a dense or sparse
-matrix. A typical use case is explicit finite difference (FD) methods for
-approximating partial differential equations. For example, a 2D diffusion
-operator may be implemented as follows
+Devito provides a functional language to implement sophisticated operators that
+can be made up of multiple stencil computations, boundary conditions, sparse
+operations (e.g., interpolation), and much more.  A typical use case is
+explicit finite difference (FD) methods for approximating partial differential
+equations. For example, a 2D diffusion operator may be implemented with Devito
+as follows
 
 ```python
 >>> grid = Grid(shape=(10, 10))
@@ -48,11 +49,11 @@ by the symbolic specification -- clearly, all this is hidden away to the user.
 
 Key features include:
 
-* A tensor language to express FD operators.
+* A functional language to express FD operators.
 * Straightforward mechanisms to dynamically adjust the discretizion.
 * Constructs to express sparse operators (e.g., interpolation), classic linear
   operators (e.g., convolutions), and tensor contractions.
-* Seamless support for adjoint operators.
+* Seamless support for boundary conditions and adjoint operators.
 * A flexible API to define custom stencils, sub-domains, sub-sampling,
   staggered grids.
 * Distributed NumPy arrays over multi-node (MPI) domain decompositions.
