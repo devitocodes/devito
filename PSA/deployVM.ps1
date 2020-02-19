@@ -27,15 +27,15 @@ param(
     [string]
     $resourceGroupNameRegion,
 
-    [Parameter(Mandatory = $True)]  
+    [Parameter(Mandatory = $True)]
     [string]
     $serverName,
 
-    [Parameter(Mandatory = $True)]  
+    [Parameter(Mandatory = $True)]
     [string]
     $adminLogin,
 
-    [Parameter(Mandatory = $True)]  
+    [Parameter(Mandatory = $True)]
     [String]
     $adminPassword
 )
