@@ -68,7 +68,6 @@ class TestOffloading(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
-    @pytest.mark.xfail
     @switchconfig(platform='nvidiaX')
     def test_iso_ac(self):
         from examples.seismic import TimeAxis, RickerSource, Receiver
