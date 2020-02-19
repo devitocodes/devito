@@ -20,7 +20,6 @@ def optimize_halospots(iet):
     iet = _drop_halospots(iet)
     iet = _hoist_halospots(iet)
     iet = _merge_halospots(iet)
-    iet = _aggregate_in_halospots(iet)
     iet = _drop_if_unwritten(iet)
 
     return iet, {}
@@ -142,48 +141,6 @@ def _merge_halospots(iet):
 
     # Transform the IET merging/dropping HaloSpots as according to the analysis
     iet = Transformer(mapper, nested=True).visit(iet)
-
-    return iet
-
-
-def _aggregate_in_halospots(iet):
-    """
-    Try to move HaloSpot-free Iteration nests within HaloSpot
-    subtrees, to overlap as much computation as possible. The HaloSpot-free
-    Iteration nests must be fully affine, otherwise we wouldn't be able to
-    honour the data dependences along the halo
-
-    <HaloSpot(u,v)>            HaloSpot(u,v)
-      <A>             ---->      <A>
-    <B>              affine?     <B>
-
-    Here, <B> doesn't require any halo exchange, but it might still need the
-    output of <A>; thus, if we do computation/communication overlap over <A>
-    *and* want to embed <B> within the HaloSpot, then <B>'s iteration space
-    will have to be split as well. For this, <B> must be affine.
-    """
-    #TODO: we can probably drop this one now
-    # Analysis
-    mapper = {}
-    for v in FindAdjacent((HaloSpot, Iteration)).visit(iet).values():
-        for g in v:
-            root = None
-
-            for i in g:
-                if i.is_HaloSpot:
-                    root = i
-                    mapper[root] = [root.body]
-                elif root and all(j.is_Affine for j in FindNodes(Iteration).visit(i)):
-                    mapper[root].append(i)
-                    mapper[i] = None
-                else:
-                    root = None
-
-    # Post-process analysis
-    mapper = {k: k._rebuild(body=List(body=v)) if v else v for k, v in mapper.items()}
-
-    # Transform the IET aggregating Iterations inside HaloSpots
-    iet = Transformer(mapper).visit(iet)
 
     return iet
 
