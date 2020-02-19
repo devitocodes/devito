@@ -81,7 +81,7 @@ try {
     az vm create  `
         --resource-group $resourceGroupName `
         --name $serverName `
-        --image RhodriGpuVM-image-20200210110731 `
+        --image testgpu-image-20200219162635 `
         --admin-username $adminLogin `
         --admin-password $adminPassword
     }

@@ -24,7 +24,7 @@ jobs:
       env:
         RESOURCE_GROUP: RhodriGpu
         RESOURCE_GROUP_REGION: uksouth
-        SERVER_NAME: testgpu
+        SERVER_NAME: gpu_ci_vm
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\PSA\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
@@ -37,7 +37,7 @@ jobs:
         -adminLogin ${{ secrets.ADMIN_LOGIN }}
         -adminPassword ${{ secrets.ADMIN_PASSWORD }}
     - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g RhodriGpu -n testgpu --query publicIps -o tsv)
+      run: echo ::set-output name=action_host::$(az vm show -d -g RhodriGpu -n gpu_ci_vm --query publicIps -o tsv)
       id: host
     - name: executing remote ssh commands test
       uses: fifsky/ssh-action@master
@@ -48,6 +48,9 @@ jobs:
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
           cd ~/programs/devito
+          git fetch
+          git checkout test_gpu
+          git pull
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test -s -x --cov devito tests/test_gpu.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.ADMIN_LOGIN }}
