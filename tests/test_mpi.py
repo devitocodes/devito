@@ -837,6 +837,27 @@ class TestCodeGeneration(object):
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
+    @pytest.mark.parallel(mode=[(1, 'full')])
+    def test_avoid_fullmode_if_crossloop_dep(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        f.data_with_halo[:] = 0.
+        g.data_with_halo[:] = 1.
+
+        op = Operator([Eq(f, g[x, y-1] + g[x, y+1]),
+                       Eq(g, f)])
+
+        # Exactly 4 routines will be generated for the basic mode
+        assert len(op._func_table) == 4
+
+        # Also check the numerical values
+        op.apply()
+        assert np.all(f.data[:] == 2.)
+
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
         ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
