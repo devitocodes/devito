@@ -34,8 +34,9 @@ as follows
 >>> op = Operator(Eq(f.forward, solve(eqn, f.forward)))
 ```
 
-An `Operator` generates low-level code from an ordered collection of `Eq` (just
-one in the example above). This code may also be compiled and executed
+An `Operator` generates low-level code from an ordered collection of `Eq` (the
+example above being for a single equation). This code may also be compiled and
+executed
 
 ```python
 >>> op(t=timesteps)
@@ -57,7 +58,7 @@ Key features include:
   and staggered grids.
 * Generation of highly optimized parallel code (SIMD vectorization, CPU and GPU
   parallelism via OpenMP, multi-node parallelism via MPI, blocking, aggressive
-  symbolic transformations for FLOPs reduction, etc.).
+  symbolic transformations for FLOP reduction, etc.).
 * Distributed NumPy arrays over multi-node (MPI) domain decompositions.
 * Inspection and customization of the generated code.
 * Autotuning framework to ease performance tuning.
@@ -76,14 +77,15 @@ cd devito
 # start a jupyter notebook server on port 8888
 docker-compose up devito
 ```
-After running the last command above, the terminal will display a URL like
+After running the last command above, the terminal will display a URL such as
 `https://127.0.0.1:8888/?token=XXX`. Copy-paste this URL into a browser window
 to start a [Jupyter](https://jupyter.org/) notebook session where you can go
 through the [tutorials](https://github.com/devitocodes/devito/tree/master/examples)
-provided with Devito or create your notebooks.
+provided with Devito or create your own notebooks.
 
 [See here](http://devitocodes.github.io/devito/download.html) for detailed installation
-instructions and other options. Also, look at the
+instructions and other options. If you encounter a problem during installation, please
+see the
 [installation issues](https://github.com/devitocodes/devito/wiki/Installation-Issues) we
 have seen in the past. 
 
@@ -94,7 +96,7 @@ To learn how to use Devito,
 place to start, with lots of examples and tutorials.
 
 The [website](https://www.devitoproject.org/) also provides access to other
-info, including documentation and instructions for citing us.
+information, including documentation and instructions for citing us.
 
 ## Performance
 
@@ -103,7 +105,7 @@ If you are interested in any of the following
 * Generation of parallel code (CPU, GPU, multi-node via MPI);
 * Performance tuning;
 * Benchmarking Devito;
-* Any other aspect concerning the application performance;
+* Any other aspect concerning application performance;
 
 then you should take a look at this
 [README](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
