@@ -21,6 +21,7 @@ def optimize_halospots(iet):
     iet = _hoist_halospots(iet)
     iet = _merge_halospots(iet)
     iet = _drop_if_unwritten(iet)
+    iet = _mark_overlappable(iet)
 
     return iet, {}
 
@@ -172,6 +173,59 @@ def _drop_if_unwritten(iet):
     return iet
 
 
+class OverlappableHaloSpot(HaloSpot):
+    """A HaloSpot allowing computation/communication overlap."""
+    pass
+
+
+def _mark_overlappable(iet):
+    """
+    Detect the HaloSpots allowing computation/communication overlap and turn
+    them into OverlappableHaloSpots.
+    """
+    # Analysis
+    found = []
+    for hs in FindNodes(HaloSpot).visit(iet):
+        expressions = FindNodes(Expression).visit(hs)
+        scope = Scope([i.expr for i in expressions])
+
+        test = True
+
+        # Comp/comm overlaps is legal only if the OWNED regions can grow
+        # arbitrarly, which means all of the dependences must be carried
+        # along a non-halo Dimension
+        for dep in scope.d_all_gen():
+            if dep.function in hs.functions:
+                if not dep.cause:
+                    # E.g. increments
+                    # for x
+                    #   for y
+                    #     f[x, y] = f[x, y] + 1
+                    test = False
+                    break
+                elif dep.cause & hs.dimensions:
+                    # E.g. dependences across PARALLEL iterations
+                    # for x
+                    #   for y
+                    #     ... = ... f[x, y-1] ...
+                    #   for y
+                    #     f[x, y] = ...
+                    test = False
+                    break
+
+        # Heuristic: avoid comp/comm overlap for sparse Iteration nests
+        test = test and all(i.is_Affine for i in FindNodes(Iteration).visit(hs))
+
+        if test:
+            found.append(hs)
+
+    # Transform the IET replacing HaloSpots with OverlappableHaloSpots
+    mapper = {hs: OverlappableHaloSpot(**hs.args) for hs in found}
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    return iet
+
+
 @iet_pass
 def mpiize(iet, **kwargs):
     """
@@ -186,11 +240,7 @@ def mpiize(iet, **kwargs):
     user_heb = HaloExchangeBuilder(mode, **generators)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
-        # Not all HaloExchangeBuilders are guaranteed to work unless all of the
-        # inner Iterations are PARALLEL
-        iterations = FindNodes(Iteration).visit(hs)
-        heb = user_heb if all(i.is_Parallel for i in iterations) else sync_heb
-
+        heb = user_heb if isinstance(hs, OverlappableHaloSpot) else sync_heb
         mapper[hs] = heb.make(hs)
 
     efuncs = sync_heb.efuncs + user_heb.efuncs
