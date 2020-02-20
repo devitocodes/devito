@@ -6,11 +6,12 @@
 [![Slack Status](https://img.shields.io/badge/chat-on%20slack-%2336C5F0)](https://opesci-slackin.now.sh)
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
-optimized stencil computation from high-level symbolic problem definitions.
-Devito builds on [SymPy](http://www.sympy.org/en/index.html) and employs
-automated code generation and just-in-time (JIT) compilation to execute
-optimized computational kernels on several computer platforms, including
-CPUs, GPUs, and clusters thereof.
+optimized stencil computation (e.g., finite differences, image processing,
+machine learning) from high-level symbolic problem definitions.  Devito builds
+on [SymPy](http://www.sympy.org/en/index.html) and employs automated code
+generation and just-in-time compilation to execute optimized computational
+kernels on several computer platforms, including CPUs, GPUs, and clusters
+thereof.
 
 - [About Devito](#about-devito)
 - [Installation](#installation)
@@ -50,7 +51,7 @@ with suitable loops and expressions.
 Key features include:
 
 * A functional language to express finite difference operators.
-* Straightforward mechanisms to dynamically adjust the discretization.
+* Straightforward mechanisms to adjust the discretization.
 * Constructs to express sparse operators (e.g., interpolation), classic linear
   operators (e.g., convolutions), and tensor contractions.
 * Seamless support for boundary conditions and adjoint operators.
