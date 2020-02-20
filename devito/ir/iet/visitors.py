@@ -19,8 +19,7 @@ from devito.types.basic import AbstractFunction
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
-           'FindAdjacent']
+           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer']
 
 
 class Visitor(GenericVisitor):
@@ -626,58 +625,6 @@ class FindNodes(Visitor):
             ret.append(o)
         for i in o.children:
             ret = self._visit(i, ret=ret)
-        return ret
-
-
-class FindAdjacent(Visitor):
-
-    @classmethod
-    def default_retval(cls):
-        return OrderedDict([('seen_type', False)])
-
-    """
-    Return a mapper from nodes N in an Expression/Iteration tree to sequences of
-    objects I = [I_0, I_1, ...] of type T, where N is the direct ancestor of
-    the items in I and all items in I are adjacent nodes in the tree.
-    """
-
-    def __init__(self, match):
-        super(FindAdjacent, self).__init__()
-        self.match = as_tuple(match)
-
-    def handler(self, o, parent=None, ret=None):
-        if ret is None:
-            ret = self.default_retval()
-        if parent is None:
-            return ret
-        group = []
-        for i in o:
-            ret = self._visit(i, parent=parent, ret=ret)
-            if i and ret['seen_type'] is True:
-                group.append(i)
-            else:
-                if len(group) > 1:
-                    ret.setdefault(parent, []).append(tuple(group))
-                # Reset the group, Iterations no longer adjacent
-                group = []
-        # Potential leftover
-        if len(group) > 1:
-            ret.setdefault(parent, []).append(tuple(group))
-        return ret
-
-    def _post_visit(self, ret):
-        ret.pop('seen_type', None)
-        return ret
-
-    def visit_object(self, o, parent=None, ret=None):
-        return ret
-
-    def visit_tuple(self, o, parent=None, ret=None):
-        return self.handler(o, parent=parent, ret=ret)
-
-    def visit_Node(self, o, parent=None, ret=None):
-        ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_type'] = type(o) in self.match
         return ret
 
 
