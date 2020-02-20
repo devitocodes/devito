@@ -51,6 +51,7 @@ jobs:
       uses: fifsky/ssh-action@master
       with:
         command: |
+          #! /bin/bash
           # Ensure clang and cuda libraries are visible
           export PATH=~/programs/install/bin:$PATH
           export LD_LIBRARY_PATH=~/programs/install/lib:$LD_LIBRARY_PATH
@@ -60,7 +61,7 @@ jobs:
           git fetch
           git checkout ${{ steps.extract_branch.outputs.branch }}
           git pull
-          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test --cov devito tests/test_gpu.py
+          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test devito tests/test_gpu.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.ADMIN_LOGIN }}
         pass: ${{ secrets.ADMIN_PASSWORD }}

@@ -56,7 +56,6 @@ class TestOffloading(object):
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
 
-    @switchconfig(platform='nvidiaX')
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -69,7 +68,6 @@ class TestOffloading(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
-    @switchconfig(platform='nvidiaX')
     def test_iso_ac(self):
 
         shape = (101, 101)
