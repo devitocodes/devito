@@ -3,13 +3,13 @@
 [![Build Status for the Core backend](https://github.com/devitocodes/devito/workflows/CI-core/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-core)
 [![Build Status with MPI](https://github.com/devitocodes/devito/workflows/CI-mpi/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-mpi)
 [![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)](https://codecov.io/gh/devitocodes/devito)
-[![Slack Status](https://img.shields.io/badge/chat-on%20slack-%234A154B)](https://opesci-slackin.now.sh)
+[![Slack Status](https://img.shields.io/badge/chat-on%20slack-%2336C5F0)](https://opesci-slackin.now.sh)
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
-optimised stencil computation from high-level symbolic problem definitions.
+optimized stencil computation from high-level symbolic problem definitions.
 Devito builds on [SymPy](http://www.sympy.org/en/index.html) and employs
 automated code generation and just-in-time (JIT) compilation to execute
-optimized computational kernels on multiple computer platforms, including
+optimized computational kernels on several computer platforms, including
 CPUs, GPUs, and clusters thereof.
 
 - [About Devito](#about-devito)
@@ -35,7 +35,7 @@ as follows
 ```
 
 An `Operator` generates low-level code from an ordered collection of `Eq` (just
-one in this simple example). This code may also be compiled and executed
+one in the example above). This code may also be compiled and executed
 
 ```python
 >>> op(t=timesteps)
@@ -49,21 +49,21 @@ with suitable loops and expressions.
 Key features include:
 
 * A functional language to express finite difference operators.
-* Straightforward mechanisms to dynamically adjust the discretizion.
+* Straightforward mechanisms to dynamically adjust the discretization.
 * Constructs to express sparse operators (e.g., interpolation), classic linear
   operators (e.g., convolutions), and tensor contractions.
 * Seamless support for boundary conditions and adjoint operators.
 * A flexible API to define custom stencils, sub-domains, sub-sampling,
-  staggered grids.
+  and staggered grids.
+* Generation of highly optimized parallel code (SIMD vectorization, CPU and GPU
+  parallelism via OpenMP, multi-node parallelism via MPI, blocking, aggressive
+  symbolic transformations for FLOPs reduction, etc.).
 * Distributed NumPy arrays over multi-node (MPI) domain decompositions.
-* Generation of highly optimized parallel code (SIMD vectorization,
-  CPU/GPU/multi-node parallelism, blocking, aggressive symbolic transformations
-  for FLOPs reduction, etc.).
 * Inspection and customization of the generated code.
 * Autotuning framework to ease performance tuning.
-* Smooth integration with with popular Python packages such as NumPy, SymPy,
-  Dask, and SciPy, as well as machine learning frameworks such as TensorFlow
-  and PyTorch.
+* Smooth integration with popular Python packages such as NumPy, SymPy, Dask,
+  and SciPy, as well as machine learning frameworks such as TensorFlow and
+  PyTorch.
 
 ## Installation
 
@@ -80,10 +80,10 @@ After running the last command above, the terminal will display a URL like
 `https://127.0.0.1:8888/?token=XXX`. Copy-paste this URL into a browser window
 to start a [Jupyter](https://jupyter.org/) notebook session where you can go
 through the [tutorials](https://github.com/devitocodes/devito/tree/master/examples)
-provided with Devito or create your own notebooks.
+provided with Devito or create your notebooks.
 
 [See here](http://devitocodes.github.io/devito/download.html) for detailed installation
-instructions and other options. Also look at the
+instructions and other options. Also, look at the
 [installation issues](https://github.com/devitocodes/devito/wiki/Installation-Issues) we
 have seen in the past. 
 
@@ -105,8 +105,8 @@ If you are interested in any of the following
 * Benchmarking Devito;
 * Any other aspect concerning the application performance;
 
-then you should take a look at the README available
-[here](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
+then you should take a look at this
+[README](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
 
 ## Get in touch
 

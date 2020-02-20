@@ -1,7 +1,7 @@
 ## How to navigate this directory
 
 Examples and tutorials are provided in the form of single Python files, as Jupyter
-notebooks, or as mini-app built on top of Devito.
+notebooks, or as mini-apps built on top of Devito.
 
 Jupyter notebooks are files with extension `.ipynb`. To execute these, run
 `jupyter notebook`, and then click on the desired notebook in the window that
