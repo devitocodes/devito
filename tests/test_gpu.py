@@ -1,8 +1,10 @@
 import numpy as np
 
 from conftest import skipif
-from devito import Grid, TimeFunction, Eq, Operator, switchconfig
+from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, switchconfig,
+                    norm)
 from devito.ir.iet import retrieve_iteration_tree
+from examples.seismic import TimeAxis, RickerSource, Receiver
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -69,8 +71,6 @@ class TestOffloading(object):
 
     @switchconfig(platform='nvidiaX')
     def test_iso_ac(self):
-        from examples.seismic import TimeAxis, RickerSource, Receiver
-        from devito import Function, solve, norm
 
         shape = (101, 101)
         extent = (1000, 1000)

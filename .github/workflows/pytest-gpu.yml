@@ -24,14 +24,15 @@ jobs:
 
     - name: look for ps1 file
       run: |
-        ls '${{ env.OUTPUT_PATH }}/PSA'
+        ls '${{ env.OUTPUT_PATH }}/.github/azure'
+
     - name: deploy VM
       env:
         RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
         RESOURCE_GROUP_REGION: uksouth
         SERVER_NAME: gpu_ci_vm
       run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\PSA\deployVM.ps1'"
+        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
         -servicePrincipalSecret ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
         -servicePrincipalTenantId ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
@@ -50,6 +51,7 @@ jobs:
       uses: fifsky/ssh-action@master
       with:
         command: |
+          # Ensure clang and cuda libraries are visible
           export PATH=~/programs/install/bin:$PATH
           export LD_LIBRARY_PATH=~/programs/install/lib:$LD_LIBRARY_PATH
           source ~/anaconda3/etc/profile.d/conda.sh
@@ -58,7 +60,7 @@ jobs:
           git fetch
           git checkout ${{ steps.extract_branch.outputs.branch }}
           git pull
-          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test -s -x --cov devito tests/test_gpu.py
+          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test --cov devito tests/test_gpu.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.ADMIN_LOGIN }}
         pass: ${{ secrets.ADMIN_PASSWORD }}
