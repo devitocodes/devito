@@ -1,7 +1,7 @@
 from collections import defaultdict
 
-from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, List, FindAdjacent,
-                           FindNodes, MapNodes, Transformer, retrieve_iteration_tree)
+from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, List, FindNodes,
+                           MapNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder, HaloScheme
