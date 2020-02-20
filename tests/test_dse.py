@@ -916,6 +916,11 @@ class TestTTI(object):
         assert np.allclose(v0.data, v1.data, atol=10e-1)
         assert np.allclose(rec0.data, rec1.data, atol=10e-1)
 
+        # Run a quick check to be sure MPI-full-mode code was actually generated
+        op = tti_agg.op_fwd('centered', False)
+        assert len(op._func_table) == 8
+        assert 'pokempi0' in op._func_table
+
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
         (8, 180), (16, 318)
