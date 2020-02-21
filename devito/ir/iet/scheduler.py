@@ -1,9 +1,8 @@
 from collections import OrderedDict
-from itertools import product
 
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
-                           Transformer, XSubs)
+                           XSubs)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper, timed_pass
 from devito.types import ConditionalDimension

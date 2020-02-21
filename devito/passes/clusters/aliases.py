@@ -4,9 +4,9 @@ from cached_property import cached_property
 from sympy import Indexed
 import numpy as np
 
-from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, IterationSpace,
-                       Interval, IntervalGroup, LabeledVector, Stencil,
-                       detect_accesses, build_intervals)
+from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
+                       IntervalGroup, LabeledVector, Stencil, detect_accesses,
+                       build_intervals)
 from devito.logger import perf_adv
 from devito.passes.clusters.utils import dse_pass, make_is_time_invariant
 from devito.symbolics import (estimate_cost, q_leaf, q_sum_of_product, q_terminalop,

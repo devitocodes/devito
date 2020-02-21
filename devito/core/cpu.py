@@ -3,9 +3,9 @@ from functools import partial
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.passes.clusters import (Blocking, Lift, cire, cse,
-                                    eliminate_arrays, extract_increments, factorize,
-                                    freeze, fuse, optimize_pows, scalarize)
+from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
+                                    extract_increments, factorize, freeze, fuse,
+                                    optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
                                optimize_halospots, loop_wrapping, hoist_prodders,
                                relax_incr_dimensions)
@@ -147,10 +147,8 @@ class CustomOperator(CPU64Operator):
             'fuse': fuse,
             'blocking': Blocking(inner, levels).process,
             # Pre-baked composite passes
-            'topofuse':\
-                lambda i: fuse(Toposort().process(i))
+            'topofuse': lambda i: fuse(Toposort().process(i))
         }
-
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
