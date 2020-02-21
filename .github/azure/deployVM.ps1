@@ -33,6 +33,10 @@ param(
 
     [Parameter(Mandatory = $True)]
     [string]
+    $vmImage,
+
+    [Parameter(Mandatory = $True)]
+    [string]
     $adminLogin,
 
     [Parameter(Mandatory = $True)]
@@ -81,7 +85,7 @@ try {
     az vm create  `
         --resource-group $resourceGroupName `
         --name $serverName `
-        --image testgpu-image-20200219162635 `
+        --image $vmImage `
         --admin-username $adminLogin `
         --admin-password $adminPassword
     }

@@ -30,7 +30,8 @@ jobs:
       env:
         RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
         RESOURCE_GROUP_REGION: uksouth
-        SERVER_NAME: gpu_ci_vm
+        SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
+        IMAGE: gpu_ci_vm-image-21022020
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
@@ -40,6 +41,7 @@ jobs:
         -resourceGroupName $RESOURCE_GROUP
         -resourceGroupNameRegion $RESOURCE_GROUP_REGION
         -serverName $SERVER_NAME
+        -vmImage $IMAGE
         -adminLogin ${{ secrets.ADMIN_LOGIN }}
         -adminPassword ${{ secrets.ADMIN_PASSWORD }}
 
@@ -58,6 +60,10 @@ jobs:
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
           cd ~/programs/devito
+          # Ensure no merge conflicts arise
+          git checkout master
+          git rev-parse --verify --quiet ${{ steps.extract_branch.outputs.branch }}
+          if [ $? -eq 0 ]; then git branch -D ${{ steps.extract_branch.outputs.branch }}; fi
           git fetch
           git checkout ${{ steps.extract_branch.outputs.branch }}
           git pull
