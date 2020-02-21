@@ -4,10 +4,10 @@ from devito.symbolics import (estimate_cost, q_leaf, q_sum_of_product, q_termina
                               yreplace)
 from devito.types import Scalar
 
-__all__ = ['extract_increments', 'extract_time_invariants', 'extract_sum_of_products']
+__all__ = ['extract_increments', 'extract_invariants', 'extract_sum_of_products']
 
 
-@dse_pass
+@dse_pass(mode='sparse')
 def extract_increments(cluster, template, *args):
     """
     Extract the RHS of non-local tensor expressions performing an associative
@@ -30,9 +30,10 @@ def extract_increments(cluster, template, *args):
 
 
 @dse_pass
-def extract_time_invariants(cluster, template, *args):
+def extract_invariants(cluster, template, *args):
     """
-    Extract time-invariant subexpressions, and assign them to temporaries.
+    Extract invariant sub-expressions, that is expressions that are invariant
+    w.r.t. some Dimensions, and assign them to scalar temporaries.
     """
     make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
     rule = make_is_time_invariant(cluster.exprs)

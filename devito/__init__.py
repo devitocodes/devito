@@ -21,7 +21,6 @@ from devito.backends import backends_registry, init_backend
 from devito.compiler import compiler_registry
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
 from devito.operator import profiler_registry, operator_registry
-from devito.passes import dse_registry
 
 
 from ._version import get_versions  # noqa
@@ -92,10 +91,7 @@ configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 # - The compiler performs more type and value checking
 configuration.add('develop-mode', True, [False, True])
 
-# Setup DSE
-configuration.add('dse', 'advanced', list(dse_registry))
-
-# Setup DLE
+# Setup optimization level
 # Note: for backwards compatibility, this config option is still called 'dle'
 configuration.add('dle', 'advanced', list(operator_registry._accepted))
 configuration.add('dle-options', {})

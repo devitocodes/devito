@@ -2,11 +2,12 @@ from itertools import groupby
 
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
-from devito.symbolics import xreplace_indices
+from devito.passes.clusters.utils import dse_pass
+from devito.symbolics import pow_to_mul, xreplace_indices
 from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
-__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays']
+__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows']
 
 
 class Lift(Queue):
@@ -183,3 +184,11 @@ def eliminate_arrays(clusters, template):
         processed.append(c.rebuild(exprs))
 
     return processed
+
+
+@dse_pass
+def optimize_pows(cluster, *args):
+    """
+    Convert integer powers into Muls, such as ``a**2 => a*a``.
+    """
+    return cluster.rebuild(exprs=[pow_to_mul(e) for e in cluster.exprs])

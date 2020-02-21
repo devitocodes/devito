@@ -1,5 +1,5 @@
 from collections import Iterable, OrderedDict
-from functools import wraps
+from operator import attrgetter
 
 from devito.symbolics import retrieve_terminals
 from devito.tools import flatten, timed_pass
@@ -8,25 +8,52 @@ from devito.types import Dimension, Symbol
 __all__ = ['dse_pass', 'makeit_ssa', 'make_is_time_invariant']
 
 
-def dse_pass(func):
-    @wraps(func)
-    def wrapper(*args):
-        if timed_pass.is_enabled():
-            maybe_timed = lambda *_args: timed_pass(func, func.__name__)(*_args)
+class dse_pass(object):
+
+    def __new__(cls, *args, mode='dense'):
+        if args:
+            if len(args) == 1:
+                func, = args
+            elif len(args) == 2:
+                func, mode = args
+            else:
+                assert False
+            obj = object.__new__(cls)
+            obj.__init__(func, mode)
+            return obj
         else:
-            maybe_timed = lambda *_args: func(*_args)
+            def wrapper(func):
+                return dse_pass(func, mode)
+            return wrapper
+
+    def __init__(self, func, mode='dense'):
+        self.func = func
+
+        if mode == 'dense':
+            self.cond = lambda c: c.is_dense
+        elif mode == 'sparse':
+            self.cond = lambda c: not c.is_dense
+        else:
+            self.cond = lambda c: True
+
+    def __call__(self, *args):
+        if timed_pass.is_enabled():
+            maybe_timed = lambda *_args: timed_pass(self.func, self.func.__name__)(*_args)
+        else:
+            maybe_timed = lambda *_args: self.func(*_args)
         args = list(args)
         maybe_clusters = args.pop(0)
         if isinstance(maybe_clusters, Iterable):
             # Instance method
-            processed = [maybe_timed(c, *args) for c in maybe_clusters]
+            processed = [maybe_timed(c, *args) if self.cond(c) else c
+                         for c in maybe_clusters]
         else:
             # Pure function
             self = maybe_clusters
             clusters = args.pop(0)
-            processed = [maybe_timed(self, c, *args) for c in clusters]
+            processed = [maybe_timed(self, c, *args) if self.cond(c) else c
+                         for c in clusters]
         return flatten(processed)
-    return wrapper
 
 
 def makeit_ssa(exprs):

@@ -7,10 +7,10 @@ from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import Queue
-from devito.symbolics import CondEq
+from devito.symbolics import CondEq, freeze as freeze_expr
 from devito.tools import DAG, as_tuple, flatten, timed_pass
 
-__all__ = ['clusterize', 'guard', 'Toposort']
+__all__ = ['clusterize', 'freeze', 'guard', 'Toposort']
 
 
 def clusterize(exprs):
@@ -286,6 +286,22 @@ class Schedule(Queue):
         return test
 
 
+@timed_pass(name='specializing.Clusters.freeze')
+def freeze(clusters):
+    """
+    Recast the symbolic operators such that subsequent symbolic manipulations
+    (e.g., through SymPy's automatic evaluation) won't be able to alter the arithmetic
+    structure of the expressions.
+    """
+    processed = []
+    for c in clusters:
+        frozen_exprs = [freeze_expr(e) for e in c.exprs]
+        processed.append(c.rebuild(exprs=frozen_exprs))
+
+    return ClusterGroup(processed)
+
+
+@timed_pass(name='specializing.Clusters.guard')
 def guard(clusters):
     """
     Split Clusters containing conditional expressions into separate Clusters.
