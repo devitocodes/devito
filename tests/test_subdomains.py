@@ -2,8 +2,8 @@ import numpy as np
 from math import floor
 
 from conftest import skipif
-from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomainSet,
-                    Dimension)
+from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
+                    SubDomainSet, Dimension)
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -12,6 +12,47 @@ class TestSubdomains(object):
     """
     Class for testing SubDomains
     """
+
+    def test_multiple_middle(self):
+        """
+        Test Operator with two basic 'middle' subdomains defined.
+        """
+        class sd0(SubDomain):
+            name = 'd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 6), y: ('middle', 1, 1)}
+        s_d0 = sd0()
+
+        class sd1(SubDomain):
+            name = 'd1'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 6, 1), y: ('middle', 1, 1)}
+        s_d1 = sd1()
+
+        grid = Grid(shape=(10, 10), subdomains=(s_d0, s_d1))
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        eq0 = Eq(f, f+1, subdomain=grid.subdomains['d0'])
+        eq1 = Eq(f, f+2, subdomain=grid.subdomains['d1'])
+
+        Operator([eq0, eq1])()
+
+        expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 2, 2, 2, 2, 2, 2, 2, 2, 0],
+                             [0, 2, 2, 2, 2, 2, 2, 2, 2, 0],
+                             [0, 2, 2, 2, 2, 2, 2, 2, 2, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
+        assert((np.array(f.data) == expected).all())
 
     def test_iterate_NDomains(self):
         """
