@@ -8,7 +8,8 @@ from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.ir.iet import MapExprStmts
 from devito.logger import warning
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.clusters import (Lift, cse, factorize, fuse, scalarize,
+                                    eliminate_arrays, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
@@ -213,8 +214,10 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, **kwargs)
+        # Reduce flops
+        clusters = factorize(clusters)
+        clusters = cse(clusters, template)
+        clusters = optimize_pows(clusters)
 
         # Lifting
         clusters = Lift().process(clusters)

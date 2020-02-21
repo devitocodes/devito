@@ -113,7 +113,6 @@ env_vars_mapper = {
     'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
-    'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',

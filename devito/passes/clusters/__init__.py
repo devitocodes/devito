@@ -4,5 +4,4 @@ from .cse import *  # noqa
 from .factorization import *  # noqa
 from .extractors import *  # noqa
 from .blocking import *  # noqa
-from .rewriters import *  # noqa
 from .misc import *  # noqa

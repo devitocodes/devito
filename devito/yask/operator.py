@@ -13,7 +13,8 @@ from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.clusters import (Lift, cse, factorize, fuse, scalarize,
+                                    eliminate_arrays, optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
                                iet_pass)
 from devito.tools import Signer, as_tuple, filter_ordered, flatten, generator, timed_pass
@@ -167,8 +168,10 @@ class YASKOperator(Operator):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, **kwargs)
+        # Reduce flops
+        clusters = factorize(clusters)
+        clusters = cse(clusters, template)
+        clusters = optimize_pows(clusters)
 
         # Lifting
         clusters = Lift().process(clusters)

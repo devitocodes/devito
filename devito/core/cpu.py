@@ -3,8 +3,10 @@ from functools import partial
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.passes.clusters import (Blocking, Lift, fuse, scalarize, eliminate_arrays,
-                                    rewrite)
+from devito.passes.clusters import (Blocking, Lift, cire, cse,
+                                    eliminate_arrays, extract_increments,
+                                    extract_invariants, extract_sum_of_products,
+                                    factorize, fuse, optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, optimize_halospots,
                                mpiize, loop_wrapping, hoist_prodders)
 from devito.tools import as_tuple, generator, timed_pass
@@ -28,28 +30,39 @@ class CPU64NoopOperator(OperatorCore):
         Optimize Clusters for better runtime performance.
         """
         options = kwargs['options']
+        platform = kwargs['platform']
 
         # To create temporaries
         counter = generator()
         template = lambda: "r%d" % counter()
 
+        #TODO: flop count??
+
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Blocking
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = extract_invariants(clusters, template)
+        clusters = cire(clusters, template, platform)
+        clusters = Lift().process(clusters)
+
+        # Blocking to improve data locality
         inner = options['blockinner']
         levels = options['blocklevels'] or cls.BLOCK_LEVELS
         clusters = Blocking(inner, levels).process(clusters)
 
-        # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, **kwargs)
+        # Reduce flops
+        clusters = extract_increments(clusters, template)
+        for i in range(2):
+            clusters = extract_sum_of_products(clusters, template)
+            clusters = cire(clusters, template, platform)
+        clusters = factorize(clusters)
+        clusters = cse(clusters, template)
+        clusters = optimize_pows(clusters)
 
-        # Lifting
-        clusters = Lift().process(clusters)
-
-        # Lifting may create fusion opportunities, which in turn may enable
-        # further optimizations
+        # The previous passes may have created fusion opportunities, which in
+        # turn may enable further optimizations
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters, template)
         clusters = scalarize(clusters, template)
