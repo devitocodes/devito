@@ -1,5 +1,4 @@
 from collections import Iterable, OrderedDict
-from operator import attrgetter
 
 from devito.symbolics import retrieve_terminals
 from devito.tools import flatten, timed_pass

@@ -130,7 +130,6 @@ def make_ops_kernels(iet):
 
         pre_time_loop.extend(list(create_ops_dat(f, name_to_ops_dat, ops_block)))
         # Copy data from device to host
-        from IPython import embed; embed()
         after_time_loop.extend(create_ops_fetch(f,
                                                 name_to_ops_dat,
                                                 f.grid.time_dim.symbolic_max))

@@ -12,8 +12,7 @@ import cgen as c
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
-                               WRAPPABLE, ROUNDABLE, AFFINE, TILABLE, Property,
-                               Forward, detect_io)
+                               WRAPPABLE, AFFINE, Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)

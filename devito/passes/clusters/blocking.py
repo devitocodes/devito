@@ -1,12 +1,9 @@
 from collections import Counter
 
-import numpy as np
-from cached_property import cached_property
-
-from devito.ir.clusters import Cluster, Queue
+from devito.ir.clusters import Queue
 from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
 from devito.tools import timed_pass
-from devito.types import IncrDimension, Scalar
+from devito.types import IncrDimension
 
 __all__ = ['Blocking', 'IncrDimension']
 

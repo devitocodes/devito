@@ -4,7 +4,6 @@ from functools import cmp_to_key
 from devito.ir.clusters.queue import Queue
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
                                AFFINE, WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
-from devito.parameters import configuration
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
