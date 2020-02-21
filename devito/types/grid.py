@@ -350,7 +350,7 @@ class SubDomain(object):
     def __subdomain_finalize__(self, dimensions, shape, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
-        counter = kwargs.get('counter', 0)
+        counter = kwargs.get('counter', 0) - 1
         for k, v in self.define(dimensions).items():
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
