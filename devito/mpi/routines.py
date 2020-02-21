@@ -12,7 +12,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
                            AugmentedExpression, Iteration, List, Prodder, Return,
                            make_efunc, FindNodes, Transformer)
-from devito.ir.support import PARALLEL
+from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro)
@@ -323,7 +323,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         iet = Expression(eq)
         for i, d in reversed(list(zip(buf_indices, buf_dims))):
             # The -1 below is because an Iteration, by default, generates <=
-            iet = Iteration(iet, i, d.symbolic_size - 1, properties=PARALLEL)
+            iet = Iteration(iet, i, d.symbolic_size - 1, properties=(PARALLEL, AFFINE))
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
         return Callable(name, iet, 'void', parameters, ('static',))
