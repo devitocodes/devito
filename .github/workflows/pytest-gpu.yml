@@ -46,7 +46,11 @@ jobs:
         -adminPassword ${{ secrets.ADMIN_PASSWORD }}
 
     - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} -n gpu_ci_vm --query publicIps -o tsv)
+      run: "$p1 $p2"
+      #run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
+      env:
+        - p1='echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} '
+        - p2='-n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)'
       id: host
 
     - name: executing remote ssh commands test
