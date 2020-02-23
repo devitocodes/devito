@@ -22,7 +22,7 @@ class Lift(Queue):
     "loop-invariant code motion".
     """
 
-    @timed_pass(name='specializing.Clusters.lift')
+    @timed_pass(name='lift')
     def process(self, elements):
         return super(Lift, self).process(elements)
 
@@ -73,7 +73,7 @@ class Lift(Queue):
         return lifted + processed
 
 
-@timed_pass(name='specializing.Clusters.fusion')
+@timed_pass()
 def fuse(clusters):
     """
     Fuse sub-sequences of Clusters with compatible IterationSpace.
@@ -99,7 +99,7 @@ def fuse(clusters):
     return processed
 
 
-@timed_pass(name='specializing.Clusters.scalarize')
+@timed_pass()
 def scalarize(clusters, template):
     """
     Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
@@ -141,7 +141,7 @@ def scalarize(clusters, template):
     return processed
 
 
-@timed_pass(name='specializing.Clusters.eliminate_arrays')
+@timed_pass()
 def eliminate_arrays(clusters, template):
     """
     Eliminate redundant expressions stored in Arrays.

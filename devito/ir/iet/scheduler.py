@@ -10,7 +10,7 @@ from devito.types import ConditionalDimension
 __all__ = ['iet_build', 'iet_lower_dims']
 
 
-@timed_pass(name='lowering.IET.build')
+@timed_pass(name='build')
 def iet_build(stree):
     """
     Construct an Iteration/Expression tree(IET) from a ScheduleTree.
@@ -48,7 +48,7 @@ def iet_build(stree):
     assert False
 
 
-@timed_pass(name='lowering.IET.lower_dims')
+@timed_pass(name='lower_dims')
 def iet_lower_dims(iet):
     """
     Lower the DerivedDimensions in ``iet``.

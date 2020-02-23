@@ -316,6 +316,7 @@ class Operator(Callable):
         return clusters
 
     @classmethod
+    @timed_pass(name='lowering.Clusters')
     def _lower_clusters(cls, expressions, profiler, **kwargs):
         """
         Clusters lowering:
@@ -375,6 +376,7 @@ class Operator(Callable):
         return graph
 
     @classmethod
+    @timed_pass(name='lowering.IET')
     def _lower_iet(cls, stree, profiler, **kwargs):
         """
         Iteration/Expression tree lowering:
