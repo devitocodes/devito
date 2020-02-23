@@ -23,7 +23,7 @@ class Blocking(Queue):
     def _make_key_hook(self, cluster, level):
         return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
 
-    @timed_pass(name='specializing.Clusters.blocking')
+    @timed_pass(name='blocking')
     def process(self, clusters):
         # Preprocess: heuristic: drop TILABLE from innermost Dimensions to
         # maximize vectorization

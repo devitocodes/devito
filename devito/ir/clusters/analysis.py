@@ -9,7 +9,7 @@ from devito.tools import as_tuple, flatten, timed_pass
 __all__ = ['analyze']
 
 
-@timed_pass(name='lowering.Clusters.Analysis')
+@timed_pass()
 def analyze(clusters):
     state = State()
 

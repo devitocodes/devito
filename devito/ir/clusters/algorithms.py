@@ -44,8 +44,7 @@ class Toposort(Queue):
     Clusters with compatible IterationSpace, is used.
     """
 
-    #TODO: fix me, appearing twice in log of tti_example !!
-    @timed_pass(name='specializing.Clusters.toposort')
+    @timed_pass(name='toposort')
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
         cgroups = self._process_fdta(cgroups, 1)
@@ -204,7 +203,7 @@ class Schedule(Queue):
           Dimension in both Clusters.
     """
 
-    @timed_pass(name='lowering.Clusters.schedule')
+    @timed_pass(name='schedule')
     def process(self, clusters):
         return self._process_fdta(clusters, 1)
 
@@ -286,7 +285,7 @@ class Schedule(Queue):
         return test
 
 
-@timed_pass(name='specializing.Clusters.guard')
+@timed_pass()
 def guard(clusters):
     """
     Split Clusters containing conditional expressions into separate Clusters.
