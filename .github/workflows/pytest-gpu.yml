@@ -70,7 +70,9 @@ jobs:
               git fetch
               git checkout ${{ steps.extract_branch.outputs.branch }}
           fi
-          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test devito tests/test_gpu.py
+          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test devito tests/test_gpu_openmp.py
+          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
+          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.ADMIN_LOGIN }}
         pass: ${{ secrets.ADMIN_PASSWORD }}
