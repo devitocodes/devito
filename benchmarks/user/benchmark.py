@@ -4,7 +4,8 @@ import sys
 import numpy as np
 import click
 import os
-from devito import clear_cache, configuration, info, warning, set_log_level
+from devito import (clear_cache, configuration, info, warning, set_log_level,
+                    switchconfig)
 from devito.mpi import MPI
 from devito.tools import all_equal, as_tuple, sweep
 
@@ -245,8 +246,11 @@ def run_jit_backdoor(problem, **kwargs):
 
     info("Running wave propagation Operator...")
 
-    configuration['jit-backdoor'] = True
-    solver.forward(autotune=autotune)
+    @switchconfig(jit_backdoor=True)
+    def _run_jit_backdoor():
+        return solver.forward(autotune=autotune)
+
+    return _run_jit_backdoor()
 
 
 @benchmark.command(name='test')
