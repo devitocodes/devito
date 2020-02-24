@@ -1,0 +1,76 @@
+# Adapted from https://github.com/weeyin83/vm-actions
+name: Deploy VM on Azure and run GPU tests
+
+env:
+  OUTPUT_PATH: ${{ github.workspace }}
+
+on: [push]
+
+jobs:
+
+  # Deploy VM in Azure
+  DeployVM:
+    runs-on: ubuntu-latest
+
+    steps:
+    # checkout code from repo
+    - name: checkout repo
+      uses: actions/checkout@v1
+
+    - name: extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+
+    - name: look for ps1 file
+      run: |
+        ls '${{ env.OUTPUT_PATH }}/.github/azure'
+
+    - name: deploy VM
+      env:
+        RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+        RESOURCE_GROUP_REGION: uksouth
+        SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
+        IMAGE: gpu_ci_vm-image-21022020
+      run: >
+        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
+        -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
+        -servicePrincipalSecret ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
+        -servicePrincipalTenantId ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
+        -azureSubscriptionName ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        -resourceGroupName $RESOURCE_GROUP
+        -resourceGroupNameRegion $RESOURCE_GROUP_REGION
+        -serverName $SERVER_NAME
+        -vmImage $IMAGE
+        -adminLogin ${{ secrets.ADMIN_LOGIN }}
+        -adminPassword ${{ secrets.ADMIN_PASSWORD }}
+
+    - name: set host
+      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
+      id: host
+
+    - name: executing remote ssh commands test
+      uses: fifsky/ssh-action@master
+      with:
+        command: |
+          #! /bin/bash
+          # Ensure clang and cuda libraries are visible
+          export PATH=~/programs/install/bin:$PATH
+          export LD_LIBRARY_PATH=~/programs/install/lib:$LD_LIBRARY_PATH
+          source ~/anaconda3/etc/profile.d/conda.sh
+          conda activate devito
+          cd ~/programs/devito
+          # Ensure no merge conflicts arise
+          git checkout master
+          if [ "${{ steps.extract_branch.outputs.branch }}" == "master" ]; then
+              git pull
+          else
+              git rev-parse --verify --quiet ${{ steps.extract_branch.outputs.branch }}
+              if [ $? -eq 0 ]; then git branch -D ${{ steps.extract_branch.outputs.branch }}; fi
+              git fetch
+              git checkout ${{ steps.extract_branch.outputs.branch }}
+          fi
+          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test devito tests/test_gpu.py
+        host: ${{ steps.host.outputs.action_host }}
+        user: ${{ secrets.ADMIN_LOGIN }}
+        pass: ${{ secrets.ADMIN_PASSWORD }}
