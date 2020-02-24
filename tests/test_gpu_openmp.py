@@ -100,7 +100,7 @@ class TestCodeGeneration(object):
              '[0:f_vec->size[1]][0:f_vec->size[2]])')
         assert op.body[4].footer[0].value ==\
             ('omp target exit data map(from: f[0:f_vec->size[0]]'
-            '[0:f_vec->size[1]][0:f_vec->size[2]])')
+             '[0:f_vec->size[1]][0:f_vec->size[2]])')
 
         # Check `g` -- note that unlike `f`, this one should be `delete` upon
         # exit, not `from`
@@ -109,7 +109,7 @@ class TestCodeGeneration(object):
              '[0:g_vec->size[1]][0:g_vec->size[2]])')
         assert op.body[4].footer[3].value ==\
             ('omp target exit data map(delete: g[0:g_vec->size[0]]'
-            '[0:g_vec->size[1]][0:g_vec->size[2]])')
+             '[0:g_vec->size[1]][0:g_vec->size[2]])')
 
     @switchconfig(platform='nvidiaX')
     def test_array_rw(self):
