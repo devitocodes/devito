@@ -275,7 +275,7 @@ POWER8 = Power('power8')
 POWER9 = Power('power9')
 
 # Devices
-NVIDIAX = Device('nvidiax')
+NVIDIAX = Device('nvidiaX')
 
 
 platform_registry = {
