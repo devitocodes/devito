@@ -62,10 +62,14 @@ jobs:
           cd ~/programs/devito
           # Ensure no merge conflicts arise
           git checkout master
-          git rev-parse --verify --quiet ${{ steps.extract_branch.outputs.branch }}
-          if [ $? -eq 0 ]; then git branch -D ${{ steps.extract_branch.outputs.branch }}; fi
-          git fetch
-          git checkout ${{ steps.extract_branch.outputs.branch }}
+          if [ "${{ steps.extract_branch.outputs.branch }}" == "master" ]; then
+              git pull
+          else
+              git rev-parse --verify --quiet ${{ steps.extract_branch.outputs.branch }}
+              if [ $? -eq 0 ]; then git branch -D ${{ steps.extract_branch.outputs.branch }}; fi
+              git fetch
+              git checkout ${{ steps.extract_branch.outputs.branch }}
+          fi
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test devito tests/test_gpu.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.ADMIN_LOGIN }}
