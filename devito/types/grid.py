@@ -119,8 +119,8 @@ class Grid(ArgProvider):
 
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
-        for i in subdomains:
-            i.__subdomain_finalize__(self.dimensions, self.shape)
+        for counter, i in enumerate(subdomains):
+            i.__subdomain_finalize__(self.dimensions, self.shape, counter=counter)
         self._subdomains = subdomains
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -347,9 +347,10 @@ class SubDomain(object):
             raise ValueError("SubDomain requires a `name`")
         self._dimensions = None
 
-    def __subdomain_finalize__(self, dimensions, shape):
+    def __subdomain_finalize__(self, dimensions, shape, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
+        counter = kwargs.get('counter', 0) - 1
         for k, v in self.define(dimensions).items():
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
@@ -359,17 +360,20 @@ class SubDomain(object):
                     side, thickness_left, thickness_right = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('%si' % k.name, k,
-                                                              thickness_left,
+                    sub_dimensions.append(SubDimension.middle('%si%d' %
+                                                              (k.name, counter),
+                                                              k, thickness_left,
                                                               thickness_right))
                 except ValueError:
                     side, thickness = v
                     if side == 'left':
-                        sub_dimensions.append(SubDimension.left('%sleft' % k.name, k,
-                                                                thickness))
+                        sub_dimensions.append(SubDimension.left('%si%d' %
+                                                                (k.name, counter),
+                                                                k, thickness))
                     elif side == 'right':
-                        sub_dimensions.append(SubDimension.right('%sright' % k.name, k,
-                                                                 thickness))
+                        sub_dimensions.append(SubDimension.right('%si%d' %
+                                                                 (k.name, counter),
+                                                                 k, thickness))
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
         self._dimensions = tuple(sub_dimensions)
@@ -524,7 +528,7 @@ class SubDomainSet(SubDomain):
         self._n_domains = kwargs.get('N', 1)
         self._bounds = kwargs.get('bounds', None)
 
-    def __subdomain_finalize__(self, dimensions, shape):
+    def __subdomain_finalize__(self, dimensions, shape, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         for d in dimensions:
