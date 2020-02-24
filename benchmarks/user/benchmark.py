@@ -246,7 +246,9 @@ def run_jit_backdoor(problem, **kwargs):
     info("Running wave propagation Operator...")
 
     configuration['jit-backdoor'] = True
-    solver.forward(autotune=autotune)
+    retval = solver.forward(autotune=autotune)
+
+    return retval
 
 
 @benchmark.command(name='test')
