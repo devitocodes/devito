@@ -250,9 +250,7 @@ def run_jit_backdoor(problem, **kwargs):
     def _run_jit_backdoor():
         return solver.forward(autotune=autotune)
 
-    retval = _run_jit_backdoor()
-
-    return retval
+    return _run_jit_backdoor()
 
 
 @benchmark.command(name='test')
