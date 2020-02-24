@@ -10,11 +10,7 @@ from examples.seismic import TimeAxis, RickerSource, Receiver
 pytestmark = skipif(['yask', 'ops'])
 
 
-class TestOffloading(object):
-
-    """
-    Test GPU offloading via OpenMP.
-    """
+class TestCodeGeneration(object):
 
     @switchconfig(platform='nvidiaX')
     def test_basic(self):
@@ -180,6 +176,9 @@ class TestOffloading(object):
         assert len(tree[1].pragmas) == 1
         assert tree[1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3) reduction(+:f[0])'
+
+
+class TestOperator(object):
 
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
