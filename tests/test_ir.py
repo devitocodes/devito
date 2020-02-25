@@ -875,6 +875,10 @@ class TestAnalysis(object):
          ['p', 'rx', 'ry', 'rz'], []),
         (['Eq(rcv, 0)', 'Inc(rcv, cx*cy*cz)'],
          ['rx', 'ry', 'rz'], ['time', 'p']),
+        (['Eq(s, 0, implicit_dims=[time, p])',
+          'Inc(s, time*p*2, implicit_dims=[time, p])',
+          'Eq(rcv, s)'],
+         [], ['time', 'p']),
         (['Eq(v.forward, u+1)', 'Eq(rcv, 0)',
           'Inc(rcv, v[t, gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz]*cx*cy*cz)'],
          ['rx', 'ry', 'rz'], ['x', 'y', 'z', 'p']),
@@ -903,6 +907,8 @@ class TestAnalysis(object):
         rx = Dimension(name='rx')
         ry = Dimension(name='ry')
         rz = Dimension(name='rz')
+
+        s = Scalar(name='s')  # noqa
 
         u = Function(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid, save=None)  # noqa

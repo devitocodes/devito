@@ -8,8 +8,8 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction)
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import (Callable, Conditional, Expression, Iteration, FindNodes,
-                           IsPerfectIteration, retrieve_iteration_tree)
+from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
+                           FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
@@ -102,6 +102,21 @@ class TestCodeGen(object):
         exprs = [i.expr for i in FindNodes(Expression).visit(op)]
         assert(i.indices[i.function._time_position].modulo == exp_mods[i.function.name]
                for i in flatten(retrieve_indexed(i) for i in exprs))
+
+    @skipif('device')
+    def test_timedlist_wraps_time_if_parallel(self):
+        """
+        Test that if the time loop is parallel, then it must be wrapped by a
+        Section (and consequently by a TimedList).
+        """
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid, save=3)
+
+        op = Operator(Eq(u, u + 1))
+
+        assert isinstance(op.body[2].body[0], TimedList)
+        assert op.body[2].body[0].body[0].is_Section
 
 
 class TestArithmetic(object):
@@ -986,6 +1001,7 @@ class TestArguments(object):
                 grid2.distributor._obj_neighborhood.value)
 
 
+@skipif('device')
 class TestDeclarator(object):
 
     def test_heap_1D_stencil(self):

@@ -20,7 +20,8 @@ def test_bench(mode, problem):
     nx, ny, nz = 16, 16, 16
 
     if configuration['openmp']:
-        nthreads = configuration['platform'].cores_physical
+        nthreads = int(os.environ.get('OMP_NUM_THREADS',
+                                      configuration['platform'].cores_physical))
     else:
         nthreads = 1
 

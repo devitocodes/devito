@@ -161,9 +161,16 @@ class List(Node):
     _traversable = ['body']
 
     def __init__(self, header=None, body=None, footer=None):
-        self.header = as_tuple(header)
-        self.body = as_tuple(body)
-        self.footer = as_tuple(footer)
+        body = as_tuple(body)
+        if len(body) == 1 and type(body[0]) == List:
+            # De-nest Lists
+            self.header = as_tuple(header) + body[0].header
+            self.body = body[0].body
+            self.footer = as_tuple(footer) + body[0].footer
+        else:
+            self.header = as_tuple(header)
+            self.body = as_tuple(body)
+            self.footer = as_tuple(footer)
 
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
@@ -812,7 +819,7 @@ class Section(List):
     computation unit).
     """
 
-    is_Sequence = True
+    is_Section = True
 
     def __init__(self, name, body=None):
         super(Section, self).__init__(body=body)

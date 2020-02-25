@@ -227,7 +227,7 @@ class TestSubDimension(object):
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
-    @skipif('yask')
+    @skipif(['yask', 'device'])
     @pytest.mark.parametrize('exprs,expected,', [
         # All parallel, the innermost Iteration gets vectorized
         (['Eq(u[time, x, yleft], u[time, x, yleft] + 1.)'], ['yleft']),
@@ -820,6 +820,7 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data == F)
 
+    @skipif('device')
     def test_no_fusion_simple(self):
         """
         If ConditionalDimensions are present, then Clusters must not be fused so
@@ -860,6 +861,7 @@ class TestConditionalDimension(object):
         exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
         assert len(exprs) == 1
 
+    @skipif('device')
     def test_no_fusion_convoluted(self):
         """
         Conceptually like `test_no_fusion_simple`, but with more expressions

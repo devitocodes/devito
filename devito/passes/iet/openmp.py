@@ -5,7 +5,7 @@ import numpy as np
 import cgen as c
 from sympy import Function, Or, Max, Not
 
-from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
+from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder, Iteration,
                        While, FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED,
                        Transformer, IsPerfectIteration, retrieve_iteration_tree,
                        filter_iterations)
@@ -15,7 +15,8 @@ from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import Constant, Symbol
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer', 'ParallelTree']
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer',
+           'ParallelIteration', 'ParallelTree']
 
 
 def ncores():
@@ -85,6 +86,60 @@ class ParallelRegion(Block):
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
+class ParallelIteration(Iteration):
+
+    def __init__(self, *args, **kwargs):
+        kwargs.pop('pragmas', None)
+        pragma = self._make_header(**kwargs)
+
+        properties = as_tuple(kwargs.pop('properties', None))
+        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
+
+        self.parallel = kwargs.pop('parallel', False)
+        self.ncollapse = kwargs.pop('ncollapse', None)
+        self.chunk_size = kwargs.pop('chunk_size', None)
+        self.nthreads = kwargs.pop('nthreads', None)
+        self.reduction = kwargs.pop('reduction', None)
+
+        super(ParallelIteration, self).__init__(*args, pragmas=[pragma],
+                                                properties=properties, **kwargs)
+
+    @classmethod
+    def _make_header(cls, **kwargs):
+        construct = cls._make_construct(**kwargs)
+        clauses = cls._make_clauses(**kwargs)
+
+        header = ' '.join([construct] + clauses)
+
+        return c.Pragma(header)
+
+    @classmethod
+    def _make_construct(cls, parallel=False, **kwargs):
+        if parallel:
+            return 'omp parallel for'
+        else:
+            return 'omp for'
+
+    @classmethod
+    def _make_clauses(cls, ncollapse=None, chunk_size=None, nthreads=None,
+                      reduction=None, **kwargs):
+        clauses = []
+
+        clauses.append('collapse(%d)' % (ncollapse or 1))
+
+        if chunk_size is not False:
+            clauses.append('schedule(dynamic,%s)' % (chunk_size or 1))
+
+        if nthreads:
+            clauses.append('num_threads(%s)' % nthreads)
+
+        if reduction:
+            args = ','.join(str(i) for i in reduction)
+            clauses.append('reduction(+:%s)' % args)
+
+        return clauses
+
+
 class ParallelTree(List):
 
     """
@@ -104,9 +159,14 @@ class ParallelTree(List):
     _traversable = ['prefix', 'body']
 
     def __init__(self, prefix, body, nthreads=None):
-        super(ParallelTree, self).__init__(body=body)
+        # Normalize and sanity-check input
+        body = as_tuple(body)
+        assert len(body) == 1 and body[0].is_Iteration
+
         self.prefix = as_tuple(prefix)
         self.nthreads = nthreads
+
+        super(ParallelTree, self).__init__(body=body)
 
     def __getattr__(self, name):
         if 'body' in self.__dict__:
@@ -119,6 +179,10 @@ class ParallelTree(List):
     @property
     def functions(self):
         return as_tuple(self.nthreads)
+
+    @property
+    def root(self):
+        return self.body[0]
 
 
 class ThreadedProdder(Conditional, Prodder):
@@ -167,11 +231,6 @@ class Ompizer(object):
     """
 
     lang = {
-        'for': lambda i, cs:
-            c.Pragma('omp for collapse(%d) schedule(dynamic,%s)' % (i, cs)),
-        'par-for': lambda i, cs, nt:
-            c.Pragma('omp parallel for collapse(%d) schedule(dynamic,%s) num_threads(%s)'
-                     % (i, cs, nt)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -235,14 +294,24 @@ class Ompizer(object):
                 collapsable.append(i)
         return collapsable
 
-    def _make_atomic_incs(self, partree):
+    def _make_reductions(self, partree, collapsed):
         if not partree.is_ParallelAtomic:
             return partree
-        # Introduce one `omp atomic` pragma for each increment
+
+        # Collect expressions inducing reductions
         exprs = FindNodes(Expression).visit(partree)
         exprs = [i for i in exprs if i.is_Increment and not i.is_ForeignExpression]
-        mapper = {i: List(header=self.lang['atomic'], body=i) for i in exprs}
+
+        if all(i.is_Affine for i in collapsed):
+            # Introduce reduction clause
+            reduction = [i.output for i in exprs]
+            mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
+        else:
+            # Introduce one `omp atomic` pragma for each increment
+            mapper = {i: List(header=self.lang['atomic'], body=i) for i in exprs}
+
         partree = Transformer(mapper).visit(partree)
+
         return partree
 
     def _make_threaded_prodders(self, partree):
@@ -260,30 +329,29 @@ class Ompizer(object):
         ncollapse = 1 + len(collapsable)
 
         # Prepare to build a ParallelTree
-        prefix = []
         if all(i.is_Affine for i in candidates):
             if nthreads is None:
                 # pragma omp for ... schedule(..., 1)
                 nthreads = self.nthreads
-                omp_pragma = self.lang['for'](ncollapse, 1)
+                body = ParallelIteration(ncollapse=ncollapse, **root.args)
             else:
                 # pragma omp parallel for ... schedule(..., 1)
-                omp_pragma = self.lang['par-for'](ncollapse, 1, nthreads)
+                body = ParallelIteration(parallel=True, ncollapse=ncollapse,
+                                         nthreads=nthreads, **root.args)
+            prefix = []
         else:
             # pragma omp for ... schedule(..., expr)
             assert nthreads is None
             nthreads = self.nthreads_nonaffine
-
             chunk_size = Symbol(name='chunk_size')
-            omp_pragma = self.lang['for'](ncollapse, chunk_size)
+            body = ParallelIteration(ncollapse=ncollapse, chunk_size=chunk_size,
+                                     **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
             value = INT(Max(niters / (nthreads*self.CHUNKSIZE_NONAFFINE), 1))
-            prefix.append(Expression(DummyEq(chunk_size, value, dtype=np.int32)))
+            prefix = [Expression(DummyEq(chunk_size, value, dtype=np.int32))]
 
         # Create a ParallelTree
-        body = root._rebuild(pragmas=root.pragmas + (omp_pragma,),
-                             properties=root.properties + (COLLAPSED(ncollapse),))
         partree = ParallelTree(prefix, body, nthreads=nthreads)
 
         collapsed = [partree] + collapsable
@@ -368,8 +436,8 @@ class Ompizer(object):
             # Nested parallelism
             partree = self._make_nested_partree(partree)
 
-            # Ensure increments are atomic
-            partree = self._make_atomic_incs(partree)
+            # Handle reductions
+            partree = self._make_reductions(partree, collapsed)
 
             # Atomicize and optimize single-thread prodders
             partree = self._make_threaded_prodders(partree)

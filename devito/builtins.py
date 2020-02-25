@@ -404,8 +404,12 @@ def norm(f, order=2):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
+    s = dv.types.Scalar(name='sum', dtype=f.dtype)
+
     with MPIReduction(f) as mr:
-        op = dv.Operator(eqns + [dv.Inc(mr.n[0], Abs(Pow(p, order)))],
+        op = dv.Operator([dv.Eq(s, 0.0)] +
+                         eqns +
+                         [dv.Inc(s, Abs(Pow(p, order))), dv.Eq(mr.n[0], s)],
                          name='norm%d' % order)
         op.apply(**kwargs)
 
@@ -431,8 +435,13 @@ def sumall(f):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
+    s = dv.types.Scalar(name='sum', dtype=f.dtype)
+
     with MPIReduction(f) as mr:
-        op = dv.Operator(eqns + [dv.Inc(mr.n[0], p)], name='sum')
+        op = dv.Operator([dv.Eq(s, 0.0)] +
+                         eqns +
+                         [dv.Inc(s, p), dv.Eq(mr.n[0], s)],
+                         name='sum')
         op.apply(**kwargs)
 
     return np.float(mr.v)
@@ -480,8 +489,13 @@ def inner(f, g):
     # otherwise we would eventually be summing more than expected
     rhs, eqns = f.guard(f*g) if f.is_SparseFunction else (f*g, [])
 
+    s = dv.types.Scalar(name='sum', dtype=f.dtype)
+
     with MPIReduction(f, g) as mr:
-        op = dv.Operator(eqns + [dv.Inc(mr.n[0], rhs)], name='inner')
+        op = dv.Operator([dv.Eq(s, 0.0)] +
+                         eqns +
+                         [dv.Inc(s, rhs), dv.Eq(mr.n[0], s)],
+                         name='inner')
         op.apply(**kwargs)
 
     return np.float(mr.v)

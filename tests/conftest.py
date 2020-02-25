@@ -8,6 +8,7 @@ from sympy import cos, Symbol  # noqa
 from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # noqa
                     Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
                     SparseTimeFunction)  # noqa
+from devito.archinfo import Device
 from devito.compiler import sniff_mpi_distro
 from devito.tools import as_tuple
 
@@ -22,6 +23,9 @@ def skipif(items, whole_module=False):
     items = as_tuple(items)
     # Sanity check
     accepted = set(configuration._accepted['backend'])
+    # TODO: to be refined in the near future, once we start adding support for
+    # multiple GPU languages (openmp, openacc, cuda, ...)
+    accepted.add('device')
     accepted.update({'no%s' % i for i in configuration._accepted['backend']})
     accepted.update({'nompi'})
     unknown = sorted(set(items) - accepted)
@@ -46,6 +50,10 @@ def skipif(items, whole_module=False):
                 break
         except ValueError:
             pass
+        # Skip if won't run on GPUs
+        if i == 'device' and isinstance(configuration['platform'], Device):
+            skipit = "device `%s` unsupported" % configuration['platform'].name
+            break
     if skipit is False:
         return pytest.mark.skipif(False, reason='')
     else:

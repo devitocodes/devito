@@ -4,8 +4,8 @@ from scipy.ndimage import gaussian_filter
 from scipy import misc
 
 from conftest import skipif
-from devito import Grid, Function
-from devito.builtins import assign, gaussian_smooth, initialize_function
+from devito import Grid, Function, TimeFunction, switchconfig
+from devito.builtins import assign, norm, gaussian_smooth, initialize_function
 from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
 from devito.types import SubDomain
@@ -14,9 +14,11 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 class TestAssign(object):
+
     """
-    Class for testing the assign builtin
+    Class for testing the assign builtin.
     """
+
     def test_single_scalar(self):
         grid = Grid(shape=(4, 4))
 
@@ -102,9 +104,11 @@ class TestAssign(object):
 
 
 class TestGaussianSmooth(object):
+
     """
-    Class for testing the Gaussian smooth builtin
+    Class for testing the Gaussian smooth builtin.
     """
+
     @pytest.mark.parametrize('sigma', [1, 2, 3, 4, 5])
     def test_gs_1d_int(self, sigma):
         """Test the Gaussian smoother in 1d."""
@@ -175,9 +179,11 @@ class TestGaussianSmooth(object):
 
 
 class TestInitializeFunction(object):
+
     """
-    Class for testing the initialize function builtin
+    Class for testing the initialize function builtin.
     """
+
     def test_if_serial(self):
         """Test in serial."""
         a = np.arange(16).reshape((4, 4))
@@ -221,3 +227,20 @@ class TestInitializeFunction(object):
         else:
             assert np.all(a[::-1, 3:6] - np.array(f.data[12:18, 9:12]) == 0)
             assert np.all(a[3:6, ::-1] - np.array(f.data[9:12, 12:18]) == 0)
+
+
+class TestNorm(object):
+
+    """
+    Test the norm builtin.
+    """
+
+    def test_serial_vs_parallel(self):
+        grid = Grid(shape=(100, 100))
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data[:] = np.arange(10000).reshape((100, 100))
+
+        assert np.isclose(norm(f),
+                          switchconfig(openmp=True)(norm)(f),
+                          rtol=1e-5)
