@@ -235,4 +235,4 @@ class TestOperator(object):
         op = Operator([stencil] + src_term + rec_term, dle=('advanced', {'openmp': True}))
         op(time=time_range.num-1, dt=dt)
 
-        assert np.isclose(norm(rec), 490.54, atol=1e-2, rtol=0)
+        assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
