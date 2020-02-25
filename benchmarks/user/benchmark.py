@@ -232,7 +232,7 @@ def run_jit_backdoor(problem, **kwargs):
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
 
     # Generate code (but do not JIT yet)
-    op = solver.op_fwd(None)
+    op = solver.op_fwd()
 
     # Get the filename in the JIT cache
     cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
