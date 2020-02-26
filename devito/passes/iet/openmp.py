@@ -83,7 +83,7 @@ class ParallelRegion(Block):
     @classmethod
     def _make_header(cls, nthreads, private):
         private = ('private(%s)' % ','.join(private)) if private else ''
-        return
+        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
 class ParallelIteration(Iteration):
@@ -231,12 +231,8 @@ class Ompizer(object):
     """
 
     lang = {
-        'for': lambda i, cs:
-            c.Pragma('acc parallel loop'),
-        'par-for': lambda i, cs, nt:
-            c.Pragma('acc parallel loop'),
-        'simd-for': c.Pragma('acc loop vector'),
-        'simd-for-aligned': lambda i, j: c.Pragma('acc loop vector'),
+        'simd-for': c.Pragma('omp simd'),
+        'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
     }
     """
