@@ -17,7 +17,7 @@ on:
 jobs:
 
   # Deploy VM in Azure
-  DeployVM:
+  deploy-vm:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,12 +25,7 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v1
 
-    - name: extract branch name
-      shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      id: extract_branch
-
-    - name: look for ps1 file
+    - name: find deploy script
       run: |
         ls '${{ env.OUTPUT_PATH }}/.github/azure'
 
@@ -38,7 +33,7 @@ jobs:
       env:
         RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
         RESOURCE_GROUP_REGION: uksouth
-        SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
+        SERVER_NAME: gpu_ci_vm_${{ github.head_ref }}
         IMAGE: gpu_ci_vm-image-21022020
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
@@ -54,7 +49,7 @@ jobs:
         -adminPassword ${{ secrets.ADMIN_PASSWORD }}
 
     - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
+      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} -n gpu_ci_vm_${{ github.head_ref }} --query publicIps -o tsv)
       id: host
 
     - name: execute tests on VM
@@ -70,15 +65,15 @@ jobs:
           cd ~/programs/devito
           # Ensure no merge conflicts arise
           git checkout master
-          if [ "${{ steps.extract_branch.outputs.branch }}" == "master" ]; then
+          if [ "${{ github.head_ref }}" == "master" ]; then
               git pull
           else
-              git rev-parse --verify --quiet ${{ steps.extract_branch.outputs.branch }}
-              if [ $? -eq 0 ]; then git branch -D ${{ steps.extract_branch.outputs.branch }}; fi
+              git rev-parse --verify --quiet ${{ github.head_ref }}
+              if [ $? -eq 0 ]; then git branch -D ${{ github.head_ref }}; fi
               git fetch
-              git checkout ${{ steps.extract_branch.outputs.branch }}
+              git checkout ${{ github.head_ref }}
           fi
-          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test devito tests/test_gpu_openmp.py
+          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test tests/test_gpu_openmp.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
         host: ${{ steps.host.outputs.action_host }}
