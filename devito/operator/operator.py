@@ -6,6 +6,7 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 
+from devito.archinfo import platform_registry
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
@@ -46,6 +47,9 @@ class Operator(Callable):
         * dle : str
             Aggressiveness of the Devito Loop Engine for loop-level
             optimization. Defaults to ``configuration['dle']``.
+        * platform : str
+            The architecture the code is generated for. Defaults to
+            ``configuration['platform']``.
 
     Examples
     --------
@@ -921,8 +925,15 @@ def parse_kwargs(**kwargs):
         except:
             raise InvalidOperator("Illegal `dse=%s`" % str(dse))
 
-    # Attach `platform` too for convenience, so we don't need `configuration` in
-    # most compilation passes
-    kwargs['platform'] = configuration['platform']
+    # `platform`
+    platform = kwargs.get('platform')
+    if platform is not None:
+        if not isinstance(platform, str):
+            raise ValueError("Argument `platform` should be a `str`")
+        if platform not in configuration._accepted['platform']:
+            raise InvalidOperator("Illegal `platform=%s`" % str(platform))
+        kwargs['platform'] = platform_registry[platform]()
+    else:
+        kwargs['platform'] = configuration['platform']
 
     return kwargs
