@@ -32,6 +32,7 @@ jobs:
           branch="master"
         else
           branch="${{ github.head_ref }}"
+        fi
         echo ::set-output name=branch::$branch
       id: extract_branch
 
