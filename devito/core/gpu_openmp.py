@@ -48,8 +48,10 @@ class DeviceOmpizer(Ompizer):
             c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
             c.Pragma('omp target enter data map(alloc: %s%s)' % (i, j)),
-        'map-exit-from': lambda i, j:
-            c.Pragma('omp target exit data map(from: %s%s)' % (i, j)),
+        'map-update': lambda i, j:
+            c.Pragma('omp target update from(%s%s)' % (i, j)),
+        'map-release': lambda i, j:
+            c.Pragma('omp target exit data map(release: %s%s)' % (i, j)),
         'map-exit-delete': lambda i, j:
             c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
     })
@@ -72,9 +74,14 @@ class DeviceOmpizer(Ompizer):
                                                            for i in cls._map_data(f)))
 
     @classmethod
-    def _map_from(cls, f):
-        return cls.lang['map-exit-from'](f.name, ''.join('[0:%s]' % i
-                                                         for i in cls._map_data(f)))
+    def _map_update(cls, f):
+        return cls.lang['map-update'](f.name, ''.join('[0:%s]' % i
+                                                      for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_release(cls, f):
+        return cls.lang['map-release'](f.name, ''.join('[0:%s]' % i
+                                                       for i in cls._map_data(f)))
 
     @classmethod
     def _map_delete(cls, f):
@@ -142,7 +149,8 @@ class DeviceDataManager(DataManager):
         alloc = DeviceOmpizer._map_to(obj)
 
         if read_only is False:
-            free = DeviceOmpizer._map_from(obj)
+            free = c.Collection([DeviceOmpizer._map_update(obj),
+                                 DeviceOmpizer._map_release(obj)])
         else:
             free = DeviceOmpizer._map_delete(obj)
 
