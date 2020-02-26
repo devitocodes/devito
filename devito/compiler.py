@@ -45,6 +45,8 @@ def sniff_compiler_version(cc):
         compiler = "clang"
     elif ver.startswith("icc"):
         compiler = "icc"
+    elif ver.startswith("pgcc"):
+        compiler = "pgcc"
     else:
         compiler = "unknown"
 
@@ -381,6 +383,23 @@ class ClangCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class PGICompiler(Compiler):
+
+    def __init__(self, *args, **kwargs):
+        super(PGICompiler, self).__init__(*args, **kwargs)
+
+        self.cflags.remove('-std=c99')
+        self.cflags.remove('-O3')
+        self.cflags.remove('-Wall')
+        self.cflags += ['-fast', '-Minfo=accel', '-ta=tesla', '-acc']
+
+    def __lookup_cmds__(self):
+        self.CC = 'pgcc'
+        self.CXX = 'pgcc++'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
+
+
 class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
@@ -466,6 +485,8 @@ compiler_registry = {
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
     'clang': ClangCompiler,
+    'pgcc': PGICompiler,
+    'pgi': PGICompiler,
     'osx': ClangCompiler,
     'intel': IntelCompiler,
     'icpc': IntelCompiler,
