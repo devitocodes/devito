@@ -455,7 +455,7 @@ class Ompizer(object):
         # The used `nthreads` arguments
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
 
-        return iet, {'args': args, 'includes': ['omp.h', 'openacc.h']}
+        return iet, {'args': args, 'includes': ['omp.h']}
 
     @iet_pass
     def make_simd(self, iet, **kwargs):

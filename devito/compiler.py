@@ -391,7 +391,9 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-fast', '-Minfo=accel', '-ta=tesla', '-acc']
+        self.cflags += ['-fast', '-acc']
+        # self.cflags += ['-Minfo=accel'] # Print informational messages for compliation
+        # self.cflags += ['-ta=tesla']    # Compile for a target GPU architecture
 
     def __lookup_cmds__(self):
         self.CC = 'pgcc'
