@@ -126,6 +126,10 @@ class Compiler(GCCToolchain):
         If True, JIT compile using a C++ compiler. Defaults to False.
     mpi : bool, optional
         If True, JIT compile using an MPI compiler. Defaults to False.
+    openmp : bool, optional
+        If True, link in the OpenMP runtime. Defaults to False.
+    platform : Platform, optional
+        The target Platform on which the JIT compiler will be used.
     """
 
     fields = {'cc', 'ld'}
@@ -172,6 +176,15 @@ class Compiler(GCCToolchain):
         else:
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
+
+    def __new_from__(self, **kwargs):
+        """
+        Create a new Compiler from an existing one, inherenting from it
+        the flags that are not specified via ``kwargs``.
+        """
+        return self.__class__(suffix=kwargs.pop('suffix', self.suffix),
+                              mpi=kwargs.pop('mpi', configuration['mpi']),
+                              **kwargs)
 
     @memoized_meth
     def get_jit_dir(self):
@@ -337,14 +350,15 @@ class GNUCompiler(Compiler):
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
                         '-Wno-unused-but-set-variable', '--fast-math']
 
+        openmp = kwargs.pop('openmp', configuration['openmp'])
         try:
             if self.version >= version.StrictVersion("4.9.0"):
-                # Append the openmp flag regardless of configuration['openmp'],
+                # Append the openmp flag regardless of the `openmp` value,
                 # since GCC4.9 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
                 self.ldflags += ['-fopenmp']
         except (TypeError, ValueError):
-            if configuration['openmp']:
+            if openmp:
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -361,19 +375,22 @@ class ClangCompiler(Compiler):
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
 
-        if configuration['platform'] == NVIDIAX:
+        openmp = kwargs.pop('openmp', configuration['openmp'])
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        if platform is NVIDIAX:
             # Clang has offloading support via OpenMP
             self.cflags.remove('-std=c99')
             # TODO: Need a generic -march setup
             # self.cflags += ['-Xopenmp-target', '-march=sm_37']
             self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
         else:
-            if configuration['platform'] in [POWER8, POWER9]:
+            if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
                 self.cflags += ['-mcpu=native']
             else:
                 self.cflags += ['-march=native']
-            if configuration['openmp']:
+            if openmp:
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -406,8 +423,13 @@ class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
+
         self.cflags += ["-xhost"]
-        if configuration['platform'] is SKX:
+
+        openmp = kwargs.pop('openmp', configuration['openmp'])
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        if platform is SKX:
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
         try:
@@ -417,7 +439,7 @@ class IntelCompiler(Compiler):
                 # they support `#pragma omp simd`
                 self.ldflags += ['-qopenmp']
         except (TypeError, ValueError):
-            if configuration['openmp']:
+            if openmp:
                 # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
                 self.ldflags += ['-fopenmp']
 
@@ -451,8 +473,12 @@ class IntelKNLCompiler(IntelCompiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelKNLCompiler, self).__init__(*args, **kwargs)
+
         self.cflags += ["-xMIC-AVX512"]
-        if not configuration['openmp']:
+
+        openmp = kwargs.pop('openmp', configuration['openmp'])
+
+        if not openmp:
             warning("Running on Intel KNL without OpenMP is highly discouraged")
 
 
@@ -469,10 +495,14 @@ class CustomCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(CustomCompiler, self).__init__(*args, **kwargs)
+
         default = '-O3 -g -march=native -fPIC -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
-        if configuration['openmp']:
+
+        openmp = kwargs.pop('openmp', configuration['openmp'])
+
+        if openmp:
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
     def __lookup_cmds__(self):

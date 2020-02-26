@@ -7,6 +7,7 @@ from cached_property import cached_property
 import ctypes
 
 from devito.archinfo import platform_registry
+from devito.compiler import compiler_registry
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
@@ -50,6 +51,9 @@ class Operator(Callable):
         * platform : str
             The architecture the code is generated for. Defaults to
             ``configuration['platform']``.
+        * compiler : str
+            The backend compiler used to jit-compile the generated code.
+            Defaults to ``configuration['compiler']``.
 
     Examples
     --------
@@ -189,7 +193,7 @@ class Operator(Callable):
         op._includes.extend(byproduct.includes)
 
         # Required for the jit-compilation
-        op._compiler = configuration['compiler']
+        op._compiler = kwargs['compiler']
         op._lib = None
         op._cfunction = None
 
@@ -935,5 +939,19 @@ def parse_kwargs(**kwargs):
         kwargs['platform'] = platform_registry[platform]()
     else:
         kwargs['platform'] = configuration['platform']
+
+    # `compiler`
+    compiler = kwargs.get('compiler')
+    if compiler is not None:
+        if not isinstance(compiler, str):
+            raise ValueError("Argument `compiler` should be a `str`")
+        if compiler not in configuration._accepted['compiler']:
+            raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
+        kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'])
+    elif platform is not None:
+        kwargs['compiler'] =\
+            configuration['compiler'].__new_from__(platform=kwargs['platform'])
+    else:
+        kwargs['compiler'] = configuration['compiler']
 
     return kwargs
