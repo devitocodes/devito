@@ -28,8 +28,11 @@ class TestCodeGeneration(object):
         assert op.body[1].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[1].footer[0].value ==\
-            ('omp target exit data map(from: u[0:u_vec->size[0]]'
+        assert op.body[1].footer[0].contents[0].value ==\
+            ('omp target update from(u[0:u_vec->size[0]]'
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert op.body[1].footer[0].contents[1].value ==\
+            ('omp target exit data map(release: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
     @switchconfig(platform='nvidiaX')
@@ -52,8 +55,12 @@ class TestCodeGeneration(object):
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i].value ==\
-                ('omp target exit data map(from: %(n)s[0:%(n)s_vec->size[0]]'
+            assert op.body[2].footer[i].contents[0].value ==\
+                ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
+                 {'n': f.name})
+            assert op.body[2].footer[i].contents[1].value ==\
+                ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
 
@@ -89,8 +96,12 @@ class TestCodeGeneration(object):
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[4].footer[i].value ==\
-                ('omp target exit data map(from: %(n)s[0:%(n)s_vec->size[0]]'
+            assert op.body[4].footer[i].contents[0].value ==\
+                ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
+                 {'n': f.name})
+            assert op.body[4].footer[i].contents[1].value ==\
+                ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
 
@@ -98,8 +109,11 @@ class TestCodeGeneration(object):
         assert op.body[4].header[0].value ==\
             ('omp target enter data map(to: f[0:f_vec->size[0]]'
              '[0:f_vec->size[1]][0:f_vec->size[2]])')
-        assert op.body[4].footer[0].value ==\
-            ('omp target exit data map(from: f[0:f_vec->size[0]]'
+        assert op.body[4].footer[0].contents[0].value ==\
+            ('omp target update from(f[0:f_vec->size[0]]'
+             '[0:f_vec->size[1]][0:f_vec->size[2]])')
+        assert op.body[4].footer[0].contents[1].value ==\
+            ('omp target exit data map(release: f[0:f_vec->size[0]]'
              '[0:f_vec->size[1]][0:f_vec->size[2]])')
 
         # Check `g` -- note that unlike `f`, this one should be `delete` upon
@@ -152,8 +166,11 @@ class TestCodeGeneration(object):
         assert op.body[2].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[2].footer[0].value ==\
-            ('omp target exit data map(from: u[0:u_vec->size[0]]'
+        assert op.body[2].footer[0].contents[0].value ==\
+            ('omp target update from(u[0:u_vec->size[0]]'
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert op.body[2].footer[0].contents[1].value ==\
+            ('omp target exit data map(release: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
     @switchconfig(platform='nvidiaX')
