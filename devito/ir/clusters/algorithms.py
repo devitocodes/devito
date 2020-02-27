@@ -143,6 +143,7 @@ class Toposort(Queue):
                     break
                 elif deps:
                     dag.add_edge(cg0, cg1)
+                    continue
 
                 # Flow-dependences along one of the `prefix` Dimensions can
                 # be ignored; all others require sequentialization
