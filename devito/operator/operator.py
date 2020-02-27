@@ -277,7 +277,12 @@ class Operator(Callable):
             mapper = subs.copy()
             if e.subdomain:
                 mapper.update(e.subdomain.dimension_map)
-            processed.append(e.xreplace(mapper))
+
+            if mapper:
+                processed.append(e.xreplace(mapper))
+            else:
+                # Do not waste time
+                processed.append(e)
         return processed
 
     @classmethod
