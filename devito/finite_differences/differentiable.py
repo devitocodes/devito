@@ -263,6 +263,35 @@ class DifferentiableOp(Differentiable):
 
         return obj
 
+    # Bypass useless expensive SymPy _eval_ methods, for which we either already
+    # know or don't care about the answer, because it'd have ~zero impact on our
+    # average expressions
+
+    def _eval_is_even(self):
+        return None
+
+    def _eval_is_odd(self):
+        return None
+
+    def _eval_is_integer(self):
+        return None
+
+    def _eval_is_negative(self):
+        return None
+
+    def _eval_is_extended_negative(self):
+        return None
+
+    def _eval_is_positive(self):
+        return None
+
+    def _eval_is_extended_positive(self):
+        return None
+
+    def _eval_is_zero(self):
+        return None
+
+
 
 class Add(DifferentiableOp, sympy.Add):
     __new__ = DifferentiableOp.__new__
