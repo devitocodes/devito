@@ -144,7 +144,7 @@ class IterationInstance(LabeledVector):
         """
         return set(as_tuple(findices)).issubset(set(self.findices_irregular))
 
-    @property
+    @cached_property
     def is_regular(self):
         return all(i is AFFINE for i in self.index_mode)
 
