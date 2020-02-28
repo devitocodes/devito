@@ -534,6 +534,13 @@ class Dependence(object):
         """
         return self.source.timestamp == -1 or self.sink.timestamp == -1
 
+    @cached_property
+    def is_cross(self):
+        """
+        True if both source and sink are from the same IterationSpace, False otherwise.
+        """
+        return not self.source.ispace is self.sink.ispace
+
     @property
     def is_local(self):
         return self.function.is_Symbol
