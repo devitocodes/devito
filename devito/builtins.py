@@ -196,14 +196,19 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
-    initialize_function(f_c, f, lw, mapper=mapper, mode='reflect', name='smooth')
+    # Note: we impose the smoother runs on the host as there's generally not
+    # enough parallelism to be performant on a device
+    platform = 'cpu64'
+
+    initialize_function(f_c, f, lw, mapper=mapper, mode='reflect', name='smooth',
+                        platform=platform)
 
     fset(f, f_c)
     return f
 
 
 def initialize_function(function, data, nbl, mapper=None, mode='constant',
-                        name='padfunc'):
+                        name='padfunc', **kwargs):
     """
     Initialize a Function with the given ``data``. ``data``
     does *not* include the ``nbl`` outer/boundary layers; these are added via padding
@@ -342,7 +347,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if all(options is None for i in options):
         options = None
 
-    assign(lhs, rhs, options=options, name=name)
+    assign(lhs, rhs, options=options, name=name, **kwargs)
 
 
 # Reduction-inducing builtins
