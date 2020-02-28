@@ -6,6 +6,7 @@ from subprocess import DEVNULL, CalledProcessError, check_output, check_call
 import platform
 import warnings
 import sys
+import time
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
@@ -273,6 +274,7 @@ class Compiler(GCCToolchain):
             try:
                 with open(src_file, 'r') as f:
                     code = f.read()
+                    code = ''.join([code, '/* Backdoor edit at %s*/ \n' % time.ctime()])
                 # Bypass the devito JIT cache
                 # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
                 # ranks would end up creating different cache dirs
