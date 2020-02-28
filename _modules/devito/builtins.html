@@ -351,14 +351,19 @@
 
         <span class="n">mapper</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lhs&#39;</span><span class="p">:</span> <span class="n">lhs</span><span class="p">,</span> <span class="s1">&#39;rhs&#39;</span><span class="p">:</span> <span class="n">rhs</span><span class="p">,</span> <span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="n">options</span><span class="p">}</span>
 
-    <span class="n">initialize_function</span><span class="p">(</span><span class="n">f_c</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">lw</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="n">mapper</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;reflect&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;smooth&#39;</span><span class="p">)</span>
+    <span class="c1"># Note: we impose the smoother runs on the host as there&#39;s generally not</span>
+    <span class="c1"># enough parallelism to be performant on a device</span>
+    <span class="n">platform</span> <span class="o">=</span> <span class="s1">&#39;cpu64&#39;</span>
+
+    <span class="n">initialize_function</span><span class="p">(</span><span class="n">f_c</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">lw</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="n">mapper</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;reflect&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;smooth&#39;</span><span class="p">,</span>
+                        <span class="n">platform</span><span class="o">=</span><span class="n">platform</span><span class="p">)</span>
 
     <span class="n">fset</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">f_c</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">f</span></div>
 
 
 <div class="viewcode-block" id="initialize_function"><a class="viewcode-back" href="../../builtins.html#devito.builtins.initialize_function">[docs]</a><span class="k">def</span> <span class="nf">initialize_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">nbl</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span>
-                        <span class="n">name</span><span class="o">=</span><span class="s1">&#39;padfunc&#39;</span><span class="p">):</span>
+                        <span class="n">name</span><span class="o">=</span><span class="s1">&#39;padfunc&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Initialize a Function with the given ``data``. ``data``</span>
 <span class="sd">    does *not* include the ``nbl`` outer/boundary layers; these are added via padding</span>
@@ -497,7 +502,7 @@
     <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">options</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options</span><span class="p">):</span>
         <span class="n">options</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="n">assign</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span></div>
+    <span class="n">assign</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
 <span class="c1"># Reduction-inducing builtins</span>

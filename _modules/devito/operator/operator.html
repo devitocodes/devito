@@ -161,6 +161,8 @@
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 <span class="kn">import</span> <span class="nn">ctypes</span>
 
+<span class="kn">from</span> <span class="nn">devito.archinfo</span> <span class="kn">import</span> <span class="n">platform_registry</span>
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="kn">import</span> <span class="n">compiler_registry</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="kn">import</span> <span class="n">InvalidOperator</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span>
@@ -201,6 +203,12 @@
 <span class="sd">        * dle : str</span>
 <span class="sd">            Aggressiveness of the Devito Loop Engine for loop-level</span>
 <span class="sd">            optimization. Defaults to ``configuration[&#39;dle&#39;]``.</span>
+<span class="sd">        * platform : str</span>
+<span class="sd">            The architecture the code is generated for. Defaults to</span>
+<span class="sd">            ``configuration[&#39;platform&#39;]``.</span>
+<span class="sd">        * compiler : str</span>
+<span class="sd">            The backend compiler used to jit-compile the generated code.</span>
+<span class="sd">            Defaults to ``configuration[&#39;compiler&#39;]``.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -340,7 +348,7 @@
         <span class="n">op</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">byproduct</span><span class="o">.</span><span class="n">includes</span><span class="p">)</span>
 
         <span class="c1"># Required for the jit-compilation</span>
-        <span class="n">op</span><span class="o">.</span><span class="n">_compiler</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_compiler</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -1076,9 +1084,30 @@
         <span class="k">except</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `dse=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">dse</span><span class="p">))</span>
 
-    <span class="c1"># Attach `platform` too for convenience, so we don&#39;t need `configuration` in</span>
-    <span class="c1"># most compilation passes</span>
-    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
+    <span class="c1"># `platform`</span>
+    <span class="n">platform</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;platform&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">platform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Argument `platform` should be a `str`&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">platform</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `platform=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">platform</span><span class="p">))</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">platform_registry</span><span class="p">[</span><span class="n">platform</span><span class="p">]()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
+
+    <span class="c1"># `compiler`</span>
+    <span class="n">compiler</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;compiler&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">compiler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Argument `compiler` should be a `str`&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">compiler</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `compiler=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">compiler</span><span class="p">))</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">compiler</span><span class="p">](</span><span class="n">platform</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">platform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span>\
+            <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__new_from__</span><span class="p">(</span><span class="n">platform</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">kwargs</span>
 </pre></div>
