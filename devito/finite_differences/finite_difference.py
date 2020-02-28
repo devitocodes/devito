@@ -1,5 +1,6 @@
 from sympy import finite_diff_weights
 
+from devito.finite_differences.differentiable import Add
 from devito.finite_differences.tools import (symbolic_weights, left, right,
                                              generate_indices, centered, check_input,
                                              check_symbolic, direct, transpose)
@@ -263,18 +264,21 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
 def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     """Expression from lists of indices and weights."""
     diff = dim.spacing
-    deriv = 0
     all_dims = tuple(set((expr.indices_ref[dim],) + tuple(expr.indices_ref[dim]
                          for i in expr.dimensions if i.root is dim)))
-
     d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
+
+    mapper = {dim: d0, diff: matvec*diff}
+
     # Loop through weights
+    terms = []
     for i, c in zip(inds, weights):
         try:
-            iloc = i.xreplace({dim: d0, diff: matvec*diff})
+            iloc = i.xreplace(mapper)
         except AttributeError:
             iloc = i
         subs = dict((d, iloc) for d in all_dims)
-        deriv += expr.subs(subs) * c
+        terms.append(expr.xreplace(subs) * c)
+    deriv = Add(*terms)
 
     return deriv.evalf(_PRECISION)
