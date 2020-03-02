@@ -18,7 +18,7 @@ __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataS
 class AbstractInterval(object):
 
     """
-    A representation of a closed interval on Z.
+    An abstract representation of an iterated closed interval on Z.
     """
 
     __metaclass__ = abc.ABCMeta
@@ -72,6 +72,10 @@ class AbstractInterval(object):
 
 class NullInterval(AbstractInterval):
 
+    """
+    A degenerate iterated closed interval on Z.
+    """
+
     is_Null = True
 
     def __repr__(self):
@@ -103,7 +107,16 @@ class Interval(AbstractInterval):
     """
     Interval(dim, lower, upper)
 
-    Create the Interval ``[dim.symbolic_min - lower, dim.symbolic_max + upper]``
+    A concrete iterated closed interval on Z.
+
+    An Interval defines the compact region
+
+        ``[dim.symbolic_min + lower, dim.symbolic_max + upper]``
+
+    The size of the Interval is defined as the number of points iterated over
+    through ``dim``, namely
+
+        ``(dim.symbolic_max + upper - dim.symbolic_min - lower + 1) / dim.symbolic_incr``
     """
 
     is_Defined = True
@@ -114,7 +127,6 @@ class Interval(AbstractInterval):
         super(Interval, self).__init__(dim, stamp)
         self.lower = lower
         self.upper = upper
-        self.size = (dim.symbolic_max - dim.symbolic_min + 1) + (upper - lower)
 
     def __repr__(self):
         return "%s[%s,%s]<%d>" % (self.dim, self.lower, self.upper, self.stamp)
@@ -129,6 +141,12 @@ class Interval(AbstractInterval):
 
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper, self.stamp)
+
+    @cached_property
+    def size(self):
+        upper_extreme = self.dim.symbolic_max + self.upper
+        lower_extreme = self.dim.symbolic_min + self.lower
+        return (upper_extreme - lower_extreme + 1) / self.dim.symbolic_incr
 
     @property
     def relaxed(self):
@@ -228,14 +246,9 @@ class IntervalGroup(PartialOrderTuple):
     @property
     def size(self):
         if self:
-            return reduce(mul, [i.size / i.dim.symbolic_incr for i in self])
+            return reduce(mul, [i.size for i in self])
         else:
             return 0
-
-    @property
-    def dimension_map(self):
-        """Map between Dimensions and their symbolic size."""
-        return OrderedDict([(i.dim, i.size) for i in self])
 
     @cached_property
     def is_well_defined(self):
@@ -432,7 +445,7 @@ class IterationInterval(object):
 class Space(object):
 
     """
-    A compact N-dimensional space, represented as a sequence of N Intervals.
+    A compact N-dimensional space of Intervals.
 
     Parameters
     ----------
@@ -470,13 +483,16 @@ class Space(object):
 
     @property
     def dimension_map(self):
-        return self.intervals.dimension_map
+        """
+        Map between the Space Dimensions and the size of their iterated region.
+        """
+        return OrderedDict([(i.dim, i.size) for i in self.intervals])
 
 
 class DataSpace(Space):
 
     """
-    A compact N-dimensional data space.
+    A compact N-dimensional space of Intervals representing a data space.
 
     Parameters
     ----------
@@ -567,7 +583,7 @@ class DataSpace(Space):
 class IterationSpace(Space):
 
     """
-    A compact N-dimensional iteration space.
+    A compact N-dimensional space of Intervals representing an iteration space.
 
     Parameters
     ----------
