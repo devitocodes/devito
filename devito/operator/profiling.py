@@ -91,10 +91,6 @@ class Profiler(object):
             points = sum(points)
 
             self._sections[section] = SectionData(ops, sops, points, traffic, itermaps)
-            #TODO: check correctness of ops/... in acoustic and tti
-            # Check in particular Interval.size and IterationSpace.size...
-            # Revisit the concept of Interval -- it's more of an IteratedInterval,
-            # then an Interval, since now its size depends on the Dimension...
 
         # Transform the Iteration/Expression tree introducing the C-level timers
         mapper = {i: TimedList(timer=self.timer, lname=i.name, body=i) for i in sections}
@@ -188,16 +184,16 @@ class AdvancedProfiler(Profiler):
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
             # Number of FLOPs performed
-            ops = data.ops.subs(args)
+            ops = int(data.ops.subs(args))
 
             # Number of grid points computed
-            points = data.points.subs(args)
+            points = int(data.points.subs(args))
 
             # Compulsory traffic
             traffic = float(data.traffic.subs(args)*dtype().itemsize)
 
             # Runtime itermaps/itershapes
-            itermaps = [OrderedDict([(k, v.subs(args)) for k, v in i.items()])
+            itermaps = [OrderedDict([(k, int(v.subs(args))) for k, v in i.items()])
                         for i in data.itermaps]
             itershapes = tuple(tuple(i.values()) for i in itermaps)
 
