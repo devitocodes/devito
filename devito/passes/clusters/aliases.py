@@ -85,19 +85,17 @@ def cire(cluster, template, platform, mode):
     aliases = collect(exprs)
 
     # Rule out aliasing expressions with a bad flops/memory trade-off
-    candidates, processed = choose(exprs, aliases)
+    candidates, others = choose(exprs, aliases)
 
     if not candidates:
         # Do not waste time
         return cluster
 
     # Create Aliases and assign them to Clusters
-    clusters, subs = process(cluster, candidates, processed, aliases, template, platform)
+    clusters, subs = process(cluster, candidates, aliases, template, platform)
 
     # Rebuild `cluster` so as to use the newly created Aliases
-    processed = [e.xreplace(subs) for e in processed]
-    ispace = cluster.ispace.augment(aliases.index_mapper)
-    rebuilt = cluster.rebuild(exprs=processed, ispace=ispace)
+    rebuilt = rebuild(cluster, others, aliases, subs)
 
     return clusters + [rebuilt]
 
@@ -224,7 +222,7 @@ def choose(exprs, aliases):
     return candidates, processed
 
 
-def process(cluster, candidates, processed, aliases, template, platform):
+def process(cluster, candidates, aliases, template, platform):
     clusters = []
     subs = {}
     for origin, alias in aliases.items():
@@ -284,14 +282,32 @@ def process(cluster, candidates, processed, aliases, template, platform):
 
         # Construct the `alias` DataSpace
         accesses = detect_accesses(expression)
-        parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals)
+        parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals).relaxed
                  for k, v in accesses.items() if k}
         dspace = DataSpace(cluster.dspace.intervals, parts)
 
-        # Finally create the new Cluster hosting `alias`
+        # Finally create a new Cluster for `alias`
         clusters.append(cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace))
 
     return clusters, subs
+
+
+def rebuild(cluster, others, aliases, subs):
+    # Rebuild the non-aliasing expressions
+    processed = [e.xreplace(subs) for e in others]
+
+    # Add any new ShiftedDimension to the IterationSpace
+    ispace = cluster.ispace.augment(aliases.index_mapper)
+
+    # Rebuild the DataSpace to include the new symbols
+    accesses = detect_accesses(processed)
+    parts = {k: IntervalGroup(build_intervals(v)).relaxed
+             for k, v in accesses.items() if k}
+    dspace = DataSpace(cluster.dspace.intervals, parts)
+
+    rebuilt = cluster.rebuild(exprs=processed, ispace=ispace, dspace=dspace)
+
+    return rebuilt
 
 
 # --- Routines performing the actual detection of aliases ---
