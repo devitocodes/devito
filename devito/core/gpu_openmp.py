@@ -8,8 +8,8 @@ from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.ir.iet import MapExprStmts
 from devito.logger import warning
-from devito.passes.clusters import (Lift, cse, factorize, fuse, scalarize,
-                                    eliminate_arrays, optimize_pows)
+from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
+                                    factorize, freeze, fuse, optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
@@ -206,6 +206,8 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
+        platform = kwargs['platform']
+
         # To create temporaries
         counter = generator()
         template = lambda: "r%d" % counter()
@@ -214,13 +216,19 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, template, platform, 'invariants')
+        clusters = Lift().process(clusters)
+
         # Reduce flops
+        clusters = extract_increments(clusters, template)
+        for _ in range(2):
+            # Experimentation showed that `2` is a good number
+            clusters = cire(clusters, template, platform, 'sops')
         clusters = factorize(clusters)
         clusters = cse(clusters, template)
         clusters = optimize_pows(clusters)
-
-        # Lifting
-        clusters = Lift().process(clusters)
+        clusters = freeze(clusters)
 
         # Lifting may create fusion opportunities, which in turn may enable
         # further optimizations
