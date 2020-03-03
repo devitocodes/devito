@@ -134,7 +134,7 @@ class TestCodeGeneration(object):
 
         eqn = Eq(u.forward, u*cos(f*2))
 
-        op = Operator(eqn, dse='aggressive', dle=('noop', {'openmp': True}))
+        op = Operator(eqn, dle=('advanced', {'openmp': True}))
 
         assert len(op.body[2].header) == 4
         assert str(op.body[2].header[0]) == 'float (*r1)[y_size][z_size];'

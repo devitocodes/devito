@@ -811,8 +811,8 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
         # Also make sure the Call is at the right place in the IET
-        assert op.body[-1].body[0].body[0].body[0].body[0].is_Call
-        assert op.body[-1].body[0].body[0].body[0].body[1].is_Iteration
+        assert op.body[-1].body[0].body[0].body[0].is_Call
+        assert op.body[-1].body[0].body[0].body[1].is_Iteration
 
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
@@ -1491,8 +1491,8 @@ class TestOperatorAdvanced(object):
 
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+1, y+1])*3*f +
                              (u[t, x+2, y+2] + u[t, x+3, y+3])*3*f + 1))
-        op0 = Operator(eqn, dse='noop')
-        op1 = Operator(eqn, dse='aggressive')
+        op0 = Operator(eqn, dle='noop')
+        op1 = Operator(eqn, dle='advanced')
 
         op0(time_M=1)
         u0_norm = norm(u)
@@ -1523,8 +1523,8 @@ class TestOperatorAdvanced(object):
 
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+2, y])*3*f +
                              (u[t, x+1, y+1] + u[t, x+3, y+1])*3*f + 1))
-        op0 = Operator(eqn, dse='noop')
-        op1 = Operator(eqn, dse='aggressive')
+        op0 = Operator(eqn, dle='noop')
+        op1 = Operator(eqn, dle='advanced')
 
         op0(time_M=1)
         u0_norm = norm(u)
