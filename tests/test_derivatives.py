@@ -316,7 +316,7 @@ class TestFD(object):
                 u2.data_with_halo[i, :, j] = np.arange(u2.data_with_halo.shape[2])
 
         eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2.dx)]
-        op = Operator(eqns, dse="advanced")
+        op = Operator(eqns)
         op.apply(time_M=nt-2)
         # Verify that u2[1, x,y]= du2/dx[0, x, y]
 

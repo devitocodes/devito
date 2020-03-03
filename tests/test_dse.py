@@ -24,7 +24,7 @@ pytestmark = skipif(['yask', 'ops'], whole_module=True)
 
 
 def test_scheduling_after_rewrite():
-    """Tests loop scheduling after DSE-induced expression hoisting."""
+    """Tests loop scheduling after expression hoisting."""
     grid = Grid((10, 10))
     u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
     u2 = TimeFunction(name="u2", grid=grid, time_order=2)
@@ -315,9 +315,8 @@ def test_makeit_ssa(exprs, exp_u, exp_v):
     assert np.all(v.data == exp_v)
 
 
-@pytest.mark.parametrize('dse', ['noop', 'basic', 'advanced', 'aggressive'])
 @pytest.mark.parametrize('dle', ['noop', 'advanced'])
-def test_time_dependent_split(dse, dle):
+def test_time_dependent_split(dle):
     grid = Grid(shape=(10, 10))
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=3)
     v = TimeFunction(name='v', grid=grid, time_order=2, space_order=0, save=3)
@@ -326,7 +325,7 @@ def test_time_dependent_split(dse, dle):
     # a full one over x.y for v
     eq = [Eq(u.forward, 2 + grid.time_dim),
           Eq(v.forward, u.forward.dx + u.forward.dy + 1)]
-    op = Operator(eq, dse=dse, dle=dle)
+    op = Operator(eq, dle=dle)
 
     trees = retrieve_iteration_tree(op)
     assert len(trees) == 2
@@ -342,9 +341,9 @@ class TestAliases(object):
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape_after_blocking(self):
         """
-        Check the shape of the Array used to store a DSE-captured aliasing
-        expression. The shape is impacted by loop blocking, which reduces the
-        required write-to space.
+        Check the shape of the Array used to store an aliasing expression.
+        The shape is impacted by loop blocking, which reduces the required
+        write-to space.
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -497,8 +496,8 @@ class TestAliases(object):
                 sin(g)*cos(g) +
                 sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
 
-        op0 = Operator(Eq(u.forward, expr), dse='noop')
-        op1 = Operator(Eq(u.forward, expr), dse='aggressive')
+        op0 = Operator(Eq(u.forward, expr), dle='noop')
+        op1 = Operator(Eq(u.forward, expr))
 
         # We expect two temporary Arrays, one for `cos(g)` and one for `sin(g)`
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
@@ -567,8 +566,8 @@ class TestAliases(object):
                 Eq(v.forward, ((v[t, x, y, z] + v[t, x+1, y+1, z+1])*3*u.forward +
                                (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward +
                                1))]
-        op0 = Operator(eqns, dse='noop', dle=('noop', {'openmp': True}))
-        op1 = Operator(eqns, dse='aggressive', dle=('advanced', {'openmp': True}))
+        op0 = Operator(eqns, dle=('noop', {'openmp': True}))
+        op1 = Operator(eqns, dle=('advanced', {'openmp': True}))
 
         # Check code generation
         assert 'bf0' in op1._func_table
@@ -593,9 +592,9 @@ class TestAliases(object):
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_minimize_remainders_due_to_autopadding(self):
         """
-        Check that the bounds of the Iteration computing the DSE-captured aliasing
-        expressions are relaxed (i.e., slightly larger) so that backend-compiler-generated
-        remainder loops are avoided.
+        Check that the bounds of the Iteration computing an aliasing expression are
+        relaxed (i.e., slightly larger) so that backend-compiler-generated remainder
+        loops are avoided.
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -609,8 +608,8 @@ class TestAliases(object):
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-        op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
-        op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
+        op0 = Operator(eqn, dle=('noop', {'openmp': False}))
+        op1 = Operator(eqn, dle=('advanced', {'openmp': False}))
 
         x0_blk_size = op1.parameters[2]
         y0_blk_size = op1.parameters[3]
@@ -644,8 +643,8 @@ class TestAliases(object):
 
     def test_catch_largest_time_invariant(self):
         """
-        Make sure the DSE extracts the largest time-invariant sub-expressions
-        such that its operation count exceeds a certain threshold.
+        Make sure the largest time-invariant sub-expressions are extracted
+        such that their operation count exceeds a certain threshold.
         """
         grid = Grid((10, 10))
 
@@ -768,52 +767,54 @@ class TestAliases(object):
 
 
 # Acoustic
+class TestIsoAcoustic(object):
 
-def run_acoustic_forward(dse=None):
-    shape = (50, 50, 50)
-    spacing = (10., 10., 10.)
-    nbl = 10
-    nrec = 101
-    t0 = 0.0
-    tn = 250.0
+    def run_acoustic_forward(self, dle=None):
+        shape = (50, 50, 50)
+        spacing = (10., 10., 10.)
+        nbl = 10
+        nrec = 101
+        t0 = 0.0
+        tn = 250.0
 
-    # Create two-layer model from preset
-    model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
-                       spacing=spacing, shape=shape, nbl=nbl)
+        # Create two-layer model from preset
+        model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
+                           spacing=spacing, shape=shape, nbl=nbl)
 
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+        # Source and receiver geometries
+        src_coordinates = np.empty((1, len(spacing)))
+        src_coordinates[0, :] = np.array(model.domain_size) * .5
+        src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
+        rec_coordinates = np.empty((nrec, len(spacing)))
+        rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
+        geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                       t0=t0, tn=tn, src_type='Ricker', f0=0.010)
 
-    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='noop')
-    rec, u, _ = solver.forward(save=False)
+        solver = AcousticWaveSolver(model, geometry, dle=dle)
+        rec, u, summary = solver.forward(save=False)
 
-    return u, rec
+        op = solver.op_fwd(save=False)
 
+        return u, rec, summary, op
 
-def test_acoustic_rewrite_basic():
-    ret1 = run_acoustic_forward(dse=None)
-    ret2 = run_acoustic_forward(dse='basic')
+    def test_fullopt(self):
+        u0, rec0, summary0, op0 = self.run_acoustic_forward(dle=None)
+        u1, rec1, summary1, op1 = self.run_acoustic_forward(dle='advanced')
 
-    assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
-    assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
+        assert len(op0._func_table) == 0
+        assert len(op1._func_table) == 1  # due to loop blocking
 
+        assert summary0[('section0', None)].ops == 46
+        assert np.isclose(summary0[('section0', None)].oi, 2.626, atol=0.001)
 
-def test_custom_rewriter():
-    ret1 = run_acoustic_forward(dse=None)
-    ret2 = run_acoustic_forward(dse=('extract_sop', 'factorize',
-                                     'extract_invariants', 'cire'))
+        assert summary1[('section0', None)].ops == 32
+        assert np.isclose(summary1[('section0', None)].oi, 1.826, atol=0.001)
 
-    assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
-    assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
+        assert np.allclose(u0.data, u1.data, atol=10e-5)
+        assert np.allclose(rec0.data, rec1.data, atol=10e-5)
 
 
 # TTI
@@ -821,12 +822,11 @@ class TestTTI(object):
 
     @cached_property
     def model(self):
-        # TTI layered model for the tti test, no need for a smooth interace bewtween
-        # the two layer as the dse/compiler is tested not the physical prettiness
-        # of the result, saves testing time
+        # TTI layered model for the tti test, no need for a smooth interace
+        # bewtween the two layer as the compilation passes are tested, not the
+        # physical prettiness of the result -- which ultimately saves time
         return demo_model('layers-tti', nlayers=3, nbl=10, space_order=4,
-                          shape=(50, 50, 50), spacing=(20., 20., 20.),
-                          smooth=False)
+                          shape=(50, 50, 50), spacing=(20., 20., 20.), smooth=False)
 
     @cached_property
     def geometry(self):
@@ -847,39 +847,35 @@ class TestTTI(object):
                                        t0=t0, tn=tn, src_type='Gabor', f0=0.010)
         return geometry
 
-    def tti_operator(self, dse=False, space_order=4):
+    def tti_operator(self, dle, space_order=4):
         return AnisotropicWaveSolver(self.model, self.geometry,
-                                     space_order=space_order, dse=dse)
+                                     space_order=space_order, dle=dle)
 
     @cached_property
-    def tti_nodse(self):
-        operator = self.tti_operator(dse=None)
-        rec, u, v, _ = operator.forward()
+    def tti_noopt(self):
+        wavesolver = self.tti_operator(dle=None)
+        rec, u, v, summary = wavesolver.forward()
+
+        # Make sure no opts were applied
+        op = wavesolver.op_fwd('centered', False)
+        assert len(op._func_table) == 0
+        assert summary[('section0', None)].ops == 727
+
         return v, rec
 
-    def test_tti_rewrite_basic(self):
-        operator = self.tti_operator(dse='basic')
-        rec, u, v, _ = operator.forward()
+    def test_fullopt(self):
+        wavesolver = self.tti_operator(dle='advanced')
+        rec, u, v, summary = wavesolver.forward(kernel='centered')
 
-        assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-3)
-        assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-3)
+        assert np.allclose(self.tti_noopt[0].data, v.data, atol=10e-1)
+        assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
-    def test_tti_rewrite_advanced(self):
-        operator = self.tti_operator(dse='advanced')
-        rec, u, v, _ = operator.forward()
-
-        assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-1)
-        assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-1)
-
-    def test_tti_rewrite_aggressive(self):
-        operator = self.tti_operator(dse='aggressive')
-        rec, u, v, _ = operator.forward(kernel='centered')
-
-        assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-1)
-        assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-1)
+        # Check expected opcount/oi
+        assert summary[('section1', None)].ops == 123
+        assert np.isclose(summary[('section1', None)].oi, 2.019, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
-        op = operator.op_fwd(kernel='centered')
+        op = wavesolver.op_fwd(kernel='centered')
         block_dims = [i for i in op.dimensions if i.is_Incr]
         assert len(block_dims) == 4
         x, x0_blk0, y, y0_blk0 = block_dims
@@ -908,10 +904,10 @@ class TestTTI(object):
 
     @skipif(['nompi'])
     @pytest.mark.parallel(mode=[(1, 'full')])
-    def test_tti_rewrite_aggressive_wmpi(self):
-        tti_nodse = self.tti_operator(dse=None)
-        rec0, u0, v0, _ = tti_nodse.forward(kernel='centered')
-        tti_agg = self.tti_operator(dse='aggressive')
+    def test_fullopt_w_mpi(self):
+        tti_noopt = self.tti_operator(dle=None)
+        rec0, u0, v0, _ = tti_noopt.forward(kernel='centered')
+        tti_agg = self.tti_operator(dle='advanced')
         rec1, u1, v1, _ = tti_agg.forward(kernel='centered')
 
         assert np.allclose(v0.data, v1.data, atol=10e-1)
@@ -926,8 +922,8 @@ class TestTTI(object):
     @pytest.mark.parametrize('space_order,expected', [
         (8, 180), (16, 318)
     ])
-    def test_tti_rewrite_aggressive_opcounts(self, space_order, expected):
-        op = self.tti_operator(space_order=space_order)
+    def test_opcounts(self, space_order, expected):
+        op = self.tti_operator(dle='advanced', space_order=space_order)
         sections = list(op.op_fwd(kernel='centered')._profiler._sections.values())
         assert sections[1].sops == expected
 
@@ -935,7 +931,7 @@ class TestTTI(object):
     @pytest.mark.parametrize('space_order,expected', [
         (4, 198), (12, 390)
     ])
-    def test_tti_v2_rewrite_aggressive_opcounts(self, space_order, expected):
+    def test_tti_v2_fullopt_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
 
         s = 0.00067
