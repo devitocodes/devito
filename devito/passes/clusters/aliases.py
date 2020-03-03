@@ -201,7 +201,7 @@ def collect(exprs):
 
 
 def choose(exprs, aliases):
-    #TODO: turn is_time_invariant into is_invariant
+    # TODO: Generalize `is_time_invariant` -- no need to have it specific for time
     is_time_invariant = make_is_time_invariant(exprs)
     time_invariants = {e.rhs: is_time_invariant(e) for e in exprs}
 
@@ -230,9 +230,7 @@ def process(cluster, candidates, aliases, template, platform):
             continue
 
         # The write-to region, as an IntervalGroup
-        #TODO: cleanup
-        writeto = IntervalGroup(alias.writeto,
-                                relations=cluster.ispace.intervals.relations)
+        writeto = IntervalGroup(alias.writeto, relations=cluster.ispace.relations)
 
         # The memory scope of the Array
         # TODO: this has required refinements for a long time
@@ -248,24 +246,26 @@ def process(cluster, candidates, aliases, template, platform):
 
         # The access Dimensions may differ from `writeto.dimensions`. This may
         # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
-        dimensions = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
+        adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
 
         # The expression computing `alias`
-        #TODO: cleanup
-        offsets = [0 if writeto[d].is_Null else writeto[d].lower for d in dimensions]
-        indices = [d - o for d, o in zip(dimensions, offsets)]
+        indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
         expression = Eq(array[indices], origin.xreplace(subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
         for aliased, distance in alias.with_distance:
+            assert len(adims) == len(writeto)
             assert all(i.dim in distance.labels for i in writeto)
-            offsets = [-i.lower + distance[i.dim] for i in writeto]
-            indices = [d + o for d, o in zip(dimensions, offsets)]
-            if aliased in candidates:
-                # It would *not* be in `candidates` if part of a composite alias
-                subs[candidates[aliased]] = array[indices]
+
+            indices = [d - i.lower + distance[i.dim] for d, i in zip(adims, writeto)]
             subs[aliased] = array[indices]
+
+            if aliased in candidates:
+                subs[candidates[aliased]] = array[indices]
+            else:
+                # Perhaps part of a composite alias ?
+                pass
 
         # Construct the `alias` IterationSpace
         ispace = cluster.ispace.add(writeto).augment(aliases.index_mapper)
@@ -294,23 +294,19 @@ def process(cluster, candidates, aliases, template, platform):
 
 def rebuild(cluster, others, aliases, subs):
     # Rebuild the non-aliasing expressions
-    processed = [e.xreplace(subs) for e in others]
+    exprs = [e.xreplace(subs) for e in others]
 
     # Add any new ShiftedDimension to the IterationSpace
     ispace = cluster.ispace.augment(aliases.index_mapper)
 
     # Rebuild the DataSpace to include the new symbols
-    accesses = detect_accesses(processed)
+    accesses = detect_accesses(exprs)
     parts = {k: IntervalGroup(build_intervals(v)).relaxed
              for k, v in accesses.items() if k}
     dspace = DataSpace(cluster.dspace.intervals, parts)
 
-    rebuilt = cluster.rebuild(exprs=processed, ispace=ispace, dspace=dspace)
+    return cluster.rebuild(exprs=exprs, ispace=ispace, dspace=dspace)
 
-    return rebuilt
-
-
-# --- Routines performing the actual detection of aliases ---
 
 Candidate = namedtuple('Candidate', 'expr indexeds bases offsets')
 
@@ -441,10 +437,28 @@ def calculate_COM(group):
         assert len(COM) == len(i.offsets)
         distance = [o.distance(c) for o, c in zip(i.offsets, COM)]
         distance = [(l, set(i)) for l, i in LabeledVector.transpose(*distance)]
-        # The distance of each Indexed from the COM must be uniform across all Indexeds
+
         if any(len(i) != 1 for l, i in distance):
             raise ValueError
-        distances.append(LabeledVector([(l, i.pop()) for l, i in distance]))
+
+        mapper = OrderedDict(distance)
+        distance = []
+        for d, v in mapper.items():
+            # The distance of each Indexed from the COM must be uniform across
+            # all Indexeds
+            if len(v) != 1:
+                raise ValueError
+
+            # The distance along ShiftedDimensions must be identical to that
+            # of their parent
+            if isinstance(d, ShiftedDimension):
+                if v != mapper.get(d.parent, v):
+                    raise ValueError
+                continue
+
+            distance.append((d, v))
+
+        distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
     return COM, distances
 
@@ -494,10 +508,10 @@ class Alias(object):
     is tracked.
     """
 
-    def __init__(self, alias, aliased=None, distances=None, ghost_offsets=None):
+    def __init__(self, alias, aliased, distances, ghost_offsets=None):
         self.alias = alias
-        self.aliased = aliased or []
-        self.distances = distances or []
+        self.aliased = aliased
+        self.distances = distances
         self.ghost_offsets = ghost_offsets or Stencil()
 
         assert len(self.aliased) == len(self.distances)
@@ -539,9 +553,6 @@ class Alias(object):
         # Overestimated write-to region
         intervals = [Interval(d, *v) for d, v in relaxed_diameter.items()]
 
-        # Optimization: no need to have a data Dimension over ShiftedDimensions
-        intervals = [i for i in intervals if not isinstance(i.dim, ShiftedDimension)]
-
         # Optimization: only retain those Interval along which some redundancies
         # have been detected
         dep_inducing = [i for i in intervals if any(i.offsets)]
@@ -553,11 +564,6 @@ class Alias(object):
             perf_adv("Couldn't optimize some of the detected redundancies")
 
         return intervals
-
-    def add(self, aliased, distance):
-        aliased = self.aliased + [aliased]
-        distances = self.distances + [distance]
-        return Alias(self.alias, aliased, distances, self.ghost_offsets)
 
     def relax(self, stencil):
         ghost_offsets = stencil.add(self.ghost_offsets)
