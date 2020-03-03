@@ -38,6 +38,7 @@ A set of more advanced examples are available in `seismic`:
 Further:
 
 * `mpi`: Jupyter notebooks explaining how MPI works in Devito.
+* `gpu`: Jupyter notebooks explaining how to run on GPUs with Devito.
 * `misc`: Example operators outside the context of finite differences and
   partial differential equations.
 
