@@ -445,7 +445,7 @@ class IterationInterval(object):
 class Space(object):
 
     """
-    A compact N-dimensional space of Intervals.
+    A compact N-dimensional space defined by N Intervals.
 
     Parameters
     ----------
@@ -492,7 +492,7 @@ class Space(object):
 class DataSpace(Space):
 
     """
-    A compact N-dimensional space of Intervals representing a data space.
+    Represent a data space as an enriched Space.
 
     Parameters
     ----------
@@ -583,7 +583,7 @@ class DataSpace(Space):
 class IterationSpace(Space):
 
     """
-    A compact N-dimensional space of Intervals representing an iteration space.
+    Represent an iteration space as an enriched Space.
 
     Parameters
     ----------
@@ -695,6 +695,10 @@ class IterationSpace(Space):
         return self.directions[dim] is Forward
 
     @property
+    def relations(self):
+        return self.intervals.relations
+
+    @property
     def sub_iterators(self):
         return self._sub_iterators
 
@@ -705,10 +709,6 @@ class IterationSpace(Space):
     @property
     def itintervals(self):
         return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
-
-    @property
-    def args(self):
-        return (self.intervals, self.sub_iterators, self.directions)
 
     @property
     def dimensions(self):
