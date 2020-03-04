@@ -57,7 +57,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     # Add dampening field according to the propagation direction
     eq += damp * field.dt if kwargs.get('forward', True) else damp * field.dt.T
     #eq_time = solve(eq, next)
-    eq_time = 2.0*(0.5*H*s**2/m + 0.5*s*damp*field/m + 1.0*field - 0.5*field.backward)/(s*damp/m + 1)
+    eq_time = 2.0*(0.5*H*s**2/m + 0.5*s*damp*field/m + 1.0*field - 0.5*field.backward)/(s*damp/m + 1.0)
     #from IPython import embed; embed()
     # Get the spacial FD
     lap = laplacian(field, m, s, kernel)
