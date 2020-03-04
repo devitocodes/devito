@@ -233,13 +233,19 @@ def pow_to_mul(expr):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
-        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0 or exp == -1:
-            # Large and non-integer powers remain untouched, as do reciprocals
+        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0:
+            # Large and non-integer powers remain untouched
             return expr
+        elif exp == -1:
+            # Reciprocals also remain untouched, but we traverse the base
+            # looking for other Pows
+            return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
             return sympy.Mul(*[base]*exp, evaluate=False)
         else:
-            # sympy represents 1/x as Pow(x,-1)
+            # SymPy represents 1/x as Pow(x,-1). Also, it represents
+            # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
+            # but just in case SymPy changes its internal conventions...
             posexpr = sympy.Mul(*[base]*(-exp), evaluate=False)
             return sympy.Pow(posexpr, -1, evaluate=False)
     else:
