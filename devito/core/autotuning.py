@@ -324,7 +324,7 @@ def generate_block_shapes(blockable, args, level):
             ret.remove(bs)
 
     # Generate level-n (n > 1) block shapes
-    # TODO -- currently, there's no DLE rewriter producing depth>2 hierarchical blocking,
+    # TODO -- currently, there's no Operator producing depth>2 hierarchical blocking,
     # so for simplicity we ignore this for the time being
 
     # Normalize

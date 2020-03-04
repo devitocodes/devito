@@ -40,7 +40,7 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
         Retrieve an Operator for the given `<platform, mode, language>`.
         """
         if mode not in OperatorRegistry._modes:
-            # DLE given as an arbitrary sequence of passes
+            # Optimization given as an arbitrary sequence of passes
             mode = 'custom'
 
         if language not in OperatorRegistry._languages:

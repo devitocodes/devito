@@ -41,7 +41,7 @@ class TestCodeGen(object):
         a_dense = Function(name='a_dense', grid=grid)
         const = Constant(name='constant')
         eqn = Eq(a_dense, a_dense + 2.*const)
-        op = Operator(eqn, dle=('advanced', {'openmp': False}))
+        op = Operator(eqn, openmp=False)
         assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_Tensor
@@ -86,7 +86,7 @@ class TestCodeGen(object):
         u = TimeFunction(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid, time_order=4)  # noqa
 
-        op = Operator(eval(expr), dle='noop')
+        op = Operator(eval(expr), opt='noop')
 
         iters = FindNodes(Iteration).visit(op)
         time_iter = [i for i in iters if i.dim.is_Time]
@@ -547,7 +547,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(f.forward, g + f), dle=('advanced', {'openmp': False}))
+        op = Operator(Eq(f.forward, g + f), openmp=False)
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -647,7 +647,7 @@ class TestArguments(object):
 
         # Suppress opts to work around a know bug with GCC and OpenMP:
         # https://github.com/devitocodes/devito/issues/320
-        op = Operator(Eq(f, 1.), dle=None)
+        op = Operator(Eq(f, 1.), opt=None)
         # TODO: Currently we require the `time` subrange to be set
         # explicitly. Ideally `t` would directly alias with `time`,
         # but this seems broken currently.
@@ -708,7 +708,7 @@ class TestArguments(object):
         a = TimeFunction(name='a', grid=grid, save=2)
         # Suppress opts to work around a know bug with GCC and OpenMP:
         # https://github.com/devitocodes/devito/issues/320
-        op = Operator(Eq(a, a + 3), dle=None)
+        op = Operator(Eq(a, a + 3), opt=None)
 
         # Run with default value
         a.data[:] = 1.
@@ -965,7 +965,7 @@ class TestArguments(object):
 
         u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=pad)
 
-        op = Operator(Eq(u, 1), dle='noop')
+        op = Operator(Eq(u, 1), opt='noop')
 
         u_arg = op.arguments(time=0)['u']
         u_arg_shape = tuple(u_arg._obj.size[i] for i in range(u.ndim))
@@ -1194,9 +1194,9 @@ class TestLoopScheduling(object):
         eq1 = Eq(tu, tv*ti0 + ti0)
         eq2 = Eq(ti0, tu + 3.)
         eq3 = Eq(tv, ti0*ti1)
-        op1 = Operator([eq1, eq2, eq3], dle='noop')
-        op2 = Operator([eq2, eq1, eq3], dle='noop')
-        op3 = Operator([eq3, eq2, eq1], dle='noop')
+        op1 = Operator([eq1, eq2, eq3], opt='noop')
+        op2 = Operator([eq2, eq1, eq3], opt='noop')
+        op3 = Operator([eq3, eq2, eq1], opt='noop')
 
         trees = [retrieve_iteration_tree(i) for i in [op1, op2, op3]]
         assert all(len(i) == 1 for i in trees)
@@ -1248,9 +1248,9 @@ class TestLoopScheduling(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        # `dle='noop'` is only to avoid loop blocking, hence making the asserts
+        # `opt='noop'` is only to avoid loop blocking, hence making the asserts
         # below much simpler to write and understand
-        op = Operator(eqns, dle='noop')
+        op = Operator(eqns, opt='noop')
 
         # Fission expected
         trees = retrieve_iteration_tree(op)
@@ -1432,7 +1432,7 @@ class TestLoopScheduling(object):
 
         # Note: `topofuse` is a subset of `advanced` mode. We use it merely to
         # bypass 'blocking', which would complicate the asserts below
-        op = Operator(eqns, dle=('topofuse', {'openmp': False}))
+        op = Operator(eqns, opt=('topofuse', {'openmp': False}))
 
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
@@ -1466,7 +1466,7 @@ class TestLoopScheduling(object):
         eq0 = Eq(t1, e*1.)
         eq1 = Eq(f, t0*3. + t1)
         eq2 = Eq(h, g + 4. + f*5.)
-        op = Operator([eq0, eq1, eq2], dle='noop')
+        op = Operator([eq0, eq1, eq2], opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
         outer, middle, inner = trees
@@ -1492,7 +1492,7 @@ class TestLoopScheduling(object):
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
                Eq(b[time, x, y, 0], 0.)]
-        op = Operator([main] + bcs, dle='noop')
+        op = Operator([main] + bcs, opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(id(trees[0][0]) == id(i[0]) for i in trees)
@@ -1506,7 +1506,7 @@ class TestLoopScheduling(object):
                     scope='heap').indexify()
         eq1 = Eq(ti0, t0*3.)
         eq2 = Eq(tu, ti0 + t1*3.)
-        op = Operator([eq1, eq2], dle='noop')
+        op = Operator([eq1, eq2], opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
         assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
@@ -1531,7 +1531,7 @@ class TestLoopScheduling(object):
 
         eqs = [eval(exprs[0]), eval(exprs[1])]
 
-        op = Operator(eqs, dle='noop')
+        op = Operator(eqs, opt='noop')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
@@ -1562,12 +1562,12 @@ class TestLoopScheduling(object):
                      Eq(b2, time*b2*a + b2)]
             subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim])}
 
-            op = Operator(eqns, subs=subs, dle='noop')
+            op = Operator(eqns, subs=subs, opt='noop')
             trees = retrieve_iteration_tree(op)
             assert len(trees) == 2
             assert all(trees[0][i] is trees[1][i] for i in range(3))
 
-            op2 = Operator(eqns2, subs=subs, dle='noop')
+            op2 = Operator(eqns2, subs=subs, opt='noop')
             trees = retrieve_iteration_tree(op2)
             assert len(trees) == 2
 
@@ -1594,7 +1594,7 @@ class TestLoopScheduling(object):
         u2 = TimeFunction(name='u2', grid=grid, save=2)
         eqn_1 = Eq(u1[t+1, x, y, z], u1[t, x, y, z] + 1.)
         eqn_2 = Eq(u2[time+1, x, y, z], u2[time, x, y, z] + 1.)
-        op = Operator([eqn_1, eqn_2], dle='topofuse')
+        op = Operator([eqn_1, eqn_2], opt='topofuse')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         assert len(trees[0][-1].nodes[0].exprs) == 2
@@ -1661,7 +1661,7 @@ class TestLoopScheduling(object):
 
         # Note: opts disabled only because with OpenMP otherwise there might be more
         # `trees` than 4
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         # Time loop not shared due to the WAR
@@ -1671,7 +1671,7 @@ class TestLoopScheduling(object):
 
         # Now single, shared time loop expected
         eqn2 = sf1.inject(u1.forward, expr=sf1)
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)
@@ -1691,7 +1691,7 @@ class TestLoopScheduling(object):
         # Note that `eq1` doesn't impose any constraint on the ordering of
         # the `time` Dimension w.r.t. the `grid` Dimensions, as `time` appears
         # as a free Dimension and not within an array access such as [time, x, y]
-        op = Operator([eq0, eq1], dle='topofuse')
+        op = Operator([eq0, eq1], opt='topofuse')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         tree = trees[0]

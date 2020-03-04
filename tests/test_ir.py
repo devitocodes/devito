@@ -862,7 +862,7 @@ class TestAnalysis(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='openmp')
+        op = Operator(exprs, opt='openmp')
 
         iters = FindNodes(Iteration).visit(op)
         assert all(i.is_ParallelAtomic for i in iters if i.dim.name in atomic)
@@ -926,7 +926,7 @@ class TestAnalysis(object):
             exprs[i] = eval(e)
 
         # Use 'openmp' here instead of 'advanced' to disable loop blocking
-        op = Operator(exprs, dle='openmp')
+        op = Operator(exprs, opt='openmp')
 
         iters = FindNodes(Iteration).visit(op)
         assert all([i.is_ParallelAtomic for i in iters if i.dim.name in atomic])

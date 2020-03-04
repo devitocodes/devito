@@ -18,7 +18,7 @@ class TestCodeGeneration(object):
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u + 1), dle=('advanced', {'openmp': True}))
+        op = Operator(Eq(u.forward, u + 1))
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
@@ -42,8 +42,7 @@ class TestCodeGeneration(object):
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
 
-        op = Operator([Eq(u.forward, u + v + 1), Eq(v.forward, u + v + 4)],
-                      dle=('advanced', {'openmp': True}))
+        op = Operator([Eq(u.forward, u + v + 1), Eq(v.forward, u + v + 4)])
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
@@ -77,7 +76,7 @@ class TestCodeGeneration(object):
                 Eq(u.forward, u + v*f),
                 Eq(v.forward, u.forward.dx + v*f + 4)]
 
-        op = Operator(eqns, dle=('noop', {'openmp': True}))
+        op = Operator(eqns, opt='noop')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
@@ -134,7 +133,7 @@ class TestCodeGeneration(object):
 
         eqn = Eq(u.forward, u*cos(f*2))
 
-        op = Operator(eqn, dle=('advanced', {'openmp': True}))
+        op = Operator(eqn)
 
         assert len(op.body[2].header) == 4
         assert str(op.body[2].header[0]) == 'float (*r1)[y_size][z_size];'
@@ -159,7 +158,7 @@ class TestCodeGeneration(object):
         eqns = [Eq(u.forward, u + 1),
                 Eq(f[0], u[0, 0, 0, 0])]
 
-        op = Operator(eqns, dle=('noop', {'openmp': True}))
+        op = Operator(eqns, opt='noop')
 
         assert len(op.body[2].header) == 1
         assert len(op.body[2].footer) == 1
@@ -181,7 +180,7 @@ class TestCodeGeneration(object):
         f = Function(name='f', shape=(1,), dimensions=(i,), grid=grid)
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Inc(f[0], u + 1), dle=('noop', {'openmp': True}))
+        op = Operator(Inc(f[0], u + 1), opt='noop')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
@@ -202,7 +201,7 @@ class TestOperator(object):
 
         u = TimeFunction(name='u', grid=grid, dtype=np.int32)
 
-        op = Operator(Eq(u.forward, u + 1), dle=('advanced', {'openmp': True}))
+        op = Operator(Eq(u.forward, u + 1))
 
         time_steps = 1000
         op.apply(time_M=time_steps)
@@ -249,7 +248,7 @@ class TestOperator(object):
         src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
         rec_term = rec.interpolate(expr=u.forward)
 
-        op = Operator([stencil] + src_term + rec_term, dle=('advanced', {'openmp': True}))
+        op = Operator([stencil] + src_term + rec_term)
         op(time=time_range.num-1, dt=dt)
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)

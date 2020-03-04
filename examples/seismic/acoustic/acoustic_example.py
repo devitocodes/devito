@@ -70,9 +70,6 @@ if __name__ == "__main__":
                         help="Preset to determine the number of dimensions")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=6,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
@@ -80,12 +77,15 @@ if __name__ == "__main__":
     parser.add_argument("-k", dest="kernel", default='OT2',
                         choices=['OT2', 'OT4'],
                         help="Choice of finite-difference kernel")
-    parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
-                        help="Devito loop engine (DLE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     parser.add_argument("--checkpointing", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
+    parser.add_argument("-opt", default="advanced", choices=["noop", "advanced"],
+                        help="Performance optimization level")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     args = parser.parse_args()
 
     # 3D preset parameters
@@ -95,5 +95,5 @@ if __name__ == "__main__":
     preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
-        autotune=args.autotune, dle=args.dle, full_run=args.full,
+        autotune=args.autotune, opt=args.opt, full_run=args.full,
         checkpointing=args.checkpointing)

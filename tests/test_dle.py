@@ -18,7 +18,7 @@ from devito.types import Scalar
 pytestmark = skipif(['yask', 'ops'])
 
 
-def get_blocksizes(op, dle, grid, blockshape, level=0):
+def get_blocksizes(op, opt, grid, blockshape, level=0):
     blocksizes = {'%s0_blk%d_size' % (d, level): v
                   for d, v in zip(grid.dimensions, blockshape)}
     blocksizes = {k: v for k, v in blocksizes.items() if k in op._known_arguments}
@@ -27,7 +27,7 @@ def get_blocksizes(op, dle, grid, blockshape, level=0):
         assert len(blocksizes) == 0
         return {}
     try:
-        if dle[1].get('blockinner'):
+        if opt[1].get('blockinner'):
             assert len(blocksizes) >= 1
             if grid.dim == len(blockshape):
                 assert len(blocksizes) == len(blockshape)
@@ -39,7 +39,7 @@ def get_blocksizes(op, dle, grid, blockshape, level=0):
         return {}
 
 
-def _new_operator2(shape, time_order, blockshape=None, dle=None):
+def _new_operator2(shape, time_order, blockshape=None, opt=None):
     blockshape = as_tuple(blockshape)
     grid = Grid(shape=shape, dtype=np.int32)
     infield = TimeFunction(name='infield', grid=grid, time_order=time_order)
@@ -48,15 +48,15 @@ def _new_operator2(shape, time_order, blockshape=None, dle=None):
 
     stencil = Eq(outfield.forward.indexify(),
                  outfield.indexify() + infield.indexify()*3.0)
-    op = Operator(stencil, dle=dle)
+    op = Operator(stencil, opt=opt)
 
-    blocksizes = get_blocksizes(op, dle, grid, blockshape)
+    blocksizes = get_blocksizes(op, opt, grid, blockshape)
     op(infield=infield, outfield=outfield, t=10, **blocksizes)
 
     return outfield, op
 
 
-def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
+def _new_operator3(shape, blockshape0=None, blockshape1=None, opt=None):
     blockshape0 = as_tuple(blockshape0)
     blockshape1 = as_tuple(blockshape1)
 
@@ -68,10 +68,10 @@ def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
     u.data[0, :] = np.linspace(-1, 1, reduce(mul, shape)).reshape(shape)
 
     # Derive the stencil according to devito conventions
-    op = Operator(Eq(u.forward, 0.5 * u.laplace + u), dle=dle)
+    op = Operator(Eq(u.forward, 0.5 * u.laplace + u), opt=opt)
 
-    blocksizes0 = get_blocksizes(op, dle, grid, blockshape0, 0)
-    blocksizes1 = get_blocksizes(op, dle, grid, blockshape1, 1)
+    blocksizes0 = get_blocksizes(op, opt, grid, blockshape0, 0)
+    blocksizes1 = get_blocksizes(op, opt, grid, blockshape1, 1)
     op.apply(u=u, t=10, **blocksizes0, **blocksizes1)
 
     return u.data[1, :], op
@@ -79,8 +79,8 @@ def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
 
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
 def test_composite_transformation(shape):
-    wo_blocking, _ = _new_operator2(shape, time_order=2, dle='noop')
-    w_blocking, _ = _new_operator2(shape, time_order=2, dle='advanced')
+    wo_blocking, _ = _new_operator2(shape, time_order=2, opt='noop')
+    w_blocking, _ = _new_operator2(shape, time_order=2, opt='advanced')
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
@@ -93,7 +93,7 @@ def test_composite_transformation(shape):
 def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
     _, op = _new_operator2((10, 31, 45), time_order=2,
-                           dle=('blocking', {'blockinner': blockinner}))
+                           opt=('blocking', {'blockinner': blockinner}))
     calls = FindNodes(Call).visit(op)
     assert len(calls) == exp_calls
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
@@ -108,7 +108,7 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
 
     # Check presence of openmp pragmas at the right place
     _, op = _new_operator2((10, 31, 45), time_order=2,
-                           dle=('blocking', {'openmp': True, 'blockinner': blockinner}))
+                           opt=('blocking', {'openmp': True, 'blockinner': blockinner}))
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
     assert len(trees) == 1
     tree = trees[0]
@@ -196,9 +196,9 @@ def test_cache_blocking_structure_multiple_efuncs():
 @pytest.mark.parametrize("blockshape", [2, (3, 3), (9, 20), (2, 9, 11), (7, 15, 23)])
 @pytest.mark.parametrize("blockinner", [False, True])
 def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
-    wo_blocking, _ = _new_operator2(shape, time_order, dle='noop')
+    wo_blocking, _ = _new_operator2(shape, time_order, opt='noop')
     w_blocking, _ = _new_operator2(shape, time_order, blockshape,
-                                   dle=('blocking', {'blockinner': blockinner}))
+                                   opt=('blocking', {'blockinner': blockinner}))
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
@@ -219,9 +219,9 @@ def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
 ])
 def test_cache_blocking_edge_cases(shape, blockshape):
     time_order = 2
-    wo_blocking, _ = _new_operator2(shape, time_order, dle='noop')
+    wo_blocking, _ = _new_operator2(shape, time_order, opt='noop')
     w_blocking, _ = _new_operator2(shape, time_order, blockshape,
-                                   dle=('blocking', {'blockinner': True}))
+                                   opt=('blocking', {'blockinner': True}))
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
@@ -241,8 +241,8 @@ def test_cache_blocking_edge_cases(shape, blockshape):
     ((15, 15), (3, 4))
 ])
 def test_cache_blocking_edge_cases_highorder(shape, blockshape):
-    wo_blocking, a = _new_operator3(shape, dle='noop')
-    w_blocking, b = _new_operator3(shape, blockshape, dle=('blocking',
+    wo_blocking, a = _new_operator3(shape, opt='noop')
+    w_blocking, b = _new_operator3(shape, blockshape, opt=('blocking',
                                                            {'blockinner': True}))
 
     assert np.allclose(wo_blocking, w_blocking, rtol=1e-12)
@@ -261,10 +261,10 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
 def test_cache_blocking_hierarchical(blockshape0, blockshape1, exception):
     shape = (51, 102, 71)
 
-    wo_blocking, a = _new_operator3(shape, dle='noop')
+    wo_blocking, a = _new_operator3(shape, opt='noop')
     try:
         w_blocking, b = _new_operator3(shape, blockshape0, blockshape1,
-                                       dle=('blocking', {'blockinner': True,
+                                       opt=('blocking', {'blockinner': True,
                                                          'blocklevels': 2}))
         assert not exception
         assert np.allclose(wo_blocking, w_blocking, rtol=1e-12)
@@ -287,8 +287,8 @@ def test_cache_blocking_imperfect_nest(blockinner):
     eqns = [Eq(u.forward, v.laplace),
             Eq(v.forward, u.forward.dz)]
 
-    op0 = Operator(eqns, dle='noop')
-    op1 = Operator(eqns, dle=('advanced', {'blockinner': blockinner}))
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt=('advanced', {'blockinner': blockinner}))
 
     # First, check the generated code
     trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
@@ -370,7 +370,7 @@ class TestNodeParallelism(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns, dle='openmp')
+        op = Operator(eqns, opt='openmp')
 
         iterations = FindNodes(Iteration).visit(op)
         assert len(iterations) == len(expected)
@@ -394,7 +394,7 @@ class TestNodeParallelism(object):
         eqns = [Eq(f.forward, f + 1)]
         eqns += sf.interpolate(f)
 
-        op = Operator(eqns, dle='openmp')
+        op = Operator(eqns, opt='openmp')
 
         parregions = FindNodes(ParallelRegion).visit(op)
         assert len(parregions) == 2
@@ -439,10 +439,10 @@ class TestNodeParallelism(object):
         eqns = eval(eqns)
 
         if blocking:
-            op = Operator(eqns, dle=('blocking', 'simd', 'openmp', {'blockinner': True}))
+            op = Operator(eqns, opt=('blocking', 'simd', 'openmp', {'blockinner': True}))
             iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
         else:
-            op = Operator(eqns, dle=('simd', 'openmp'))
+            op = Operator(eqns, opt=('simd', 'openmp'))
             iterations = FindNodes(Iteration).visit(op)
 
         assert len(iterations) == len(expected)
@@ -470,7 +470,7 @@ class TestNodeParallelism(object):
         eqns = [Eq(u.forward, u + 1)]
         eqns += sf1.interpolate(u)
 
-        op = Operator(eqns, dle='openmp')
+        op = Operator(eqns, opt='openmp')
 
         iterations = FindNodes(Iteration).visit(op)
         assert len(iterations) == 4
@@ -489,7 +489,7 @@ class TestNestedParallelism(object):
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u + 1), dle=('blocking', 'openmp'))
+        op = Operator(Eq(u.forward, u + 1), opt=('blocking', 'openmp'))
 
         # Does it compile? Honoring the OpenMP specification isn't trivial
         assert op.cfunction
@@ -520,7 +520,7 @@ class TestNestedParallelism(object):
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u + 1), dle=('blocking', 'openmp'))
+        op = Operator(Eq(u.forward, u + 1), opt=('blocking', 'openmp'))
 
         # Does it compile? Honoring the OpenMP specification isn't trivial
         assert op.cfunction
@@ -548,7 +548,7 @@ class TestNestedParallelism(object):
 
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-        op = Operator(eqn, dle=('advanced', {'openmp': True}))
+        op = Operator(eqn, openmp=True)
 
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
