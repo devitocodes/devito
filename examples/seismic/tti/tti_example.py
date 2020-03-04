@@ -45,9 +45,6 @@ if __name__ == "__main__":
     parser.add_argument("-k", dest="kernel", default='centered',
                         choices=['centered', 'staggered'],
                         help="Choice of finite-difference kernel")
-    parser.add_argument("-dse", default="advanced",
-                        choices=["noop", "basic", "advanced", "aggressive"],
-                        help="Devito symbolic engine (DSE) mode")
     parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
                         help="Devito loop engine (DLE) mode")
     args = parser.parse_args()
@@ -64,5 +61,5 @@ if __name__ == "__main__":
         tn = 250.0
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
-        space_order=args.space_order, autotune=args.autotune, dse=args.dse,
+        space_order=args.space_order, autotune=args.autotune,
         dle=args.dle, kernel=args.kernel, preset=preset)

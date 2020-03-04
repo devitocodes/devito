@@ -54,9 +54,6 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
                         type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("-dse", default="advanced",
-                        choices=["noop", "basic", "advanced", "aggressive"],
-                        help="Devito symbolic engine (DSE) mode")
     parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
                         help="Devito loop engine (DLEE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
@@ -75,5 +72,4 @@ if __name__ == "__main__":
         tn = 1250.0
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, dle=args.dle,
-        space_order=args.space_order, autotune=args.autotune, constant=args.constant,
-        dse=args.dse)
+        space_order=args.space_order, autotune=args.autotune, constant=args.constant)

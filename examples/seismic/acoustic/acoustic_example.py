@@ -80,9 +80,6 @@ if __name__ == "__main__":
     parser.add_argument("-k", dest="kernel", default='OT2',
                         choices=['OT2', 'OT4'],
                         help="Choice of finite-difference kernel")
-    parser.add_argument("-dse", default="advanced",
-                        choices=["noop", "basic", "advanced", "aggressive"],
-                        help="Devito symbolic engine (DSE) mode")
     parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
                         help="Devito loop engine (DLE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
@@ -98,5 +95,5 @@ if __name__ == "__main__":
     preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
-        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full,
+        autotune=args.autotune, dle=args.dle, full_run=args.full,
         checkpointing=args.checkpointing)
