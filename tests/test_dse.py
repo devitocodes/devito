@@ -163,14 +163,19 @@ def test_cse(exprs, expected):
     ('3*fa[x]**4', '3*(fa[x]*fa[x]*fa[x]*fa[x])'),
     ('fa[x]**2', 'fa[x]*fa[x]'),
     ('1/(fa[x]**2)', '1/(fa[x]*fa[x])'),
+    ('1/(fb[x]**2 + 1)', '1/(fb[x]*fb[x] + 1)'),
     ('1/(fa[x] + fb[x])', '1/(fa[x] + fb[x])'),
     ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
+    ('fa[x]/(fb[x]**2)', 'fa[x]/((fb[x]*fb[x]))')
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
     x, y = grid.dimensions
+
+    s = Scalar(name='s')  # noqa
     fa = Function(name='fa', grid=grid, dimensions=(x,), shape=(4,))  # noqa
     fb = Function(name='fb', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+
     assert str(pow_to_mul(eval(expr))) == expected
 
 
@@ -800,6 +805,7 @@ class TestIsoAcoustic(object):
 
         return u, rec, summary, op
 
+    @switchconfig(profiling='advanced')
     def test_fullopt(self):
         u0, rec0, summary0, op0 = self.run_acoustic_forward(dle=None)
         u1, rec1, summary1, op1 = self.run_acoustic_forward(dle='advanced')
@@ -817,7 +823,6 @@ class TestIsoAcoustic(object):
         assert np.allclose(rec0.data, rec1.data, atol=10e-5)
 
 
-# TTI
 class TestTTI(object):
 
     @cached_property
@@ -863,6 +868,7 @@ class TestTTI(object):
 
         return v, rec
 
+    @switchconfig(profiling='advanced')
     def test_fullopt(self):
         wavesolver = self.tti_operator(dle='advanced')
         rec, u, v, summary = wavesolver.forward(kernel='centered')
@@ -871,8 +877,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 123
-        assert np.isclose(summary[('section1', None)].oi, 2.019, atol=0.001)
+        assert summary[('section1', None)].ops == 109
+        assert np.isclose(summary[('section1', None)].oi, 1.815, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -903,6 +909,7 @@ class TestTTI(object):
         assert len([i for i in exprs if i.is_scalar]) == 6
 
     @skipif(['nompi'])
+    @switchconfig(profiling='advanced')
     @pytest.mark.parallel(mode=[(1, 'full')])
     def test_fullopt_w_mpi(self):
         tti_noopt = self.tti_operator(dle=None)
@@ -920,18 +927,21 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 180), (16, 318)
+        (8, 178), (16, 316)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(dle='advanced', space_order=space_order)
         sections = list(op.op_fwd(kernel='centered')._profiler._sections.values())
         assert sections[1].sops == expected
 
+
+class TestTTIv2(object):
+
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 198), (12, 390)
+        (4, 197), (12, 389)
     ])
-    def test_tti_v2_fullopt_opcounts(self, space_order, expected):
+    def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
 
         s = 0.00067
