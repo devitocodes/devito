@@ -47,7 +47,7 @@ def initialize_damp(damp, nbl, spacing, mask=False):
         eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
 
     # TODO: Figure out why yask doesn't like it with dse/dle
-    Operator(eqs, name='initdamp', dse='noop', dle='noop')()
+    Operator(eqs, name='initdamp', dle='noop')()
 
 
 class PhysicalDomain(SubDomain):
