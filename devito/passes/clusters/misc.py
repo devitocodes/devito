@@ -2,7 +2,7 @@ from itertools import groupby
 
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
-from devito.passes.clusters.utils import dse_pass
+from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul, xreplace_indices, freeze as _freeze
 from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
@@ -188,7 +188,7 @@ def eliminate_arrays(clusters, template):
     return processed
 
 
-@dse_pass(mode='all')
+@cluster_pass(mode='all')
 def optimize_pows(cluster, *args):
     """
     Convert integer powers into Muls, such as ``a**2 => a*a``.
@@ -196,7 +196,7 @@ def optimize_pows(cluster, *args):
     return cluster.rebuild(exprs=[pow_to_mul(e) for e in cluster.exprs])
 
 
-@dse_pass(mode='sparse')
+@cluster_pass(mode='sparse')
 def extract_increments(cluster, template, *args):
     """
     Extract the RHSs of non-local tensor expressions performing an associative
@@ -218,7 +218,7 @@ def extract_increments(cluster, template, *args):
     return cluster.rebuild(processed)
 
 
-@dse_pass(mode='all')
+@cluster_pass(mode='all')
 def freeze(cluster):
     """
     Prevent future symbolic manipulations (e.g., xreplace, subs, ...) from
