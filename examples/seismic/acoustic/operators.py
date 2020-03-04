@@ -1,6 +1,6 @@
 from sympy import Symbol
 
-from devito import Eq, Operator, Function, TimeFunction, Inc, solve
+from devito import Eq, Operator, Function, TimeFunction, Inc
 from examples.seismic import PointSource, Receiver
 
 
@@ -54,9 +54,11 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     next = field.forward if kwargs.get('forward', True) else field.backward
     # Define PDE
     if kwargs.get('forward', True):
-        eq_time = 2.0*(0.5*H*s**2/m + 0.5*s*damp*field/m + 1.0*field - 0.5*field.backward)/(s*damp/m + 1.0)
+        eq_time = 2.0*(0.5*H*s**2/m + 0.5*s*damp*field/m + 1.0*field -
+                       0.5*field.backward)/(s*damp/m + 1.0)
     else:
-        eq_time = 2.0*(0.5*H*s**2/m + 0.5*s*damp*field/m + 1.0*field - 0.5*field.forward)/(s*damp/m + 1.0)
+        eq_time = 2.0*(0.5*H*s**2/m + 0.5*s*damp*field/m + 1.0*field -
+                       0.5*field.forward)/(s*damp/m + 1.0)
     # Get the spacial FD
     lap = laplacian(field, m, s, kernel)
     # return the Stencil with H replaced by its symbolic expression
