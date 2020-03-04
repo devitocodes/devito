@@ -92,8 +92,8 @@ def option_performance(f):
 
     _preset = {
         # Fixed
-        'O1': {'dle': 'noop'},
-        'O2': {'dle': 'advanced'},
+        'O1': {'opt': 'noop'},
+        'O2': {'opt': 'advanced'},
     }
 
     def from_preset(ctx, param, value):
@@ -161,10 +161,10 @@ def option_performance(f):
                      help='Choose what to benchmark; ignored if execmode=run'),
         click.option('--arch', default='unknown',
                      help='Architecture on which the simulation is/was run'),
-        click.option('--dle', callback=from_value,
+        click.option('--opt', callback=from_value,
                      type=click.Choice([str(i) if type(i) is tuple else i
                                         for i in configuration._accepted['dle']]),
-                     help='Optimization level'),
+                     help='Performance optimization level'),
         click.option('-bs', '--block-shape', callback=config_blockshape, multiple=True,
                      is_eager=True, help='Loop-blocking shape, bypass autotuning'),
         click.option('-a', '--autotune', default='aggressive', callback=config_autotuning,
@@ -271,7 +271,7 @@ def test(problem, **kwargs):
     Test numerical correctness with different parameters.
     """
     run = model_type[problem]['run']
-    sweep_options = ('space_order', 'time_order', 'dle', 'autotune')
+    sweep_options = ('space_order', 'time_order', 'opt', 'autotune')
 
     last_res = None
     for params in sweep(kwargs, keys=sweep_options):
@@ -372,7 +372,7 @@ def plot(problem, **kwargs):
     time = bench.lookup(params=kwargs, measure="timings", event=section)
 
     # What plot am I?
-    modes = [i for i in ['dle', 'autotune']
+    modes = [i for i in ['opt', 'autotune']
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
     # Filename
@@ -381,7 +381,7 @@ def plot(problem, **kwargs):
     )
 
     # Legend setup. Do not plot a legend if there's no variation in performance
-    # options (dle, autotune)
+    # options (opt, autotune)
     if modes:
         legend = {'loc': 'upper left', 'fontsize': 7, 'ncol': 4}
     else:
@@ -448,7 +448,7 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['tn'] = params['tn']
             devito_params['so'] = params['space_order']
             devito_params['to'] = params['time_order']
-            devito_params['dle'] = params['dle']
+            devito_params['opt'] = params['opt']
             devito_params['at'] = params['autotune']
 
             if configuration['openmp']:

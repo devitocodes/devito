@@ -805,7 +805,7 @@ class TestCodeGeneration(object):
         eqns = [Eq(g, f.dzl + f.dzr + 1),
                 Eq(f, g)]
 
-        op = Operator(eqns, dle=('advanced', {'openmp': False}))
+        op = Operator(eqns, opt=('advanced', {'openmp': False}))
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
@@ -876,7 +876,7 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)  # noqa
 
-        op = Operator(Eq(f.forward, eval(expr)), dle=('advanced', {'openmp': False}))
+        op = Operator(Eq(f.forward, eval(expr)), opt=('advanced', {'openmp': False}))
 
         calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
         destinations = {i.arguments[-2].field for i in calls}
@@ -913,7 +913,7 @@ class TestCodeGeneration(object):
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
-        op = Operator(eqn, dle=('advanced', {'blockinner': True}))
+        op = Operator(eqn, opt=('advanced', {'blockinner': True}))
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
         tree = trees[1]
@@ -1491,8 +1491,8 @@ class TestOperatorAdvanced(object):
 
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+1, y+1])*3*f +
                              (u[t, x+2, y+2] + u[t, x+3, y+3])*3*f + 1))
-        op0 = Operator(eqn, dle='noop')
-        op1 = Operator(eqn, dle='advanced')
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt='advanced')
 
         op0(time_M=1)
         u0_norm = norm(u)
@@ -1523,8 +1523,8 @@ class TestOperatorAdvanced(object):
 
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+2, y])*3*f +
                              (u[t, x+1, y+1] + u[t, x+3, y+1])*3*f + 1))
-        op0 = Operator(eqn, dle='noop')
-        op1 = Operator(eqn, dle='advanced')
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt='advanced')
 
         op0(time_M=1)
         u0_norm = norm(u)

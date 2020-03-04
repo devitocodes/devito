@@ -320,8 +320,8 @@ def test_makeit_ssa(exprs, exp_u, exp_v):
     assert np.all(v.data == exp_v)
 
 
-@pytest.mark.parametrize('dle', ['noop', 'advanced'])
-def test_time_dependent_split(dle):
+@pytest.mark.parametrize('opt', ['noop', 'advanced'])
+def test_time_dependent_split(opt):
     grid = Grid(shape=(10, 10))
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=3)
     v = TimeFunction(name='v', grid=grid, time_order=2, space_order=0, save=3)
@@ -330,7 +330,7 @@ def test_time_dependent_split(dle):
     # a full one over x.y for v
     eq = [Eq(u.forward, 2 + grid.time_dim),
           Eq(v.forward, u.forward.dx + u.forward.dy + 1)]
-    op = Operator(eq, dle=dle)
+    op = Operator(eq, opt=opt)
 
     trees = retrieve_iteration_tree(op)
     assert len(trees) == 2
@@ -362,8 +362,8 @@ class TestAliases(object):
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-        op0 = Operator(eqn, dle=('noop', {'openmp': True}))
-        op1 = Operator(eqn, dle=('advanced', {'openmp': True}))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
         x0_blk_size = op1.parameters[2]
         y0_blk_size = op1.parameters[3]
@@ -404,8 +404,8 @@ class TestAliases(object):
         # Leads to 2D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
                              (u[t, x, y+2, z+2] + u[t, x, y+3, z+3])*3*f + 1))
-        op0 = Operator(eqn, dle=('noop', {'openmp': True}))
-        op1 = Operator(eqn, dle=('advanced', {'openmp': True}))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
         y0_blk_size = op1.parameters[2]
         z_size = op1.parameters[3]
@@ -445,8 +445,8 @@ class TestAliases(object):
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1),
                  subdomain=grid.interior)
-        op0 = Operator(eqn, dle=('noop', {'openmp': True}))
-        op1 = Operator(eqn, dle=('advanced', {'openmp': True}))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
         xi0_blk_size = op1.parameters[2]
         yi0_blk_size = op1.parameters[3]
@@ -501,7 +501,7 @@ class TestAliases(object):
                 sin(g)*cos(g) +
                 sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
 
-        op0 = Operator(Eq(u.forward, expr), dle='noop')
+        op0 = Operator(Eq(u.forward, expr), opt='noop')
         op1 = Operator(Eq(u.forward, expr))
 
         # We expect two temporary Arrays, one for `cos(g)` and one for `sin(g)`
@@ -571,8 +571,8 @@ class TestAliases(object):
                 Eq(v.forward, ((v[t, x, y, z] + v[t, x+1, y+1, z+1])*3*u.forward +
                                (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward +
                                1))]
-        op0 = Operator(eqns, dle=('noop', {'openmp': True}))
-        op1 = Operator(eqns, dle=('advanced', {'openmp': True}))
+        op0 = Operator(eqns, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
 
         # Check code generation
         assert 'bf0' in op1._func_table
@@ -613,8 +613,8 @@ class TestAliases(object):
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-        op0 = Operator(eqn, dle=('noop', {'openmp': False}))
-        op1 = Operator(eqn, dle=('advanced', {'openmp': False}))
+        op0 = Operator(eqn, opt=('noop', {'openmp': False}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': False}))
 
         x0_blk_size = op1.parameters[2]
         y0_blk_size = op1.parameters[3]
@@ -774,7 +774,7 @@ class TestAliases(object):
 # Acoustic
 class TestIsoAcoustic(object):
 
-    def run_acoustic_forward(self, dle=None):
+    def run_acoustic_forward(self, opt=None):
         shape = (50, 50, 50)
         spacing = (10., 10., 10.)
         nbl = 10
@@ -798,7 +798,7 @@ class TestIsoAcoustic(object):
         geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
                                        t0=t0, tn=tn, src_type='Ricker', f0=0.010)
 
-        solver = AcousticWaveSolver(model, geometry, dle=dle)
+        solver = AcousticWaveSolver(model, geometry, opt=opt)
         rec, u, summary = solver.forward(save=False)
 
         op = solver.op_fwd(save=False)
@@ -807,8 +807,8 @@ class TestIsoAcoustic(object):
 
     @switchconfig(profiling='advanced')
     def test_fullopt(self):
-        u0, rec0, summary0, op0 = self.run_acoustic_forward(dle=None)
-        u1, rec1, summary1, op1 = self.run_acoustic_forward(dle='advanced')
+        u0, rec0, summary0, op0 = self.run_acoustic_forward(opt=None)
+        u1, rec1, summary1, op1 = self.run_acoustic_forward(opt='advanced')
 
         assert len(op0._func_table) == 0
         assert len(op1._func_table) == 1  # due to loop blocking
@@ -852,13 +852,13 @@ class TestTTI(object):
                                        t0=t0, tn=tn, src_type='Gabor', f0=0.010)
         return geometry
 
-    def tti_operator(self, dle, space_order=4):
+    def tti_operator(self, opt, space_order=4):
         return AnisotropicWaveSolver(self.model, self.geometry,
-                                     space_order=space_order, dle=dle)
+                                     space_order=space_order, opt=opt)
 
     @cached_property
     def tti_noopt(self):
-        wavesolver = self.tti_operator(dle=None)
+        wavesolver = self.tti_operator(opt=None)
         rec, u, v, summary = wavesolver.forward()
 
         # Make sure no opts were applied
@@ -870,7 +870,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     def test_fullopt(self):
-        wavesolver = self.tti_operator(dle='advanced')
+        wavesolver = self.tti_operator(opt='advanced')
         rec, u, v, summary = wavesolver.forward(kernel='centered')
 
         assert np.allclose(self.tti_noopt[0].data, v.data, atol=10e-1)
@@ -912,9 +912,9 @@ class TestTTI(object):
     @switchconfig(profiling='advanced')
     @pytest.mark.parallel(mode=[(1, 'full')])
     def test_fullopt_w_mpi(self):
-        tti_noopt = self.tti_operator(dle=None)
+        tti_noopt = self.tti_operator(opt=None)
         rec0, u0, v0, _ = tti_noopt.forward(kernel='centered')
-        tti_agg = self.tti_operator(dle='advanced')
+        tti_agg = self.tti_operator(opt='advanced')
         rec1, u1, v1, _ = tti_agg.forward(kernel='centered')
 
         assert np.allclose(v0.data, v1.data, atol=10e-1)
@@ -930,7 +930,7 @@ class TestTTI(object):
         (8, 178), (16, 316)
     ])
     def test_opcounts(self, space_order, expected):
-        op = self.tti_operator(dle='advanced', space_order=space_order)
+        op = self.tti_operator(opt='advanced', space_order=space_order)
         sections = list(op.op_fwd(kernel='centered')._profiler._sections.values())
         assert sections[1].sops == expected
 

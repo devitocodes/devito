@@ -42,9 +42,8 @@ class Operator(Callable):
             Name of the Operator, defaults to "Kernel".
         * subs : dict
             Symbolic substitutions to be applied to ``expressions``.
-        * dle : str
-            Aggressiveness of the Devito Loop Engine for loop-level
-            optimization. Defaults to ``configuration['dle']``.
+        * opt : str
+            The performance optimization level. Defaults to ``configuration['opt']``.
         * platform : str
             The architecture the code is generated for. Defaults to
             ``configuration['platform']``.
@@ -886,37 +885,58 @@ class ArgumentsMap(dict):
 
 def parse_kwargs(**kwargs):
     """
-    Parse keyword arguments provided to an Operator. This routine is
-    especially useful for backwards compatibility.
+    Parse keyword arguments provided to an Operator.
     """
-    # `dle`
-    dle = kwargs.pop("dle", configuration['dle'])
+    # `dse` -- deprecated, dropped
+    dse = kwargs.pop("dse", None)
+    if dse is not None:
+        warning("The `dse` argument is deprecated. "
+                "The optimization level is now controlled via the `opt` argument")
 
-    if not dle or isinstance(dle, str):
-        mode, options = dle, {}
-    elif isinstance(dle, tuple):
-        if len(dle) == 0:
-            mode, options = 'noop', {}
-        elif isinstance(dle[-1], dict):
-            if len(dle) == 2:
-                mode, options = dle
-            else:
-                mode, options = tuple(flatten(i.split(',') for i in dle[:-1])), dle[-1]
+    # `dle` -- deprecated, replaced by `opt`
+    if 'dle' in kwargs:
+        warning("The `dle` argument is deprecated. "
+                "The optimization level is now controlled via the `opt` argument")
+        dle = kwargs.pop('dle')
+        if 'opt' in kwargs:
+            warning("Both `dle` and `opt` were passed; ignoring `dle` argument")
+            opt = kwargs.pop('opt')
         else:
-            mode, options = tuple(flatten(i.split(',') for i in dle)), {}
+            warning("Setting `opt=%s`" % str(dle))
+            opt = dle
+    elif 'opt' in kwargs:
+        opt = kwargs.pop('opt')
     else:
-        raise InvalidOperator("Illegal `dle=%s`" % str(dle))
+        opt = configuration['dle']
 
-    # `dle`, options
+    if not opt or isinstance(opt, str):
+        mode, options = opt, {}
+    elif isinstance(opt, tuple):
+        if len(opt) == 0:
+            mode, options = 'noop', {}
+        elif isinstance(opt[-1], dict):
+            if len(opt) == 2:
+                mode, options = opt
+            else:
+                mode, options = tuple(flatten(i.split(',') for i in opt[:-1])), opt[-1]
+        else:
+            mode, options = tuple(flatten(i.split(',') for i in opt)), {}
+    else:
+        raise InvalidOperator("Illegal `opt=%s`" % str(opt))
+
+    # `opt`, undocumented kwargs
+    openmp = kwargs.pop('openmp', configuration['openmp'])
+
+    # `opt`, options
     options.setdefault('blockinner',
                        configuration['dle-options'].get('blockinner', False))
     options.setdefault('blocklevels',
                        configuration['dle-options'].get('blocklevels', None))
-    options.setdefault('openmp', configuration['openmp'])
+    options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
     kwargs['options'] = options
 
-    # `dle`, mode
+    # `opt`, mode
     if mode is None:
         mode = 'noop'
     kwargs['mode'] = mode
