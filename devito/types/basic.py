@@ -580,7 +580,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     There are five relevant AbstractFunction sub-types: ::
 
-        * Array: A function that does not carry data. Usually created by the DSE.
+        * Array: A function that does not carry data.
         * Function: A space-varying discrete function, which carries user data.
         * TimeFunction: A time- and space-varying discrete function, which carries
                         user data.
@@ -989,11 +989,11 @@ class Array(AbstractFunction):
         if padding is None:
             padding = [(0, 0) for _ in range(self.ndim)]
             if kwargs.get('autopadding', configuration['autopadding']):
-                # Heuristic 1; Arrays are typically introduced for DSE-produced
-                # temporaries, and are almost always used together with loop
-                # blocking.  Since the typical block size is a multiple of the SIMD
-                # vector length, `vl`, padding is made such that the NODOMAIN size
-                # is a multiple of `vl` too
+                # Heuristic 1; Arrays are typically introduced for temporaries
+                # introduced during compilation, and are almost always used together
+                # with loop blocking.  Since the typical block size is a multiple of
+                # the SIMD vector length, `vl`, padding is made such that the
+                # NODOMAIN size is a multiple of `vl` too
 
                 # Heuristic 2: the right-NODOMAIN size is not only a multiple of
                 # `vl`, but also guaranteed to be *at least* greater or equal than
@@ -1239,7 +1239,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
 class Indexed(sympy.Indexed):
 
     # The two type flags have changed in upstream sympy as of version 1.1,
-    # but the below interpretation is used throughout the DSE and DLE to
+    # but the below interpretation is used throughout the compiler to
     # identify Indexed objects. With the sympy-1.1 changes a new flag
     # obj.is_Indexed was introduced which should be preferred, but the
     # required changes are cumbersome and many...

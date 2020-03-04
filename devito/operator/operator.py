@@ -42,9 +42,6 @@ class Operator(Callable):
             Name of the Operator, defaults to "Kernel".
         * subs : dict
             Symbolic substitutions to be applied to ``expressions``.
-        * dse : str
-            Aggressiveness of the Devito Symbolic Engine for flop
-            optimization. Defaults to ``configuration['dse']``.
         * dle : str
             Aggressiveness of the Devito Loop Engine for loop-level
             optimization. Defaults to ``configuration['dle']``.

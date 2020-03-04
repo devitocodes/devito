@@ -4,10 +4,10 @@ from devito.symbolics import retrieve_terminals
 from devito.tools import flatten, timed_pass
 from devito.types import Dimension, Symbol
 
-__all__ = ['dse_pass', 'makeit_ssa', 'make_is_time_invariant']
+__all__ = ['cluster_pass', 'makeit_ssa', 'make_is_time_invariant']
 
 
-class dse_pass(object):
+class cluster_pass(object):
 
     def __new__(cls, *args, mode='dense'):
         if args:
@@ -22,7 +22,7 @@ class dse_pass(object):
             return obj
         else:
             def wrapper(func):
-                return dse_pass(func, mode)
+                return cluster_pass(func, mode)
             return wrapper
 
     def __init__(self, func, mode='dense'):

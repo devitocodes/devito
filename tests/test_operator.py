@@ -645,7 +645,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid, time_order=0)
 
-        # Suppress DLE to work around a know bug with GCC and OpenMP:
+        # Suppress opts to work around a know bug with GCC and OpenMP:
         # https://github.com/devitocodes/devito/issues/320
         op = Operator(Eq(f, 1.), dle=None)
         # TODO: Currently we require the `time` subrange to be set
@@ -706,7 +706,7 @@ class TestArguments(object):
         """
         grid = Grid(shape=(5, 6, 7))
         a = TimeFunction(name='a', grid=grid, save=2)
-        # Suppress DLE to work around a know bug with GCC and OpenMP:
+        # Suppress opts to work around a know bug with GCC and OpenMP:
         # https://github.com/devitocodes/devito/issues/320
         op = Operator(Eq(a, a + 3), dle=None)
 
@@ -1659,7 +1659,7 @@ class TestLoopScheduling(object):
         eqn3 = Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)
         eqn4 = sf2.interpolate(u2)
 
-        # Note: DLE disabled only because with OpenMP otherwise there might be more
+        # Note: opts disabled only because with OpenMP otherwise there might be more
         # `trees` than 4
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
