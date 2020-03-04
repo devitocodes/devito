@@ -220,15 +220,17 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         clusters = cire(clusters, template, platform, 'invariants')
         clusters = Lift().process(clusters)
 
-        # Reduce flops
+        # Reduce flops (potential arithmetic alterations)
         clusters = extract_increments(clusters, template)
         for _ in range(2):
             # Experimentation showed that `2` is a good number
             clusters = cire(clusters, template, platform, 'sops')
         clusters = factorize(clusters)
-        clusters = cse(clusters, template)
         clusters = optimize_pows(clusters)
         clusters = freeze(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
 
         # Lifting may create fusion opportunities, which in turn may enable
         # further optimizations
