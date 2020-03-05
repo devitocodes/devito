@@ -5,7 +5,7 @@ from sympy import S
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import retrieve_terminals, q_constant, q_monoaffine
+from devito.symbolics import retrieve_terminals, q_constant, q_affine
 from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
                           filter_sorted, flatten, memoized_meth, memoized_generator)
 from devito.types import Dimension
@@ -78,23 +78,20 @@ class IterationInstance(LabeledVector):
 
     @cached_property
     def index_mode(self):
-        index_mode = []
+        retval = []
         for i, fi in zip(self, self.findices):
-            if q_monoaffine(i, fi, self.findices):
-                index_mode.append(AFFINE)
+            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            if len(dims) == 0 and q_constant(i):
+                retval.append(AFFINE)
+            elif len(dims) == 1:
+                candidate = dims.pop()
+                if fi in candidate._defines and q_affine(i, candidate):
+                    retval.append(AFFINE)
+                else:
+                    retval.append(IRREGULAR)
             else:
-                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
-                try:
-                    # There's still hope it's regular if a DerivedDimension is used
-                    candidate = dims.pop()
-                    if fi in candidate._defines:
-                        if q_monoaffine(i, candidate, self.findices):
-                            index_mode.append(AFFINE)
-                            continue
-                except (KeyError, AttributeError):
-                    pass
-                index_mode.append(IRREGULAR)
-        return tuple(index_mode)
+                retval.append(IRREGULAR)
+        return tuple(retval)
 
     @cached_property
     def aindices(self):
