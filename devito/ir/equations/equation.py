@@ -1,3 +1,4 @@
+from cached_property import cached_property
 import sympy
 
 from devito.ir.equations.algorithms import dimension_sort
@@ -39,7 +40,7 @@ class IREq(object):
     def dspace(self):
         return self._dspace
 
-    @property
+    @cached_property
     def dimensions(self):
         # Note: some dimensions may be in the iteration space but not in the
         # data space (e.g., a DerivedDimension); likewise, some dimensions may
