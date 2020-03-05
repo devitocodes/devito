@@ -4,6 +4,7 @@ from collections import OrderedDict
 from os import environ
 from functools import wraps
 
+from devito.logger import warning
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
@@ -113,7 +114,7 @@ env_vars_mapper = {
     'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
-    'DEVITO_DLE': 'dle',
+    'DEVITO_OPT': 'dle',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',
@@ -124,21 +125,36 @@ env_vars_mapper = {
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
 }
 
+env_vars_deprecated = {
+    'DEVITO_DLE': 'DEVITO_OPT'
+}
+
 
 configuration = Parameters("Devito-Configuration")
 """The Devito configuration parameters."""
 
 
-def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper):
-    # Populate /configuration/ with user-provided options
+def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper,
+                       env_vars_deprecated=env_vars_deprecated):
+    # Populate `configuration` with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
-        # At init time, it is important to configure `platform`, `compiler` and `backend`
-        # in this order
+        # It is important to configure `platform`, `compiler` and `backend` in this order
         process_order = filter_ordered(['platform', 'compiler', 'backend'] +
                                        list(env_vars_mapper.values()))
         queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
         unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))
                                    for k, v in queue])
+
+        # Handle deprecated env vars
+        mapper = dict(queue)
+        for k, v in env_vars_deprecated.items():
+            if environ.get(k):
+                warning("`%s` is deprecated. `%s` should be used instead" % (k, v))
+                if environ.get(v):
+                    warning("Both `%s` and `%s` set. Ignoring `%s`" % (k, v, k))
+                else:
+                    warning("Setting `%s=%s`" % (v, environ[k]))
+                    unprocessed[mapper[v]] = environ[k]
     else:
         # Attempt reading from the specified configuration file
         raise NotImplementedError("Devito doesn't support configuration via file yet.")
@@ -175,8 +191,10 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
     configuration.initialize()
 
 
-def add_sub_configuration(sub_configuration, sub_env_vars_mapper=None):
-    init_configuration(sub_configuration, sub_env_vars_mapper or {})
+def add_sub_configuration(sub_configuration, sub_env_vars_mapper=None,
+                          sub_env_vars_deprecated=None):
+    init_configuration(sub_configuration, sub_env_vars_mapper or {},
+                       sub_env_vars_deprecated or {})
     # For use from within a backend (i.e., inside Devito)
     setattr(configuration, sub_configuration.name, sub_configuration)
     # For use in user code, when the backend is a runtime choice and some
