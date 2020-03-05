@@ -72,7 +72,7 @@ class Node(Signer):
         handle.update(kwargs)
         return type(self)(**handle)
 
-    @property
+    @cached_property
     def ccode(self):
         """
         Generate C code.
