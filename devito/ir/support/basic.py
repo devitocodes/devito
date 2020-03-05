@@ -5,7 +5,7 @@ from sympy import S
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import retrieve_terminals, q_monoaffine
+from devito.symbolics import retrieve_terminals, q_constant, q_monoaffine
 from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
                           filter_sorted, flatten, memoized_meth, memoized_generator)
 from devito.types import Dimension
@@ -98,16 +98,18 @@ class IterationInstance(LabeledVector):
 
     @cached_property
     def aindices(self):
-        aindices = []
+        retval = []
         for i, fi in zip(self, self.findices):
-            if q_monoaffine(i, fi, self.findices):
-                aindices.append(fi)
+            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            if len(dims) == 1:
+                retval.append(dims.pop())
             elif isinstance(i, Dimension):
-                aindices.append(i)
+                retval.append(i)
+            elif q_constant(i):
+                retval.append(fi)
             else:
-                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
-                aindices.append(dims.pop() if len(dims) == 1 else None)
-        return EnrichedTuple(*aindices, getters=self.findices)
+                retval.append(None)
+        return EnrichedTuple(*retval, getters=self.findices)
 
     @property
     def findices(self):
