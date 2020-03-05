@@ -13,8 +13,7 @@ from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, add_sub_configuration
 
 core_configuration = Parameters('core')
-env_vars_mapper = {}
-add_sub_configuration(core_configuration, env_vars_mapper)
+add_sub_configuration(core_configuration)
 
 # Add core-specific Operators
 operator_registry.add(CPU64NoopOperator, Cpu64, 'noop')

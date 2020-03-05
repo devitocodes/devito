@@ -95,7 +95,6 @@ env_vars_mapper = {
     'DEVITO_YASK_OPTIONS': 'options',
     'DEVITO_YASK_DUMP': 'dump'
 }
-
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
 from devito.yask.operator import YASKNoopOperator, YASKOperator, YASKCustomOperator  # noqa
