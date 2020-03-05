@@ -9,8 +9,7 @@ from devito.ops import ops_configuration
 from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
-from devito.passes.clusters import (Lift, cse, factorize, fuse, scalarize,
-                                    eliminate_arrays, optimize_pows)
+from devito.passes.clusters import cse, factorize, freeze, fuse, optimize_pows
 from devito.passes.iet import DataManager, iet_pass
 from devito.symbolics import Literal
 from devito.tools import filter_sorted, flatten, generator, timed_pass
@@ -37,19 +36,13 @@ class OPSOperator(Operator):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Reduce flops
+        # Reduce flops (potential arithmetic alterations)
         clusters = factorize(clusters)
-        clusters = cse(clusters, template)
         clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
 
-        # Lifting
-        clusters = Lift().process(clusters)
-
-        # Lifting may create fusion opportunities, which in turn may enable
-        # further optimizations
-        clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
-        clusters = scalarize(clusters, template)
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
 
         return clusters
 
