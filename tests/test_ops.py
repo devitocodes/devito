@@ -30,16 +30,14 @@ class TestOPSExpression(object):
          '{\n  ut00(0) = -2.97015324253729F;\n}'),
         ('Eq(u, u.dxl)',
          'void OPS_Kernel_0(ACC<float> & ut00, const float *h_x)\n'
-         '{\n  float r0 = 1.0/*h_x;\n  '
-         'ut00(0) = (-2.0F*ut00(-1) + 5.0e-1F*ut00(-2) + 1.5F*ut00(0))*r0;\n}'),
+         '{\n  ut00(0) = (-2.0F*ut00(-1) + 5.0e-1F*ut00(-2) + 1.5F*ut00(0))/*h_x;\n}'),
         ('Eq(v,1)', 'void OPS_Kernel_0(ACC<float> & vt00)\n'
          '{\n  vt00(0, 0) = 1;\n}'),
         ('Eq(v,v.dxl + v.dxr - v.dyr - v.dyl)',
          'void OPS_Kernel_0(ACC<float> & vt00, const float *h_x, const float *h_y)\n'
-         '{\n  float r1 = 1.0/*h_y;\n  float r0 = 1.0/*h_x;\n  '
-         'vt00(0, 0) = (5.0e-1F*(-vt00(2, 0) + vt00(-2, 0)) + 2.0F*(-vt00(-1, 0) + '
-         'vt00(1, 0)))*r0 + (5.0e-1F*(-vt00(0, -2) + vt00(0, 2)) + '
-         '2.0F*(-vt00(0, 1) + vt00(0, -1)))*r1;\n}'),
+         '{\n  vt00(0, 0) = (5.0e-1F*(-vt00(0, -2) + vt00(0, 2)) + '
+         '2.0F*(-vt00(0, 1) + vt00(0, -1)))/*h_y + (5.0e-1F*(-vt00(2, 0) + vt00(-2, 0)) '
+         '+ 2.0F*(-vt00(-1, 0) + vt00(1, 0)))/*h_x;\n}'),
         ('Eq(v,v**2 - 3*v)',
          'void OPS_Kernel_0(ACC<float> & vt00)\n'
          '{\n  vt00(0, 0) = -3*vt00(0, 0) + vt00(0, 0)*vt00(0, 0);\n}'),
@@ -55,12 +53,10 @@ class TestOPSExpression(object):
         ('Eq(v.forward, v.dt - v.laplace + v.dt)',
          'void OPS_Kernel_0(const ACC<float> & vt00, ACC<float> & vt10, '
          'const float *dt, const float *h_x, const float *h_y)\n'
-         '{\n  float r2 = 1.0/*dt;\n'
-         '  float r1 = 1.0/(*h_y**h_y);\n'
-         '  float r0 = 1.0/(*h_x**h_x);\n'
-         '  vt10(0, 0) = (-(vt00(1, 0) + vt00(-1, 0)) + 2.0F*vt00(0, 0))*r0 + '
-         '(-(vt00(0, 1) + vt00(0, -1)) + 2.0F*vt00(0, 0))*r1 + '
-         '2*(-vt00(0, 0) + vt10(0, 0))*r2;\n}'),
+         '{\n  float r0 = 2.0F*vt00(0, 0);\n'
+         '  vt10(0, 0) = (r0 - (vt00(0, 1) + vt00(0, -1)))/((*h_y**h_y)) +'
+         ' (r0 - (vt00(1, 0) + vt00(-1, 0)))/((*h_x**h_x))'
+         ' + 2*(-vt00(0, 0) + vt10(0, 0))/*dt;\n}'),
     ])
     def test_kernel_generation(self, equation, expected):
         """

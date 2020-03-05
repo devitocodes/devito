@@ -13,8 +13,8 @@ from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.passes.clusters import (Lift, cse, factorize, fuse, scalarize,
-                                    eliminate_arrays, optimize_pows)
+from devito.passes.clusters import (Lift, cire, cse, factorize, freeze, fuse,
+                                    optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
                                iet_pass)
 from devito.tools import Signer, as_tuple, filter_ordered, flatten, generator, timed_pass
@@ -160,6 +160,8 @@ class YASKOperator(Operator):
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
+        platform = kwargs['platform']
+
         # To create temporaries
         counter = generator()
         template = lambda: "r%d" % counter()
@@ -168,19 +170,18 @@ class YASKOperator(Operator):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Reduce flops
-        clusters = factorize(clusters)
-        clusters = cse(clusters, template)
-        clusters = optimize_pows(clusters)
-
-        # Lifting
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, template, platform, 'invariants')
         clusters = Lift().process(clusters)
-
-        # Lifting may create fusion opportunities, which in turn may enable
-        # further optimizations
         clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
-        clusters = scalarize(clusters, template)
+
+        # Reduce flops (potential arithmetic alterations)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
 
         return clusters
 
