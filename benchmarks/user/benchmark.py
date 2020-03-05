@@ -111,7 +111,7 @@ def option_performance(f):
             # Note: see https://github.com/devitocodes/devito/issues/320 for why
             # we use blockinner=True only if the backend compiler is Intel
             flag = isinstance(configuration['compiler'], IntelCompiler)
-            configuration['dle-options']['blockinner'] = flag
+            configuration['opt-options']['blockinner'] = flag
             # Normalize value:
             # 1. integers, not strings
             # 2. sanity check the (hierarchical) blocking shape
@@ -128,7 +128,7 @@ def option_performance(f):
             if not all_equal(len(i) for i in normalized_value):
                 raise ValueError("Found different block shapes with incompatible "
                                  "number of levels (`%s`)" % normalized_value)
-            configuration['dle-options']['blocklevels'] = len(normalized_value[0])
+            configuration['opt-options']['blocklevels'] = len(normalized_value[0])
         else:
             normalized_value = []
         return tuple(normalized_value)
@@ -148,7 +148,7 @@ def option_performance(f):
                 # Note: see https://github.com/devitocodes/devito/issues/320 for why
                 # we use blockinner=True only if the backend compiler is Intel
                 flag = isinstance(configuration['compiler'], IntelCompiler)
-                configuration['dle-options']['blockinner'] = flag
+                configuration['opt-options']['blockinner'] = flag
                 level = value
         else:
             level = False
@@ -163,7 +163,7 @@ def option_performance(f):
                      help='Architecture on which the simulation is/was run'),
         click.option('--opt', callback=from_value,
                      type=click.Choice([str(i) if type(i) is tuple else i
-                                        for i in configuration._accepted['dle']]),
+                                        for i in configuration._accepted['opt']]),
                      help='Performance optimization level'),
         click.option('-bs', '--block-shape', callback=config_blockshape, multiple=True,
                      is_eager=True, help='Loop-blocking shape, bypass autotuning'),
