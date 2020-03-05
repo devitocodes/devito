@@ -28,6 +28,7 @@ class Parameters(OrderedDict, Signer):
         super(Parameters, self).__init__(**kwargs)
         self._name = name
         self._accepted = {}
+        self._deprecated = {}
         self._defaults = {}
         self._impact_jit = {}
         self._update_functions = {}
@@ -43,7 +44,16 @@ class Parameters(OrderedDict, Signer):
                 if any(i not in accepted for i in tocheck):
                     raise ValueError("Illegal configuration parameter (%s, %s). "
                                      "Accepted: %s" % (key, value, str(accepted)))
-            func(self, key, value)
+            return func(self, key, value)
+        return wrapper
+
+    def _check_key_deprecation(func):
+        def wrapper(self, key, value=None):
+            if key in self._deprecated:
+                warning("Trying to access deprecated config `%s`. Using `%s` instead"
+                        % (key, self._deprecated[key]))
+                key = self._deprecated[key]
+            return func(self, key, value)
         return wrapper
 
     def _updated(self, key, value):
@@ -56,11 +66,17 @@ class Parameters(OrderedDict, Signer):
             if retval is not None:
                 super(Parameters, self).__setitem__(key, retval)
 
+    @_check_key_deprecation
+    def __getitem__(self, key, *args):
+        return super(Parameters, self).__getitem__(key)
+
+    @_check_key_deprecation
     @_check_key_value
     def __setitem__(self, key, value):
         super(Parameters, self).__setitem__(key, value)
         self._updated(key, value)
 
+    @_check_key_deprecation
     @_check_key_value
     def update(self, key, value):
         """
@@ -69,7 +85,8 @@ class Parameters(OrderedDict, Signer):
         """
         super(Parameters, self).__setitem__(key, value)
 
-    def add(self, key, value, accepted=None, callback=None, impacts_jit=True):
+    def add(self, key, value, accepted=None, callback=None, impacts_jit=True,
+            deprecate=None):
         """
         Add a new parameter ``key`` with default value ``value``.
 
@@ -88,6 +105,8 @@ class Parameters(OrderedDict, Signer):
         self._impact_jit[key] = impacts_jit
         if callable(callback):
             self._update_functions[key] = callback
+        if deprecate is not None:
+            self._deprecated[deprecate] = key
 
     def initialize(self):
         """
@@ -114,7 +133,7 @@ env_vars_mapper = {
     'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
-    'DEVITO_OPT': 'dle',
+    'DEVITO_OPT': 'opt',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',

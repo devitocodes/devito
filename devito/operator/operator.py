@@ -252,7 +252,7 @@ class Operator(Callable):
 
     @classmethod
     def _initialize_state(cls, **kwargs):
-        return {'optimizations': kwargs.get('dle', configuration['dle'])}
+        return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
     def _apply_substitutions(cls, expressions, subs):
@@ -907,7 +907,7 @@ def parse_kwargs(**kwargs):
     elif 'opt' in kwargs:
         opt = kwargs.pop('opt')
     else:
-        opt = configuration['dle']
+        opt = configuration['opt']
 
     if not opt or isinstance(opt, str):
         mode, options = opt, {}
@@ -929,9 +929,9 @@ def parse_kwargs(**kwargs):
 
     # `opt`, options
     options.setdefault('blockinner',
-                       configuration['dle-options'].get('blockinner', False))
+                       configuration['opt-options'].get('blockinner', False))
     options.setdefault('blocklevels',
-                       configuration['dle-options'].get('blocklevels', None))
+                       configuration['opt-options'].get('blocklevels', None))
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
     kwargs['options'] = options
