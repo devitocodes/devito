@@ -344,7 +344,7 @@ def test_time_dependent_split(opt):
 class TestAliases(object):
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
-    def test_full_shape_after_blocking(self):
+    def test_full_shape(self):
         """
         Check the shape of the Array used to store an aliasing expression.
         The shape is impacted by loop blocking, which reduces the required
@@ -357,7 +357,7 @@ class TestAliases(object):
         f = Function(name='f', grid=grid)
         f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
@@ -379,18 +379,19 @@ class TestAliases(object):
         assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
         assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
         assert Add(*a.symbolic_shape[2].args) == z_size + 2
+
         # Check numerical output
         op0(time_M=1)
         exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
-    def test_contracted_shape_after_blocking(self):
+    def test_contracted_shape(self):
         """
-        Like `test_full_alias_shape_after_blocking`, but a different
-        Operator is used, leading to contracted Arrays (2D instead of 3D).
+        Conceptually like `test_full_shape`, but the Operator used in this
+        test leads to contracted Arrays (2D instead of 3D).
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -399,7 +400,7 @@ class TestAliases(object):
         f = Function(name='f', grid=grid)
         f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
 
         # Leads to 2D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
@@ -418,19 +419,20 @@ class TestAliases(object):
         assert a.halo == ((1, 1), (1, 1))
         assert Add(*a.symbolic_shape[0].args) == y0_blk_size + 2
         assert Add(*a.symbolic_shape[1].args) == z_size + 2
+
         # Check numerical output
         op0(time_M=1)
         exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape_with_subdims(self):
         """
-        Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
-        SubDimensions) are used. Nevertheless, the temporary shape should still be
-        dictated by the root Dimensions.
+        Like `test_full_shape`, but SubDomains (and therefore SubDimensions)
+        are used. Nevertheless, the temporary shape should still be dictated by
+        the root Dimensions.
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -439,7 +441,7 @@ class TestAliases(object):
         f = Function(name='f', grid=grid)
         f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
@@ -462,10 +464,11 @@ class TestAliases(object):
         assert Add(*a.symbolic_shape[0].args) == xi0_blk_size + 2
         assert Add(*a.symbolic_shape[1].args) == yi0_blk_size + 2
         assert Add(*a.symbolic_shape[2].args) == z_M - z_m - zi_ltkn - zi_rtkn + 3
+
         # Check numerical output
         op0(time_M=1)
         exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
@@ -646,7 +649,7 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    def test_catch_largest_time_invariant(self):
+    def test_catch_largest_invariant(self):
         """
         Make sure the largest time-invariant sub-expressions are extracted
         such that their operation count exceeds a certain threshold.
