@@ -515,6 +515,60 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    def test_unmixed_shape_with_subdims(self):
+        """
+        A combination of `test_full_shape`, `test_contracted_shape` and
+        `test_full_shape_with_subdims`. Make sure it boils down to full-shape
+        for all Arrays (ie, all are 3D, instead of some being 2D and some 3D),
+        to maximize loop fusion.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
+        d = Dimension(name='d')
+
+        c = Function(name='c', grid=grid, shape=(2, 3), dimensions=(d, z))
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+
+        c.data_with_halo[:] = 1.
+        f.data_with_halo[:] = 1.
+        u.data_with_halo[:] = 1.5
+
+        # Leads to 2D aliases
+        eqn = Eq(u.forward,
+                 ((c[0, z]*u[t, x+1, y+1, z] + c[1, z+1]*u[t, x+1, y+1, z+1])*f +
+                  (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
+                  (u[t, x, y+1, z+1] + u[t, x+1, y+1, z+1])*3*f +
+                  (u[t, x, y+3, z+1] + u[t, x+1, y+3, z+1])*3*f))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        x0_blk_size = op1.parameters[3]
+        y0_blk_size = op1.parameters[4]
+        z_size = op1.parameters[5]
+
+        # Expected one single loop nest
+        assert len(op1._func_table) == 1
+
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 2
+        for a in arrays:
+            assert len(a.dimensions) == 3
+            assert a.halo == ((0, 1), (1, 1), (0, 0))
+            assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 1
+            assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
+            assert a.symbolic_shape[2] is z_size
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 1.5
+        op1(time_M=1)
+        assert np.all(u.data == exp)
+
     def test_composite(self):
         """
         Check that composite alias are optimized away through "smaller" aliases.
