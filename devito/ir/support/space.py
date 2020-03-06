@@ -374,8 +374,12 @@ class IntervalGroup(PartialOrderTuple):
         return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
     def __getitem__(self, key):
-        if isinstance(key, slice) or is_integer(key):
+        if is_integer(key):
             return super(IntervalGroup, self).__getitem__(key)
+        elif isinstance(key, slice):
+            retval = super(IntervalGroup, self).__getitem__(key)
+            return IntervalGroup(retval, relations=self.relations)
+
         if not self.is_well_defined:
             raise ValueError("Cannot fetch Interval from ill defined Space")
         for i in self:
