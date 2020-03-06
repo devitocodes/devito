@@ -7,7 +7,6 @@ import numpy as np
 from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
                        IntervalGroup, LabeledVector, Stencil, detect_accesses,
                        build_intervals)
-from devito.logger import perf_adv
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (estimate_cost, q_leaf, q_sum_of_product, q_terminalop,
                               retrieve_indexed, yreplace)
@@ -232,6 +231,13 @@ def process(cluster, candidates, aliases, template, platform):
         # The write-to region, as an IntervalGroup
         writeto = IntervalGroup(alias.writeto, relations=cluster.ispace.relations)
 
+        # Optimization: only retain those Interval along which some redundancies
+        # have been detected
+        dep_inducing = [i for i in writeto if any(i.offsets)]
+        if dep_inducing:
+            index = writeto.index(dep_inducing[0])
+            writeto = writeto[index:]
+
         # The memory scope of the Array
         # TODO: this has required refinements for a long time
         if len([i for i in writeto if i.dim.is_Incr]) >= 1:
@@ -270,8 +276,8 @@ def process(cluster, candidates, aliases, template, platform):
         # Construct the `alias` IterationSpace
         ispace = cluster.ispace.add(writeto).augment(aliases.index_mapper)
 
-        # Optimize the `alias` IterationSpace: if possible, the innermost
-        # IterationInterval is rounded up to a multiple of the vector length
+        # Optimization: if possible, the innermost IterationInterval is
+        # rounded up to a multiple of the vector length
         try:
             it = ispace.itintervals[-1]
             if ROUNDABLE in cluster.properties[it.dim]:
@@ -521,7 +527,7 @@ class Alias(object):
 
     @cached_property
     def dimensions(self):
-        return tuple(i for i, _ in self.Tdistances)
+        return frozenset(i for i, _ in self.Tdistances)
 
     @cached_property
     def anti_stencil(self):
@@ -552,16 +558,6 @@ class Alias(object):
 
         # Overestimated write-to region
         intervals = [Interval(d, *v) for d, v in relaxed_diameter.items()]
-
-        # Optimization: only retain those Interval along which some redundancies
-        # have been detected
-        dep_inducing = [i for i in intervals if any(i.offsets)]
-        try:
-            if dep_inducing:
-                index = intervals.index(dep_inducing[0])
-                intervals = intervals[index:]
-        except IndexError:
-            perf_adv("Couldn't optimize some of the detected redundancies")
 
         return intervals
 
