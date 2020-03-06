@@ -25,7 +25,7 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
         * `operator` is an object of type Operator.
     """
 
-    _modes = ('noop', 'advanced')
+    _modes = ('noop', 'advanced', 'advanced-fsg')
     _languages = ('C',)
     _accepted = _modes + tuple(product(_modes, _languages))
 

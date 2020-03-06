@@ -11,8 +11,9 @@ from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
                                relax_incr_dimensions)
 from devito.tools import as_tuple, generator, timed_pass
 
-__all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
-           'ArmOperator', 'CustomOperator']
+__all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator',
+           'Intel64FSGOperator', 'PowerOperator', 'ArmOperator',
+           'CustomOperator']
 
 
 class CPU64NoopOperator(OperatorCore):
@@ -128,6 +129,58 @@ class CPU64Operator(CPU64NoopOperator):
 
 
 Intel64Operator = CPU64Operator
+
+
+class Intel64FSGOperator(Intel64Operator):
+
+    """
+    Operator with performance optimizations tailored "For Small Grids" (FSG).
+    """
+
+    @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+
+        # To create temporaries
+        counter = generator()
+        template = lambda: "r%d" % counter()
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = Toposort().process(clusters)
+        clusters = fuse(clusters)
+
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, template, platform, 'invariants')
+        clusters = Lift().process(clusters)
+
+        # Reduce flops (potential arithmetic alterations)
+        clusters = extract_increments(clusters, template)
+        for _ in range(2):
+            # Experimentation showed that `2` is a good number
+            clusters = cire(clusters, template, platform, 'sops')
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
+
+        # The previous passes may have created fusion opportunities, which in
+        # turn may enable further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters, template)
+        clusters = scalarize(clusters, template)
+
+        # Blocking to improve data locality
+        inner = options['blockinner']
+        levels = options['blocklevels'] or cls.BLOCK_LEVELS
+        clusters = Blocking(inner, levels).process(clusters)
+
+        return clusters
+
+
 PowerOperator = CPU64Operator
 ArmOperator = CPU64Operator
 

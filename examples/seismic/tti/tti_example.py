@@ -42,7 +42,8 @@ if __name__ == "__main__":
     parser.add_argument("-k", dest="kernel", default='centered',
                         choices=['centered', 'staggered'],
                         help="Choice of finite-difference kernel")
-    parser.add_argument("-opt", default="advanced", choices=["noop", "advanced"],
+    parser.add_argument("-opt", default="advanced",
+                        choices=configuration._accepted['opt'],
                         help="Performance optimization level")
     parser.add_argument('-a', '--autotune', default='off',
                         choices=(configuration._accepted['autotuning']),

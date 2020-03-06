@@ -81,7 +81,8 @@ if __name__ == "__main__":
                         help="Constant velocity model, default is a two layer model")
     parser.add_argument("--checkpointing", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
-    parser.add_argument("-opt", default="advanced", choices=["noop", "advanced"],
+    parser.add_argument("-opt", default="advanced",
+                        choices=configuration._accepted['opt'],
                         help="Performance optimization level")
     parser.add_argument('-a', '--autotune', default='off',
                         choices=(configuration._accepted['autotuning']),

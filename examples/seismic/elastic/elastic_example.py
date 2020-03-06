@@ -53,7 +53,8 @@ if __name__ == "__main__":
                         type=int, help="Number of boundary layers around the domain")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
-    parser.add_argument("-opt", default="advanced", choices=["noop", "advanced"],
+    parser.add_argument("-opt", default="advanced",
+                        choices=configuration._accepted['opt'],
                         help="Performance optimization level")
     parser.add_argument('-a', '--autotune', default='off',
                         choices=(configuration._accepted['autotuning']),

@@ -773,6 +773,48 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    def test_full_shape_big_temporaries(self):
+        """
+        Test that if running with ``opt=advanced-fsg``, then the compiler uses
+        temporaries spanning the whole grid rather than blocks.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.5
+
+        # Leads to 3D aliases
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
+
+        # Two separate blocked loop nests
+        assert len(op1._func_table) == 2
+
+        # Check Array shape
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 3
+        assert a.halo == ((1, 1), (1, 1), (1, 1))
+        assert Add(*a.symbolic_shape[0].args) == x.symbolic_size + 2
+        assert Add(*a.symbolic_shape[1].args) == y.symbolic_size + 2
+        assert Add(*a.symbolic_shape[2].args) == z.symbolic_size + 2
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.5
+        op1(time_M=1)
+        assert np.all(u.data == exp)
+
 
 # Acoustic
 class TestIsoAcoustic(object):
