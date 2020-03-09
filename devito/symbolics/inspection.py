@@ -6,7 +6,26 @@ from devito.symbolics.search import retrieve_xops, search
 from devito.logger import warning
 from devito.tools import as_tuple, flatten
 
-__all__ = ['count', 'estimate_cost']
+__all__ = ['compare_ops', 'count', 'estimate_cost']
+
+
+def compare_ops(e1, e2):
+    """
+    Return True if the two expressions ``e1`` and ``e2`` perform the same arithmetic
+    operations over the same input operands, False otherwise.
+    """
+    if type(e1) == type(e2) and len(e1.args) == len(e2.args):
+        if e1.is_Atom:
+            return True if e1 == e2 else False
+        elif e1.is_Indexed and e2.is_Indexed:
+            return True if e1.base == e2.base else False
+        else:
+            for a1, a2 in zip(e1.args, e2.args):
+                if not compare_ops(a1, a2):
+                    return False
+            return True
+    else:
+        return False
 
 
 def count(exprs, query):

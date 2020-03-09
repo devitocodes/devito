@@ -365,25 +365,6 @@ def analyze(expr):
     return Candidate(expr.rhs, indexeds, bases, offsets)
 
 
-def compare_ops(e1, e2):
-    """
-    Return True if the two expressions ``e1`` and ``e2`` perform the same arithmetic
-    operations over the same input operands, False otherwise.
-    """
-    if type(e1) == type(e2) and len(e1.args) == len(e2.args):
-        if e1.is_Atom:
-            return True if e1 == e2 else False
-        elif isinstance(e1, Indexed) and isinstance(e2, Indexed):
-            return True if e1.base == e2.base else False
-        else:
-            for a1, a2 in zip(e1.args, e2.args):
-                if not compare_ops(a1, a2):
-                    return False
-            return True
-    else:
-        return False
-
-
 def is_translated(c1, c2):
     """
     Given two potential aliases ``c1`` and ``c2``, return True if ``c1``
