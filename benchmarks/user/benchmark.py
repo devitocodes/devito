@@ -166,7 +166,8 @@ def option_performance(f):
         click.option('-bs', '--block-shape', callback=config_blockshape, multiple=True,
                      is_eager=True, help='Loop-blocking shape, bypass autotuning'),
         click.option('-a', '--autotune', default='aggressive', callback=config_autotuning,
-                     type=click.Choice(configuration._accepted['autotuning']),
+                     type=click.Choice([tuple(i) if type(i) is list else i
+                                        for i in configuration._accepted['autotuning']]),
                      help='Select autotuning mode')
     ]
     for option in reversed(options):
