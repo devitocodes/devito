@@ -8,13 +8,13 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
               space_order=4, nbl=10, preset='layers-tti', **kwargs):
 
     # Two layer model for true velocity
-    model = demo_model(preset, shape=shape, spacing=spacing, nbl=nbl)
+    model = demo_model(preset, shape=shape, spacing=spacing,
+                       space_order=space_order, nbl=nbl)
 
     # Source and receiver geometries
     geometry = setup_geometry(model, tn)
 
-    return AnisotropicWaveSolver(model, geometry,
-                                 space_order=space_order, **kwargs)
+    return AnisotropicWaveSolver(model, geometry, space_order=space_order, **kwargs)
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
