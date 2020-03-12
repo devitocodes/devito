@@ -15,10 +15,11 @@ from frozendict import frozendict
 from devito.data import default_allocator
 from devito.parameters import configuration
 from devito.symbolics import Add
-from devito.tools import (EnrichedTuple, Evaluable, Pickable,
-                          ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
+from devito.tools import (Evaluable, Pickable, ctypes_to_cstr, dtype_to_cstr,
+                          dtype_to_ctype)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
+from devito.types.utils import DimensionTuple
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
            'LocalObject', 'CompositeObject']
@@ -698,7 +699,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def indices_ref(self):
         """The reference indices of the object (indices at first creation)."""
-        return EnrichedTuple(*self.function.indices, getters=self.dimensions)
+        return DimensionTuple(*self.function.indices, getters=self.dimensions)
 
     @property
     def origin(self):
@@ -760,7 +761,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         padding = [Add(*i) for i in self._size_padding]
         domain = [i.symbolic_size for i in self.dimensions]
         ret = tuple(Add(i, j, k) for i, j, k in zip(domain, halo, padding))
-        return EnrichedTuple(*ret, getters=self.dimensions)
+        return DimensionTuple(*ret, getters=self.dimensions)
 
     @property
     def indexed(self):
@@ -826,7 +827,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @cached_property
     def _size_domain(self):
         """Number of points in the domain region."""
-        return EnrichedTuple(*self.shape, getters=self.dimensions)
+        return DimensionTuple(*self.shape, getters=self.dimensions)
 
     @cached_property
     def _size_halo(self):
@@ -836,7 +837,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         sizes = tuple(Size(i, j) for i, j in self._halo)
 
-        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _size_owned(self):
@@ -846,7 +847,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         sizes = tuple(Size(i.right, i.left) for i in self._size_halo)
 
-        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _size_padding(self):
@@ -856,13 +857,13 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         sizes = tuple(Size(i, j) for i, j in self._padding)
 
-        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _size_nopad(self):
         """Number of points in the domain+halo region."""
         sizes = tuple(i+sum(j) for i, j in zip(self._size_domain, self._size_halo))
-        return EnrichedTuple(*sizes, getters=self.dimensions)
+        return DimensionTuple(*sizes, getters=self.dimensions)
 
     @cached_property
     def _size_nodomain(self):
@@ -872,13 +873,13 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         sizes = tuple(Size(i, j) for i, j in np.add(self._halo, self._padding))
 
-        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _offset_domain(self):
         """Number of points before the first domain element."""
         offsets = tuple(np.add(self._size_padding.left, self._size_halo.left))
-        return EnrichedTuple(*offsets, getters=self.dimensions)
+        return DimensionTuple(*offsets, getters=self.dimensions)
 
     @cached_property
     def _offset_halo(self):
@@ -888,7 +889,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         offsets = tuple(Offset(i, j) for i, j in zip(left, right))
 
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+        return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _offset_owned(self):
@@ -898,7 +899,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         offsets = tuple(Offset(i, j) for i, j in zip(left, right))
 
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+        return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
     @property
     def _data_alignment(self):
