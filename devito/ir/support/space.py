@@ -68,6 +68,7 @@ class AbstractInterval(object):
     lift = negate
     reset = negate
     switch = negate
+    translate = negate
 
 
 class NullInterval(AbstractInterval):
@@ -206,6 +207,9 @@ class Interval(AbstractInterval):
 
     def switch(self, d):
         return Interval(d, self.lower, self.upper, self.stamp)
+
+    def translate(self, v):
+        return Interval(self.dim, self.lower + v, self.upper + v, self.stamp)
 
 
 class IntervalGroup(PartialOrderTuple):
