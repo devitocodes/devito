@@ -7,8 +7,7 @@ from cached_property import cached_property
 from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
-from devito.ir import (DummyEq, Expression, Stencil, FindNodes, FindSymbols,  # noqa
-                       retrieve_iteration_tree)
+from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
 from devito.passes.clusters.utils import make_is_time_invariant
@@ -179,73 +178,6 @@ def test_pow_to_mul(expr, expected):
     assert str(pow_to_mul(eval(expr))) == expected
 
 
-@pytest.mark.parametrize('exprs,expected', [
-    # none (different distance)
-    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
-     {'fa[x] + fb[x]': 'None', 'fa[x+1] + fb[x]': 'None'}),
-    # none (different dimension)
-    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
-     {'fa[x] + fb[x]': 'None', 'fa[x] + fb[y]': 'None'}),
-    # none (different operation)
-    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
-     {'fa[x] + fb[x]': 'None', 'fa[x] - fb[x]': 'None'}),
-    # simple
-    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])', 'Eq(t2, fa[x-1] + fb[x-1])'],
-     {'fa[x] + fb[x]': 'Stencil([(x, {-1, 0, 1})])'}),
-    # 2D simple
-    (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(t1, fc[x+1,y+1] + fd[x+1,y+1])'],
-     {'fc[x,y] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
-    # 2D with stride
-    (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])'],
-     {'fc[x,y] + fd[x+1,y+2]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
-    # 2D with subdimensions
-    (['Eq(t0, fc[xi,yi] + fd[xi+1,yi+2])', 'Eq(t1, fc[xi+1,yi+1] + fd[xi+2,yi+3])'],
-     {'fc[xi,yi] + fd[xi+1,yi+2]': 'Stencil([(xi, {0, 1}), (yi, {0, 1})])'}),
-    # 2D with constant access
-    (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y])', 'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1])'],
-     {'fc[x,y]*fc[x,0] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
-    # 2D with multiple, non-zero, constant accesses
-    (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y]*fc[x,1])',
-      'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1]*fc[x+1,1])'],
-     {'fc[x,0]*fc[x,y] + fc[x,1]*fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
-    # 2D with different shapes
-    (['Eq(t0, fc[x,y]*fa[x] + fd[x,y])', 'Eq(t1, fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1])'],
-     {'fc[x,y]*fa[x] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
-    # complex (two 2D aliases with stride inducing relaxation)
-    (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])',
-      'Eq(t2, fc[x-2,y-2]*3. + fd[x+2,y+2])', 'Eq(t3, fc[x-4,y-4]*3. + fd[x,y])'],
-     {'fc[x,y] + fd[x+1,y+2]': 'Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])',
-      '3.*fc[x-3,y-3] + fd[x+1,y+1]': 'Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])'}),
-])
-def test_collect_aliases(exprs, expected):
-    grid = Grid(shape=(4, 4))
-    x, y = grid.dimensions  # noqa
-    xi, yi = grid.interior.dimensions  # noqa
-
-    t0 = Scalar(name='t0')  # noqa
-    t1 = Scalar(name='t1')  # noqa
-    t2 = Scalar(name='t2')  # noqa
-    t3 = Scalar(name='t3')  # noqa
-    fa = Function(name='fa', grid=grid, shape=(4,), dimensions=(x,))  # noqa
-    fb = Function(name='fb', grid=grid, shape=(4,), dimensions=(x,))  # noqa
-    fc = Function(name='fc', grid=grid)  # noqa
-    fd = Function(name='fd', grid=grid)  # noqa
-
-    # List/dict comprehension would need explicit locals/globals mappings to eval
-    for i, e in enumerate(list(exprs)):
-        exprs[i] = eval(e)
-    for k, v in list(expected.items()):
-        expected[eval(k)] = eval(v)
-
-    aliases = collect(exprs)
-
-    assert len(aliases) > 0
-
-    for k, v in aliases.items():
-        assert ((len(v.aliased) == 1 and expected[k] is None) or
-                v.anti_stencil == expected[k])
-
-
 @pytest.mark.parametrize('expr,expected,estimate', [
     ('Eq(t0, t1)', 0, False),
     ('Eq(t0, fa[x] + fb[x])', 1, False),
@@ -342,6 +274,80 @@ def test_time_dependent_split(opt):
 
 
 class TestAliases(object):
+
+    @pytest.mark.parametrize('exprs,expected', [
+        # none (different distance)
+        (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
+         {'fa[x] + fb[x]': False, 'fa[x+1] + fb[x]': False}),
+        # none (different dimension)
+        (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
+         {'fa[x] + fb[x]': False, 'fa[x] + fb[y]': False}),
+        # none (different operation)
+        (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
+         {'fa[x] + fb[x]': False, 'fa[x] - fb[x]': False}),
+        # simple
+        (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])',
+          'Eq(t2, fa[x+2] + fb[x+2])'],
+         {'fa[x+1] + fb[x+1]': True}),
+        # 2D simple
+        (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(t1, fc[x+1,y+1] + fd[x+1,y+1])'],
+         {'fc[x+1,y+1] + fd[x+1,y+1]': True}),
+        # 2D with stride
+        (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])'],
+         {'fc[x+1,y+1] + fd[x+2,y+3]': True}),
+        # 2D with subdimensions
+        (['Eq(t0, fc[xi,yi] + fd[xi+1,yi+2])',
+          'Eq(t1, fc[xi+1,yi+1] + fd[xi+2,yi+3])'],
+         {'fc[xi+1,yi+1] + fd[xi+2,yi+3]': True}),
+        # 2D with constant access
+        (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y])',
+          'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1])'],
+         {'fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1]': True}),
+        # 2D with multiple, non-zero, constant accesses
+        (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y]*fc[x,1])',
+          'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1]*fc[x+1,1])'],
+         {'fc[x+1,0]*fc[x+1,y+1] + fc[x+1,1]*fd[x+1,y+1]': True}),
+        # 2D with different shapes
+        (['Eq(t0, fc[x,y]*fa[x] + fd[x,y])',
+          'Eq(t1, fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1])'],
+         {'fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1]': True}),
+        # complex (two 2D aliases with stride inducing relaxation)
+        (['Eq(t0, fc[x,y] + fd[x+1,y+2])',
+          'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])',
+          'Eq(t2, fc[x+1,y+1]*3. + fd[x+2,y+2])',
+          'Eq(t3, fc[x+2,y+2]*3. + fd[x+3,y+3])'],
+         {'fc[x+1,y+1] + fd[x+2,y+3]': True, '3.*fc[x+2,y+2] + fd[x+3,y+3]': True}),
+    ])
+    def test_collection(self, exprs, expected):
+        """
+        Unit test for the detection and collection of aliases out of a series
+        of input expressions.
+        """
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions  # noqa
+        xi, yi = grid.interior.dimensions  # noqa
+
+        t0 = Scalar(name='t0')  # noqa
+        t1 = Scalar(name='t1')  # noqa
+        t2 = Scalar(name='t2')  # noqa
+        t3 = Scalar(name='t3')  # noqa
+        fa = Function(name='fa', grid=grid, shape=(4,), dimensions=(x,), space_order=4)  # noqa
+        fb = Function(name='fb', grid=grid, shape=(4,), dimensions=(x,), space_order=4)  # noqa
+        fc = Function(name='fc', grid=grid, space_order=4)  # noqa
+        fd = Function(name='fd', grid=grid, space_order=4)  # noqa
+
+        # List/dict comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = DummyEq(indexify(eval(e).evaluate))
+        for k, v in list(expected.items()):
+            expected[eval(k)] = expected.pop(k)
+
+        aliases = collect(exprs)
+
+        assert len(aliases) > 0
+
+        for k, (aliaseds, distances) in aliases.items():
+            assert ((len(aliaseds) == 1 and expected[k] is None) or k in expected)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape(self):
@@ -471,11 +477,9 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
-    def test_full_shape_with_subdims(self):
+    def test_full_shape_w_subdims(self):
         """
-        Like `test_full_shape`, but SubDomains (and therefore SubDimensions)
-        are used. Nevertheless, the temporary shape should still be dictated by
-        the root Dimensions.
+        Like `test_full_shape`, but SubDomains (and therefore SubDimensions) are used.
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -516,7 +520,7 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
-    def test_unmixed_shape_with_subdims(self):
+    def test_unmixed_shape_w_subdims(self):
         """
         A combination of `test_full_shape`, `test_contracted_shape` and
         `test_full_shape_with_subdims`. Make sure it boils down to full-shape
@@ -536,7 +540,7 @@ class TestAliases(object):
         f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 1.5
 
-        # Leads to 2D aliases
+        # Leads to 3D aliases
         eqn = Eq(u.forward,
                  ((c[0, z]*u[t, x+1, y+1, z] + c[1, z+1]*u[t, x+1, y+1, z+1])*f +
                   (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
@@ -557,7 +561,7 @@ class TestAliases(object):
         assert len(arrays) == 2
         for a in arrays:
             assert len(a.dimensions) == 3
-            assert a.halo == ((0, 1), (1, 1), (0, 0))
+            assert a.halo == ((1, 0), (1, 1), (0, 0))
             assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 1
             assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
             assert a.symbolic_shape[2] is z_size
@@ -566,6 +570,103 @@ class TestAliases(object):
         op0(time_M=1)
         exp = np.copy(u.data[:])
         u.data_with_halo[:] = 1.5
+        op1(time_M=1)
+        assert np.all(u.data == exp)
+
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    def test_in_bounds_w_shift(self):
+        """
+        Make sure the iteration space and indexing of the aliasing expressions
+        are shifted such that no out-of-bounds accesses are generated.
+        """
+        grid = Grid(shape=(5, 5, 5))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
+        d = Dimension(name='d')
+
+        c = Function(name='c', grid=grid, shape=(2, 5), dimensions=(d, z))
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        c.data_with_halo[:] = 1.
+        f.data_with_halo[:] = 1.
+        u.data_with_halo[:] = 1.5
+
+        # Leads to 3D aliases
+        eqn = Eq(u.forward,
+                 ((c[0, z]*u[t, x+1, y, z] + c[1, z+1]*u[t, x+1, y, z+1])*f +
+                  (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
+                  (u[t, x, y-4, z+1] + u[t, x+1, y-4, z+1])*3*f +
+                  (u[t, x, y-3, z+1] + u[t, x+1, y-3, z+1])*3*f))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        x0_blk_size = op1.parameters[3]
+        y0_blk_size = op1.parameters[4]
+        z_size = op1.parameters[5]
+
+        # Expected one single loop nest
+        assert len(op1._func_table) == 1
+
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 2
+        for a in arrays:
+            assert len(a.dimensions) == 3
+            assert a.halo == ((1, 0), (1, 1), (0, 0))
+            assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 1
+            assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
+            assert a.symbolic_shape[2] is z_size
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 1.5
+        op1(time_M=1)
+        assert np.all(u.data == exp)
+
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    def test_constant_symbolic_distance(self):
+        """
+        Test the detection of aliasing expressions in the case of a
+        constant symbolic distance, such as `a[t, x_m+2, y, z]` when the
+        Dimensions are `(t, x, y, z)`; here, `x_m + 2` is a constant
+        symbolic access.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        x_m = x.symbolic_min
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.5
+
+        # Leads to 2D aliases
+        eqn = Eq(u.forward, ((u[t, x_m+2, y, z] + u[t, x_m+3, y+1, z+1])*3*f +
+                             (u[t, x_m+2, y+2, z+2] + u[t, x_m+3, y+3, z+3])*3*f + 1 +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        y0_blk_size = op1.parameters[3]
+        z_size = op1.parameters[4]
+
+        # Check Array shape
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 2
+        assert a.halo == ((1, 1), (1, 1))
+        assert Add(*a.symbolic_shape[0].args) == y0_blk_size + 2
+        assert Add(*a.symbolic_shape[1].args) == z_size + 2
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
 
