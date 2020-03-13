@@ -537,7 +537,7 @@ class TestNestedParallelism(object):
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     @patch("devito.passes.iet.openmp.Ompizer.NESTED", 0)
-    @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 10000)
+    @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 1)
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
@@ -555,10 +555,10 @@ class TestNestedParallelism(object):
 
         assert trees[0][0] is trees[1][0]
         assert trees[0][0].pragmas[0].value ==\
-            'omp for collapse(1) schedule(dynamic,1)'
-        assert trees[0][2].pragmas[0].value == ('omp parallel for collapse(1) '
+            'omp for collapse(2) schedule(dynamic,1)'
+        assert trees[0][2].pragmas[0].value == ('omp parallel for collapse(2) '
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
-        assert trees[1][2].pragmas[0].value == ('omp parallel for collapse(1) '
+        assert trees[1][2].pragmas[0].value == ('omp parallel for collapse(2) '
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
