@@ -10,6 +10,7 @@ from sympy import Expr
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
                           toposort, is_integer)
+from devito.types import Dimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
@@ -386,9 +387,18 @@ class IntervalGroup(PartialOrderTuple):
 
         if not self.is_well_defined:
             raise ValueError("Cannot fetch Interval from ill defined Space")
+
+        if not isinstance(key, Dimension):
+            return NullInterval(key)
+
         for i in self:
             if i.dim is key:
                 return i
+            if key.is_NonlinearDerived and i.dim is key.parent:
+                # NonlinearDerived Dimensions cannot appear in iteration Intervals,
+                # but their parent can
+                return i
+
         return NullInterval(key)
 
 
