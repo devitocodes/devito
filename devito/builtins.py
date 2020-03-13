@@ -319,10 +319,10 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=n)
         dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=n)
         if mode == 'constant':
-            subsl = n
+            subsl = d.symbolic_min + n
             subsr = d.symbolic_max - n
         elif mode == 'reflect':
-            subsl = 2*n - 1 - dim_l
+            subsl = d.symbolic_min + 2*n - 1 - dim_l
             subsr = 2*(d.symbolic_max - n) + 1 - dim_r
         else:
             raise ValueError("Mode not available")
