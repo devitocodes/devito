@@ -371,14 +371,7 @@ class TimedAccess(IterationInstance):
 
         # Given `d`'s iteration Interval `d[m, M]`, we know that `d` iterates between
         # `d_m + m` and `d_M + M`
-        try:
-            m, M = self.intervals[d].offsets
-        except AttributeError:
-            if d.is_NonlinearDerived:
-                # We should only end up here with subsampled Dimensions
-                m, M = self.intervals[d.root].offsets
-            else:
-                assert False
+        m, M = self.intervals[d].offsets
 
         # If `m + (self[d] - d) < self.function._size_nodomain[d].left`, then `self`
         # will definitely touch the left-halo, at least when `d=0`
@@ -437,10 +430,6 @@ class Dependence(object):
     @property
     def findices(self):
         return self.source.findices
-
-    @property
-    def aindices(self):
-        return tuple({i, j} for i, j in zip(self.source.aindices, self.sink.aindices))
 
     @cached_property
     def distance(self):
