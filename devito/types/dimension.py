@@ -13,7 +13,7 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
-           'ModuloDimension', 'IncrDimension']
+           'ModuloDimension', 'IncrDimension', 'ShiftedDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -102,6 +102,7 @@ class Dimension(ArgProvider):
     is_Stepping = False
     is_Modulo = False
     is_Incr = False
+    is_Shifted = False
 
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
@@ -1029,6 +1030,18 @@ class IncrDimension(DerivedDimension):
     # Pickling support
     _pickle_args = ['parent', 'symbolic_min', 'symbolic_max']
     _pickle_kwargs = ['step', 'name']
+
+
+class ShiftedDimension(IncrDimension):
+
+    """
+    A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.
+    """
+
+    is_Shifted = True
+
+    def __new__(cls, d, name):
+        return super().__new__(cls, d, 0, d.symbolic_size - 1, step=1, name=name)
 
 
 def dimensions(names):

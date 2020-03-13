@@ -9,8 +9,7 @@ from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
                               q_sum_of_product, q_terminalop, retrieve_indexed, yreplace)
-from devito.tools import EnrichedTuple
-from devito.types import Array, Eq, IncrDimension, Scalar
+from devito.types import Array, Eq, ShiftedDimension, Scalar
 
 __all__ = ['cire']
 
@@ -438,12 +437,6 @@ def make_rotations_table(d, v):
     return m
 
 
-class ShiftedDimension(IncrDimension):
-
-    def __new__(cls, d, name):
-        return super().__new__(cls, d, 0, d.symbolic_size - 1, step=1, name=name)
-
-
 class Candidate(object):
 
     def __init__(self, expr, indexeds, bases, offsets, shifts):
@@ -522,7 +515,7 @@ class Group(tuple):
 
         # Drop ShiftedDimensions
         for d, v in list(ret.items()):
-            if isinstance(d, ShiftedDimension):
+            if d.is_Shifted:
                 if v != ret.get(d.parent, v):
                     raise ValueError
                 ret.pop(d)
@@ -641,7 +634,7 @@ class Aliases(OrderedDict):
         for d in self.dimensions:
             if d in self.index_mapper:
                 continue
-            elif isinstance(d, ShiftedDimension):
+            elif d.is_Shifted:
                 self.index_mapper[d.parent] = d
             elif d.is_Incr:
                 # IncrDimensions must be substituted with ShiftedDimensions
