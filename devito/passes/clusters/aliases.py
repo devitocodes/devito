@@ -169,11 +169,7 @@ def collect(exprs):
                 continue
 
             # Is `c` translated w.r.t. `u` ?
-            # IOW, are their offsets pairwise translated ? For example:
-            # c := A[i,j] + A[i,j+1]     -> Toffsets = {i: [0, 0], j: [0, 1]}
-            # u := A[i+1,j] + A[i+1,j+1] -> Toffsets = {i: [1, 1], j: [0, 1]}
-            # Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
-            if any(len(set(i-j)) != 1 for (_, i), (_, j) in zip(c.Toffsets, u.Toffsets)):
+            if not c.translated(u):
                 continue
 
             group.append(u)
@@ -448,6 +444,32 @@ class Candidate(object):
 
     def __repr__(self):
         return "Candidate(expr=%s)" % self.expr
+
+    def translated(self, other):
+        """
+        True if ``self`` is translated w.r.t. ``other``, False otherwise.
+
+        Examples
+        --------
+        Two candidates are translated if their offsets are pairwise translated.
+
+        c := A[i,j] + A[i,j+1]     -> Toffsets = {i: [0, 0], j: [0, 1]}
+        u := A[i+1,j] + A[i+1,j+1] -> Toffsets = {i: [1, 1], j: [0, 1]}
+
+        Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
+        """
+        for (_, i), (_, j) in zip(self.Toffsets, other.Toffsets):
+            distance = set(i - j)
+            if len(distance) != 1:
+                return False
+
+            if not q_constant(distance.pop()):
+                # E.g., `a[i+1] + b[i+1]` and `a[i_m+1] + b[i_m+1]`, their
+                # distance is `i-i_m`, which is not constant due to `i`,
+                # thus not a translation
+                return False
+
+        return True
 
     @cached_property
     def Toffsets(self):
