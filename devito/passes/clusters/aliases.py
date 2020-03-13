@@ -1,7 +1,6 @@
 from collections import OrderedDict, defaultdict
 
 from cached_property import cached_property
-from sympy import Indexed
 import numpy as np
 
 from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
@@ -407,6 +406,7 @@ def analyze(expr):
             if e.is_Number:
                 base.append(e)
             elif q_constant(e):
+                #TODO!
                 for i in reversed(expr.ispace.intervals):
                     if i.dim.root is ai:
                         base.append(i.dim)
@@ -425,7 +425,7 @@ def make_rotations_table(d, v):
     """
     All possible rotations of `range(v+1)`.
     """
-    m = np.array([[j-i if j>i else 0 for j in range(v+1)] for i in range(v+1)])
+    m = np.array([[j-i if j > i else 0 for j in range(v+1)] for i in range(v+1)])
     m = (m - m.T)[::-1, :]
 
     # Shift the table so that the middle rotation is at the top
@@ -535,8 +535,6 @@ class Group(tuple):
         """
         All legal rotations along each Dimension for the Group pivot.
         """
-        c = self.pivot
-
         ret = {}
         for d, (maxd, mini) in self._pivot_legal_shifts.items():
             # Rotation size = mini (min-increment) - maxd (max-decrement)
@@ -594,15 +592,16 @@ class Group(tuple):
                 hsize = sum(f._size_halo[l])
 
                 # Any `ofs`'s shift due to non-[0,0] iteration space
-                shift = c.shifts[l]
-                if shift.is_Null:
-                    #TODO
-                    shift = c.shifts[l.parent]
+                try:
+                    lower, upper = c.shifts[l].offsets
+                except AttributeError:
+                    assert l.is_Shifted
+                    lower, upper = (0, 0)
 
                 try:
                     # Assume `ofs[d]` is a number (typical case)
-                    maxd = min(0, max(ret[l][0], -ofs[l] - shift.lower))
-                    mini = max(0, min(ret[l][1], hsize - ofs[l] - shift.upper))
+                    maxd = min(0, max(ret[l][0], -ofs[l] - lower))
+                    mini = max(0, min(ret[l][1], hsize - ofs[l] - upper))
 
                     ret[l] = (maxd, mini)
                 except TypeError:
