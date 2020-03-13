@@ -258,6 +258,16 @@ class TestMetaData(object):
         assert tuple(i + j*2 for i, j in zip(u.shape, u._size_halo.left)) ==\
             u.shape_with_halo
 
+        # Try with different grid shape and space_order
+        grid2 = Grid(shape=(3, 3, 3))
+        u2 = Function(name='u2', grid=grid2, space_order=4, padding=0)
+        assert u2.shape == (3, 3, 3)
+        assert u2._offset_domain == (4, 4, 4)
+        assert u2._offset_halo == ((0, 7), (0, 7), (0, 7))
+        assert tuple(i + j*2 for i, j in zip(u2.shape, u2._size_halo.left)) ==\
+            u2.shape_with_halo
+        assert u2.shape_with_halo == (11, 11, 11)
+
     def test_wo_halo_w_padding(self):
         grid = Grid(shape=(4, 4, 4))
         u = Function(name='u', grid=grid, space_order=2, padding=((1, 1), (3, 3), (4, 4)))
