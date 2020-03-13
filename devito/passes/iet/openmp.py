@@ -284,12 +284,14 @@ class Ompizer(object):
                     break
 
                 # Would there be enough work per parallel iteration?
-                try:
-                    work = prod([int(j.dim.symbolic_size) for j in candidates[n+1:]])
-                    if work < self.COLLAPSE_WORK:
-                        break
-                except TypeError:
-                    pass
+                nested = candidates[n+1:]
+                if nested:
+                    try:
+                        work = prod([int(j.dim.symbolic_size) for j in nested])
+                        if work < self.COLLAPSE_WORK:
+                            break
+                    except TypeError:
+                        pass
 
                 collapsable.append(i)
         return collapsable
