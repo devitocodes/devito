@@ -1,15 +1,15 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict
 
 from cached_property import cached_property
 from sympy import Indexed
 import numpy as np
 
 from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
-                       IntervalGroup, LabeledVector, Stencil, detect_accesses,
-                       build_intervals)
+                       IntervalGroup, LabeledVector, detect_accesses, build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
-from devito.symbolics import (estimate_cost, q_leaf, q_sum_of_product, q_terminalop,
-                              retrieve_indexed, yreplace)
+from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
+                              q_sum_of_product, q_terminalop, retrieve_indexed, yreplace)
+from devito.tools import EnrichedTuple
 from devito.types import Array, Eq, IncrDimension, Scalar
 
 __all__ = ['cire']
@@ -122,7 +122,7 @@ def extract(cluster, template, mode):
 
 def collect(exprs):
     """
-    Determine groups of aliasing expressions.
+    Find groups of aliasing expressions.
 
     An expression A aliases an expression B if both A and B perform the same
     arithmetic operations over the same input operands, with the possibility for
@@ -149,52 +149,107 @@ def collect(exprs):
         * a[i+2] - b[i+2] : because at least one operation differs
         * a[i+2] + b[i] : because the distances along ``i`` differ (+2 and +0)
     """
-    # Determine the potential aliases
+    # Find the potential aliases
     candidates = []
     for expr in exprs:
         candidate = analyze(expr)
         if candidate is not None:
             candidates.append(candidate)
 
-    # Group together the aliasing expressions (ultimately build an Alias for each
-    # group of aliasing expressions)
-    aliases = Aliases()
+    # Create groups of aliasing expressions
+    mapper = OrderedDict()
     unseen = list(candidates)
     while unseen:
         c = unseen.pop(0)
-
-        # Find aliasing expressions
         group = [c]
-        for i in list(unseen):
-            if compare_ops(c.expr, i.expr) and is_translated(c, i):
-                group.append(i)
-                unseen.remove(i)
+        for u in list(unseen):
+            if c.dimensions != u.dimensions:
+                continue
 
-        # Try creating a basis spanning the aliasing expressions' iteration vectors
+            # Is the arithmetic structure of `c` and `u` equivalent ?
+            if not compare_ops(c.expr, u.expr):
+                continue
+
+            # Is `c` translated w.r.t. `u` ?
+            # IOW, are their offsets pairwise translated ? For example:
+            # c := A[i,j] + A[i,j+1]     -> Toffsets = {i: [0, 0], j: [0, 1]}
+            # u := A[i+1,j] + A[i+1,j+1] -> Toffsets = {i: [1, 1], j: [0, 1]}
+            # Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
+            if any(len(set(i-j)) != 1 for (_, i), (_, j) in zip(c.Toffsets, u.Toffsets)):
+                continue
+
+            group.append(u)
+            unseen.remove(u)
+
+        mapper.setdefault(c.dimensions, []).append(Group(group))
+
+    # For simplicity, focus on one set of Dimensions at a time
+    # Also there basically never is more than one in typical use cases
+    try:
+        dimensions, groups = mapper.popitem()
+    except KeyError:
+        return Aliases()
+
+    # For each Dimension, build all minimum Intervals that are as large as
+    # the maximum diameter out of all Groups
+    # Example: if the maximum diameter is 2, build [-2, 0], [-1, 1], [0, 2]
+    # Note: Groups that cannot evaluate their diameter are dropped
+    mapper = defaultdict(int)
+    for group in list(groups):
         try:
-            COM, distances = calculate_COM(group)
+            mapper.update({d: max(mapper[d], v) for d, v in group.diameter.items()})
         except ValueError:
-            # Ignore these aliasing expressions and move on
-            continue
+            groups.remove(group)
+    intervalss = {d: make_rotations_table(d, v) for d, v in mapper.items()}
 
-        # Create an alias expression centering `c`'s Indexeds at the COM
-        subs = {i: i.function[[x + v.fromlabel(x, 0) for x in b]]
-                for i, b, v in zip(c.indexeds, c.bases, COM)}
+    # For each Group, find a rotation that is compatible with one of the
+    # intervals computed above
+    # Note: If not possible, drop the Group
+    mapper = {}
+    for d, intervals in intervalss.items():
+        for interval in list(intervals):
+            found = {}
+            for group in list(groups):
+                distance = group.find_legal_rotation_distance(d, interval)
+                if distance is not None:
+                    found[group] = distance
+                else:
+                    break
+
+            if len(found) == len(groups):
+                # `interval` is OK !
+                mapper[interval] = found
+                break
+
+    if len(mapper) != len(intervalss):
+        # TODO: should/could actually drop a group and try again
+        return Aliases()
+
+    aliases = Aliases(dimensions, list(mapper))
+    for group in groups:
+        c = group.pivot
+        distances = defaultdict(int, [(i.dim, v[group]) for i, v in mapper.items()])
+
+        # Create the basis alias
+        offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
+                   for v in c.offsets]
+        subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
+                for i, b, v in zip(c.indexeds, c.bases, offsets)}
         alias = c.expr.xreplace(subs)
-        aliased = [i.expr for i in group]
 
-        aliases.add(alias, aliased, distances)
+        # All aliased expressions
+        aliaseds = [i.expr for i in group]
 
-    # Heuristically attempt to relax the Aliases offsets to maximize the
-    # likelyhood of loop fusion
-    groups = OrderedDict()
-    for i in aliases.values():
-        groups.setdefault(i.dimensions, []).append(i)
-    for group in groups.values():
-        ideal_anti_stencil = Stencil.union(*[i.anti_stencil for i in group])
+        # Distance of each aliased expression from the basis alias
+        distances = []
         for i in group:
-            if i.anti_stencil.subtract(ideal_anti_stencil).empty:
-                aliases[i.alias] = i.relax(ideal_anti_stencil)
+            distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
+            distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
+            if any(len(v) != 1 for d, v in distance):
+                raise ValueError
+            distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
+
+        aliases.add(alias, aliaseds, distances)
 
     return aliases
 
@@ -222,21 +277,25 @@ def choose(exprs, aliases):
 
 
 def process(cluster, candidates, aliases, template, platform):
+    # The write-to region, as an IntervalGroup
+    writeto = IntervalGroup(aliases.intervals, relations=cluster.ispace.relations)
+
+    # Optimization: only retain those Interval along which some redundancies
+    # have been detected
+    dep_inducing = [i for i in writeto if any(i.offsets)]
+    if dep_inducing:
+        index = writeto.index(dep_inducing[0])
+        writeto = writeto[index:]
+
+    # The access Dimensions may differ from `writeto.dimensions`. This may
+    # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
+    adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
+
     clusters = []
     subs = {}
-    for origin, alias in aliases.items():
-        if all(i not in candidates for i in alias.aliased):
+    for origin, (aliaseds, distances) in aliases.items():
+        if all(i not in candidates for i in aliaseds):
             continue
-
-        # The write-to region, as an IntervalGroup
-        writeto = IntervalGroup(alias.writeto, relations=cluster.ispace.relations)
-
-        # Optimization: only retain those Interval along which some redundancies
-        # have been detected
-        dep_inducing = [i for i in writeto if any(i.offsets)]
-        if dep_inducing:
-            index = writeto.index(dep_inducing[0])
-            writeto = writeto[index:]
 
         # The memory scope of the Array
         # TODO: this has required refinements for a long time
@@ -250,18 +309,13 @@ def process(cluster, candidates, aliases, template, platform):
                       halo=[(abs(i.lower), abs(i.upper)) for i in writeto],
                       dtype=cluster.dtype, scope=scope)
 
-        # The access Dimensions may differ from `writeto.dimensions`. This may
-        # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
-        adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
-
         # The expression computing `alias`
         indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
         expression = Eq(array[indices], origin.xreplace(subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
-        for aliased, distance in alias.with_distance:
-            assert len(adims) == len(writeto)
+        for aliased, distance in zip(aliaseds, distances):
             assert all(i.dim in distance.labels for i in writeto)
 
             indices = [d - i.lower + distance[i.dim] for d, i in zip(adims, writeto)]
@@ -314,9 +368,6 @@ def rebuild(cluster, others, aliases, subs):
     return cluster.rebuild(exprs=exprs, ispace=ispace, dspace=dspace)
 
 
-Candidate = namedtuple('Candidate', 'expr indexeds bases offsets')
-
-
 def analyze(expr):
     """
     Determine whether ``expr`` is a potential Alias and collect relevant metadata.
@@ -341,8 +392,8 @@ def analyze(expr):
 
     bases = []
     offsets = []
-    for i in indexeds:
-        ii = IterationInstance(i)
+    for indexed in indexeds:
+        ii = IterationInstance(indexed)
 
         # There must not be irregular accesses, otherwise we won't be able to
         # calculate the offsets
@@ -356,98 +407,35 @@ def analyze(expr):
         for e, ai in zip(ii, ii.aindices):
             if e.is_Number:
                 base.append(e)
+            elif q_constant(e):
+                for i in reversed(expr.ispace.intervals):
+                    if i.dim.root is ai:
+                        base.append(i.dim)
+                        offset.append((i.dim, e - i.dim))
+                        break
             else:
                 base.append(ai)
                 offset.append((ai, e - ai))
         bases.append(tuple(base))
         offsets.append(LabeledVector(offset))
 
-    return Candidate(expr.rhs, indexeds, bases, offsets)
+    return Candidate(expr.rhs, indexeds, bases, offsets, expr.ispace.intervals)
 
 
-def is_translated(c1, c2):
+def make_rotations_table(d, v):
     """
-    Given two potential aliases ``c1`` and ``c2``, return True if ``c1``
-    is translated w.r.t. ``c2``, False otherwise.
-
-    For example: ::
-
-        c1 = A[i,j] + A[i,j+1]
-        c2 = A[i+1,j] + A[i+1,j+1]
-
-    ``c1``'s Toffsets are ``{i: [0, 0], j: [0, 1]}``, while ``c2``'s Toffsets are
-    ``{i: [1, 1], j: [0, 1]}``. Then, ``c2`` is translated w.r.t. ``c1`` by
-    ``(1, 0)``, and True is returned.
+    All possible rotations of `range(v+1)`.
     """
-    assert len(c1.offsets) == len(c2.offsets)
+    m = np.array([[j-i if j>i else 0 for j in range(v+1)] for i in range(v+1)])
+    m = (m - m.T)[::-1, :]
 
-    # Transpose `offsets` so that
-    # offsets = [{x: 2, y: 0}, {x: 1, y: 3}] => {x: [2, 1], y: [0, 3]}
-    Toffsets1 = LabeledVector.transpose(*c1.offsets)
-    Toffsets2 = LabeledVector.transpose(*c2.offsets)
+    # Shift the table so that the middle rotation is at the top
+    m = np.roll(m, int(-np.floor(v/2)), axis=0)
 
-    return all(len(set(i - j)) == 1 for (_, i), (_, j) in zip(Toffsets1, Toffsets2))
+    # Turn into a more compact representation as a list of Intervals
+    m = [Interval(d, min(i), max(i)) for i in m]
 
-
-def calculate_COM(group):
-    """
-    Determine a centre of mass (COM) for a group of definitely aliasing expressions,
-    which is a set of bases spanning all iteration vectors.
-
-    Return the COM as well as the vector distance of each aliasing expression from
-    the COM.
-    """
-    # Find the COM
-    COM = []
-    for ofs in zip(*[i.offsets for i in group]):
-        Tofs = LabeledVector.transpose(*ofs)
-        entries = []
-        for k, v in Tofs:
-            try:
-                entries.append((k, int(np.mean(v, dtype=int))))
-            except TypeError:
-                # At least an element in `v` has symbolic components. Even though
-                # `analyze` guarantees that no accesses can be irregular, a symbol
-                # might still be present as long as it's constant (i.e., known to
-                # be never written to). For example: `A[t, x_m + 2, y, z]`
-                # At this point, the only chance we have is that the symbolic entry
-                # is identical across all elements in `v`
-                if len(set(v)) == 1:
-                    entries.append((k, v[0]))
-                else:
-                    raise ValueError
-        COM.append(LabeledVector(entries))
-
-    # Calculate the distance from the COM
-    distances = []
-    for i in group:
-        assert len(COM) == len(i.offsets)
-        distance = [o.distance(c) for o, c in zip(i.offsets, COM)]
-        distance = [(l, set(i)) for l, i in LabeledVector.transpose(*distance)]
-
-        if any(len(i) != 1 for l, i in distance):
-            raise ValueError
-
-        mapper = OrderedDict(distance)
-        distance = []
-        for d, v in mapper.items():
-            # The distance of each Indexed from the COM must be uniform across
-            # all Indexeds
-            if len(v) != 1:
-                raise ValueError
-
-            # The distance along ShiftedDimensions must be identical to that
-            # of their parent
-            if isinstance(d, ShiftedDimension):
-                if v != mapper.get(d.parent, v):
-                    raise ValueError
-                continue
-
-            distance.append((d, v))
-
-        distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
-
-    return COM, distances
+    return m
 
 
 class ShiftedDimension(IncrDimension):
@@ -456,18 +444,201 @@ class ShiftedDimension(IncrDimension):
         return super().__new__(cls, d, 0, d.symbolic_size - 1, step=1, name=name)
 
 
+class Candidate(object):
+
+    def __init__(self, expr, indexeds, bases, offsets, shifts):
+        self.expr = expr
+        self.indexeds = indexeds
+        self.bases = bases
+        self.offsets = offsets
+        self.shifts = shifts
+
+    def __repr__(self):
+        return "Candidate(expr=%s)" % self.expr
+
+    @cached_property
+    def Toffsets(self):
+        return LabeledVector.transpose(*self.offsets)
+
+    @cached_property
+    def dimensions(self):
+        return frozenset(i for i, _ in self.Toffsets)
+
+
+class Group(tuple):
+
+    """
+    A collection of aliasing expressions.
+    """
+
+    def __repr__(self):
+        return "Group(%s)" % ", ".join([str(i) for i in self])
+
+    def find_legal_rotation_distance(self, d, interval):
+        """
+        The distance from the Group pivot of a rotation along Dimension ``d`` that
+        can safely iterate over the ``interval``.
+        """
+        assert d is interval.dim
+
+        for rotation, distance in self._pivot_legal_rotations[d]:
+            # Does `rotation` cover the `interval` ?
+            if rotation.union(interval) != rotation:
+                continue
+
+            # Infer the `rotation`'s min_intervals from the pivot's
+            min_interval = self._pivot_min_intervals[d].translate(-distance)
+
+            # Does the `interval` actually cover the `rotation`'s `min_interval`?
+            if interval.union(min_interval) == interval:
+                return distance
+
+        return None
+
+    @cached_property
+    def Toffsets(self):
+        return [LabeledVector.transpose(*i) for i in zip(*[i.offsets for i in self])]
+
+    @cached_property
+    def diameter(self):
+        """
+        The size of the iteration space required to evaluate all aliasing expressions
+        in this Group, along each Dimension.
+        """
+        ret = defaultdict(int)
+        for i in self.Toffsets:
+            for d, v in i:
+                try:
+                    distance = int(max(v) - min(v))
+                except TypeError:
+                    # An entry in `v` has symbolic components, e.g. `x_m + 2`
+                    if len(set(v)) == 1:
+                        # All good
+                        distance = 0
+                    else:
+                        # Illegal Group
+                        raise ValueError
+                ret[d] = max(ret[d], distance)
+
+        # Drop ShiftedDimensions
+        for d, v in list(ret.items()):
+            if isinstance(d, ShiftedDimension):
+                if v != ret.get(d.parent, v):
+                    raise ValueError
+                ret.pop(d)
+
+        return ret
+
+    @cached_property
+    def pivot(self):
+        """
+        A deterministic Candidate for this Group.
+        """
+        assert len(self) > 0
+        return self[0]
+
+    @cached_property
+    def _pivot_legal_rotations(self):
+        """
+        All legal rotations along each Dimension for the Group pivot.
+        """
+        c = self.pivot
+
+        ret = {}
+        for d, (maxd, mini) in self._pivot_legal_shifts.items():
+            # Rotation size = mini (min-increment) - maxd (max-decrement)
+            v = mini - maxd
+
+            # Build the table of all possible rotations
+            m = make_rotations_table(d, v)
+
+            distances = []
+            for rotation in m:
+                # Distance of the rotation `i` from `c`
+                distance = maxd - rotation.lower
+                assert distance == mini - rotation.upper
+                distances.append(distance)
+
+            ret[d] = list(zip(m, distances))
+
+        return ret
+
+    @cached_property
+    def _pivot_min_intervals(self):
+        """
+        The minimum Interval along each Dimension such that by evaluating the
+        pivot, all Candidates are evaluated too.
+        """
+        c = self.pivot
+
+        ret = defaultdict(lambda: [np.inf, -np.inf])
+        for i in self:
+            distance = [o.distance(v) for o, v in zip(i.offsets, c.offsets)]
+            distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
+
+            for d, v in distance:
+                value = v.pop()
+                ret[d][0] = min(ret[d][0], value)
+                ret[d][1] = max(ret[d][1], value)
+
+        ret = {d: Interval(d, m, M) for d, (m, M) in ret.items()}
+
+        return ret
+
+    @cached_property
+    def _pivot_legal_shifts(self):
+        """
+        The max decrement and min increment along each Dimension such that the
+        Group pivot does not go OOB.
+        """
+        c = self.pivot
+
+        ret = defaultdict(lambda: (-np.inf, np.inf))
+        for i, ofs in zip(c.indexeds, c.offsets):
+            f = i.function
+            for l in ofs.labels:
+                # `f`'s cumulative halo size along `l`
+                hsize = sum(f._size_halo[l])
+
+                # Any `ofs`'s shift due to non-[0,0] iteration space
+                shift = c.shifts[l]
+                if shift.is_Null:
+                    #TODO
+                    shift = c.shifts[l.parent]
+
+                try:
+                    # Assume `ofs[d]` is a number (typical case)
+                    maxd = min(0, max(ret[l][0], -ofs[l] - shift.lower))
+                    mini = max(0, min(ret[l][1], hsize - ofs[l] - shift.upper))
+
+                    ret[l] = (maxd, mini)
+                except TypeError:
+                    # E.g., `ofs[d] = x_m - x + 5`
+                    ret[l] = (0, 0)
+
+        return ret
+
+
 class Aliases(OrderedDict):
 
-    def __init__(self):
-        super(Aliases, self).__init__()
+    """
+    A mapper between aliases and collections of aliased expressions.
+    """
 
+    def __init__(self, dimensions=None, intervals=None):
+        super(Aliases, self).__init__()
         self.index_mapper = {}
 
-    def add(self, alias, aliased, distances):
-        self[alias] = Alias(alias, aliased, distances)
+        self.dimensions = dimensions or ()
+        self.intervals = intervals or ()
+
+    def add(self, alias, aliaseds, distances):
+        assert len(aliaseds) == len(distances)
+
+        self[alias] = (aliaseds, distances)
 
         # Update the index_mapper
-        for d in self[alias].dimensions:
+        for d in self.dimensions:
             if d in self.index_mapper:
                 continue
             elif isinstance(d, ShiftedDimension):
@@ -480,68 +651,9 @@ class Aliases(OrderedDict):
     def get(self, key):
         ret = super(Aliases, self).get(key)
         if ret is not None:
-            return ret.aliased
-        for v in self.values():
-            if key in v.aliased:
-                return v.aliased
+            assert len(ret) == 2
+            return ret[0]
+        for aliaseds, _ in self.values():
+            if key in aliaseds:
+                return aliaseds
         return []
-
-
-class Alias(object):
-
-    """
-    Map an expression (the so called "alias") to a set of aliasing expressions.
-    For each aliasing expression, the distance from the Alias along each Dimension
-    is tracked.
-    """
-
-    def __init__(self, alias, aliased, distances, ghost_offsets=None):
-        self.alias = alias
-        self.aliased = aliased
-        self.distances = distances
-        self.ghost_offsets = ghost_offsets or Stencil()
-
-        assert len(self.aliased) == len(self.distances)
-
-        # Transposed distances
-        self.Tdistances = LabeledVector.transpose(*distances)
-
-    @cached_property
-    def dimensions(self):
-        return frozenset(i for i, _ in self.Tdistances)
-
-    @cached_property
-    def anti_stencil(self):
-        ret = Stencil()
-        for k, v in self.Tdistances:
-            ret[k].update(set(v))
-        for k, v in self.ghost_offsets.items():
-            ret[k].update(v)
-        return ret
-
-    @cached_property
-    def with_distance(self):
-        """
-        Return a tuple associating each aliased expression with its distance
-        from ``self.alias``.
-        """
-        return tuple(zip(self.aliased, self.distances))
-
-    @cached_property
-    def writeto(self):
-        """
-        The written data region, as a list of Intervals.
-        """
-        # A map telling the min/max offsets along each Dimension. "relaxed"
-        # because it includes the ghost offsets too
-        relaxed_diameter = OrderedDict((k, (min(v), max(v)))
-                                       for k, v in self.anti_stencil.items())
-
-        # Overestimated write-to region
-        intervals = [Interval(d, *v) for d, v in relaxed_diameter.items()]
-
-        return intervals
-
-    def relax(self, stencil):
-        ghost_offsets = stencil.add(self.ghost_offsets)
-        return Alias(self.alias, self.aliased, self.distances, ghost_offsets)
