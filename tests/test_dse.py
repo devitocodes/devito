@@ -346,7 +346,7 @@ class TestAliases(object):
 
         assert len(aliases) > 0
 
-        for k, (aliaseds, distances) in aliases.items():
+        for k, (_, aliaseds, distances) in aliases.items():
             assert ((len(aliaseds) == 1 and expected[k] is None) or k in expected)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
@@ -636,6 +636,7 @@ class TestAliases(object):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
         x_m = x.symbolic_min
+        y_m = y.symbolic_min
         t = grid.stepping_dim
 
         f = Function(name='f', grid=grid)
@@ -644,24 +645,31 @@ class TestAliases(object):
         u.data_with_halo[:] = 0.5
 
         # Leads to 2D aliases
-        eqn = Eq(u.forward, ((u[t, x_m+2, y, z] + u[t, x_m+3, y+1, z+1])*3*f +
-                             (u[t, x_m+2, y+2, z+2] + u[t, x_m+3, y+3, z+3])*3*f + 1 +
-                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f))
+        eqn = Eq(u.forward,
+                 ((u[t, x_m+2, y, z] + u[t, x_m+3, y+1, z+1])*3*f +
+                  (u[t, x_m+2, y+2, z+2] + u[t, x_m+3, y+3, z+3])*3*f + 1 +
+                  (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f +  # Not an alias
+                  (u[t, x_m+1, y+2, z+2] + u[t, x_m+1, y+3, z+3])*3*f +  # Not an alias
+                  (u[t, x+2, y_m+3, z+2] + u[t, x+3, y_m+3, z+3])*3*f +
+                  (u[t, x+1, y_m+3, z+1] + u[t, x+2, y_m+3, z+2])*3*f))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
-        y0_blk_size = op1.parameters[3]
-        z_size = op1.parameters[4]
+        x0_blk_size = op1.parameters[2]
+        y0_blk_size = op1.parameters[4]
+        z_size = op1.parameters[6]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array]
-        assert len(arrays) == 1
-        a = arrays[0]
-        assert len(a.dimensions) == 2
-        assert a.halo == ((1, 1), (1, 1))
-        assert Add(*a.symbolic_shape[0].args) == y0_blk_size + 2
-        assert Add(*a.symbolic_shape[1].args) == z_size + 2
+        assert len(arrays) == 2
+        assert all(len(a.dimensions) == 2 for a in arrays)
+        assert arrays[0].halo == ((1, 0), (1, 0))
+        assert Add(*arrays[0].symbolic_shape[0].args) == x0_blk_size + 1
+        assert Add(*arrays[0].symbolic_shape[1].args) == z_size + 1
+        assert arrays[1].halo == ((1, 1), (1, 1))
+        assert Add(*arrays[1].symbolic_shape[0].args) == y0_blk_size + 2
+        assert Add(*arrays[1].symbolic_shape[1].args) == z_size + 2
 
         # Check numerical output
         op0(time_M=1)
