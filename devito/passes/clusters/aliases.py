@@ -161,9 +161,6 @@ def collect(exprs):
         c = unseen.pop(0)
         group = [c]
         for u in list(unseen):
-            if c.dimensions != u.dimensions:
-                continue
-
             # Is the arithmetic structure of `c` and `u` equivalent ?
             if not compare_ops(c.expr, u.expr):
                 continue
@@ -177,68 +174,66 @@ def collect(exprs):
 
         mapper.setdefault(c.dimensions, []).append(Group(group))
 
-    # For simplicity, focus on one set of Dimensions at a time
-    try:
-        dimensions, groups = mapper.popitem()
-    except KeyError:
-        return Aliases()
+    queue = list(mapper.values())
+    aliases = Aliases()
+    while queue:
+        groups = queue.pop(0)
 
-    # For each Dimension, determine the Minimum Intervals (MI) that spans all
-    # of the Groups diameters
-    # Example: largest_diameter=2  => [[-2, 0], [-1, 1], [0, 2]]
-    # Note: Groups that cannot evaluate their diameter are dropped
-    mapper = defaultdict(int)
-    for group in list(groups):
-        try:
-            mapper.update({d: max(mapper[d], v) for d, v in group.diameter.items()})
-        except ValueError:
-            groups.remove(group)
-    intervalss = {d: make_rotations_table(d, v) for d, v in mapper.items()}
+        # For each Dimension, determine the Minimum Intervals (MI) spanning
+        # all of the Groups diameters
+        # Example: x's largest_diameter=2  => [x[-2, 0], x[-1, 1], x[0, 2]]
+        # Note: Groups that cannot evaluate their diameter are dropped
+        mapper = defaultdict(int)
+        for group in list(groups):
+            try:
+                mapper.update({d: max(mapper[d], v) for d, v in group.diameter.items()})
+            except ValueError:
+                groups.remove(group)
+        intervalss = {d: make_rotations_table(d, v) for d, v in mapper.items()}
 
-    # For each Group, find a rotation that is compatible with a given MI
-    mapper = {}
-    for d, intervals in intervalss.items():
-        for interval in list(intervals):
-            found = {}
-            for group in list(groups):
-                distance = group.find_legal_rotation_distance(d, interval)
-                if distance is not None:
-                    found[group] = distance
-                else:
+        # For each Group, find a rotation that is compatible with a given MI
+        mapper = {}
+        for d, intervals in intervalss.items():
+            for interval in list(intervals):
+                found = {}
+                for group in list(groups):
+                    distance = group.find_legal_rotation_distance(d, interval)
+                    if distance is not None:
+                        found[group] = distance
+                    else:
+                        break
+
+                if len(found) == len(groups):
+                    # `interval` is OK !
+                    mapper[interval] = found
                     break
 
-            if len(found) == len(groups):
-                # `interval` is OK !
-                mapper[interval] = found
-                break
+        if len(mapper) != len(intervalss):
+            # TODO: should/could actually drop a group and try again
+            continue
 
-    if len(mapper) != len(intervalss):
-        # TODO: should/could actually drop a group and try again
-        return Aliases()
+        for group in groups:
+            c = group.pivot
+            distances = defaultdict(int, [(i.dim, v[group]) for i, v in mapper.items()])
 
-    aliases = Aliases(dimensions, list(mapper))
-    for group in groups:
-        c = group.pivot
-        distances = defaultdict(int, [(i.dim, v[group]) for i, v in mapper.items()])
+            # Create the basis alias
+            offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
+                       for v in c.offsets]
+            subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
+                    for i, b, v in zip(c.indexeds, c.bases, offsets)}
+            alias = c.expr.xreplace(subs)
 
-        # Create the basis alias
-        offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
-                   for v in c.offsets]
-        subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
-                for i, b, v in zip(c.indexeds, c.bases, offsets)}
-        alias = c.expr.xreplace(subs)
+            # All aliased expressions
+            aliaseds = [i.expr for i in group]
 
-        # All aliased expressions
-        aliaseds = [i.expr for i in group]
+            # Distance of each aliased expression from the basis alias
+            distances = []
+            for i in group:
+                distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
+                distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
+                distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
-        # Distance of each aliased expression from the basis alias
-        distances = []
-        for i in group:
-            distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
-            distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
-            distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
-
-        aliases.add(alias, aliaseds, distances)
+            aliases.add(alias, list(mapper), aliaseds, distances)
 
     return aliases
 
@@ -266,25 +261,25 @@ def choose(exprs, aliases):
 
 
 def process(cluster, chosen, aliases, template, platform):
-    # The write-to region, as an IntervalGroup
-    writeto = IntervalGroup(aliases.intervals, relations=cluster.ispace.relations)
-
-    # Optimization: only retain those Interval along which some redundancies
-    # have been detected
-    dep_inducing = [i for i in writeto if any(i.offsets)]
-    if dep_inducing:
-        index = writeto.index(dep_inducing[0])
-        writeto = writeto[index:]
-
-    # The access Dimensions may differ from `writeto.dimensions`. This may
-    # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
-    adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
-
     clusters = []
     subs = {}
-    for origin, (aliaseds, distances) in aliases.items():
+    for alias, (intervals, aliaseds, distances) in aliases.items():
         if all(i not in chosen for i in aliaseds):
             continue
+
+        # The write-to region, as an IntervalGroup
+        writeto = IntervalGroup(intervals, relations=cluster.ispace.relations)
+
+        # Optimization: only retain those Interval along which some redundancies
+        # have been detected
+        dep_inducing = [i for i in writeto if any(i.offsets)]
+        if dep_inducing:
+            index = writeto.index(dep_inducing[0])
+            writeto = writeto[index:]
+
+        # The access Dimensions may differ from `writeto.dimensions`. This may
+        # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
+        adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
 
         # The memory scope of the Array
         # TODO: this has required refinements for a long time
@@ -300,7 +295,7 @@ def process(cluster, chosen, aliases, template, platform):
 
         # The expression computing `alias`
         indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
-        expression = Eq(array[indices], origin.xreplace(subs))
+        expression = Eq(array[indices], alias.xreplace(subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
@@ -394,15 +389,8 @@ def analyze(expr):
         base = []
         offset = []
         for e, ai in zip(ii, ii.aindices):
-            if e.is_Number:
+            if q_constant(e):
                 base.append(e)
-            elif q_constant(e):
-                #TODO!
-                for i in reversed(expr.ispace.intervals):
-                    if i.dim.root is ai:
-                        base.append(i.dim)
-                        offset.append((i.dim, e - i.dim))
-                        break
             else:
                 base.append(ai)
                 offset.append((ai, e - ai))
@@ -446,22 +434,30 @@ class Candidate(object):
 
         Examples
         --------
-        Two candidates are translated if their offsets are pairwise translated.
+        Two candidates are translated if their bases are the same and
+        their offsets are pairwise translated.
 
-        c := A[i,j] + A[i,j+1]     -> Toffsets = {i: [0, 0], j: [0, 1]}
-        u := A[i+1,j] + A[i+1,j+1] -> Toffsets = {i: [1, 1], j: [0, 1]}
+        c := A[i,j] op A[i,j+1]     -> Toffsets = {i: [0, 0], j: [0, 1]}
+        u := A[i+1,j] op A[i+1,j+1] -> Toffsets = {i: [1, 1], j: [0, 1]}
 
         Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
         """
-        for (_, i), (_, j) in zip(self.Toffsets, other.Toffsets):
-            distance = set(i - j)
-            if len(distance) != 1:
+        if len(self.Toffsets) != len(other.Toffsets):
+            return False
+        if len(self.bases) != len(other.bases):
+            return False
+
+        # Check the bases
+        if any(b0 != b1 for b0, b1 in zip(self.bases, other.bases)):
+            return False
+
+        # Check the offsets
+        for (d0, o0), (d1, o1) in zip(self.Toffsets, other.Toffsets):
+            if d0 is not d1:
                 return False
 
-            if not q_constant(distance.pop()):
-                # E.g., `a[i+1] + b[i+1]` and `a[i_m+1] + b[i_m+1]`, their
-                # distance is `i-i_m`, which is not constant due to `i`,
-                # thus not a translation
+            distance = set(o0 - o1)
+            if len(distance) != 1:
                 return False
 
         return True
@@ -539,13 +535,16 @@ class Group(tuple):
 
         return ret
 
-    @cached_property
+    @property
     def pivot(self):
         """
-        A deterministic Candidate for this Group.
+        A deterministically chosen Candidate for this Group.
         """
-        assert len(self) > 0
         return self[0]
+
+    @property
+    def dimensions(self):
+        return self.pivot.dimensions
 
     @cached_property
     def _pivot_legal_rotations(self):
@@ -634,35 +633,33 @@ class Aliases(OrderedDict):
     A mapper between aliases and collections of aliased expressions.
     """
 
-    def __init__(self, dimensions=None, intervals=None):
+    def __init__(self):
         super(Aliases, self).__init__()
         self.index_mapper = {}
 
-        self.dimensions = dimensions or ()
-        self.intervals = intervals or ()
-
-    def add(self, alias, aliaseds, distances):
+    def add(self, alias, intervals, aliaseds, distances):
         assert len(aliaseds) == len(distances)
 
-        self[alias] = (aliaseds, distances)
+        self[alias] = (intervals, aliaseds, distances)
 
         # Update the index_mapper
-        for d in self.dimensions:
+        for i in intervals:
+            d = i.dim
             if d in self.index_mapper:
                 continue
             elif d.is_Shifted:
                 self.index_mapper[d.parent] = d
             elif d.is_Incr:
                 # IncrDimensions must be substituted with ShiftedDimensions
-                # such that we don't go out-of-array-bounds at runtime
+                # to access the temporaries, otherwise we would go OOB
                 self.index_mapper[d] = ShiftedDimension(d, "%ss" % d.name)
 
     def get(self, key):
         ret = super(Aliases, self).get(key)
         if ret is not None:
-            assert len(ret) == 2
-            return ret[0]
-        for aliaseds, _ in self.values():
+            assert len(ret) == 3
+            return ret[1]
+        for _, aliaseds, _ in self.values():
             if key in aliaseds:
                 return aliaseds
         return []
