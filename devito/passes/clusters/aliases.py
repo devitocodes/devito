@@ -38,12 +38,12 @@ def cire(cluster, template, platform, mode):
     cluster : Cluster
         Input Cluster, subject of the optimization pass.
     template : callable
-        Build symbols to store the redundant expressions.
+        To build the symbols (temporaries) storing the redundant expressions.
     platform : Platform
         The underlying platform. Used to optimize the shape of the introduced
         tensor symbols.
     mode : str
-        The optimization mode. Accepted: ['all', 'invariants', 'sops'].
+        The transformation mode. Accepted: ['all', 'invariants', 'sops'].
         * 'invariants' is for sub-expressions that are invariant w.r.t. one or
           more Dimensions.
         * 'sops' stands for sums-of-products, that is redundancies are searched
@@ -82,14 +82,14 @@ def cire(cluster, template, platform, mode):
     aliases = collect(exprs)
 
     # Rule out aliasing expressions with a bad flops/memory trade-off
-    candidates, others = choose(exprs, aliases)
+    chosen, others = choose(exprs, aliases)
 
-    if not candidates:
+    if not chosen:
         # Do not waste time
         return cluster
 
     # Create Aliases and assign them to Clusters
-    clusters, subs = process(cluster, candidates, aliases, template, platform)
+    clusters, subs = process(cluster, chosen, aliases, template, platform)
 
     # Rebuild `cluster` so as to use the newly created Aliases
     rebuilt = rebuild(cluster, others, aliases, subs)
@@ -178,15 +178,14 @@ def collect(exprs):
         mapper.setdefault(c.dimensions, []).append(Group(group))
 
     # For simplicity, focus on one set of Dimensions at a time
-    # Also there basically never is more than one in typical use cases
     try:
         dimensions, groups = mapper.popitem()
     except KeyError:
         return Aliases()
 
-    # For each Dimension, build all minimum Intervals that are as large as
-    # the maximum diameter out of all Groups
-    # Example: if the maximum diameter is 2, build [-2, 0], [-1, 1], [0, 2]
+    # For each Dimension, determine the Minimum Intervals (MI) that spans all
+    # of the Groups diameters
+    # Example: largest_diameter=2  => [[-2, 0], [-1, 1], [0, 2]]
     # Note: Groups that cannot evaluate their diameter are dropped
     mapper = defaultdict(int)
     for group in list(groups):
@@ -196,9 +195,7 @@ def collect(exprs):
             groups.remove(group)
     intervalss = {d: make_rotations_table(d, v) for d, v in mapper.items()}
 
-    # For each Group, find a rotation that is compatible with one of the
-    # intervals computed above
-    # Note: If not possible, drop the Group
+    # For each Group, find a rotation that is compatible with a given MI
     mapper = {}
     for d, intervals in intervalss.items():
         for interval in list(intervals):
@@ -239,8 +236,6 @@ def collect(exprs):
         for i in group:
             distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
             distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
-            if any(len(v) != 1 for d, v in distance):
-                raise ValueError
             distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
         aliases.add(alias, aliaseds, distances)
@@ -253,8 +248,8 @@ def choose(exprs, aliases):
     is_time_invariant = make_is_time_invariant(exprs)
     time_invariants = {e.rhs: is_time_invariant(e) for e in exprs}
 
-    processed = []
-    candidates = OrderedDict()
+    others = []
+    chosen = OrderedDict()
     for e in exprs:
         # Cost check (to keep the memory footprint under control)
         naliases = len(aliases.get(e.rhs))
@@ -263,14 +258,14 @@ def choose(exprs, aliases):
         test0 = lambda: cost >= MIN_COST_ALIAS and naliases > 1
         test1 = lambda: cost >= MIN_COST_ALIAS_INV and time_invariants[e.rhs]
         if test0() or test1():
-            candidates[e.rhs] = e.lhs
+            chosen[e.rhs] = e.lhs
         else:
-            processed.append(e)
+            others.append(e)
 
-    return candidates, processed
+    return chosen, others
 
 
-def process(cluster, candidates, aliases, template, platform):
+def process(cluster, chosen, aliases, template, platform):
     # The write-to region, as an IntervalGroup
     writeto = IntervalGroup(aliases.intervals, relations=cluster.ispace.relations)
 
@@ -288,7 +283,7 @@ def process(cluster, candidates, aliases, template, platform):
     clusters = []
     subs = {}
     for origin, (aliaseds, distances) in aliases.items():
-        if all(i not in candidates for i in aliaseds):
+        if all(i not in chosen for i in aliaseds):
             continue
 
         # The memory scope of the Array
@@ -315,8 +310,8 @@ def process(cluster, candidates, aliases, template, platform):
             indices = [d - i.lower + distance[i.dim] for d, i in zip(adims, writeto)]
             subs[aliased] = array[indices]
 
-            if aliased in candidates:
-                subs[candidates[aliased]] = array[indices]
+            if aliased in chosen:
+                subs[chosen[aliased]] = array[indices]
             else:
                 # Perhaps part of a composite alias ?
                 pass
@@ -368,7 +363,7 @@ def analyze(expr):
 
     A necessary condition is that all Indexeds in ``expr`` are affine in the
     access Dimensions so that the access offsets (or "strides") can be derived.
-    For example, given the following Indexeds: ::
+    For example, given the following Indexeds:
 
         A[i, j, k], B[i, j+2, k+3], C[i-1, j+4]
 
