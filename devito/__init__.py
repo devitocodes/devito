@@ -95,6 +95,9 @@ configuration.add('develop-mode', True, [False, True])
 configuration.add('opt', 'advanced', list(operator_registry._accepted), deprecate='dle')
 configuration.add('opt-options', {}, deprecate='dle-options')
 
+# Setup target language for node-level parallelism
+configuration.add('language', 'C', ['C', 'openmp', 'openacc'], callback=_reinit_compiler)
+
 # Setup Operator profiling
 configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
 

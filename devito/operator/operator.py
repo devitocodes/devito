@@ -44,6 +44,9 @@ class Operator(Callable):
             Symbolic substitutions to be applied to ``expressions``.
         * opt : str
             The performance optimization level. Defaults to ``configuration['opt']``.
+        * language : str
+            The target language for node-level parallelism. Defaults to
+            ``configuration['language']``.
         * platform : str
             The architecture the code is generated for. Defaults to
             ``configuration['platform']``.
@@ -974,5 +977,16 @@ def parse_kwargs(**kwargs):
             configuration['compiler'].__new_from__(platform=kwargs['platform'])
     else:
         kwargs['compiler'] = configuration['compiler']
+
+    # `language`
+    language = kwargs.get('language')
+    if language is not None:
+        if not isinstance(language, str):
+            raise ValueError("Argument `language` should be a `str`")
+        if language not in configuration._accepted['language']:
+            raise InvalidOperator("Illegal `language=%s`" % str(language))
+        kwargs['language'] = language
+    else:
+        kwargs['language'] = configuration['language']
 
     return kwargs

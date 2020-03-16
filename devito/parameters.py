@@ -136,6 +136,7 @@ env_vars_mapper = {
     'DEVITO_OPT': 'opt',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
+    'DEVITO_LANGUAGE': 'language',
     'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log-level',
     'DEVITO_FIRST_TOUCH': 'first-touch',
