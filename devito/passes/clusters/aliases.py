@@ -122,9 +122,22 @@ def collect(exprs):
     """
     Find groups of aliasing expressions.
 
-    An expression A aliases an expression B if both A and B perform the same
-    arithmetic operations over the same input operands, with the possibility for
-    Indexeds to access locations at a fixed constant offset in each Dimension.
+    We shall introduce the following (loose) terminology:
+
+        * A ``terminal`` is the leaf of a mathematical operation. Terminals
+          can be numbers (n), literals (l), or Indexeds (I).
+        * ``R`` is the relaxation operator := ``R(n) = n``, ``R(l) = l``,
+          ``R(I) = J``, where ``J`` has the same base as ``I`` but with all
+          offsets stripped away. For example, ``R(a[i+2,j-1]) = a[i,j]``.
+        * A ``relaxed expression`` is an expression in which all of the
+          terminals are relaxed.
+
+    Now we define the concept of aliasing. We say that an expression A
+    aliases an expression B if:
+
+        * ``R(A) == R(B)``
+        * all pairwise Indexeds in A and B access memory locations at a
+          fixed constant distance along each Dimension.
 
     For example, consider the following expressions:
 
@@ -135,7 +148,7 @@ def collect(exprs):
         * a[i+2] + b[i]
         * a[i-1] + b[i-1]
 
-    The following alias to `a[i] + b[i]`:
+    Out of the expressions above, the following alias to `a[i] + b[i]`:
 
         * a[i+1] + b[i+1] : same operands and operations, distance along i: 1
         * a[i-1] + b[i-1] : same operands and operations, distance along i: -1
@@ -148,15 +161,37 @@ def collect(exprs):
         * a[i+2] + b[i] : because the distances along ``i`` differ (+2 and +0)
     """
     # Find the potential aliases
-    candidates = []
+    found = []
     for expr in exprs:
-        candidate = analyze(expr)
-        if candidate is not None:
-            candidates.append(candidate)
+        if expr.lhs.is_Indexed or expr.is_Increment:
+            continue
+
+        indexeds = retrieve_indexed(expr.rhs)
+
+        bases = []
+        offsets = []
+        for i in indexeds:
+            ii = IterationInstance(i)
+            if ii.is_irregular:
+                break
+
+            base = []
+            offset = []
+            for e, ai in zip(ii, ii.aindices):
+                if q_constant(e):
+                    base.append(e)
+                else:
+                    base.append(ai)
+                    offset.append((ai, e - ai))
+            bases.append(tuple(base))
+            offsets.append(LabeledVector(offset))
+
+        if indexeds and len(bases) == len(indexeds):
+            found.append(Candidate(expr, indexeds, bases, offsets))
 
     # Create groups of aliasing expressions
     mapper = OrderedDict()
-    unseen = list(candidates)
+    unseen = list(found)
     while unseen:
         c = unseen.pop(0)
         group = [c]
@@ -352,78 +387,14 @@ def rebuild(cluster, others, aliases, subs):
     return cluster.rebuild(exprs=exprs, ispace=ispace, dspace=dspace)
 
 
-def analyze(expr):
-    """
-    Determine whether ``expr`` is a potential Alias and collect relevant metadata.
-
-    A necessary condition is that all Indexeds in ``expr`` are affine in the
-    access Dimensions so that the access offsets (or "strides") can be derived.
-    For example, given the following Indexeds:
-
-        A[i, j, k], B[i, j+2, k+3], C[i-1, j+4]
-
-    All of the access functions are affine in ``i, j, k``, and the offsets are: ::
-
-        (0, 0, 0), (0, 2, 3), (-1, 4)
-    """
-    # No way if writing to a tensor or an increment
-    if expr.lhs.is_Indexed or expr.is_Increment:
-        return
-
-    indexeds = retrieve_indexed(expr.rhs)
-    if not indexeds:
-        return
-
-    bases = []
-    offsets = []
-    for indexed in indexeds:
-        ii = IterationInstance(indexed)
-
-        # There must not be irregular accesses, otherwise we won't be able to
-        # calculate the offsets
-        if ii.is_irregular:
-            return
-
-        # Since `ii` is regular (and therefore affine), it is guaranteed that `ai`
-        # below won't be None
-        base = []
-        offset = []
-        for e, ai in zip(ii, ii.aindices):
-            if q_constant(e):
-                base.append(e)
-            else:
-                base.append(ai)
-                offset.append((ai, e - ai))
-        bases.append(tuple(base))
-        offsets.append(LabeledVector(offset))
-
-    return Candidate(expr.rhs, indexeds, bases, offsets, expr.ispace.intervals)
-
-
-def make_rotations_table(d, v):
-    """
-    All possible rotations of `range(v+1)`.
-    """
-    m = np.array([[j-i if j > i else 0 for j in range(v+1)] for i in range(v+1)])
-    m = (m - m.T)[::-1, :]
-
-    # Shift the table so that the middle rotation is at the top
-    m = np.roll(m, int(-np.floor(v/2)), axis=0)
-
-    # Turn into a more compact representation as a list of Intervals
-    m = [Interval(d, min(i), max(i)) for i in m]
-
-    return m
-
-
 class Candidate(object):
 
-    def __init__(self, expr, indexeds, bases, offsets, shifts):
-        self.expr = expr
+    def __init__(self, expr, indexeds, bases, offsets):
+        self.expr = expr.rhs
+        self.shifts = expr.ispace.intervals
         self.indexeds = indexeds
         self.bases = bases
         self.offsets = offsets
-        self.shifts = shifts
 
     def __repr__(self):
         return "Candidate(expr=%s)" % self.expr
@@ -437,8 +408,8 @@ class Candidate(object):
         Two candidates are translated if their bases are the same and
         their offsets are pairwise translated.
 
-        c := A[i,j] op A[i,j+1]     -> Toffsets = {i: [0, 0], j: [0, 1]}
-        u := A[i+1,j] op A[i+1,j+1] -> Toffsets = {i: [1, 1], j: [0, 1]}
+        c := A[i,j] op A[i,j+1]     -> Toffsets = {i: [0,0], j: [0,1]}
+        u := A[i+1,j] op A[i+1,j+1] -> Toffsets = {i: [1,1], j: [0,1]}
 
         Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
         """
@@ -469,6 +440,9 @@ class Candidate(object):
     @cached_property
     def dimensions(self):
         return frozenset(i for i, _ in self.Toffsets)
+
+
+# Utilities
 
 
 class Group(tuple):
@@ -663,3 +637,19 @@ class Aliases(OrderedDict):
             if key in aliaseds:
                 return aliaseds
         return []
+
+
+def make_rotations_table(d, v):
+    """
+    All possible rotations of `range(v+1)`.
+    """
+    m = np.array([[j-i if j > i else 0 for j in range(v+1)] for i in range(v+1)])
+    m = (m - m.T)[::-1, :]
+
+    # Shift the table so that the middle rotation is at the top
+    m = np.roll(m, int(-np.floor(v/2)), axis=0)
+
+    # Turn into a more compact representation as a list of Intervals
+    m = [Interval(d, min(i), max(i)) for i in m]
+
+    return m
