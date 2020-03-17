@@ -278,45 +278,45 @@ class TestAliases(object):
     @pytest.mark.parametrize('exprs,expected', [
         # none (different distance)
         (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
-         {'fa[x] + fb[x]': False, 'fa[x+1] + fb[x]': False}),
+         ['fa[x] + fb[x]', 'fa[x+1] + fb[x]']),
         # none (different dimension)
         (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
-         {'fa[x] + fb[x]': False, 'fa[x] + fb[y]': False}),
+         ['fa[x] + fb[x]']),
         # none (different operation)
         (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
-         {'fa[x] + fb[x]': False, 'fa[x] - fb[x]': False}),
+         ['fa[x] + fb[x]', 'fa[x] - fb[x]']),
         # simple
         (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])',
           'Eq(t2, fa[x+2] + fb[x+2])'],
-         {'fa[x+1] + fb[x+1]': True}),
+         ['fa[x+1] + fb[x+1]']),
         # 2D simple
         (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(t1, fc[x+1,y+1] + fd[x+1,y+1])'],
-         {'fc[x+1,y+1] + fd[x+1,y+1]': True}),
+         ['fc[x+1,y+1] + fd[x+1,y+1]']),
         # 2D with stride
         (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])'],
-         {'fc[x+1,y+1] + fd[x+2,y+3]': True}),
+         ['fc[x+1,y+1] + fd[x+2,y+3]']),
         # 2D with subdimensions
         (['Eq(t0, fc[xi,yi] + fd[xi+1,yi+2])',
           'Eq(t1, fc[xi+1,yi+1] + fd[xi+2,yi+3])'],
-         {'fc[xi+1,yi+1] + fd[xi+2,yi+3]': True}),
+         ['fc[xi+1,yi+1] + fd[xi+2,yi+3]']),
         # 2D with constant access
         (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y])',
           'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1])'],
-         {'fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1]': True}),
+         ['fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1]']),
         # 2D with multiple, non-zero, constant accesses
         (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y]*fc[x,1])',
           'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1]*fc[x+1,1])'],
-         {'fc[x+1,0]*fc[x+1,y+1] + fc[x+1,1]*fd[x+1,y+1]': True}),
+         ['fc[x+1,0]*fc[x+1,y+1] + fc[x+1,1]*fd[x+1,y+1]']),
         # 2D with different shapes
         (['Eq(t0, fc[x,y]*fa[x] + fd[x,y])',
           'Eq(t1, fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1])'],
-         {'fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1]': True}),
+         ['fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1]']),
         # complex (two 2D aliases with stride inducing relaxation)
         (['Eq(t0, fc[x,y] + fd[x+1,y+2])',
           'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])',
           'Eq(t2, fc[x+1,y+1]*3. + fd[x+2,y+2])',
           'Eq(t3, fc[x+2,y+2]*3. + fd[x+3,y+3])'],
-         {'fc[x+1,y+1] + fd[x+2,y+3]': True, '3.*fc[x+2,y+2] + fd[x+3,y+3]': True}),
+         ['fc[x+1,y+1] + fd[x+2,y+3]', '3.*fc[x+2,y+2] + fd[x+3,y+3]']),
     ])
     def test_collection(self, exprs, expected):
         """
@@ -339,15 +339,13 @@ class TestAliases(object):
         # List/dict comprehension would need explicit locals/globals mappings to eval
         for i, e in enumerate(list(exprs)):
             exprs[i] = DummyEq(indexify(eval(e).evaluate))
-        for k, v in list(expected.items()):
-            expected[eval(k)] = expected.pop(k)
+        for i, e in enumerate(list(expected)):
+            expected[i] = eval(e)
 
         aliases = collect(exprs)
 
-        assert len(aliases) > 0
-
-        for k, (_, aliaseds, distances) in aliases.items():
-            assert ((len(aliaseds) == 1 and expected[k] is None) or k in expected)
+        assert len(aliases) == len(expected)
+        assert all(i in expected for i in aliases)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape(self):
@@ -520,12 +518,11 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
-    def test_unmixed_shape_w_subdims(self):
+    def test_mixed_vs_unmixed_shape_w_subdims(self):
         """
-        A combination of `test_full_shape`, `test_contracted_shape` and
-        `test_full_shape_with_subdims`. Make sure it boils down to full-shape
-        for all Arrays (ie, all are 3D, instead of some being 2D and some 3D),
-        to maximize loop fusion.
+        Test that if running with ``opt=(..., {'min-storage': True})``, then,
+        when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
+        rather than nD Arrays.
         """
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions  # noqa
@@ -545,9 +542,10 @@ class TestAliases(object):
                  ((c[0, z]*u[t, x+1, y+1, z] + c[1, z+1]*u[t, x+1, y+1, z+1])*f +
                   (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
                   (u[t, x, y+1, z+1] + u[t, x+1, y+1, z+1])*3*f +
-                  (u[t, x, y+3, z+1] + u[t, x+1, y+3, z+1])*3*f))
+                  (u[t, x, y+3, z+1] + u[t, x+1, y+3, z+1])*3*f),
+                )#subdomain=grid.interior)
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True}))
 
         x0_blk_size = op1.parameters[3]
         y0_blk_size = op1.parameters[4]
@@ -559,12 +557,15 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array]
         assert len(arrays) == 2
-        for a in arrays:
-            assert len(a.dimensions) == 3
-            assert a.halo == ((1, 0), (1, 1), (0, 0))
-            assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 1
-            assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
-            assert a.symbolic_shape[2] is z_size
+        assert len(arrays[0].dimensions) == 2
+        assert arrays[0].halo == ((1, 1), (0, 0))
+        assert Add(*arrays[0].symbolic_shape[0].args) == y0_blk_size + 2
+        assert arrays[0].symbolic_shape[1] == z_size
+        assert len(arrays[1].dimensions) == 3
+        assert arrays[1].halo == ((1, 0), (1, 0), (0, 0))
+        assert Add(*arrays[1].symbolic_shape[0].args) == x0_blk_size + 1
+        assert Add(*arrays[1].symbolic_shape[1].args) == y0_blk_size + 1
+        assert arrays[1].symbolic_shape[2] == z_size
 
         # Check numerical output
         op0(time_M=1)
@@ -597,7 +598,7 @@ class TestAliases(object):
                  ((c[0, z]*u[t, x+1, y, z] + c[1, z+1]*u[t, x+1, y, z+1])*f +
                   (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
                   (u[t, x, y-4, z+1] + u[t, x+1, y-4, z+1])*3*f +
-                  (u[t, x, y-3, z+1] + u[t, x+1, y-3, z+1])*3*f))
+                  (u[t, x-1, y-3, z+1] + u[t, x, y-3, z+1])*3*f))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
@@ -917,9 +918,12 @@ class TestAliases(object):
         assert len(arrays) == 3
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS_INV", 28)
     def test_hoisting_if_coupled(self):
         """
         Test that coupled aliases are successfully hoisted out of the time loop.
+        This test also checks the correct behaviour of the Operator opt-option
+        ``cire-repeats-inv``.
         """
         grid = Grid((10, 10))
 
@@ -934,7 +938,7 @@ class TestAliases(object):
         eqns = [Eq(e.forward, e + 1),
                 Eq(f.forward, f*subexpr0 - f*subexpr1 + e.forward.dx)]
 
-        op = Operator(eqns)
+        op = Operator(eqns, opt=('advanced', {'cire-repeats-inv': 2}))
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
