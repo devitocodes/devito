@@ -49,7 +49,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     u_v = Eq(v.forward, damp * (v + s*ro*div(tau)))
     symm_grad = grad(v.forward) + grad(v.forward).T
     # Stress equations:
-    u_t = Eq(tau.forward, damp * (r.forward + tau +
+    u_t = Eq(tau.forward, damp * (s*r.forward + tau +
                                   s * (l * t_ep / t_s * diag(div(v.forward)) +
                                        mu * t_es / t_s * symm_grad)))
 
