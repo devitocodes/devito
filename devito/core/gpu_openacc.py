@@ -1,9 +1,13 @@
+from functools import partial
+
 import cgen as c
 
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIteration,
                                     DeviceOmpizer, DeviceOpenMPDataManager)
+from devito.exceptions import InvalidOperator
+from devito.logger import warning
 from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders
-from devito.tools import as_tuple, filter_sorted, generator, timed_pass
+from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceOpenACCNoopOperator', 'DeviceOpenACCOperator',
            'DeviceOpenACCCustomOperator']

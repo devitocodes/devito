@@ -28,4 +28,3 @@ class TestCodeGeneration(object):
         assert op.body[1].footer[0].contents[1].value ==\
             ('acc exit data delete(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-
