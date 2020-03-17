@@ -352,6 +352,19 @@ class TestDecomposition(object):
         assert d.index_glb_to_loc((1, 6), rel=False) == (5, 6)
         assert d.index_glb_to_loc((None, None), rel=False) == (5, 7)
 
+    def test_glb_to_loc_w_side(self):
+        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        # A global index as single argument
+        assert d.index_glb_to_loc(5, LEFT) == 0
+        assert d.index_glb_to_loc(6, RIGHT) == 2
+        assert d.index_glb_to_loc(7, LEFT) == 2
+        assert d.index_glb_to_loc(4, RIGHT) == 0
+        assert d.index_glb_to_loc(6, LEFT) == 1
+        assert d.index_glb_to_loc(5, RIGHT) == 1
+        assert d.index_glb_to_loc(2, LEFT) is None
+        assert d.index_glb_to_loc(3, RIGHT) is None
+
     def test_loc_to_glb_index_conversions(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 
