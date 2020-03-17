@@ -19,7 +19,7 @@ __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
 
 
-class DeviceParallelIteration(ParallelIteration):
+class DeviceOpenMPIteration(ParallelIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
@@ -28,7 +28,7 @@ class DeviceParallelIteration(ParallelIteration):
     @classmethod
     def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
-        return super(DeviceParallelIteration, cls)._make_clauses(**kwargs)
+        return super(DeviceOpenMPIteration, cls)._make_clauses(**kwargs)
 
 
 class DeviceOmpizer(Ompizer):
@@ -56,6 +56,8 @@ class DeviceOmpizer(Ompizer):
         'map-exit-delete': lambda i, j:
             c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
     })
+
+    _Iteration = DeviceOpenMPIteration
 
     @classmethod
     def _map_data(cls, f):
@@ -107,7 +109,7 @@ class DeviceOmpizer(Ompizer):
 
         # Prepare to build a ParallelTree
         # Create a ParallelTree
-        body = DeviceParallelIteration(ncollapse=ncollapse, **root.args)
+        body = self._Iteration(ncollapse=ncollapse, **root.args)
         partree = ParallelTree([], body, nthreads=nthreads)
 
         collapsed = [partree] + collapsable
@@ -127,18 +129,20 @@ class DeviceOmpizer(Ompizer):
         return partree
 
 
-class DeviceDataManager(DataManager):
+class DeviceOpenMPDataManager(DataManager):
+
+    _Parallelizer = DeviceOmpizer
 
     def _alloc_array_on_high_bw_mem(self, obj, storage):
         if obj in storage._high_bw_mem:
             return
 
-        super(DeviceDataManager, self)._alloc_array_on_high_bw_mem(obj, storage)
+        super(DeviceOpenMPDataManager, self)._alloc_array_on_high_bw_mem(obj, storage)
 
         decl, alloc, free = storage._high_bw_mem[obj]
 
-        alloc = c.Collection([alloc, DeviceOmpizer._map_alloc(obj)])
-        free = c.Collection([DeviceOmpizer._map_delete(obj), free])
+        alloc = c.Collection([alloc, self._Parallelizer._map_alloc(obj)])
+        free = c.Collection([self._Parallelizer._map_delete(obj), free])
 
         storage._high_bw_mem[obj] = (decl, alloc, free)
 
@@ -147,13 +151,13 @@ class DeviceDataManager(DataManager):
         if obj in storage._high_bw_mem:
             return
 
-        alloc = DeviceOmpizer._map_to(obj)
+        alloc = self._Parallelizer._map_to(obj)
 
         if read_only is False:
-            free = c.Collection([DeviceOmpizer._map_update(obj),
-                                 DeviceOmpizer._map_release(obj)])
+            free = c.Collection([self._Parallelizer._map_update(obj),
+                                 self._Parallelizer._map_release(obj)])
         else:
-            free = DeviceOmpizer._map_delete(obj)
+            free = self._Parallelizer._map_delete(obj)
 
         storage._high_bw_mem[obj] = (None, alloc, free)
 
@@ -174,7 +178,7 @@ class DeviceDataManager(DataManager):
                 if not i.is_Expression:
                     # No-op
                     continue
-                if not any(isinstance(j, DeviceParallelIteration) for j in v):
+                if not any(isinstance(j, self._Parallelizer._Iteration) for j in v):
                     # Not an offloaded Iteration tree
                     continue
                 if i.write.is_DiscreteFunction:
@@ -269,7 +273,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         DeviceOmpizer().make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceDataManager()
+        data_manager = DeviceOpenMPDataManager()
         data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -296,7 +300,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceDataManager()
+        data_manager = DeviceOpenMPDataManager()
         data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -362,7 +366,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DeviceDataManager()
+        data_manager = DeviceOpenMPDataManager()
         data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
