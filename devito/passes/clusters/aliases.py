@@ -118,7 +118,7 @@ def extract(cluster, template, mode):
     return exprs
 
 
-def collect(exprs):
+def collect(exprs, min_storage=False):
     """
     Find groups of aliasing expressions.
 
@@ -207,7 +207,12 @@ def collect(exprs):
             group.append(u)
             unseen.remove(u)
 
-        mapper.setdefault(c.dimensions, []).append(Group(group))
+        group = Group(group)
+        if min_storage:
+            k = group.dimensions_translated
+        else:
+            k = group.dimensions
+        mapper.setdefault(k, []).append(group)
 
     queue = list(mapper.values())
     aliases = Aliases()
@@ -216,7 +221,7 @@ def collect(exprs):
 
         # For each Dimension, determine the Minimum Intervals (MI) spanning
         # all of the Groups diameters
-        # Example: x's largest_diameter=2  => [x[-2, 0], x[-1, 1], x[0, 2]]
+        # Example: x's largest_diameter=2  => [x[-2,0], x[-1,1], x[0,2]]
         # Note: Groups that cannot evaluate their diameter are dropped
         mapper = defaultdict(int)
         for group in list(groups):
@@ -298,19 +303,9 @@ def choose(exprs, aliases):
 def process(cluster, chosen, aliases, template, platform):
     clusters = []
     subs = {}
-    for alias, (intervals, aliaseds, distances) in aliases.items():
+    for alias, writeto, aliaseds, distances in aliases.schedule(cluster.ispace):
         if all(i not in chosen for i in aliaseds):
             continue
-
-        # The write-to region, as an IntervalGroup
-        writeto = IntervalGroup(intervals, relations=cluster.ispace.relations)
-
-        # Optimization: only retain those Interval along which some redundancies
-        # have been detected
-        dep_inducing = [i for i in writeto if any(i.offsets)]
-        if dep_inducing:
-            index = writeto.index(dep_inducing[0])
-            writeto = writeto[index:]
 
         # The access Dimensions may differ from `writeto.dimensions`. This may
         # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
@@ -365,8 +360,9 @@ def process(cluster, chosen, aliases, template, platform):
                  for k, v in accesses.items() if k}
         dspace = DataSpace(cluster.dspace.intervals, parts)
 
-        # Finally create a new Cluster for `alias`
-        clusters.append(cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace))
+        # Finally, build a new Cluster for `alias`
+        built = cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace)
+        clusters.insert(0, built)
 
     return clusters, subs
 
@@ -493,10 +489,8 @@ class Group(tuple):
                 except TypeError:
                     # An entry in `v` has symbolic components, e.g. `x_m + 2`
                     if len(set(v)) == 1:
-                        # All good
-                        distance = 0
+                        continue
                     else:
-                        # Illegal Group
                         raise ValueError
                 ret[d] = max(ret[d], distance)
 
@@ -519,6 +513,10 @@ class Group(tuple):
     @property
     def dimensions(self):
         return self.pivot.dimensions
+
+    @property
+    def dimensions_translated(self):
+        return frozenset(d for d, v in self.diameter.items() if v > 0)
 
     @cached_property
     def _pivot_legal_rotations(self):
@@ -637,6 +635,39 @@ class Aliases(OrderedDict):
             if key in aliaseds:
                 return aliaseds
         return []
+
+    def schedule(self, ispace):
+        """
+        The aliases can be be scheduled in any order, but we privilege the one
+        that minimizes storage while maximizing fusion.
+        """
+        items = []
+        for alias, (intervals, aliaseds, distances) in self.items():
+            mapper = {i.dim: i for i in intervals}
+
+            writeto = []
+            for n, i in enumerate(ispace.intervals):
+                interval = mapper.get(i.dim)
+                if interval is not None:
+                    if not writeto and interval == interval.zero():
+                        # Optimize away unnecessary temporary Dimensions
+                        continue
+                    writeto.append(interval)
+
+            if writeto:
+                writeto = IntervalGroup(writeto, relations=ispace.relations)
+            else:
+                # E.g., an `alias` having 0-distance along all Dimensions
+                writeto = IntervalGroup(intervals, relations=ispace.relations)
+
+            items.append((alias, writeto, aliaseds, distances))
+
+        queue = list(items)
+        while queue:
+            # Shortest write-to region first
+            item = min(queue, key=lambda i: len(i[1]))
+            queue.remove(item)
+            yield item
 
 
 def make_rotations_table(d, v):
