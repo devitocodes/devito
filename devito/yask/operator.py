@@ -126,6 +126,21 @@ class YASKOperator(Operator):
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
     _default_includes = Operator._default_includes + ['yask_kernel_api.hpp']
 
+    CIRE_REPEATS_INV = 1
+    """
+    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
+    """
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        options = kwargs['options']
+
+        options['cire-repeats'] = {
+            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
+        }
+
+        return kwargs
+
     @classmethod
     def _build(cls, expressions, **kwargs):
         yk_solns = OrderedDict()
@@ -160,6 +175,7 @@ class YASKOperator(Operator):
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
+        options = kwargs['options']
         platform = kwargs['platform']
 
         # To create temporaries
@@ -171,7 +187,7 @@ class YASKOperator(Operator):
         clusters = fuse(clusters)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, platform, 'invariants')
+        clusters = cire(clusters, template, 'invariants', options, platform)
         clusters = Lift().process(clusters)
         clusters = fuse(clusters)
 

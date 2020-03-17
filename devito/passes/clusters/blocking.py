@@ -12,9 +12,9 @@ class Blocking(Queue):
 
     template = "%s%d_blk%s"
 
-    def __init__(self, inner, levels):
-        self.inner = bool(inner)
-        self.levels = levels
+    def __init__(self, options):
+        self.inner = bool(options['blockinner'])
+        self.levels = options['blocklevels']
 
         self.nblocked = Counter()
 

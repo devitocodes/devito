@@ -194,18 +194,36 @@ class DeviceDataManager(DataManager):
 
 class DeviceOpenMPNoopOperator(OperatorCore):
 
+    CIRE_REPEATS_INV = 1
+    """
+    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
+    """
+
+    CIRE_REPEATS_SOPS = 2
+    """
+    Number of CIRE passes to detect and optimize away redundant sum-of-products.
+    """
+
     @classmethod
-    def _build(cls, *args, **kwargs):
+    def _normalize_kwargs(cls, **kwargs):
+        options = kwargs['options']
+
         # Strictly unneccesary, but make it clear that this Operator *will*
         # generate OpenMP code, bypassing any `openmp=False` provided in
         # input to Operator
-        kwargs['options'].pop('openmp')
+        options.pop('openmp')
 
-        return super(DeviceOpenMPNoopOperator, cls)._build(*args, **kwargs)
+        options['cire-repeats'] = {
+            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
+            'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        }
+
+        return kwargs
 
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
+        options = kwargs['options']
         platform = kwargs['platform']
 
         # To create temporaries
@@ -217,14 +235,12 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         clusters = fuse(clusters)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, platform, 'invariants')
+        clusters = cire(clusters, template, 'invariants', options, platform)
         clusters = Lift().process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
         clusters = extract_increments(clusters, template)
-        for _ in range(2):
-            # Experimentation showed that `2` is a good number
-            clusters = cire(clusters, template, platform, 'sops')
+        clusters = cire(clusters, template, 'sops', options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
         clusters = freeze(clusters)

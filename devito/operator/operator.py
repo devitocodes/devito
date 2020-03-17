@@ -143,6 +143,9 @@ class Operator(Callable):
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
 
+        # Normalize input arguments for the selected Operator
+        kwargs = cls._normalize_kwargs(**kwargs)
+
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
@@ -152,6 +155,10 @@ class Operator(Callable):
         op._emit_build_profiling()
 
         return op
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        return kwargs
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -928,10 +935,12 @@ def parse_kwargs(**kwargs):
     openmp = kwargs.pop('openmp', configuration['openmp'])
 
     # `opt`, options
-    options.setdefault('blockinner',
-                       configuration['opt-options'].get('blockinner', False))
-    options.setdefault('blocklevels',
-                       configuration['opt-options'].get('blocklevels', None))
+    opt_options = configuration['opt-options']
+    options.setdefault('blockinner', opt_options.get('blockinner', False))
+    options.setdefault('blocklevels', opt_options.get('blocklevels', None))
+    options.setdefault('min-storage', opt_options.get('min-storage', False))
+    options.setdefault('cire-repeats-inv', opt_options.get('cire-repeats-inv', None))
+    options.setdefault('cire-repeats-sops', opt_options.get('cire-repeats-sops', None))
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
     kwargs['options'] = options

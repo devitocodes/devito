@@ -8,6 +8,7 @@ from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
                               q_sum_of_product, q_terminalop, retrieve_indexed, yreplace)
+from devito.tools import flatten
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
 __all__ = ['cire']
@@ -29,7 +30,7 @@ as the entire grid.
 
 
 @cluster_pass
-def cire(cluster, template, platform, mode):
+def cire(cluster, template, mode, options, platform):
     """
     Cross-iteration redundancies elimination.
 
@@ -39,16 +40,21 @@ def cire(cluster, template, platform, mode):
         Input Cluster, subject of the optimization pass.
     template : callable
         To build the symbols (temporaries) storing the redundant expressions.
-    platform : Platform
-        The underlying platform. Used to optimize the shape of the introduced
-        tensor symbols.
     mode : str
-        The transformation mode. Accepted: ['all', 'invariants', 'sops'].
+        The transformation mode. Accepted: ['invariants', 'sops'].
         * 'invariants' is for sub-expressions that are invariant w.r.t. one or
           more Dimensions.
         * 'sops' stands for sums-of-products, that is redundancies are searched
           across all expressions in sum-of-product form.
-        * 'all' is the union of 'invariants' and 'sops'.
+    options : dict
+        The optimization mode. Accepted: ['min-storage'].
+        * 'min-storage': if True, the pass will try to minimize the amount of
+          storage introduced for the tensor temporaries. This might also reduce
+          the operation count. On the other hand, this might affect fusion and
+          therefore data locality. Defaults to False (legacy).
+    platform : Platform
+        The underlying platform. Used to optimize the shape of the introduced
+        tensor symbols.
 
     Examples
     --------
@@ -73,49 +79,83 @@ def cire(cluster, template, platform, mode):
     t0 = 2.0*t2[x,y,z]
     t1 = 3.0*t2[x,y,z+1]
     """
-    assert mode in ['invariants', 'sops', 'all']
+    # Sanity checks
+    assert mode in ['invariants', 'sops']
+    assert all(i > 0 for i in options['cire-repeats'].values())
 
-    # Extract potentially aliasing expressions
-    exprs = extract(cluster, template, mode)
+    # Relevant options
+    min_storage = options['min-storage']
 
-    # Search aliasing expressions
-    aliases = collect(exprs)
+    # Setup callbacks
+    if mode == 'invariants':
+        # Extraction rule
+        def extractor(context):
+            is_time_invariant = make_is_time_invariant(context)
+            return lambda e: is_time_invariant(e)
 
-    # Rule out aliasing expressions with a bad flops/memory trade-off
-    chosen, others = choose(exprs, aliases)
+        # Extraction model
+        model = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
 
-    if not chosen:
-        # Do not waste time
-        return cluster
+        # Selection rule
+        selector = lambda c, n: c >= MIN_COST_ALIAS_INV and n >= 1
 
-    # Create Aliases and assign them to Clusters
-    clusters, subs = process(cluster, chosen, aliases, template, platform)
+    elif mode == 'sops':
+        # Extraction rule
+        def extractor(context):
+            return lambda e: q_sum_of_product(e)
 
-    # Rebuild `cluster` so as to use the newly created Aliases
-    rebuilt = rebuild(cluster, others, aliases, subs)
+        # Extraction model
+        model = lambda e: not (q_leaf(e) or q_terminalop(e))
 
-    return clusters + [rebuilt]
+        # Selection rule
+        selector = lambda c, n: c >= MIN_COST_ALIAS and n > 1
+
+    # Actual CIRE
+    processed = []
+    context = cluster.exprs
+    for _ in range(options['cire-repeats'][mode]):
+        # Extract potentially aliasing expressions
+        exprs, extracted = extract(cluster, extractor(context), model, template)
+        if not extracted:
+            # Do not waste time
+            break
+
+        # Search aliasing expressions
+        aliases = collect(extracted, min_storage)
+
+        # Rule out aliasing expressions with a bad flops/memory trade-off
+        chosen, others = choose(exprs, aliases, selector)
+        if not chosen:
+            # Do not waste time
+            break
+
+        # Create Aliases and assign them to Clusters
+        clusters, subs = process(cluster, chosen, aliases, template, platform)
+
+        # Rebuild `cluster` so as to use the newly created Aliases
+        rebuilt = rebuild(cluster, others, aliases, subs)
+
+        # Prepare for the next round
+        processed.extend(clusters)
+        cluster = rebuilt
+        context = flatten(c.exprs for c in processed) + list(cluster.exprs)
+
+    processed.append(cluster)
+
+    return processed
 
 
-def extract(cluster, template, mode):
+def extract(cluster, rule1, model, template):
     make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
 
-    if mode in ['invariants', 'all']:
-        rule = make_is_time_invariant(cluster.exprs)
-        costmodel = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
+    # Rule out symbols inducing Dimension-independent data dependences
+    exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
+    rule0 = lambda e: not e.free_symbols & exclude
 
-        exprs, _ = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
+    # Composite extraction rule -- correctness(0) + logic(1)
+    rule = lambda e: rule0(e) and rule1(e)
 
-    if mode in ['sops', 'all']:
-        # Rule out symbols inducing Dimension-independent data dependences
-        exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
-
-        rule = lambda e: q_sum_of_product(e) and not e.free_symbols & exclude
-        costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
-
-        exprs, _ = yreplace(cluster.exprs, make, rule, costmodel)
-
-    return exprs
+    return yreplace(cluster.exprs, make, rule, model, eager=True)
 
 
 def collect(exprs, min_storage=False):
@@ -278,21 +318,13 @@ def collect(exprs, min_storage=False):
     return aliases
 
 
-def choose(exprs, aliases):
-    # TODO: Generalize `is_time_invariant` -- no need to have it specific for time
-    is_time_invariant = make_is_time_invariant(exprs)
-    time_invariants = {e.rhs: is_time_invariant(e) for e in exprs}
-
+def choose(exprs, aliases, selector):
     others = []
     chosen = OrderedDict()
     for e in exprs:
-        # Cost check (to keep the memory footprint under control)
         naliases = len(aliases.get(e.rhs))
         cost = estimate_cost(e, True)*naliases
-
-        test0 = lambda: cost >= MIN_COST_ALIAS and naliases > 1
-        test1 = lambda: cost >= MIN_COST_ALIAS_INV and time_invariants[e.rhs]
-        if test0() or test1():
+        if selector(cost, naliases):
             chosen[e.rhs] = e.lhs
         else:
             others.append(e)

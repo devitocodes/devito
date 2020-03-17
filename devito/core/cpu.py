@@ -24,6 +24,29 @@ class CPU64NoopOperator(OperatorCore):
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
     """
 
+    CIRE_REPEATS_INV = 1
+    """
+    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
+    """
+
+    CIRE_REPEATS_SOPS = 2
+    """
+    Number of CIRE passes to detect and optimize away redundant sum-of-products.
+    """
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        options = kwargs['options']
+
+        options['blocklevels'] = options['blocklevels'] or cls.BLOCK_LEVELS
+
+        options['cire-repeats'] = {
+            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
+            'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        }
+
+        return kwargs
+
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
@@ -66,19 +89,15 @@ class CPU64Operator(CPU64NoopOperator):
         clusters = fuse(clusters)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, platform, 'invariants')
+        clusters = cire(clusters, template, 'invariants', options, platform)
         clusters = Lift().process(clusters)
 
         # Blocking to improve data locality
-        inner = options['blockinner']
-        levels = options['blocklevels'] or cls.BLOCK_LEVELS
-        clusters = Blocking(inner, levels).process(clusters)
+        clusters = Blocking(options).process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
         clusters = extract_increments(clusters, template)
-        for _ in range(2):
-            # Experimentation showed that `2` is a good number
-            clusters = cire(clusters, template, platform, 'sops')
+        clusters = cire(clusters, template, 'sops', options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
         clusters = freeze(clusters)
@@ -152,14 +171,12 @@ class Intel64FSGOperator(Intel64Operator):
         clusters = fuse(clusters)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, platform, 'invariants')
+        clusters = cire(clusters, template, 'invariants', options, platform)
         clusters = Lift().process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
         clusters = extract_increments(clusters, template)
-        for _ in range(2):
-            # Experimentation showed that `2` is a good number
-            clusters = cire(clusters, template, platform, 'sops')
+        clusters = cire(clusters, template, 'sops', options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
         clusters = freeze(clusters)
@@ -174,9 +191,7 @@ class Intel64FSGOperator(Intel64Operator):
         clusters = scalarize(clusters, template)
 
         # Blocking to improve data locality
-        inner = options['blockinner']
-        levels = options['blocklevels'] or cls.BLOCK_LEVELS
-        clusters = Blocking(inner, levels).process(clusters)
+        clusters = Blocking(options).process(clusters)
 
         return clusters
 
@@ -194,13 +209,10 @@ class CustomOperator(CPU64Operator):
     def _make_clusters_passes_mapper(cls, **kwargs):
         options = kwargs['options']
 
-        inner = options['blockinner']
-        levels = options['blocklevels'] or cls.BLOCK_LEVELS
-
         return {
             'toposort': Toposort().process,
             'fuse': fuse,
-            'blocking': Blocking(inner, levels).process,
+            'blocking': Blocking(options).process,
             # Pre-baked composite passes
             'topofuse': lambda i: fuse(Toposort().process(i))
         }
