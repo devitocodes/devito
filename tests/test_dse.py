@@ -519,7 +519,7 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
-    def test_mixed_vs_unmixed_shape(self):
+    def test_mixed_shapes(self):
         """
         Test that if running with ``opt=(..., {'min-storage': True})``, then,
         when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
@@ -538,7 +538,7 @@ class TestAliases(object):
         f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 1.5
 
-        # Leads to 3D aliases
+        # Leads to 2D and 3D aliases
         eqn = Eq(u.forward,
                  ((c[0, z]*u[t, x+1, y+1, z] + c[1, z+1]*u[t, x+1, y+1, z+1])*f +
                   (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
@@ -566,6 +566,66 @@ class TestAliases(object):
         assert Add(*arrays[1].symbolic_shape[0].args) == x0_blk_size + 1
         assert Add(*arrays[1].symbolic_shape[1].args) == y0_blk_size + 1
         assert arrays[1].symbolic_shape[2] == z_size
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 1.5
+        op1(time_M=1)
+        assert np.all(u.data == exp)
+
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    def test_mixed_shapes_v2_w_subdims(self):
+        """
+        Analogous `test_mixed_shapes`, but with different sets of aliasing expressions.
+        Also, uses SubDimensions.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
+        d = Dimension(name='d')
+
+        c = Function(name='c', grid=grid, shape=(2, 3), dimensions=(d, z))
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+
+        c.data_with_halo[:] = 1.
+        f.data_with_halo[:] = 1.
+        u.data_with_halo[:] = 1.5
+
+        # Leads to 2D and 3D aliases
+        eqn = Eq(u.forward,
+                 ((c[0, z]*u[t, x+1, y-1, z] + c[1, z+1]*u[t, x+1, y-1, z+1])*f +
+                  (c[0, z]*u[t, x+2, y-2, z] + c[1, z+1]*u[t, x+2, y-2, z+1])*f +
+                  (u[t, x, y+1, z+1] + u[t, x+1, y+1, z+1])*3*f +
+                  (u[t, x, y+3, z+2] + u[t, x+1, y+3, z+2])*3*f),
+                 subdomain=grid.interior)
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True}))
+
+        i0x0_blk_size = op1.parameters[2]
+        i0y0_blk_size = op1.parameters[3]
+        i0z_ltkn, i0z_rtkn = op1.parameters[4:6]
+        z_M, z_m = op1.parameters[7:9]
+
+        # Expected one single loop nest
+        assert len(op1._func_table) == 1
+
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 2
+        assert len(arrays[0].dimensions) == 2
+        assert arrays[0].halo == ((1, 1), (1, 0))
+        assert Add(*arrays[0].symbolic_shape[0].args) == i0y0_blk_size + 2
+        assert Add(*arrays[0].symbolic_shape[1].args) ==\
+            z_M - z_m - i0z_ltkn - i0z_rtkn + 2
+        assert len(arrays[1].dimensions) == 3
+        assert arrays[1].halo == ((1, 0), (1, 0), (0, 0))
+        assert Add(*arrays[1].symbolic_shape[0].args) == i0x0_blk_size + 1
+        assert Add(*arrays[1].symbolic_shape[1].args) == i0y0_blk_size + 1
+        assert Add(*arrays[1].symbolic_shape[2].args) ==\
+            z_M - z_m - i0z_ltkn - i0z_rtkn + 1
 
         # Check numerical output
         op0(time_M=1)
