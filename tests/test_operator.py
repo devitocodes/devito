@@ -1384,7 +1384,7 @@ class TestLoopScheduling(object):
         # Here the difference is that we're using SubDimensions
         (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
           'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
-         '+++++++', ['txi0yi0zi0', 'txi0yi0zi0'], 'txi0yi0zi0xi0yi0zi0'),
+         '+++++++', ['ti0xi0yi0z', 'ti0xi0yi0z'], 'ti0xi0yi0zi0xi0yi0z'),
         # 16) RAW 3->1; expected=2
         # Time goes backward, but the third equation should get fused with
         # the first one, as the time dependence is loop-carried

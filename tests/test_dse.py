@@ -495,9 +495,10 @@ class TestAliases(object):
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
-        xi0_blk_size = op1.parameters[2]
-        yi0_blk_size = op1.parameters[3]
-        z_M, z_m, zi_ltkn, zi_rtkn = op1.parameters[4:8]
+        i0x0_blk_size = op1.parameters[1]
+        i0y0_blk_size = op1.parameters[2]
+        z_M, z_m = op1.parameters[6:8]
+        i0z_ltkn, i0z_rtkn = op1.parameters[3:5]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -506,9 +507,9 @@ class TestAliases(object):
         a = arrays[0]
         assert len(a.dimensions) == 3
         assert a.halo == ((1, 1), (1, 1), (1, 1))
-        assert Add(*a.symbolic_shape[0].args) == xi0_blk_size + 2
-        assert Add(*a.symbolic_shape[1].args) == yi0_blk_size + 2
-        assert Add(*a.symbolic_shape[2].args) == z_M - z_m - zi_ltkn - zi_rtkn + 3
+        assert Add(*a.symbolic_shape[0].args) == i0x0_blk_size + 2
+        assert Add(*a.symbolic_shape[1].args) == i0y0_blk_size + 2
+        assert Add(*a.symbolic_shape[2].args) == z_M - z_m - i0z_ltkn - i0z_rtkn + 3
 
         # Check numerical output
         op0(time_M=1)
@@ -518,7 +519,7 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
-    def test_mixed_vs_unmixed_shape_w_subdims(self):
+    def test_mixed_vs_unmixed_shape(self):
         """
         Test that if running with ``opt=(..., {'min-storage': True})``, then,
         when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
@@ -542,8 +543,7 @@ class TestAliases(object):
                  ((c[0, z]*u[t, x+1, y+1, z] + c[1, z+1]*u[t, x+1, y+1, z+1])*f +
                   (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
                   (u[t, x, y+1, z+1] + u[t, x+1, y+1, z+1])*3*f +
-                  (u[t, x, y+3, z+1] + u[t, x+1, y+3, z+1])*3*f),
-                )#subdomain=grid.interior)
+                  (u[t, x, y+3, z+1] + u[t, x+1, y+3, z+1])*3*f))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True}))
 
