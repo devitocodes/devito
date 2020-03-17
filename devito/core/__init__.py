@@ -4,6 +4,8 @@ from devito.core.cpu import (CPU64NoopOperator, CPU64Operator, Intel64Operator,
                              CustomOperator)
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
                                     DeviceOpenMPCustomOperator)
+from devito.core.gpu_openacc import (DeviceOpenACCNoopOperator, DeviceOpenACCOperator,
+                                     DeviceOpenACCCustomOperator)
 from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, add_sub_configuration
 
@@ -31,6 +33,10 @@ operator_registry.add(CustomOperator, Power, 'custom')
 operator_registry.add(DeviceOpenMPNoopOperator, Device, 'noop')
 operator_registry.add(DeviceOpenMPOperator, Device, 'advanced')
 operator_registry.add(DeviceOpenMPCustomOperator, Device, 'custom')
+
+operator_registry.add(DeviceOpenACCNoopOperator, Device, 'noop', 'openacc')
+operator_registry.add(DeviceOpenACCOperator, Device, 'advanced', 'openacc')
+operator_registry.add(DeviceOpenACCCustomOperator, Device, 'custom', 'openacc')
 
 # The following used by backends.backendSelector
 from devito.core.operator import OperatorCore as Operator  # noqa
