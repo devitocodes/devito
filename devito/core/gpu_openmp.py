@@ -194,7 +194,7 @@ class DeviceDataManager(DataManager):
 
 class DeviceOpenMPNoopOperator(OperatorCore):
 
-    CIRE_REPEATS_INV = 1
+    CIRE_REPEATS_INV = 2
     """
     Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
     """
