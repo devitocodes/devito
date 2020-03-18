@@ -186,10 +186,7 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
 
             # The whole RHS may need to be replaced
             if flag and costmodel(ret):
-                if expr.lhs.function.is_Array:
-                    ret = root
-                else:
-                    ret = replace(root)
+                ret = replace(root)
 
             if repeat and ret != root:
                 root = ret
