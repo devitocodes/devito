@@ -275,15 +275,8 @@ def collect(exprs, min_storage=False):
         mapper = {}
         for d, intervals in intervalss.items():
             for interval in list(intervals):
-                found = {}
-                for group in list(groups):
-                    distance = group.find_legal_rotation_distance(d, interval)
-                    if distance is not None:
-                        found[group] = distance
-                    else:
-                        break
-
-                if len(found) == len(groups):
+                found = {g: g.find_legal_rotation_distance(d, interval) for g in groups}
+                if all(distance is not None for distance in found.values()):
                     # `interval` is OK !
                     mapper[interval] = found
                     break
