@@ -93,6 +93,11 @@ def make_is_time_invariant(context):
     Given an ordered list of expressions, returns a callable that finds out whether
     a given expression is time invariant or not.
     """
+    dimensions = set().union(*[e.dimensions for e in context])
+    if len([i for i in dimensions if i.is_Time]) == 0:
+        # No concept of time in the provided set of expressions
+        return lambda i: False
+
     mapper = OrderedDict([(i.lhs, i) for i in makeit_ssa(context)])
 
     def is_time_invariant(mapper, expr):
