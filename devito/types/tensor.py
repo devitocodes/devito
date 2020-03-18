@@ -372,6 +372,7 @@ class TensorTimeFunction(TensorFunction):
     @classmethod
     def __indices_setup__(cls, **kwargs):
         return TimeFunction.__indices_setup__(grid=kwargs.get('grid'),
+                                              save=kwargs.get('save'),
                                               dimensions=kwargs.get('dimensions'))
 
     @property
