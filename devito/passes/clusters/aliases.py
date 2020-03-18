@@ -90,8 +90,7 @@ def cire(cluster, template, mode, options, platform):
     if mode == 'invariants':
         # Extraction rule
         def extractor(context):
-            is_time_invariant = make_is_time_invariant(context)
-            return lambda e: is_time_invariant(e)
+            return make_is_time_invariant(context)
 
         # Extraction model
         model = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
@@ -102,7 +101,7 @@ def cire(cluster, template, mode, options, platform):
     elif mode == 'sops':
         # Extraction rule
         def extractor(context):
-            return lambda e: q_sum_of_product(e)
+            return q_sum_of_product
 
         # Extraction model
         model = lambda e: not (q_leaf(e) or q_terminalop(e))
