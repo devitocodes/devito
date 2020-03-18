@@ -174,3 +174,15 @@ def test_tensor_eq(func1, symm, diag, expected):
     for attr in f1._fd:
         eq = Eq(f1, getattr(f1, attr))
         assert len(eq.evaluate._flatten) == expected
+
+
+@pytest.mark.parametrize('func1', [VectorTimeFunction, TensorTimeFunction])
+def test_save(func1):
+    grid = Grid(tuple([5]*3))
+    time = grid.time_dim
+    f1 = func1(name="f1", grid=grid, save=10, time_order=1)
+    assert f1.indices[0] == time
+    assert all(ff.indices[0] == time + time.spacing for ff in f1.forward)
+    assert all(ff.indices[0] == time + 2*time.spacing for ff in f1.forward.forward)
+    assert all(ff.indices[0] == time - time.spacing for ff in f1.backward)
+    assert all(ff.shape[0] == 10 for ff in f1)
