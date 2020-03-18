@@ -304,7 +304,7 @@ class Ompizer(object):
 
         reduction = [i.output for i in exprs]
         if (all(i.is_Affine for i in collapsed)
-                or all(getattr(i, 'is_Scalar', False) for i in reduction)):
+                or all(not i.is_Indexed for i in reduction)):
             # Introduce reduction clause
             mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
         else:

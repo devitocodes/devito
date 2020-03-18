@@ -517,7 +517,7 @@ def mmin(f):
     """
     if isinstance(f, dv.Constant):
         return f.data
-    elif isinstance(f, dv.Function):
+    elif isinstance(f, dv.types.dense.DiscreteFunction):
         # yask doesn't have data_ro_domain
         if dv.configuration['backend'] == 'yask':
             return np.min(f.data[:])
@@ -539,7 +539,7 @@ def mmax(f):
     """
     if isinstance(f, dv.Constant):
         return f.data
-    elif isinstance(f, dv.Function):
+    elif isinstance(f, dv.types.dense.DiscreteFunction):
         # yask doesn't have data_ro_domain
         if dv.configuration['backend'] == 'yask':
             return np.max(f.data[:])
