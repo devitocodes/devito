@@ -232,7 +232,7 @@ class TestInitializeFunction(object):
 class TestBuiltinsResult(object):
 
     """
-    Test the norm builtin.
+    Test the builtins
     """
 
     def test_serial_vs_parallel(self):
@@ -245,7 +245,7 @@ class TestBuiltinsResult(object):
                           switchconfig(openmp=True)(norm)(f),
                           rtol=1e-5)
 
-    def test_inner(self):
+    def test_inner_sparse(self):
         """
         Test that inner produces the correct result against numpy
         """
@@ -267,7 +267,7 @@ class TestBuiltinsResult(object):
         term2 = np.dot(rec0.data.reshape(-1), rec1.data.reshape(-1))
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e05)
 
-    def test_norm(self):
+    def test_norm_sparse(self):
         """
         Test that norm produces the correct result against numpy
         """
