@@ -254,40 +254,43 @@ def collect(exprs, min_storage=False):
             k = group.dimensions
         mapper.setdefault(k, []).append(group)
 
-    queue = list(mapper.values())
     aliases = Aliases()
-    while queue:
-        groups = queue.pop(0)
+    for _groups in mapper.values():
+        groups = list(_groups)
 
-        # For each Dimension, determine the Minimum Intervals (MI) spanning
-        # all of the Groups diameters
-        # Example: x's largest_diameter=2  => [x[-2,0], x[-1,1], x[0,2]]
-        # Note: Groups that cannot evaluate their diameter are dropped
-        mapper = defaultdict(int)
-        for group in list(groups):
-            try:
-                mapper.update({d: max(mapper[d], v) for d, v in group.diameter.items()})
-            except ValueError:
-                groups.remove(group)
-        intervalss = {d: make_rotations_table(d, v) for d, v in mapper.items()}
+        while groups:
+            # For each Dimension, determine the Minimum Intervals (MI) spanning
+            # all of the Groups diameters
+            # Example: x's largest_diameter=2  => [x[-2,0], x[-1,1], x[0,2]]
+            # Note: Groups that cannot evaluate their diameter are dropped
+            mapper = defaultdict(int)
+            for g in list(groups):
+                try:
+                    mapper.update({d: max(mapper[d], v) for d, v in g.diameter.items()})
+                except ValueError:
+                    groups.remove(g)
+            intervalss = {d: make_rotations_table(d, v) for d, v in mapper.items()}
 
-        # For each Group, find a rotation that is compatible with a given MI
-        mapper = {}
-        for d, intervals in intervalss.items():
-            for interval in list(intervals):
-                found = {g: g.find_legal_rotation_distance(d, interval) for g in groups}
-                if all(distance is not None for distance in found.values()):
-                    # `interval` is OK !
-                    mapper[interval] = found
-                    break
+            # For each Group, find a rotation that is compatible with a given MI
+            mapper = {}
+            for d, intervals in intervalss.items():
+                for interval in list(intervals):
+                    found = {g: g.find_rotation_distance(d, interval) for g in groups}
+                    if all(distance is not None for distance in found.values()):
+                        # `interval` is OK !
+                        mapper[interval] = found
+                        break
 
-        if len(mapper) != len(intervalss):
-            # TODO: should/could actually drop a group and try again
-            continue
+            if len(mapper) == len(intervalss):
+                break
 
-        for group in groups:
-            c = group.pivot
-            distances = defaultdict(int, [(i.dim, v[group]) for i, v in mapper.items()])
+            # Try again with fewer groups
+            smallest = len(min(groups, key=len))
+            groups = [g for g in groups if len(g) > smallest]
+
+        for g in groups:
+            c = g.pivot
+            distances = defaultdict(int, [(i.dim, v[g]) for i, v in mapper.items()])
 
             # Create the basis alias
             offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
@@ -297,11 +300,11 @@ def collect(exprs, min_storage=False):
             alias = c.expr.xreplace(subs)
 
             # All aliased expressions
-            aliaseds = [i.expr for i in group]
+            aliaseds = [i.expr for i in g]
 
             # Distance of each aliased expression from the basis alias
             distances = []
-            for i in group:
+            for i in g:
                 distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
                 distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
                 distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
@@ -475,7 +478,7 @@ class Group(tuple):
     def __repr__(self):
         return "Group(%s)" % ", ".join([str(i) for i in self])
 
-    def find_legal_rotation_distance(self, d, interval):
+    def find_rotation_distance(self, d, interval):
         """
         The distance from the Group pivot of a rotation along Dimension ``d`` that
         can safely iterate over the ``interval``.
