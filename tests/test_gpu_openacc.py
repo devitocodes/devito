@@ -1,5 +1,5 @@
 from conftest import skipif
-from devito import Grid, TimeFunction, Eq, Operator
+from devito import Grid, TimeFunction, Eq, Operator, switchconfig
 from devito.ir.iet import retrieve_iteration_tree
 
 pytestmark = skipif(['yask', 'ops'])
@@ -28,3 +28,16 @@ class TestCodeGeneration(object):
         assert op.body[1].footer[0].contents[1].value ==\
             ('acc exit data delete(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+
+
+class TestOperator(object):
+
+    from test_gpu_openmp import TestOperator as TestGPUOpenMPOperator
+
+    @switchconfig(platform='nvidiaX', language='openacc')
+    def test_op_apply(self):
+        self.TestGPUOpenMPOperator().test_op_apply()
+
+    @switchconfig(platform='nvidiaX', language='openacc')
+    def test_iso_ac(self):
+        self.TestGPUOpenMPOperator().test_iso_ac()
