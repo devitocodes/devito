@@ -42,6 +42,13 @@ class DeviceAccizer(DeviceOmpizer):
 
     _Iteration = DeviceOpenACCIteration
 
+    def _make_parallel(self, iet):
+        iet, metadata = super(DeviceAccizer, self)._make_parallel(iet)
+
+        metadata['includes'] = ['openacc.h']
+
+        return iet, metadata
+
 
 class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 

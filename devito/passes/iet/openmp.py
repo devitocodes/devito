@@ -421,11 +421,7 @@ class Ompizer(object):
 
         return partree
 
-    @iet_pass
-    def make_parallel(self, iet):
-        """
-        Create a new IET with shared-memory parallelism via OpenMP pragmas.
-        """
+    def _make_parallel(self, iet):
         mapper = OrderedDict()
         for tree in retrieve_iteration_tree(iet):
             # Get the omp-parallelizable Iterations in `tree`
@@ -459,6 +455,13 @@ class Ompizer(object):
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
 
         return iet, {'args': args, 'includes': ['omp.h']}
+
+    @iet_pass
+    def make_parallel(self, iet):
+        """
+        Create a new IET with shared-memory parallelism via OpenMP pragmas.
+        """
+        return self._make_parallel(iet)
 
     @iet_pass
     def make_simd(self, iet, **kwargs):
