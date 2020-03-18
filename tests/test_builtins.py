@@ -5,7 +5,8 @@ from scipy import misc
 
 from conftest import skipif
 from devito import Grid, Function, TimeFunction, switchconfig
-from devito.builtins import assign, norm, gaussian_smooth, initialize_function, inner
+from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
+                             inner, mmin, mmax)
 from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
 from devito.types import SubDomain, SparseTimeFunction
@@ -265,7 +266,7 @@ class TestBuiltinsResult(object):
         rec1.data[:, :] = np.random.randn(*rec1.shape)
         term1 = inner(rec0, rec1)
         term2 = np.dot(rec0.data.reshape(-1), rec1.data.reshape(-1))
-        assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e05)
+        assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
 
     def test_norm_sparse(self):
         """
@@ -284,4 +285,27 @@ class TestBuiltinsResult(object):
         rec0.data[:, :] = np.random.randn(*rec0.shape)
         term1 = np.linalg.norm(rec0.data)
         term2 = norm(rec0)
-        assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e05)
+        assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
+
+    def test_min_max_sparse(self):
+        """
+        Test that mmin/mmax work on SparseFunction
+        """
+        grid = Grid((101, 101), extent=(1000., 1000.))
+
+        nrec = 101
+        rec_coordinates = np.empty((nrec, 2))
+        rec_coordinates[:, 0] = np.linspace(0., 1000., nrec)
+        rec_coordinates[:, -1] = 20.
+
+        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec,
+                                  coordinates=rec_coordinates)
+
+        rec0.data[:, :] = np.random.randn(*rec0.shape)
+        term1 = np.min(rec0.data)
+        term2 = mmin(rec0)
+        assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
+
+        term1 = np.max(rec0.data)
+        term2 = mmax(rec0)
+        assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
