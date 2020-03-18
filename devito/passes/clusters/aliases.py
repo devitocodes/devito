@@ -95,6 +95,9 @@ def cire(cluster, template, mode, options, platform):
         # Extraction model
         model = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
 
+        # Collection rule
+        ignore_collected = lambda g: False
+
         # Selection rule
         selector = lambda c, n: c >= MIN_COST_ALIAS_INV and n >= 1
 
@@ -105,6 +108,9 @@ def cire(cluster, template, mode, options, platform):
 
         # Extraction model
         model = lambda e: not (q_leaf(e) or q_terminalop(e))
+
+        # Collection rule
+        ignore_collected = lambda g: len(g) <= 1
 
         # Selection rule
         selector = lambda c, n: c >= MIN_COST_ALIAS and n > 1
@@ -120,7 +126,7 @@ def cire(cluster, template, mode, options, platform):
             break
 
         # Search aliasing expressions
-        aliases = collect(extracted, min_storage)
+        aliases = collect(extracted, min_storage, ignore_collected)
 
         # Rule out aliasing expressions with a bad flops/memory trade-off
         chosen, others = choose(exprs, aliases, selector)
@@ -157,7 +163,7 @@ def extract(cluster, rule1, model, template):
     return yreplace(cluster.exprs, make, rule, model, eager=True)
 
 
-def collect(exprs, min_storage=False):
+def collect(exprs, min_storage, ignore_collected):
     """
     Find groups of aliasing expressions.
 
@@ -245,8 +251,12 @@ def collect(exprs, min_storage=False):
 
             group.append(u)
             unseen.remove(u)
-
         group = Group(group)
+
+        # Apply callback to heuristically discard groups
+        if ignore_collected(group):
+            continue
+
         if min_storage:
             k = group.dimensions_translated
         else:
