@@ -262,10 +262,10 @@ class TestBuiltinsResult(object):
         rec1 = SparseTimeFunction(name='rec1', grid=grid, nt=1001, npoint=nrec,
                                   coordinates=rec_coordinates)
 
-        rec0.data[:, :] = np.random.randn(*rec0.shape)
-        rec1.data[:, :] = np.random.randn(*rec1.shape)
+        rec0.data[:, :] = np.random.randn(*rec0.shape).astype(grid.dtype)
+        rec1.data[:, :] = np.random.randn(*rec1.shape).astype(grid.dtype)
         term1 = inner(rec0, rec1)
-        term2 = np.dot(rec0.data.reshape(-1), rec1.data.reshape(-1))
+        term2 = np.inner(rec0.data.reshape(-1), rec1.data.reshape(-1))
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
 
     def test_norm_sparse(self):
@@ -282,7 +282,7 @@ class TestBuiltinsResult(object):
         rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec,
                                   coordinates=rec_coordinates)
 
-        rec0.data[:, :] = np.random.randn(*rec0.shape)
+        rec0.data[:, :] = np.random.randn(*rec0.shape).astype(grid.dtype)
         term1 = np.linalg.norm(rec0.data)
         term2 = norm(rec0)
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
@@ -301,7 +301,7 @@ class TestBuiltinsResult(object):
         rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec,
                                   coordinates=rec_coordinates)
 
-        rec0.data[:, :] = np.random.randn(*rec0.shape)
+        rec0.data[:, :] = np.random.randn(*rec0.shape).astype(grid.dtype)
         term1 = np.min(rec0.data)
         term2 = mmin(rec0)
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
