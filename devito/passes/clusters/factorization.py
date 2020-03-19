@@ -117,18 +117,7 @@ def _collect_nested(expr):
             return rebuilt, {}
         elif expr.is_Mul:
             args, candidates = zip(*[run(arg) for arg in expr.args])
-
-            # Always collect coefficients
-            rebuilt = collect_const(expr.func(*args))
-            try:
-                if rebuilt.args:
-                    # Note: Mul(*()) -> 1, and since sympy.S.Zero.args == (),
-                    # the `if` prevents turning 0 into 1
-                    rebuilt = Mul(*rebuilt.args)
-            except AttributeError:
-                pass
-
-            return rebuilt, ReducerMap.fromdicts(*candidates)
+            return Mul(*args), ReducerMap.fromdicts(*candidates)
         elif expr.is_Equality:
             args, candidates = zip(*[run(expr.lhs), run(expr.rhs)])
             return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)
