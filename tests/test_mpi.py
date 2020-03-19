@@ -1713,8 +1713,8 @@ class TestIsotropicAcoustic(object):
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
-    # @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
-    # @switchconfig(openmp=False)
+    @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
+    @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self):
         """
         ``run_adjoint_F`` with OpenMP disabled. By disabling OpenMP, we can
