@@ -1,8 +1,10 @@
-from sympy import Add, Mul, collect, collect_const
+from collections import defaultdict
+
+from sympy import Add, Mul, collect
 
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import estimate_cost, retrieve_scalars
-from devito.tools import ReducerMap
+from devito.tools import ReducerMap, as_mapper
 
 __all__ = ['factorize']
 
@@ -25,14 +27,14 @@ def factorize(cluster, *args):
     """
     processed = []
     for expr in cluster.exprs:
-        handle = _collect_nested(expr)
+        handle = collect_nested(expr)
         cost_handle = estimate_cost(handle)
 
         if cost_handle >= MIN_COST_FACTORIZE:
             handle_prev = handle
             cost_prev = estimate_cost(expr)
             while cost_handle < cost_prev:
-                handle_prev, handle = handle, _collect_nested(handle)
+                handle_prev, handle = handle, collect_nested(handle)
                 cost_prev, cost_handle = cost_handle, estimate_cost(handle)
             cost_handle, handle = cost_prev, handle_prev
 
@@ -41,7 +43,47 @@ def factorize(cluster, *args):
     return cluster.rebuild(processed)
 
 
-def _collect_nested(expr):
+def collect_const(expr):
+    """
+    *Much* faster alternative to sympy.collect_const. *Potentially* slightly less
+    powerful with complex expressions, but it is equally effective for the
+    expressions we have to deal with.
+    """
+    # Running example: `a*3. + b*2. + c*3.`
+
+    # -> {a: 3., b: 2., c: 3.}
+    mapper = expr.as_coefficients_dict()
+
+    # -> {3.: [a, c], 2: [b]}
+    inverse_mapper = defaultdict(list)
+    for k, v in mapper.items():
+        if v >= 0:
+            inverse_mapper[v].append(k)
+        else:
+            inverse_mapper[-v].append(-k)
+
+    terms = []
+    for k, v in inverse_mapper.items():
+        if len(v) == 1:
+            # We can actually evaluate everything to avoid, e.g., (-1)*a
+            mul = Mul(k, *v)
+        elif all(i.is_Mul and len(i.args) == 2 and i.args[0] == -1 for i in v):
+            # Other special case: [-a, -b, -c ...]
+            add = Add(*[i.args[1] for i in v], evaluate=False)
+            mul = Mul(-k, add, evaluate=False)
+        else:
+            # Back to the running example
+            # -> (a + c)
+            add = Add(*v)
+            # -> 3.*(a + c)
+            mul = Mul(k, add, evaluate=False)
+
+        terms.append(mul)
+
+    return Add(*terms)
+
+
+def collect_nested(expr):
     """
     Collect numeric coefficients, trascendental functions, and symbolic powers,
     across all levels of the expression tree.
