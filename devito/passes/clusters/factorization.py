@@ -87,32 +87,42 @@ def _collect_nested(expr):
             w_coeffs = {i for i in args if any(j in coeffs for j in i.args)}
             args -= w_coeffs
 
+            terms = []
+
             # Collect common funcs
-            w_funcs = collect(expr.func(*w_funcs), funcs, evaluate=False)
+            w_funcs = Add(*w_funcs, evaluate=False)
+            w_funcs = collect(w_funcs, funcs, evaluate=False)
             try:
-                w_funcs = Add(*[Mul(k, collect_const(v)) for k, v in w_funcs.items()])
+                terms.extend([Mul(k, collect_const(v), evaluate=False)
+                              for k, v in w_funcs.items()])
             except AttributeError:
                 assert w_funcs == 0
 
             # Collect common pows
-            w_pows = collect(expr.func(*w_pows), pows, evaluate=False)
+            w_pows = Add(*w_pows, evaluate=False)
+            w_pows = collect(w_pows, pows, evaluate=False)
             try:
-                w_pows = Add(*[Mul(k, collect_const(v)) for k, v in w_pows.items()])
+                terms.extend([Mul(k, collect_const(v), evaluate=False)
+                              for k, v in w_pows.items()])
             except AttributeError:
                 assert w_pows == 0
 
             # Collect common temporaries (r0, r1, ...)
-            w_coeffs = collect(expr.func(*w_coeffs), tuple(retrieve_scalars(expr)),
-                               evaluate=False)
-            try:
-                w_coeffs = Add(*[Mul(k, collect_const(v)) for k, v in w_coeffs.items()])
-            except AttributeError:
-                assert w_coeffs == 0
+            w_coeffs = Add(*w_coeffs, evaluate=False)
+            scalars = retrieve_scalars(w_coeffs)
+            if scalars:
+                w_coeffs = collect(w_coeffs, scalars, evaluate=False)
+                try:
+                    terms.extend([Mul(k, collect_const(v), evaluate=False)
+                                  for k, v in w_coeffs.items()])
+                except AttributeError:
+                    assert w_coeffs == 0
+            else:
+                terms.append(w_coeffs)
 
             # Collect common coefficients
-            w_coeffs = collect_const(w_coeffs)
-
-            rebuilt = Add(w_funcs, w_pows, w_coeffs, *args)
+            rebuilt = Add(*terms, *args)
+            rebuilt = collect_const(rebuilt)
 
             return rebuilt, {}
         elif expr.is_Mul:
