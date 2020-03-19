@@ -672,7 +672,7 @@ class DependenceGroup(set):
 
 class Scope(object):
 
-    def __init__(self, exprs):
+    def __init__(self, exprs, rules=None):
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
@@ -718,6 +718,10 @@ class Scope(object):
             for j in d.free_symbols:
                 v = self.reads.setdefault(j.function, [])
                 v.append(TimedAccess(j, 'R', -1))
+
+        # A set of rules to drive the collection of dependencies
+        self.rules = as_tuple(rules)
+        assert all(callable(i) for i in self.rules)
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -777,6 +781,10 @@ class Scope(object):
             for w in v:
                 for r in self.reads.get(k, []):
                     dependence = Dependence(w, r)
+
+                    if any(not rule(dependence) for rule in self.rules):
+                        continue
+
                     distance = dependence.distance
                     try:
                         is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
@@ -800,6 +808,10 @@ class Scope(object):
             for w in v:
                 for r in self.reads.get(k, []):
                     dependence = Dependence(r, w)
+
+                    if any(not rule(dependence) for rule in self.rules):
+                        continue
+
                     distance = dependence.distance
                     try:
                         is_anti = distance > 0 or (r.lex_lt(w) and distance == 0)
@@ -823,6 +835,10 @@ class Scope(object):
             for w1 in v:
                 for w2 in self.writes.get(k, []):
                     dependence = Dependence(w2, w1)
+
+                    if any(not rule(dependence) for rule in self.rules):
+                        continue
+
                     distance = dependence.distance
                     try:
                         is_output = distance > 0 or (w2.lex_gt(w1) and distance == 0)
