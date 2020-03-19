@@ -128,10 +128,11 @@ class Toposort(Queue):
         dag = DAG(nodes=cgroups)
         for n, cg0 in enumerate(cgroups):
             for cg1 in cgroups[n+1:]:
-                scope = Scope(exprs=cg0.exprs + cg1.exprs)
+                rule = lambda i: i.is_cross  # Only retain dep if cross-ClusterGroup
+                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=rule)
 
                 # Handle anti-dependences
-                if any(i.is_cross and i.cause & prefix for i in scope.d_anti_gen()):
+                if any(i.cause & prefix for i in scope.d_anti_gen()):
                     # Anti-dependences break the execution flow
                     # i) ClusterGroups between `cg0` and `cg1` must precede `cg1`
                     for cg2 in cgroups[n:cgroups.index(cg1)]:
@@ -140,19 +141,18 @@ class Toposort(Queue):
                     for cg2 in cgroups[cgroups.index(cg1)+1:]:
                         dag.add_edge(cg1, cg2)
                     break
-                elif any(i.is_cross for i in scope.d_anti_gen()):
+                elif any(scope.d_anti_gen()):
                     dag.add_edge(cg0, cg1)
                     continue
 
                 # Flow-dependences along one of the `prefix` Dimensions can
                 # be ignored; all others require sequentialization
-                if any(i.is_cross and not (i.cause and i.cause & prefix)
-                       for i in scope.d_flow_gen()):
+                if any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()):
                     dag.add_edge(cg0, cg1)
                     continue
 
                 # Handle increment-after-write dependences
-                if any(i.is_cross and i.is_iaw for i in scope.d_output_gen()):
+                if any(i.is_iaw for i in scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
                     continue
 
