@@ -131,6 +131,13 @@ class Toposort(Queue):
                 rule = lambda i: i.is_cross  # Only retain dep if cross-ClusterGroup
                 scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=rule)
 
+                # Optimization: we exploit the following property:
+                # no prefix => (edge <=> at least one (any) dependence)
+                # To jump out of this potentially expensive loop as quickly as possible
+                if not prefix and any(scope.d_all_gen()):
+                    dag.add_edge(cg0, cg1)
+                    continue
+
                 # Handle anti-dependences
                 if any(i.cause & prefix for i in scope.d_anti_gen()):
                     # Anti-dependences break the execution flow
