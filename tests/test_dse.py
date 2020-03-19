@@ -1302,7 +1302,7 @@ class TestTTIv2(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 197), (12, 389)
+        (4, 203), (12, 393)
     ])
     def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
