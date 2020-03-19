@@ -738,8 +738,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
             else:
                 weight *= 1/2
                 is_averaged = True
-                avg_list = [a.subs({i: i - d.spacing/2}) + a.subs({i: i + d.spacing/2})
-                            for a in avg_list]
+                avg_list = [(a.xreplace({i: i - d.spacing/2}) +
+                             a.xreplace({i: i + d.spacing/2})) for a in avg_list]
 
         if not is_averaged:
             return self
@@ -932,10 +932,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
                     if s.free_symbols.intersection(self.args[i].free_symbols)]
 
         # Substitution for each index
-        subs = dict([(s, 1) for s in spacings])
+        subs = {s: 1 for s in spacings}
 
         # Indices after substitutions
-        indices = [(a - o).subs(subs) for a, o in zip(self.args, self.origin)]
+        indices = [(a - o).xreplace(subs) for a, o in zip(self.args, self.origin)]
 
         return Indexed(self.indexed, *indices)
 
