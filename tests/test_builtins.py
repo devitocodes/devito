@@ -253,17 +253,11 @@ class TestBuiltinsResult(object):
         grid = Grid((101, 101), extent=(1000., 1000.))
 
         nrec = 101
-        rec_coordinates = np.empty((nrec, 2))
-        rec_coordinates[:, 0] = np.linspace(0., 1000., nrec)
-        rec_coordinates[:, -1] = 20.
+        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec)
+        rec1 = SparseTimeFunction(name='rec1', grid=grid, nt=1001, npoint=nrec)
 
-        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec,
-                                  coordinates=rec_coordinates)
-        rec1 = SparseTimeFunction(name='rec1', grid=grid, nt=1001, npoint=nrec,
-                                  coordinates=rec_coordinates)
-
-        rec0.data[:, :] = np.random.randn(*rec0.shape).astype(grid.dtype)
-        rec1.data[:, :] = np.random.randn(*rec1.shape).astype(grid.dtype)
+        rec0.data[:, :] = 1 + np.random.randn(*rec0.shape).astype(grid.dtype)
+        rec1.data[:, :] = 1 + np.random.randn(*rec1.shape).astype(grid.dtype)
         term1 = inner(rec0, rec1)
         term2 = np.inner(rec0.data.reshape(-1), rec1.data.reshape(-1))
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
@@ -275,14 +269,9 @@ class TestBuiltinsResult(object):
         grid = Grid((101, 101), extent=(1000., 1000.))
 
         nrec = 101
-        rec_coordinates = np.empty((nrec, 2))
-        rec_coordinates[:, 0] = np.linspace(0., 1000., nrec)
-        rec_coordinates[:, -1] = 20.
+        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec)
 
-        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec,
-                                  coordinates=rec_coordinates)
-
-        rec0.data[:, :] = np.random.randn(*rec0.shape).astype(grid.dtype)
+        rec0.data[:, :] = 1 + np.random.rand(*rec0.shape).astype(grid.dtype)
         term1 = np.linalg.norm(rec0.data)
         term2 = norm(rec0)
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
@@ -294,14 +283,9 @@ class TestBuiltinsResult(object):
         grid = Grid((101, 101), extent=(1000., 1000.))
 
         nrec = 101
-        rec_coordinates = np.empty((nrec, 2))
-        rec_coordinates[:, 0] = np.linspace(0., 1000., nrec)
-        rec_coordinates[:, -1] = 20.
+        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec)
 
-        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec,
-                                  coordinates=rec_coordinates)
-
-        rec0.data[:, :] = np.random.randn(*rec0.shape).astype(grid.dtype)
+        rec0.data[:, :] = 1 + np.random.randn(*rec0.shape).astype(grid.dtype)
         term1 = np.min(rec0.data)
         term2 = mmin(rec0)
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
