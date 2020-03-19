@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import os
 from unittest.mock import patch
 from cached_property import cached_property
 
@@ -1630,9 +1631,24 @@ class TestIsotropicAcoustic(object):
     """
     _shapes = {1: (60,), 2: (60, 70), 3: (60, 70, 80)}
     _so = {1: 12, 2: 8, 3: 4}
-    gen_serial_norms((60,), 12)
-    gen_serial_norms((60, 70), 8)
-    gen_serial_norms((60, 70, 80), 4)
+
+    @classmethod
+    def setup_class(cls):
+        """
+        setup norms for the tests
+        """
+        gen_serial_norms((60,), 12)
+        gen_serial_norms((60, 70), 8)
+        gen_serial_norms((60, 70, 80), 4)
+
+    @classmethod
+    def teardown_class(cls):
+        """ teardown any state that was previously setup with a call to
+        setup_class.
+        """
+        norms = [o for o in os.listdir('.') if o.endswith(".npy")]
+        for n in norms:
+            os.remove(n)
 
     @cached_property
     def norms(self):
@@ -1697,8 +1713,8 @@ class TestIsotropicAcoustic(object):
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
-    @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
-    @switchconfig(openmp=False)
+    # @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
+    # @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self):
         """
         ``run_adjoint_F`` with OpenMP disabled. By disabling OpenMP, we can
