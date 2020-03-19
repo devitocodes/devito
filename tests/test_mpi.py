@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import os
 from unittest.mock import patch
 from cached_property import cached_property
 
@@ -1601,8 +1600,10 @@ def gen_serial_norms(shape, so):
     """
     Computes the norms of the outputs in serial mode to compare with
     """
+    day = np.datetime64('today')
     try:
-        np.load("norms%s.npy" % len(shape))
+        l = np.load("norms%s.npy" % len(shape), allow_pickle=True)
+        assert l[-1] == day
     except:
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
@@ -1621,7 +1622,7 @@ def gen_serial_norms(shape, so):
         Ev = norm(v)
         Esrca = norm(srca)
 
-        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca))
+        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
 
 
 class TestIsotropicAcoustic(object):
@@ -1631,30 +1632,15 @@ class TestIsotropicAcoustic(object):
     """
     _shapes = {1: (60,), 2: (60, 70), 3: (60, 70, 80)}
     _so = {1: 12, 2: 8, 3: 4}
-
-    @classmethod
-    def setup_class(cls):
-        """
-        setup norms for the tests
-        """
-        gen_serial_norms((60,), 12)
-        gen_serial_norms((60, 70), 8)
-        gen_serial_norms((60, 70, 80), 4)
-
-    @classmethod
-    def teardown_class(cls):
-        """ teardown any state that was previously setup with a call to
-        setup_class.
-        """
-        norms = [o for o in os.listdir('.') if o.endswith(".npy")]
-        for n in norms:
-            os.remove(n)
+    gen_serial_norms((60,), 12)
+    gen_serial_norms((60, 70), 8)
+    gen_serial_norms((60, 70, 80), 4)
 
     @cached_property
     def norms(self):
-        return {1: np.load("norms1.npy"),
-                2: np.load("norms2.npy"),
-                3: np.load("norms3.npy")}
+        return {1: np.load("norms1.npy", allow_pickle=True)[:-1],
+                2: np.load("norms2.npy", allow_pickle=True)[:-1],
+                3: np.load("norms3.npy", allow_pickle=True)[:-1]}
 
     @pytest.mark.parametrize('shape,kernel,space_order,save', [
         ((60, ), 'OT2', 4, False),
