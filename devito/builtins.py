@@ -420,7 +420,7 @@ def norm(f, order=2):
 
     v = Pow(mr.v, 1/order)
 
-    return np.float(v)
+    return f.dtype(v)
 
 
 def sumall(f):
@@ -449,7 +449,7 @@ def sumall(f):
                          name='sum')
         op.apply(**kwargs)
 
-    return np.float(mr.v)
+    return f.dtype(mr.v)
 
 
 def inner(f, g):
@@ -503,7 +503,7 @@ def inner(f, g):
                          name='inner')
         op.apply(**kwargs)
 
-    return np.float(mr.v)
+    return f.dtype(mr.v)
 
 
 def mmin(f):
@@ -517,7 +517,7 @@ def mmin(f):
     """
     if isinstance(f, dv.Constant):
         return f.data
-    elif isinstance(f, dv.Function):
+    elif isinstance(f, dv.types.dense.DiscreteFunction):
         # yask doesn't have data_ro_domain
         if dv.configuration['backend'] == 'yask':
             return np.min(f.data[:])
@@ -539,7 +539,7 @@ def mmax(f):
     """
     if isinstance(f, dv.Constant):
         return f.data
-    elif isinstance(f, dv.Function):
+    elif isinstance(f, dv.types.dense.DiscreteFunction):
         # yask doesn't have data_ro_domain
         if dv.configuration['backend'] == 'yask':
             return np.max(f.data[:])

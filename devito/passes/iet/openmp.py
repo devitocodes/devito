@@ -302,9 +302,10 @@ class Ompizer(object):
         exprs = FindNodes(Expression).visit(partree)
         exprs = [i for i in exprs if i.is_Increment and not i.is_ForeignExpression]
 
-        if all(i.is_Affine for i in collapsed):
+        reduction = [i.output for i in exprs]
+        if (all(i.is_Affine for i in collapsed)
+                or all(not i.is_Indexed for i in reduction)):
             # Introduce reduction clause
-            reduction = [i.output for i in exprs]
             mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
         else:
             # Introduce one `omp atomic` pragma for each increment
