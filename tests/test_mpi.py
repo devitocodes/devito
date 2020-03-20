@@ -1600,8 +1600,10 @@ def gen_serial_norms(shape, so):
     """
     Computes the norms of the outputs in serial mode to compare with
     """
+    day = np.datetime64('today')
     try:
-        np.load("norms%s.npy" % len(shape))
+        l = np.load("norms%s.npy" % len(shape), allow_pickle=True)
+        assert l[-1] == day
     except:
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
@@ -1620,7 +1622,7 @@ def gen_serial_norms(shape, so):
         Ev = norm(v)
         Esrca = norm(srca)
 
-        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca))
+        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
 
 
 class TestIsotropicAcoustic(object):
@@ -1636,9 +1638,9 @@ class TestIsotropicAcoustic(object):
 
     @cached_property
     def norms(self):
-        return {1: np.load("norms1.npy"),
-                2: np.load("norms2.npy"),
-                3: np.load("norms3.npy")}
+        return {1: np.load("norms1.npy", allow_pickle=True)[:-1],
+                2: np.load("norms2.npy", allow_pickle=True)[:-1],
+                3: np.load("norms3.npy", allow_pickle=True)[:-1]}
 
     @pytest.mark.parametrize('shape,kernel,space_order,save', [
         ((60, ), 'OT2', 4, False),
