@@ -44,6 +44,7 @@ jobs:
       env:
         RESOURCE_GROUP: ${{ secrets.CI_GPU_RESOURCE_GROUP }}
         RESOURCE_GROUP_REGION: uksouth
+        VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
         IMAGE: CI-gpu-base-image-01
       run: >
@@ -54,6 +55,7 @@ jobs:
         -azureSubscriptionName ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         -resourceGroupName $RESOURCE_GROUP
         -resourceGroupNameRegion $RESOURCE_GROUP_REGION
+        -size $VM_SIZE
         -serverName $SERVER_NAME
         -vmImage $IMAGE
         -adminLogin ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}

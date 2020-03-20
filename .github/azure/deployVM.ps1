@@ -29,6 +29,10 @@ param(
 
     [Parameter(Mandatory = $True)]
     [string]
+    $size,
+
+    [Parameter(Mandatory = $True)]
+    [string]
     $serverName,
 
     [Parameter(Mandatory = $True)]
@@ -84,6 +88,7 @@ Write-Output "Creating VM..."
 try {
     az vm create  `
         --resource-group $resourceGroupName `
+        --size $size`
         --name $serverName `
         --image $vmImage `
         --admin-username $adminLogin `
