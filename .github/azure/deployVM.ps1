@@ -88,7 +88,7 @@ Write-Output "Creating VM..."
 try {
     az vm create  `
         --resource-group $resourceGroupName `
-        --size $size`
+        --size $size `
         --name $serverName `
         --image $vmImage `
         --admin-username $adminLogin `
