@@ -335,23 +335,35 @@ def process(cluster, chosen, aliases, template, platform):
         if all(i not in chosen for i in aliaseds):
             continue
 
+        # The Dimensions defining the shape of Array
+        # Note: with SubDimensions, we may have the following situation:
+        #
+        # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
+        #   r[zi] = ...
+        #
+        # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll need
+        # as much room as in `zi`'s parent to avoid going OOB
+        # Aside from ugly generated code, the reason we do not rather shift the
+        # indices is that it prevents future passes to transform the loop bounds
+        # (e.g., MPI's comp/comm overlap does that)
+        dimensions = [d.parent if d.is_Sub else d for d in writeto.dimensions]
+
+        # The halo of the Array
+        halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
+
+        # The memory scope of the Array
+        scope = 'stack' if any(d.is_Incr for d in writeto.dimensions) else 'heap'
+
+        # Finally create the temporary Array that will store `alias`
+        array = Array(name=template(), dimensions=dimensions, halo=halo,
+                      dtype=cluster.dtype, scope=scope)
+
         # The access Dimensions may differ from `writeto.dimensions`. This may
         # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
         adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
 
-        # The memory scope of the Array
-        # TODO: this has required refinements for a long time
-        if len([i for i in writeto if i.dim.is_Incr]) >= 1:
-            scope = 'stack'
-        else:
-            scope = 'heap'
-
-        # Create a temporary to store `alias`
-        array = Array(name=template(), dimensions=writeto.dimensions,
-                      halo=[(abs(i.lower), abs(i.upper)) for i in writeto],
-                      dtype=cluster.dtype, scope=scope)
-
         # The expression computing `alias`
+        adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]  # x -> xs
         indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
         expression = Eq(array[indices], alias.xreplace(subs))
 
@@ -652,6 +664,8 @@ class Aliases(OrderedDict):
             elif d.is_Incr:
                 # IncrDimensions must be substituted with ShiftedDimensions
                 # to access the temporaries, otherwise we would go OOB
+                # E.g., r[xs][ys][z] => `xs/ys` must start at 0, not at `x0_blk0`
+                # as in the case of blocking
                 self.index_mapper[d] = ShiftedDimension(d, "%ss" % d.name)
 
     def get(self, key):

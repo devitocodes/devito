@@ -497,8 +497,7 @@ class TestAliases(object):
 
         i0x0_blk_size = op1.parameters[1]
         i0y0_blk_size = op1.parameters[2]
-        z_M, z_m = op1.parameters[6:8]
-        i0z_ltkn, i0z_rtkn = op1.parameters[3:5]
+        z_size = op1.parameters[4]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -509,7 +508,7 @@ class TestAliases(object):
         assert a.halo == ((1, 1), (1, 1), (1, 1))
         assert Add(*a.symbolic_shape[0].args) == i0x0_blk_size + 2
         assert Add(*a.symbolic_shape[1].args) == i0y0_blk_size + 2
-        assert Add(*a.symbolic_shape[2].args) == z_M - z_m - i0z_ltkn - i0z_rtkn + 3
+        assert Add(*a.symbolic_shape[2].args) == z_size + 2
 
         # Check numerical output
         op0(time_M=1)
@@ -606,8 +605,7 @@ class TestAliases(object):
 
         i0x0_blk_size = op1.parameters[2]
         i0y0_blk_size = op1.parameters[3]
-        i0z_ltkn, i0z_rtkn = op1.parameters[4:6]
-        z_M, z_m = op1.parameters[7:9]
+        z_size = op1.parameters[5]
 
         # Expected one single loop nest
         assert len(op1._func_table) == 1
@@ -618,14 +616,12 @@ class TestAliases(object):
         assert len(arrays[0].dimensions) == 2
         assert arrays[0].halo == ((1, 1), (1, 0))
         assert Add(*arrays[0].symbolic_shape[0].args) == i0y0_blk_size + 2
-        assert Add(*arrays[0].symbolic_shape[1].args) ==\
-            z_M - z_m - i0z_ltkn - i0z_rtkn + 2
+        assert Add(*arrays[0].symbolic_shape[1].args) == z_size + 1
         assert len(arrays[1].dimensions) == 3
         assert arrays[1].halo == ((1, 0), (1, 0), (0, 0))
         assert Add(*arrays[1].symbolic_shape[0].args) == i0x0_blk_size + 1
         assert Add(*arrays[1].symbolic_shape[1].args) == i0y0_blk_size + 1
-        assert Add(*arrays[1].symbolic_shape[2].args) ==\
-            z_M - z_m - i0z_ltkn - i0z_rtkn + 1
+        assert arrays[1].symbolic_shape[2] == z_size
 
         # Check numerical output
         op0(time_M=1)
