@@ -474,7 +474,7 @@ class Ompizer(object):
             # As long as there's an outer level of parallelism, the innermost
             # PARALLEL Iteration gets vectorized
             if len(candidates) < 2:
-                return iet, {}
+                continue
             candidate = candidates[-1]
 
             # Construct OpenMP SIMD pragma
