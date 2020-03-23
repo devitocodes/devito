@@ -30,6 +30,8 @@ class DeviceAccizer(DeviceOmpizer):
         'atomic': c.Pragma('acc atomic update'),
         'map-enter-to': lambda i, j:
             c.Pragma('acc enter data copyin(%s%s)' % (i, j)),
+        'map-enter-alloc': lambda i, j:
+            c.Pragma('acc enter data create(%s%s)' % (i, j)),
         'map-update': lambda i, j:
             c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
         'map-release': lambda i, j:
