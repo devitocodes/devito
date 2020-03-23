@@ -1,7 +1,8 @@
+import pytest
 import numpy as np
 
 from conftest import skipif
-from devito import Grid, Function, TimeFunction, Eq, Operator, norm, solve
+from devito import Grid, Function, TimeFunction, Eq, Operator, configuration, norm, solve
 from devito.ir.iet import retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
@@ -97,3 +98,32 @@ class TestOperator(object):
         op(time=time_range.num-1, dt=dt)
 
         assert np.isclose(norm(rec), 490.56, atol=1e-2, rtol=0)
+
+
+class TestMPI(object):
+
+    @skipif('nodevice')
+    @pytest.mark.parallel(mode=2)
+    def test_basic(self):
+        grid = Grid(shape=(6, 6))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u.data[:] = 1.
+
+        expr = u[t, x, y-1] + u[t, x-1, y] + u[t, x, y] + u[t, x, y+1] + u[t, x+1, y]
+        op = Operator(Eq(u.forward, expr), platform='nvidiaX', language='openacc')
+
+        # Make sure we've indeed generated OpenACC+MPI code
+        assert 'acc parallel' in str(op)
+        assert len(op._func_table) == 4
+
+        op(time_M=1)
+
+        assert np.all(u.data[0] == [[11., 16., 17., 17., 16., 11.],
+                                    [16., 23., 24., 24., 23., 16.],
+                                    [17., 24., 25., 25., 24., 17.],
+                                    [17., 24., 25., 25., 24., 17.],
+                                    [16., 23., 24., 24., 23., 16.],
+                                    [11., 16., 17., 17., 16., 11.]])
