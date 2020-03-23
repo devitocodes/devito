@@ -4,7 +4,24 @@ from functools import partial
 from threading import get_ident
 from time import time
 
-__all__ = ['validate_type', 'timed_pass', 'timed_region']
+try:
+    from functools import singledispatchmethod
+except ImportError:
+    # End up here with any Python<3.8
+    from functools import singledispatch, update_wrapper
+
+    def singledispatchmethod(func):
+        # From https://stackoverflow.com/questions/24601722\
+        #      /how-can-i-use-functools-singledispatch-with-instance-methods
+        dispatcher = singledispatch(func)
+        def wrapper(*args, **kw):
+            return dispatcher.dispatch(args[1].__class__)(*args, **kw)
+        wrapper.register = dispatcher.register
+        update_wrapper(wrapper, func)
+        return wrapper
+
+
+__all__ = ['singledispatchmethod', 'validate_type', 'timed_pass', 'timed_region']
 
 
 class validate_base(object):
