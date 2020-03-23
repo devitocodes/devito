@@ -517,25 +517,7 @@ class SubDimension(DerivedDimension):
                        is_const=True, nonnegative=True))
 
     @classmethod
-    def left(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
-        return cls(name, parent,
-                   left=parent.symbolic_min,
-                   right=parent.symbolic_min+lst-1,
-                   thickness=((lst, thickness), (rst, 0)),
-                   local=local)
-
-    @classmethod
-    def right(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
-        return cls(name, parent,
-                   left=parent.symbolic_max-rst+1,
-                   right=parent.symbolic_max,
-                   thickness=((lst, 0), (rst, thickness)),
-                   local=local)
-
-    @classmethod
-    def middle(cls, name, parent, thickness_left, thickness_right, local=False):
+    def properties(cls, name, parent, thickness_left, thickness_right, local=False):
         lst, rst = cls._symbolic_thickness(name)
         return cls(name, parent,
                    left=parent.symbolic_min+lst,
