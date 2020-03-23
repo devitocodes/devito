@@ -6,14 +6,16 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.ir.iet import MapExprStmts
+from devito.ir.iet import Block, Callable, ElementalFunction, List, MapExprStmts
 from devito.logger import warning
+from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
                                     factorize, fuse, optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.tools import as_tuple, filter_sorted, generator, timed_pass
+from devito.tools import (as_tuple, filter_sorted, generator, singledispatchmethod,
+                          timed_pass)
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -77,6 +79,10 @@ class DeviceOmpizer(Ompizer):
                                                            for i in cls._map_data(f)))
 
     @classmethod
+    def _map_present(cls, f):
+        raise NotImplementedError
+
+    @classmethod
     def _map_update(cls, f):
         return cls.lang['map-update'](f.name, ''.join('[0:%s]' % i
                                                       for i in cls._map_data(f)))
@@ -90,6 +96,10 @@ class DeviceOmpizer(Ompizer):
     def _map_delete(cls, f):
         return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
                                                            for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_pointers(cls, f):
+        raise NotImplementedError
 
     def _make_threaded_prodders(self, partree):
         # no-op for now
@@ -162,13 +172,13 @@ class DeviceOpenMPDataManager(DataManager):
         storage._high_bw_mem[obj] = (None, alloc, free)
 
     @iet_pass
+    @singledispatchmethod
     def place_ondevice(self, iet, **kwargs):
+        return iet, {}
+
+    @place_ondevice.register(Callable)
+    def _(self, iet, **kwargs):
         efuncs = kwargs['efuncs']
-
-        storage = Storage()
-
-        if iet.is_ElementalFunction:
-            return iet, {}
 
         # Collect written and read-only symbols
         writes = set()
@@ -185,7 +195,8 @@ class DeviceOpenMPDataManager(DataManager):
                     writes.add(i.write)
                 reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
 
-        # Update `storage`
+        # Populate `storage`
+        storage = Storage()
         for i in filter_sorted(writes):
             self._map_function_on_high_bw_mem(i, storage)
         for i in filter_sorted(reads):
@@ -193,6 +204,31 @@ class DeviceOpenMPDataManager(DataManager):
 
         iet = self._dump_storage(iet, storage)
 
+        return iet, {}
+
+    @place_ondevice.register(ElementalFunction)
+    def _(self, iet, **kwargs):
+        return iet, {}
+
+    @place_ondevice.register(CopyBuffer)
+    def _(self, iet, **kwargs):
+        functions = [i for i in iet.parameters if i.is_Tensor]
+        assert len(functions) == 2
+
+        header = [self._Parallelizer._map_present(f) for f in functions]
+        body = List(header=header, body=iet.body)
+
+        return iet._rebuild(body=body), {}
+
+    @place_ondevice.register(SendRecv)
+    def _(self, iet, **kwargs):
+        header = [self._Parallelizer._map_pointers([iet.bufg, iet.bufs])]
+        body = Block(header=header, body=iet.body)
+
+        return iet._rebuild(body=body), {}
+
+    @place_ondevice.register(HaloUpdate)
+    def _(self, iet, **kwargs):
         return iet, {}
 
 

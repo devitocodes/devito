@@ -5,6 +5,7 @@ import cgen as c
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIteration,
                                     DeviceOmpizer, DeviceOpenMPDataManager)
 from devito.exceptions import InvalidOperator
+from devito.ir.iet import Block
 from devito.logger import warning
 from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders
 from devito.tools import as_tuple, timed_pass
@@ -32,15 +33,28 @@ class DeviceAccizer(DeviceOmpizer):
             c.Pragma('acc enter data copyin(%s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
             c.Pragma('acc enter data create(%s%s)' % (i, j)),
+        'map-present': lambda i, j:
+            c.Pragma('acc data present(%s%s)' % (i, j)),
         'map-update': lambda i, j:
             c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
         'map-release': lambda i, j:
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
         'map-exit-delete': lambda i, j:
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
+        'map-pointers': lambda i:
+            c.Pragma('acc host_data use_device(%s)' % i)
     }
 
     _Iteration = DeviceOpenACCIteration
+
+    @classmethod
+    def _map_present(cls, f):
+        return cls.lang['map-present'](f.name, ''.join('[0:%s]' % i
+                                                       for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_pointers(cls, functions):
+        return cls.lang['map-pointers'](','.join(f.name for f in functions))
 
     def _make_parallel(self, iet):
         iet, metadata = super(DeviceAccizer, self)._make_parallel(iet)
