@@ -7,8 +7,7 @@ from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIterat
                                     DeviceOmpizer, DeviceOpenMPDataManager)
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, ElementalFunction, List,
-                           LocalExpression, Iteration)
+from devito.ir.iet import Call, ElementalFunction, List, LocalExpression
 from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
@@ -99,6 +98,7 @@ def initialize(iet, **kwargs):
 
         if comm is not None:
             rank = Symbol(name='rank')
+            rank_decl = LocalExpression(DummyEq(rank, 0))
             rank_init = Call('MPI_Comm_rank', [comm, Byref(rank)])
 
             ngpus = Symbol(name='ngpus')
@@ -110,7 +110,8 @@ def initialize(iet, **kwargs):
 
             set_device_num = Call('acc_set_device_num', [devicenum, device_nvidia])
 
-            body = [ngpus_init, devicenum_init, set_device_num, body]
+            body = [rank_decl, rank_init, ngpus_init, devicenum_init,
+                    set_device_num, body]
 
         init = List(header=(c.Line(), c.Comment('Begin of OpenACC+MPI setup')),
                     body=body,
