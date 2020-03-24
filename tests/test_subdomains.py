@@ -54,6 +54,40 @@ class TestSubdomains(object):
                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
         assert((np.array(f.data) == expected).all())
 
+    def test_shape(self):
+        class sd0(SubDomain):
+            name = 'd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 6), y: ('middle', 1, 1)}
+        s_d0 = sd0()
+
+        class sd1(SubDomain):
+            name = 'd1'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('right', 4), y: ('left', 2)}
+        s_d1 = sd1()
+
+        class sd2(SubDomain):
+            name = 'd2'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 3), y: ('middle', 1, 2)}
+        s_d2 = sd2()
+
+        grid = Grid(shape=(10, 10), subdomains=(s_d0, s_d1, s_d2))
+
+        assert grid.subdomains['domain'].shape == (10, 10)
+        assert grid.subdomains['interior'].shape == (8, 8)
+
+        assert grid.subdomains['d0'].shape == (3, 8)
+        assert grid.subdomains['d1'].shape == (4, 2)
+        assert grid.subdomains['d2'].shape == (3, 7)
+
     def test_iterate_NDomains(self):
         """
         Test that a set of subdomains are iterated upon correctly.
