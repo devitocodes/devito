@@ -356,6 +356,7 @@ class SubDomain(object):
                            self.define(dimensions).values(), shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
+                sdshape.append(s)
             else:
                 try:
                     # Case ('middle', int, int)
