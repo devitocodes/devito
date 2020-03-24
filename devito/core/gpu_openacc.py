@@ -1,14 +1,21 @@
-from functools import partial
+from functools import partial, singledispatch
 
 import cgen as c
+from sympy import Function
 
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIteration,
                                     DeviceOmpizer, DeviceOpenMPDataManager)
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import Block
+from devito.ir.equations import DummyEq
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, List,
+                           LocalExpression, Iteration)
 from devito.logger import warning
-from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders
+from devito.mpi.distributed import MPICommObject
+from devito.mpi.routines import MPICallable
+from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders, iet_pass
+from devito.symbolics import Byref, Macro
 from devito.tools import as_tuple, timed_pass
+from devito.types import Symbol
 
 __all__ = ['DeviceOpenACCNoopOperator', 'DeviceOpenACCOperator',
            'DeviceOpenACCCustomOperator']
@@ -69,6 +76,60 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
     _Parallelizer = DeviceAccizer
 
 
+@iet_pass
+def initialize(iet, **kwargs):
+    """
+    Initialize the OpenACC environment.
+    """
+
+    @singledispatch
+    def _initialize(iet):
+        # TODO: we need to pick the rank from `comm_shm`, not `comm`,
+        # so that we have nranks == ngpus (as long as the user has launched
+        # the right number of MPI processes per node given the available
+        # number of GPUs per node)
+        comm = None
+        for i in iet.parameters:
+            if isinstance(i, MPICommObject):
+                comm = i
+                break
+
+        device_nvidia = Macro('acc_device_nvidia')
+        body = Call('acc_init', [device_nvidia])
+
+        if comm is not None:
+            rank = Symbol(name='rank')
+            rank_init = Call('MPI_Comm_rank', [comm, Byref(rank)])
+
+            ngpus = Symbol(name='ngpus')
+            call = Function('acc_get_num_devices')(device_nvidia)
+            ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+            devicenum = Symbol(name='devicenum')
+            devicenum_init = LocalExpression(DummyEq(devicenum, rank % ngpus))
+
+            set_device_num = Call('acc_set_device_num', [devicenum, device_nvidia])
+
+            body = [ngpus_init, devicenum_init, set_device_num, body]
+
+        init = List(header=(c.Line(), c.Comment('Begin of OpenACC+MPI setup')),
+                    body=body,
+                    footer=(c.Comment('End of OpenACC+MPI setup'), c.Line()))
+
+        iet = iet._rebuild(body=(init,) + iet.body)
+
+        return iet
+
+    @_initialize.register(ElementalFunction)
+    @_initialize.register(MPICallable)
+    def _(iet):
+        return iet
+
+    iet = _initialize(iet)
+
+    return iet, {}
+
+
 class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
 
     @classmethod
@@ -79,6 +140,9 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         # Distributed-memory parallelism
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
+
+        # Initialize OpenACC environment
+        initialize(graph)
 
         # GPU parallelism via OpenACC offloading
         DeviceAccizer().make_parallel(graph)
@@ -103,6 +167,9 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         optimize_halospots(graph)
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
+
+        # Initialize OpenACC environment
+        initialize(graph)
 
         # GPU parallelism via OpenACC offloading
         DeviceAccizer().make_parallel(graph)
@@ -175,6 +242,9 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         # GPU parallelism via OpenACC offloading
         if 'openacc' not in passes:
             passes_mapper['openacc'](graph)
+
+        # Initialize OpenACC environment
+        initialize(graph)
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager()
