@@ -149,7 +149,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -179,7 +179,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -248,7 +248,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 

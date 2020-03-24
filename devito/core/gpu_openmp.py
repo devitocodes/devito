@@ -178,22 +178,19 @@ class DeviceOpenMPDataManager(DataManager):
 
     @place_ondevice.register(Callable)
     def _(self, iet, **kwargs):
-        efuncs = kwargs['efuncs']
-
         # Collect written and read-only symbols
         writes = set()
         reads = set()
-        for efunc in efuncs:
-            for i, v in MapExprStmts().visit(efunc).items():
-                if not i.is_Expression:
-                    # No-op
-                    continue
-                if not any(isinstance(j, self._Parallelizer._Iteration) for j in v):
-                    # Not an offloaded Iteration tree
-                    continue
-                if i.write.is_DiscreteFunction:
-                    writes.add(i.write)
-                reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
+        for i, v in MapExprStmts().visit(iet).items():
+            if not i.is_Expression:
+                # No-op
+                continue
+            if not any(isinstance(j, self._Parallelizer._Iteration) for j in v):
+                # Not an offloaded Iteration tree
+                continue
+            if i.write.is_DiscreteFunction:
+                writes.add(i.write)
+            reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
 
         # Populate `storage`
         storage = Storage()
@@ -309,7 +306,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -336,7 +333,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -402,7 +399,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
