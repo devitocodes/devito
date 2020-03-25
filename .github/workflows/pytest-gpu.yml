@@ -94,3 +94,22 @@ jobs:
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+
+    - name: Azure Login
+      uses: Azure/login@v1
+      with:
+        # Paste output of `az ad sp create-for-rbac` as value of secret variable: AZURE_CREDENTIALS
+        creds: |
+          {
+            "clientId":  ${{ secrets.SERVICE_PRINCIPAL_APPID }},
+            "clientSecret": ${{ secrets.SERVICE_PRINCIPAL_SECRET }},
+            "subscriptionId": ${{ secrets.AZURE_SUBSCRIPTION_ID }},
+            "tenantId": ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
+          }
+    
+    - name: Cleanup Azure VM
+      uses: Azure/cli@v1.0.0
+      with:
+        # Specify the script here
+        inlineScript: |
+          az vm delete --name $SERVER_NAME --resource-group $RESOURCE_GROUP
