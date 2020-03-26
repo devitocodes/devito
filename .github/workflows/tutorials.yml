@@ -90,20 +90,28 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-        $RUN_CMD py.test --nbval $SKIP examples/seismic/tutorials/
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml $SKIP examples/seismic/tutorials/
 
     - name: CFD notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/cfd
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:cfd_coverage.xml examples/cfd
 
     - name: User api notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/userapi
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:api_coverage.xml examples/userapi
 
     - name: Compiler notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/compiler
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/compiler
 
     - name: GPU notebooks (only codegen)
       run: |
         $RUN_CMD py.test --nbval examples/gpu
+
+    - name: Upload coverage to Codecov
+      if: matrix.name != 'tutos-docker-gcc-py36'
+      uses: codecov/codecov-action@v1.0.6
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: ${{ matrix.name }}
+        file: ./*_coverage.xml
