@@ -137,6 +137,9 @@ class Interval(AbstractInterval):
         return hash((self.dim, self.offsets))
 
     def __eq__(self, o):
+        if self is o:
+            return True
+
         return (super(Interval, self).__eq__(o) and
                 self.lower == o.lower and
                 self.upper == o.upper)
