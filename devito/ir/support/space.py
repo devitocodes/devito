@@ -628,6 +628,9 @@ class IterationSpace(Space):
         return "IterationSpace[%s]" % ret
 
     def __eq__(self, other):
+        if self is other:
+            return True
+
         return (isinstance(other, IterationSpace) and
                 self.intervals == other.intervals and
                 self.directions == other.directions)
