@@ -155,21 +155,6 @@ class IterationInstance(LabeledVector):
     def is_scalar(self):
         return self.rank == 0
 
-    def distance(self, other):
-        """
-        Compute the distance from ``self`` to ``other``.
-
-        Parameters
-        ----------
-        other : IterationInstance
-            The IterationInstance from which the distance is computed.
-        """
-        assert isinstance(other, IterationInstance)
-        if self.findices != other.findices:
-            raise TypeError("Cannot compute distance due to mismatching `findices`")
-
-        return super(IterationInstance, self).distance(other)
-
 
 class TimedAccess(IterationInstance):
 
@@ -332,15 +317,25 @@ class TimedAccess(IterationInstance):
                 limit = self._cached_findices_index[findex] + 1
             except KeyError:
                 raise TypeError("Cannot compute distance as `findex` not in `findices`")
-        distance = list(super(TimedAccess, self).distance(other)[:limit])
 
-        # * If mismatching `directions`, set the distance to infinity
-        # * If direction is Backward, flip the sign
         ret = []
-        for i, it0, it1 in zip(distance, self.itintervals, other.itintervals):
-            if it0.direction is it1.direction and it0.interval == it1.interval:
-                ret.append(-i if it0.direction is Backward else i)
+        for n, (i, o) in enumerate(zip(self[:limit], other)):
+            try:
+                iit = self.itintervals[n]
+                oit = other.itintervals[n]
+            except IndexError:
+                # E.g., self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>
+                #       itintervals=(time, p_src)
+                break
+
+            if iit.direction is oit.direction and iit.interval == oit.interval:
+                if iit.direction is Backward:
+                    # Backward direction => flip the sign
+                    ret.append(o - i)
+                else:
+                    ret.append(i - o)
             else:
+                # Mismatching `itinterval` => Infinity
                 ret.append(S.Infinity)
                 break
 
