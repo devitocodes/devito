@@ -161,12 +161,13 @@ def option_performance(f):
                      type=click.Choice(['noop'] + configuration._accepted['dse']),
                      help='Devito symbolic engine (DSE) mode'),
         click.option('--dle', callback=from_value,
-                     type=click.Choice(['noop'] + configuration._accepted['dle']),
+                     type=click.Choice([str(i) if type(i) is tuple else i
+                                        for i in configuration._accepted['dle']]),
                      help='Devito loop engine (DLE) mode'),
         click.option('-bs', '--block-shape', callback=config_blockshape, multiple=True,
                      is_eager=True, help='Loop-blocking shape, bypass autotuning'),
         click.option('-a', '--autotune', default='aggressive', callback=config_autotuning,
-                     type=click.Choice([tuple(i) if type(i) is list else i
+                     type=click.Choice([str(tuple(i)) if type(i) is list else i
                                         for i in configuration._accepted['autotuning']]),
                      help='Select autotuning mode')
     ]
