@@ -311,10 +311,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         if self._distributor is None:
             return self._size_inhalo
 
-        left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
-                for d, i in zip(self.dimensions, self._size_inhalo.left)]
-        right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
-                 for d, i in zip(self.dimensions, self._size_inhalo.right)]
+        left = [abs(min(i.loc_abs_min-i.glb_min-j, 0))
+                for i, j in zip(self._decomposition, self._size_inhalo.left)]
+        right = [max(i.loc_abs_max+j-i.glb_max, 0)
+                for i, j in zip(self._decomposition, self._size_inhalo.right)]
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
