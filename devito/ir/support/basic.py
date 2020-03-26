@@ -211,11 +211,16 @@ class TimedAccess(IterationInstance):
         return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
 
     def __eq__(self, other):
-        return (isinstance(other, TimedAccess) and
-                self.function is other.function and
+        if not isinstance(other, TimedAccess):
+            return False
+
+        # At this point no need to go through the class hierarchy's __eq__,
+        # which might require expensive comparisons of Vector entries (i.e.,
+        # SymPy expressions)
+
+        return (self.indexed is other.indexed and  # => self.function is other.function
                 self.mode == other.mode and
-                self.ispace == other.ispace and
-                super(TimedAccess, self).__eq__(other))
+                self.ispace == other.ispace)
 
     def __hash__(self):
         return super(TimedAccess, self).__hash__()
