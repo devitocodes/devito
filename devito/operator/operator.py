@@ -19,7 +19,8 @@ from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph
-from devito.symbolics import estimate_cost, indexify
+from devito.symbolics import (estimate_cost, indexify, retrieve_functions,
+                              retrieve_indexed)
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region, Evaluable)
 from devito.types import Dimension, Eq
@@ -265,27 +266,6 @@ class Operator(Callable):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
-    def _apply_substitutions(cls, expressions, subs):
-        """
-        Transform ``expressions`` by:
-
-            * Applying any user-provided symbolic substitution;
-            * Replacing Dimensions with SubDimensions based on expression SubDomains.
-        """
-        processed = []
-        for e in expressions:
-            mapper = subs.copy()
-            if e.subdomain:
-                mapper.update(e.subdomain.dimension_map)
-
-            if mapper:
-                processed.append(e.xreplace(mapper))
-            else:
-                # Do not waste time
-                processed.append(e)
-        return processed
-
-    @classmethod
     def _specialize_exprs(cls, expressions):
         """
         Backend hook for specialization at the Expression level.
@@ -305,17 +285,67 @@ class Operator(Callable):
             * Apply substitution rules;
             * Specialize (e.g., index shifting)
         """
-        subs = kwargs.get("subs", {})
-
+        # Add in implicit expressions, e.g., induced by SubDomains
         expressions = cls._add_implicit(expressions)
+
+        # Unfold lazyiness
         expressions = flatten([i.evaluate for i in expressions])
+
+        # Scalarize tensor expressions
         expressions = [j for i in expressions for j in i._flatten]
-        expressions = [indexify(i) for i in expressions]
-        expressions = cls._apply_substitutions(expressions, subs)
 
-        expressions = cls._specialize_exprs(expressions)
+        # Indexification
+        # E.g., f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
+        processed = []
+        for expr in expressions:
+            if expr.subdomain:
+                dimension_map = expr.subdomain.dimension_map
+            else:
+                dimension_map = {}
 
-        return expressions
+            mapper = {}
+
+            # Handle Functions (typical case)
+            for f in retrieve_functions(expr):
+                # Get spacing symbols for replacement
+                spacings = [i.spacing for i in f.dimensions]
+
+                # Only keep the ones used as indices
+                spacings = [s for i, s in enumerate(spacings)
+                            if s.free_symbols.intersection(f.args[i].free_symbols)]
+
+                # Substitution for each index
+                subs = {**{s: 1 for s in spacings}, **dimension_map}
+
+                # Introduce shifting to align with the computational domain,
+                # and apply substitutions
+                indices = [(a - i + o).xreplace(subs)
+                           for a, i, o in zip(f.args, f.origin, f._size_nodomain.left)]
+
+                mapper[f] = f.indexed[indices]
+
+            # Handle Indexeds (from index notation)
+            for i in retrieve_indexed(expr):
+                f = i.function
+
+                # Introduce shifting to align with the computational domain
+                indices = [(a + o).xreplace(dimension_map)
+                           for a, o in zip(i.indices, f._size_nodomain.left)]
+
+                # Apply substitutions, if necessary
+                if dimension_map:
+                    indices = [j.xreplace(dimension_map) for j in indices]
+
+                mapper[i] = f.indexed[indices]
+
+            # Include any user-supplied substitutions
+            mapper.update(kwargs.get('subs', {}))
+
+            processed.append(expr.xreplace(mapper))
+
+        processed = cls._specialize_exprs(processed)
+
+        return processed
 
     # Compilation -- Cluster level
 
