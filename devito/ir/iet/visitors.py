@@ -15,6 +15,7 @@ from devito.ir.iet.nodes import Node, Iteration, Expression, Call
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
+from devito.types.basic import AbstractFunction
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
@@ -533,15 +534,28 @@ class FindSymbols(Visitor):
     ----------
     mode : str, optional
         Drive the search. Accepted:
-        - ``symbolics``: Collect AbstractSymbol objects, default.
+        - ``symbolics``: Collect all AbstractFunction objects, default.
         - ``free-symbols``: Collect all free symbols.
         - ``defines``: Collect all defined (bound) objects.
     """
 
+    def _symbolics(e):
+        try:
+            return e.functions
+        except AttributeError:
+            # A SymPy expression
+            return [i for i in e.free_symbols if isinstance(i, AbstractFunction)]
+
+    def _defines(e):
+        try:
+            return as_tuple(e.defines)
+        except AttributeError:
+            return ()
+
     rules = {
-        'symbolics': lambda e: e.functions,
+        'symbolics': _symbolics,
         'free-symbols': lambda e: e.free_symbols,
-        'defines': lambda e: as_tuple(e.defines),
+        'defines': _defines,
     }
 
     def __init__(self, mode='symbolics'):
@@ -560,7 +574,12 @@ class FindSymbols(Visitor):
         return filter_sorted(symbols, key=attrgetter('name'))
 
     visit_List = visit_Iteration
-    visit_Conditional = visit_Iteration
+
+    def visit_Conditional(self, o):
+        symbols = flatten([self._visit(i) for i in o.children])
+        symbols += self.rule(o)
+        symbols += self.rule(o.condition)
+        return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
