@@ -131,22 +131,29 @@ def q_affine(expr, vars):
     Return True if ``expr`` is (separately) affine in the variables ``vars``,
     False otherwise.
 
-    Readapted from: https://stackoverflow.com/questions/36283548\
+    Notes
+    -----
+    Exploits:
+
+        https://stackoverflow.com/questions/36283548\
         /check-if-an-equation-is-linear-for-a-specific-set-of-variables/
     """
     vars = as_tuple(vars)
-    # If any `vars` does not appear in `expr`, the only possibility
-    # for `expr` to be affine is that it's a constant function
-    if any(x not in expr.atoms() for x in vars):
-        return q_constant(expr)
+    free_symbols = expr.free_symbols
+
     # At this point, `expr` is (separately) affine in the `vars` variables
     # if all non-mixed second order derivatives are identically zero.
     for x in vars:
+        if expr is x:
+            continue
+
+        if x not in free_symbols:
+            # At this point the only hope is that `expr` is constant
+            return q_constant(expr)
+
         # The vast majority of calls here are incredibly simple tests
         # like q_affine(x+1, [x]).  Catch these quickly and
         # explicitly, instead of calling the very slow function `diff`.
-        if expr is x:
-            continue
         if expr.is_Add and len(expr.args) == 2:
             if expr.args[1] is x and expr.args[0].is_Number:
                 continue
@@ -158,6 +165,7 @@ def q_affine(expr, vars):
                 return False
         except TypeError:
             return False
+
     return True
 
 
