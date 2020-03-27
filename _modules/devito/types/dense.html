@@ -174,13 +174,13 @@
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">FieldFromPointer</span>
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span>
                           <span class="n">ctypes_to_cstr</span><span class="p">,</span> <span class="n">memoized_meth</span><span class="p">,</span> <span class="n">dtype_to_ctype</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.types.args</span> <span class="kn">import</span> <span class="n">ArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.types.caching</span> <span class="kn">import</span> <span class="n">CacheManager</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">AbstractFunction</span><span class="p">,</span> <span class="n">Size</span>
-<span class="kn">from</span> <span class="nn">devito.types.utils</span> <span class="kn">import</span> <span class="n">Buffer</span><span class="p">,</span> <span class="n">NODE</span><span class="p">,</span> <span class="n">CELL</span>
+<span class="kn">from</span> <span class="nn">devito.types.utils</span> <span class="kn">import</span> <span class="n">Buffer</span><span class="p">,</span> <span class="n">DimensionTuple</span><span class="p">,</span> <span class="n">NODE</span><span class="p">,</span> <span class="n">CELL</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFunction&#39;</span><span class="p">]</span>
 
@@ -473,7 +473,7 @@
 
         <span class="n">sizes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Size</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">))</span>
 
-        <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">sizes</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">DimensionTuple</span><span class="p">(</span><span class="o">*</span><span class="n">sizes</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">size_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
