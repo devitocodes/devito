@@ -99,6 +99,8 @@ place to start, with lots of examples and tutorials.
 The [website](https://www.devitoproject.org/) also provides access to other
 information, including documentation and instructions for citing us.
 
+Some FAQ are discussed [here](https://github.com/devitocodes/devito/wiki/FAQ).
+
 ## Performance
 
 If you are interested in any of the following
