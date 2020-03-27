@@ -2,36 +2,19 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
-                           XSubs, iet_analyze)
+                           XSubs)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper, timed_pass
 from devito.types import ConditionalDimension
 
-__all__ = ['iet_build']
+__all__ = ['iet_build', 'iet_lower_dims']
 
 
-@timed_pass(name='lowering.IET')
+@timed_pass(name='build')
 def iet_build(stree):
     """
-    Create an Iteration/Expression tree (IET) from a ScheduleTree.
-
-    The nodes in the returned IET are decorated with properties deriving from
-    data dependence analysis.
+    Construct an Iteration/Expression tree(IET) from a ScheduleTree.
     """
-    # Schedule tree -> Iteration/Expression tree
-    iet = iet_make(stree)
-
-    # Data dependency analysis. Properties are attached directly to nodes
-    iet = iet_analyze(iet)
-
-    # Turn DerivedDimensions into lower-level Dimensions or Symbols
-    iet = iet_lower_dimensions(iet)
-
-    return iet
-
-
-def iet_make(stree):
-    """Create an IET from a ScheduleTree."""
     nsections = 0
     queues = OrderedDict()
     for i in stree.visit():
@@ -50,9 +33,8 @@ def iet_make(stree):
             # Order to ensure deterministic code generation
             uindices = sorted(i.sub_iterators, key=lambda d: d.name)
             # Generate Iteration
-            body = Iteration(queues.pop(i), i.dim, i.limits, offsets=i.offsets,
-                             direction=i.direction, properties=i.properties,
-                             uindices=uindices)
+            body = Iteration(queues.pop(i), i.dim, i.limits, direction=i.direction,
+                             properties=i.properties, uindices=uindices)
 
         elif i.is_Section:
             body = Section('section%d' % nsections, body=queues.pop(i))
@@ -66,18 +48,30 @@ def iet_make(stree):
     assert False
 
 
-def iet_lower_dimensions(iet):
+@timed_pass(name='lower_dims')
+def iet_lower_dims(iet):
     """
-    Replace all DerivedDimensions within the ``iet``'s expressions with
-    lower-level symbolic objects (other Dimensions or Symbols).
+    Lower the DerivedDimensions in ``iet``.
+    """
+    iet = _lower_stepping_dims(iet)
+    iet = _lower_conditional_dims(iet)
 
-        * Array indices involving SteppingDimensions are turned into ModuloDimensions.
-          Example: ``u[t+1, x] = u[t, x] + 1 >>> u[t1, x] = u[t0, x] + 1``
-        * Array indices involving ConditionalDimensions used are turned into
-          integer-division expressions.
-          Example: ``u[t_sub, x] = u[time, x] >>> u[time / 4, x] = u[time, x]``
+    return iet
+
+
+def _lower_stepping_dims(iet):
     """
-    # Lower SteppingDimensions
+    Lower SteppingDimensions: index functions involving SteppingDimensions are
+    turned into ModuloDimensions.
+
+    Examples
+    --------
+    u[t+1, x] = u[t, x] + 1
+
+    becomes
+
+    u[t1, x] = u[t0, x] + 1
+    """
     for i in FindNodes(Iteration).visit(iet):
         if not i.uindices:
             # Be quick: avoid uselessy reconstructing nodes
@@ -95,7 +89,22 @@ def iet_lower_dimensions(iet):
             replacer = lambda i: xreplace_indices(i, mapper, rule)
             iet = XSubs(replacer=replacer).visit(iet)
 
-    # Lower ConditionalDimensions
+    return iet
+
+
+def _lower_conditional_dims(iet):
+    """
+    Lower ConditionalDimensions: index functions involving ConditionalDimensions
+    are turned into integer-division expressions.
+
+    Examples
+    --------
+    u[t_sub, x] = u[time, x]
+
+    becomes
+
+    u[time / 4, x] = u[time, x]
+    """
     cdims = [d for d in FindSymbols('free-symbols').visit(iet)
              if isinstance(d, ConditionalDimension)]
     mapper = {d: IntDiv(d.index, d.factor) for d in cdims}

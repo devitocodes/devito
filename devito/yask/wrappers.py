@@ -38,8 +38,8 @@ class YASKKernel(object):
             A local var is necessary to run the YASKKernel, but it can be
             deallocated upon returning to Python-land.  For example, local
             vars could be used to implement the temporary arrays introduced by
-            the DSE.  This parameter tells which of the ``yc_soln``'s vars are
-            local.
+            the compiler for flop-reducing optimizations. This parameter tells
+            which of the ``yc_soln``'s vars are local.
         """
         self.name = name
 

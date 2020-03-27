@@ -52,7 +52,7 @@ class TestSubDimension(object):
         eqs = [Eq(u.forward, u + 1),
                Eq(u.forward, u.forward + 2, subdomain=interior)]
 
-        op = Operator(eqs, dse='noop', dle='noop')
+        op = Operator(eqs, opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
 
@@ -198,14 +198,14 @@ class TestSubDimension(object):
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y])'], 'y'),
-        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'yi0'),
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'i0y'),
         # Carried dependence in both /t/ and /y/
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y])'], 'x'),
-        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'xi0'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'i0x'),
         # Carried dependence in /y/, leading to separate /y/ loops, one
         # going forward, the other backward
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)',
-          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'xi0'),
+          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'i0x'),
     ])
     def test_iteration_property_parallel(self, exprs, expected):
         """Tests detection of sequental and parallel Iterations when applying
@@ -222,7 +222,7 @@ class TestSubDimension(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='noop')
+        op = Operator(exprs, opt='noop')
         iterations = FindNodes(Iteration).visit(op)
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
@@ -253,7 +253,7 @@ class TestSubDimension(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='simd')
+        op = Operator(exprs, opt='simd')
         iterations = FindNodes(Iteration).visit(op)
         vectorized = [i.dim.name for i in iterations if i.is_Vectorized]
         assert set(vectorized) == set(expected)
@@ -447,7 +447,7 @@ class TestSubDimension(object):
         f = Function(name='f', grid=grid)
         a = Array(name='a', dimensions=(xi,), dtype=grid.dtype)
         op = Operator([Eq(a[xi], 1), Eq(f, f + a[xi + 1], subdomain=grid.interior)],
-                      dle=('advanced', {'openmp': False}))
+                      openmp=False)
         assert len(op.parameters) == 6
         # neither `x_size` nor `xi_size` are expected here
         assert not any(i.name in ('x_size', 'xi_size') for i in op.parameters)

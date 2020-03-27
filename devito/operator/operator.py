@@ -12,14 +12,14 @@ from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
+from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
 from devito.ir.stree import stree_build
 from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph
-from devito.symbolics import indexify
+from devito.symbolics import estimate_cost, indexify
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region, Evaluable)
 from devito.types import Dimension, Eq
@@ -42,12 +42,8 @@ class Operator(Callable):
             Name of the Operator, defaults to "Kernel".
         * subs : dict
             Symbolic substitutions to be applied to ``expressions``.
-        * dse : str
-            Aggressiveness of the Devito Symbolic Engine for flop
-            optimization. Defaults to ``configuration['dse']``.
-        * dle : str
-            Aggressiveness of the Devito Loop Engine for loop-level
-            optimization. Defaults to ``configuration['dle']``.
+        * opt : str
+            The performance optimization level. Defaults to ``configuration['opt']``.
         * platform : str
             The architecture the code is generated for. Defaults to
             ``configuration['platform']``.
@@ -147,6 +143,9 @@ class Operator(Callable):
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
 
+        # Normalize input arguments for the selected Operator
+        kwargs = cls._normalize_kwargs(**kwargs)
+
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
@@ -156,6 +155,10 @@ class Operator(Callable):
         op._emit_build_profiling()
 
         return op
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        return kwargs
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -256,13 +259,12 @@ class Operator(Callable):
 
     @classmethod
     def _initialize_state(cls, **kwargs):
-        return {'optimizations': {k: kwargs.get(k, configuration[k])
-                                  for k in ('dse', 'dle')}}
+        return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
     def _apply_substitutions(cls, expressions, subs):
         """
-        Transform ``expressions`` by: ::
+        Transform ``expressions`` by:
 
             * Applying any user-provided symbolic substitution;
             * Replacing Dimensions with SubDimensions based on expression SubDomains.
@@ -317,17 +319,27 @@ class Operator(Callable):
         return clusters
 
     @classmethod
+    @timed_pass(name='lowering.Clusters')
     def _lower_clusters(cls, expressions, profiler, **kwargs):
         """
         Clusters lowering:
 
             * Group expressions into Clusters;
-            * Introduce guards for conditional Clusters.
+            * Introduce guards for conditional Clusters;
+            * Analyze Clusters to detect computational properties such
+              as parallelism.
         """
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions)
 
-        clusters = cls._specialize_clusters(clusters, profiler=profiler, **kwargs)
+        # Operation count before specialization
+        init_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
+
+        clusters = cls._specialize_clusters(clusters, **kwargs)
+
+        # Operation count after specialization
+        final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
+        profiler.record_ops_variation(init_ops, final_ops)
 
         return ClusterGroup(clusters)
 
@@ -367,12 +379,12 @@ class Operator(Callable):
         return graph
 
     @classmethod
+    @timed_pass(name='lowering.IET')
     def _lower_iet(cls, stree, profiler, **kwargs):
         """
         Iteration/Expression tree lowering:
 
             * Turn a ScheduleTree into an Iteration/Expression tree;
-            * Perform analysis to detect optimization opportunities;
             * Introduce distributed-memory, shared-memory, and SIMD parallelism;
             * Introduce optimizations for data locality;
             * Finalize (e.g., symbol definitions, array casts)
@@ -384,6 +396,9 @@ class Operator(Callable):
 
         # Instrument the IET for C-level profiling
         iet = profiler.instrument(iet)
+
+        # Lower all DerivedDimensions
+        iet = iet_lower_dims(iet)
 
         # Wrap the IET with a Callable
         parameters = derive_parameters(iet, True)
@@ -760,10 +775,7 @@ class Operator(Callable):
                 perf("%s* %s%s computed in %.2f s"
                      % (indent, name, rank, fround(v.time)))
 
-        # Emit relevant configuration values
-        perf("Configuration:  %s" % self._state['optimizations'])
-
-        # Emit relevant performance arguments
+        # Emit performance mode and arguments
         perf_args = {}
         for i in self.input + self.dimensions:
             if not i.is_PerfKnob:
@@ -776,7 +788,8 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
-        perf("Performance arguments:  %s" % perf_args)
+        perf("Performance[mode=%s] arguments: %s" % (self._state['optimizations'],
+                                                     perf_args))
 
         return summary
 
@@ -879,55 +892,63 @@ class ArgumentsMap(dict):
 
 def parse_kwargs(**kwargs):
     """
-    Parse keyword arguments provided to an Operator. This routine is
-    especially useful for backwards compatibility.
+    Parse keyword arguments provided to an Operator.
     """
-    # `dle`
-    dle = kwargs.pop("dle", configuration['dle'])
+    # `dse` -- deprecated, dropped
+    dse = kwargs.pop("dse", None)
+    if dse is not None:
+        warning("The `dse` argument is deprecated. "
+                "The optimization level is now controlled via the `opt` argument")
 
-    if not dle or isinstance(dle, str):
-        mode, options = dle, {}
-    elif isinstance(dle, tuple):
-        if len(dle) == 0:
-            mode, options = 'noop', {}
-        elif isinstance(dle[-1], dict):
-            if len(dle) == 2:
-                mode, options = dle
-            else:
-                mode, options = tuple(flatten(i.split(',') for i in dle[:-1])), dle[-1]
+    # `dle` -- deprecated, replaced by `opt`
+    if 'dle' in kwargs:
+        warning("The `dle` argument is deprecated. "
+                "The optimization level is now controlled via the `opt` argument")
+        dle = kwargs.pop('dle')
+        if 'opt' in kwargs:
+            warning("Both `dle` and `opt` were passed; ignoring `dle` argument")
+            opt = kwargs.pop('opt')
         else:
-            mode, options = tuple(flatten(i.split(',') for i in dle)), {}
+            warning("Setting `opt=%s`" % str(dle))
+            opt = dle
+    elif 'opt' in kwargs:
+        opt = kwargs.pop('opt')
     else:
-        raise InvalidOperator("Illegal `dle=%s`" % str(dle))
+        opt = configuration['opt']
 
-    # `dle`, options
-    options.setdefault('blockinner',
-                       configuration['dle-options'].get('blockinner', False))
-    options.setdefault('blocklevels',
-                       configuration['dle-options'].get('blocklevels', None))
-    options.setdefault('openmp', configuration['openmp'])
+    if not opt or isinstance(opt, str):
+        mode, options = opt, {}
+    elif isinstance(opt, tuple):
+        if len(opt) == 0:
+            mode, options = 'noop', {}
+        elif isinstance(opt[-1], dict):
+            if len(opt) == 2:
+                mode, options = opt
+            else:
+                mode, options = tuple(flatten(i.split(',') for i in opt[:-1])), opt[-1]
+        else:
+            mode, options = tuple(flatten(i.split(',') for i in opt)), {}
+    else:
+        raise InvalidOperator("Illegal `opt=%s`" % str(opt))
+
+    # `opt`, undocumented kwargs
+    openmp = kwargs.pop('openmp', configuration['openmp'])
+
+    # `opt`, options
+    opt_options = configuration['opt-options']
+    options.setdefault('blockinner', opt_options.get('blockinner', False))
+    options.setdefault('blocklevels', opt_options.get('blocklevels', None))
+    options.setdefault('min-storage', opt_options.get('min-storage', False))
+    options.setdefault('cire-repeats-inv', opt_options.get('cire-repeats-inv', None))
+    options.setdefault('cire-repeats-sops', opt_options.get('cire-repeats-sops', None))
+    options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
     kwargs['options'] = options
 
-    # `dle`, mode
+    # `opt`, mode
     if mode is None:
         mode = 'noop'
-    elif mode == 'noop':
-        mode = tuple(i for i in ['mpi', 'openmp'] if options[i]) or 'noop'
     kwargs['mode'] = mode
-
-    # `dse`
-    dse = kwargs.pop("dse", configuration['dse'])
-
-    if not dse:
-        kwargs['dse'] = 'noop'
-    elif isinstance(dse, str):
-        kwargs['dse'] = dse
-    else:
-        try:
-            kwargs['dse'] = ','.join(dse)
-        except:
-            raise InvalidOperator("Illegal `dse=%s`" % str(dse))
 
     # `platform`
     platform = kwargs.get('platform')

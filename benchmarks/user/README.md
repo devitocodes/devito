@@ -8,10 +8,7 @@ a Devito Operator while varying:
 * the problem size (e.g., shape of the computational grid);
 * the discretization (e.g., space- and time-order of the input/output fields);
 * the simulation time (in milliseconds);
-* the performance optimizations applied by the Devito compiler, including:
-  - the Devito Symbolic Engine (DSE) optimizations for flop reduction,
-  - the Devito Loop Engine (DLE) optimizations for parallelism and cache
-    locality;
+* the performance optimization level;
 * the autotuning level.
 
 Running `python benchmark.py --help` will display a list of useful options.
@@ -99,19 +96,19 @@ and run with `mpirun -n number_of_processes python benchmark.py ...`
 Devito supports multiple MPI schemes for halo exchange. See the `Tips` section
 below.
 
-## DSE, DLE: optimization of generated code
+## The optimization level
 
-`benchmark.py` offers three preset optimization modes:
+In Devito, an Operator has two preset optimization levels: `noop` and
+`advanced`.  With `noop`, no performance optimizations are introduced by the
+compiler. With `advanced`, several flop-reducing and data locality
+optimizations are applied. Examples of flop-reducing optimizations are common
+sub-expressions elimination and factorization; examples of data locality
+optimizations are loop fusion and cache blocking. SIMD vectorization is also
+applied through compiler auto-vectorization.
 
- * 'O1': DSE=basic, DLE=basic.
-   Minimum set of optimizations.
- * 'O2': DSE=advanced, DLE=advanced.
-   The default setting when compiling an Operator. Switches on some
-   flop-reduction transformations as well as fundamental loop-level
-   optimizations such as loop blocking and vectorization.
- * 'O3': DSE=aggressive, DLE=advanced.
-   More aggressive flop-reduction transformations, which might improve the
-   runtime performance.
+`benchmark.py` has two preset optimization modes, that for historical reasons
+are called `O1` and `O2`. Basically, `O1` corresponds to `noop`, while `O2`
+corresponds to `advanced`.
 
 ## Auto-tuning
 
@@ -306,12 +303,6 @@ To obtain the ideal CPU peak, one should instantiate this formula
 #[cores] · #[avx units] · #[vector lanes] · #[FMA ports] · [ISA base frequency]
 
 More details in this [paper](https://arxiv.org/pdf/1807.03032.pdf).
-
-## Known limitations and possible work arounds
-
- * The DSE `aggressive` mode might not work in combination with OpenMP if the
-   backend compiler is `gcc` version `< 8.3`. This is a known
-   [issue](https://github.com/devitocodes/devito/issues/320).
 
 ## Do not hesitate to contact us
 

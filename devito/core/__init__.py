@@ -1,20 +1,14 @@
-"""
-The ``core`` Devito backend is simply a "shadow" of the ``base`` backend,
-common to all other backends. The ``core`` backend (and therefore the ``base``
-backend as well) are used to run Devito on standard CPU architectures.
-"""
-
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
 from devito.core.cpu import (CPU64NoopOperator, CPU64Operator, Intel64Operator,
-                             ArmOperator, PowerOperator, CustomOperator)
+                             Intel64FSGOperator, ArmOperator, PowerOperator,
+                             CustomOperator)
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
                                     DeviceOpenMPCustomOperator)
 from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, add_sub_configuration
 
 core_configuration = Parameters('core')
-env_vars_mapper = {}
-add_sub_configuration(core_configuration, env_vars_mapper)
+add_sub_configuration(core_configuration)
 
 # Add core-specific Operators
 operator_registry.add(CPU64NoopOperator, Cpu64, 'noop')
@@ -23,6 +17,7 @@ operator_registry.add(CustomOperator, Cpu64, 'custom')
 
 operator_registry.add(CPU64NoopOperator, Intel64, 'noop')
 operator_registry.add(Intel64Operator, Intel64, 'advanced')
+operator_registry.add(Intel64FSGOperator, Intel64, 'advanced-fsg')
 operator_registry.add(CustomOperator, Intel64, 'custom')
 
 operator_registry.add(CPU64NoopOperator, Arm, 'noop')

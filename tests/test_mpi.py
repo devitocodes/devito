@@ -794,6 +794,26 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op._func_table['bf1'].root)
         assert len(calls) == 0
 
+    @pytest.mark.parallel(mode=1)
+    def test_hoist_haloupdate_from_innerloop(self):
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=4)
+        g = Function(name='g', grid=grid, space_order=2)
+
+        eqns = [Eq(g, f.dzl + f.dzr + 1),
+                Eq(f, g)]
+
+        op = Operator(eqns, opt=('advanced', {'openmp': False}))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+        # Also make sure the Call is at the right place in the IET
+        assert op.body[-1].body[0].body[0].body[0].is_Call
+        assert op.body[-1].body[0].body[0].body[1].is_Iteration
+
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
@@ -817,6 +837,27 @@ class TestCodeGeneration(object):
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
+    @pytest.mark.parallel(mode=[(1, 'full')])
+    def test_avoid_fullmode_if_crossloop_dep(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        f.data_with_halo[:] = 0.
+        g.data_with_halo[:] = 1.
+
+        op = Operator([Eq(f, g[x, y-1] + g[x, y+1]),
+                       Eq(g, f)])
+
+        # Exactly 4 routines will be generated for the basic mode
+        assert len(op._func_table) == 4
+
+        # Also check the numerical values
+        op.apply()
+        assert np.all(f.data[:] == 2.)
+
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
         ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
@@ -835,7 +876,7 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)  # noqa
 
-        op = Operator(Eq(f.forward, eval(expr)), dle=('advanced', {'openmp': False}))
+        op = Operator(Eq(f.forward, eval(expr)), opt=('advanced', {'openmp': False}))
 
         calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
         destinations = {i.arguments[-2].field for i in calls}
@@ -872,7 +913,7 @@ class TestCodeGeneration(object):
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
-        op = Operator(eqn, dle=('advanced', {'blockinner': True}))
+        op = Operator(eqn, opt=('advanced', {'blockinner': True}))
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
         tree = trees[1]
@@ -1450,8 +1491,8 @@ class TestOperatorAdvanced(object):
 
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+1, y+1])*3*f +
                              (u[t, x+2, y+2] + u[t, x+3, y+3])*3*f + 1))
-        op0 = Operator(eqn, dse='noop')
-        op1 = Operator(eqn, dse='aggressive')
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt='advanced')
 
         op0(time_M=1)
         u0_norm = norm(u)
@@ -1482,8 +1523,8 @@ class TestOperatorAdvanced(object):
 
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+2, y])*3*f +
                              (u[t, x+1, y+1] + u[t, x+3, y+1])*3*f + 1))
-        op0 = Operator(eqn, dse='noop')
-        op1 = Operator(eqn, dse='aggressive')
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt='advanced')
 
         op0(time_M=1)
         u0_norm = norm(u)

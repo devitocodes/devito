@@ -13,7 +13,7 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
-           'ModuloDimension', 'IncrDimension']
+           'ModuloDimension', 'IncrDimension', 'ShiftedDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -102,6 +102,7 @@ class Dimension(ArgProvider):
     is_Stepping = False
     is_Modulo = False
     is_Incr = False
+    is_Shifted = False
 
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
@@ -148,13 +149,10 @@ class Dimension(ArgProvider):
         """Symbol defining the maximum point of the Dimension."""
         return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
-    @cached_property
-    def extreme_min(self):
-        return self.symbolic_min
-
-    @cached_property
-    def extreme_max(self):
-        return self.symbolic_max
+    @property
+    def symbolic_incr(self):
+        """The increment value while iterating over the Dimension."""
+        return sympy.S.One
 
     @cached_property
     def size_name(self):
@@ -553,16 +551,8 @@ class SubDimension(DerivedDimension):
 
     @cached_property
     def symbolic_size(self):
-        # The size must be given as a function of the parent's size
+        # The size must be given as a function of the parent's symbols
         return self.symbolic_max - self.symbolic_min + 1
-
-    @cached_property
-    def extreme_min(self):
-        return self._offset_left.extreme
-
-    @cached_property
-    def extreme_max(self):
-        return self._offset_right.extreme
 
     @property
     def local(self):
@@ -908,14 +898,15 @@ class IncrDimension(DerivedDimension):
     ----------
     parent : Dimension
         The Dimension from which the IncrDimension is derived.
-    _min : int, optional
-        The minimum point of the sequence. Defaults to the parent's
-        symbolic minimum.
+    _min : expr-like
+        The minimum point of the Dimension.
+    _max : expr-like
+        The maximum point of the Dimension.
     step : int, optional
         The distance between two consecutive points. Defaults to the
         symbolic size.
     name : str, optional
-        To force a different Dimension name.
+        To override the default Dimension name.
 
     Notes
     -----
@@ -923,57 +914,134 @@ class IncrDimension(DerivedDimension):
     """
 
     is_Incr = True
+    is_PerfKnob = True
 
-    def __new__(cls, parent, _min=None, step=None, name=None):
+    def __new__(cls, parent, _min, _max, step=None, name=None):
         if name is None:
-            name = cls._genname(parent.name, (_min, step))
-        return super().__new__(cls, parent, _min=_min, step=step, name=name)
+            name = cls._genname(parent.name, (_min, _max, step))
+        return super().__new__(cls, parent, _min, _max, step=step, name=name)
 
-    def __init_finalize__(self, parent, _min=None, step=None, name=None):
+    def __init_finalize__(self, parent, _min, _max, step=None, name=None):
         super().__init_finalize__(name, parent)
         self._min = _min
+        self._max = _max
         self._step = step
 
     @cached_property
     def step(self):
-        return self._step if self._step is not None else self.symbolic_size
+        if self._step is not None:
+            return self._step
+        else:
+            return Scalar(name=self.size_name, dtype=np.int32, is_const=True)
 
     @cached_property
-    def max_step(self):
-        return self.parent.symbolic_max - self.parent.symbolic_min + 1
+    def symbolic_size(self):
+        # The size must be given as a function of the parent's symbols
+        return self.symbolic_max - self.symbolic_min + 1
 
     @cached_property
     def symbolic_min(self):
-        if self._min is not None:
-            # Make sure we return a symbolic object as the provided min might
-            # be for example a pure int
-            try:
-                return sympy.Number(self._min)
-            except (TypeError, ValueError):
-                return self._min
-        else:
-            return self.parent.symbolic_min
+        # Make sure we return a symbolic object as the provided min might
+        # be for example a pure int
+        try:
+            return sympy.Number(self._min)
+        except (TypeError, ValueError):
+            return self._min
 
-    @property
+    @cached_property
+    def symbolic_max(self):
+        # Make sure we return a symbolic object as the provided max might
+        # be for example a pure int
+        try:
+            return sympy.Number(self._max)
+        except (TypeError, ValueError):
+            return self._max
+
+    @cached_property
     def symbolic_incr(self):
-        return self + self.step
+        try:
+            return sympy.Number(self.step)
+        except (TypeError, ValueError):
+            return self.step
+
+    @cached_property
+    def _arg_names(self):
+        try:
+            return (self.step.name,)
+        except AttributeError:
+            # `step` not a Symbol
+            return ()
 
     def _arg_defaults(self, **kwargs):
-        """
-        An IncrDimension provides no arguments, so this method returns an empty dict.
-        """
-        return {}
+        # TODO: need a heuristic to pick a default incr size
+        # TODO: move default value to __new__
+        try:
+            return {self.step.name: 8}
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
 
-    def _arg_values(self, *args, **kwargs):
-        """
-        An IncrDimension provides no arguments, so there are no argument values to
-        be derived.
-        """
-        return {}
+    def _arg_values(self, args, interval, grid, **kwargs):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+        if name in kwargs:
+            return {name: kwargs.pop(name)}
+        elif isinstance(self.parent, IncrDimension):
+            # `self` is an IncrDimension within an outer IncrDimension, but
+            # no value supplied -> the sub-block will span the entire block
+            return {name: args[self.parent.step.name]}
+        else:
+            value = self._arg_defaults()[name]
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
+                return {name: value}
+            else:
+                # Avoid OOB (will end up here only in case of tiny iteration spaces)
+                return {name: 1}
+
+    def _arg_check(self, args, interval):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return
+
+        value = args[name]
+        if isinstance(self.parent, IncrDimension):
+            # sub-IncrDimensions must be perfect divisors of their parent
+            parent_value = args[self.parent.step.name]
+            if parent_value % value > 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
+                                      "must divide the parent block size evenly (`%s=%d`)"
+                                      % (name, value, self.parent.step.name,
+                                         parent_value))
+        else:
+            if value < 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
+                                      % (name, value))
+            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
+                # Avoid OOB
+                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
+                                      "iteration range and it will cause an OOB access"
+                                      % (name, value))
 
     # Pickling support
-    _pickle_args = ['parent', 'symbolic_min', 'step']
-    _pickle_kwargs = ['name']
+    _pickle_args = ['parent', 'symbolic_min', 'symbolic_max']
+    _pickle_kwargs = ['step', 'name']
+
+
+class ShiftedDimension(IncrDimension):
+
+    """
+    A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.
+    """
+
+    is_Shifted = True
+
+    def __new__(cls, d, name):
+        return super().__new__(cls, d, 0, d.symbolic_size - 1, step=1, name=name)
 
 
 def dimensions(names):

@@ -371,14 +371,7 @@ class TimedAccess(IterationInstance):
 
         # Given `d`'s iteration Interval `d[m, M]`, we know that `d` iterates between
         # `d_m + m` and `d_M + M`
-        try:
-            m, M = self.intervals[d].offsets
-        except AttributeError:
-            if d.is_NonlinearDerived:
-                # We should only end up here with subsampled Dimensions
-                m, M = self.intervals[d.root].offsets
-            else:
-                assert False
+        m, M = self.intervals[d].offsets
 
         # If `m + (self[d] - d) < self.function._size_nodomain[d].left`, then `self`
         # will definitely touch the left-halo, at least when `d=0`
@@ -437,10 +430,6 @@ class Dependence(object):
     @property
     def findices(self):
         return self.source.findices
-
-    @property
-    def aindices(self):
-        return tuple({i, j} for i, j in zip(self.source.aindices, self.sink.aindices))
 
     @cached_property
     def distance(self):
@@ -511,7 +500,13 @@ class Dependence(object):
 
     @cached_property
     def is_regular(self):
-        return self.source.is_regular and self.sink.is_regular
+        # Note: what we do below is stronger than something along the lines of
+        # `self.source.is_regular and self.sink.is_regular`
+        # `source` and `sink` may be regular in isolation, but the dependence
+        # itself could be irregular, as the two TimedAccesses may stem from
+        # different iteration spaces. Instead if the distance is an integer
+        # vector, it is guaranteed that the iteration space is the same
+        return all(is_integer(i) for i in self.distance)
 
     @cached_property
     def is_irregular(self):

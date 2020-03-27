@@ -10,7 +10,7 @@ from sympy import Expr
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
                           toposort, is_integer)
-
+from devito.types import Dimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
@@ -19,7 +19,7 @@ __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataS
 class AbstractInterval(object):
 
     """
-    A representation of a closed interval on Z.
+    An abstract representation of an iterated closed interval on Z.
     """
 
     __metaclass__ = abc.ABCMeta
@@ -69,9 +69,14 @@ class AbstractInterval(object):
     lift = negate
     reset = negate
     switch = negate
+    translate = negate
 
 
 class NullInterval(AbstractInterval):
+
+    """
+    A degenerate iterated closed interval on Z.
+    """
 
     is_Null = True
 
@@ -104,9 +109,16 @@ class Interval(AbstractInterval):
     """
     Interval(dim, lower, upper)
 
-    Create an Interval of size:
+    A concrete iterated closed interval on Z.
 
-        (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
+    An Interval defines the compact region
+
+        ``[dim.symbolic_min + lower, dim.symbolic_max + upper]``
+
+    The size of the Interval is defined as the number of points iterated over
+    through ``dim``, namely
+
+        ``(dim.symbolic_max + upper - dim.symbolic_min - lower + 1) / dim.symbolic_incr``
     """
 
     is_Defined = True
@@ -117,7 +129,6 @@ class Interval(AbstractInterval):
         super(Interval, self).__init__(dim, stamp)
         self.lower = lower
         self.upper = upper
-        self.size = (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
 
     def __repr__(self):
         return "%s[%s,%s]<%d>" % (self.dim, self.lower, self.upper, self.stamp)
@@ -132,6 +143,12 @@ class Interval(AbstractInterval):
 
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper, self.stamp)
+
+    @cached_property
+    def size(self):
+        upper_extreme = self.dim.symbolic_max + self.upper
+        lower_extreme = self.dim.symbolic_min + self.lower
+        return (upper_extreme - lower_extreme + 1) / self.dim.symbolic_incr
 
     @property
     def relaxed(self):
@@ -192,6 +209,9 @@ class Interval(AbstractInterval):
     def switch(self, d):
         return Interval(d, self.lower, self.upper, self.stamp)
 
+    def translate(self, v):
+        return Interval(self.dim, self.lower + v, self.upper + v, self.stamp)
+
 
 class IntervalGroup(PartialOrderTuple):
 
@@ -230,12 +250,10 @@ class IntervalGroup(PartialOrderTuple):
 
     @property
     def size(self):
-        return reduce(mul, [i.size for i in self]) if self else 0
-
-    @property
-    def dimension_map(self):
-        """Map between Dimensions and their symbolic size."""
-        return OrderedDict([(i.dim, i.size) for i in self])
+        if self:
+            return reduce(mul, [i.size for i in self])
+        else:
+            return 0
 
     @cached_property
     def is_well_defined(self):
@@ -361,13 +379,26 @@ class IntervalGroup(PartialOrderTuple):
         return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
     def __getitem__(self, key):
-        if isinstance(key, slice) or is_integer(key):
+        if is_integer(key):
             return super(IntervalGroup, self).__getitem__(key)
+        elif isinstance(key, slice):
+            retval = super(IntervalGroup, self).__getitem__(key)
+            return IntervalGroup(retval, relations=self.relations)
+
         if not self.is_well_defined:
             raise ValueError("Cannot fetch Interval from ill defined Space")
+
+        if not isinstance(key, Dimension):
+            return NullInterval(key)
+
         for i in self:
             if i.dim is key:
                 return i
+            if key.is_NonlinearDerived and i.dim is key.parent:
+                # NonlinearDerived Dimensions cannot appear in iteration Intervals,
+                # but their parent can
+                return i
+
         return NullInterval(key)
 
 
@@ -432,7 +463,7 @@ class IterationInterval(object):
 class Space(object):
 
     """
-    A compact N-dimensional space, represented as a sequence of N Intervals.
+    A compact N-dimensional space defined by N Intervals.
 
     Parameters
     ----------
@@ -470,13 +501,16 @@ class Space(object):
 
     @property
     def dimension_map(self):
-        return self.intervals.dimension_map
+        """
+        Map between the Space Dimensions and the size of their iterated region.
+        """
+        return OrderedDict([(i.dim, i.size) for i in self.intervals])
 
 
 class DataSpace(Space):
 
     """
-    A compact N-dimensional data space.
+    Represent a data space as an enriched Space.
 
     Parameters
     ----------
@@ -567,7 +601,7 @@ class DataSpace(Space):
 class IterationSpace(Space):
 
     """
-    A compact N-dimensional iteration space.
+    Represent an iteration space as an enriched Space.
 
     Parameters
     ----------
@@ -679,6 +713,10 @@ class IterationSpace(Space):
         return self.directions[dim] is Forward
 
     @property
+    def relations(self):
+        return self.intervals.relations
+
+    @property
     def sub_iterators(self):
         return self._sub_iterators
 
@@ -689,10 +727,6 @@ class IterationSpace(Space):
     @property
     def itintervals(self):
         return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
-
-    @property
-    def args(self):
-        return (self.intervals, self.sub_iterators, self.directions)
 
     @property
     def dimensions(self):

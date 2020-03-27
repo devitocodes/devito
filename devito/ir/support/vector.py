@@ -292,6 +292,9 @@ class LabeledVector(Vector):
     def fromlabel(self, label, v=None):
         return self[label] if label in self.labels else v
 
+    def items(self):
+        return zip(self.labels, self)
+
     @memoized_meth
     def distance(self, other):
         """

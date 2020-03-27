@@ -13,6 +13,7 @@ __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
 
 
 class Bunch(object):
+
     """
     Bind together an arbitrary number of generic items. This is a mutable
     alternative to a ``namedtuple``.
@@ -22,12 +23,17 @@ class Bunch(object):
         http://code.activestate.com/recipes/52308-the-simple-but-handy-collector-of\
         -a-bunch-of-named/?in=user-97991
     """
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
 
 class EnrichedTuple(tuple):
-    """A tuple with an arbitrary number of additional attributes."""
+
+    """
+    A tuple with an arbitrary number of additional attributes.
+    """
+
     def __new__(cls, *items, getters=None, **kwargs):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
@@ -38,10 +44,14 @@ class EnrichedTuple(tuple):
         if isinstance(key, (int, slice)):
             return super(EnrichedTuple, self).__getitem__(key)
         else:
-            return self._getters[key]
+            return self.__getitem_hook__(key)
+
+    def __getitem_hook__(self, key):
+        return self._getters[key]
 
 
 class ReducerMap(MultiDict):
+
     """
     Specialised MultiDict object that maps a single key to a
     list of potential values and provides a reduction method for

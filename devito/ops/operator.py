@@ -9,7 +9,7 @@ from devito.ops import ops_configuration
 from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.clusters import cse, factorize, freeze, fuse, optimize_pows
 from devito.passes.iet import DataManager, iet_pass
 from devito.symbolics import Literal
 from devito.tools import filter_sorted, flatten, generator, timed_pass
@@ -28,9 +28,6 @@ class OPSOperator(Operator):
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
-        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
-        # but it will have to change
-
         # To create temporaries
         counter = generator()
         template = lambda: "r%d" % counter()
@@ -39,17 +36,13 @@ class OPSOperator(Operator):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, **kwargs)
+        # Reduce flops (potential arithmetic alterations)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
 
-        # Lifting
-        clusters = Lift().process(clusters)
-
-        # Lifting may create fusion opportunities, which in turn may enable
-        # further optimizations
-        clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
-        clusters = scalarize(clusters, template)
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
 
         return clusters
 
@@ -132,7 +125,7 @@ def make_ops_kernels(iet):
         # Copy data from device to host
         after_time_loop.extend(create_ops_fetch(f,
                                                 name_to_ops_dat,
-                                                f.grid.time_dim.extreme_max))
+                                                f.grid.time_dim.symbolic_max))
 
     # Generate ops kernels for each offloadable iteration tree
     mapper = {}

@@ -13,7 +13,8 @@ from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.clusters import (Lift, cire, cse, factorize, freeze, fuse,
+                                    optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
                                iet_pass)
 from devito.tools import Signer, as_tuple, filter_ordered, flatten, generator, timed_pass
@@ -125,6 +126,21 @@ class YASKOperator(Operator):
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
     _default_includes = Operator._default_includes + ['yask_kernel_api.hpp']
 
+    CIRE_REPEATS_INV = 1
+    """
+    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
+    """
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        options = kwargs['options']
+
+        options['cire-repeats'] = {
+            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
+        }
+
+        return kwargs
+
     @classmethod
     def _build(cls, expressions, **kwargs):
         yk_solns = OrderedDict()
@@ -159,8 +175,8 @@ class YASKOperator(Operator):
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
-        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
-        # but it will have to change
+        options = kwargs['options']
+        platform = kwargs['platform']
 
         # To create temporaries
         counter = generator()
@@ -170,17 +186,18 @@ class YASKOperator(Operator):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, **kwargs)
-
-        # Lifting
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, template, 'invariants', options, platform)
         clusters = Lift().process(clusters)
-
-        # Lifting may create fusion opportunities, which in turn may enable
-        # further optimizations
         clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
-        clusters = scalarize(clusters, template)
+
+        # Reduce flops (potential arithmetic alterations)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
 
         return clusters
 

@@ -11,8 +11,7 @@ from devito.ops.compiler import CompilerOPS as Compiler # noqa
 
 ops_configuration = Parameters('ops')
 ops_configuration.add('compiler', Compiler())
-env_vars_mapper = {}
-add_sub_configuration(ops_configuration, env_vars_mapper)
+add_sub_configuration(ops_configuration)
 
 from devito.ops.operator import OPSOperator  # noqa
 

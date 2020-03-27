@@ -19,13 +19,13 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integer,
+from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
-from devito.types.utils import Buffer, NODE, CELL
+from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction']
 
@@ -318,7 +318,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @property
     def size_allocated(self):

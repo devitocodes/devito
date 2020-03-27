@@ -2,11 +2,13 @@ from itertools import groupby
 
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
-from devito.symbolics import xreplace_indices
-from devito.tools import filter_ordered
+from devito.passes.clusters.utils import cluster_pass
+from devito.symbolics import pow_to_mul, xreplace_indices, freeze as _freeze
+from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
-__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays']
+__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows',
+           'extract_increments', 'freeze']
 
 
 class Lift(Queue):
@@ -19,6 +21,10 @@ class Lift(Queue):
     This is analogous to the compiler transformation known as
     "loop-invariant code motion".
     """
+
+    @timed_pass(name='lift')
+    def process(self, elements):
+        return super(Lift, self).process(elements)
 
     def callback(self, clusters, prefix):
         if not prefix:
@@ -67,6 +73,7 @@ class Lift(Queue):
         return lifted + processed
 
 
+@timed_pass()
 def fuse(clusters):
     """
     Fuse sub-sequences of Clusters with compatible IterationSpace.
@@ -92,6 +99,7 @@ def fuse(clusters):
     return processed
 
 
+@timed_pass()
 def scalarize(clusters, template):
     """
     Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
@@ -111,10 +119,11 @@ def scalarize(clusters, template):
         #                                        ... = t0 + t1
         mapper = {}
         exprs = []
-        for e in c.exprs:
+        for n, e in enumerate(c.exprs):
             f = e.lhs.function
             if f in arrays:
-                for i in filter_ordered(i.indexed for i in c.scope[f]):
+                indexeds = [i.indexed for i in c.scope[f] if i.timestamp > n]
+                for i in filter_ordered(indexeds):
                     mapper[i] = Scalar(name=template(), dtype=f.dtype)
 
                     assert len(f.indices) == len(e.lhs.indices) == len(i.indices)
@@ -132,6 +141,7 @@ def scalarize(clusters, template):
     return processed
 
 
+@timed_pass()
 def eliminate_arrays(clusters, template):
     """
     Eliminate redundant expressions stored in Arrays.
@@ -176,3 +186,42 @@ def eliminate_arrays(clusters, template):
         processed.append(c.rebuild(exprs))
 
     return processed
+
+
+@cluster_pass(mode='all')
+def optimize_pows(cluster, *args):
+    """
+    Convert integer powers into Muls, such as ``a**2 => a*a``.
+    """
+    return cluster.rebuild(exprs=[pow_to_mul(e) for e in cluster.exprs])
+
+
+@cluster_pass(mode='sparse')
+def extract_increments(cluster, template, *args):
+    """
+    Extract the RHSs of non-local tensor expressions performing an associative
+    and commutative increment, and assign them to temporaries.
+    """
+    processed = []
+    for e in cluster.exprs:
+        if e.is_Increment and e.lhs.function.is_Input:
+            handle = Scalar(name=template(), dtype=e.dtype).indexify()
+            if e.rhs.is_Number or e.rhs.is_Symbol:
+                extracted = e.rhs
+            else:
+                extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
+            processed.extend([e.func(handle, extracted, is_Increment=False),
+                              e.func(e.lhs, handle)])
+        else:
+            processed.append(e)
+
+    return cluster.rebuild(processed)
+
+
+@cluster_pass(mode='all')
+def freeze(cluster):
+    """
+    Prevent future symbolic manipulations (e.g., xreplace, subs, ...) from
+    altering the arithmetic structure of the expressions.
+    """
+    return cluster.rebuild([_freeze(e) for e in cluster.exprs])

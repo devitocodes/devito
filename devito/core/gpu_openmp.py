@@ -8,7 +8,8 @@ from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.ir.iet import MapExprStmts
 from devito.logger import warning
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
+                                    factorize, freeze, fuse, optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
@@ -193,20 +194,37 @@ class DeviceDataManager(DataManager):
 
 class DeviceOpenMPNoopOperator(OperatorCore):
 
+    CIRE_REPEATS_INV = 2
+    """
+    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
+    """
+
+    CIRE_REPEATS_SOPS = 2
+    """
+    Number of CIRE passes to detect and optimize away redundant sum-of-products.
+    """
+
     @classmethod
-    def _build(cls, *args, **kwargs):
+    def _normalize_kwargs(cls, **kwargs):
+        options = kwargs['options']
+
         # Strictly unneccesary, but make it clear that this Operator *will*
         # generate OpenMP code, bypassing any `openmp=False` provided in
         # input to Operator
-        kwargs['options'].pop('openmp')
+        options.pop('openmp')
 
-        return super(DeviceOpenMPNoopOperator, cls)._build(*args, **kwargs)
+        options['cire-repeats'] = {
+            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
+            'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        }
+
+        return kwargs
 
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
-        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
-        # but it will have to change
+        options = kwargs['options']
+        platform = kwargs['platform']
 
         # To create temporaries
         counter = generator()
@@ -216,11 +234,19 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, **kwargs)
-
-        # Lifting
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, template, 'invariants', options, platform)
         clusters = Lift().process(clusters)
+
+        # Reduce flops (potential arithmetic alterations)
+        clusters = extract_increments(clusters, template)
+        clusters = cire(clusters, template, 'sops', options, platform)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
 
         # Lifting may create fusion opportunities, which in turn may enable
         # further optimizations

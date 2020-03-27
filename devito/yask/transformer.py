@@ -114,8 +114,8 @@ def yaskit(trees, yc_soln):
     for to, frm in zip(processed, processed[1:]):
         yc_soln.add_flow_dependency(frm, to)
 
-    # Have we built any local vars (i.e., DSE-produced tensor temporaries)?
-    # If so, eventually these will be mapped to YASK scratch vars
+    # Have we built any local vars (i.e., tensor temporaries introduced during
+    # compilation)? If so, eventually these will be mapped to YASK scratch vars
     local_vars = [i for i in mapper if i.is_Array]
 
     return local_vars
@@ -157,7 +157,7 @@ def make_yask_ast(expr, yc_soln, mapper=None):
             else:
                 return nfac.new_misc_index(expr.name)
         else:
-            # E.g., A DSE-generated temporary, which must have already been
+            # E.g., A compiler-generated temporary, which must have already been
             # encountered as a LHS of a previous expression
             assert function in mapper
             return mapper[function]

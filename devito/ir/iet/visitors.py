@@ -19,8 +19,7 @@ from devito.types.basic import AbstractFunction
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
-           'FindAdjacent']
+           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer']
 
 
 class Visitor(GenericVisitor):
@@ -112,7 +111,7 @@ class PrintAST(Visitor):
         body = self._visit(o.children)
         self._depth -= 1
         if self.verbose:
-            detail = '::%s::%s::%s' % (o.index, o.limits, o.offsets)
+            detail = '::%s::%s' % (o.index, o.limits)
             props = [str(i) for i in o.properties]
             props = '[%s] ' % ','.join(props) if props else ''
         else:
@@ -273,25 +272,8 @@ class CGen(Visitor):
     def visit_Iteration(self, o):
         body = flatten(self._visit(i) for i in o.children)
 
-        # Start
-        if o.offsets[0] != 0:
-            _min = str(o.limits[0] + o.offsets[0])
-            try:
-                _min = eval(_min)
-            except (NameError, TypeError):
-                pass
-        else:
-            _min = o.limits[0]
-
-        # Bound
-        if o.offsets[1] != 0:
-            _max = str(o.limits[1] + o.offsets[1])
-            try:
-                _max = eval(_max)
-            except (NameError, TypeError):
-                pass
-        else:
-            _max = o.limits[1]
+        _min = o.limits[0]
+        _max = o.limits[1]
 
         # For backward direction flip loop bounds
         if o.direction == Backward:
@@ -307,7 +289,11 @@ class CGen(Visitor):
         if o.uindices:
             uinit = ['%s = %s' % (i.name, ccode(i.symbolic_min)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
-            ustep = ['%s = %s' % (i.name, ccode(i.symbolic_incr)) for i in o.uindices]
+
+            ustep = []
+            for i in o.uindices:
+                op = '=' if i.is_Modulo else '+='
+                ustep.append('%s %s %s' % (i.name, op, ccode(i.symbolic_incr)))
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
 
         # Create For header+body
@@ -639,58 +625,6 @@ class FindNodes(Visitor):
             ret.append(o)
         for i in o.children:
             ret = self._visit(i, ret=ret)
-        return ret
-
-
-class FindAdjacent(Visitor):
-
-    @classmethod
-    def default_retval(cls):
-        return OrderedDict([('seen_type', False)])
-
-    """
-    Return a mapper from nodes N in an Expression/Iteration tree to sequences of
-    objects I = [I_0, I_1, ...] of type T, where N is the direct ancestor of
-    the items in I and all items in I are adjacent nodes in the tree.
-    """
-
-    def __init__(self, match):
-        super(FindAdjacent, self).__init__()
-        self.match = as_tuple(match)
-
-    def handler(self, o, parent=None, ret=None):
-        if ret is None:
-            ret = self.default_retval()
-        if parent is None:
-            return ret
-        group = []
-        for i in o:
-            ret = self._visit(i, parent=parent, ret=ret)
-            if i and ret['seen_type'] is True:
-                group.append(i)
-            else:
-                if len(group) > 1:
-                    ret.setdefault(parent, []).append(tuple(group))
-                # Reset the group, Iterations no longer adjacent
-                group = []
-        # Potential leftover
-        if len(group) > 1:
-            ret.setdefault(parent, []).append(tuple(group))
-        return ret
-
-    def _post_visit(self, ret):
-        ret.pop('seen_type', None)
-        return ret
-
-    def visit_object(self, o, parent=None, ret=None):
-        return ret
-
-    def visit_tuple(self, o, parent=None, ret=None):
-        return self.handler(o, parent=parent, ret=ret)
-
-    def visit_Node(self, o, parent=None, ret=None):
-        ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_type'] = type(o) in self.match
         return ret
 
 

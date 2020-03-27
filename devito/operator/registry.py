@@ -25,7 +25,7 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
         * `operator` is an object of type Operator.
     """
 
-    _modes = ('noop', 'advanced')
+    _modes = ('noop', 'advanced', 'advanced-fsg')
     _languages = ('C',)
     _accepted = _modes + tuple(product(_modes, _languages))
 
@@ -40,7 +40,7 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
         Retrieve an Operator for the given `<platform, mode, language>`.
         """
         if mode not in OperatorRegistry._modes:
-            # DLE given as an arbitrary sequence of passes
+            # Optimization given as an arbitrary sequence of passes
             mode = 'custom'
 
         if language not in OperatorRegistry._languages:
