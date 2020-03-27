@@ -4,33 +4,33 @@ from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import IterationSpace
+from devito.ir.support import SEQUENTIAL, IterationSpace
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
 from devito.tools import flatten
 
-__all__ = ['st_build']
+__all__ = ['stree_build']
 
 
-def st_build(clusters):
+def stree_build(clusters):
     """
-    Create a :class:`ScheduleTree` from a :class:`ClusterGroup`.
+    Create a ScheduleTree from a ClusterGroup.
     """
     # ClusterGroup -> Schedule tree
-    stree = st_schedule(clusters)
+    stree = stree_schedule(clusters)
 
     # Add in section nodes
-    stree = st_section(stree)
+    stree = stree_section(stree)
 
     # Add in halo update nodes
-    stree = st_make_halo(stree)
+    stree = stree_make_halo(stree)
 
     return stree
 
 
-def st_schedule(clusters):
+def stree_schedule(clusters):
     """
-    Arrange an iterable of :class:`Cluster`s into a :class:`ScheduleTree`.
+    Arrange an iterable of Clusters into a ScheduleTree.
     """
     stree = ScheduleTree()
 
@@ -42,7 +42,7 @@ def st_schedule(clusters):
         index = 0
         root = stree
         for it0, it1 in zip(c.itintervals, pointers):
-            if it0 != it1 or it0.dim in c.atomics:
+            if it0 != it1:
                 break
             root = mapper[it0]
             index += 1
@@ -51,77 +51,85 @@ def st_schedule(clusters):
 
         # The reused sub-trees might acquire some new sub-iterators
         for i in pointers[:index]:
-            mapper[i].ispace = IterationSpace.merge(mapper[i].ispace,
+            mapper[i].ispace = IterationSpace.union(mapper[i].ispace,
                                                     c.ispace.project([i.dim]))
-        # Later sub-trees, instead, will not be used anymore
+        # Nested sub-trees, instead, will not be used anymore
         for i in pointers[index:]:
             mapper.pop(i)
 
         # Add in Iterations
         for i in c.itintervals[index:]:
-            root = NodeIteration(c.ispace.project([i.dim]), root)
+            root = NodeIteration(c.ispace.project([i.dim]), root, c.properties.get(i.dim))
             mapper[i] = root
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.ispace, c.dspace, c.shape, c.ops, c.traffic, root)
+        NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, root)
 
         # Add in Conditionals
-        for k, v in mapper.items():
+        drop_guarded = None
+        for k, v in list(mapper.items()):
+            if drop_guarded:
+                mapper.pop(k)
             if k.dim in c.guards:
                 node = NodeConditional(c.guards[k.dim])
                 v.last.parent = node
                 node.parent = v
+                # Drop nested guarded sub-trees
+                drop_guarded = True
 
     return stree
 
 
-def st_make_halo(stree):
+def stree_make_halo(stree):
     """
-    Add :class:`NodeHalo`s to a :class:`ScheduleTree`. A HaloNode captures
-    the halo exchanges that should take place before executing the sub-tree;
-    these are described by means of a :class:`HaloScheme`.
+    Add NodeHalos to a ScheduleTree. A NodeHalo captures the halo exchanges
+    that should take place before executing the sub-tree; these are described
+    by means of a HaloScheme.
     """
     # Build a HaloScheme for each expression bundle
     halo_schemes = {}
     for n in findall(stree, lambda i: i.is_Exprs):
         try:
-            halo_schemes[n] = HaloScheme(n.exprs, n.ispace, n.dspace)
+            halo_schemes[n] = HaloScheme(n.exprs, n.ispace)
         except HaloSchemeException as e:
             if configuration['mpi']:
                 raise RuntimeError(str(e))
 
-    # Insert the HaloScheme at a suitable level in the ScheduleTree
+    # Split a HaloScheme based on where it should be inserted
+    # For example, it's possible that, for a given HaloScheme, a Function's
+    # halo needs to be exchanged at a certain `stree` depth, while another
+    # Function's halo needs to be exchanged before some other nodes
     mapper = {}
     for k, hs in halo_schemes.items():
         for f, v in hs.fmapper.items():
             spot = k
             ancestors = [n for n in k.ancestors if n.is_Iteration]
             for n in ancestors:
-                test0 = any(n.dim is i.dim for i in v.halos)
-                test1 = n.dim not in [i.root for i in v.loc_indices]
-                if test0 or test1:
+                # Place the halo exchange right before the first
+                # distributed Dimension which requires it
+                if any(i.dim in n.dim._defines for i in v.halos):
                     spot = n
                     break
-            mapper.setdefault(spot, []).append((f, v))
-    for spot, entries in mapper.items():
-        insert(NodeHalo(HaloScheme(fmapper=dict(entries))), spot.parent, [spot])
+            mapper.setdefault(spot, []).append(hs.project(f))
+
+    # Now fuse the HaloSchemes at the same `stree` depth and perform the insertion
+    for spot, halo_schemes in mapper.items():
+        insert(NodeHalo(HaloScheme.union(halo_schemes)), spot.parent, [spot])
 
     return stree
 
 
-def st_section(stree):
+def stree_section(stree):
     """
-    Add :class:`NodeSection` to a :class:`ScheduleTree`. A section defines a
-    sub-tree with the following properties: ::
+    Add NodeSections to a ScheduleTree. A NodeSection, or simply "section",
+    defines a sub-tree with the following properties:
 
-        * The root is a node of type :class:`NodeSection`;
-        * The immediate children of the root are nodes of type :class:`NodeIteration`
-          and have same parent.
-        * The :class:`Dimension` of the immediate children are either: ::
+        * The root is a node of type NodeSection;
+        * The immediate children of the root are nodes of type NodeIteration;
+        * The Dimensions of the immediate children are either:
             * identical, OR
-            * different, but all of type :class:`SubDimension`;
-        * The :class:`Dimension` of the immediate children cannot be a
-          :class:`TimeDimension`.
+            * different, but all of type SubDimension;
+        * The Dimension of the immediate children cannot be a TimeDimension.
     """
 
     class Section(object):
@@ -131,8 +139,7 @@ def st_section(stree):
             self.nodes = [node]
 
         def is_compatible(self, node):
-            return (self.parent == node.parent
-                    and (self.dim == node.dim or node.dim.is_Sub))
+            return self.parent == node.parent and self.dim.root == node.dim.root
 
     # Search candidate sections
     sections = []
@@ -143,7 +150,12 @@ def st_section(stree):
             if any(p in flatten(s.nodes for s in sections) for p in n.ancestors):
                 # Already within a section
                 continue
-            elif not n.is_Iteration or n.dim.is_Time:
+            elif not n.is_Iteration:
+                section = None
+            elif n.dim.is_Time and SEQUENTIAL in n.properties:
+                # If n.dim.is_Time, we end up here in 99.9% of the cases.
+                # Sometimes, however, time is a PARALLEL Dimension (e.g.,
+                # think of `norm` Operators)
                 section = None
             elif section is None or not section.is_compatible(n):
                 section = Section(n)

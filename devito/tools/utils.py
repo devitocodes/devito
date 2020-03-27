@@ -1,20 +1,30 @@
 import ctypes
-from collections import Iterable, OrderedDict
+from collections import OrderedDict
+from collections.abc import Iterable
 from functools import reduce
-from itertools import chain, combinations, product, zip_longest
+from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
+import types
 
 import numpy as np
 import sympy
+from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
-__all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
-           'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
-           'filter_sorted', 'numpy_to_ctypes', 'numpy_to_mpitypes', 'ctypes_to_C',
-           'ctypes_pointer', 'pprint', 'sweep', 'as_mapper']
+__all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
+           'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
+           'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list']
 
 
-def prod(iterable):
-    return reduce(mul, iterable, 1)
+def prod(iterable, initial=1):
+    return reduce(mul, iterable, initial)
+
+
+def as_list(item, type=None, length=None):
+    """
+    Force item to a list.
+    """
+    return list(as_tuple(item, type=type, length=length))
 
 
 def as_tuple(item, type=None, length=None):
@@ -26,7 +36,7 @@ def as_tuple(item, type=None, length=None):
     # Empty list if we get passed None
     if item is None:
         t = ()
-    elif isinstance(item, str):
+    elif isinstance(item, (str, sympy.Function)):
         t = (item,)
     else:
         # Convert iterable to list...
@@ -81,6 +91,12 @@ def grouper(iterable, n):
     return ([e for e in t if e is not None] for t in zip_longest(*args))
 
 
+def all_equal(iterable):
+    "Returns True if all the elements are equal to each other"
+    g = groupby(iterable)
+    return next(g, True) and not next(g, False)
+
+
 def split(iterable, f):
     """Split an iterable ``I`` into two iterables ``I1`` and ``I2`` of the
     same type as ``I``. ``I1`` contains all elements ``e`` in ``I`` for
@@ -114,7 +130,7 @@ def flatten(l):
     """Flatten a hierarchy of nested lists into a plain list."""
     newlist = []
     for el in l:
-        if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
+        if isinstance(el, Iterable) and not isinstance(el, (str, bytes, np.ndarray)):
             for sub in flatten(el):
                 newlist.append(sub)
         else:
@@ -132,33 +148,50 @@ def single_or(l):
 
 
 def filter_ordered(elements, key=None):
-    """Filter elements in a list while preserving order.
-
-    :param key: Optional conversion key used during equality comparison.
     """
+    Filter elements in a list while preserving order.
+
+    Parameters
+    ----------
+    key : callable, optional
+        Conversion key used during equality comparison.
+    """
+    if isinstance(elements, types.GeneratorType):
+        elements = list(elements)
     seen = set()
     if key is None:
-        key = lambda x: x
+        try:
+            unordered, inds = np.unique(elements, return_index=True)
+            return unordered[np.argsort(inds)].tolist()
+        except:
+            return sorted(list(set(elements)), key=elements.index)
     return [e for e in elements if not (key(e) in seen or seen.add(key(e)))]
 
 
 def filter_sorted(elements, key=None):
-    """Filter elements in a list and sort them by key. The default key is
-    ``operator.attrgetter('name')``."""
+    """
+    Filter elements in a list and sort them by key. The default key is
+    ``operator.attrgetter('name')``.
+    """
     if key is None:
         key = attrgetter('name')
     return sorted(filter_ordered(elements, key=key), key=key)
 
 
-def numpy_to_ctypes(dtype):
-    """Map numpy types to ctypes types."""
+def dtype_to_cstr(dtype):
+    """Translate numpy.dtype into C string."""
+    return cgen_dtype_to_ctype(dtype)
+
+
+def dtype_to_ctype(dtype):
+    """Translate numpy.dtype into a ctypes type."""
     return {np.int32: ctypes.c_int,
             np.float32: ctypes.c_float,
             np.int64: ctypes.c_int64,
             np.float64: ctypes.c_double}[dtype]
 
 
-def numpy_to_mpitypes(dtype):
+def dtype_to_mpitype(dtype):
     """Map numpy types to MPI datatypes."""
     return {np.int32: 'MPI_INT',
             np.float32: 'MPI_FLOAT',
@@ -166,20 +199,31 @@ def numpy_to_mpitypes(dtype):
             np.float64: 'MPI_DOUBLE'}[dtype]
 
 
-def ctypes_to_C(ctype):
-    """Map ctypes types to C types."""
+def ctypes_to_cstr(ctype, toarray=None):
+    """Translate ctypes types into C strings."""
     if issubclass(ctype, ctypes.Structure):
         return 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
         return 'union %s' % ctype.__name__
     elif issubclass(ctype, ctypes._Pointer):
-        return '%s*' % ctypes_to_C(ctype._type_)
+        if toarray:
+            return ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
+        else:
+            return '%s *' % ctypes_to_cstr(ctype._type_)
+    elif issubclass(ctype, ctypes.Array):
+        return '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
-        # the format c_X_p, where X is the C typename, for instance `int` or `float`.
-        return ctype.__name__[2:-2]
+        # either the format c_X_p or c_X, where X is the C typename, for instance
+        # `int` or `float`.
+        if ctype.__name__.endswith('_p'):
+            return '%s *' % ctype.__name__[2:-2]
+        elif toarray:
+            return '%s %s' % (ctype.__name__[2:], toarray)
+        else:
+            return ctype.__name__[2:]
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         return ctype.__name__

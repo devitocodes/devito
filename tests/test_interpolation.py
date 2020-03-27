@@ -1,17 +1,59 @@
-import numpy as np
-import pytest
-from conftest import skipif_yask, unit_box, points, unit_box_time, time_points
 from math import sin, floor
 
-from devito.cgen_utils import FLOAT
-from devito import (Grid, Operator, Function, SparseFunction, Dimension,
-                    TimeFunction, PrecomputedSparseFunction,
-                    PrecomputedSparseTimeFunction)
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
+import numpy as np
+import pytest
+
+from conftest import skipif
+from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
+                    Function, TimeFunction,
+                    PrecomputedSparseFunction, PrecomputedSparseTimeFunction)
+from devito.symbolics import FLOAT
+from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
+                              AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver
 
+pytestmark = skipif(['yask', 'ops'])
 
-@pytest.fixture
+
+def unit_box(name='a', shape=(11, 11), grid=None):
+    """Create a field with value 0. to 1. in each dimension"""
+    grid = grid or Grid(shape=shape)
+    a = Function(name=name, grid=grid)
+    dims = tuple([np.linspace(0., 1., d) for d in shape])
+    a.data[:] = np.meshgrid(*dims)[1]
+    return a
+
+
+def unit_box_time(name='a', shape=(11, 11)):
+    """Create a field with value 0. to 1. in each dimension"""
+    grid = Grid(shape=shape)
+    a = TimeFunction(name=name, grid=grid, time_order=1)
+    dims = tuple([np.linspace(0., 1., d) for d in shape])
+    a.data[0, :] = np.meshgrid(*dims)[1]
+    a.data[1, :] = np.meshgrid(*dims)[1]
+    return a
+
+
+def points(grid, ranges, npoints, name='points'):
+    """Create a set of sparse points from a set of coordinate
+    ranges for each spatial dimension.
+    """
+    points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    for i, r in enumerate(ranges):
+        points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
+    return points
+
+
+def time_points(grid, ranges, npoints, name='points', nt=10):
+    """Create a set of sparse points from a set of coordinate
+    ranges for each spatial dimension.
+    """
+    points = SparseTimeFunction(name=name, grid=grid, npoint=npoints, nt=nt)
+    for i, r in enumerate(ranges):
+        points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
+    return points
+
+
 def a(shape=(11, 11)):
     grid = Grid(shape=shape)
     a = Function(name='a', grid=grid)
@@ -21,7 +63,6 @@ def a(shape=(11, 11)):
     return a
 
 
-@pytest.fixture
 def at(shape=(11, 11)):
     grid = Grid(shape=shape)
     a = TimeFunction(name='a', grid=grid)
@@ -46,26 +87,25 @@ def custom_points(grid, ranges, npoints, name='points'):
 
 def precompute_linear_interpolation(points, grid, origin):
     """ Sample precompute function that, given point and grid information
-        precomputes gridpoints and coefficients according to a linear
+        precomputes gridpoints and interpolation coefficients according to a linear
         scheme to be used in PrecomputedSparseFunction.
     """
     gridpoints = [tuple(floor((point[i]-origin[i])/grid.spacing[i])
                         for i in range(len(point))) for point in points]
 
-    coefficients = np.zeros((len(points), 2, 2))
+    interpolation_coeffs = np.zeros((len(points), 2, 2))
     for i, point in enumerate(points):
         for d in range(grid.dim):
-            coefficients[i, d, 0] = ((gridpoints[i][d] + 1)*grid.spacing[d] -
-                                     point[d])/grid.spacing[d]
-            coefficients[i, d, 1] = (point[d]-gridpoints[i][d]*grid.spacing[d])\
+            interpolation_coeffs[i, d, 0] = ((gridpoints[i][d] + 1)*grid.spacing[d] -
+                                             point[d])/grid.spacing[d]
+            interpolation_coeffs[i, d, 1] = (point[d]-gridpoints[i][d]*grid.spacing[d])\
                 / grid.spacing[d]
-    return gridpoints, coefficients
+    return gridpoints, interpolation_coeffs
 
 
-@skipif_yask
 def test_precomputed_interpolation():
     """ Test interpolation with PrecomputedSparseFunction which accepts
-        precomputed values for coefficients
+        precomputed values for interpolation coefficients
     """
     shape = (101, 101)
     points = [(.05, .9), (.01, .8), (0.07, 0.84)]
@@ -83,10 +123,12 @@ def test_precomputed_interpolation():
 
     m = Function(name='m', grid=grid, initializer=init, space_order=0)
 
-    gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
+    gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
+                                                                       grid, origin)
 
     sf = PrecomputedSparseFunction(name='s', grid=grid, r=r, npoint=len(points),
-                                   gridpoints=gridpoints, coefficients=coefficients)
+                                   gridpoints=gridpoints,
+                                   interpolation_coeffs=interpolation_coeffs)
     eqn = sf.interpolate(m)
     op = Operator(eqn)
     op()
@@ -94,10 +136,10 @@ def test_precomputed_interpolation():
     assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
 
 
-@skipif_yask
 def test_precomputed_interpolation_time():
     """ Test interpolation with PrecomputedSparseFunction which accepts
-        precomputed values for coefficients, but this time with a TimeFunction
+        precomputed values for interpolation coefficients, but this time
+        with a TimeFunction
     """
     shape = (101, 101)
     points = [(.05, .9), (.01, .8), (0.07, 0.84)]
@@ -111,11 +153,12 @@ def test_precomputed_interpolation_time():
     for it in range(5):
         u.data[it, :] = it
 
-    gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
+    gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
+                                                                       grid, origin)
 
     sf = PrecomputedSparseTimeFunction(name='s', grid=grid, r=r, npoint=len(points),
                                        nt=5, gridpoints=gridpoints,
-                                       coefficients=coefficients)
+                                       interpolation_coeffs=interpolation_coeffs)
 
     assert sf.data.shape == (5, 3)
 
@@ -124,10 +167,9 @@ def test_precomputed_interpolation_time():
     op(time_m=0, time_M=4)
 
     for it in range(5):
-        assert all(np.isclose(sf.data[it, :], it))
+        assert np.allclose(sf.data[it, :], it)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -146,7 +188,6 @@ def test_interpolate(shape, coords, npoints=20):
     assert np.allclose(p.data[:], xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -166,7 +207,6 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -200,7 +240,6 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
     assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -219,7 +258,6 @@ def test_interpolate_array(shape, coords, npoints=20):
     assert np.allclose(p.data[:], xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -241,7 +279,50 @@ def test_interpolate_custom(shape, coords, npoints=20):
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
 
 
-@skipif_yask
+def test_interpolation_dx():
+    """
+    Test interpolation of a SparseFunction from a Derivative of
+    a Function.
+    """
+    u = unit_box(shape=(11, 11))
+    sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
+    sf1.coordinates.data[0, :] = (0.5, 0.5)
+
+    op = Operator(sf1.interpolate(u.dx))
+
+    assert sf1.data.shape == (1,)
+    u.data[:] = 0.0
+    u.data[5, 5] = 4.0
+    u.data[4, 5] = 2.0
+    u.data[6, 5] = 2.0
+
+    op.apply()
+    # Exactly in the middle of 4 points, only 1 nonzero is 4
+    assert sf1.data[0] == pytest.approx(-20.0)
+
+
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+])
+def test_interpolate_indexed(shape, coords, npoints=20):
+    """Test generic point interpolation testing the x-coordinate of an
+    abitrary set of points going across the grid. Unlike other tests,
+    here we interpolate an expression built using the indexed notation.
+    """
+    a = unit_box(shape=shape)
+    p = custom_points(a.grid, coords, npoints=npoints)
+    xcoords = p.coordinates.data[:, 0]
+
+    p.data[:] = 1.
+    expr = p.interpolate(a[a.grid.dimensions] * p.indices[0])
+    Operator(expr)(a=a)
+
+    assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
+    assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
+    assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
+
+
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -263,7 +344,6 @@ def test_inject(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -304,7 +384,6 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -327,7 +406,6 @@ def test_inject_array(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -350,7 +428,6 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape', [(50, 50, 50)])
 def test_position(shape):
     t0 = 0.0  # Start time
@@ -359,26 +436,25 @@ def test_position(shape):
 
     # Create model from preset
     model = demo_model('constant-isotropic', spacing=[15. for _ in shape],
-                       shape=shape, nbpml=10)
+                       shape=shape, nbl=10)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = 30.
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(shape)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = 30.
 
-    # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    rec_coordinates = np.empty((nrec, len(shape)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                time_order=2,
-                                space_order=4)
+    solver = AcousticWaveSolver(model, geometry, time_order=2, space_order=4)
 
     rec, u, _ = solver.forward(save=False)
 
@@ -393,7 +469,9 @@ def test_position(shape):
                                               num=nrec)
     rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
+    ox_g, oy_g, oz_g = tuple(o.dtype(o.data+100.) for o in model.grid.origin)
+
     rec1, u1, _ = solver.forward(save=False, src=src, rec=rec2,
-                                 o_x=100., o_y=100., o_z=100.)
+                                 o_x=ox_g, o_y=oy_g, o_z=oz_g)
 
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))

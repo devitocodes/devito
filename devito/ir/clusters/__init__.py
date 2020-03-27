@@ -1,3 +1,4 @@
-from devito.ir.clusters.cluster import *  # noqa
-from devito.ir.clusters.algorithms import *  # noqa
-from devito.ir.clusters.graph import *  # noqa
+from .queue import *  # noqa
+from .analysis import *  # noqa
+from .cluster import *  # noqa
+from .algorithms import *  # noqa

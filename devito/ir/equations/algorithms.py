@@ -1,16 +1,16 @@
 from operator import attrgetter
 
-from devito.dimension import Dimension
 from devito.symbolics import retrieve_indexed, split_affine
 from devito.tools import PartialOrderTuple, filter_sorted, flatten
+from devito.types import Dimension
 
 __all__ = ['dimension_sort']
 
 
 def dimension_sort(expr):
     """
-    Topologically sort the :class:`Dimension`s in ``expr``, based on the order
-    in which they appear within :class:`Indexed`s.
+    Topologically sort the Dimensions in ``expr``, based on the order in which they
+    appear within Indexeds.
     """
 
     def handle_indexed(indexed):
@@ -32,7 +32,10 @@ def dimension_sort(expr):
                                      if isinstance(d, Dimension)])
         return tuple(relation)
 
-    relations = {handle_indexed(i) for i in retrieve_indexed(expr, mode='all')}
+    relations = {handle_indexed(i) for i in retrieve_indexed(expr)}
+
+    # Add in any implicit dimension (typical of scalar temporaries, or Step)
+    relations.add(expr.implicit_dims)
 
     # Add in leftover free dimensions (not an Indexed' index)
     extra = set([i for i in expr.free_symbols if isinstance(i, Dimension)])
@@ -40,7 +43,7 @@ def dimension_sort(expr):
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
-    extra.update(set().union(*[set(i.function.indices) for i in indexeds]))
+    extra.update(set().union(*[set(i.function.dimensions) for i in indexeds]))
 
     # Enforce determinism
     extra = filter_sorted(extra, key=attrgetter('name'))

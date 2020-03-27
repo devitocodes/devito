@@ -1,5 +1,6 @@
 # coding: utf-8
-from devito import TimeFunction, memoized_meth
+from devito import TimeFunction, warning
+from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, particle_velocity_fields
 from examples.seismic import Receiver
 
@@ -10,18 +11,30 @@ class AnisotropicWaveSolver(object):
     and encapsulates the time and space discretization for a given problem
     setup.
 
-    :param model: Physical model with domain parameters
-    :param source: Sparse point symbol providing the injected wave
-    :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2)
-    :param space_order: Order of the spatial stencil discretisation (default: 4)
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Order of the spatial stencil discretisation. Defaults to 4.
 
-    Note: space_order must always be greater than time_order
+    Notes
+    -----
+    space_order must be even and it is recommended to be a multiple of 4
     """
-    def __init__(self, model, source, receiver, space_order=2, **kwargs):
+    def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
-        self.source = source
-        self.receiver = receiver
+        self.geometry = geometry
+
+        if space_order % 2 != 0:
+            raise ValueError("space_order must be even but got %s" % space_order)
+
+        if space_order % 4 != 0:
+            warning("It is recommended for space_order to be a multiple of 4 " +
+                    "but got %s" % space_order)
 
         self.space_order = space_order
         self.dt = self.model.critical_dt
@@ -30,39 +43,47 @@ class AnisotropicWaveSolver(object):
         self._kwargs = kwargs
 
     @memoized_meth
-    def op_fwd(self, kernel='shifted', save=False):
+    def op_fwd(self, kernel='centered', save=False):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=save, source=self.source,
-                               receiver=self.receiver,
+        return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order,
                                kernel=kernel, **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, v=None, m=None,
+    def forward(self, src=None, rec=None, u=None, v=None, vp=None,
                 epsilon=None, delta=None, theta=None, phi=None,
                 save=False, kernel='centered', **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data (u+v)
-        :param u: (Optional) Symbol to store the computed wavefield first component
-        :param v: (Optional) Symbol to store the computed wavefield second component
-        :param m: (Optional) Symbol for the time-constant square slowness
-        :param epsilon: (Optional) Symbol for the time-constant first Thomsen parameter
-        :param delta: (Optional) Symbol for the time-constant second Thomsen parameter
-        :param theta: (Optional) Symbol for the time-constant Dip angle (radians)
-        :param phi: (Optional) Symbol for the time-constant Azimuth angle (radians)
-        :param save: Option to store the entire (unrolled) wavefield
-        :param kernel: type of discretization, centered or shifted
+        Parameters
+        ----------
+        geometry : AcquisitionGeometry
+            Geometry object that contains the source (SparseTimeFunction) and
+            receivers (SparseTimeFunction) and their position.
+        u : TimeFunction, optional
+            The computed wavefield first component.
+        v : TimeFunction, optional
+            The computed wavefield second component.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
+        save : int or Buffer
+            Option to store the entire (unrolled) wavefield.
+        kernel : str, optional
+            Type of discretization, centered or shifted.
 
-        :returns: Receiver, wavefield and performance summary
+        Returns
+        -------
+        Receiver, wavefield and performance summary.
         """
-
-        # Space order needs to be halved in the shifted case to have an
-        # overall space_order discretization
-        self.space_order = self.space_order // 2 if kernel == 'shifted' \
-            else self.space_order
 
         if kernel == 'staggered':
             time_order = 1
@@ -73,21 +94,21 @@ class AnisotropicWaveSolver(object):
             time_order = 2
             stagg_u = stagg_v = None
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        src = src or self.geometry.src
         # Create a new receiver object to store the result
         rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.receiver.time_range,
-                              coordinates=self.receiver.coordinates.data)
+                              time_range=self.geometry.time_axis,
+                              coordinates=self.geometry.rec_positions)
 
         # Create the forward wavefield if not provided
         if u is None:
             u = TimeFunction(name='u', grid=self.model.grid, staggered=stagg_u,
-                             save=self.source.nt if save else None,
+                             save=self.geometry.nt if save else None,
                              time_order=time_order, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeFunction(name='v', grid=self.model.grid, staggered=stagg_v,
-                             save=self.source.nt if save else None,
+                             save=self.geometry.nt if save else None,
                              time_order=time_order, space_order=self.space_order)
 
         if kernel == 'staggered':
@@ -97,8 +118,8 @@ class AnisotropicWaveSolver(object):
             if vy is not None:
                 kwargs["vy"] = vy
 
-        # Pick m from model unless explicitly provided
-        kwargs.update(self.model.physical_params(m=m, epsilon=epsilon, delta=delta,
+        # Pick vp and Thomsen parameters from model unless explicitly provided
+        kwargs.update(self.model.physical_params(vp=vp, epsilon=epsilon, delta=delta,
                                                  theta=theta, phi=phi))
         # Execute operator and return wavefield and receiver data
         op = self.op_fwd(kernel, save)

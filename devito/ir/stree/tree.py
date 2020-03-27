@@ -40,9 +40,10 @@ class NodeIteration(ScheduleTree):
 
     is_Iteration = True
 
-    def __init__(self, ispace, parent=None):
+    def __init__(self, ispace, parent=None, properties=None):
         super(NodeIteration, self).__init__(parent)
         self.ispace = ispace
+        self.properties = properties
 
     @property
     def interval(self):
@@ -54,7 +55,11 @@ class NodeIteration(ScheduleTree):
 
     @property
     def limits(self):
-        return self.interval.limits
+        return (self.dim.extreme_min, self.dim.extreme_max, 1)
+
+    @property
+    def offsets(self):
+        return self.interval.offsets
 
     @property
     def direction(self):
@@ -86,12 +91,11 @@ class NodeExprs(ScheduleTree):
 
     is_Exprs = True
 
-    def __init__(self, exprs, ispace, dspace, shape, ops, traffic, parent=None):
+    def __init__(self, exprs, ispace, dspace, ops, traffic, parent=None):
         super(NodeExprs, self).__init__(parent)
         self.exprs = exprs
         self.ispace = ispace
         self.dspace = dspace
-        self.shape = shape
         self.ops = ops
         self.traffic = traffic
 

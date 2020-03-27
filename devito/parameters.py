@@ -2,11 +2,12 @@
 
 from collections import OrderedDict
 from os import environ
+from functools import wraps
 
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'add_sub_configuration']
+           'add_sub_configuration', 'switchconfig']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -27,6 +28,7 @@ class Parameters(OrderedDict, Signer):
         self._name = name
         self._accepted = {}
         self._defaults = {}
+        self._impact_jit = {}
         self._update_functions = {}
         if kwargs is not None:
             for key, value in kwargs.items():
@@ -66,7 +68,7 @@ class Parameters(OrderedDict, Signer):
         """
         super(Parameters, self).__setitem__(key, value)
 
-    def add(self, key, value, accepted=None, callback=None):
+    def add(self, key, value, accepted=None, callback=None, impacts_jit=True):
         """
         Add a new parameter ``key`` with default value ``value``.
 
@@ -74,10 +76,15 @@ class Parameters(OrderedDict, Signer):
 
         If provided, make sure ``callback`` is executed when the value of ``key``
         changes.
+
+        If ``impacts_jit`` is False (defaults to True), then it can be assumed
+        that the parameter doesn't affect code generation, so it can be excluded
+        from the construction of the hash key.
         """
         super(Parameters, self).__setitem__(key, value)
         self._accepted[key] = accepted
         self._defaults[key] = value
+        self._impact_jit[key] = impacts_jit
         if callable(callback):
             self._update_functions[key] = callback
 
@@ -94,27 +101,28 @@ class Parameters(OrderedDict, Signer):
         return self._name
 
     def _signature_items(self):
-        items = sorted(it for it in self.items()
-                       if it[0] not in ['log_level', 'first_touch'])
+        # Note: we are discarding some vars that do not affect the C level
+        # code in order to avoid recompiling when such vars are modified
+        items = sorted((k, v) for k, v in self.items() if self._impact_jit[k])
         return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
 
 
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
-    'DEVITO_ISA': 'isa',
     'DEVITO_PLATFORM': 'platform',
     'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
-    'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',
-    'DEVITO_LOGGING': 'log_level',
-    'DEVITO_FIRST_TOUCH': 'first_touch',
-    'DEVITO_DEBUG_COMPILER': 'debug_compiler',
+    'DEVITO_LOGGING': 'log-level',
+    'DEVITO_FIRST_TOUCH': 'first-touch',
+    'DEVITO_DEBUG_COMPILER': 'debug-compiler',
+    'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
+    'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
 }
 
 
@@ -125,10 +133,9 @@ configuration = Parameters("Devito-Configuration")
 def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper):
     # Populate /configuration/ with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
-        # At init time, it is important to first configure the compiler, then
-        # the backend (which is impacted by the compiler), finally everything
-        # else in any arbitrary order
-        process_order = filter_ordered(['compiler', 'backend'] +
+        # At init time, it is important to configure `platform`, `compiler` and `backend`
+        # in this order
+        process_order = filter_ordered(['platform', 'compiler', 'backend'] +
                                        list(env_vars_mapper.values()))
         queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
         unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))
@@ -176,6 +183,33 @@ def add_sub_configuration(sub_configuration, sub_env_vars_mapper=None):
     # For use in user code, when the backend is a runtime choice and some
     # options are in common between the supported backends
     setattr(configuration, 'backend', sub_configuration)
+
+
+class switchconfig(object):
+
+    """
+    Decorator to temporarily change `configuration` parameters.
+    """
+
+    def __init__(self, **params):
+        self.params = {k.replace('_', '-'): v for k, v in params.items()}
+
+    def __call__(self, func, *args, **kwargs):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            previous = {}
+            for k, v in self.params.items():
+                previous[k] = configuration[k]
+                configuration[k] = v
+            result = func(*args, **kwargs)
+            for k, v in self.params.items():
+                try:
+                    configuration[k] = previous[k]
+                except ValueError:
+                    # E.g., `platform` and `compiler` will end up here
+                    configuration[k] = previous[k].name
+            return result
+        return wrapper
 
 
 def print_defaults():

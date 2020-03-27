@@ -1,8 +1,8 @@
-numpy==1.14
-sympy>=1.2
+pip>=9.0.1
+numpy>=1.14
+sympy>=1.4
 scipy
-mpi4py
-matplotlib
+pytest>=3.6
 pytest-runner
 flake8>=2.1.0
 jedi
@@ -12,12 +12,11 @@ psutil>=5.1.0
 py-cpuinfo
 git+https://github.com/inducer/cgen
 git+https://github.com/inducer/codepy
-scikit-image
 click
 codecov
 pytest-cov
 multidict
 frozendict
 anytree>=2.4.3
-git+https://github.com/opesci/pyrevolve
-distributed>=1.21.8
+pyrevolve>=2.1.3
+distributed>=1.27

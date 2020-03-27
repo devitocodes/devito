@@ -1,27 +1,33 @@
 from collections import ChainMap
+from functools import singledispatch
 
 import sympy
 from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
-
-from devito.tools import filter_ordered, flatten
+from devito.logger import warning
+from devito.tools import Evaluable, EnrichedTuple, filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
 
-class Differentiable(sympy.Expr):
+class Differentiable(sympy.Expr, Evaluable):
+
     """
-    This class represents Devito differentiable objects such as functions,
-    sum of functions, product of function, or any FD approximation. Differentiable
-    objects provide FD shortcuts to easily compute FD approximations.
+    A Differentiable is an algebric expression involving Functions, which can
+    be derived w.r.t. one or more Dimensions.
     """
+
     # Set the operator priority higher than SymPy (10.0) to force the overridden
     # operators to be used
     _op_priority = sympy.Expr._op_priority + 1.
 
     _state = ('space_order', 'time_order', 'indices')
+
+    @cached_property
+    def _functions(self):
+        return frozenset().union(*[i._functions for i in self._args_diff])
 
     @cached_property
     def _args_diff(self):
@@ -42,13 +48,71 @@ class Differentiable(sympy.Expr):
                    default=100)
 
     @cached_property
+    def is_TimeDependent(self):
+        # Default False, True if anything is time dependent in the expression
+        return any(getattr(i, 'is_TimeDependent', False) for i in self._args_diff)
+
+    @cached_property
+    def is_VectorValued(self):
+        # Default False, True if is a vector valued expression
+        return any(getattr(i, 'is_VectorValued', False) for i in self._args_diff)
+
+    @cached_property
+    def is_TensorValued(self):
+        # Default False, True if is a tensor valued expression
+        return any(getattr(i, 'is_TensorValued', False) for i in self._args_diff)
+
+    @cached_property
+    def grid(self):
+        grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
+        if len(grids) > 1:
+            warning("Expression contains multiple grids, returning first found")
+        try:
+            return grids.pop()
+        except KeyError:
+            raise ValueError("No grid found")
+
+    @cached_property
     def indices(self):
         return tuple(filter_ordered(flatten(getattr(i, 'indices', ())
                                             for i in self._args_diff)))
 
     @cached_property
+    def dimensions(self):
+        return tuple(filter_ordered(flatten(getattr(i, 'dimensions', ())
+                                            for i in self._args_diff)))
+
+    @property
+    def indices_ref(self):
+        """The reference indices of the object (indices at first creation)."""
+        return EnrichedTuple(*self.dimensions, getters=self.dimensions)
+
+    @cached_property
+    def staggered(self):
+        return tuple(filter_ordered(flatten(getattr(i, 'staggered', ())
+                                            for i in self._args_diff)))
+
+    @cached_property
+    def is_Staggered(self):
+        return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
+
+    @cached_property
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
+
+    @cached_property
+    def _symbolic_functions(self):
+        return frozenset([i for i in self._functions if i.coefficients == 'symbolic'])
+
+    @cached_property
+    def _uses_symbolic_coefficients(self):
+        return bool(self._symbolic_functions)
+
+    def _eval_at(self, func):
+        if not func.is_Staggered:
+            # Cartesian grid, do no waste time
+            return self
+        return self.func(*[getattr(a, '_eval_at', lambda x: a)(func) for a in self.args])
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()
@@ -57,13 +121,13 @@ class Differentiable(sympy.Expr):
         """
         Try calling a dynamically created FD shortcut.
 
-        .. note::
-
-            This method acts as a fallback for __getattribute__
+        Notes
+        -----
+        This method acts as a fallback for __getattribute__
         """
         if name in self._fd:
             return self._fd[name][0](self)
-        raise AttributeError
+        raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     # Override SymPy arithmetic operators
     def __add__(self, other):
@@ -128,48 +192,152 @@ class Differentiable(sympy.Expr):
             all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
 
     @property
+    def name(self):
+        return "".join(f.name for f in self._functions)
+
+    @property
     def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
-        derivative wrt. all spatial dimensions.
+        derivative w.r.t all spatial Dimensions.
         """
-        space_dims = [d for d in self.indices if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
-        return sum([getattr(self, d) for d in derivs])
+        return Add(*[getattr(self, d) for d in derivs])
 
-    def laplace2(self, weight=1):
+    @property
+    def div(self):
+        space_dims = [d for d in self.dimensions if d.is_Space]
+        derivs = tuple('d%s' % d.name for d in space_dims)
+        return Add(*[getattr(self, d) for d in derivs])
+
+    @property
+    def grad(self):
+        from devito.types.tensor import VectorFunction, VectorTimeFunction
+        comps = [getattr(self, 'd%s' % d.name) for d in self.dimensions if d.is_Space]
+        vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
+        return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
+                        space_order=self.space_order, components=comps, grid=self.grid)
+
+    def biharmonic(self, weight=1):
         """
-        Generates a symbolic expression for the double Laplacian
-        wrt. all spatial dimensions.
+        Generates a symbolic expression for the weighted biharmonic operator w.r.t.
+        all spatial Dimensions Laplace(weight * Laplace (self))
         """
-        space_dims = [d for d in self.indices if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
-        return sum([getattr(self.laplace * weight, d) for d in derivs])
+        return Add(*[getattr(self.laplace * weight, d) for d in derivs])
+
+    def diff(self, *symbols, **assumptions):
+        """
+        Like ``sympy.diff``, but return a ``devito.Derivative`` instead of a
+        ``sympy.Derivative``.
+        """
+        from devito.finite_differences.derivative import Derivative
+        return Derivative(self, *symbols, **assumptions)
+
+    def _has(self, pattern):
+        """
+        Unlike generic SymPy use cases, in Devito the majority of calls to `_has`
+        occur through the finite difference routines passing `sympy.core.symbol.Symbol`
+        as `pattern`. Since the generic `_has` can be prohibitively expensive,
+        we here quickly handle this special case, while using the superclass' `_has`
+        as fallback.
+        """
+        if isinstance(pattern, type) and issubclass(pattern, sympy.Symbol):
+            # Symbols (and subclasses) are the leaves of an expression, and they
+            # are promptly available via `free_symbols`. So this is super quick
+            return any(isinstance(i, pattern) for i in self.free_symbols)
+        return super(Differentiable, self)._has(pattern)
 
 
-class Add(sympy.Add, Differentiable):
-    pass
-
-
-class Mul(sympy.Mul, Differentiable):
+class DifferentiableOp(Differentiable):
 
     def __new__(cls, *args, **kwargs):
-        obj = sympy.Mul.__new__(cls, *args, **kwargs)
+        obj = cls.__base__.__new__(cls, *args, **kwargs)
 
-        # `(f + g)*2` is evaluated as `2*f + 2*g`, with `+` being a sympy.Add.
-        # Here we make sure to return our own Add.
-        if obj.is_Add:
-            obj = Add(*obj.args)
+        # Unfortunately SymPy may build new sympy.core objects (e.g., sympy.Add),
+        # so here we have to rebuild them as devito.core objects
+        if kwargs.get('evaluate', True):
+            obj = diffify(obj)
 
         return obj
 
 
-class Pow(sympy.Pow, Differentiable):
-    pass
+class Add(DifferentiableOp, sympy.Add):
+    __new__ = DifferentiableOp.__new__
 
 
-class Mod(sympy.Mod, Differentiable):
-    pass
+class Mul(DifferentiableOp, sympy.Mul):
+    __new__ = DifferentiableOp.__new__
+
+
+class Pow(DifferentiableOp, sympy.Pow):
+    __new__ = DifferentiableOp.__new__
+
+
+class Mod(DifferentiableOp, sympy.Mod):
+    __new__ = DifferentiableOp.__new__
+
+
+class diffify(object):
+
+    """
+    Helper class based on single dispatch to reconstruct all nodes in a sympy
+    tree such they are all of type Differentiable.
+
+    Notes
+    -----
+    The name "diffify" stems from SymPy's "simpify", which has an analogous task --
+    converting all arguments into SymPy core objects.
+    """
+
+    def __new__(cls, obj):
+        args = [diffify._doit(i) for i in obj.args]
+        obj = diffify._doit(obj, args)
+        return obj
+
+    def _doit(obj, args=None):
+        cls = diffify._cls(obj)
+        args = args or obj.args
+
+        if cls is obj.__class__:
+            # Try to just update the args if possible (Add, Mul)
+            try:
+                return obj._new_rawargs(*args, is_commutative=obj.is_commutative)
+            # Or just return the object (Float, Symbol, Function, ...)
+            except AttributeError:
+                return obj
+
+        # Create object directly from args, avoid any rebuild
+        return cls(*args, evaluate=False)
+
+    @singledispatch
+    def _cls(obj):
+        return obj.__class__
+
+    @_cls.register(sympy.Add)
+    def _(obj):
+        return Add
+
+    @_cls.register(sympy.Mul)
+    def _(obj):
+        return Mul
+
+    @_cls.register(sympy.Pow)
+    def _(obj):
+        return Pow
+
+    @_cls.register(sympy.Mod)
+    def _(obj):
+        return Mod
+
+    @_cls.register(Add)
+    @_cls.register(Mul)
+    @_cls.register(Pow)
+    @_cls.register(Mod)
+    def _(obj):
+        return obj.__class__
 
 
 # Make sure `sympy.evalf` knows how to evaluate the inherited classes

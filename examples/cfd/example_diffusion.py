@@ -22,7 +22,7 @@ from devito import Grid, Eq, Operator, TimeFunction, solve
 from devito.logger import log
 
 try:
-    from opescibench import Benchmark, Executor, Plotter
+    from devitobench import Benchmark, Executor, Plotter
 except:
     Benchmark = None
     Executor = None
@@ -169,7 +169,7 @@ Example script demonstrating several approaches to solving the
 2D diffusion equation. The various modes are pure Python,
 vectorized numpy, a lambdified SymPy equation and the Devito API.
 
-Please not that the default settings for spacing and timesteps are
+Please note that the default settings for spacing and timesteps are
 chosen to highlight that Devito and "vectorised numpy" are faster than
 pure Python or the sympy.lambdify kernels approach.  For a fair
 performance comparison between Devito and "vectorised numpy" we
@@ -223,8 +223,8 @@ recommend using --spacing 0.001 -t 1000.
 
     elif args.execmode == 'bench':
         if Benchmark is None:
-            raise ImportError("Could not find opescibench utility package.\n"
-                              "Please install from https://github.com/opesci/opescibench")
+            raise ImportError("Could not find devitobench utility package. Please \n"
+                              "install from https://github.com/devitocodes/devitobench")
 
         class DiffusionExecutor(Executor):
             """Executor class that defines how to run the benchmark"""

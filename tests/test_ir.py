@@ -1,23 +1,69 @@
 import pytest
-
-from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
-
 import numpy as np
+from sympy import S
 
-from devito import Eq, Inc, Grid, Function, TimeFunction, Operator, Dimension  # noqa
+from conftest import EVAL, skipif  # noqa
+from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
+                    Operator, Dimension, SubDimension, switchconfig)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet.nodes import Conditional, Expression, Iteration
-from devito.ir.iet.visitors import FindNodes
-from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
-from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
-                                     Any, Forward, Backward)
-from devito.ir.support.utils import detect_flow_directions
-from devito.symbolics import indexify
+from devito.ir.iet import (Call, Conditional, Expression, Iteration, CGen, FindNodes,
+                           FindSymbols, retrieve_iteration_tree, filter_iterations,
+                           make_efunc)
+from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
+                                     Vector, AFFINE, IRREGULAR)
+from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
+                                     IterationSpace)
+from devito.types import Scalar, Symbol, Array
+from devito.tools import as_tuple
+
+pytestmark = skipif(['yask', 'ops'], whole_module=True)
 
 
-@skipif_yask
-class TestVectorDistanceArithmetic(object):
+class TestVectorHierarchy(object):
+
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
+
+    @pytest.fixture
+    def x(self, grid):
+        return grid.dimensions[0]
+
+    @pytest.fixture
+    def y(self, grid):
+        return grid.dimensions[1]
+
+    @pytest.fixture
+    def z(self, grid):
+        return grid.dimensions[2]
+
+    @pytest.fixture
+    def v_num(self):
+        v2 = Vector(2, smart=True)
+        v3 = Vector(3, smart=True)
+        v4 = Vector(4)
+        v11 = Vector(1, 1)
+        v13 = Vector(1, 3)
+        v23 = Vector(2, 3)
+        return v2, v3, v4, v11, v13, v23
+
+    @pytest.fixture
+    def v_literal(self, x, y):
+        vx = Vector(x)
+        vxy = Vector(x, y)
+        vx1y = Vector(x + 1, y)
+        s = Scalar(name='s', nonnegative=True)
+        vs3 = Vector(s + 3, smart=True)
+        return vx, vxy, vx1y, vs3
+
+    @pytest.fixture
+    def fa(self, grid, x):
+        return Array(name='fa', shape=(3,), dimensions=(x,)).indexed
+
+    @pytest.fixture
+    def fc(self, grid, x, y):
+        return Array(name='fc', shape=(3, 5), dimensions=(x, y)).indexed
 
     @pytest.fixture
     def ii_num(self, fa, fc):
@@ -28,27 +74,70 @@ class TestVectorDistanceArithmetic(object):
         return fa4, fc00, fc11, fc23
 
     @pytest.fixture
-    def ii_literal(self, fa, fc):
+    def ii_literal(self, fa, fc, x, y):
         fax = IterationInstance(fa[x])
         fcxy = IterationInstance(fc[x, y])
         fcx1y = IterationInstance(fc[x + 1, y])
         return fax, fcxy, fcx1y
 
     @pytest.fixture
-    def ta_literal(self, fc):
-        fwd_directions = {x: Forward, y: Forward}
-        mixed_directions = {x: Backward, y: Forward}
-        tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, fwd_directions)
-        tcxy_r0 = TimedAccess(fc[x, y], 'R', 0, fwd_directions)
-        tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, fwd_directions)
-        tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1, fwd_directions)
-        rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_directions)
-        rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_directions)
-        return tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1
+    def ta_literal(self, fc, x, y):
+        intervals = [Interval(x, 0, 0), Interval(y, 0, 0)]
+        intervals_swap = [Interval(y, 0, 0), Interval(x, 0, 0)]
+        fwd_ispace = IterationSpace(intervals, directions={x: Forward, y: Forward})
+        fwd_ispace_swap = IterationSpace(intervals_swap,
+                                         directions={x: Forward, y: Forward})
+        mixed_ispace = IterationSpace(intervals, directions={x: Backward, y: Forward})
+        tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, fwd_ispace)
+        tcxy_r0 = TimedAccess(fc[x, y], 'R', 0, fwd_ispace)
+        tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, fwd_ispace)
+        tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1, fwd_ispace)
+        rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_ispace)
+        rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_ispace)
+        tcyx_irr0 = TimedAccess(fc[y, x], 'R', 0, fwd_ispace)
+        tcxx_irr1 = TimedAccess(fc[x, x], 'R', 0, fwd_ispace)
+        tcxy_irr2 = TimedAccess(fc[x, y], 'R', 0, fwd_ispace_swap)
+        return (tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1,
+                tcyx_irr0, tcxx_irr1, tcxy_irr2)
 
-    def test_iteration_instance_arithmetic(self, dims, ii_num, ii_literal):
+    def test_vector_cmp(self, v_num, v_literal):
+        v2, v3, v4, v11, v13, v23 = v_num
+        vx, vxy, vx1y, vs3 = v_literal
+
+        # Equality check (numeric, symbolic, mixed)
+        assert v4 == v4
+        assert v4 != v11
+        assert vx == vx
+        assert vx != v4
+        assert vx != vxy
+        assert vs3 != v4
+
+        # Lexicographic comparison (numeric, symbolic, mixed)
+        assert v3 < v4
+        assert v11 < v23
+        assert v11 <= v23
+        assert v11 < v13
+        assert v11 <= v13
+        assert v23 > v11
+        assert (vxy < vx1y) is True
+        assert (vxy <= vx1y) is True
+        assert (vx1y > vxy) is True
+        assert (vx1y <= vxy) is False
+
+        # Smart vector comparison
+        # Note: `v3` and `vs3` use the "smart" mode
+        assert (v3 < vs3) is False
+        assert (vs3 < v3) is False
+        assert v3 != vs3
+        assert (v3 <= vs3) is True
+        assert (vs3 <= v3) is False
+        assert v2 < vs3
+        assert v2 <= vs3
+        assert vs3 > v2
+
+    def test_iteration_instance_arithmetic(self, x, y, ii_num, ii_literal):
         """
-        Tests arithmetic operations involving objects of type IterationInstance.
+        Test arithmetic operations involving objects of type IterationInstance.
         """
         fa4, fc00, fc11, fc23 = ii_num
         fax, fcxy, fcx1y = ii_literal
@@ -84,9 +173,34 @@ class TestVectorDistanceArithmetic(object):
             except:
                 assert False
 
+    def test_iteration_instance_distance(self, ii_num, ii_literal):
+        """
+        Test calculation of vector distance between objects of type IterationInstance.
+        """
+        _, fc00, fc11, fc23 = ii_num
+        fax, fcxy, fcx1y = ii_literal
+
+        # Distance with numbers
+        assert fc11.distance(fc00) == (1, 1)
+        assert fc23.distance(fc11) == (1, 2)
+        assert fc11.distance(fc23) == (-1, -2)
+
+        # Distance with matching literals
+        assert fcxy.distance(fcx1y) == (-1, 0)
+        assert fcx1y.distance(fcxy) == (1, 0)
+
+        # Should fail due mismatching indices
+        try:
+            fcxy.distance(fax)
+            assert False
+        except TypeError:
+            pass
+        except:
+            assert False
+
     def test_iteration_instance_cmp(self, ii_num, ii_literal):
         """
-        Tests comparison of objects of type IterationInstance.
+        Test comparison of objects of type IterationInstance.
         """
         fa4, fc00, fc11, fc23 = ii_num
         fax, fcxy, fcx1y = ii_literal
@@ -113,44 +227,72 @@ class TestVectorDistanceArithmetic(object):
         assert fcxy <= fcxy
         assert fcxy < fcx1y
 
-    def test_iteration_instance_distance(self, dims, ii_num, ii_literal):
+    def test_timed_access_regularity(self, ta_literal):
         """
-        Tests calculation of vector distance between objects of type IterationInstance.
+        Test TimedAcces.{is_regular,is_irregular}
         """
-        _, fc00, fc11, fc23 = ii_num
-        fax, fcxy, fcx1y = ii_literal
+        (tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1,
+         tcyx_irr0, tcxx_irr1, tcxy_irr2) = ta_literal
 
-        # Distance with numbers
-        assert fc11.distance(fc00) == (1, 1)
-        assert fc23.distance(fc11) == (1, 2)
-        assert fc11.distance(fc23) == (-1, -2)
+        # Regulars
+        assert tcxy_w0.is_regular and not tcxy_w0.is_irregular
+        assert tcxy_r0.is_regular and not tcxy_r0.is_irregular
+        assert tcx1y1_r1.is_regular and not tcx1y1_r1.is_irregular
+        assert tcx1y_r1.is_regular and not tcx1y_r1.is_irregular
+        assert rev_tcxy_w0.is_regular and not rev_tcxy_w0.is_irregular
+        assert rev_tcx1y1_r1.is_regular and not rev_tcx1y1_r1.is_irregular
 
-        # Distance with matching literals
-        assert fcxy.distance(fcx1y) == (-1, 0)
-        assert fcx1y.distance(fcxy) == (1, 0)
+        # Irregulars
+        assert tcyx_irr0.is_irregular and not tcyx_irr0.is_regular
+        assert tcxx_irr1.is_irregular and not tcxx_irr1.is_regular
+        assert tcxy_irr2.is_irregular and not tcxy_irr2.is_regular
 
-        # Should faxl due non matching indices
-        try:
-            fcxy.distance(fax)
-            assert False
-        except TypeError:
-            pass
-        except:
-            assert False
+    def test_timed_access_distance(self, x, y, ta_literal):
+        """
+        Test the comparison of objects of type TimedAccess.
+        """
+        (tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1,
+         tcyx_irr0, tcxx_irr1, tcxy_irr2) = ta_literal
+
+        # Simple distance calculations
+        assert tcxy_w0.distance(tcxy_r0) == (0, 0)
+        assert tcx1y1_r1.distance(tcxy_r0) == (1, 1)
+        assert tcxy_r0.distance(tcx1y1_r1) == (-1, -1)
+        assert tcx1y1_r1.distance(tcx1y_r1) == (0, 1)
+
+        # Distance should go to infinity due to mismatching directions
+        assert rev_tcxy_w0.distance(tcx1y_r1) == (S.Infinity,)
+        assert tcx1y_r1.distance(rev_tcxy_w0) == (S.Infinity,)
+
+        # Distance when both source and since go backwards along the x Dimension
+        assert rev_tcxy_w0.distance(rev_tcx1y1_r1) == (1, -1)
+        assert rev_tcx1y1_r1.distance(rev_tcxy_w0) == (-1, 1)
 
         # Distance up to provided dimension
-        assert fcxy.distance(fcx1y, x) == (-1,)
-        assert fcxy.distance(fcx1y, y) == (-1, 0)
+        assert tcx1y1_r1.distance(tcxy_r0, x) == (1,)
+        assert tcx1y1_r1.distance(tcxy_r0, y) == (1, 1)
+
+        # The distance is a symbolic expression when the findices directions
+        # are homogeneous, but one of the two TimedAccesses is irregular
+        assert tcxy_w0.distance(tcyx_irr0) == (x - y, -x + y)
+        assert tcx1y_r1.distance(tcyx_irr0) == (x - y + 1, -x + y)
+        assert tcxy_w0.distance(tcxx_irr1) == (0, -x + y)
+
+        # The distance must be infinity when the aindices are compatible but
+        # one of the TimedAccesses is irregular due to mismatching
+        # findices-IterationSpace
+        assert tcxy_w0.distance(tcxy_irr2) == (S.Infinity)
 
     def test_timed_access_cmp(self, ta_literal):
         """
-        Tests comparison of objects of type TimedAccess.
+        Test comparison of objects of type TimedAccess.
         """
-        tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1 = ta_literal
+        (tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1,
+         tcyx_irr0, tcxx_irr1, tcxy_irr2) = ta_literal
 
         # Equality check
         assert tcxy_w0 == tcxy_w0
-        assert (tcxy_w0 != tcxy_r0) is False
+        assert (tcxy_w0 != tcxy_r0) is True  # Different mode R vs W
         assert tcxy_w0 != tcx1y1_r1
         assert tcxy_w0 != rev_tcxy_w0
 
@@ -177,11 +319,44 @@ class TestVectorDistanceArithmetic(object):
         except:
             assert False
 
+        # Non-comparable due to different aindices
+        try:
+            tcxy_w0 > tcyx_irr0
+            assert False
+        except TypeError:
+            assert True
+        except:
+            assert False
 
-@skipif_yask
+        # Non-comparable due to mismatching Intervals
+        try:
+            tcxy_w0 > tcyx_irr0
+            assert False
+        except TypeError:
+            assert True
+        except:
+            assert False
+
+        # Comparable even though the TimedAccess is irregular (reflexivity)
+        assert tcyx_irr0 >= tcyx_irr0
+        assert tcyx_irr0 == tcyx_irr0
+
+
 class TestSpace(object):
 
-    def test_intervals_intersection(self):
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
+
+    @pytest.fixture
+    def x(self, grid):
+        return grid.dimensions[0]
+
+    @pytest.fixture
+    def y(self, grid):
+        return grid.dimensions[1]
+
+    def test_intervals_intersection(self, x, y):
         nullx = NullInterval(x)
 
         # All nulls
@@ -200,21 +375,37 @@ class TestSpace(object):
         ix2 = Interval(x, -8, -3)
         ix3 = Interval(x, 3, 4)
 
-        # All defined disjoint
-        assert ix.intersection(ix2) == nullx
-        assert ix.intersection(ix3) == nullx
-        assert ix2.intersection(ix3) == nullx
+        assert ix.intersection(ix2) == Interval(x, -2, -3)
+        assert ix.intersection(ix3) == Interval(x, 3, 2)
+        assert ix2.intersection(ix3) == Interval(x, 3, -3)
         assert ix.intersection(iy) == nullx
         assert iy.intersection(ix) == nully
 
         ix4 = Interval(x, 1, 4)
         ix5 = Interval(x, -3, 0)
 
-        # All defined overlapping
         assert ix.intersection(ix4) == Interval(x, 1, 2)
         assert ix.intersection(ix5) == Interval(x, -2, 0)
 
-    def test_intervals_union(self):
+        # Mixed symbolic and non-symbolic
+        c = Constant(name='c')
+        ix6 = Interval(x, c, c + 4)
+        ix7 = Interval(x, c - 1, c + 5)
+
+        assert ix6.intersection(ix7) == Interval(x, c, c + 4)
+        assert ix7.intersection(ix6) == Interval(x, c, c + 4)
+
+        # Symbolic with properties
+        s = Scalar(name='s', nonnegative=True)
+        ix8 = Interval(x, s - 2, s + 2)
+        ix9 = Interval(x, s - 1, s + 1)
+
+        assert ix.intersection(ix8) == Interval(x, s - 2, 2)
+        assert ix8.intersection(ix) == Interval(x, s - 2, 2)
+        assert ix8.intersection(ix9) == Interval(x, s - 1, s + 1)
+        assert ix9.intersection(ix8) == Interval(x, s - 1, s + 1)
+
+    def test_intervals_union(self, x, y):
         nullx = NullInterval(x)
 
         # All nulls
@@ -222,7 +413,7 @@ class TestSpace(object):
 
         ix = Interval(x, -2, 2)
 
-        # Mixed nulls and defined on the same dimension
+        # Mixed nulls and defined
         assert nullx.union(ix) == ix
         assert ix.union(ix) == ix
         assert ix.union(nullx) == ix
@@ -230,7 +421,6 @@ class TestSpace(object):
         ix2 = Interval(x, 1, 4)
         ix3 = Interval(x, -3, 6)
 
-        # All defined overlapping
         assert ix.union(ix2) == Interval(x, -2, 4)
         assert ix.union(ix3) == ix3
         assert ix2.union(ix3) == ix3
@@ -241,48 +431,43 @@ class TestSpace(object):
         nully = NullInterval(y)
         iy = Interval(y, -2, 2)
 
-        # Mixed disjoint (note: IntervalGroup input order is relevant)
-        assert ix.union(ix4) == IntervalGroup([ix, ix4])
+        assert ix.union(ix4) == Interval(x, -2, 8)
         assert ix.union(ix5) == Interval(x, -3, 2)
-        assert ix6.union(ix) == IntervalGroup([ix6, ix])
-        assert ix.union(nully) == IntervalGroup([ix, nully])
-        assert ix.union(iy) == IntervalGroup([ix, iy])
-        assert iy.union(ix) == IntervalGroup([iy, ix])
+        assert ix6.union(ix) == Interval(x, -10, 2)
 
-    def test_intervals_merge(self):
-        nullx = NullInterval(x)
+        # The union of non-compatible Intervals isn't possible, and an exception
+        # is expected
+        ixs1 = Interval(x, -2, 2, stamp=1)
 
-        # All nulls
-        assert nullx.merge(nullx) == nullx
+        for i, j in [(ix, nully), (ix, iy), (iy, ix), (ix, ixs1), (ixs1, ix)]:
+            try:
+                i.union(j)
+                assert False  # Shouldn't arrive here
+            except ValueError:
+                assert True
+            except:
+                # No other types of exception expected
+                assert False
 
-        ix = Interval(x, -2, 2)
+        # Mixed symbolic and non-symbolic
+        c = Constant(name='c')
+        ix7 = Interval(x, c, c + 4)
+        ix8 = Interval(x, c - 1, c + 5)
 
-        # Mixed nulls and defined on the same dimension
-        assert nullx.merge(ix) == ix
-        assert ix.merge(ix) == ix
-        assert ix.merge(nullx) == ix
+        assert ix7.union(ix8) == Interval(x, c - 1, c + 5)
+        assert ix8.union(ix7) == Interval(x, c - 1, c + 5)
 
-        ix2 = Interval(x, 1, 4)
-        ix3 = Interval(x, -3, 6)
+        # Symbolic with properties
+        s = Scalar(name='s', nonnegative=True)
+        ix9 = Interval(x, s - 2, s + 2)
+        ix10 = Interval(x, s - 1, s + 1)
 
-        # All defined overlapping
-        assert ix.merge(ix2) == Interval(x, -2, 4)
-        assert ix.merge(ix3) == ix3
-        assert ix2.merge(ix3) == ix3
+        assert ix.union(ix9) == Interval(x, -2, s + 2)
+        assert ix9.union(ix) == Interval(x, -2, s + 2)
+        assert ix9.union(ix10) == ix9
+        assert ix10.union(ix9) == ix9
 
-        ix4 = Interval(x, 0, 0)
-        ix5 = Interval(x, -1, -1)
-        ix6 = Interval(x, 9, 11)
-
-        # Non-overlapping
-        assert ix.merge(ix4) == Interval(x, -2, 2)
-        assert ix.merge(ix5) == Interval(x, -2, 2)
-        assert ix4.merge(ix5) == Interval(x, -1, 0)
-        assert ix.merge(ix6) == Interval(x, -2, 11)
-        assert ix6.merge(ix) == Interval(x, -2, 11)
-        assert ix5.merge(ix6) == Interval(x, -1, 11)
-
-    def test_intervals_subtract(self):
+    def test_intervals_subtract(self, x, y):
         nullx = NullInterval(x)
 
         # All nulls
@@ -303,9 +488,84 @@ class TestSpace(object):
         assert ix.subtract(ix2) == Interval(x, -2, 2)
         assert ix3.subtract(ix) == ix2
 
+        c = Constant(name='c')
+        ix4 = Interval(x, c + 2, c + 4)
+        ix5 = Interval(x, c + 1, c + 5)
 
-@skipif_yask
+        # All defined symbolic
+        assert ix4.subtract(ix5) == Interval(x, 1, -1)
+        assert ix5.subtract(ix4) == Interval(x, -1, 1)
+        assert ix5.subtract(ix) == Interval(x, c - 1, c + 7)
+
+    def test_intervals_switch(self, x, y):
+        nullx = NullInterval(x)
+        nully = NullInterval(y)
+
+        assert nullx.switch(y) == nully
+
+        ix = Interval(x, 2, -2)
+        iy = Interval(y, 2, -2)
+
+        assert ix.switch(y) == iy
+        assert iy.switch(x) == ix
+        assert ix.switch(y).switch(x) == ix
+
+
 class TestDependenceAnalysis(object):
+
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
+
+    @pytest.fixture
+    def ti0(self, grid):
+        return Array(name='ti0', shape=(3, 5, 7), dimensions=grid.dimensions).indexify()
+
+    @pytest.fixture
+    def ti1(self, grid):
+        return Array(name='ti1', shape=(3, 5, 7), dimensions=grid.dimensions).indexify()
+
+    @pytest.fixture
+    def ti3(self, grid):
+        return Array(name='ti3', shape=(3, 5, 7), dimensions=grid.dimensions).indexify()
+
+    @pytest.fixture
+    def fa(self, grid):
+        return Array(name='fa', dimensions=(grid.dimensions[0],), shape=(3,)).indexed
+
+    @pytest.mark.parametrize('indexed,expected', [
+        ('u[x,y,z]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,y,z-1]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,3,z-1]', (AFFINE, AFFINE, AFFINE)),
+        ('u[sx+1,y,z-1]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,c,s]', (AFFINE, AFFINE, IRREGULAR)),
+        ('u[x+1,c,sc]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,c+1,sc*sc]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x*x+1,y,z]', (IRREGULAR, AFFINE, AFFINE)),
+        ('u[x*y,y,z]', (IRREGULAR, AFFINE, AFFINE)),
+        ('u[x + z,x + y,z*z]', (IRREGULAR, IRREGULAR, IRREGULAR)),
+        ('u[x+1,u[2,2,2],z-1]', (AFFINE, IRREGULAR, AFFINE)),
+        ('u[y,x,z]', (IRREGULAR, IRREGULAR, AFFINE)),
+    ])
+    def test_index_mode_detection(self, indexed, expected):
+        """
+        Test detection of IterationInstance access modes (AFFINE vs IRREGULAR).
+
+        Proper detection of access mode is a prerequisite to any sort of
+        data dependence analysis.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions  # noqa
+
+        sx = SubDimension.middle('sx', x, 1, 1)  # noqa
+
+        u = Function(name='u', grid=grid)  # noqa
+        c = Constant(name='c')  # noqa
+        sc = Scalar(name='sc', is_const=True)  # noqa
+        s = Scalar(name='s')  # noqa
+
+        ii = IterationInstance(eval(indexed))
+        assert ii.index_mode == expected
 
     @pytest.mark.parametrize('expr,expected', [
         ('Eq(ti0[x,y,z], ti1[x,y,z])', None),
@@ -321,7 +581,7 @@ class TestDependenceAnalysis(object):
         ('Eq(ti0[x,fa[y],z], ti0[x,y,z])', 'all,carried,y,irregular'),
         ('Eq(ti0[x,y,z], ti0[x-1,fa[y],z])', 'flow,carried,x,regular'),
     ])
-    def test_single_eq(self, expr, expected, ti0, ti1, fa):
+    def test_single_eq(self, expr, expected, ti0, ti1, fa, grid):
         """
         Tests data dependences within a single equation consisting of only two Indexeds.
 
@@ -349,7 +609,7 @@ class TestDependenceAnalysis(object):
                 assert len(deps) == 2
             else:
                 assert len(deps) == 1
-        dep = deps[0]
+        dep = list(deps)[0]
 
         # Check type
         types = ['flow', 'anti']
@@ -369,12 +629,12 @@ class TestDependenceAnalysis(object):
             return
         else:
             assert len(dep.cause) == 1
-            cause = dep.cause.pop()
+            cause = set(dep.cause).pop()
             assert cause.name == exp_cause
 
         # Check mode restricted to the cause
         assert getattr(dep, 'is_%s' % mode)(cause)
-        non_causes = [i for i in [x, y, z] if i is not cause]
+        non_causes = [i for i in grid.dimensions if i is not cause]
         assert all(not getattr(dep, 'is_%s' % mode)(i) for i in non_causes)
 
         # Check if it's regular or irregular
@@ -442,30 +702,27 @@ class TestDependenceAnalysis(object):
 
         for i in ['flow', 'anti', 'output']:
             for dep in getattr(scope, 'd_%s' % i):
-                item = (dep.function.name, i, str(dep.cause))
+                item = (dep.function.name, i, str(set(dep.cause)))
                 assert item in expected
                 expected.remove(item)
 
         # Sanity check: we did find all of the expected dependences
         assert len(expected) == 0
 
-    def test_flow_detection(self):
-        """Test detection of information flow."""
-        grid = Grid((10, 10))
-        u2 = TimeFunction(name="u2", grid=grid, time_order=2)
-        u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
-        exprs = [LoweredEq(indexify(Eq(u1.forward, u1 + 2.0 - u1.backward))),
-                 LoweredEq(indexify(Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)))]
-        mapper = detect_flow_directions(exprs)
-        assert mapper.get(grid.stepping_dim) == {Forward}
-        assert mapper.get(grid.time_dim) == {Any, Forward}
-        assert all(mapper.get(i) == {Any} for i in grid.dimensions)
 
+class TestIETConstruction(object):
 
-@skipif_yask
-class TestIET(object):
+    @pytest.fixture
+    def grid(self):
+        return Grid((3, 3, 3))
 
-    def test_nodes_conditional(self, fc):
+    @pytest.fixture
+    def fc(self, grid):
+        return Array(name='fc', dimensions=(grid.dimensions[0], grid.dimensions[1]),
+                     shape=(3, 5)).indexed
+
+    def test_conditional(self, fc, grid):
+        x, y, _ = grid.dimensions
         then_body = Expression(DummyEq(fc[x, y], fc[x, y] + 1))
         else_body = Expression(DummyEq(fc[x, y], fc[x, y] + 2))
         conditional = Conditional(x < 3, then_body, else_body)
@@ -478,6 +735,87 @@ else
 {
   fc[x][y] = fc[x][y] + 2;
 }"""
+
+    @pytest.mark.parametrize("exprs,nfuncs,ntimeiters,nests", [
+        (('Eq(v[t+1,x,y], v[t,x,y] + 1)',), (1,), (2,), ('xy',)),
+        (('Eq(v[t,x,y], v[t,x-1,y] + 1)', 'Eq(v[t,x,y], v[t,x+1,y] + u[x,y])'),
+         (1, 2), (1, 1), ('xy', 'xy'))
+    ])
+    @switchconfig(openmp=False)
+    def test_make_efuncs(self, exprs, nfuncs, ntimeiters, nests):
+        """Test construction of ElementalFunctions."""
+        exprs = list(as_tuple(exprs))
+
+        grid = Grid(shape=(10, 10))
+        t = grid.stepping_dim  # noqa
+        x, y = grid.dimensions  # noqa
+
+        u = Function(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        op = Operator(exprs)
+
+        # We create one ElementalFunction for each Iteration nest over space dimensions
+        efuncs = []
+        for n, tree in enumerate(retrieve_iteration_tree(op)):
+            root = filter_iterations(tree, key=lambda i: i.dim.is_Space)[0]
+            efuncs.append(make_efunc('f%d' % n, root))
+
+        assert len(efuncs) == len(nfuncs) == len(ntimeiters) == len(nests)
+
+        for efunc, nf, nt, nest in zip(efuncs, nfuncs, ntimeiters, nests):
+            # Check the `efunc` parameters
+            assert all(i in efunc.parameters for i in (x.symbolic_min, x.symbolic_max))
+            assert all(i in efunc.parameters for i in (y.symbolic_min, y.symbolic_max))
+            functions = FindSymbols().visit(efunc)
+            assert len(functions) == nf
+            assert all(i in efunc.parameters for i in functions)
+            timeiters = [i for i in FindSymbols('free-symbols').visit(efunc)
+                         if isinstance(i, Dimension) and i.is_Time]
+            assert len(timeiters) == nt
+            assert all(i in efunc.parameters for i in timeiters)
+            assert len(efunc.parameters) == 4 + len(functions) + len(timeiters)
+
+            # Check the loop nest structure
+            trees = retrieve_iteration_tree(efunc)
+            assert len(trees) == 1
+            tree = trees[0]
+            assert all(i.dim.name == j for i, j in zip(tree, nest))
+
+            assert efunc.make_call()
+
+    def test_nested_calls_cgen(self):
+        call = Call('foo', [
+            Call('bar', [])
+        ])
+
+        code = CGen().visit(call)
+
+        assert str(code) == 'foo(bar());'
+
+    @pytest.mark.parametrize('mode,expected', [
+        ('free-symbols', '["f", "x"]'),
+        ('symbolics', '["f"]')
+    ])
+    def test_find_symbols_nested(self, mode, expected):
+        grid = Grid(shape=(4, 4, 4))
+        call = Call('foo', [
+            Call('bar', [
+                Symbol(name='x'),
+                Call('baz', [Function(name='f', grid=grid)])
+            ])
+        ])
+
+        found = FindSymbols(mode).visit(call)
+
+        assert [f.name for f in found] == eval(expected)
+
+
+class TestAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
@@ -537,6 +875,10 @@ else
          ['p', 'rx', 'ry', 'rz'], []),
         (['Eq(rcv, 0)', 'Inc(rcv, cx*cy*cz)'],
          ['rx', 'ry', 'rz'], ['time', 'p']),
+        (['Eq(s, 0, implicit_dims=[time, p])',
+          'Inc(s, time*p*2, implicit_dims=[time, p])',
+          'Eq(rcv, s)'],
+         [], ['time', 'p']),
         (['Eq(v.forward, u+1)', 'Eq(rcv, 0)',
           'Inc(rcv, v[t, gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz]*cx*cy*cz)'],
          ['rx', 'ry', 'rz'], ['x', 'y', 'z', 'p']),
@@ -565,6 +907,8 @@ else
         rx = Dimension(name='rx')
         ry = Dimension(name='ry')
         rz = Dimension(name='rz')
+
+        s = Scalar(name='s')  # noqa
 
         u = Function(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid, save=None)  # noqa
@@ -617,7 +961,7 @@ else
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='speculative')
+        op = Operator(exprs)
 
         iters = FindNodes(Iteration).visit(op)
 
@@ -630,7 +974,6 @@ else
         assert all(not i.is_Wrappable for i in iters if i is not time_iter)
 
 
-@skipif_yask
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [
@@ -638,7 +981,7 @@ class TestEquationAlgorithms(object):
     ])
     def test_dimension_sort(self, expr, expected):
         """
-        Tests that ``dimension_sort()`` provides meaningful :class:`Dimension` orderings.
+        Tests that ``dimension_sort()`` provides meaningful Dimension orderings.
         """
         grid = Grid(shape=(10, 10))
         p = Dimension('p')

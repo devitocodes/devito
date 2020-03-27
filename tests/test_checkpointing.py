@@ -1,17 +1,18 @@
-from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
-from examples.seismic.acoustic.acoustic_example import acoustic_setup
-from examples.seismic import Receiver
-from pyrevolve import Revolver
-import numpy as np
-from conftest import skipif_yask
-import pytest
 from functools import reduce
 
-from devito import Grid, TimeFunction, Operator, Function, Eq, silencio
+import pytest
+from pyrevolve import Revolver
+import numpy as np
+
+from conftest import skipif
+from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
+from examples.seismic.acoustic.acoustic_example import acoustic_setup
+
+pytestmark = skipif(['yask', 'ops'])
 
 
-@silencio(log_level='WARNING')
-@skipif_yask
+@switchconfig(log_level='WARNING')
 def test_segmented_incremment():
     """
     Test for segmented operator execution of a one-sided first order
@@ -40,8 +41,7 @@ def test_segmented_incremment():
     assert (f.data[21] == 21.).all()
 
 
-@silencio(log_level='WARNING')
-@skipif_yask
+@switchconfig(log_level='WARNING')
 def test_segmented_fibonacci():
     """
     Test for segmented operator execution of a one-sided second order
@@ -77,8 +77,7 @@ def test_segmented_fibonacci():
     assert (f.data[12] == fib(13)).all()
 
 
-@silencio(log_level='WARNING')
-@skipif_yask
+@switchconfig(log_level='WARNING')
 def test_segmented_averaging():
     """
     Test for segmented operator execution of a two-sided, second order
@@ -95,24 +94,23 @@ def test_segmented_averaging():
     # We add the average to the point itself, so the grid "interior"
     # (domain) is updated only.
     f_ref = TimeFunction(name='f', grid=grid)
-    f_ref.data_allocated[:] = 1.
+    f_ref.data_with_halo[:] = 1.
     op(f=f_ref, time=1)
     assert (f_ref.data[1, :] == 2.).all()
-    assert (f_ref.data_allocated[1, 0] == 1.).all()
-    assert (f_ref.data_allocated[1, -1] == 1.).all()
+    assert (f_ref.data_with_halo[1, 0] == 1.).all()
+    assert (f_ref.data_with_halo[1, -1] == 1.).all()
 
     # Now we sweep the x direction in 4 segmented steps of 5 iterations each
     nsteps = 5
-    f.data_allocated[:] = 1.
+    f.data_with_halo[:] = 1.
     for i in range(4):
         op(f=f, time=1, x_m=i*nsteps, x_M=(i+1)*nsteps-1)
     assert (f_ref.data[1, :] == 2.).all()
-    assert (f_ref.data_allocated[1, 0] == 1.).all()
-    assert (f_ref.data_allocated[1, -1] == 1.).all()
+    assert (f_ref.data_with_halo[1, 0] == 1.).all()
+    assert (f_ref.data_with_halo[1, -1] == 1.).all()
 
 
-@silencio(log_level='WARNING')
-@skipif_yask
+@switchconfig(log_level='WARNING')
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('kernel', ['OT2'])
 @pytest.mark.parametrize('shape', [(70, 80), (50, 50, 50)])
@@ -123,23 +121,20 @@ def test_forward_with_breaks(shape, kernel, space_order):
     spacing = tuple([15.0 for _ in shape])
     tn = 500.
     time_order = 2
-    nrec = shape[0]
 
     solver = acoustic_setup(shape=shape, spacing=spacing, tn=tn,
                             space_order=space_order, kernel=kernel)
 
     grid = solver.model.grid
 
-    rec = Receiver(name='rec', grid=grid, time_range=solver.receiver.time_range,
-                   npoint=nrec)
-    rec.coordinates.data[:, :] = solver.receiver.coordinates.data[:]
+    rec = solver.geometry.rec
 
     dt = solver.model.critical_dt
 
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=space_order)
     cp = DevitoCheckpoint([u])
     wrap_fw = CheckpointOperator(solver.op_fwd(save=False), rec=rec,
-                                 src=solver.source, u=u, dt=dt)
+                                 src=solver.geometry.src, u=u, dt=dt)
     wrap_rev = CheckpointOperator(solver.op_grad(save=False), u=u, dt=dt, rec=rec)
 
     wrp = Revolver(cp, wrap_fw, wrap_rev, None, rec._time_range.num-time_order)
@@ -150,17 +145,16 @@ def test_forward_with_breaks(shape, kernel, space_order):
     assert(np.allclose(rec1.data, rec.data))
 
 
-@silencio(log_level='WARNING')
-@skipif_yask
+@switchconfig(log_level='WARNING')
 def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
-                                  time_order=2, space_order=4, nbpml=10):
+                                  time_order=2, space_order=4, nbl=10):
     """ Run the acoustic example with and without save=True. Make sure the result is the
     same
     """
-    solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
-                            space_order=space_order, time_order=time_order)
+    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, dtype=np.float64,
+                            space_order=space_order, time_order=time_order, tn=tn)
     rec, u, summary = solver.forward(save=True)
-    last_time_step = solver.source.nt-1
+    last_time_step = solver.geometry.nt-1
     field_last_time_step = np.copy(u.data[last_time_step, :, :])
     rec_bk = np.copy(rec.data)
     rec, u, summary = solver.forward(save=False)
@@ -169,8 +163,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
-@skipif_yask
-def test_index_alignment(const):
+def test_index_alignment():
     """ A much simpler test meant to ensure that the forward and reverse indices are
     correctly aligned (i.e. u * v , where u is the forward field and v the reverse field
     corresponds to the correct timesteps in u and v). The forward operator does u = u + 1
@@ -187,6 +180,7 @@ def test_index_alignment(const):
     and hence grad = 0*0 + 1*1 + 2*2 + 3*3 = sum(n^2) where n -> [0, nt]
     If the test fails, the resulting number can tell you how the fields are misaligned
     """
+    const = Constant(name="constant")
     n = 4
     grid = Grid(shape=(2, 2))
     order_of_eqn = 1

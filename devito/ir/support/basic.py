@@ -1,241 +1,75 @@
+from itertools import chain
+
 from cached_property import cached_property
-from sympy import Basic, S
+from sympy import S
 
-from devito.dimension import Dimension
-from devito.ir.support.space import Any, Backward
-from devito.symbolics import retrieve_terminals, q_affine, q_inc
-from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth)
+from devito.ir.support.space import Backward, IterationSpace
+from devito.ir.support.vector import LabeledVector, Vector
+from devito.symbolics import retrieve_terminals, q_monoaffine
+from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
+                          filter_sorted, flatten, memoized_meth, memoized_generator)
+from devito.types import Dimension
 
-__all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
-
-
-class Vector(tuple):
-
-    """
-    A representation of a vector in Z^n.
-
-    The elements of a Vector can be integers or any SymPy expression.
-
-    Notes on Vector comparison
-    ==========================
-
-    # Vector-scalar comparison
-    --------------------------
-    If a comparison between a vector and a non-vector is attempted, then the
-    non-vector is promoted to a vector; if this is not possible, an exception
-    is raised. This is handy because it turns a vector-scalar comparison into
-    a vector-vector comparison with the scalar broadcasted to all vector entries.
-    For example: ::
-
-        (3, 4, 5) > 4 => (3, 4, 5) > (4, 4, 4) => False
-
-    # Comparing Vector entries when these are SymPy expression
-    ----------------------------------------------------------
-    When we compare two entries that are both generic SymPy expressions, it is
-    generally not possible to determine the truth value of the relation. For
-    example, the truth value of `3*i < 4*j` cannot be determined. In some cases,
-    however, the comparison is feasible; for example, `i + 4 < i` should always
-    return false. A sufficient condition for two Vectors to be comparable is that
-    their pair-wise indices are affine functions of the same variables, with
-    coefficient 1.
-    """
-
-    def __new__(cls, *items):
-        if not all(is_integer(i) or isinstance(i, Basic) for i in items):
-            raise TypeError("Illegal Vector element type")
-        return super(Vector, cls).__new__(cls, items)
-
-    def _asvector(relax=False):
-        def __asvector(func):
-            def wrapper(self, other):
-                if not isinstance(other, Vector):
-                    try:
-                        other = Vector(*other)
-                    except TypeError:
-                        # Not iterable
-                        other = Vector(*(as_tuple(other)*len(self)))
-                if relax is False and len(self) != len(other):
-                    raise TypeError("Cannot operate with Vectors of different rank")
-                return func(self, other)
-            return wrapper
-        return __asvector
-
-    @_asvector()
-    def __add__(self, other):
-        return Vector(*[i + j for i, j in zip(self, other)])
-
-    @_asvector()
-    def __radd__(self, other):
-        return self + other
-
-    @_asvector()
-    def __sub__(self, other):
-        return Vector(*[i - j for i, j in zip(self, other)])
-
-    @_asvector()
-    def __rsub__(self, other):
-        return self - other
-
-    @_asvector(relax=True)
-    def __eq__(self, other):
-        return super(Vector, self).__eq__(other)
-
-    def __hash__(self):
-        return super(Vector, self).__hash__()
-
-    @_asvector(relax=True)
-    def __ne__(self, other):
-        return super(Vector, self).__ne__(other)
-
-    @_asvector()
-    def __lt__(self, other):
-        # This might raise an exception if the distance between the i-th entry
-        # of /self/ and /other/ isn't integer, but rather a generic function
-        # (and thus not comparable to 0). However, the implementation is "smart",
-        # in the sense that it will return as soon as the first two comparable
-        # entries (i.e., such that their distance is a non-zero integer) are found
-        for i in self.distance(other):
-            try:
-                val = int(i)
-            except TypeError:
-                raise TypeError("Cannot compare due to non-comparable index functions")
-            if val < 0:
-                return True
-            elif val > 0:
-                return False
-
-    @_asvector()
-    def __gt__(self, other):
-        return other.__lt__(self)
-
-    @_asvector()
-    def __ge__(self, other):
-        return self.__eq__(other) or self.__gt__(other)
-
-    @_asvector()
-    def __le__(self, other):
-        return self.__eq__(other) or self.__lt__(other)
-
-    def __getitem__(self, key):
-        ret = super(Vector, self).__getitem__(key)
-        return Vector(*ret) if isinstance(key, slice) else ret
-
-    def __repr__(self):
-        if self.rank == 0:
-            return 'NullVector'
-        maxlen = max(3, max([len(str(i)) for i in self]))
-        return '\n'.join([('|{:^%d}|' % maxlen).format(str(i)) for i in self])
-
-    @property
-    def rank(self):
-        return len(self)
-
-    @property
-    def sum(self):
-        return sum(self)
-
-    @memoized_meth
-    def distance(self, other):
-        """
-        Compute the distance from ``self`` to ``other``.
-
-        The distance is a reflexive, transitive, and anti-symmetric relation,
-        which establishes a total ordering amongst Vectors.
-
-        The distance is a function [Vector x Vector --> D]. D is a tuple of length
-        equal to the Vector ``rank``. The i-th entry of D, D_i, indicates whether
-        the i-th component of ``self``, self_i, precedes (< 0), equals (== 0), or
-        succeeds (> 0) the i-th component of ``other``, other_i.
-
-        In particular, the *absolute value* of D_i represents the number of
-        integer points that exist between self_i and sink_i.
-
-        Example
-        =======
-                 | 3 |           | 1 |               |  2  |
-        source = | 2 | ,  sink = | 4 | , distance => | -2  |
-                 | 1 |           | 5 |               | -4  |
-
-        There are 2, 2, and 4 points between [3-2], [2-4], and [1-5], respectively.
-        """
-        return self - other
+__all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
 
 class IndexMode(Tag):
-
-    """
-    Tag for access functions.
-    """
-
+    """Tag for access functions."""
     pass
-
-
-CONSTANT = IndexMode('constant')
-AFFINE = IndexMode('affine')
+AFFINE = IndexMode('affine')  # noqa
 IRREGULAR = IndexMode('irregular')
 
 
-class IterationInstance(Vector):
+class IterationInstance(LabeledVector):
 
     """
     A representation of the iteration and data points accessed by an
-    :class:`Indexed` object. Three different concepts are distinguished:
+    Indexed object. Three different concepts are distinguished:
 
-        * Index functions: the expressions telling what *iteration* space point
-          is accessed.
-        * ``aindices``: the :class:`Dimension`s acting as iteration variables.
-          There is one aindex for each index function. If the index function
-          is non-affine, then it may not be possible to detect its aindex;
-          in such a case, None is used as placeholder.
-        * ``findices``: the :class:`Dimension`s telling what *data* space point
-          is accessed.
+        * Index functions: the expressions describing what *iteration* space
+          points are accessed.
+        * ``aindices``: the Dimensions acting as iteration variables.
+          There is one aindex for each non-constant affine index function. If
+          the index function is non-affine, then it may not be possible to detect
+          its aindex; in such a case, None is used as placeholder.
+        * ``findices``: the Dimensions describing what *data* space point
+          are accessed.
+
+    An IterationInstance may be regular or irregular. It is regular if and only
+    if *all* index functions are affine in their respective findex.  The
+    downside of irregular IterationInstances is that dependence testing is
+    harder, which in turn may require the data dependence analyzer to act more
+    conservatively.
+
+    Examples
+    --------
+    Given:
+        x, y, z : findices
+        w : a generic Dimension
+
+           | x+1 |           |  x  |          |  x  |          | w |          | x+y |
+    obj1 = | y+2 | ,  obj2 = |  4  | , obj3 = |  x  | , obj4 = | y | , obj5 = |  y  |
+           | z-3 |           | z+1 |          |  y  |          | z |          |  z  |
+
+    We have that:
+
+        * obj1 and obj2 are regular;
+        * obj3 is irregular because an findex, ``x``, appears outside of its index
+          function (i.e., in the second slot, when ``y`` is expected);
+        * obj4 is irregular, because a different dimension, ``w``, is used in place
+          of ``x`` within the first index function, where ``x`` is expected;
+        * obj5 is irregular, as two findices appear in the same index function.
     """
 
     def __new__(cls, indexed):
-        obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
-        obj.findices = tuple(indexed.base.function.indices)
-        if len(obj.findices) != len(set(obj.findices)):
+        findices = tuple(indexed.function.dimensions)
+        if len(findices) != len(set(findices)):
             raise ValueError("Illegal non-unique `findices`")
-        return obj
-
-    def __eq__(self, other):
-        if isinstance(other, IterationInstance) and self.findices != other.findices:
-            raise TypeError("Cannot compare due to mismatching `findices`")
-        return super(IterationInstance, self).__eq__(other)
+        return super(IterationInstance, cls).__new__(cls,
+                                                     list(zip(findices, indexed.indices)))
 
     def __hash__(self):
         return super(IterationInstance, self).__hash__()
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __lt__(self, other):
-        if isinstance(other, IterationInstance) and self.findices != other.findices:
-            raise TypeError("Cannot compare due to mismatching `findices`")
-        return super(IterationInstance, self).__lt__(other)
-
-    def __gt__(self, other):
-        return other.__lt__(self)
-
-    def __ge__(self, other):
-        return self.__eq__(other) or self.__gt__(other)
-
-    def __le__(self, other):
-        return self.__eq__(other) or self.__lt__(other)
-
-    def __getitem__(self, index):
-        if isinstance(index, (slice, int)):
-            return super(IterationInstance, self).__getitem__(index)
-        elif isinstance(index, Dimension):
-            for d in index._defines:
-                if d in self.findices:
-                    i = self.findices.index(d)
-                    return super(IterationInstance, self).__getitem__(i)
-            return None
-        else:
-            raise TypeError("IterationInstance indices must be integers, slices, or "
-                            "Dimensions, not %s" % type(index))
 
     @cached_property
     def _cached_findices_index(self):
@@ -246,18 +80,17 @@ class IterationInstance(Vector):
     def index_mode(self):
         index_mode = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
-                index_mode.append(CONSTANT)
-            elif q_affine(i, fi):
+            if q_monoaffine(i, fi, self.findices):
                 index_mode.append(AFFINE)
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 try:
                     # There's still hope it's regular if a DerivedDimension is used
                     candidate = dims.pop()
-                    if candidate.parent == fi and q_affine(i, candidate):
-                        index_mode.append(AFFINE)
-                        continue
+                    if fi in candidate._defines:
+                        if q_monoaffine(i, candidate, self.findices):
+                            index_mode.append(AFFINE)
+                            continue
                 except (KeyError, AttributeError):
                     pass
                 index_mode.append(IRREGULAR)
@@ -267,58 +100,53 @@ class IterationInstance(Vector):
     def aindices(self):
         aindices = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
-                aindices.append(None)
-            elif q_affine(i, fi):
+            if q_monoaffine(i, fi, self.findices):
                 aindices.append(fi)
+            elif isinstance(i, Dimension):
+                aindices.append(i)
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 aindices.append(dims.pop() if len(dims) == 1 else None)
-        return tuple(aindices)
+        return EnrichedTuple(*aindices, getters=self.findices)
+
+    @property
+    def findices(self):
+        return self.labels
 
     @cached_property
     def findices_affine(self):
-        return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im == AFFINE)
+        return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im is AFFINE)
 
     @cached_property
     def findices_irregular(self):
         return tuple(fi for fi, im in zip(self.findices, self.index_mode)
-                     if im == IRREGULAR)
+                     if im is IRREGULAR)
 
     def affine(self, findices):
-        """Return True if all of the provided findices appear in self and are
-        affine, False otherwise."""
+        """
+        Return True if all of the provided findices appear in self and are
+        affine, False otherwise.
+        """
         return set(as_tuple(findices)).issubset(set(self.findices_affine))
 
     def affine_if_present(self, findices):
-        """Return False if any of the provided findices appears in self and
-        is not affine, True otherwise."""
+        """
+        Return False if any of the provided findices appears in self and
+        is not affine, True otherwise.
+        """
         findices = as_tuple(findices)
         return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
 
-    def touch_halo(self, findices):
-        """Return True if self accesses the halo along any of the provided findices,
-        False otherwise."""
-        # Given `d` \in findices, iterating over [0, size_d):
-        # * if self[d] - d < self.function._offset_domain[d].left, then `self` will
-        #   definitely touch the left-halo when d=0
-        # * if self[d] - d > self.function._offset_domain[d].left, then `self` will
-        #   definitely touch the right-halo when d=size_d-1
-        # TODO: the underlying assumption here is that `d` iterates in [0, size_d],
-        # which is the typical case. If that's not the case, we have to generalise
-        # this method. For this, we will have to attach more iteration space
-        # information to IterationInstance, such as start/end point, increment, etc.
-        return all(self[d] - d != self.function._offset_domain[d].left
-                   for d in as_tuple(findices))
-
     def irregular(self, findices):
-        """Return True if all of the provided findices appear in self and are
-        irregular, False otherwise."""
+        """
+        Return True if all of the provided findices appear in self and are
+        irregular, False otherwise.
+        """
         return set(as_tuple(findices)).issubset(set(self.findices_irregular))
 
     @property
     def is_regular(self):
-        return all(i in (CONSTANT, AFFINE) for i in self.index_mode)
+        return all(i is AFFINE for i in self.index_mode)
 
     @property
     def is_irregular(self):
@@ -328,77 +156,86 @@ class IterationInstance(Vector):
     def is_scalar(self):
         return self.rank == 0
 
-    def distance(self, other, findex=None, view=None):
-        """Compute the distance from ``self`` to ``other``.
-
-        :param other: The :class:`IterationInstance` from which the distance
-                      is computed.
-        :param findex: (Optional) if supplied, compute the distance only up to
-                       and including ``findex`` (defaults to None).
-        :param view: (Optional) an iterable of ``findices`` (defaults to None); if
-                     supplied, project the distance along these dimensions.
+    def distance(self, other):
         """
-        if not isinstance(other, IterationInstance):
-            raise TypeError("Cannot compute distance from obj of type %s", type(other))
+        Compute the distance from ``self`` to ``other``.
+
+        Parameters
+        ----------
+        other : IterationInstance
+            The IterationInstance from which the distance is computed.
+        """
+        assert isinstance(other, IterationInstance)
         if self.findices != other.findices:
             raise TypeError("Cannot compute distance due to mismatching `findices`")
-        if findex is not None:
-            try:
-                limit = self._cached_findices_index[findex] + 1
-            except KeyError:
-                raise TypeError("Cannot compute distance as `findex` not in `findices`")
-        else:
-            limit = self.rank
-        distance = super(IterationInstance, self).distance(other)[:limit]
-        if view is None:
-            return distance
-        else:
-            proj = [d for d, i in zip(distance, self.findices) if i in as_tuple(view)]
-            return Vector(*proj)
 
-    def section(self, findices):
-        """Return a view of ``self`` in which the slots corresponding to the
-        provided ``findices`` have been zeroed."""
-        return Vector(*[d if i not in as_tuple(findices) else 0
-                        for d, i in zip(self, self.findices)])
+        return super(IterationInstance, self).distance(other)
 
 
-class Access(IterationInstance):
+class TimedAccess(IterationInstance):
 
     """
-    A representation of the access performed by a :class:`Indexed` object
-    (a scalar in the degenerate case).
+    An IterationInstance enriched with additional information:
 
-    Notes on Access comparison
-    ==========================
+        * a "timestamp"; that is, an integer indicating the statement within
+          which the TimedAccess appears in the execution flow;
+        * an array of Intervals, which represent the space in which the
+          TimedAccess iterates;
+        * an array of IterationDirections (one for each findex).
 
+    Notes
+    -----
     The comparison operators ``==, !=, <, <=, >, >=`` should be regarded as
-    operators for lexicographic ordering of :class:`Access` objects, based
-    on the values of the index functions (and the index functions only).
-
-    For example, if two Access objects A and B employ the same index functions,
-    the operation A == B will return True regardless of whether A and B are
-    reads or writes or mixed.
+    operators for lexicographic ordering of TimedAccess objects, based
+    on the values of the index functions and the access mode (read, write).
     """
 
-    def __new__(cls, indexed, mode):
-        assert mode in ['R', 'W', 'RI', 'WI']
-        obj = super(Access, cls).__new__(cls, indexed)
-        obj.function = indexed.base.function
+    _modes = ('R', 'W', 'RI', 'WI')
+
+    def __new__(cls, indexed, mode, timestamp, ispace=None):
+        assert mode in cls._modes
+        assert is_integer(timestamp)
+
+        obj = super(TimedAccess, cls).__new__(cls, indexed)
+
+        obj.indexed = indexed
+        obj.function = indexed.function
         obj.mode = mode
+        obj.timestamp = timestamp
+
+        obj.ispace = ispace or IterationSpace([])
+
         return obj
 
+    def __repr__(self):
+        mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
+        return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
+
     def __eq__(self, other):
-        return super(Access, self).__eq__(other) and\
-            isinstance(other, Access) and\
-            self.function == other.function
+        return (isinstance(other, TimedAccess) and
+                self.function is other.function and
+                self.mode == other.mode and
+                self.ispace == other.ispace and
+                super(TimedAccess, self).__eq__(other))
 
     def __hash__(self):
-        return super(Access, self).__hash__()
+        return super(TimedAccess, self).__hash__()
 
     @property
     def name(self):
         return self.function.name
+
+    @property
+    def intervals(self):
+        return self.ispace.intervals
+
+    @property
+    def directions(self):
+        return self.ispace.directions
+
+    @property
+    def itintervals(self):
+        return self.ispace.itintervals
 
     @property
     def is_read(self):
@@ -424,73 +261,28 @@ class Access(IterationInstance):
     def is_local(self):
         return self.function.is_Symbol
 
-    def __repr__(self):
-        mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
-        return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
+    @cached_property
+    def is_regular(self):
+        if not super(TimedAccess, self).is_regular:
+            return False
 
-
-class TimedAccess(Access):
-
-    """
-    A special :class:`Access` object enriched with: ::
-
-        * a "timestamp"; that is, an integer indicating the access location
-          within the execution flow;
-        * an array of directions; there is one direction for each index,
-          indicating whether the index function is monotonically increasing
-          or decreasing.
-
-    Further, a TimedAccess may be regular or irregular. A TimedAccess is regular
-    if and only if *all* index functions are affine in their respective findex.
-    The downside of irregular TimedAccess objects is that dependence testing is
-    harder, which in turn may force the data dependence analyzer to make stronger
-    assumptions to be conservative.
-
-    Examples
-    ========
-    Given:
-    findices = [x, y, z]
-    w = an object of type Dimension
-
-           | x+1 |           |  x  |           |  x  |          | w |          | x+y |
-    obj1 = | y+2 | ,  obj2 = |  4  | , obj3 => |  x  | , obj4 = | y | , obj5 = |  y  |
-           | z-3 |           | z+1 |           |  y  |          | z |          |  z  |
-
-    We have that: ::
-
-        * obj1 and obj2 are regular;
-        * obj3 is irregular because an findex, ``x``, appears outside of its index
-          function (i.e., in the second slot, whew ``y`` is expected);
-        * obj4 is irregular, because a different dimension, ``w``, is used in place
-          of ``x`` within the first index function, where ``x`` is expected;
-        * obj5 is irregular, as two findices appear in the same index function --
-          the one in the first slot, where only ``x`` is expected.
-
-    """
-
-    def __new__(cls, indexed, mode, timestamp, directions):
-        assert is_integer(timestamp)
-        obj = super(TimedAccess, cls).__new__(cls, indexed, mode)
-        obj.timestamp = timestamp
-        # We use `.root` as if a DerivedDimension is in `directions`, then so is
-        # its parent, and the parent (root) direction cannot differ from that
-        # of its child
-        obj.directions = [directions.get(i.root, Any) for i in obj.findices]
-        return obj
-
-    def __eq__(self, other):
-        return super(TimedAccess, self).__eq__(other) and\
-            isinstance(other, TimedAccess) and\
-            self.directions == other.directions
-
-    def __hash__(self):
-        return super(TimedAccess, self).__hash__()
+        # The order of the `aindices` must match the order of the iteration
+        # space Dimensions
+        positions = []
+        for d in self.aindices:
+            for n, i in enumerate(self.intervals):
+                if i.dim._defines & d._defines:
+                    positions.append(n)
+                    break
+        return positions == sorted(positions)
 
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
             raise TypeError("Cannot compare with object of type %s" % type(other))
         if self.directions != other.directions:
             raise TypeError("Cannot compare due to mismatching `direction`")
+        if self.intervals != other.intervals:
+            raise TypeError("Cannot compare due to mismatching `intervals`")
         return super(TimedAccess, self).__lt__(other)
 
     def lex_eq(self, other):
@@ -512,34 +304,131 @@ class TimedAccess(Access):
         return self.timestamp < other.timestamp
 
     def distance(self, other, findex=None):
-        if self.rank != other.rank:
-            raise TypeError("Cannot order due to mismatching `rank`")
+        """
+        Compute the distance from ``self`` to ``other``.
+
+        Parameters
+        ----------
+        other : TimedAccess
+            The TimedAccess from which the distance is computed.
+        findex : Dimension, optional
+            If supplied, compute the distance only up to and including ``findex``.
+        """
+        assert isinstance(other, TimedAccess)
+
         if not self.rank:
             return Vector()
-        findex = findex or self.findices[-1]
+
+        # Compute distance up to `limit`, ignoring `directions` for the moment
+        if findex is None:
+            findex = self.findices[-1]
+            limit = self.rank
+        else:
+            try:
+                limit = self._cached_findices_index[findex] + 1
+            except KeyError:
+                raise TypeError("Cannot compute distance as `findex` not in `findices`")
+        distance = list(super(TimedAccess, self).distance(other)[:limit])
+
+        # * If mismatching `directions`, set the distance to infinity
+        # * If direction is Backward, flip the sign
         ret = []
-        for i, sd, od in zip(self.findices, self.directions, other.directions):
-            if sd == od:
-                ret = list(super(TimedAccess, self).distance(other, i))
-                if i == findex:
-                    break
+        for i, it0, it1 in zip(distance, self.itintervals, other.itintervals):
+            if it0.direction is it1.direction and it0.interval == it1.interval:
+                ret.append(-i if it0.direction is Backward else i)
             else:
                 ret.append(S.Infinity)
                 break
-        directions = self.directions[:self._cached_findices_index[i] + 1]
-        assert len(directions) == len(ret)
-        return Vector(*[(-i) if d == Backward else i for i, d in zip(ret, directions)])
+
+        return Vector(*ret)
+
+    def touched_halo(self, findex):
+        """
+        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
+        means that the halo is touched along that DataSide.
+        """
+        # If an irregularly (non-affine) accessed Dimension, conservatively
+        # assume the halo will be touched
+        if self.irregular(findex):
+            return (True, True)
+
+        d = self.aindices[findex]
+
+        # If the iterator is *not* a distributed Dimension, then surely the halo
+        # isn't touched
+        try:
+            if not d._maybe_distributed:
+                return (False, False)
+        except AttributeError:
+            pass
+
+        # If a constant (integer, symbolic expr) is used to index into `findex`,
+        # there is actually nothing we can do -- the most likely scenario is that
+        # it's accessing into a *local* SubDomain/SubDimension
+        # TODO: make sure this is indeed the case
+        if is_integer(self[findex]) or d not in self[findex].free_symbols:
+            return (False, False)
+
+        # Given `d`'s iteration Interval `d[m, M]`, we know that `d` iterates between
+        # `d_m + m` and `d_M + M`
+        try:
+            m, M = self.intervals[d].offsets
+        except AttributeError:
+            if d.is_NonlinearDerived:
+                # We should only end up here with subsampled Dimensions
+                m, M = self.intervals[d.root].offsets
+            else:
+                assert False
+
+        # If `m + (self[d] - d) < self.function._size_nodomain[d].left`, then `self`
+        # will definitely touch the left-halo, at least when `d=0`
+        size_nodomain_left = self.function._size_nodomain[findex].left
+        try:
+            touch_halo_left = bool(m + (self[findex] - d) < size_nodomain_left)
+        except TypeError:
+            # Two reasons we might end up here:
+            # * `d` is a constant integer
+            # * `m` is a symbol (e.g., a SubDimension-induced offset)
+            #   TODO: we could exploit the properties attached to `m` (if any), such
+            #         as `nonnegative` etc, to do something smarter than just
+            #         assuming, conservatively, `touch_halo_left = True`
+            touch_halo_left = True
+
+        # If `M + (self[d] - d) > self.function._size_nodomain[d].left`, then
+        # `self` will definitely touch the right-halo, at least when `d=d_M`
+        try:
+            touch_halo_right = bool(M + (self[findex] - d) > size_nodomain_left)
+        except TypeError:
+            # See comments in the except block above
+            touch_halo_right = True
+
+        return (touch_halo_left, touch_halo_right)
 
 
 class Dependence(object):
 
-    """A data dependence between two :class:`Access` objects."""
+    """
+    A data dependence between two TimedAccess objects.
+    """
 
     def __init__(self, source, sink):
         assert isinstance(source, TimedAccess) and isinstance(sink, TimedAccess)
-        assert source.function == sink.function
+        assert source.function is sink.function
         self.source = source
         self.sink = sink
+
+    def __eq__(self, other):
+        # If the timestamps are equal in `self` (ie, an inplace dependence) then
+        # they must be equal in `other` too
+        return (self.source == other.source and
+                self.sink == other.sink and
+                ((self.source.timestamp == self.sink.timestamp) ==
+                 (other.source.timestamp == other.sink.timestamp)))
+
+    def __hash__(self):
+        return hash(
+            (self.source, self.sink, self.source.timestamp == self.sink.timestamp)
+        )
 
     @property
     def function(self):
@@ -557,15 +446,19 @@ class Dependence(object):
     def distance(self):
         return self.source.distance(self.sink)
 
-    @property
+    @cached_property
     def _defined_findices(self):
-        return set(flatten(i._defines for i in self.findices))
+        return frozenset(flatten(i._defines for i in self.findices))
 
-    @property
+    @cached_property
     def distance_mapper(self):
-        return {i: j for i, j in zip(self.findices, self.distance)}
+        retval = {}
+        for i, j in zip(self.findices, self.distance):
+            for d in i._defines:
+                retval[d] = j
+        return retval
 
-    @property
+    @cached_property
     def cause(self):
         """Return the findex causing the dependence."""
         for i, j in zip(self.findices, self.distance):
@@ -575,23 +468,84 @@ class Dependence(object):
             except TypeError:
                 # Conservatively assume this is an offending dimension
                 return i._defines
-        return set()
+        return frozenset()
 
-    @property
-    def is_regular(self):
-        return self.source.is_regular and self.sink.is_regular
+    @cached_property
+    def read(self):
+        if self.is_flow:
+            return self.sink
+        elif self.is_anti:
+            return self.source
+        else:
+            return None
 
-    @property
+    @cached_property
+    def write(self):
+        if self.is_flow:
+            return self.source
+        elif self.is_anti:
+            return self.sink
+        else:
+            return None
+
+    @cached_property
+    def is_flow(self):
+        return self.source.is_write and self.sink.is_read
+
+    @cached_property
+    def is_anti(self):
+        return self.source.is_read and self.sink.is_write
+
+    @cached_property
+    def is_waw(self):
+        return self.source.is_write and self.sink.is_write
+
+    @cached_property
+    def is_iaw(self):
+        """Is it an increment-after-write dependence ?"""
+        return self.source.is_write and self.sink.is_increment
+
+    @cached_property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
 
-    @property
+    @cached_property
+    def is_regular(self):
+        return self.source.is_regular and self.sink.is_regular
+
+    @cached_property
     def is_irregular(self):
         return not self.is_regular
 
+    @cached_property
+    def is_lex_positive(self):
+        """True if the source preceeds the sink, False otherwise."""
+        return self.source.timestamp < self.sink.timestamp
+
+    @cached_property
+    def is_lex_equal(self):
+        """True if the source has same timestamp as the sink, False otherwise."""
+        return self.source.timestamp == self.sink.timestamp
+
+    @cached_property
+    def is_lex_negative(self):
+        """True if the sink preceeds the source, False otherwise."""
+        return self.source.timestamp > self.sink.timestamp
+
+    @cached_property
+    def is_lex_non_stmt(self):
+        """
+        True if either the source or the sink are from non-statements, False otherwise.
+        """
+        return self.source.timestamp == -1 or self.sink.timestamp == -1
+
+    @property
+    def is_local(self):
+        return self.function.is_Symbol
+
+    @memoized_meth
     def is_carried(self, dim=None):
-        """Return True if definitely a dimension-carried dependence,
-        False otherwise."""
+        """Return True if definitely a dimension-carried dependence, False otherwise."""
         try:
             if dim is None:
                 return self.distance > 0
@@ -601,24 +555,31 @@ class Dependence(object):
             # Conservatively assume this is a carried dependence
             return True
 
+    @memoized_meth
     def is_reduce(self, dim):
-        """Return True if ``dim`` may represent a reduction dimension for
-        ``self``, False otherwise."""
+        """
+        Return True if ``dim`` may represent a reduction dimension for
+        ``self``, False otherwise.
+        """
         test0 = self.is_increment
         test1 = self.is_regular
         test2 = all(i not in self._defined_findices for i in dim._defines)
         return test0 and test1 and test2
 
+    @memoized_meth
     def is_reduce_atmost(self, dim=None):
-        """More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may
+        """
+        More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may
         represent a reduction dimension for ``self`` or if `self`` is definitely
-        independent of ``dim``, False otherwise."""
+        independent of ``dim``, False otherwise.
+        """
         return self.is_reduce(dim) or self.is_indep(dim)
 
     @memoized_meth
     def is_indep(self, dim=None):
-        """Return True if definitely a dimension-independent dependence,
-        False otherwise."""
+        """
+        Return True if definitely a dimension-independent dependence, False otherwise.
+        """
         try:
             if self.source.is_irregular or self.sink.is_irregular:
                 # Note: we cannot just return `self.distance == 0` as an irregular
@@ -627,44 +588,55 @@ class Dependence(object):
                 return False
             elif dim is None:
                 return self.distance == 0
-            elif self.source.is_local and self.sink.is_local:
-                # A dependence between two locally declared scalars
-                return True
             else:
-                # Note: the check `i in self._defined_findices` makes sure that `i`
-                # is not a reduction dimension, in which case `self` would indeed be
-                # a dimension-dependent dependence
-                test0 = any(i in self._defined_findices for i in dim._defines)
+                # Note: below, `i in self._defined_findices` is to check whether `i`
+                # is actually (one of) the reduction dimension(s), in which case
+                # `self` would indeed be a dimension-dependent dependence
+                test0 = (not self.is_increment or
+                         any(i in self._defined_findices for i in dim._defines))
                 test1 = len(self.cause & dim._defines) == 0
                 return test0 and test1
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
 
+    @memoized_meth
     def is_inplace(self, dim=None):
         """Stronger than ``is_indep()``, as it also compares the timestamps."""
         return self.source.lex_eq(self.sink) and self.is_indep(dim)
+
+    @memoized_meth
+    def is_storage_related(self, dims=None):
+        """
+        True if a storage-related dependence, that is multiple iterations
+        cause the access of the same memory location, False otherwise.
+        """
+        for d in self.findices:
+            if (d._defines & set(as_tuple(dims)) and
+                    any(i.is_NonlinearDerived for i in d._defines)):
+                return True
+        return False
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
 
 
-class DependenceGroup(list):
+class DependenceGroup(set):
 
-    @property
+    @cached_property
     def cause(self):
-        return set().union(*[i.cause for i in self])
+        return frozenset().union(*[i.cause for i in self])
 
-    @property
+    @cached_property
     def functions(self):
-        """Return the :class:`TensorFunction`s inducing a dependence."""
-        return {i.function for i in self}
+        """Return the DiscreteFunctions inducing a dependence."""
+        return frozenset({i.function for i in self})
 
-    @property
+    @cached_property
     def none(self):
         return len(self) == 0
 
-    @property
+    @cached_property
     def increment(self):
         """Return the increment-induced dependences."""
         return DependenceGroup(i for i in self if i.is_increment)
@@ -683,15 +655,17 @@ class DependenceGroup(list):
 
     def __add__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup(super(DependenceGroup, self).__add__(other))
+        return DependenceGroup(super(DependenceGroup, self).__or__(other))
 
     def __sub__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup([i for i in self if i not in other])
+        return DependenceGroup(super(DependenceGroup, self).__sub__(other))
 
     def project(self, function):
-        """Return a new DependenceGroup retaining only the dependences due to
-        the provided function."""
+        """
+        Return a new DependenceGroup retaining only the dependences due to
+        the provided function.
+        """
         return DependenceGroup(i for i in self if i.function is function)
 
 
@@ -699,28 +673,50 @@ class Scope(object):
 
     def __init__(self, exprs):
         """
-        A Scope represents a group of :class:`TimedAccess` objects extracted
-        from some :class:`IREq` ``exprs``. The expressions must be provided
-        in program order.
+        A Scope enables data dependence analysis on a totally ordered sequence
+        of expressions.
         """
         exprs = as_tuple(exprs)
 
         self.reads = {}
         self.writes = {}
+
+        self.initialized = set()
+
         for i, e in enumerate(exprs):
-            # reads
+            # Reads
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.function, [])
-                mode = 'R' if not q_inc(e) else 'RI'
-                v.append(TimedAccess(j, mode, i, e.ispace.directions))
-            # write
+                mode = 'RI' if e.is_Increment and j.function is e.lhs.function else 'R'
+                v.append(TimedAccess(j, mode, i, e.ispace))
+
+            # Write
             v = self.writes.setdefault(e.lhs.function, [])
-            mode = 'W' if not q_inc(e) else 'WI'
-            v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
-            # if an increment, we got one implicit read
-            if q_inc(e):
+            mode = 'WI' if e.is_Increment else 'W'
+            v.append(TimedAccess(e.lhs, mode, i, e.ispace))
+
+            # If an increment, we got one implicit read
+            if e.is_Increment:
                 v = self.reads.setdefault(e.lhs.function, [])
-                v.append(TimedAccess(e.lhs, 'RI', i, e.ispace.directions))
+                v.append(TimedAccess(e.lhs, 'RI', i, e.ispace))
+
+            # If writing to a scalar, we have an initialization
+            if not e.is_Increment and e.is_scalar:
+                self.initialized.add(e.lhs.function)
+
+        # The iterators symbols too
+        dimensions = set().union(*[e.dimensions for e in exprs])
+        for d in dimensions:
+            for j in d.symbolic_size.free_symbols:
+                v = self.reads.setdefault(j.function, [])
+                v.append(TimedAccess(j, 'R', -1))
+
+        # Factor in conditionals
+        conditionals = set().union(*[e.conditionals for e in exprs])
+        for d in conditionals:
+            for j in d.free_symbols:
+                v = self.reads.setdefault(j.function, [])
+                v.append(TimedAccess(j, 'R', -1))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -763,83 +759,110 @@ class Scope(object):
         return [i for group in groups for i in group]
 
     @cached_property
-    def has_dep(self):
-        """Return True if at least a dependency is detected, False otherwise."""
+    def functions(self):
+        return set(self.reads) | set(self.writes)
+
+    @memoized_meth
+    def a_query(self, timestamps=None, modes=None):
+        timestamps = as_tuple(timestamps)
+        modes = as_tuple(modes) or TimedAccess._modes
+        return tuple(a for a in self.accesses
+                     if a.timestamp in timestamps and a.mode in modes)
+
+    @memoized_generator
+    def d_flow_gen(self):
+        """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
-            for w1 in v:
+            for w in v:
                 for r in self.reads.get(k, []):
+                    dependence = Dependence(w, r)
+                    distance = dependence.distance
                     try:
-                        is_flow = (r < w1) or (r == w1 and r.lex_ge(w1))
-                        is_anti = (r > w1) or (r == w1 and r.lex_lt(w1))
+                        is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_flow = is_anti = True
-                    if is_flow or is_anti:
-                        return True
-                for w2 in self.writes.get(k, []):
-                    try:
-                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
-                    except TypeError:
-                        # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_output = True
-                    if is_output:
-                        return True
-        return False
+                        # Conservatively, we assume it is a dependence, unless
+                        # it's a read-for-increment
+                        is_flow = not r.is_read_increment
+                    if is_flow:
+                        yield dependence
 
     @cached_property
     def d_flow(self):
-        """Retrieve the flow dependencies, or true dependencies, or read-after-write."""
-        found = DependenceGroup()
+        """Flow (or "read-after-write") dependences."""
+        return DependenceGroup(self.d_flow_gen())
+
+    @memoized_generator
+    def d_anti_gen(self):
+        """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
+                    dependence = Dependence(r, w)
+                    distance = dependence.distance
                     try:
-                        is_flow = (r < w) or (r == w and r.lex_ge(w))
+                        is_anti = distance > 0 or (r.lex_lt(w) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_flow = True
-                    if is_flow:
-                        found.append(Dependence(w, r))
-        return found
+                        # Conservatively, we assume it is a dependence, unless
+                        # it's a read-for-increment
+                        is_anti = not r.is_read_increment
+                    if is_anti:
+                        yield dependence
 
     @cached_property
     def d_anti(self):
-        """Retrieve the anti dependencies, or write-after-read."""
-        found = DependenceGroup()
-        for k, v in self.writes.items():
-            for w in v:
-                for r in self.reads.get(k, []):
-                    try:
-                        is_anti = (r > w) or (r == w and r.lex_lt(w))
-                    except TypeError:
-                        # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_anti = True
-                    if is_anti:
-                        found.append(Dependence(r, w))
-        return found
+        """Anti (or "write-after-read") dependences."""
+        return DependenceGroup(self.d_anti_gen())
 
-    @cached_property
-    def d_output(self):
-        """Retrieve the output dependencies, or write-after-write."""
-        found = DependenceGroup()
+    @memoized_generator
+    def d_output_gen(self):
+        """Generate the output (or "write-after-write") dependences."""
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
+                    dependence = Dependence(w2, w1)
+                    distance = dependence.distance
                     try:
-                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
+                        is_output = distance > 0 or (w2.lex_gt(w1) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
                         is_output = True
                     if is_output:
-                        found.append(Dependence(w2, w1))
-        return found
+                        yield dependence
+
+    @cached_property
+    def d_output(self):
+        """Output (or "write-after-write") dependences."""
+        return DependenceGroup(self.d_output_gen())
+
+    def d_all_gen(self):
+        """Generate all flow, anti and output dependences."""
+        return chain(self.d_flow_gen(), self.d_anti_gen(), self.d_output_gen())
 
     @cached_property
     def d_all(self):
-        """Retrieve all flow, anti, and output dependences."""
+        """All flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
+
+    @memoized_generator
+    def d_from_access_gen(self, accesses):
+        """
+        Generate all flow, anti, and output dependences involving any of
+        the given TimedAccess objects.
+        """
+        accesses = as_tuple(accesses)
+        for d in self.d_all_gen():
+            for i in accesses:
+                if d.source is i or d.sink is i:
+                    yield d
+                    break
+
+    @memoized_meth
+    def d_from_access(self, accesses):
+        """
+        All flow, anti, and output dependences involving any of the given
+        TimedAccess objects.
+        """
+        return DependenceGroup(self.d_from_access_gen(accesses))

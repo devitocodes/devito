@@ -1,5 +1,6 @@
 from pyrevolve import Checkpoint, Operator
 from devito import TimeFunction
+from devito.tools import flatten
 
 
 class CheckpointOperator(Operator):
@@ -7,11 +8,16 @@ class CheckpointOperator(Operator):
        devito.Operator so it conforms to the pyRevolve API. pyRevolve will call apply
        with arguments t_start and t_end. Devito calls these arguments t_s and t_e so
        the following dict is used to perform the translations between different names.
-       :param op: The devito.Operator object that this object will wrap
-       :param args: If devito.Operator.apply() expects any arguments, they can be provided
-                    here to be cached. Any calls to CheckpointOperator.apply() will
-                    automatically include these cached arguments in the call to the
-                    underlying devito.Operator.apply().
+
+       Parameters
+       ----------
+       op : Operator
+            devito.Operator object that this object will wrap.
+       args : dict
+            If devito.Operator.apply() expects any arguments, they can be provided
+            here to be cached. Any calls to CheckpointOperator.apply() will
+            automatically include these cached arguments in the call to the
+            underlying devito.Operator.apply().
     """
     t_arg_names = {'t_start': 'time_m', 't_end': 'time_M'}
 
@@ -57,27 +63,35 @@ class DevitoCheckpoint(Checkpoint):
     def dtype(self):
         return self._dtype
 
-    def save(self, ptr):
-        """Overwrite live-data in this Checkpoint object with data found at
-        the ptr location."""
-        i_ptr_lo = 0
-        i_ptr_hi = 0
-        for o in self.objects:
-            i_ptr_hi = i_ptr_hi + o.size
-            ptr[i_ptr_lo:i_ptr_hi] = o.data.flatten()[:]
-            i_ptr_lo = i_ptr_hi
+    def get_data(self, timestep):
+        data = flatten([get_symbol_data(s, timestep) for s in self.objects])
+        return data
 
-    def load(self, ptr):
-        """Copy live-data from this Checkpoint object into the memory given by
-        the ptr."""
-        i_ptr_lo = 0
-        i_ptr_hi = 0
-        for o in self.objects:
-            i_ptr_hi = i_ptr_hi + o.size
-            o.data[:] = ptr[i_ptr_lo:i_ptr_hi].reshape(o.shape)
-            i_ptr_lo = i_ptr_hi
+    def get_data_location(self, timestep):
+        return self.get_data(timestep)
 
     @property
     def size(self):
         """The memory consumption of the data contained in a checkpoint."""
-        return sum([o.size for o in self.objects])
+        return sum([o.size_allocated*o.time_order for o in self.objects])
+
+    def save(*args):
+        raise RuntimeError("Invalid method called. Did you check your version" +
+                           " of pyrevolve?")
+
+    def load(*args):
+        raise RuntimeError("Invalid method called. Did you check your version" +
+                           " of pyrevolve?")
+
+
+def get_symbol_data(symbol, timestep):
+    timestep += symbol.time_order - 1
+    ptrs = []
+    for i in range(symbol.time_order):
+        # Use `._data`, instead of `.data`, as `.data` is a view of the DOMAIN
+        # data region which is non-contiguous in memory. The performance hit from
+        # dealing with non-contiguous memory is so big (introduces >1 copy), it's
+        # better to checkpoint unneccesarry stuff to get a contiguous chunk of memory.
+        ptr = symbol._data[timestep - i, :, :]
+        ptrs.append(ptr)
+    return ptrs

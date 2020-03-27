@@ -2,54 +2,34 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import Constant, Function
+from devito import Constant, Function, smooth, configuration
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from examples.seismic.utils import smooth
+from examples.seismic import demo_model, setup_geometry
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                   tn=500., kernel='OT2', space_order=4, nbpml=10,
-                   constant=False, **kwargs):
-    nrec = shape[0]
-    preset = 'constant-isotropic' if constant else 'layers-isotropic'
-    model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
-                       dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
+                   tn=500., kernel='OT2', space_order=4, nbl=10,
+                   preset='layers-isotropic', **kwargs):
+    model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
+                       dtype=kwargs.pop('dtype', np.float32), spacing=spacing,
+                       **kwargs)
 
-    # Derive timestepping from model spacing
-    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-    t0 = 0.0
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    if len(shape) > 1:
-        src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
-    # Define receiver geometry (spread across x, just below surface)
-    rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    if len(shape) > 1:
-        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    # Source and receiver geometries
+    geometry = setup_geometry(model, tn)
 
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,
+    solver = AcousticWaveSolver(model, geometry, kernel=kernel,
                                 space_order=space_order, **kwargs)
     return solver
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        space_order=4, kernel='OT2', nbpml=40, full_run=False,
-        autotune=False, constant=False, checkpointing=False, **kwargs):
+        space_order=4, kernel='OT2', nbl=40, full_run=False,
+        autotune=False, preset='layers-isotropic', checkpointing=False, **kwargs):
 
-    solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
+    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
                             space_order=space_order, kernel=kernel,
-                            constant=constant, **kwargs)
-
-    # Smooth velocity
-    initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
-    smooth(initial_vp, solver.model.m)
-    dm = np.float32(initial_vp.data**2 - solver.model.m.data)
+                            preset=preset, **kwargs)
 
     info("Applying Forward")
     # Whether or not we save the whole time history. We only need the full wavefield
@@ -59,15 +39,20 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     # Define receiver geometry (spread across x, just below surface)
     rec, u, summary = solver.forward(save=save, autotune=autotune)
 
-    if constant:
+    if preset == 'constant':
         # With  a new m as Constant
-        m0 = Constant(name="m", value=.25, dtype=np.float32)
-        solver.forward(save=save, m=m0)
-        # With a new m as a scalar value
-        solver.forward(save=save, m=.25)
+        v0 = Constant(name="v", value=2.0, dtype=np.float32)
+        solver.forward(save=save, vp=v0)
+        # With a new vp as a scalar value
+        solver.forward(save=save, vp=2.0)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
+
+    # Smooth velocity
+    initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
+    smooth(initial_vp, solver.model.vp)
+    dm = np.float32(initial_vp.data**(-2) - solver.model.vp.data**(-2))
 
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)
@@ -75,6 +60,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     solver.born(dm, autotune=autotune)
     info("Applying Gradient")
     solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
+    return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
 if __name__ == "__main__":
@@ -84,21 +70,20 @@ if __name__ == "__main__":
                         help="Preset to determine the number of dimensions")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
-    parser.add_argument('-a', '--autotune', default=False, action='store_true',
-                        help="Enable autotuning for block sizes")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=6,
                         type=int, help="Space order of the simulation")
-    parser.add_argument("--nbpml", default=40,
-                        type=int, help="Number of PML layers around the domain")
+    parser.add_argument("--nbl", default=40,
+                        type=int, help="Number of boundary layers around the domain")
     parser.add_argument("-k", dest="kernel", default='OT2',
                         choices=['OT2', 'OT4'],
                         help="Choice of finite-difference kernel")
     parser.add_argument("-dse", default="advanced",
-                        choices=["noop", "basic", "advanced",
-                                 "speculative", "aggressive"],
+                        choices=["noop", "basic", "advanced", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
-    parser.add_argument("-dle", default="advanced",
-                        choices=["noop", "advanced", "speculative"],
+    parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
                         help="Devito loop engine (DLE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
@@ -110,8 +95,8 @@ if __name__ == "__main__":
     shape = tuple(args.ndim * [51])
     spacing = tuple(args.ndim * [15.0])
     tn = 750. if args.ndim < 3 else 250.
-
-    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
-        space_order=args.space_order, constant=args.constant, kernel=args.kernel,
+    preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
+    run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
+        space_order=args.space_order, preset=preset, kernel=args.kernel,
         autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full,
         checkpointing=args.checkpointing)

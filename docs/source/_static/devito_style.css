@@ -1,0 +1,75 @@
+/* Width of the main tab
+.wy-nav-content {
+    max-width: none;
+}
+*/
+
+/* Sidebar header (and topbar for mobile) */
+.wy-side-nav-search, .wy-nav-top {
+  background: #e5e5e5;
+}
+
+/* Sidebar
+.wy-nav-side {
+  background: #ff0000;
+}
+*/
+
+/* Link colors */
+a:link {
+  color: #54c6a4;
+}
+a:hover, a:visited, a:active {
+  color: #1ea47d;
+}
+
+a.icon {
+  color: #343131;
+}
+
+.wy-side-nav-search > div.version {
+  color: #343131;
+}
+
+.rst-content dl:not(.docutils) dt {
+  color: #404040;
+}
+
+.rst-content dl:not(.docutils) dt {
+  border-top: solid 3px #54c6a4;
+  background: #dff1ec;
+}
+
+/* To get rid of colored boxes around methods
+.rst-content dl:not(.docutils) dl dt {
+  border-left: none;
+  background: none;
+}
+*/
+
+/* Make sure the colored box around classes takes up the whole page width */
+.rst-content dl:not(.docutils) dt {
+  display: block;
+}
+
+/* A thin line right below Examples, Notes, ... */
+p.rubric {
+  border-bottom: 1px solid rgb(204, 204, 204);
+}
+
+/* A vertical line on the left of Parameters */
+.wy-table, .rst-content table.docutils, .rst-content table.field-list {
+  border-left: 5px solid rgb(238, 238, 238) !important;
+}
+
+/* A grey box in background for Parameters */
+.rst-content table.field-list .field-name {
+  display: inline-block;
+  background-color: rgb(238, 238, 238);
+  padding: 1px 8px 1px 5px;
+}
+
+/* Put class/method parameters closer to the "Parameters" box */
+.wy-table td, .rst-content table.docutils td, .rst-content table.field-list td, .wy-table th, .rst-content table.docutils th, .rst-content table.field-list th {
+  padding: 2px 0px 2px 0px;
+}

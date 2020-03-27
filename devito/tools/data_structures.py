@@ -1,4 +1,5 @@
-from collections import Callable, Iterable, OrderedDict, Mapping
+from collections import OrderedDict, deque
+from collections.abc import Callable, Iterable, MutableSet, Mapping
 from functools import reduce
 
 import numpy as np
@@ -8,7 +9,7 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'PartialOrderTuple']
+           'OrderedSet', 'PartialOrderTuple', 'DAG']
 
 
 class Bunch(object):
@@ -26,9 +27,7 @@ class Bunch(object):
 
 
 class EnrichedTuple(tuple):
-    """
-    A tuple with an arbitrary number of additional attributes.
-    """
+    """A tuple with an arbitrary number of additional attributes."""
     def __new__(cls, *items, getters=None, **kwargs):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
@@ -44,10 +43,19 @@ class EnrichedTuple(tuple):
 
 class ReducerMap(MultiDict):
     """
-    Specialised :class:`MultiDict` object that maps a single key to a
+    Specialised MultiDict object that maps a single key to a
     list of potential values and provides a reduction method for
     retrieval.
     """
+
+    @classmethod
+    def fromdicts(cls, *dicts):
+        ret = ReducerMap()
+        for i in dicts:
+            if not isinstance(i, Mapping):
+                raise ValueError("Expected Mapping, got `%s`" % type(i))
+            ret.update(i)
+        return ret
 
     def update(self, values):
         """
@@ -66,7 +74,10 @@ class ReducerMap(MultiDict):
         Returns a unique value for a given key, if such a value
         exists, and raises a ``ValueError`` if it does not.
 
-        :param key: Key for which to retrieve a unique value
+        Parameters
+        ----------
+        key : str
+            Key for which to retrieve a unique value.
         """
         candidates = self.getall(key)
 
@@ -89,10 +100,18 @@ class ReducerMap(MultiDict):
         """
         Returns a reduction of all candidate values for a given key.
 
-        :param key: Key for which to retrieve candidate values
-        :param op: Operator for reduction among candidate values.
-                   If not provided, a unique value will be returned,
-                   or a ``ValueError`` raised if no unique value exists.
+        Parameters
+        ----------
+        key : str
+            Key for which to retrieve candidate values.
+        op : callable, optional
+            Operator for reduction among candidate values.  If not provided, a
+            unique value will be returned.
+
+        Raises
+        ------
+        ValueError
+            If op is None and no unique value exists.
         """
         if op is None:
             # Return a unique value if it exists
@@ -101,9 +120,7 @@ class ReducerMap(MultiDict):
             return reduce(op, self.getall(key))
 
     def reduce_all(self):
-        """
-        Returns a dictionary with reduced/unique values for all keys.
-        """
+        """Returns a dictionary with reduced/unique values for all keys."""
         return {k: self.reduce(key=k) for k in self}
 
 
@@ -142,16 +159,75 @@ class DefaultOrderedDict(OrderedDict):
         return type(self)(self.default_factory, self)
 
 
+class OrderedSet(OrderedDict, MutableSet):
+
+    """
+    A simple implementation of an ordered set.
+
+    Notes
+    -----
+    Originally extracted from:
+
+        https://stackoverflow.com/questions/1653970/does-python-have-an-ordered-set
+    """
+
+    def update(self, *args, **kwargs):
+        if kwargs:
+            raise TypeError("update() takes no keyword arguments")
+
+        for s in args:
+            for e in s:
+                self.add(e)
+
+    def add(self, elem):
+        self[elem] = None
+
+    def discard(self, elem):
+        self.pop(elem, None)
+
+    def __le__(self, other):
+        return all(e in other for e in self)
+
+    def __lt__(self, other):
+        return self <= other and self != other
+
+    def __ge__(self, other):
+        return all(e in self for e in other)
+
+    def __gt__(self, other):
+        return self >= other and self != other
+
+    def __repr__(self):
+        return 'OrderedSet([%s])' % (', '.join(map(repr, self.keys())))
+
+    def __str__(self):
+        return '{%s}' % (', '.join(map(repr, self.keys())))
+
+    difference = property(lambda self: self.__sub__)
+    difference_update = property(lambda self: self.__isub__)
+    intersection = property(lambda self: self.__and__)
+    intersection_update = property(lambda self: self.__iand__)
+    issubset = property(lambda self: self.__le__)
+    issuperset = property(lambda self: self.__ge__)
+    symmetric_difference = property(lambda self: self.__xor__)
+    symmetric_difference_update = property(lambda self: self.__ixor__)
+    union = property(lambda self: self.__or__)
+
+
 class PartialOrderTuple(tuple):
+
     """
     A tuple whose elements are ordered according to a set of relations.
 
-    :param items: The elements of the tuple.
-    :param relations: (Optional) an iterable of binary relations between elements
-                      in ``items``. If not provided, then ``items`` is interpreted
-                      as a totally ordered sequence. If provided, then a (partial)
-                      ordering is computed and all elements in ``items`` for which
-                      a relation is not provided are appended.
+    Parameters
+    ----------
+    items : object or iterable of objects
+        The elements of the tuple.
+    relations : iterable of tuples, optional
+        One or more binary relations between elements in ``items``. If not
+        provided, then ``items`` is interpreted as a totally ordered sequence.
+        If provided, then a (partial) ordering is computed and all elements in
+        ``items`` for which a relation is not provided are appended.
     """
     def __new__(cls, items=None, relations=None):
         items = as_tuple(items)
@@ -178,3 +254,167 @@ class PartialOrderTuple(tuple):
 
     def generate_ordering(self):
         raise NotImplementedError
+
+
+class DAG(object):
+
+    """
+    A trivial implementation of a directed acyclic graph (DAG).
+
+    Notes
+    -----
+    Originally extracted from:
+
+        https://github.com/thieman/py-dag/
+    """
+
+    def __init__(self, nodes=None, edges=None):
+        self.graph = OrderedDict()
+        self.labels = DefaultOrderedDict(dict)
+        for node in as_tuple(nodes):
+            self.add_node(node)
+        for i in as_tuple(edges):
+            try:
+                ind_node, dep_node = i
+            except ValueError:
+                ind_node, dep_node, label = i
+                self.labels[ind_node][dep_node] = label
+            self.add_edge(ind_node, dep_node)
+
+    def __contains__(self, key):
+        return key in self.graph
+
+    @property
+    def nodes(self):
+        return tuple(self.graph)
+
+    @property
+    def edges(self):
+        ret = []
+        for k, v in self.graph.items():
+            ret.extend([(k, i) for i in v])
+        return tuple(ret)
+
+    @property
+    def size(self):
+        return len(self.graph)
+
+    def add_node(self, node_name, ignore_existing=False):
+        """Add a node if it does not exist yet, or error out."""
+        if node_name in self.graph:
+            if ignore_existing is True:
+                return
+            raise KeyError('node %s already exists' % node_name)
+        self.graph[node_name] = OrderedSet()
+
+    def delete_node(self, node_name):
+        """Delete a node and all edges referencing it."""
+        if node_name not in self.graph:
+            raise KeyError('node %s does not exist' % node_name)
+        self.graph.pop(node_name)
+        for node, edges in self.graph.items():
+            if node_name in edges:
+                edges.remove(node_name)
+
+    def add_edge(self, ind_node, dep_node, force_add=False, label=None):
+        """Add an edge (dependency) between the specified nodes."""
+        if force_add is True:
+            self.add_node(ind_node, True)
+            self.add_node(dep_node, True)
+        if ind_node not in self.graph or dep_node not in self.graph:
+            raise KeyError('one or more nodes do not exist in graph')
+        self.graph[ind_node].add(dep_node)
+        if label is not None:
+            self.labels[ind_node][dep_node] = label
+
+    def delete_edge(self, ind_node, dep_node):
+        """Delete an edge from the graph."""
+        if dep_node not in self.graph.get(ind_node, []):
+            raise KeyError('this edge does not exist in graph')
+        self.graph[ind_node].remove(dep_node)
+        try:
+            del self.labels[ind_node][dep_node]
+        except KeyError:
+            pass
+
+    def get_label(self, ind_node, dep_node, default=None):
+        try:
+            return self.labels[ind_node][dep_node]
+        except KeyError:
+            return default
+
+    def predecessors(self, node):
+        """Return a list of all predecessors of the given node."""
+        return [key for key in self.graph if node in self.graph[key]]
+
+    def downstream(self, node):
+        """Return a list of all nodes this node has edges towards."""
+        if node not in self.graph:
+            raise KeyError('node %s is not in graph' % node)
+        return list(self.graph[node])
+
+    def all_downstreams(self, node):
+        """
+        Return a list of all nodes ultimately downstream of the given node
+        in the dependency graph, in topological order.
+        """
+        nodes = [node]
+        nodes_seen = OrderedSet()
+        i = 0
+        while i < len(nodes):
+            downstreams = self.downstream(nodes[i])
+            for downstream_node in downstreams:
+                if downstream_node not in nodes_seen:
+                    nodes_seen.add(downstream_node)
+                    nodes.append(downstream_node)
+            i += 1
+        return list(filter(lambda node: node in nodes_seen,
+                           self.topological_sort()))
+
+    def topological_sort(self, choose_element=None):
+        """
+        Return a topological ordering of the DAG.
+
+        Parameters
+        ----------
+        choose_element : callable, optional
+            A callback to pick an element out of the current candidates (i.e.,
+            all un-scheduled nodes with no incoming edges). The callback takes
+            in input an iterable of schedulable nodes as well as the list of
+            already scheduled nodes; it must remove and return the selected node.
+
+        Raises
+        ------
+        ValueError
+            If it is not possible to compute a topological ordering, as the graph
+            is invalid.
+        """
+        if choose_element is None:
+            choose_element = lambda q, l: q.pop()
+
+        in_degree = OrderedDict()  # OrderedDict, not dict, for determinism
+        for u in self.graph:
+            in_degree[u] = 0
+
+        for u in self.graph:
+            for v in self.graph[u]:
+                in_degree[v] += 1
+
+        queue = deque()
+        for u in in_degree:
+            if in_degree[u] == 0:
+                queue.appendleft(u)
+
+        l = []
+        while queue:
+            u = choose_element(queue, l)
+            l.append(u)
+            for v in self.graph[u]:
+                in_degree[v] -= 1
+                if in_degree[v] == 0:
+                    queue.appendleft(v)
+
+        if len(l) == len(self.graph):
+            return l
+        else:
+            raise ValueError('graph is not acyclic')

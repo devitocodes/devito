@@ -14,18 +14,22 @@ except:
 
 def plot_perturbation(model, model1, colorbar=True):
     """
-    Plot a two-dimensional velocity difference from two seismic :class:`Model`
+    Plot a two-dimensional velocity perturbation from two seismic `Model`
     objects.
 
-    :param model: :class:`Model` object of first velocity model.
-    :param model1: :class:`Model` object of the second velocity model.
-    :param source: Coordinates of the source point.
-    :param receiver: Coordinates of the receiver points.
+    Parameters
+    ----------
+    model : Model
+        The first velocity model.
+    model1 : Model
+        The second velocity model.
+    colorbar : bool
+        Option to plot the colorbar.
     """
     domain_size = 1.e-3 * np.array(model.domain_size)
     extent = [model.origin[0], model.origin[0] + domain_size[0],
               model.origin[1] + domain_size[1], model.origin[1]]
-    dv = np.transpose(model.vp) - np.transpose(model1.vp)
+    dv = np.transpose(model.vp.data) - np.transpose(model1.vp.data)
 
     plot = plt.imshow(dv, animated=True, cmap=cm.jet,
                       vmin=min(dv.reshape(-1)), vmax=max(dv.reshape(-1)),
@@ -45,19 +49,29 @@ def plot_perturbation(model, model1, colorbar=True):
 
 def plot_velocity(model, source=None, receiver=None, colorbar=True):
     """
-    Plot a two-dimensional velocity field from a seismic :class:`Model`
+    Plot a two-dimensional velocity field from a seismic `Model`
     object. Optionally also includes point markers for sources and receivers.
 
-    :param model: :class:`Model` object that holds the velocity model.
-    :param source: Coordinates of the source point.
-    :param receiver: Coordinates of the receiver points.
+    Parameters
+    ----------
+    model : Model
+        Object that holds the velocity model.
+    source : array_like or float
+        Coordinates of the source point.
+    receiver : array_like or float
+        Coordinates of the receiver points.
+    colorbar : bool
+        Option to plot the colorbar.
     """
     domain_size = 1.e-3 * np.array(model.domain_size)
     extent = [model.origin[0], model.origin[0] + domain_size[0],
               model.origin[1] + domain_size[1], model.origin[1]]
 
-    plot = plt.imshow(np.transpose(model.vp), animated=True, cmap=cm.jet,
-                      vmin=np.min(model.vp), vmax=np.max(model.vp), extent=extent)
+    slices = tuple(slice(model.nbl, -model.nbl) for _ in range(2))
+    field = (getattr(model, 'vp', None) or getattr(model, 'lam')).data[slices]
+    plot = plt.imshow(np.transpose(field), animated=True, cmap=cm.jet,
+                      vmin=np.min(field), vmax=np.max(field),
+                      extent=extent)
     plt.xlabel('X position (km)')
     plt.ylabel('Depth (km)')
 
@@ -89,10 +103,16 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
     """
     Plot a shot record (receiver values over time).
 
-    :param rec: Receiver data with shape (time, points)
-    :param model: :class:`Model` object that holds the velocity model.
-    :param t0: Start of time dimension to plot
-    :param tn: End of time dimension to plot
+    Parameters
+    ----------
+    rec :
+        Receiver data with shape (time, points).
+    model : Model
+        object that holds the velocity model.
+    t0 : int
+        Start of time dimension to plot.
+    tn : int
+        End of time dimension to plot.
     """
     scale = np.max(rec) / 10.
     extent = [model.origin[0], model.origin[0] + 1e-3*model.domain_size[0],
@@ -115,9 +135,13 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
     """
     Plot image data, such as RTM images or FWI gradients.
 
-    :param data: Image data to plot
-    :param cmap: Choice of colormap, default is gray scale for images as a
-    seismic convention
+    Parameters
+    ----------
+    data : ndarray
+        Image data to plot.
+    cmap : str
+        Choice of colormap. Defaults to gray scale for images as a
+        seismic convention.
     """
     plot = plt.imshow(np.transpose(data),
                       vmin=vmin or 0.9 * np.min(data),
