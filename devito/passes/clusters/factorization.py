@@ -120,16 +120,20 @@ def collect_nested(expr):
             coeffs = candidates.getall('coeffs', [])
 
             # Functions/Pows are collected first, coefficients afterwards
-            # Note: below we use sets, but SymPy will ensure determinism
-            args = set(args)
-            w_funcs = {i for i in args if any(j in funcs for j in i.args)}
-            args -= w_funcs
-            w_pows = {i for i in args if any(j in pows for j in i.args)}
-            args -= w_pows
-            w_coeffs = {i for i in args if any(j in coeffs for j in i.args)}
-            args -= w_coeffs
-
             terms = []
+            w_funcs = []
+            w_pows = []
+            w_coeffs = []
+            for i in args:
+                _args = i.args
+                if any(j in funcs for j in _args):
+                    w_funcs.append(i)
+                elif any(j in pows for j in _args):
+                    w_pows.append(i)
+                elif any(j in coeffs for j in _args):
+                    w_coeffs.append(i)
+                else:
+                    terms.append(i)
 
             # Collect common funcs
             w_funcs = Add(*w_funcs, evaluate=False)
@@ -163,7 +167,7 @@ def collect_nested(expr):
                 terms.append(w_coeffs)
 
             # Collect common coefficients
-            rebuilt = Add(*terms, *args)
+            rebuilt = Add(*terms)
             rebuilt = collect_const(rebuilt)
 
             return rebuilt, {}
