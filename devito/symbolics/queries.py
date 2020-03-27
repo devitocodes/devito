@@ -5,16 +5,15 @@ from devito.tools import as_tuple, is_integer
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_routine', 'q_xop',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_constant', 'q_affine',
-           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine']
+           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine',
+           'q_function']
 
 
-"""
-The following SymPy objects are considered tree leaves:
-
-    * Number
-    * Symbol
-    * Indexed
-"""
+# The following SymPy objects are considered tree leaves:
+#
+# * Number
+# * Symbol
+# * Indexed
 
 
 def q_scalar(expr):
