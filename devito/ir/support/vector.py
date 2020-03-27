@@ -11,33 +11,36 @@ __all__ = ['Vector', 'LabeledVector', 'vmin', 'vmax']
 class Vector(tuple):
 
     """
-    A representation of an object in Z^n.
+    An object in an N-dimensional space.
 
-    The elements of a Vector can be integers or generic SymPy expressions.
+    The elements of a vector can be anything as long as they support the
+    comparison operators (`__eq__`, `__lt__`, ...). Also, the `__sub__`
+    operator must be available.
 
     Notes
     -----
-    1) Vector-scalar comparison
+    1) Comparison of a Vector with a scalar
     If a comparison between a vector and a non-vector is attempted, then the
     non-vector is promoted to a vector; if this is not possible, an exception
     is raised. This is handy because it turns a vector-scalar comparison into
-    a vector-vector comparison with the scalar broadcasted to all vector entries.
-    For example: ::
+    a vector-vector comparison with the scalar broadcasted to as many vector
+    entries as necessary. For example:
 
         (3, 4, 5) > 4 => (3, 4, 5) > (4, 4, 4) => False
 
-    2) Comparing Vector entries when these are SymPy expressions
-    When we compare two symbolic (SymPy expressions) entries, it might not be
-    possible to determine the truth value of the relation. For example, the
-    truth value of `3*i < 4*j` cannot be determined (unless some information
-    about `i` and `j` is available). In some cases, however, the comparison is
-    feasible; for example, `i + 4 < i` is definitely False. A sufficient condition
-    for two Vectors to be comparable is that their pair-wise indices are affine
-    functions of the same variables, with identical coefficient.
-    If the Vector is instantiated passing the keyword argument ``smart = True``,
-    some manipulation will be attempted to infer the truth value of a non-trivial
-    symbolic relation. This increases the cost of the comparison, while potentially
-    being ineffective, so use it judiciously. By default, ``smart = False``.
+    2) Comparison of Vectors whose elements are SymPy expressions
+    We treat vectors of SymPy expressions as a very special case. When we
+    compare two elements, it might not be possible to determine the truth value
+    of the relation. For example, the truth value of `3*i < 4*j` cannot be
+    determined (unless some information about `i` and `j` is available). In
+    some cases, however, the comparison is feasible; for example, `i + 4 < i`
+    is definitely False. A sufficient condition for two Vectors to be
+    comparable is that their pair-wise indices are affine functions of the same
+    variables, with identical coefficient.  If the Vector is instantiated
+    passing the keyword argument ``smart = True``, some manipulation will be
+    attempted to infer the truth value of a non-trivial symbolic relation. This
+    increases the cost of the comparison (and not always an answer may be
+    derived), so use it judiciously. By default, ``smart = False``.
 
     Raises
     ------
@@ -46,8 +49,6 @@ class Vector(tuple):
     """
 
     def __new__(cls, *items, smart=False):
-        if not all(is_integer(i) or isinstance(i, Basic) for i in items):
-            raise TypeError("Illegal Vector element type")
         obj = super(Vector, cls).__new__(cls, items)
         obj.smart = smart
         return obj
