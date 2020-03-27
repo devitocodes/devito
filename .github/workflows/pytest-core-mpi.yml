@@ -21,16 +21,16 @@ jobs:
       DEVITO_BACKEND: "core"
       CC: "gcc-7"
       CXX: "g++-7"
-      PYTHON_VERSION: "3.x"
+      #PYTHON_VERSION: "3"
 
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
 
-    - name: Set up Python 3.x
+    - name: Set up Python 3
       uses: actions/setup-python@v1
       with:
-        python-version: 3.x
+        python-version: 3
 
     - name: Install MPI
       run : |
