@@ -292,7 +292,6 @@ class DifferentiableOp(Differentiable):
         return None
 
 
-
 class Add(DifferentiableOp, sympy.Add):
     __new__ = DifferentiableOp.__new__
 
