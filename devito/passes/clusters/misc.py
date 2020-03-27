@@ -175,7 +175,7 @@ def eliminate_arrays(clusters, template):
         subs = {}
         for f, v in mapper.items():
             for i in filter_ordered(i.indexed for i in c.scope[f]):
-                subs[i] = v[f.indices]
+                subs[i] = v[i.indices]
         exprs = []
         for e in c.exprs:
             if e.lhs.function in mapper:
