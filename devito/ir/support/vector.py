@@ -94,7 +94,6 @@ class Vector(tuple):
     def __ne__(self, other):
         return super(Vector, self).__ne__(other)
 
-    @_asvector()
     def __lt__(self, other):
         # This might raise an exception if the distance between the i-th entry
         # of `self` and `other` isn't integer, but rather a generic expression
@@ -123,11 +122,38 @@ class Vector(tuple):
 
         return False
 
-    @_asvector()
     def __gt__(self, other):
-        return other.__lt__(self)
+        # This method is "symmetric" to `__lt__`, but instead of just returning
+        # `other.__lt__(self)` we implement it explicitly because this way we
+        # can avoid computing the distance in the special case `other is 0`
 
-    @_asvector()
+        # This might raise an exception if the distance between the i-th entry
+        # of `self` and `other` isn't integer, but rather a generic expression
+        # not comparable to 0. However, the implementation is "smart", in the
+        # sense that it will return as soon as the first two comparable entries
+        # (i.e., such that their distance is a non-zero integer) are found
+        for i in self.distance(other):
+            try:
+                val = int(i)
+                if val > 0:
+                    return True
+                elif val < 0:
+                    return False
+            except TypeError:
+                if self.smart:
+                    if (i > 0) == true:
+                        return True
+                    elif (i >= 0) == true:
+                        # If `i` can assume the value 0 in at least one case, then
+                        # definitely `i > 0` is generally False, so __gt__ must
+                        # return False
+                        return False
+                    elif (i <= 0) == true:
+                        return False
+                raise TypeError("Non-comparable index functions")
+
+        return False
+
     def __le__(self, other):
         if self.__eq__(other):
             return True
@@ -211,7 +237,17 @@ class Vector(tuple):
 
         There are 2, 2, and 4 points between [3-2], [2-4], and [1-5], respectively.
         """
+        try:
+            # Handle quickly the special (yet relevant) cases `other == 0`
+            if other is 0:
+                return self
+            elif all(i == 0 for i in other) and self.rank == other.rank:
+                return self
+        except TypeError:
+            pass
+
         return self - other
+
 
 
 class LabeledVector(Vector):
