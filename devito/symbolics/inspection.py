@@ -11,8 +11,31 @@ __all__ = ['compare_ops', 'count', 'estimate_cost']
 
 def compare_ops(e1, e2):
     """
-    Return True if the two expressions ``e1`` and ``e2`` perform the same arithmetic
-    operations over the same input operands, False otherwise.
+    True if the two input expressions perform the same arithmetic operations
+    over the same input "operands", False otherwise.
+
+    An operand here is anything that can appear as a leaf in a SymPy
+    expression, but in the case of an Indexed only the labels are compared,
+    while the indices are ignored.
+
+    Examples
+    --------
+    >>> from devito import Dimension, Grid, Function
+    >>> grid = Grid(shape=(4,))
+    >>> x = grid.dimensions[0]
+    >>> y = Dimension(name='y')
+    >>> u = Function(name='u', grid=grid)
+    >>> v = Function(name='v', grid=grid)
+    >>> compare_ops(u[x] + u[x+1], u[x] + u[x-1])
+    True
+    >>> compare_ops(u[x] + u[x+1], u[x] - u[x+1])
+    False
+    >>> compare_ops(u[x] + u[x+1], u[x] * u[x+1])
+    False
+    >>> compare_ops(u[x] + u[x+1], u[x] + v[x+1])
+    False
+    >>> compare_ops(u[x] + u[x+1], u[x] + u[y+10])
+    True
     """
     if type(e1) == type(e2) and len(e1.args) == len(e2.args):
         if e1.is_Atom:
