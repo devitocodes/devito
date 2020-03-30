@@ -17,9 +17,13 @@ class Evaluable(object):
         try:
             # Not an Evaluable, but some Evaluables may still be hidden within `args`
             if maybe_evaluable.args:
-                evaluated = [Evaluable._evaluate_maybe_nested(i)
-                             for i in maybe_evaluable.args]
-                return maybe_evaluable.func(*evaluated)
+                args = [Evaluable._evaluate_maybe_nested(i) for i in maybe_evaluable.args]
+                evaluate = not all(i is j for i, j in zip(args, maybe_evaluable.args))
+                try:
+                    return maybe_evaluable.func(*args, evaluate=evaluate)
+                except TypeError:
+                    # Not all objects support the `evaluate` kwarg
+                    return maybe_evaluable.func(*args)
             else:
                 return maybe_evaluable
         except AttributeError:
@@ -41,4 +45,5 @@ class Evaluable(object):
     def evaluate(self):
         """Return a new object from the evaluation of ``self``."""
         args = self._evaluate_args()
-        return self.func(*args)
+        evaluate = not all(i is j for i, j in zip(args, self.args))
+        return self.func(*args, evaluate=evaluate)

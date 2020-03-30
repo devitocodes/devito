@@ -7,6 +7,7 @@ from cached_property import cached_property
 from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
+from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
@@ -149,7 +150,7 @@ def test_cse(exprs, expected):
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
-        exprs[i] = DummyEq(indexify(eval(e).evaluate))
+        exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
