@@ -14,7 +14,6 @@ from frozendict import frozendict
 
 from devito.data import default_allocator
 from devito.parameters import configuration
-from devito.symbolics import Add
 from devito.tools import (Evaluable, Pickable, ctypes_to_cstr, dtype_to_cstr,
                           dtype_to_ctype)
 from devito.types.args import ArgProvider
@@ -767,10 +766,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         padding regions. While halo and padding are known quantities (integers),
         the domain size is given as a symbol.
         """
-        halo = [Add(*i) for i in self._size_halo]
-        padding = [Add(*i) for i in self._size_padding]
+        halo = [sympy.Add(*i, evaluate=False) for i in self._size_halo]
+        padding = [sympy.Add(*i, evaluate=False) for i in self._size_padding]
         domain = [i.symbolic_size for i in self.dimensions]
-        ret = tuple(Add(i, j, k) for i, j, k in zip(domain, halo, padding))
+        ret = tuple(sympy.Add(i, j, k, evaluate=False)
+                    for i, j, k in zip(domain, halo, padding))
         return DimensionTuple(*ret, getters=self.dimensions)
 
     @property

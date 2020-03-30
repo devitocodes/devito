@@ -10,53 +10,12 @@ from sympy.core.basic import _aresame
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
 
-__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
-           'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'Literal',
-           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'cast_mapper']
+__all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
+           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
+           'Macro', 'Literal', 'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'cast_mapper']
 
 
-class FrozenExpr(Expr):
-
-    """
-    Use FrozenExpr in place of sympy.Expr to make sure than an e an expression
-    is no longer transformable; that is, standard manipulations such as
-    xreplace, collect, expand, ... have no effect, thus building a new
-    expression identical to self.
-
-    Notes
-    -----
-    At the moment, only xreplace is overridded (to prevent unpicking factorizations)
-    """
-
-    def xreplace(self, rule):
-        if self in rule:
-            return rule[self]
-        elif rule:
-            args = []
-            for a in self.args:
-                try:
-                    args.append(a.xreplace(rule))
-                except AttributeError:
-                    args.append(a)
-            args = tuple(args)
-            if not _aresame(args, self.args):
-                return self.func(*args, evaluate=False)
-        return self
-
-    def evalf(self, *args, **kwargs):
-        return self
-
-
-class Eq(sympy.Eq, FrozenExpr):
-
-    """A customized version of sympy.Eq which suppresses evaluation."""
-
-    def __new__(cls, *args, **kwargs):
-        return sympy.Eq.__new__(cls, *args, evaluate=False)
-
-
-class CondEq(sympy.Eq, FrozenExpr):
+class CondEq(sympy.Eq):
 
     """
     A customized version of sympy.Eq representing a conditional equality.
@@ -75,7 +34,7 @@ class CondEq(sympy.Eq, FrozenExpr):
         return CondNe(*self.args, evaluate=False)
 
 
-class CondNe(sympy.Ne, FrozenExpr):
+class CondNe(sympy.Ne):
 
     """
     A customized version of sympy.Ne representing a conditional inequality.
@@ -92,21 +51,6 @@ class CondNe(sympy.Ne, FrozenExpr):
     @property
     def negated(self):
         return CondEq(*self.args, evaluate=False)
-
-
-class Mul(sympy.Mul, FrozenExpr):
-    def __new__(cls, *args, **kwargs):
-        return sympy.Mul.__new__(cls, *args, evaluate=False)
-
-
-class Add(sympy.Add, FrozenExpr):
-    def __new__(cls, *args, **kwargs):
-        return sympy.Add.__new__(cls, *args, evaluate=False)
-
-
-class Pow(sympy.Pow, FrozenExpr):
-    def __new__(cls, *args, **kwargs):
-        return sympy.Pow.__new__(cls, *args, evaluate=False)
 
 
 class IntDiv(sympy.Expr):

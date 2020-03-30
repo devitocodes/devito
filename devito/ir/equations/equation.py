@@ -5,7 +5,6 @@ from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Stencil, detect_accesses, detect_oobs, detect_io,
                                build_intervals, build_iterators)
-from devito.symbolics import FrozenExpr
 from devito.tools import Pickable, as_tuple
 from devito.types import Eq
 
@@ -176,7 +175,7 @@ class LoweredEq(sympy.Eq, IREq):
         return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(sympy.Eq, IREq, FrozenExpr, Pickable):
+class ClusterizedEq(sympy.Eq, IREq, Pickable):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)
