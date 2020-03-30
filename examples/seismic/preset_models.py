@@ -261,10 +261,7 @@ def demo_model(preset, **kwargs):
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti',
                             'marmousi-tti3d', 'marmousi3d-tti']:
 
-        shape_full = (201, 201, 70)
-        shape = (201, 70)
-        spacing = (10., 10.)
-        origin = (0., 0.)
+        shape = (201, 201, 70)
         nbl = kwargs.pop('nbl', 20)
 
         # Read 2D Marmousi model from devitocodes/data repo
@@ -277,23 +274,22 @@ def demo_model(preset, **kwargs):
         # velocity
         vp = 1e-3 * np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiVP.raw'),
                                 dtype='float32', sep="")
-        vp = vp.reshape(shape_full)
-        vp = vp[101, :, :]
+        vp = vp.reshape(shape)
+
         # Epsilon, in % in file, resale between 0 and 1
         epsilon = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiEps.raw'),
                               dtype='float32', sep="") * 1e-2
-        epsilon = epsilon.reshape(shape_full)
-        epsilon = epsilon[101, :, :]
+        epsilon = epsilon.reshape(shape)
+
         # Delta, in % in file, resale between 0 and 1
         delta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiDelta.raw'),
                             dtype='float32', sep="") * 1e-2
-        delta = delta.reshape(shape_full)
-        delta = delta[101, :, :]
+        delta = delta.reshape(shape)
+
         # Theta, in degrees in file, resale in radian
         theta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiTilt.raw'),
                             dtype='float32', sep="")
-        theta = np.float32(np.pi / 180 * theta.reshape(shape_full))
-        theta = theta[101, :, :]
+        theta = np.float32(np.pi / 180 * theta.reshape(shape))
 
         if preset.lower() in ['marmousi-tti3d', 'marmousi3d-tti']:
             # Phi, in degrees in file, resale in radian
@@ -301,7 +297,15 @@ def demo_model(preset, **kwargs):
                               dtype='float32', sep="")
             phi = np.float32(np.pi / 180 * phi.reshape(shape))
         else:
+            vp = vp[101, :, :]
+            epsilon = epsilon[101, :, :]
+            delta = delta[101, :, :]
+            theta = theta[101, :, :]
+            shape = vp.shape
             phi = None
+
+        spacing = tuple([10.0]*len(shape))
+        origin = tuple([0.0]*len(shape))
 
         return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
                      dtype=np.float32, spacing=spacing, nbl=nbl, epsilon=epsilon,
