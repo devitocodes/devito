@@ -181,7 +181,7 @@ def eliminate_arrays(clusters, template):
             if e.lhs.function in mapper:
                 # Drop the write
                 continue
-            exprs.append(e.xreplace(subs))
+            exprs.append(uxreplace(e, subs))
 
         processed.append(c.rebuild(exprs))
 

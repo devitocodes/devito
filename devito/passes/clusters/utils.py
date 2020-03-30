@@ -1,6 +1,6 @@
 from collections import Iterable, OrderedDict
 
-from devito.symbolics import retrieve_terminals
+from devito.symbolics import retrieve_terminals, uxreplace
 from devito.tools import flatten, timed_pass
 from devito.types import Dimension, Symbol
 
@@ -72,7 +72,7 @@ def makeit_ssa(exprs):
     processed = []
     for i, e in enumerate(exprs):
         where = seen[e.lhs]
-        rhs = e.rhs.xreplace(mapper)
+        rhs = uxreplace(e.rhs, mapper)
         if len(where) > 1:
             needssa = e.is_Scalar or where[-1] != i
             lhs = Symbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs

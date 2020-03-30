@@ -7,7 +7,8 @@ from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
                        IntervalGroup, LabeledVector, detect_accesses, build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
-                              q_sum_of_product, q_terminalop, retrieve_indexed, yreplace)
+                              q_sum_of_product, q_terminalop, retrieve_indexed,
+                              uxreplace, yreplace)
 from devito.tools import flatten
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
@@ -306,7 +307,7 @@ def collect(exprs, min_storage, ignore_collected):
                        for v in c.offsets]
             subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
                     for i, b, v in zip(c.indexeds, c.bases, offsets)}
-            alias = c.expr.xreplace(subs)
+            alias = uxreplace(c.expr, subs)
 
             # All aliased expressions
             aliaseds = [i.expr for i in g]
@@ -374,7 +375,7 @@ def process(cluster, chosen, aliases, template, platform):
         # The expression computing `alias`
         adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]  # x -> xs
         indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
-        expression = Eq(array[indices], alias.xreplace(subs))
+        expression = Eq(array[indices], uxreplace(alias, subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
@@ -418,7 +419,7 @@ def process(cluster, chosen, aliases, template, platform):
 
 def rebuild(cluster, others, aliases, subs):
     # Rebuild the non-aliasing expressions
-    exprs = [e.xreplace(subs) for e in others]
+    exprs = [uxreplace(e, subs) for e in others]
 
     # Add any new ShiftedDimension to the IterationSpace
     ispace = cluster.ispace.augment(aliases.index_mapper)
