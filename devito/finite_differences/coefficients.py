@@ -27,8 +27,8 @@ class Coefficient(object):
         intended to be used in place of the standard
         weights (obtained from a Taylor expansion).
 
-    Example
-    -------
+    Examples
+    --------
     >>> import numpy as np
     >>> from devito import Grid, Function, Coefficient
     >>> grid = Grid(shape=(4, 4))
