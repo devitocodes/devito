@@ -20,7 +20,7 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph
 from devito.symbolics import (estimate_cost, indexify, retrieve_functions,
-                              retrieve_indexed)
+                              retrieve_indexed, uxreplace)
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region, Evaluable)
 from devito.types import Dimension, Eq
@@ -337,10 +337,13 @@ class Operator(Callable):
 
                 mapper[i] = f.indexed[indices]
 
-            # Include any user-supplied substitutions
-            mapper.update(kwargs.get('subs', {}))
-
-            processed.append(expr.xreplace(mapper))
+            subs = kwargs.get('subs')
+            if subs:
+                # Include the user-supplied substitutions, and use
+                # `xreplace` for constant folding
+                processed.append(expr.xreplace({**mapper, **subs}))
+            else:
+                processed.append(uxreplace(expr, mapper))
 
         processed = cls._specialize_exprs(processed)
 
