@@ -1052,6 +1052,16 @@ class MPIMsgEnriched(MPIMsg):
         return {self.name: self.value}
 
 
+def _simple_subs(expr, args):
+    """Used for substituting operator argument values into expressions.  args is
+    expected to contain only string keys, with values that are not themselves
+    expressions which will be substituted into.
+    """
+    return expr.subs(
+        {str(k): args[str(k)] for k in expr.free_symbols if str(k) in args}
+    )
+
+
 class MPIRegion(CompositeObject):
 
     def __init__(self, prefix, key, arguments, owned):
@@ -1108,11 +1118,11 @@ class MPIRegion(CompositeObject):
             for a in self.arguments:
                 if a.is_Dimension:
                     a_m, a_M = mapper[a]
-                    setattr(entry, a.min_name, mapper[a][0].subs(args))
-                    setattr(entry, a.max_name, mapper[a][1].subs(args))
+                    setattr(entry, a.min_name, _simple_subs(a_m, args))
+                    setattr(entry, a.max_name, _simple_subs(a_M, args))
                 else:
                     try:
-                        setattr(entry, a.name, mapper[a][0].subs(args))
+                        setattr(entry, a.name, _simple_subs(mapper[a][0], args))
                     except AttributeError:
                         setattr(entry, a.name, mapper[a][0])
         return values
