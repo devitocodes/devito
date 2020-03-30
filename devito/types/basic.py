@@ -13,9 +13,9 @@ from cgen import Struct, Value
 from frozendict import frozendict
 
 from devito.data import default_allocator
+from devito.finite_differences import Evaluable
 from devito.parameters import configuration
-from devito.tools import (Evaluable, Pickable, ctypes_to_cstr, dtype_to_cstr,
-                          dtype_to_ctype)
+from devito.tools import Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
 from devito.types.utils import DimensionTuple
