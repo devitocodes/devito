@@ -70,6 +70,7 @@ jobs:
       with:
         command: |
           #! /bin/bash
+          # Activate anaconda3
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
           cd ~/devito
