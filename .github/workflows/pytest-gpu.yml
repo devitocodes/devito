@@ -71,11 +71,11 @@ jobs:
         command: |
           #! /bin/bash
           # Ensure clang libraries are visible
-          export PATH=/usr/local/cuda-10.1/bin:$PATH
-          # Ensure CUDA libraries are visible
-          export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64:$LD_LIBRARY_PATH
           export PATH=~/install/bin:$PATH
           export LD_LIBRARY_PATH=~/install/lib:$LD_LIBRARY_PATH
+          # Ensure CUDA libraries are visible
+          export PATH=/usr/local/cuda-10.1/bin:$PATH
+          export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64:$LD_LIBRARY_PATH
           # Ensure PGI libraries are visible
           export PGI=/opt/pgi
           export PATH=/opt/pgi/linux86-64/19.10/bin:$PATH
@@ -97,7 +97,6 @@ jobs:
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test tests/test_gpu_openmp.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
-          unset DEVITO_PLATFORM;
           DEVITO_ARCH=pgcc DEVITO_LANGUAGE=openacc py.test examples/seismic/acoustic/acoustic_example.py
           DEVITO_ARCH=pgcc DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
         host: ${{ steps.host.outputs.action_host }}
