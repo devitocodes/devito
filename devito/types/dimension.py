@@ -1043,6 +1043,9 @@ class ShiftedDimension(IncrDimension):
     def __new__(cls, d, name):
         return super().__new__(cls, d, 0, d.symbolic_size - 1, step=1, name=name)
 
+    _pickle_args = ['parent', 'name']
+    _pickle_kwargs = []
+
 
 def dimensions(names):
     assert type(names) == str

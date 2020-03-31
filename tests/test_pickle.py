@@ -6,7 +6,7 @@ import pickle
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator)
+                    TimeDimension, SteppingDimension, Operator, ShiftedDimension)
 from devito.mpi.routines import MPIStatusObject, MPIRequestObject
 from devito.operator.profiling import Timer
 from devito.types import Symbol as dSymbol, Scalar
@@ -139,6 +139,17 @@ def test_incr_dimension():
     assert dd.symbolic_min == new_dd.symbolic_min
     assert dd.symbolic_max == new_dd.symbolic_max
     assert dd.step == new_dd.step
+
+
+def test_shifted_dimension():
+    d = Dimension(name='d')
+    dd = ShiftedDimension(d, name='dd')
+
+    pkl_dd = pickle.dumps(dd)
+    new_dd = pickle.loads(pkl_dd)
+
+    assert dd.name == new_dd.name
+    assert dd.parent == new_dd.parent
 
 
 def test_receiver():
