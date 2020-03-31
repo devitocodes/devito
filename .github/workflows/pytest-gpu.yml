@@ -46,7 +46,7 @@ jobs:
         RESOURCE_GROUP_REGION: uksouth
         VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: CI-gpu-github-actions
+        IMAGE: gpu_ci_vm-image-1168
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
@@ -70,17 +70,6 @@ jobs:
       with:
         command: |
           #! /bin/bash
-          # Ensure clang libraries are visible
-          export PATH=~/install/bin:$PATH
-          export LD_LIBRARY_PATH=~/install/lib:$LD_LIBRARY_PATH
-          # Ensure CUDA libraries are visible
-          export PATH=/usr/local/cuda-10.1/bin:$PATH
-          export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64:$LD_LIBRARY_PATH
-          # Ensure PGI libraries are visible
-          export PGI=/opt/pgi
-          export PATH=/opt/pgi/linux86-64/19.10/bin:$PATH
-          export MANPATH=$MANPATH:/opt/pgi/linux86-64/19.10/man
-          export LM_LICENSE_FILE=$LM_LICENSE_FILE:/opt/pgi/license.dat-COMMUNITY-19.10
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
           cd ~/devito
