@@ -1,9 +1,7 @@
-from sympy import finite_diff_weights
-
 from devito.finite_differences.differentiable import Add
-from devito.finite_differences.tools import (symbolic_weights, left, right,
-                                             generate_indices, centered, check_input,
-                                             check_symbolic, direct, transpose)
+from devito.finite_differences.tools import (numeric_weights, symbolic_weights, left,
+                                             right, generate_indices, centered, direct,
+                                             transpose, check_input, check_symbolic)
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
@@ -91,7 +89,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     if symbolic:
         c = symbolic_weights(expr, 1, ind, dim)
     else:
-        c = finite_diff_weights(1, ind, dim)[-1][-1]
+        c = numeric_weights(1, ind, dim)
 
     return indices_weights_to_fd(expr, dim, ind, c, matvec=matvec.val)
 
@@ -256,7 +254,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     if symbolic:
         c = symbolic_weights(expr, deriv_order, indices, x0)
     else:
-        c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+        c = numeric_weights(deriv_order, indices, x0)
 
     return indices_weights_to_fd(expr, dim, indices, c, matvec=matvec.val)
 
