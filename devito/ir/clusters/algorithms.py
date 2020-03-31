@@ -6,9 +6,9 @@ import sympy
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.queue import Queue
+from devito.ir.clusters.queue import Queue, QueueStateful
 from devito.symbolics import CondEq
-from devito.tools import DAG, as_tuple, flatten, timed_pass
+from devito.tools import DAG, as_tuple, timed_pass
 
 __all__ = ['clusterize', 'Toposort']
 
@@ -166,7 +166,7 @@ class Toposort(Queue):
         return dag
 
 
-class Schedule(Queue):
+class Schedule(QueueStateful):
 
     """
     This special Queue produces a new sequence of "scheduled" Clusters, which
@@ -224,7 +224,7 @@ class Schedule(Queue):
         # `clusters` are supposed to share it
         candidates = prefix[-1].dim._defines
 
-        scope = Scope(exprs=flatten(c.exprs for c in clusters))
+        scope = self._fetch_scope(clusters)
 
         # Handle the nastiest case -- ambiguity due to the presence of both a
         # flow- and an anti-dependence.
