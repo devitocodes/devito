@@ -68,6 +68,8 @@ class AcquisitionGeometry(Pickable):
         self._src_type = kwargs.get('src_type')
         assert self.src_type in sources
         self._f0 = kwargs.get('f0')
+        self._a = kwargs.get('a', None)
+        self._t0w = kwargs.get('t0w', None)
         if self._src_type is not None and self._f0 is None:
             error("Peak frequency must be provided in KH" +
                   " for source of type %s" % self._src_type)
@@ -144,11 +146,12 @@ class AcquisitionGeometry(Pickable):
         if self.src_type is None:
             return PointSource(name='src', grid=self.grid,
                                time_range=self.time_axis, npoint=self.nsrc,
-                               coordinates=self.src_positions)
+                               coordinates=self.src_positions,)
         else:
             return sources[self.src_type](name='src', grid=self.grid, f0=self.f0,
                                           time_range=self.time_axis, npoint=self.nsrc,
-                                          coordinates=self.src_positions)
+                                          coordinates=self.src_positions,
+                                          t0=self._t0w, a=self._a)
 
     _pickle_args = ['model', 'rec_positions', 'src_positions', 't0', 'tn']
     _pickle_kwargs = ['f0', 'src_type']
