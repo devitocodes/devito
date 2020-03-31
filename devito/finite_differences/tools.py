@@ -5,7 +5,7 @@ import numpy as np
 from sympy import S, finite_diff_weights, cacheit
 
 
-from devito.tools import Tag, as_tuple, memoized_func
+from devito.tools import Tag, as_tuple
 from devito.finite_differences import Differentiable
 
 

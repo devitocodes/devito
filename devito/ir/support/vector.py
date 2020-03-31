@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from sympy import Basic, true
+from sympy import true
 
 from devito.tools import as_tuple, is_integer, memoized_meth
 from devito.types import Dimension
@@ -248,7 +248,6 @@ class Vector(tuple):
             pass
 
         return self - other
-
 
 
 class LabeledVector(Vector):

@@ -61,13 +61,13 @@ def test_yreplace_time_invariants(exprs, expected):
     grid = Grid((3, 3, 3))
     dims = grid.dimensions
 
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()
-    t0 = Scalar(name='t0').indexify()
-    t1 = Scalar(name='t1').indexify()
+    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()  # noqa
+    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()  # noqa
+    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()  # noqa
+    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    t0 = Scalar(name='t0').indexify()  # noqa
+    t1 = Scalar(name='t1').indexify()  # noqa
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):

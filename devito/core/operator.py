@@ -1,5 +1,4 @@
 from devito.core.autotuning import autotune
-from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.passes import NThreads
 from devito.operator import Operator

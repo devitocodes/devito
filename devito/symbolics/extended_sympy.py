@@ -5,7 +5,6 @@ Extended SymPy hierarchy.
 import numpy as np
 import sympy
 from sympy import Expr, Integer, Function, Symbol
-from sympy.core.basic import _aresame
 
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer

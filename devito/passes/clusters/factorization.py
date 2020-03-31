@@ -4,7 +4,7 @@ from sympy import Add, Mul, collect
 
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import estimate_cost, retrieve_scalars
-from devito.tools import ReducerMap, as_mapper
+from devito.tools import ReducerMap
 
 __all__ = ['factorize']
 

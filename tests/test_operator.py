@@ -73,7 +73,7 @@ class TestCodeGen(object):
 
         expr = eval(expr)
 
-        with timed_region('x') as r:
+        with timed_region('x'):
             expr = Operator._lower_exprs([expr])[0]
 
         assert str(expr).replace(' ', '') == expected

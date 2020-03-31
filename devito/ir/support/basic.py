@@ -538,7 +538,7 @@ class Dependence(object):
         """
         True if both source and sink are from the same IterationSpace, False otherwise.
         """
-        return not self.source.ispace is self.sink.ispace
+        return self.source.ispace is not self.sink.ispace
 
     @property
     def is_local(self):
