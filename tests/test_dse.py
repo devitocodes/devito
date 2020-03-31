@@ -19,8 +19,6 @@ from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
-pytestmark = skipif(['yask', 'ops'], whole_module=True)
-
 
 def test_scheduling_after_rewrite():
     """Tests loop scheduling after expression hoisting."""

@@ -17,8 +17,6 @@ from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
 from devito.types import Scalar, Symbol, Array
 from devito.tools import as_tuple
 
-pytestmark = skipif(['yask', 'ops'], whole_module=True)
-
 
 class TestVectorHierarchy(object):
 

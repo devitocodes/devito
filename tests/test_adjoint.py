@@ -1,13 +1,10 @@
 import numpy as np
 import pytest
 
-from conftest import skipif
 from devito import Operator, norm, Function, Grid, SparseFunction
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
-
-pytestmark = skipif(['yask', 'ops'])
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},

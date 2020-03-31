@@ -11,8 +11,6 @@ from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
 from devito.types import SubDomain, SparseTimeFunction
 
-pytestmark = skipif(['yask', 'ops'])
-
 
 class TestAssign(object):
 

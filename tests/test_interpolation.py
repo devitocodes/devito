@@ -3,7 +3,6 @@ from math import sin, floor
 import numpy as np
 import pytest
 
-from conftest import skipif
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction)
@@ -11,8 +10,6 @@ from devito.symbolics import FLOAT
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 def unit_box(name='a', shape=(11, 11), grid=None):

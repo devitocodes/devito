@@ -1,10 +1,7 @@
 import numpy as np
 import pytest
 
-from conftest import skipif
 from devito import Grid, Eq, Operator, TimeFunction
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture

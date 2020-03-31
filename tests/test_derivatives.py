@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 from sympy import simplify, diff, cos, sin
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE,
                     ConditionalDimension, left, right, centered)
 from devito.finite_differences import Derivative, Differentiable
@@ -26,7 +25,6 @@ def t(grid):
     return grid.stepping_dim
 
 
-@skipif(['yask', 'ops'])
 class TestFD(object):
     """
     Class for finite difference testing.

@@ -2,14 +2,11 @@ import cgen as c
 from sympy import Mod, Eq
 import pytest
 
-from conftest import skipif
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
                            Conditional, printAST, Iteration)
 from devito.types import SpaceDimension, Array, Grid
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture(scope="module")

@@ -2,15 +2,12 @@ import numpy as np
 import sympy as sp
 import pytest
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Coefficient, Substitutions,
                     Dimension, solve, Operator)
 from devito.finite_differences import Differentiable
 from devito.tools import as_tuple
 
 _PRECISION = 9
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 class TestSC(object):

@@ -4,12 +4,9 @@ import pytest
 from pyrevolve import Revolver
 import numpy as np
 
-from conftest import skipif
 from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @switchconfig(log_level='WARNING')

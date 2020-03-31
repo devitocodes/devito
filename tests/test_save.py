@@ -1,11 +1,6 @@
 import numpy as np
 
-from conftest import skipif
-
 from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve
-
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 def initial(nt, nx, ny):

@@ -11,7 +11,6 @@ from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_t
 from devito.types import Array
 
 
-@skipif('ops')
 class TestSubDimension(object):
 
     def test_interior(self):
@@ -36,7 +35,6 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, :, 0] == 0.)
         assert np.all(u.data[1, :, :, -1] == 0.)
 
-    @skipif('yask')
     def test_domain_vs_interior(self):
         """
         Tests application of an Operator consisting of two equations, one
@@ -89,7 +87,6 @@ class TestSubDimension(object):
         assert np.all(u.data[1, -1, :, :] == 1)
         assert np.all(u.data[1, 1:3, :, :] == 2)
 
-    @skipif('yask')
     def test_symbolic_size(self):
         """Check the symbolic size of all possible SubDimensions is as expected."""
         grid = Grid(shape=(4,))
@@ -144,7 +141,6 @@ class TestSubDimension(object):
                    for i in range(1, thickness + 1))
         assert np.all(u.data[0, thickness:-thickness, thickness:-thickness] == 1.)
 
-    @skipif('yask')
     def test_flow_detection_interior(self):
         """
         Test detection of flow directions when SubDimensions are used
@@ -194,7 +190,6 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, 0:5] == 0)
         assert np.all(u.data[1, :, 6:] == 0)
 
-    @skipif('yask')
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y])'], 'y'),
@@ -227,7 +222,7 @@ class TestSubDimension(object):
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
-    @skipif(['yask', 'device'])
+    @skipif(['device'])
     @pytest.mark.parametrize('exprs,expected,', [
         # All parallel, the innermost Iteration gets vectorized
         (['Eq(u[time, x, yleft], u[time, x, yleft] + 1.)'], ['yleft']),
@@ -435,7 +430,6 @@ class TestSubDimension(object):
         assert np.all(u.data[1, 0, :] == 2.)
         assert np.all(u.data[1, 1:18, 1:18] == 0.)
 
-    @skipif('yask')
     def test_arrays_defined_over_subdims(self):
         """
         Check code generation when an Array uses a SubDimension.
@@ -457,7 +451,6 @@ class TestSubDimension(object):
         op()
 
 
-@skipif(['yask', 'ops'])
 class TestConditionalDimension(object):
 
     """A collection of tests to check the correct functioning of

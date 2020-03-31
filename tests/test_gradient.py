@@ -2,12 +2,9 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from conftest import skipif
 from devito import Function, info
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic import Receiver
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 class TestGradient(object):

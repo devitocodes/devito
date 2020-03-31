@@ -2,14 +2,11 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from conftest import skipif
 from devito import TimeFunction
 from devito.logger import log
 from examples.seismic import Model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('shape, so, rot', [

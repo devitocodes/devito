@@ -3,10 +3,7 @@ import pytest
 from sympy.abc import a, b, c, d, e
 import time
 
-from conftest import skipif
 from devito.tools import toposort, filter_ordered
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('elements, expected', [

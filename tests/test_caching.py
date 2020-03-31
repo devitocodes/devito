@@ -3,14 +3,11 @@ import weakref
 import numpy as np
 import pytest
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
                     DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
                     TensorFunction, TensorTimeFunction, VectorTimeFunction)
 from devito.types.basic import Scalar, Symbol
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture

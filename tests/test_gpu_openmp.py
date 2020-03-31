@@ -1,13 +1,10 @@
 import numpy as np
 from sympy import cos
 
-from conftest import skipif
 from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
                     Operator, switchconfig, norm)
 from devito.ir.iet import retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 class TestCodeGeneration(object):

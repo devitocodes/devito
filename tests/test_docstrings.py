@@ -15,10 +15,6 @@ from importlib import import_module
 import pytest
 import doctest
 
-from conftest import skipif
-
-pytestmark = skipif(['yask', 'ops'])
-
 
 @pytest.mark.parametrize('modname', [
     'types.basic', 'types.dimension', 'types.constant', 'types.grid',
