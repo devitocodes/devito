@@ -6,8 +6,7 @@ __all__ = ['Queue']
 class Queue(object):
 
     """
-    A special queue to process objects in nested IterationSpaces based on
-    a divide-and-conquer algorithm.
+    A special queue to process Clusters based on a divide-and-conquer algorithm.
 
     Notes
     -----
@@ -19,8 +18,8 @@ class Queue(object):
     def callback(self, *args):
         raise NotImplementedError
 
-    def process(self, elements):
-        return self._process_fdta(elements, 1)
+    def process(self, clusters):
+        return self._process_fdta(clusters, 1)
 
     def _make_key(self, element, level):
         itintervals = element.itintervals[:level]
@@ -32,7 +31,7 @@ class Queue(object):
     def _make_key_hook(self, element, level):
         return ()
 
-    def _process_fdta(self, elements, level, prefix=None):
+    def _process_fdta(self, clusters, level, prefix=None):
         """
         fdta -> First Divide Then Apply
         """
@@ -40,7 +39,7 @@ class Queue(object):
 
         # Divide part
         processed = []
-        for k, g in groupby(elements, key=lambda i: self._make_key(i, level)):
+        for k, g in groupby(clusters, key=lambda i: self._make_key(i, level)):
             pfx = k[0]
             if level > len(pfx):
                 # Base case
@@ -54,21 +53,21 @@ class Queue(object):
 
         return processed
 
-    def _process_fatd(self, elements, level):
+    def _process_fatd(self, clusters, level):
         """
         fatd -> First Apply Then Divide
         """
         # Divide part
         processed = []
-        for k, g in groupby(elements, key=lambda i: self._make_key(i, level)):
+        for k, g in groupby(clusters, key=lambda i: self._make_key(i, level)):
             pfx = k[0]
             if level > len(pfx):
                 # Base case
                 processed.extend(list(g))
             else:
                 # Apply callback
-                _elements = self.callback(list(g), pfx)
+                _clusters = self.callback(list(g), pfx)
                 # Recursion
-                processed.extend(self._process_fatd(_elements, level + 1))
+                processed.extend(self._process_fatd(_clusters, level + 1))
 
         return processed
