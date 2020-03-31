@@ -1056,7 +1056,7 @@ class Array(AbstractFunction):
     def _C_typename(self):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
-    @property
+    @cached_property
     def free_symbols(self):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
@@ -1277,3 +1277,8 @@ class Indexed(sympy.Indexed):
     @property
     def origin(self):
         return self.function.origin
+
+    @cached_property
+    def free_symbols(self):
+        # Make it cached, since it's relatively expensive and called often
+        return super(Indexed, self).free_symbols
