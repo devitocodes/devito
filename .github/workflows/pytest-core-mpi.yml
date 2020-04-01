@@ -1,4 +1,4 @@
-# Comment to force build
+# Build 1
 name: CI-mpi
 
 on:
@@ -36,7 +36,6 @@ jobs:
         sudo apt-get install python3-pip
         pip3 install --upgrade pip
         pip3 install -e .[extras]
-        ipcluster start --profile=mpi -n 4 --daemon
 
     - name: Test with pytest
       run: |
