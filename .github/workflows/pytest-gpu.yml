@@ -46,7 +46,7 @@ jobs:
         RESOURCE_GROUP_REGION: uksouth
         VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: CI-gpu-base-image-01
+        IMAGE: gpu_ci_vm-image-0104
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
@@ -70,11 +70,6 @@ jobs:
       with:
         command: |
           #! /bin/bash
-          # Ensure clang and cuda libraries are visible
-          export PATH=/usr/local/cuda-10.1/bin:$PATH
-          export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64:$LD_LIBRARY_PATH
-          export PATH=~/install/bin:$PATH
-          export LD_LIBRARY_PATH=~/install/lib:$LD_LIBRARY_PATH
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
           cd ~/devito
@@ -91,6 +86,8 @@ jobs:
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test tests/test_gpu_openmp.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
+          DEVITO_ARCH=pgcc DEVITO_LANGUAGE=openacc py.test examples/seismic/acoustic/acoustic_example.py
+          DEVITO_ARCH=pgcc DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
