@@ -258,6 +258,16 @@ class TestMetaData(object):
         assert tuple(i + j*2 for i, j in zip(u.shape, u._size_halo.left)) ==\
             u.shape_with_halo
 
+        # Try with different grid shape and space_order
+        grid2 = Grid(shape=(3, 3, 3))
+        u2 = Function(name='u2', grid=grid2, space_order=4, padding=0)
+        assert u2.shape == (3, 3, 3)
+        assert u2._offset_domain == (4, 4, 4)
+        assert u2._offset_halo == ((0, 7), (0, 7), (0, 7))
+        assert tuple(i + j*2 for i, j in zip(u2.shape, u2._size_halo.left)) ==\
+            u2.shape_with_halo
+        assert u2.shape_with_halo == (11, 11, 11)
+
     def test_wo_halo_w_padding(self):
         grid = Grid(shape=(4, 4, 4))
         u = Function(name='u', grid=grid, space_order=2, padding=((1, 1), (3, 3), (4, 4)))
@@ -341,6 +351,19 @@ class TestDecomposition(object):
         assert d.index_glb_to_loc((1, 3), rel=False) == (-1, -3)
         assert d.index_glb_to_loc((1, 6), rel=False) == (5, 6)
         assert d.index_glb_to_loc((None, None), rel=False) == (5, 7)
+
+    def test_glb_to_loc_w_side(self):
+        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        # A global index as single argument
+        assert d.index_glb_to_loc(5, LEFT) == 0
+        assert d.index_glb_to_loc(6, RIGHT) == 2
+        assert d.index_glb_to_loc(7, LEFT) == 2
+        assert d.index_glb_to_loc(4, RIGHT) == 0
+        assert d.index_glb_to_loc(6, LEFT) == 1
+        assert d.index_glb_to_loc(5, RIGHT) == 1
+        assert d.index_glb_to_loc(2, LEFT) is None
+        assert d.index_glb_to_loc(3, RIGHT) is None
 
     def test_loc_to_glb_index_conversions(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
