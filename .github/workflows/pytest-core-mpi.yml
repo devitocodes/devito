@@ -26,16 +26,16 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v1
 
-    #- name: Install MPI
-      #run : |
-        #sudo apt-get install -y mpich libmpich-dev
+    - name: Install MPI
+      run : |
+        sudo apt-get install -y mpich libmpich-dev
 
     - name: Install dependencies
       run: |
         sudo apt-get install python3-pip
         pip3 install --upgrade pip
         pip3 install -e .[extras]
-        ipcluster start --profile=mpi -n 4 --daemon
+        #ipcluster start --profile=mpi -n 4 --daemon
 
     - name: Test with pytest
       run: |
