@@ -246,6 +246,12 @@ class Distributor(AbstractDistributor):
         return self._topology
 
     @cached_property
+    def is_boundary_rank(self):
+        """ MPI rank interfaces with the boundary of the domain. """
+        return any([True if i == 0 or i == j-1 else False for i, j in
+                   zip(self.mycoords, self.topology)])
+
+    @cached_property
     def all_coords(self):
         """
         The coordinates of each MPI rank in the decomposed domain, ordered

@@ -144,10 +144,10 @@ class Decomposition(tuple):
             There are three possible cases:
             * int. Given ``I``, a global index, return the corresponding
               relative local index if ``I`` belongs to the local subdomain,
-              None otherwise.
+              ``None`` otherwise.
             * int, DataSide. Given ``O`` and ``S``, respectively a global
               offset and a side, return the relative local offset. This
-              can be 0 if the local subdomain doesn't intersect with the
+              can be ``None`` if the local subdomain doesn't intersect with the
               region defined by the given global offset.
             * (int, int).  Given global ``(min, max)``, return ``(min', max')``
               representing the corresponding relative local min/max. If the
@@ -313,16 +313,20 @@ class Decomposition(tuple):
         elif len(args) == 2:
             # index_glb_to_loc(offset, side)
             if self.loc_empty:
-                return 0
-            rel_ofs, side = args
+                return None
+            abs_ofs, side = args
             if side is LEFT:
-                abs_ofs = self.glb_min + rel_ofs
-                size = self.loc_abs_max - base + 1
-                return min(abs_ofs - base, size) if abs_ofs > base else 0
+                rel_ofs = self.glb_min + abs_ofs - base
+                if abs_ofs >= base and abs_ofs <= top:
+                    return rel_ofs
+                else:
+                    return None
             else:
-                abs_ofs = self.glb_max - rel_ofs
-                size = top - self.loc_abs_min + 1
-                return min(top - abs_ofs, size) if abs_ofs < top else 0
+                rel_ofs = abs_ofs - (self.glb_max - top)
+                if abs_ofs >= self.glb_max - top and abs_ofs <= self.glb_max - base:
+                    return rel_ofs
+                else:
+                    return None
         else:
             raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
 

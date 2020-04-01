@@ -308,15 +308,28 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
     @cached_property
     def _size_outhalo(self):
         """Number of points in the outer halo region."""
+
         if self._distributor is None:
+            # Computational domain is not distributed and hence the outhalo
+            # and inhalo correspond
             return self._size_inhalo
 
-        left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
-                for d, i in zip(self.dimensions, self._size_inhalo.left)]
-        right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
-                 for d, i in zip(self.dimensions, self._size_inhalo.right)]
+        left = [abs(min(i.loc_abs_min-i.glb_min-j, 0)) if i and not i.loc_empty else 0
+                for i, j in zip(self._decomposition, self._size_inhalo.left)]
+        right = [max(i.loc_abs_max+j-i.glb_max, 0) if i and not i.loc_empty else 0
+                 for i, j in zip(self._decomposition, self._size_inhalo.right)]
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
+
+        if self._distributor.is_parallel and any(left) > 0 or any(right) > 0:
+            try:
+                if not self._distributor.is_boundary_rank:
+                    warning("A space order of %d  and a halo size of %d has been set "
+                            "but the current rank (%d) has a domain size of only %d" %
+                            (self._space_order, max(self._size_inhalo),
+                             self._distributor.myrank, min(self.grid.shape_local)))
+            except AttributeError:
+                pass
 
         return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
