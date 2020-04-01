@@ -66,7 +66,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # GPU parallelism via OpenAC offloading
+        # GPU parallelism via OpenACC offloading
         DeviceAccizer().make_parallel(graph)
 
         # Symbol definitions
