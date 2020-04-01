@@ -276,7 +276,7 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
         except AttributeError:
             iloc = i
         subs = dict((d, iloc) for d in all_dims)
-        terms.append(expr.xreplace(subs) * c)
+        terms.append(expr.subs(subs) * c)
     deriv = Add(*terms)
 
     return deriv.evalf(_PRECISION)
