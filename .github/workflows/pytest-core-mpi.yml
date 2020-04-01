@@ -1,3 +1,4 @@
+# Comment to force build
 name: CI-mpi
 
 on:
