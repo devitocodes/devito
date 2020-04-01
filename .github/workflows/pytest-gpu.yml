@@ -46,7 +46,7 @@ jobs:
         RESOURCE_GROUP_REGION: uksouth
         VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: gpu_ci_vm-image-1168
+        IMAGE: gpu_ci_vm-image-0104
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
