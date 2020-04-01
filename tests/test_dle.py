@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
                     Eq, Operator)
 from devito.exceptions import InvalidArgument
@@ -14,8 +13,6 @@ from devito.passes import NThreads, NThreadsNonaffine
 from devito.passes.iet.openmp import ParallelRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):

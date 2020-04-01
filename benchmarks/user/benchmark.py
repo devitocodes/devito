@@ -318,7 +318,7 @@ def bench(problem, **kwargs):
 @benchmark.command(name='plot')
 @click.option('--backend', default='core',
               type=click.Choice(configuration._accepted['backend']),
-              help='Used execution backend (e.g., core, yask)')
+              help='Used execution backend (e.g., core)')
 @click.option('-r', '--resultsdir', default='results',
               help='Directory containing results')
 @click.option('--max-bw', type=float,

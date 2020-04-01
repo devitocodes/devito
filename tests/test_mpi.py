@@ -13,7 +13,7 @@ from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iter
 from devito.mpi import MPI
 from examples.seismic.acoustic import acoustic_setup
 
-pytestmark = skipif(['yask', 'ops', 'nompi'], whole_module=True)
+pytestmark = skipif(['nompi'], whole_module=True)
 
 
 class TestDistributor(object):

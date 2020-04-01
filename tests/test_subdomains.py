@@ -1,11 +1,8 @@
 import numpy as np
 from math import floor
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 class TestSubdomains(object):

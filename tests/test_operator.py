@@ -16,8 +16,6 @@ from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset
 from devito.types import Array, Scalar
 
-pytestmark = skipif(['yask', 'ops'])
-
 
 def dimify(dimensions):
     assert isinstance(dimensions, str)

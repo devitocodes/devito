@@ -1,12 +1,8 @@
 import pytest
 import os
 
-from conftest import skipif
 from devito import configuration
 from subprocess import check_call
-
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('mode', ['bench'])

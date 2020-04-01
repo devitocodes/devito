@@ -14,8 +14,6 @@ from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
-pytestmark = skipif('ops')
-
 
 def test_constant():
     c = Constant(name='c')
@@ -324,7 +322,7 @@ def test_operator_timefunction_w_preallocation():
     assert np.all(f.data[2] == 2)
 
 
-@skipif(['yask', 'nompi'])
+@skipif(['nompi'])
 @pytest.mark.parallel(mode=[1])
 def test_mpi_objects():
     # Neighbours
@@ -358,7 +356,7 @@ def test_mpi_objects():
     assert obj.dtype == new_obj.dtype
 
 
-@skipif(['yask', 'nompi'])
+@skipif(['nompi'])
 @pytest.mark.parallel(mode=[1])
 def test_mpi_operator():
     grid = Grid(shape=(4,))

@@ -69,7 +69,7 @@ configuration.add('mpi', 0, [0, 1, 'basic', 'diag', 'overlap', 'overlap2', 'full
 # Autotuning setup
 at_levels = ['off', 'basic', 'aggressive', 'max']
 at_modes = ['preemptive', 'destructive', 'runtime']
-at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
+at_default_mode = {'core': 'preemptive'}
 at_setup = namedtuple('at_setup', 'level mode')
 at_accepted = at_levels + [list(i) for i in product(at_levels, at_modes)]
 def _at_callback(val):  # noqa

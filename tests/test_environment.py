@@ -3,10 +3,7 @@ import os
 
 import numpy as np
 
-from conftest import skipif
 
-
-@skipif('ops')
 def test_numpy_dot():
     # Checking for bug in numpy.dot
     # https://github.com/ContinuumIO/anaconda-issues/issues/7457
