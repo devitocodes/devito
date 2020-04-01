@@ -104,9 +104,6 @@ class Dimension(ArgProvider):
     is_Incr = False
     is_Shifted = False
 
-    # SymPy default assumptions
-    is_integer = True
-
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
 
