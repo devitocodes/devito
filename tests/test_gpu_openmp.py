@@ -1,6 +1,7 @@
 import numpy as np
 from sympy import cos
 
+from conftest import skipif
 from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
                     Operator, switchconfig, norm)
 from devito.ir.iet import retrieve_iteration_tree
@@ -193,6 +194,7 @@ class TestCodeGeneration(object):
 
 class TestOperator(object):
 
+    @skipif('nodevice')
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -200,13 +202,16 @@ class TestOperator(object):
 
         op = Operator(Eq(u.forward, u + 1))
 
+        # Make sure we've indeed generated OpenMP offloading code
+        assert 'omp target' in str(op)
+
         time_steps = 1000
         op.apply(time_M=time_steps)
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
+    @skipif('nodevice')
     def test_iso_ac(self):
-
         shape = (101, 101)
         extent = (1000, 1000)
         origin = (0., 0.)
@@ -246,6 +251,10 @@ class TestOperator(object):
         rec_term = rec.interpolate(expr=u.forward)
 
         op = Operator([stencil] + src_term + rec_term)
+
+        # Make sure we've indeed generated OpenMP offloading code
+        assert 'omp target' in str(op)
+
         op(time=time_range.num-1, dt=dt)
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)

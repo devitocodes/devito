@@ -1,8 +1,9 @@
-from conftest import skipif
-from devito import Grid, TimeFunction, Eq, Operator, switchconfig
-from devito.ir.iet import retrieve_iteration_tree
+import numpy as np
 
-pytestmark = skipif(['yask', 'ops'])
+from conftest import skipif
+from devito import Grid, Function, TimeFunction, Eq, Operator, norm, solve
+from devito.ir.iet import retrieve_iteration_tree
+from examples.seismic import TimeAxis, RickerSource, Receiver
 
 
 class TestCodeGeneration(object):
@@ -32,12 +33,67 @@ class TestCodeGeneration(object):
 
 class TestOperator(object):
 
-    from test_gpu_openmp import TestOperator as TestGPUOpenMPOperator
-
-    @switchconfig(platform='nvidiaX', language='openacc')
+    @skipif('nodevice')
     def test_op_apply(self):
-        self.TestGPUOpenMPOperator().test_op_apply()
+        grid = Grid(shape=(3, 3, 3))
 
-    @switchconfig(platform='nvidiaX', language='openacc')
+        u = TimeFunction(name='u', grid=grid, dtype=np.int32)
+
+        op = Operator(Eq(u.forward, u + 1))
+
+        # Make sure we've indeed generated OpenACC code
+        assert 'acc parallel' in str(op)
+
+        time_steps = 1000
+        op.apply(time_M=time_steps)
+
+        assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
+
+    @skipif('nodevice')
     def test_iso_ac(self):
-        self.TestGPUOpenMPOperator().test_iso_ac()
+        shape = (101, 101)
+        extent = (1000, 1000)
+        origin = (0., 0.)
+
+        v = np.empty(shape, dtype=np.float32)
+        v[:, :51] = 1.5
+        v[:, 51:] = 2.5
+
+        grid = Grid(shape=shape, extent=extent, origin=origin)
+
+        t0 = 0.
+        tn = 1000.
+        dt = 1.6
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        f0 = 0.010
+        src = RickerSource(name='src', grid=grid, f0=f0,
+                           npoint=1, time_range=time_range)
+
+        domain_size = np.array(extent)
+
+        src.coordinates.data[0, :] = domain_size*.5
+        src.coordinates.data[0, -1] = 20.
+
+        rec = Receiver(name='rec', grid=grid, npoint=101, time_range=time_range)
+        rec.coordinates.data[:, 0] = np.linspace(0, domain_size[0], num=101)
+        rec.coordinates.data[:, 1] = 20.
+
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+        m = Function(name='m', grid=grid)
+        m.data[:] = 1./(v*v)
+
+        pde = m * u.dt2 - u.laplace
+        stencil = Eq(u.forward, solve(pde, u.forward))
+
+        src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
+        rec_term = rec.interpolate(expr=u.forward)
+
+        op = Operator([stencil] + src_term + rec_term)
+
+        # Make sure we've indeed generated OpenACC code
+        assert 'acc parallel' in str(op)
+
+        op(time=time_range.num-1, dt=dt)
+
+        assert np.isclose(norm(rec), 490.56, atol=1e-2, rtol=0)
