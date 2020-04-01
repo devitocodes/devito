@@ -45,9 +45,10 @@ def skipif(items, whole_module=False):
             break
         try:
             _, noi = i.split('no')
-            if noi != configuration['backend']:
-                skipit = "`%s` backend unsupported" % i
-                break
+            if noi in configuration._accepted['backend']:
+                if noi != configuration['backend']:
+                    skipit = "`%s` backend unsupported" % i
+                    break
         except ValueError:
             pass
         # Skip if won't run on GPUs
