@@ -1,4 +1,4 @@
-# Adapted from https://github.com/weeyin83/vm-actions
+# Force build 0
 name: CI-gpu
 
 env:
