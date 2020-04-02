@@ -36,10 +36,11 @@ jobs:
         sudo apt-get install python3-pip
         pip3 install --upgrade pip
         pip3 install -e .[extras]
+        pip3 install pytest-xdist
 
     - name: Test with pytest
       run: |
-        pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
+        pytest -n 30 --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
