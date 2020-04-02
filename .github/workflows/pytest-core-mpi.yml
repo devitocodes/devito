@@ -38,7 +38,6 @@ jobs:
         pip3 install -e .[extras]
         pip3 install pytest-xdist
         pip3 install ipyparallel
-        ipcluster start --profile=mpi -n 14 --daemon
 
     - name: Test with pytest
       run: |
@@ -50,6 +49,7 @@ jobs:
         #token: ${{ secrets.CODECOV_TOKEN }}
         #name: pytest-mpi
 
+        #ipcluster start --profile=mpi -n 14 --daemon
         #ipcluster nbextension enable
 
         #pytest -n 14 --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
