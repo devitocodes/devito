@@ -38,7 +38,7 @@ jobs:
         pip3 install -e .[extras]
         pip3 install pytest-xdist
         pip3 install ipyparallel
-        ipcluster nbextension enable
+        #ipcluster nbextension enable
         ipcluster start --profile=mpi -n 14 --daemon
 
     - name: Test with pytest
