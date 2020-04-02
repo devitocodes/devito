@@ -127,8 +127,8 @@ class Compiler(GCCToolchain):
         If True, JIT compile using a C++ compiler. Defaults to False.
     mpi : bool, optional
         If True, JIT compile using an MPI compiler. Defaults to False.
-    openmp : bool, optional
-        If True, link in the OpenMP runtime. Defaults to False.
+    language : str, optional
+        The target language for shared-memory parallelism. Defaults to 'C'.
     platform : Platform, optional
         The target Platform on which the JIT compiler will be used.
     """
@@ -352,15 +352,15 @@ class GNUCompiler(Compiler):
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
                         '-Wno-unused-but-set-variable', '--fast-math']
 
-        openmp = kwargs.pop('openmp', configuration['openmp'])
+        language = kwargs.pop('language', configuration['language'])
         try:
             if self.version >= version.StrictVersion("4.9.0"):
-                # Append the openmp flag regardless of the `openmp` value,
+                # Append the openmp flag regardless of the `language` value,
                 # since GCC4.9 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
                 self.ldflags += ['-fopenmp']
         except (TypeError, ValueError):
-            if openmp:
+            if language == 'openmp':
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -377,22 +377,26 @@ class ClangCompiler(Compiler):
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
 
-        openmp = kwargs.pop('openmp', configuration['openmp'])
+        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
         if platform is NVIDIAX:
-            # Clang has offloading support via OpenMP
             self.cflags.remove('-std=c99')
-            # TODO: Need a generic -march setup
-            # self.cflags += ['-Xopenmp-target', '-march=sm_37']
-            self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
+            # Clang has offloading support via OpenMP
+            if language == 'openmp':
+                # TODO: Need a generic -march setup
+                # self.cflags += ['-Xopenmp-target', '-march=sm_37']
+                self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
+            else:
+                raise NotImplementedError("Unsupported language=`%s` with ClangCompiler"
+                                          % language)
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
                 self.cflags += ['-mcpu=native']
             else:
                 self.cflags += ['-march=native']
-            if openmp:
+            if language == 'openmp':
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -428,20 +432,21 @@ class IntelCompiler(Compiler):
 
         self.cflags += ["-xhost"]
 
-        openmp = kwargs.pop('openmp', configuration['openmp'])
+        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
         if platform is SKX:
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
+
         try:
             if self.version >= version.StrictVersion("15.0.0"):
-                # Append the OpenMP flag regardless of configuration['openmp'],
+                # Append the OpenMP flag regardless of configuration['language'],
                 # since icc15 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
                 self.ldflags += ['-qopenmp']
         except (TypeError, ValueError):
-            if openmp:
+            if language == 'openmp':
                 # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
                 self.ldflags += ['-fopenmp']
 
@@ -478,9 +483,9 @@ class IntelKNLCompiler(IntelCompiler):
 
         self.cflags += ["-xMIC-AVX512"]
 
-        openmp = kwargs.pop('openmp', configuration['openmp'])
+        language = kwargs.pop('language', configuration['language'])
 
-        if not openmp:
+        if language != 'openmp':
             warning("Running on Intel KNL without OpenMP is highly discouraged")
 
 
@@ -491,8 +496,9 @@ class CustomCompiler(Compiler):
     Notes
     -----
     Currently honours CC, CFLAGS and LDFLAGS, with defaults similar to the
-    default GNU/gcc settings. If DEVITO_ARCH is enabled, the OpenMP linker
-    flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
+    default GNU/gcc settings. If DEVITO_ARCH is enabled and the DEVITO_LANGUAGE
+    is set to 'openmp', then the OpenMP linker flags are read from OMP_LDFLAGS
+    or otherwise default to ``-fopenmp``.
     """
 
     def __init__(self, *args, **kwargs):
@@ -502,9 +508,9 @@ class CustomCompiler(Compiler):
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
 
-        openmp = kwargs.pop('openmp', configuration['openmp'])
+        language = kwargs.pop('language', configuration['language'])
 
-        if openmp:
+        if language == 'openmp':
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
     def __lookup_cmds__(self):

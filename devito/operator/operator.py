@@ -45,7 +45,7 @@ class Operator(Callable):
         * opt : str
             The performance optimization level. Defaults to ``configuration['opt']``.
         * language : str
-            The target language for node-level parallelism. Defaults to
+            The target language for shared-memory parallelism. Defaults to
             ``configuration['language']``.
         * platform : str
             The architecture the code is generated for. Defaults to
@@ -934,8 +934,11 @@ def parse_kwargs(**kwargs):
     else:
         raise InvalidOperator("Illegal `opt=%s`" % str(opt))
 
-    # `opt`, undocumented kwargs
-    openmp = kwargs.pop('openmp', configuration['openmp'])
+    # `opt`, deprecated kwargs
+    if 'openmp' in kwargs:
+        openmp = kwargs['openmp']
+    else:
+        openmp = kwargs.get('language', configuration['language']) == 'openmp'
 
     # `opt`, options
     opt_options = configuration['opt-options']
@@ -964,20 +967,6 @@ def parse_kwargs(**kwargs):
     else:
         kwargs['platform'] = configuration['platform']
 
-    # `compiler`
-    compiler = kwargs.get('compiler')
-    if compiler is not None:
-        if not isinstance(compiler, str):
-            raise ValueError("Argument `compiler` should be a `str`")
-        if compiler not in configuration._accepted['compiler']:
-            raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
-        kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'])
-    elif platform is not None:
-        kwargs['compiler'] =\
-            configuration['compiler'].__new_from__(platform=kwargs['platform'])
-    else:
-        kwargs['compiler'] = configuration['compiler']
-
     # `language`
     language = kwargs.get('language')
     if language is not None:
@@ -986,7 +975,26 @@ def parse_kwargs(**kwargs):
         if language not in configuration._accepted['language']:
             raise InvalidOperator("Illegal `language=%s`" % str(language))
         kwargs['language'] = language
+    elif openmp:
+        # Handle deprecated `openmp` kwarg for backward compatibility
+        kwargs['language'] = 'openmp'
     else:
         kwargs['language'] = configuration['language']
+
+    # `compiler`
+    compiler = kwargs.get('compiler')
+    if compiler is not None:
+        if not isinstance(compiler, str):
+            raise ValueError("Argument `compiler` should be a `str`")
+        if compiler not in configuration._accepted['compiler']:
+            raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
+        kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
+                                                         language=kwargs['language'])
+    elif any([platform, language]):
+        kwargs['compiler'] =\
+            configuration['compiler'].__new_from__(platform=kwargs['platform'],
+                                                   language=kwargs['language'])
+    else:
+        kwargs['compiler'] = configuration['compiler']
 
     return kwargs

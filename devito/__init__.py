@@ -1,4 +1,3 @@
-from collections import namedtuple
 from itertools import product
 
 # Import the global `configuration` dict
