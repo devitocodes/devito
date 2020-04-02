@@ -241,7 +241,7 @@ class WaveletSource(PointSource):
 
     def wavelet(self, f0, t):
         """
-        Defines a wavelet with a peak frequency f0 at time t.
+        Returns a wavelet with a peak frequency f0 at time t.
 
         Parameters
         ----------
@@ -303,7 +303,7 @@ class RickerSource(WaveletSource):
     @property
     def wavelet(self):
         """
-        Defines a Ricker wavelet with a peak frequency f0 at time t.
+        Returns a Ricker wavelet with a peak frequency f0 at time t.
 
         Parameters
         ----------
@@ -344,7 +344,8 @@ class GaborSource(WaveletSource):
     @property
     def wavelet(self):
         """
-        Defines a Gabor wavelet with a peak frequency f0 at time t.
+        Returns a Gabor wavelet with a peak frequency f0 at time t.
+
         Parameters
         ----------
         f0 : float
@@ -394,7 +395,7 @@ class DGaussSource(WaveletSource):
     @property
     def wavelet(self):
         """
-        Defines the 1st derivative of a Gaussian wavelet.
+        Returns the 1st derivative of a Gaussian wavelet.
 
         Parameters
         ----------

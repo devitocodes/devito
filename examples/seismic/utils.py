@@ -146,7 +146,7 @@ class AcquisitionGeometry(Pickable):
         if self.src_type is None:
             return PointSource(name='src', grid=self.grid,
                                time_range=self.time_axis, npoint=self.nsrc,
-                               coordinates=self.src_positions,)
+                               coordinates=self.src_positions)
         else:
             return sources[self.src_type](name='src', grid=self.grid, f0=self.f0,
                                           time_range=self.time_axis, npoint=self.nsrc,
