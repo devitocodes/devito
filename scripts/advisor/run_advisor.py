@@ -74,7 +74,7 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
 
     with progress('Set up multi-threading environment'):
         # Roofline analyses only make sense with threading enabled
-        os.environ['DEVITO_OPENMP'] = '1'
+        os.environ['DEVITO_LANGUAGE'] = 'openmp'
 
         # We must be able to do thread pinning, otherwise any results would be
         # meaningless. Currently, we only support doing that via numactl

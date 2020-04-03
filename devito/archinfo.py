@@ -190,6 +190,10 @@ class Platform(object):
         self.cores_physical = kwargs.get('cores_physical', cpu_info['physical'])
         self.isa = kwargs.get('isa', self._detect_isa())
 
+    @classmethod
+    def _mro(cls):
+        return [Platform]
+
     def __call__(self):
         return self
 
@@ -221,6 +225,17 @@ class Cpu64(Platform):
 
     # The known ISAs will be overwritten in the specialized classes
     known_isas = ()
+
+    @classmethod
+    def _mro(cls):
+        # Retain only the CPU Platforms
+        retval = []
+        for i in cls.mro():
+            if issubclass(i, Cpu64):
+                retval.append(i)
+            else:
+                break
+        return retval
 
     def _detect_isa(self):
         for i in reversed(self.known_isas):
@@ -255,6 +270,17 @@ class Device(Platform):
         self.cores_logical = cores_logical
         self.cores_physical = cores_physical
         self.isa = isa
+
+    @classmethod
+    def _mro(cls):
+        # Retain only the Device Platforms
+        retval = []
+        for i in cls.mro():
+            if issubclass(i, Device):
+                retval.append(i)
+            else:
+                break
+        return retval
 
 
 # CPUs

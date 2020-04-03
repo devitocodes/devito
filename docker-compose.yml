@@ -10,7 +10,7 @@ services:
 
     environment:
       DEVITO_ARCH: gcc
-      DEVITO_OPENMP: 0
+      DEVITO_LANGUAGE: openmp
 
     volumes:
       - ./devito:/app/devito

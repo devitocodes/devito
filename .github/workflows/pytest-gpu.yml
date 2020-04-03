@@ -83,11 +83,14 @@ jobs:
               git fetch
               git checkout ${{ steps.extract_branch.outputs.branch }}
           fi
+          # OpenMP offloading
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test tests/test_gpu_openmp.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
-          DEVITO_ARCH=pgcc DEVITO_LANGUAGE=openacc py.test examples/seismic/acoustic/acoustic_example.py
-          DEVITO_ARCH=pgcc DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
+          # OpenACC
+          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
+          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/acoustic/acoustic_example.py
+          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}

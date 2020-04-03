@@ -17,7 +17,7 @@ jobs:
 
     env:
       DEVITO_ARCH: "${{ matrix.compiler }}"
-      DEVITO_OPENMP: ${{ matrix.openmp }}
+      DEVITO_LANGUAGE: ${{ matrix.language }}
       DEVITO_BACKEND: "core"
       PYTHON_VERSION: "3.7"
       RUN_CMD: ""
@@ -37,22 +37,22 @@ jobs:
           - name: tutos-ubuntu-gcc-py37
             os: ubuntu-16.04
             compiler: gcc-7
-            openmp: 1
+            language: "openmp"
 
           - name: tutos-osx-gcc-py37
             os: macos-latest
             compiler: gcc-9
-            openmp: 1
+            language: "openmp"
 
           - name: tutos-osx-clang-py37
             os: macos-latest
             compiler: clang
-            openmp: 0
+            language: "C"
 
           - name: tutos-docker-gcc-py36
             os: ubuntu-latest
             compiler: gcc
-            openmp: 1
+            language: "openmp"
 
     steps:
     - name: Checkout devito

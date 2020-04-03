@@ -902,7 +902,7 @@ class TestCodeGeneration(object):
         call = tree.root.nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
-        if configuration['openmp']:
+        if configuration['language'] == 'openmp':
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
             # W/ OpenMP, we expect dynamic thread scheduling
@@ -923,7 +923,7 @@ class TestCodeGeneration(object):
         call = tree.root.nodes[0].nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
-        if configuration['openmp']:
+        if configuration['language'] == 'openmp':
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
             # W/ OpenMP, we expect dynamic thread scheduling

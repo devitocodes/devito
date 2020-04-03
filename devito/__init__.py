@@ -1,4 +1,3 @@
-from collections import namedtuple
 from itertools import product
 
 # Import the global `configuration` dict
@@ -27,23 +26,43 @@ from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
 
+
+def reinit_compiler(val):
+    """
+    Re-initialize the Compiler.
+    """
+    configuration['compiler'].__init__(suffix=configuration['compiler'].suffix,
+                                       mpi=configuration['mpi'])
+
+
 # Setup target platform, compiler, and backend
 configuration.add('platform', 'cpu64', list(platform_registry),
                   callback=lambda i: platform_registry[i]())
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
-configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
+configuration.add('backend', 'core', list(backends_registry),
+                  callback=init_backend)
+
+# Setup language for shared-memory parallelism
+preprocessor = lambda i: {0: 'C', 1: 'openmp'}.get(i, i)  # Handles DEVITO_OPENMP deprec
+configuration.add('language', 'C', [0, 1, 'C', 'openmp', 'openacc'],
+                  preprocessor=preprocessor, callback=reinit_compiler, deprecate='openmp')
+
+# MPI mode (0 => disabled, 1 == basic)
+preprocessor = lambda i: bool(i) if isinstance(i, int) else i
+configuration.add('mpi', 0, [0, 1, 'basic', 'diag', 'overlap', 'overlap2', 'full'],
+                  preprocessor=preprocessor, callback=reinit_compiler)
 
 # Should Devito run a first-touch Operator upon data allocation?
-configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
+configuration.add('first-touch', 0, [0, 1], preprocessor=bool, impacts_jit=False)
 
 # Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
 # or rather raise an exception (the default behaviour)?
-configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
+configuration.add('ignore-unknowns', 0, [0, 1], preprocessor=bool, impacts_jit=False)
 
 # Setup log level
 configuration.add('log-level', 'INFO', list(logger_registry),
-                  lambda i: set_log_level(i), False)
+                  callback=set_log_level, impacts_jit=False)
 
 # Escape hatch for custom kernels. The typical use case is as follows: one lets
 # Devito generate code for an Operator; then, once the session is over, the
@@ -51,40 +70,31 @@ configuration.add('log-level', 'INFO', list(logger_registry),
 # experimentation); finally, when re-running the same program, Devito won't
 # overwrite the user-modified files (thus entirely bypassing code generation),
 # and will instead use the custom kernel
-configuration.add('jit-backdoor', 0, [0, 1], lambda i: bool(i), False)
+configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=False)
 
 # Enable/disable automatic padding for allocated data
 configuration.add('autopadding', False, [False, True])
 
-# Execution mode setup
-def _reinit_compiler(val):  # noqa
-    # Force re-build the compiler
-    configuration['compiler'].__init__(suffix=configuration['compiler'].suffix,
-                                       mpi=configuration['mpi'])
-    return bool(val) if isinstance(val, int) else val
-configuration.add('openmp', 0, [0, 1], callback=_reinit_compiler)  # noqa
-configuration.add('mpi', 0, [0, 1, 'basic', 'diag', 'overlap', 'overlap2', 'full'],
-                  callback=_reinit_compiler)
 
-# Autotuning setup
-at_levels = ['off', 'basic', 'aggressive', 'max']
-at_modes = ['preemptive', 'destructive', 'runtime']
-at_default_mode = {'core': 'preemptive'}
-at_setup = namedtuple('at_setup', 'level mode')
-at_accepted = at_levels + [list(i) for i in product(at_levels, at_modes)]
-def _at_callback(val):  # noqa
+def autotune_callback(val):  # noqa
     if isinstance(val, str):
-        level, mode = val, at_default_mode[configuration['backend']]
+        level, mode = val, 'preemptive'  # default mode
     else:
         level, mode = val
     if level == 'off':
         level = False
-    return at_setup(level, mode)
-configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # noqa
+    return (level, mode)
+
+
+# Setup autotuning
+levels = ['off', 'basic', 'aggressive', 'max']
+modes = ['preemptive', 'destructive', 'runtime']
+accepted = levels + [list(i) for i in product(levels, modes)]
+configuration.add('autotuning', 'off', accepted, callback=autotune_callback,
                   impacts_jit=False)
 
 # Should Devito emit the JIT compilation commands?
-configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
+configuration.add('debug-compiler', 0, [0, 1], preprocessor=bool, impacts_jit=False)
 
 # In develop-mode:
 # - Some optimizations may not be applied to the generated code.

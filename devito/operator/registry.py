@@ -20,13 +20,13 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
         * `platform` is an object of type Platform, that is the architecture
           the code is generated for.
         * `mode` is the optimization level (e.g., `advanced`).
-        * `language` is the generated code language (default is C+OpenMP+MPI,
-          but in the future it could also be OpenACC or CUDA.
+        * `language` is the target language for shared-memory parallelism
+          (e.g., 'C', 'openmp').
         * `operator` is an object of type Operator.
     """
 
     _modes = ('noop', 'advanced', 'advanced-fsg')
-    _languages = ('C',)
+    _languages = ('C', 'openmp', 'openacc')
     _accepted = _modes + tuple(product(_modes, _languages))
 
     def add(self, operator, platform, mode, language='C'):
@@ -46,12 +46,13 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
         if language not in OperatorRegistry._languages:
             raise ValueError("Unknown language `%s`" % language)
 
-        for cls in platform.__class__.mro():
+        for cls in platform._mro():
             for (p, m, l), kls in self.items():
                 if issubclass(p, cls) and m == mode and l == language:
                     return kls
 
-        raise InvalidOperator("Cannot compile an Operator for `%s`" % str((p, m, l)))
+        raise InvalidOperator("Cannot compile an Operator for `%s`"
+                              % str((platform, mode, language)))
 
 
 operator_registry = OperatorRegistry()

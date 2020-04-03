@@ -11,8 +11,11 @@ from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
                                relax_incr_dimensions)
 from devito.tools import as_tuple, generator, timed_pass
 
-__all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator',
-           'Intel64FSGOperator', 'PowerOperator', 'ArmOperator',
+__all__ = ['CPU64NoopOperator', 'CPU64Operator', 'CPU64OpenMPOperator',
+           'Intel64Operator', 'Intel64OpenMPOperator', 'Intel64FSGOperator',
+           'Intel64FSGOpenMPOperator',
+           'PowerOperator', 'PowerOpenMPOperator',
+           'ArmOperator', 'ArmOpenMPOperator',
            'CustomOperator']
 
 
@@ -130,11 +133,46 @@ class CPU64Operator(CPU64NoopOperator):
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph, counter=generator())
 
-        # Shared-memory and SIMD-level parallelism
+        # SIMD-level parallelism
         ompizer = Ompizer()
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
-        if options['openmp']:
-            ompizer.make_parallel(graph)
+
+        # Misc optimizations
+        hoist_prodders(graph)
+
+        # Symbol definitions
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph
+
+
+class CPU64OpenMPOperator(CPU64Operator):
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+
+        # Flush denormal numbers
+        avoid_denormals(graph)
+
+        # Distributed-memory parallelism
+        optimize_halospots(graph)
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # Lower IncrDimensions so that blocks of arbitrary shape may be used
+        relax_incr_dimensions(graph, counter=generator())
+
+        # SIMD-level parallelism
+        ompizer = Ompizer()
+        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+
+        # Shared-memory parallelism
+        ompizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -148,6 +186,7 @@ class CPU64Operator(CPU64NoopOperator):
 
 
 Intel64Operator = CPU64Operator
+Intel64OpenMPOperator = CPU64OpenMPOperator
 
 
 class Intel64FSGOperator(Intel64Operator):
@@ -196,8 +235,15 @@ class Intel64FSGOperator(Intel64Operator):
         return clusters
 
 
+class Intel64FSGOpenMPOperator(Intel64FSGOperator, CPU64OpenMPOperator):
+    _specialize_iet = CPU64OpenMPOperator._specialize_iet
+
+
 PowerOperator = CPU64Operator
+PowerOpenMPOperator = CPU64OpenMPOperator
+
 ArmOperator = CPU64Operator
+ArmOpenMPOperator = CPU64OpenMPOperator
 
 
 class CustomOperator(CPU64Operator):

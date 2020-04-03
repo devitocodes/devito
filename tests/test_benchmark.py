@@ -15,7 +15,7 @@ def test_bench(mode, problem):
     tn = 4
     nx, ny, nz = 16, 16, 16
 
-    if configuration['openmp']:
+    if configuration['language'] == 'openmp':
         nthreads = int(os.environ.get('OMP_NUM_THREADS',
                                       configuration['platform'].cores_physical))
     else:

@@ -6,7 +6,8 @@ from conftest import skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
-                    TensorTimeFunction, VectorFunction, VectorTimeFunction)
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+from devito.exceptions import InvalidOperator
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
@@ -116,9 +117,11 @@ class TestCodeGen(object):
         assert isinstance(op.body[2].body[0], TimedList)
         assert op.body[2].body[0].body[0].is_Section
 
-    def test_platform_as_argument(self):
+    def test_arguments(self):
         """
-        Test code generation when a platform name is supplied to an Operator.
+        Test code generation when ``platform``, ``compiler`` and ``language``
+        are explicitly supplied to an Operator, thus bypassing the global values
+        stored in ``configuration``.
         """
         grid = Grid(shape=(3, 3, 3))
 
@@ -128,7 +131,7 @@ class TestCodeGen(object):
         try:
             Operator(Eq(u, u + 1), platform='asga')
             assert False
-        except:
+        except InvalidOperator:
             assert True
 
         # Operator with auto-detected CPU platform (ie, `configuration['platform']`)
@@ -152,8 +155,26 @@ class TestCodeGen(object):
         try:
             Operator(Eq(u, u + 1), platform='nvidiaX', compiler='asf')
             assert False
-        except:
+        except InvalidOperator:
             assert True
+
+        # Now with explicit platform *and* language
+        op3 = Operator(Eq(u, u + 1), platform='nvidiaX', language='openacc')
+        assert '#pragma acc parallel' in str(op3)
+        assert op3._compiler is not configuration['compiler']
+        assert (op3._compiler.__class__.__name__ ==
+                configuration['compiler'].__class__.__name__)
+
+        # Unsupported combination of `platform` and `language` should throw an error
+        try:
+            Operator(Eq(u, u + 1), platform='bdw', language='openacc')
+            assert False
+        except InvalidOperator:
+            assert True
+
+        # Check that local config takes precedence over global config
+        op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
+        assert '#pragma omp for' not in str(op4)
 
 
 class TestArithmetic(object):

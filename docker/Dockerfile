@@ -33,7 +33,7 @@ RUN chmod +x \
 WORKDIR /app
 
 ENV DEVITO_ARCH="gcc"
-ENV DEVITO_OPENMP="1"
+ENV DEVITO_LANGUAGE="openmp"
 
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]

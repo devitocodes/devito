@@ -44,6 +44,9 @@ class Operator(Callable):
             Symbolic substitutions to be applied to ``expressions``.
         * opt : str
             The performance optimization level. Defaults to ``configuration['opt']``.
+        * language : str
+            The target language for shared-memory parallelism. Defaults to
+            ``configuration['language']``.
         * platform : str
             The architecture the code is generated for. Defaults to
             ``configuration['platform']``.
@@ -931,8 +934,12 @@ def parse_kwargs(**kwargs):
     else:
         raise InvalidOperator("Illegal `opt=%s`" % str(opt))
 
-    # `opt`, undocumented kwargs
-    openmp = kwargs.pop('openmp', configuration['openmp'])
+    # `opt`, deprecated kwargs
+    kwopenmp = kwargs.get('openmp', options.get('openmp'))
+    if kwopenmp is None:
+        openmp = kwargs.get('language', configuration['language']) == 'openmp'
+    else:
+        openmp = kwopenmp
 
     # `opt`, options
     opt_options = configuration['opt-options']
@@ -961,6 +968,20 @@ def parse_kwargs(**kwargs):
     else:
         kwargs['platform'] = configuration['platform']
 
+    # `language`
+    language = kwargs.get('language')
+    if language is not None:
+        if not isinstance(language, str):
+            raise ValueError("Argument `language` should be a `str`")
+        if language not in configuration._accepted['language']:
+            raise InvalidOperator("Illegal `language=%s`" % str(language))
+        kwargs['language'] = language
+    elif kwopenmp is not None:
+        # Handle deprecated `openmp` kwarg for backward compatibility
+        kwargs['language'] = 'openmp' if openmp else 'C'
+    else:
+        kwargs['language'] = configuration['language']
+
     # `compiler`
     compiler = kwargs.get('compiler')
     if compiler is not None:
@@ -968,10 +989,12 @@ def parse_kwargs(**kwargs):
             raise ValueError("Argument `compiler` should be a `str`")
         if compiler not in configuration._accepted['compiler']:
             raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
-        kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'])
-    elif platform is not None:
+        kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
+                                                         language=kwargs['language'])
+    elif any([platform, language]):
         kwargs['compiler'] =\
-            configuration['compiler'].__new_from__(platform=kwargs['platform'])
+            configuration['compiler'].__new_from__(platform=kwargs['platform'],
+                                                   language=kwargs['language'])
     else:
         kwargs['compiler'] = configuration['compiler']
 

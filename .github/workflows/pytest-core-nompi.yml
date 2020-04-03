@@ -17,7 +17,7 @@ jobs:
 
     env:
       DEVITO_ARCH: "${{ matrix.arch }}"
-      DEVITO_OPENMP: ${{ matrix.openmp }}
+      DEVITO_LANGUAGE: ${{ matrix.language }}
       DEVITO_BACKEND: "core"
       OMP_NUM_THREADS: 2
       PYTHON_VERSION: "${{ matrix.python-version }}"
@@ -44,55 +44,55 @@ jobs:
           python-version: 3.6
           os: ubuntu-16.04
           arch: "gcc-4.9"
-          openmp: 1
+          language: "openmp"
 
         - name: pytest-ubuntu-py37-gcc5-omp
           python-version: 3.7
           os: ubuntu-16.04
           arch: "gcc-5"
-          openmp: 1
+          language: "openmp"
 
         - name: pytest-ubuntu-py38-gcc6-omp
           python-version: 3.8
           os: ubuntu-16.04
           arch: "gcc-6"
-          openmp: 1
+          language: "openmp"
 
         - name: pytest-ubuntu-py36-gcc7-omp
           python-version: 3.6
           os: ubuntu-16.04
           arch: "gcc-7"
-          openmp: 1
+          language: "openmp"
 
         - name: pytest-ubuntu-py37-gcc7-noomp
           python-version: 3.7
           os: ubuntu-16.04
           arch: "gcc-7"
-          openmp: 0
+          language: "C"
 
         - name: pytest-ubuntu-py37-gcc8-omp
           python-version: 3.7
           os: ubuntu-16.04
           arch: "gcc-8"
-          openmp: 1
+          language: "openmp"
 
         - name: pytest-ubuntu-py38-gcc9-omp
           python-version: 3.8
           os: ubuntu-16.04
           arch: "gcc-9"
-          openmp: 1
+          language: "openmp"
 
         - name: pytest-osx-py37-clang-omp
           python-version: 3.7
           os: macos-latest
           arch: "osx"
-          openmp: 0
+          language: "C"
 
         - name: pytest-docker-py36-gcc-omp
           python-version: 3.6
           os: ubuntu-16.04
           arch: "gcc"
-          openmp: 1
+          language: "openmp"
 
     steps:
     - name: Checkout devito

@@ -19,19 +19,25 @@ __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state
 
 
 class Parameters(OrderedDict, Signer):
+
     """
     A dictionary-like class to hold global configuration parameters for devito
     On top of a normal dict, this provides the option to provide callback functions
     so that any interested module can be informed when the configuration changes.
     """
+
     def __init__(self, name=None, **kwargs):
         super(Parameters, self).__init__(**kwargs)
         self._name = name
+
         self._accepted = {}
         self._deprecated = {}
         self._defaults = {}
         self._impact_jit = {}
+
+        self._preprocess_functions = {}
         self._update_functions = {}
+
         if kwargs is not None:
             for key, value in kwargs.items():
                 self[key] = value
@@ -56,10 +62,19 @@ class Parameters(OrderedDict, Signer):
             return func(self, key, value)
         return wrapper
 
+    def _preprocess(self, key, value):
+        """
+        Execute the preprocesser associated to ``key``, if any. This will
+        return a new value.
+        """
+        if key in self._preprocess_functions:
+            return self._preprocess_functions[key](value)
+        else:
+            return value
+
     def _updated(self, key, value):
         """
-        Call any provided update functions so that the other modules know we've
-        been updated.
+        Execute the callback associated to ``key``, if any.
         """
         if key in self._update_functions:
             retval = self._update_functions[key](value)
@@ -73,6 +88,7 @@ class Parameters(OrderedDict, Signer):
     @_check_key_deprecation
     @_check_key_value
     def __setitem__(self, key, value):
+        value = self._preprocess(key, value)
         super(Parameters, self).__setitem__(key, value)
         self._updated(key, value)
 
@@ -81,12 +97,13 @@ class Parameters(OrderedDict, Signer):
     def update(self, key, value):
         """
         Update the parameter ``key`` to ``value``. This is different from
-        ``self[key] = value`` as the callback, if any, is bypassed.
+        ``self[key] = value`` as both preprocessor and callback, if any,
+        are bypassed.
         """
         super(Parameters, self).__setitem__(key, value)
 
-    def add(self, key, value, accepted=None, callback=None, impacts_jit=True,
-            deprecate=None):
+    def add(self, key, value, accepted=None, preprocessor=None, callback=None,
+            impacts_jit=True, deprecate=None):
         """
         Add a new parameter ``key`` with default value ``value``.
 
@@ -103,6 +120,8 @@ class Parameters(OrderedDict, Signer):
         self._accepted[key] = accepted
         self._defaults[key] = value
         self._impact_jit[key] = impacts_jit
+        if callable(preprocessor):
+            self._preprocess_functions[key] = preprocessor
         if callable(callback):
             self._update_functions[key] = callback
         if deprecate is not None:
@@ -110,11 +129,12 @@ class Parameters(OrderedDict, Signer):
 
     def initialize(self):
         """
-        Execute all callbacks in ``self._update_functions``. Should be invoked
-        once right after all entries have been set.
+        Execute all preprocessors and callbacks, thus completing the
+        initialization.
         """
-        for k, v in self.items():
-            self._updated(k, v)
+        for k, v in list(self.items()):
+            # Will trigger preprocessor and callback, if any
+            self[k] = v
 
     @property
     def name(self):
@@ -134,8 +154,8 @@ env_vars_mapper = {
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_OPT': 'opt',
-    'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
+    'DEVITO_LANGUAGE': 'language',
     'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log-level',
     'DEVITO_FIRST_TOUCH': 'first-touch',
@@ -145,7 +165,8 @@ env_vars_mapper = {
 }
 
 env_vars_deprecated = {
-    'DEVITO_DLE': 'DEVITO_OPT'
+    'DEVITO_DLE': ('DEVITO_OPT', 'DEVITO_OPT should be used instead'),
+    'DEVITO_OPENMP': ('DEVITO_LANGUAGE', 'DEVITO_LANGUAGE=openmp should be used instead'),
 }
 
 
@@ -166,9 +187,9 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
 
         # Handle deprecated env vars
         mapper = dict(queue)
-        for k, v in env_vars_deprecated.items():
+        for k, (v, msg) in env_vars_deprecated.items():
             if environ.get(k):
-                warning("`%s` is deprecated. `%s` should be used instead" % (k, v))
+                warning("`%s` is deprecated. %s" % (k, msg))
                 if environ.get(v):
                     warning("Both `%s` and `%s` set. Ignoring `%s`" % (k, v, k))
                 else:
