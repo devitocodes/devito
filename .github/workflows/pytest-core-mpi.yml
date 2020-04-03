@@ -1,4 +1,4 @@
-# Force build 2
+# Force build 3
 name: CI-mpi
 
 on:
@@ -39,7 +39,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
+        python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
