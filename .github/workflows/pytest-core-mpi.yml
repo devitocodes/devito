@@ -34,9 +34,8 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get install -y python3-pip
-        sudo pip3 install --upgrade pip
-        sudo pip3 install -e .[extras]
-        sudo pip3 install pytest
+        pip3 install --upgrade pip
+        pip3 install -e .[extras]
 
     - name: Test with pytest
       run: |
