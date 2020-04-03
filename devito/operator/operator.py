@@ -935,10 +935,11 @@ def parse_kwargs(**kwargs):
         raise InvalidOperator("Illegal `opt=%s`" % str(opt))
 
     # `opt`, deprecated kwargs
-    if 'openmp' in kwargs:
-        openmp = kwargs['openmp']
-    else:
+    kwopenmp = kwargs.get('openmp', options.get('openmp'))
+    if kwopenmp is None:
         openmp = kwargs.get('language', configuration['language']) == 'openmp'
+    else:
+        openmp = kwopenmp
 
     # `opt`, options
     opt_options = configuration['opt-options']
@@ -975,9 +976,9 @@ def parse_kwargs(**kwargs):
         if language not in configuration._accepted['language']:
             raise InvalidOperator("Illegal `language=%s`" % str(language))
         kwargs['language'] = language
-    elif openmp:
+    elif kwopenmp is not None:
         # Handle deprecated `openmp` kwarg for backward compatibility
-        kwargs['language'] = 'openmp'
+        kwargs['language'] = 'openmp' if openmp else 'C'
     else:
         kwargs['language'] = configuration['language']
 
