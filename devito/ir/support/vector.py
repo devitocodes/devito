@@ -240,7 +240,7 @@ class Vector(tuple):
         """
         try:
             # Handle quickly the special (yet relevant) cases `other == 0`
-            if other is 0:  # noqa: Must really be int 0, can't use ==
+            if is_integer(other) and other == 0:
                 return self
             elif all(i == 0 for i in other) and self.rank == other.rank:
                 return self
