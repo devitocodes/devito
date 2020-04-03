@@ -1,4 +1,3 @@
-# Build 2
 name: CI-mpi
 
 on:
@@ -36,20 +35,13 @@ jobs:
         sudo apt-get install python3-pip
         pip3 install --upgrade pip
         pip3 install -e .[extras]
-        pip3 install pytest-xdist
-        pip3 install ipyparallel
 
     - name: Test with pytest
       run: |
-        pytest -n 14 -m parallel tests/
+        pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
 
-    #- name: Upload coverage to Codecov
-      #uses: codecov/codecov-action@v1.0.6
-      #with:
-        #token: ${{ secrets.CODECOV_TOKEN }}
-        #name: pytest-mpi
-
-        #ipcluster start --profile=mpi -n 14 --daemon
-        #ipcluster nbextension enable
-
-        #pytest -n 14 --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1.0.6
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: pytest-mpi
