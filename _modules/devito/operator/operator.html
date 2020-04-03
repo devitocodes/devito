@@ -199,6 +199,9 @@
 <span class="sd">            Symbolic substitutions to be applied to ``expressions``.</span>
 <span class="sd">        * opt : str</span>
 <span class="sd">            The performance optimization level. Defaults to ``configuration[&#39;opt&#39;]``.</span>
+<span class="sd">        * language : str</span>
+<span class="sd">            The target language for shared-memory parallelism. Defaults to</span>
+<span class="sd">            ``configuration[&#39;language&#39;]``.</span>
 <span class="sd">        * platform : str</span>
 <span class="sd">            The architecture the code is generated for. Defaults to</span>
 <span class="sd">            ``configuration[&#39;platform&#39;]``.</span>
@@ -1086,8 +1089,12 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `opt=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">opt</span><span class="p">))</span>
 
-    <span class="c1"># `opt`, undocumented kwargs</span>
-    <span class="n">openmp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
+    <span class="c1"># `opt`, deprecated kwargs</span>
+    <span class="n">kwopenmp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="n">options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">kwopenmp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">openmp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;language&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="s1">&#39;openmp&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">openmp</span> <span class="o">=</span> <span class="n">kwopenmp</span>
 
     <span class="c1"># `opt`, options</span>
     <span class="n">opt_options</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;opt-options&#39;</span><span class="p">]</span>
@@ -1116,6 +1123,20 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
 
+    <span class="c1"># `language`</span>
+    <span class="n">language</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;language&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">language</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">language</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Argument `language` should be a `str`&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">language</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `language=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">language</span><span class="p">))</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">language</span>
+    <span class="k">elif</span> <span class="n">kwopenmp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Handle deprecated `openmp` kwarg for backward compatibility</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;openmp&#39;</span> <span class="k">if</span> <span class="n">openmp</span> <span class="k">else</span> <span class="s1">&#39;C&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]</span>
+
     <span class="c1"># `compiler`</span>
     <span class="n">compiler</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;compiler&#39;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">compiler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1123,10 +1144,12 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Argument `compiler` should be a `str`&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">compiler</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]:</span>
             <span class="k">raise</span> <span class="n">InvalidOperator</span><span class="p">(</span><span class="s2">&quot;Illegal `compiler=</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">compiler</span><span class="p">))</span>
-        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">compiler</span><span class="p">](</span><span class="n">platform</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">])</span>
-    <span class="k">elif</span> <span class="n">platform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">compiler</span><span class="p">](</span><span class="n">platform</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">],</span>
+                                                         <span class="n">language</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="nb">any</span><span class="p">([</span><span class="n">platform</span><span class="p">,</span> <span class="n">language</span><span class="p">]):</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span>\
-            <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__new_from__</span><span class="p">(</span><span class="n">platform</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">])</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__new_from__</span><span class="p">(</span><span class="n">platform</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">],</span>
+                                                   <span class="n">language</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">])</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
 
