@@ -847,7 +847,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if u_t is not None:
             time = self.grid.time_dim
             t = self.grid.stepping_dim
-            expr = expr.xreplace({time: u_t, t: u_t})
+            expr = expr.subs({time: u_t, t: u_t})
 
         if p_t is not None:
             subs = {self.time_dim: p_t}
@@ -875,9 +875,9 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         """
         # Apply optional time symbol substitutions to field and expr
         if u_t is not None:
-            field = field.xreplace({field.time_dim: u_t})
+            field = field.subs({field.time_dim: u_t})
         if p_t is not None:
-            expr = expr.xreplace({self.time_dim: p_t})
+            expr = expr.subs({self.time_dim: p_t})
 
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 
@@ -1074,7 +1074,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         if u_t is not None:
             time = self.grid.time_dim
             t = self.grid.stepping_dim
-            expr = expr.xreplace({time: u_t, t: u_t})
+            expr = expr.subs({time: u_t, t: u_t})
 
         if p_t is not None:
             subs = {self.time_dim: p_t}

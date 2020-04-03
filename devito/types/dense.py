@@ -959,8 +959,8 @@ class Function(DiscreteFunction, Differentiable):
         if not self.is_parameter or self.staggered == func.staggered:
             return self
 
-        return self.xreplace({self.indices_ref[d1]: func.indices_ref[d1]
-                              for d1 in self.dimensions})
+        return self.subs({self.indices_ref[d1]: func.indices_ref[d1]
+                          for d1 in self.dimensions})
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1101,7 +1101,7 @@ class Function(DiscreteFunction, Differentiable):
                 rp = p // 2
             indices = [d - i for i in range(lp, 0, -1)]
             indices.extend([d + i for i in range(rp)])
-            points.extend([self.xreplace({d: i}) for i in indices])
+            points.extend([self.subs({d: i}) for i in indices])
         return sum(points)
 
     def avg(self, p=None, dims=None):
@@ -1311,7 +1311,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.dimensions[self._time_position]
 
-        return self.xreplace({_t: _t + i * _t.spacing})
+        return self.subs({_t: _t + i * _t.spacing})
 
     @property
     def backward(self):
@@ -1319,7 +1319,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.dimensions[self._time_position]
 
-        return self.xreplace({_t: _t - i * _t.spacing})
+        return self.subs({_t: _t - i * _t.spacing})
 
     @property
     def _time_size(self):
