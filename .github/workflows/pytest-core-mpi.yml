@@ -1,3 +1,4 @@
+# Force build 0
 name: CI-mpi
 
 on:
