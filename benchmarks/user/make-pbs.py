@@ -50,7 +50,7 @@ source activate devito
 
 export DEVITO_HOME=%(home)s
 export DEVITO_ARCH=intel
-export DEVITO_OPENMP=1
+export DEVITO_LANGUAGE=openmp
 export DEVITO_LOGGING=DEBUG
 
 %(export)s

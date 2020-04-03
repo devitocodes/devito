@@ -73,16 +73,16 @@ recommended tool for rapid visual inspection is [htop](http://hisham.hm/htop/).
 To switch on multi-threaded execution of Operators via OpenMP, the following
 environment variable must be set:
 ```
-DEVITO_OPENMP=1
+DEVITO_LANGUAGE=openmp
 ```
 One has two options: either set it explicitly or prepend it to the Python
 command. In the former case, assuming a bash shell:
 ```
-export DEVITO_OPENMP=1
+export DEVITO_LANGUAGE=openmp
 ```
 In the latter case:
 ```
-DEVITO_OPENMP=1 python benchmark.py ...
+DEVITO_LANGUAGE=openmp python benchmark.py ...
 ```
 
 ## Enabling MPI
