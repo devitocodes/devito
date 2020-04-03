@@ -1,4 +1,4 @@
-# Force build 5
+# Force build 6
 name: CI-mpi
 
 on:
