@@ -284,12 +284,14 @@ class Ompizer(object):
                     break
 
                 # Would there be enough work per parallel iteration?
-                try:
-                    work = prod([int(j.dim.symbolic_size) for j in candidates[n+1:]])
-                    if work < self.COLLAPSE_WORK:
-                        break
-                except TypeError:
-                    pass
+                nested = candidates[n+1:]
+                if nested:
+                    try:
+                        work = prod([int(j.dim.symbolic_size) for j in nested])
+                        if work < self.COLLAPSE_WORK:
+                            break
+                    except TypeError:
+                        pass
 
                 collapsable.append(i)
         return collapsable
@@ -419,11 +421,7 @@ class Ompizer(object):
 
         return partree
 
-    @iet_pass
-    def make_parallel(self, iet):
-        """
-        Create a new IET with shared-memory parallelism via OpenMP pragmas.
-        """
+    def _make_parallel(self, iet):
         mapper = OrderedDict()
         for tree in retrieve_iteration_tree(iet):
             # Get the omp-parallelizable Iterations in `tree`
@@ -459,6 +457,13 @@ class Ompizer(object):
         return iet, {'args': args, 'includes': ['omp.h']}
 
     @iet_pass
+    def make_parallel(self, iet):
+        """
+        Create a new IET with shared-memory parallelism via OpenMP pragmas.
+        """
+        return self._make_parallel(iet)
+
+    @iet_pass
     def make_simd(self, iet, **kwargs):
         """
         Create a new IET with SIMD parallelism via OpenMP pragmas.
@@ -472,7 +477,7 @@ class Ompizer(object):
             # As long as there's an outer level of parallelism, the innermost
             # PARALLEL Iteration gets vectorized
             if len(candidates) < 2:
-                return iet, {}
+                continue
             candidate = candidates[-1]
 
             # Construct OpenMP SIMD pragma

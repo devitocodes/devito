@@ -6,7 +6,8 @@ from conftest import skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
-                    TensorTimeFunction, VectorFunction, VectorTimeFunction)
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+from devito.exceptions import InvalidOperator
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
@@ -15,8 +16,6 @@ from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset
 from devito.types import Array, Scalar
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 def dimify(dimensions):
@@ -41,7 +40,7 @@ class TestCodeGen(object):
         a_dense = Function(name='a_dense', grid=grid)
         const = Constant(name='constant')
         eqn = Eq(a_dense, a_dense + 2.*const)
-        op = Operator(eqn, dle=('advanced', {'openmp': False}))
+        op = Operator(eqn, openmp=False)
         assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_Tensor
@@ -86,7 +85,7 @@ class TestCodeGen(object):
         u = TimeFunction(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid, time_order=4)  # noqa
 
-        op = Operator(eval(expr), dle='noop')
+        op = Operator(eval(expr), opt='noop')
 
         iters = FindNodes(Iteration).visit(op)
         time_iter = [i for i in iters if i.dim.is_Time]
@@ -118,9 +117,11 @@ class TestCodeGen(object):
         assert isinstance(op.body[2].body[0], TimedList)
         assert op.body[2].body[0].body[0].is_Section
 
-    def test_platform_as_argument(self):
+    def test_arguments(self):
         """
-        Test code generation when a platform name is supplied to an Operator.
+        Test code generation when ``platform``, ``compiler`` and ``language``
+        are explicitly supplied to an Operator, thus bypassing the global values
+        stored in ``configuration``.
         """
         grid = Grid(shape=(3, 3, 3))
 
@@ -130,7 +131,7 @@ class TestCodeGen(object):
         try:
             Operator(Eq(u, u + 1), platform='asga')
             assert False
-        except:
+        except InvalidOperator:
             assert True
 
         # Operator with auto-detected CPU platform (ie, `configuration['platform']`)
@@ -154,8 +155,26 @@ class TestCodeGen(object):
         try:
             Operator(Eq(u, u + 1), platform='nvidiaX', compiler='asf')
             assert False
-        except:
+        except InvalidOperator:
             assert True
+
+        # Now with explicit platform *and* language
+        op3 = Operator(Eq(u, u + 1), platform='nvidiaX', language='openacc')
+        assert '#pragma acc parallel' in str(op3)
+        assert op3._compiler is not configuration['compiler']
+        assert (op3._compiler.__class__.__name__ ==
+                configuration['compiler'].__class__.__name__)
+
+        # Unsupported combination of `platform` and `language` should throw an error
+        try:
+            Operator(Eq(u, u + 1), platform='bdw', language='openacc')
+            assert False
+        except InvalidOperator:
+            assert True
+
+        # Check that local config takes precedence over global config
+        op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
+        assert '#pragma omp for' not in str(op4)
 
 
 class TestArithmetic(object):
@@ -547,7 +566,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(f.forward, g + f), dle=('advanced', {'openmp': False}))
+        op = Operator(Eq(f.forward, g + f), openmp=False)
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -645,9 +664,9 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid, time_order=0)
 
-        # Suppress DLE to work around a know bug with GCC and OpenMP:
+        # Suppress opts to work around a know bug with GCC and OpenMP:
         # https://github.com/devitocodes/devito/issues/320
-        op = Operator(Eq(f, 1.), dle=None)
+        op = Operator(Eq(f, 1.), opt=None)
         # TODO: Currently we require the `time` subrange to be set
         # explicitly. Ideally `t` would directly alias with `time`,
         # but this seems broken currently.
@@ -706,9 +725,9 @@ class TestArguments(object):
         """
         grid = Grid(shape=(5, 6, 7))
         a = TimeFunction(name='a', grid=grid, save=2)
-        # Suppress DLE to work around a know bug with GCC and OpenMP:
+        # Suppress opts to work around a know bug with GCC and OpenMP:
         # https://github.com/devitocodes/devito/issues/320
-        op = Operator(Eq(a, a + 3), dle=None)
+        op = Operator(Eq(a, a + 3), opt=None)
 
         # Run with default value
         a.data[:] = 1.
@@ -965,7 +984,7 @@ class TestArguments(object):
 
         u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=pad)
 
-        op = Operator(Eq(u, 1), dse='noop', dle='noop')
+        op = Operator(Eq(u, 1), opt='noop')
 
         u_arg = op.arguments(time=0)['u']
         u_arg_shape = tuple(u_arg._obj.size[i] for i in range(u.ndim))
@@ -1043,157 +1062,122 @@ class TestArguments(object):
 @skipif('device')
 class TestDeclarator(object):
 
-    def test_heap_1D_stencil(self):
+    def test_heap_1D(self):
         i, j = dimensions('i j')
+
         a = Array(name='a', dimensions=(i,))
         b = Array(name='b', dimensions=(i,))
         f = Function(name='f', shape=(3,), dimensions=(j,))
-        operator = Operator([Eq(a[i], a[i] + b[i] + 5.), Eq(f[j], a[j])],
-                            dse='noop', dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    a[i] = a[i] + b[i] + 5.0F;
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert "free(a);" in str(operator)
 
-    def test_heap_perfect_2D_stencil(self):
+        op = Operator([Eq(a[i], a[i] + b[i] + 5.),
+                       Eq(f[j], a[j])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
+                                   '((aligned (64))) = (float (*)) f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+
+    def test_heap_perfect_2D(self):
         i, j, k = dimensions('i j k')
+
         a = Array(name='a', dimensions=(i,))
         c = Array(name='c', dimensions=(i, j))
         f = Function(name='f', shape=(3, 3), dimensions=(j, k))
-        operator = Operator([Eq(a[i], c[i, j]),
-                             Eq(c[i, j], c[i, j]*a[i]),
-                             Eq(f[j, k], a[j] + c[j, k])],
-                            dse='noop', dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float (*c)[j_size];
-  posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    for (int j = j_m; j <= j_M; j += 1)
-    {
-      a[i] = c[i][j];
-      c[i][j] = a[i]*c[i][j];
-    }
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert """\
-  free(a);
-  free(c);
-  return 0;""" in str(operator)
 
-    def test_heap_imperfect_2D_stencil(self):
+        op = Operator([Eq(a[i], c[i, j]),
+                       Eq(c[i, j], c[i, j]*a[i]),
+                       Eq(f[j, k], a[j] + c[j, k])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
+                                   'f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
+        assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
+                                             'sizeof(float[i_size][j_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[1]) == 'free(c);'
+
+    def test_heap_imperfect_2D(self):
         i, j, k = dimensions('i j k')
+
         a = Array(name='a', dimensions=(i,))
         c = Array(name='c', dimensions=(i, j))
         f = Function(name='f', shape=(3, 3), dimensions=(j, k))
-        operator = Operator([Eq(a[i], 0),
-                             Eq(c[i, j], c[i, j]*a[i]),
-                             Eq(f[j, k], a[j] + c[j, k])],
-                            dse='noop', dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float (*c)[j_size];
-  posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    a[i] = 0;
-    for (int j = j_m; j <= j_M; j += 1)
-    {
-      c[i][j] = a[i]*c[i][j];
-    }
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert """\
-  free(a);
-  free(c);
-  return 0;""" in str(operator)
 
-    def test_stack_scalar_temporaries(self):
+        op = Operator([Eq(a[i], 0),
+                       Eq(c[i, j], c[i, j]*a[i]),
+                       Eq(f[j, k], a[j] + c[j, k])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
+                                   'f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
+        assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
+                                             'sizeof(float[i_size][j_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[1]) == 'free(c);'
+
+    def test_stack_scalars(self):
         i, j = dimensions('i j')
+
         a = Array(name='a', dimensions=(i,))
         f = Function(name='f', shape=(3,), dimensions=(j,))
         t0 = Scalar(name='t0')
         t1 = Scalar(name='t1')
-        operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a[i], t0*t1*3.), Eq(f, a[j])],
-                            dse='noop', dle=None)
-        assert """\
-  float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float t0 = 1.00000000000000F;
-  float t1 = 2.00000000000000F;
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int i = i_m; i <= i_M; i += 1)
-  {
-    a[i] = 3.0F*t0*t1;
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
-        assert """\
-  free(a);
-  return 0;""" in str(operator)
 
-    def test_stack_vector_temporaries(self):
+        op = Operator([Eq(t0, 1.),
+                       Eq(t1, 2.),
+                       Eq(a[i], t0*t1*3.),
+                       Eq(f, a[j])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
+                                   '((aligned (64))) = (float (*)) f_vec->data;')
+
+        assert op.body[1].is_List
+        assert str(op.body[1].header[0]) == 'float (*a);'
+        assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
+                                             'sizeof(float[i_size]));')
+        assert str(op.body[1].footer[0]) == 'free(a);'
+
+        assert op.body[1].body[1].body[0].is_ExpressionBundle
+        assert str(op.body[1].body[1].body[0].body[0]) == 'float t0 = 1.00000000000000F;'
+        assert str(op.body[1].body[1].body[0].body[1]) == 'float t1 = 2.00000000000000F;'
+
+    def test_stack_arrays(self):
         i, j, k, s, q = dimensions('i j k s q')
+
         c = Array(name='c', dimensions=(i, j), scope='stack')
         e = Array(name='e', dimensions=(k, s, q, i, j))
         f = Function(name='f', shape=(3, 3), dimensions=(s, q))
-        operator = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.), Eq(f, c[s, q])],
-                            dse='noop', dle=None)
-        assert """\
-  float c[i_size][j_size] __attribute__((aligned(64)));
-  struct timeval start_section0, end_section0;
-  gettimeofday(&start_section0, NULL);
-  /* Begin section0 */
-  for (int k = k_m; k <= k_M; k += 1)
-  {
-    for (int s = s_m; s <= s_M; s += 1)
-    {
-      for (int q = q_m; q <= q_M; q += 1)
-      {
-        for (int i = i_m; i <= i_M; i += 1)
-        {
-          for (int j = j_m; j <= j_M; j += 1)
-          {
-            c[i][j] = 1.0F*e[k][s][q][i][j];
-          }
-        }
-      }
-    }
-  }
-  /* End section0 */
-  gettimeofday(&end_section0, NULL);
-  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
-+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+
+        op = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.),
+                       Eq(f, c[s, q])])
+
+        assert op.body[0].is_ArrayCast
+        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
+                                   'f_vec->data;')
+
+        assert op.body[1].is_Element
+        assert str(op.body[1]) == 'float c[i_size][j_size] __attribute__((aligned(64)));'
 
     def test_conditional_declarations(self):
         x = Dimension(name="x")
@@ -1229,9 +1213,9 @@ class TestLoopScheduling(object):
         eq1 = Eq(tu, tv*ti0 + ti0)
         eq2 = Eq(ti0, tu + 3.)
         eq3 = Eq(tv, ti0*ti1)
-        op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
-        op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
-        op3 = Operator([eq3, eq2, eq1], dse='noop', dle='noop')
+        op1 = Operator([eq1, eq2, eq3], opt='noop')
+        op2 = Operator([eq2, eq1, eq3], opt='noop')
+        op3 = Operator([eq3, eq2, eq1], opt='noop')
 
         trees = [retrieve_iteration_tree(i) for i in [op1, op2, op3]]
         assert all(len(i) == 1 for i in trees)
@@ -1283,7 +1267,9 @@ class TestLoopScheduling(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns)
+        # `opt='noop'` is only to avoid loop blocking, hence making the asserts
+        # below much simpler to write and understand
+        op = Operator(eqns, opt='noop')
 
         # Fission expected
         trees = retrieve_iteration_tree(op)
@@ -1417,10 +1403,10 @@ class TestLoopScheduling(object):
         # Here the difference is that we're using SubDimensions
         (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
           'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
-         '+++++++', ['txi0yi0zi0', 'txi0yi0zi0'], 'txi0yi0zi0xi0yi0zi0'),
+         '+++++++', ['ti0xi0yi0z', 'ti0xi0yi0z'], 'ti0xi0yi0zi0xi0yi0z'),
         # 16) RAW 3->1; expected=2
         # Time goes backward, but the third equation should get fused with
-        # the first one, as there dependence is carried along time
+        # the first one, as the time dependence is loop-carried
         (('Eq(tv[t-1,x,y,z], tv[t,x-1,y,z] + tv[t,x+1,y,z])',
           'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
           'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
@@ -1463,7 +1449,9 @@ class TestLoopScheduling(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns, dse='noop', dle=('noop', {'openmp': False}))
+        # Note: `topofuse` is a subset of `advanced` mode. We use it merely to
+        # bypass 'blocking', which would complicate the asserts below
+        op = Operator(eqns, opt=('topofuse', {'openmp': False}))
 
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
@@ -1497,7 +1485,7 @@ class TestLoopScheduling(object):
         eq0 = Eq(t1, e*1.)
         eq1 = Eq(f, t0*3. + t1)
         eq2 = Eq(h, g + 4. + f*5.)
-        op = Operator([eq0, eq1, eq2], dse='noop', dle='noop')
+        op = Operator([eq0, eq1, eq2], opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
         outer, middle, inner = trees
@@ -1523,7 +1511,7 @@ class TestLoopScheduling(object):
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
                Eq(b[time, x, y, 0], 0.)]
-        op = Operator([main] + bcs, dse='noop', dle='noop')
+        op = Operator([main] + bcs, opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(id(trees[0][0]) == id(i[0]) for i in trees)
@@ -1537,7 +1525,7 @@ class TestLoopScheduling(object):
                     scope='heap').indexify()
         eq1 = Eq(ti0, t0*3.)
         eq2 = Eq(tu, ti0 + t1*3.)
-        op = Operator([eq1, eq2], dse='noop', dle='noop')
+        op = Operator([eq1, eq2], opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
         assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
@@ -1562,7 +1550,7 @@ class TestLoopScheduling(object):
 
         eqs = [eval(exprs[0]), eval(exprs[1])]
 
-        op = Operator(eqs, dse='noop', dle='noop')
+        op = Operator(eqs, opt='noop')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
@@ -1570,7 +1558,7 @@ class TestLoopScheduling(object):
         assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
 
     @pytest.mark.parametrize('shape', [(11, 11), (11, 11, 11)])
-    def test_equations_mixed_densedata_timedata(self, shape):
+    def test_equations_mixed_functions(self, shape):
         """
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
@@ -1593,12 +1581,12 @@ class TestLoopScheduling(object):
                      Eq(b2, time*b2*a + b2)]
             subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim])}
 
-            op = Operator(eqns, subs=subs, dle='noop')
+            op = Operator(eqns, subs=subs, opt='noop')
             trees = retrieve_iteration_tree(op)
             assert len(trees) == 2
             assert all(trees[0][i] is trees[1][i] for i in range(3))
 
-            op2 = Operator(eqns2, subs=subs, dle='noop')
+            op2 = Operator(eqns2, subs=subs, opt='noop')
             trees = retrieve_iteration_tree(op2)
             assert len(trees) == 2
 
@@ -1625,7 +1613,7 @@ class TestLoopScheduling(object):
         u2 = TimeFunction(name='u2', grid=grid, save=2)
         eqn_1 = Eq(u1[t+1, x, y, z], u1[t, x, y, z] + 1.)
         eqn_2 = Eq(u2[time+1, x, y, z], u2[time, x, y, z] + 1.)
-        op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
+        op = Operator([eqn_1, eqn_2], opt='topofuse')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         assert len(trees[0][-1].nodes[0].exprs) == 2
@@ -1690,9 +1678,9 @@ class TestLoopScheduling(object):
         eqn3 = Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)
         eqn4 = sf2.interpolate(u2)
 
-        # Note: DLE disabled only because with OpenMP otherwise there might be more
+        # Note: opts disabled only because with OpenMP otherwise there might be more
         # `trees` than 4
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         # Time loop not shared due to the WAR
@@ -1702,7 +1690,7 @@ class TestLoopScheduling(object):
 
         # Now single, shared time loop expected
         eqn2 = sf1.inject(u1.forward, expr=sf1)
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)
@@ -1722,7 +1710,7 @@ class TestLoopScheduling(object):
         # Note that `eq1` doesn't impose any constraint on the ordering of
         # the `time` Dimension w.r.t. the `grid` Dimensions, as `time` appears
         # as a free Dimension and not within an array access such as [time, x, y]
-        op = Operator([eq0, eq1])
+        op = Operator([eq0, eq1], opt='topofuse')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         tree = trees[0]

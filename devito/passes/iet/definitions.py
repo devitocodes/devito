@@ -7,8 +7,8 @@ from collections import OrderedDict
 
 import cgen as c
 
-from devito.ir import (ArrayCast, Element, Expression, List, LocalExpression,
-                       FindNodes, MapExprStmts, Transformer)
+from devito.ir import (ArrayCast, Element, List, LocalExpression, FindSymbols,
+                       MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import ccode
 from devito.tools import flatten
@@ -163,8 +163,8 @@ class DataManager(object):
         # Make the generated code less verbose: if a non-Array parameter does not
         # appear in any Expression, that is, if the parameter is merely propagated
         # down to another Call, then there's no need to cast it
-        exprs = FindNodes(Expression).visit(iet)
-        need_cast = {i for i in set().union(*[i.functions for i in exprs]) if i.is_Tensor}
+        functions = FindSymbols().visit(iet)
+        need_cast = {i for i in functions if i.is_Tensor}
         need_cast.update({i for i in iet.parameters if i.is_Array})
 
         casts = tuple(ArrayCast(i) for i in iet.parameters if i in need_cast)

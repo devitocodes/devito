@@ -2,14 +2,11 @@ import cgen as c
 from sympy import Mod, Eq
 import pytest
 
-from conftest import skipif
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
                            Conditional, printAST, Iteration)
 from devito.types import SpaceDimension, Array, Grid
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture(scope="module")
@@ -97,39 +94,39 @@ def block4(exprs, iters, dims):
 def test_printAST(block1, block2, block3, block4):
     str1 = printAST(block1)
     assert str1 in """
-<Iteration i::i::(0, 3, 1)::(0, 0)>
-  <Iteration j::j::(0, 5, 1)::(0, 0)>
-    <Iteration k::k::(0, 7, 1)::(0, 0)>
+<Iteration i::i::(0, 3, 1)>
+  <Iteration j::j::(0, 5, 1)>
+    <Iteration k::k::(0, 7, 1)>
       <Expression a[i] = a[i] + b[i] + 5.0>
 """
 
     str2 = printAST(block2)
     assert str2 in """
-<Iteration i::i::(0, 3, 1)::(0, 0)>
+<Iteration i::i::(0, 3, 1)>
   <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration j::j::(0, 5, 1)::(0, 0)>
-    <Iteration k::k::(0, 7, 1)::(0, 0)>
+  <Iteration j::j::(0, 5, 1)>
+    <Iteration k::k::(0, 7, 1)>
       <Expression a[i] = -a[i] + b[i]>
 """
 
     str3 = printAST(block3)
     assert str3 in """
-<Iteration i::i::(0, 3, 1)::(0, 0)>
-  <Iteration s::s::(0, 4, 1)::(0, 0)>
+<Iteration i::i::(0, 3, 1)>
+  <Iteration s::s::(0, 4, 1)>
     <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration j::j::(0, 5, 1)::(0, 0)>
-    <Iteration k::k::(0, 7, 1)::(0, 0)>
+  <Iteration j::j::(0, 5, 1)>
+    <Iteration k::k::(0, 7, 1)>
       <Expression a[i] = -a[i] + b[i]>
       <Expression a[i] = 4*a[i]*b[i]>
-  <Iteration q::q::(0, 4, 1)::(0, 0)>
+  <Iteration q::q::(0, 4, 1)>
     <Expression a[i] = 8.0*a[i] + 6.0/b[i]>
 """
 
     str4 = printAST(block4)
     assert str4 in """
-<Iteration i::i::(0, 3, 1)::(0, 0)>
+<Iteration i::i::(0, 3, 1)>
   <If Eq(Mod(i, 2), 0)>
-    <Iteration j::j::(0, 5, 1)::(0, 0)>
+    <Iteration j::j::(0, 5, 1)>
       <Expression a[i] = a[i] + b[i] + 5.0>
 """
 
@@ -330,8 +327,8 @@ def test_nested_transformer(exprs, iters, block2):
     mapper = {target_loop: iters[3](target_loop.nodes[0]),
               target_expr: exprs[3]}
     processed = Transformer(mapper, nested=True).visit(block2)
-    assert printAST(processed) == """<Iteration i::i::(0, 3, 1)::(0, 0)>
+    assert printAST(processed) == """<Iteration i::i::(0, 3, 1)>
   <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration s::s::(0, 4, 1)::(0, 0)>
-    <Iteration k::k::(0, 7, 1)::(0, 0)>
+  <Iteration s::s::(0, 4, 1)>
+    <Iteration k::k::(0, 7, 1)>
       <Expression a[i] = 8.0*a[i] + 6.0/b[i]>"""

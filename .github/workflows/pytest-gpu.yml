@@ -42,10 +42,11 @@ jobs:
 
     - name: deploy VM
       env:
-        RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+        RESOURCE_GROUP: ${{ secrets.CI_GPU_RESOURCE_GROUP }}
         RESOURCE_GROUP_REGION: uksouth
+        VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: gpu_ci_vm-image-21022020
+        IMAGE: gpu_ci_vm-image-0104
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
@@ -54,13 +55,14 @@ jobs:
         -azureSubscriptionName ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         -resourceGroupName $RESOURCE_GROUP
         -resourceGroupNameRegion $RESOURCE_GROUP_REGION
+        -size $VM_SIZE
         -serverName $SERVER_NAME
         -vmImage $IMAGE
-        -adminLogin ${{ secrets.ADMIN_LOGIN }}
-        -adminPassword ${{ secrets.ADMIN_PASSWORD }}
+        -adminLogin ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
+        -adminPassword ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
 
     - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
+      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.CI_GPU_RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
       id: host
 
     - name: execute tests on VM
@@ -68,12 +70,9 @@ jobs:
       with:
         command: |
           #! /bin/bash
-          # Ensure clang and cuda libraries are visible
-          export PATH=~/programs/install/bin:$PATH
-          export LD_LIBRARY_PATH=~/programs/install/lib:$LD_LIBRARY_PATH
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
-          cd ~/programs/devito
+          cd ~/devito
           # Ensure no merge conflicts arise
           git checkout master
           if [ "${{ steps.extract_branch.outputs.branch }}" == "master" ]; then
@@ -84,9 +83,14 @@ jobs:
               git fetch
               git checkout ${{ steps.extract_branch.outputs.branch }}
           fi
+          # OpenMP offloading
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test tests/test_gpu_openmp.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
+          # OpenACC
+          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
+          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/acoustic/acoustic_example.py
+          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
         host: ${{ steps.host.outputs.action_host }}
-        user: ${{ secrets.ADMIN_LOGIN }}
-        pass: ${{ secrets.ADMIN_PASSWORD }}
+        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
+        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}

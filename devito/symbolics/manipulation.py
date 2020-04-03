@@ -118,12 +118,16 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
             return expr, rule(expr)
         elif expr.is_Pow:
             base, flag = run(expr.base)
-            if flag and costmodel(base):
-                return expr.func(replace(base), expr.exp, evaluate=False), False
-            elif flag and costmodel(expr):
-                return replace(expr), False
+            if flag:
+                if costmodel(base):
+                    return expr.func(replace(base), expr.exp, evaluate=False), False
+                elif costmodel(expr):
+                    return replace(expr), False
+                else:
+                    # If `rule(expr)`, keep searching for larger expressions
+                    return expr.func(base, expr.exp, evaluate=False), rule(expr)
             else:
-                return expr.func(base, expr.exp, evaluate=False), rule(expr)
+                return expr.func(base, expr.exp, evaluate=False), False
         else:
             children = [run(a) for a in expr.args]
             matching = [a for a, flag in children if flag]
@@ -135,7 +139,7 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
             if eager is False:
                 matched = expr.func(*matching, evaluate=False)
                 if len(matching) == len(children) and rule(expr):
-                    # Go look for larger expressions first
+                    # Keep searching for larger expressions
                     return matched, True
                 elif rule(matched) and costmodel(matched):
                     # E.g.: a*b*c*d -> a*r0
@@ -164,7 +168,7 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
                         rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
                         return rebuilt, False
                 elif len(matching) == len(children) and rule(expr):
-                    # Go look for larger expressions
+                    # Keep searching for larger expressions
                     return matched, True
                 else:
                     # E.g.: a*b*c*d; a,b,a*b replaceable but not satisfying the cost
@@ -233,13 +237,19 @@ def pow_to_mul(expr):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
-        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0 or exp == -1:
-            # Large and non-integer powers remain untouched, as do reciprocals
+        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0:
+            # Large and non-integer powers remain untouched
             return expr
+        elif exp == -1:
+            # Reciprocals also remain untouched, but we traverse the base
+            # looking for other Pows
+            return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
             return sympy.Mul(*[base]*exp, evaluate=False)
         else:
-            # sympy represents 1/x as Pow(x,-1)
+            # SymPy represents 1/x as Pow(x,-1). Also, it represents
+            # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
+            # but just in case SymPy changes its internal conventions...
             posexpr = sympy.Mul(*[base]*(-exp), evaluate=False)
             return sympy.Pow(posexpr, -1, evaluate=False)
     else:

@@ -1,6 +1,6 @@
 from sympy import Add, Mul, collect, collect_const
 
-from devito.passes.clusters.utils import dse_pass
+from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import estimate_cost, retrieve_scalars
 from devito.tools import ReducerMap
 
@@ -14,7 +14,7 @@ is applied.
 """
 
 
-@dse_pass
+@cluster_pass
 def factorize(cluster, *args):
     """
     Factorize trascendental functions, symbolic powers, numeric coefficients.

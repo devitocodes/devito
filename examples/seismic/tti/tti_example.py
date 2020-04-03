@@ -35,9 +35,6 @@ if __name__ == "__main__":
                         help="Preset to determine the physical problem setup")
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Whether or not to use an azimuth angle")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
@@ -45,11 +42,12 @@ if __name__ == "__main__":
     parser.add_argument("-k", dest="kernel", default='centered',
                         choices=['centered', 'staggered'],
                         help="Choice of finite-difference kernel")
-    parser.add_argument("-dse", default="advanced",
-                        choices=["noop", "basic", "advanced", "aggressive"],
-                        help="Devito symbolic engine (DSE) mode")
-    parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
-                        help="Devito loop engine (DLE) mode")
+    parser.add_argument("-opt", default="advanced",
+                        choices=configuration._accepted['opt'],
+                        help="Performance optimization level")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     args = parser.parse_args()
 
     preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
@@ -64,5 +62,5 @@ if __name__ == "__main__":
         tn = 250.0
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
-        space_order=args.space_order, autotune=args.autotune, dse=args.dse,
-        dle=args.dle, kernel=args.kernel, preset=preset)
+        space_order=args.space_order, autotune=args.autotune,
+        opt=args.opt, kernel=args.kernel, preset=preset)

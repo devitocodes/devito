@@ -19,13 +19,13 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integer,
+from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
-from devito.types.utils import Buffer, NODE, CELL
+from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction']
 
@@ -308,17 +308,30 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
     @cached_property
     def _size_outhalo(self):
         """Number of points in the outer halo region."""
+
         if self._distributor is None:
+            # Computational domain is not distributed and hence the outhalo
+            # and inhalo correspond
             return self._size_inhalo
 
-        left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
-                for d, i in zip(self.dimensions, self._size_inhalo.left)]
-        right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
-                 for d, i in zip(self.dimensions, self._size_inhalo.right)]
+        left = [abs(min(i.loc_abs_min-i.glb_min-j, 0)) if i and not i.loc_empty else 0
+                for i, j in zip(self._decomposition, self._size_inhalo.left)]
+        right = [max(i.loc_abs_max+j-i.glb_max, 0) if i and not i.loc_empty else 0
+                 for i, j in zip(self._decomposition, self._size_inhalo.right)]
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        if self._distributor.is_parallel and any(left) > 0 or any(right) > 0:
+            try:
+                if not self._distributor.is_boundary_rank:
+                    warning("A space order of %d  and a halo size of %d has been set "
+                            "but the current rank (%d) has a domain size of only %d" %
+                            (self._space_order, max(self._size_inhalo),
+                             self._distributor.myrank, min(self.grid.shape_local)))
+            except AttributeError:
+                pass
+
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @property
     def size_allocated(self):

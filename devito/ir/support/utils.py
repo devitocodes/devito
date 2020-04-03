@@ -10,16 +10,16 @@ __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals
            'align_accesses', 'detect_io']
 
 
-def detect_accesses(expr):
+def detect_accesses(exprs):
     """
     Return a mapper ``M : F -> S``, where F are Functions appearing
-    in ``expr`` and S are Stencils. ``M[f]`` represents all data accesses
-    to ``f`` within ``expr``. Also map ``M[None]`` to all Dimensions used in
-    ``expr`` as plain symbols, rather than as array indices.
+    in ``exprs`` and S are Stencils. ``M[f]`` represents all data accesses
+    to ``f`` within ``exprs``. Also map ``M[None]`` to all Dimensions used in
+    ``exprs`` as plain symbols, rather than as array indices.
     """
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
-    for e in retrieve_indexed(expr, deep=True):
+    for e in retrieve_indexed(exprs, deep=True):
         f = e.function
         for a in e.indices:
             if isinstance(a, Dimension):
@@ -35,8 +35,8 @@ def detect_accesses(expr):
                 mapper[f][d].update(off or [0])
 
     # Compute M[None]
-    other_dims = [i for i in retrieve_terminals(expr) if isinstance(i, Dimension)]
-    other_dims.extend(list(expr.implicit_dims))
+    other_dims = [i for i in retrieve_terminals(exprs) if isinstance(i, Dimension)]
+    other_dims.extend(list(flatten(expr.implicit_dims for expr in as_tuple(exprs))))
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper

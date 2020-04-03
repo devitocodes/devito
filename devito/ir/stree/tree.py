@@ -55,11 +55,9 @@ class NodeIteration(ScheduleTree):
 
     @property
     def limits(self):
-        return (self.dim.extreme_min, self.dim.extreme_max, 1)
-
-    @property
-    def offsets(self):
-        return self.interval.offsets
+        return (self.dim.symbolic_min + self.interval.lower,
+                self.dim.symbolic_max + self.interval.upper,
+                self.dim.symbolic_incr)
 
     @property
     def direction(self):

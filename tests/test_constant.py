@@ -1,9 +1,6 @@
 import numpy as np
 
-from conftest import skipif
 from devito import Grid, Constant, Function, TimeFunction, Eq, solve, Operator
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 class TestConst(object):

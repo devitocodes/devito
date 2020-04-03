@@ -1,14 +1,14 @@
 from collections import OrderedDict
 
 from devito.ir import DummyEq, Cluster, Scope
-from devito.passes.clusters.utils import dse_pass, makeit_ssa
+from devito.passes.clusters.utils import cluster_pass, makeit_ssa
 from devito.symbolics import count, estimate_cost, q_xop, q_leaf, yreplace
 from devito.types import Scalar
 
 __all__ = ['cse']
 
 
-@dse_pass
+@cluster_pass
 def cse(cluster, template, *args):
     """
     Common sub-expressions elimination (CSE).

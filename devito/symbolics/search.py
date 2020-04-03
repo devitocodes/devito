@@ -1,5 +1,6 @@
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
                                       q_trigonometry, q_scalar)
+from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
            'retrieve_terminals', 'retrieve_xops', 'retrieve_trigonometry', 'search',
@@ -104,49 +105,54 @@ class Search(object):
         return found
 
 
-def search(expr, query, mode='unique', visit='dfs', deep=False):
+def search(exprs, query, mode='unique', visit='dfs', deep=False):
     """Interface to Search."""
 
     assert mode in Search.modes, "Unknown mode"
     assert visit in ['dfs', 'bfs', 'bfs_first_hit'], "Unknown visit type"
 
     searcher = Search(query, mode, deep)
-    if visit == 'dfs':
-        return searcher.dfs(expr)
-    elif visit == 'bfs':
-        return searcher.bfs(expr)
-    else:
-        return searcher.bfs_first_hit(expr)
+
+    found = Search.modes[mode]()
+    for e in as_tuple(exprs):
+        if visit == 'dfs':
+            found.update(searcher.dfs(e))
+        elif visit == 'bfs':
+            found.update(searcher.bfs(e))
+        else:
+            found.update(searcher.bfs_first_hit(e))
+
+    return found
 
 
 # Shorthands
 
 
-def retrieve_indexed(expr, mode='all', deep=False):
-    """Shorthand to retrieve the Indexeds in ``expr``."""
-    return search(expr, q_indexed, mode, 'dfs', deep)
+def retrieve_indexed(exprs, mode='all', deep=False):
+    """Shorthand to retrieve the Indexeds in ``exprs``."""
+    return search(exprs, q_indexed, mode, 'dfs', deep)
 
 
-def retrieve_functions(expr, mode='all'):
-    """Shorthand to retrieve the DiscreteFunctions in ``expr``."""
-    return search(expr, q_function, mode, 'dfs')
+def retrieve_functions(exprs, mode='all'):
+    """Shorthand to retrieve the DiscreteFunctions in ``exprs``."""
+    return search(exprs, q_function, mode, 'dfs')
 
 
-def retrieve_scalars(expr, mode='all'):
-    """Shorthand to retrieve the Scalar in ``expr``."""
-    return search(expr, q_scalar, mode, 'dfs')
+def retrieve_scalars(exprs, mode='all'):
+    """Shorthand to retrieve the Scalar in ``exprs``."""
+    return search(exprs, q_scalar, mode, 'dfs')
 
 
-def retrieve_function_carriers(expr, mode='all'):
+def retrieve_function_carriers(exprs, mode='all'):
     """
-    Shorthand to retrieve the DiscreteFunction carriers in ``expr``. An
+    Shorthand to retrieve the DiscreteFunction carriers in ``exprs``. An
     object carries a DiscreteFunction if any of the following conditions are met: ::
 
         * it is itself a DiscreteFunction, OR
         * it is an Indexed, which internally has a pointer to a DiscreteFunction.
     """
     query = lambda i: q_function(i) or q_indexed(i)
-    retval = search(expr, query, mode, 'dfs')
+    retval = search(exprs, query, mode, 'dfs')
     # Filter off Indexeds not carrying a DiscreteFunction
     for i in list(retval):
         try:
@@ -156,16 +162,16 @@ def retrieve_function_carriers(expr, mode='all'):
     return retval
 
 
-def retrieve_terminals(expr, mode='all', deep=False):
-    """Shorthand to retrieve Indexeds and Symbols within ``expr``."""
-    return search(expr, q_terminal, mode, 'dfs', deep)
+def retrieve_terminals(exprs, mode='all', deep=False):
+    """Shorthand to retrieve Indexeds and Symbols within ``exprs``."""
+    return search(exprs, q_terminal, mode, 'dfs', deep)
 
 
-def retrieve_trigonometry(expr):
-    """Shorthand to retrieve the trigonometric functions within ``expr``."""
-    return search(expr, q_trigonometry, 'unique', 'dfs')
+def retrieve_trigonometry(exprs):
+    """Shorthand to retrieve the trigonometric functions within ``exprs``."""
+    return search(exprs, q_trigonometry, 'unique', 'dfs')
 
 
-def retrieve_xops(expr):
-    """Shorthand to retrieve the arithmetic operations within ``expr``."""
-    return search(expr, q_xop, 'all', 'dfs')
+def retrieve_xops(exprs):
+    """Shorthand to retrieve the arithmetic operations within ``exprs``."""
+    return search(exprs, q_xop, 'all', 'dfs')

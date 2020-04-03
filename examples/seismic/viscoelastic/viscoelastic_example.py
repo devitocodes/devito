@@ -47,20 +47,18 @@ if __name__ == "__main__":
     parser = ArgumentParser(description=description)
     parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
                         type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("-dse", default="advanced",
-                        choices=["noop", "basic", "advanced", "aggressive"],
-                        help="Devito symbolic engine (DSE) mode")
-    parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
-                        help="Devito loop engine (DLEE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
+    parser.add_argument("-opt", default="advanced",
+                        choices=configuration._accepted['opt'],
+                        help="Performance optimization level")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     args = parser.parse_args()
 
     # 2D preset parameters
@@ -74,6 +72,5 @@ if __name__ == "__main__":
         spacing = (10.0, 10.0, 10.0)
         tn = 1250.0
 
-    run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, dle=args.dle,
-        space_order=args.space_order, autotune=args.autotune, constant=args.constant,
-        dse=args.dse)
+    run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, opt=args.opt,
+        space_order=args.space_order, autotune=args.autotune, constant=args.constant)

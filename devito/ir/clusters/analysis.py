@@ -9,7 +9,7 @@ from devito.tools import as_tuple, flatten, timed_pass
 __all__ = ['analyze']
 
 
-@timed_pass(name='lowering.Clusters.Analysis')
+@timed_pass()
 def analyze(clusters):
     state = State()
 
@@ -20,7 +20,7 @@ def analyze(clusters):
     clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
-    # Rebuild Clusters to attach the discovered properties
+    # Reconstruct Clusters attaching the discovered properties
     processed = [c.rebuild(properties=state.properties.get(c)) for c in clusters]
 
     return processed

@@ -87,7 +87,7 @@ class Profiler(object):
             for i in bundles:
                 writes = {e.write for e in i.exprs
                           if e.is_tensor and e.write.is_TimeFunction}
-                points.append(reduce(mul, i.shape)*len(writes))
+                points.append(i.size*len(writes))
             points = sum(points)
 
             self._sections[section] = SectionData(ops, sops, points, traffic, itermaps)
@@ -184,16 +184,16 @@ class AdvancedProfiler(Profiler):
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
             # Number of FLOPs performed
-            ops = data.ops.subs(args)
+            ops = int(data.ops.subs(args))
 
             # Number of grid points computed
-            points = data.points.subs(args)
+            points = int(data.points.subs(args))
 
             # Compulsory traffic
             traffic = float(data.traffic.subs(args)*dtype().itemsize)
 
             # Runtime itermaps/itershapes
-            itermaps = [OrderedDict([(k, v.subs(args)) for k, v in i.items()])
+            itermaps = [OrderedDict([(k, int(v.subs(args))) for k, v in i.items()])
                         for i in data.itermaps]
             itershapes = tuple(tuple(i.values()) for i in itermaps)
 

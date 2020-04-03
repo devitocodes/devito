@@ -5,16 +5,14 @@ import pickle
 
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    Dimension, SubDimension, ConditionalDimension, TimeDimension,
-                    SteppingDimension, Operator)
+                    Dimension, SubDimension, ConditionalDimension, IncrDimension,
+                    TimeDimension, SteppingDimension, Operator, ShiftedDimension)
 from devito.mpi.routines import MPIStatusObject, MPIRequestObject
 from devito.operator.profiling import Timer
 from devito.types import Symbol as dSymbol, Scalar
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
-
-pytestmark = skipif('ops')
 
 
 def test_constant():
@@ -118,12 +116,38 @@ def test_conditional_dimension():
     cd = ConditionalDimension(name='ci', parent=d, factor=4, condition=s > 3)
 
     pkl_cd = pickle.dumps(cd)
-    pkl_cd = pickle.loads(pkl_cd)
+    new_cd = pickle.loads(pkl_cd)
 
-    assert cd.name == pkl_cd.name
-    assert cd.parent == pkl_cd.parent
-    assert cd.factor == pkl_cd.factor
-    assert cd.condition == pkl_cd.condition
+    assert cd.name == new_cd.name
+    assert cd.parent == new_cd.parent
+    assert cd.factor == new_cd.factor
+    assert cd.condition == new_cd.condition
+
+
+def test_incr_dimension():
+    s = Scalar(name='s')
+    d = Dimension(name='d')
+    dd = IncrDimension(d, s, 5, 2, name='dd')
+
+    pkl_dd = pickle.dumps(dd)
+    new_dd = pickle.loads(pkl_dd)
+
+    assert dd.name == new_dd.name
+    assert dd.parent == new_dd.parent
+    assert dd.symbolic_min == new_dd.symbolic_min
+    assert dd.symbolic_max == new_dd.symbolic_max
+    assert dd.step == new_dd.step
+
+
+def test_shifted_dimension():
+    d = Dimension(name='d')
+    dd = ShiftedDimension(d, name='dd')
+
+    pkl_dd = pickle.dumps(dd)
+    new_dd = pickle.loads(pkl_dd)
+
+    assert dd.name == new_dd.name
+    assert dd.parent == new_dd.parent
 
 
 def test_receiver():
@@ -298,7 +322,7 @@ def test_operator_timefunction_w_preallocation():
     assert np.all(f.data[2] == 2)
 
 
-@skipif(['yask', 'nompi'])
+@skipif(['nompi'])
 @pytest.mark.parallel(mode=[1])
 def test_mpi_objects():
     # Neighbours
@@ -332,7 +356,7 @@ def test_mpi_objects():
     assert obj.dtype == new_obj.dtype
 
 
-@skipif(['yask', 'nompi'])
+@skipif(['nompi'])
 @pytest.mark.parallel(mode=[1])
 def test_mpi_operator():
     grid = Grid(shape=(4,))

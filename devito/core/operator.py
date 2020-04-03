@@ -20,10 +20,12 @@ class OperatorCore(Operator):
         if setup in [False, 'off']:
             return args
         elif setup is True:
-            level = configuration['autotuning'].level or 'basic'
-            args, summary = autotune(self, args, level, configuration['autotuning'].mode)
+            level, mode = configuration['autotuning']
+            level = level or 'basic'
+            args, summary = autotune(self, args, level, mode)
         elif isinstance(setup, str):
-            args, summary = autotune(self, args, setup, configuration['autotuning'].mode)
+            _, mode = configuration['autotuning']
+            args, summary = autotune(self, args, setup, mode)
         elif isinstance(setup, tuple) and len(setup) == 2:
             level, mode = setup
             if level is False:

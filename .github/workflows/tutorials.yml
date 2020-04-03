@@ -17,7 +17,7 @@ jobs:
 
     env:
       DEVITO_ARCH: "${{ matrix.compiler }}"
-      DEVITO_OPENMP: ${{ matrix.openmp }}
+      DEVITO_LANGUAGE: ${{ matrix.language }}
       DEVITO_BACKEND: "core"
       PYTHON_VERSION: "3.7"
       RUN_CMD: ""
@@ -37,22 +37,22 @@ jobs:
           - name: tutos-ubuntu-gcc-py37
             os: ubuntu-16.04
             compiler: gcc-7
-            openmp: 1
+            language: "openmp"
 
           - name: tutos-osx-gcc-py37
             os: macos-latest
             compiler: gcc-9
-            openmp: 1
+            language: "openmp"
 
           - name: tutos-osx-clang-py37
             os: macos-latest
             compiler: clang
-            openmp: 0
+            language: "C"
 
           - name: tutos-docker-gcc-py36
             os: ubuntu-latest
             compiler: gcc
-            openmp: 1
+            language: "openmp"
 
     steps:
     - name: Checkout devito
@@ -90,20 +90,28 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-        $RUN_CMD py.test --nbval $SKIP examples/seismic/tutorials/
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml $SKIP examples/seismic/tutorials/
 
     - name: CFD notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/cfd
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:cfd_coverage.xml examples/cfd
 
     - name: User api notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/userapi
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:api_coverage.xml examples/userapi
 
     - name: Compiler notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/compiler
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/compiler
 
     - name: GPU notebooks (only codegen)
       run: |
         $RUN_CMD py.test --nbval examples/gpu
+
+    - name: Upload coverage to Codecov
+      if: matrix.name != 'tutos-docker-gcc-py36'
+      uses: codecov/codecov-action@v1.0.6
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: ${{ matrix.name }}
+        file: ./*_coverage.xml

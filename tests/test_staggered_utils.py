@@ -1,11 +1,7 @@
 import pytest
 
-from conftest import skipif
 from devito import Function, Grid, NODE
 from devito.tools import powerset
-
-
-pytestmark = skipif(['yask'])
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])

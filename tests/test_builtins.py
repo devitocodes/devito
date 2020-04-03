@@ -11,8 +11,6 @@ from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
 from devito.types import SubDomain, SparseTimeFunction
 
-pytestmark = skipif(['yask', 'ops'])
-
 
 class TestAssign(object):
 
@@ -156,7 +154,7 @@ class TestGaussianSmooth(object):
         assert np.amax(np.abs(sp_smoothed - np.array(dv_smoothed))) <= 1e-5
 
     @skipif('nompi')
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=[(4, 'full')])
     def test_gs_parallel(self):
         a = np.arange(64).reshape((8, 8))
         grid = Grid(shape=a.shape)

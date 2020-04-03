@@ -1,15 +1,13 @@
 import numpy as np
+import sympy as sp
 import pytest
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Coefficient, Substitutions,
                     Dimension, solve, Operator)
 from devito.finite_differences import Differentiable
 from devito.tools import as_tuple
 
 _PRECISION = 9
-
-pytestmark = skipif(['yask', 'ops'])
 
 
 class TestSC(object):
@@ -94,3 +92,23 @@ class TestSC(object):
         op1(time_m=0, time_M=5, dt=1.0)
 
         assert np.all(np.isclose(f0.data[:] - f1.data[:], 0.0, atol=1e-5, rtol=0))
+
+    def test_coefficients_w_xreplace(self):
+        """Test custom coefficients with an xreplace before they are applied"""
+        grid = Grid(shape=(4, 4))
+        u = Function(name='u', grid=grid, space_order=2, coefficients='symbolic')
+        x = grid.dimensions[0]
+
+        dorder = 1
+        weights = np.array([-0.6, 0.1, 0.6])
+
+        coeffs = Coefficient(dorder, u, x, weights)
+
+        c = sp.Symbol('c')
+
+        eq = Eq(u.dx+c, coefficients=Substitutions(coeffs))
+        eq = eq.xreplace({c: 2})
+
+        expected = '0.1*u(x, y) - 0.6*u(x - h_x, y) + 0.6*u(x + h_x, y) + 2'
+
+        assert expected == str(eq.evaluate.lhs)

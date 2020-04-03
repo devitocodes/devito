@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 from sympy import simplify, diff, cos, sin
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE,
                     ConditionalDimension, left, right, centered)
 from devito.finite_differences import Derivative, Differentiable
@@ -26,7 +25,6 @@ def t(grid):
     return grid.stepping_dim
 
 
-@skipif(['yask', 'ops'])
 class TestFD(object):
     """
     Class for finite difference testing.
@@ -316,7 +314,7 @@ class TestFD(object):
                 u2.data_with_halo[i, :, j] = np.arange(u2.data_with_halo.shape[2])
 
         eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2.dx)]
-        op = Operator(eqns, dse="advanced")
+        op = Operator(eqns)
         op.apply(time_M=nt-2)
         # Verify that u2[1, x,y]= du2/dx[0, x, y]
 

@@ -11,7 +11,6 @@ from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_t
 from devito.types import Array
 
 
-@skipif('ops')
 class TestSubDimension(object):
 
     def test_interior(self):
@@ -36,7 +35,6 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, :, 0] == 0.)
         assert np.all(u.data[1, :, :, -1] == 0.)
 
-    @skipif('yask')
     def test_domain_vs_interior(self):
         """
         Tests application of an Operator consisting of two equations, one
@@ -52,7 +50,7 @@ class TestSubDimension(object):
         eqs = [Eq(u.forward, u + 1),
                Eq(u.forward, u.forward + 2, subdomain=interior)]
 
-        op = Operator(eqs, dse='noop', dle='noop')
+        op = Operator(eqs, opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
 
@@ -89,7 +87,6 @@ class TestSubDimension(object):
         assert np.all(u.data[1, -1, :, :] == 1)
         assert np.all(u.data[1, 1:3, :, :] == 2)
 
-    @skipif('yask')
     def test_symbolic_size(self):
         """Check the symbolic size of all possible SubDimensions is as expected."""
         grid = Grid(shape=(4,))
@@ -144,7 +141,6 @@ class TestSubDimension(object):
                    for i in range(1, thickness + 1))
         assert np.all(u.data[0, thickness:-thickness, thickness:-thickness] == 1.)
 
-    @skipif('yask')
     def test_flow_detection_interior(self):
         """
         Test detection of flow directions when SubDimensions are used
@@ -194,18 +190,17 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, 0:5] == 0)
         assert np.all(u.data[1, :, 6:] == 0)
 
-    @skipif('yask')
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y])'], 'y'),
-        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'yi0'),
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'i0y'),
         # Carried dependence in both /t/ and /y/
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y])'], 'x'),
-        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'xi0'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'i0x'),
         # Carried dependence in /y/, leading to separate /y/ loops, one
         # going forward, the other backward
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)',
-          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'xi0'),
+          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'i0x'),
     ])
     def test_iteration_property_parallel(self, exprs, expected):
         """Tests detection of sequental and parallel Iterations when applying
@@ -222,12 +217,12 @@ class TestSubDimension(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='noop')
+        op = Operator(exprs, opt='noop')
         iterations = FindNodes(Iteration).visit(op)
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
-    @skipif(['yask', 'device'])
+    @skipif(['device'])
     @pytest.mark.parametrize('exprs,expected,', [
         # All parallel, the innermost Iteration gets vectorized
         (['Eq(u[time, x, yleft], u[time, x, yleft] + 1.)'], ['yleft']),
@@ -253,7 +248,7 @@ class TestSubDimension(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='simd')
+        op = Operator(exprs, opt='simd')
         iterations = FindNodes(Iteration).visit(op)
         vectorized = [i.dim.name for i in iterations if i.is_Vectorized]
         assert set(vectorized) == set(expected)
@@ -435,7 +430,6 @@ class TestSubDimension(object):
         assert np.all(u.data[1, 0, :] == 2.)
         assert np.all(u.data[1, 1:18, 1:18] == 0.)
 
-    @skipif('yask')
     def test_arrays_defined_over_subdims(self):
         """
         Check code generation when an Array uses a SubDimension.
@@ -447,7 +441,7 @@ class TestSubDimension(object):
         f = Function(name='f', grid=grid)
         a = Array(name='a', dimensions=(xi,), dtype=grid.dtype)
         op = Operator([Eq(a[xi], 1), Eq(f, f + a[xi + 1], subdomain=grid.interior)],
-                      dle=('advanced', {'openmp': False}))
+                      openmp=False)
         assert len(op.parameters) == 6
         # neither `x_size` nor `xi_size` are expected here
         assert not any(i.name in ('x_size', 'xi_size') for i in op.parameters)
@@ -457,7 +451,6 @@ class TestSubDimension(object):
         op()
 
 
-@skipif(['yask', 'ops'])
 class TestConditionalDimension(object):
 
     """A collection of tests to check the correct functioning of

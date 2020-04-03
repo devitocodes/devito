@@ -15,8 +15,6 @@ logger.addHandler(stream_handler)
 
 # Add extra logging levels (note: INFO has value=20, WARNING has value=30)
 DEBUG = logging.DEBUG
-YASK = 16
-YASK_WARN = 17
 PERF = 19
 INFO = logging.INFO
 WARNING = logging.WARNING
@@ -24,14 +22,10 @@ ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 
 logging.addLevelName(PERF, "PERF")
-logging.addLevelName(YASK, "YASK")
-logging.addLevelName(YASK_WARN, "YASK_WARN")
 
 logger_registry = {
     'DEBUG': DEBUG,
     'PERF': PERF,
-    'YASK': YASK,
-    'YASK_WARN': YASK_WARN,
     'INFO': INFO,
     'WARNING': WARNING,
     'ERROR': ERROR,
@@ -46,8 +40,6 @@ GREEN = '\033[1;37;32m%s\033[0m'
 COLORS = {
     DEBUG: NOCOLOR,
     PERF: GREEN,
-    YASK: NOCOLOR,
-    YASK_WARN: BLUE,
     INFO: NOCOLOR,
     WARNING: BLUE,
     ERROR: RED,
@@ -134,14 +126,6 @@ def error(msg, *args, **kwargs):
 
 def debug(msg, *args, **kwargs):
     log(msg, DEBUG, *args, **kwargs)
-
-
-def yask(msg, *args, **kwargs):
-    log("YASK: %s" % msg, YASK, *args, **kwargs)
-
-
-def yask_warning(msg, *args, **kwargs):
-    log("YASK: %s" % msg, YASK_WARN, *args, **kwargs)
 
 
 @contextmanager

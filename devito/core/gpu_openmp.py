@@ -8,7 +8,8 @@ from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.ir.iet import MapExprStmts
 from devito.logger import warning
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
+from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
+                                    factorize, freeze, fuse, optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
@@ -18,7 +19,7 @@ __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
 
 
-class DeviceParallelIteration(ParallelIteration):
+class DeviceOpenMPIteration(ParallelIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
@@ -27,7 +28,7 @@ class DeviceParallelIteration(ParallelIteration):
     @classmethod
     def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
-        return super(DeviceParallelIteration, cls)._make_clauses(**kwargs)
+        return super(DeviceOpenMPIteration, cls)._make_clauses(**kwargs)
 
 
 class DeviceOmpizer(Ompizer):
@@ -55,6 +56,8 @@ class DeviceOmpizer(Ompizer):
         'map-exit-delete': lambda i, j:
             c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
     })
+
+    _Iteration = DeviceOpenMPIteration
 
     @classmethod
     def _map_data(cls, f):
@@ -106,7 +109,7 @@ class DeviceOmpizer(Ompizer):
 
         # Prepare to build a ParallelTree
         # Create a ParallelTree
-        body = DeviceParallelIteration(ncollapse=ncollapse, **root.args)
+        body = self._Iteration(ncollapse=ncollapse, **root.args)
         partree = ParallelTree([], body, nthreads=nthreads)
 
         collapsed = [partree] + collapsable
@@ -126,18 +129,20 @@ class DeviceOmpizer(Ompizer):
         return partree
 
 
-class DeviceDataManager(DataManager):
+class DeviceOpenMPDataManager(DataManager):
+
+    _Parallelizer = DeviceOmpizer
 
     def _alloc_array_on_high_bw_mem(self, obj, storage):
         if obj in storage._high_bw_mem:
             return
 
-        super(DeviceDataManager, self)._alloc_array_on_high_bw_mem(obj, storage)
+        super(DeviceOpenMPDataManager, self)._alloc_array_on_high_bw_mem(obj, storage)
 
         decl, alloc, free = storage._high_bw_mem[obj]
 
-        alloc = c.Collection([alloc, DeviceOmpizer._map_alloc(obj)])
-        free = c.Collection([DeviceOmpizer._map_delete(obj), free])
+        alloc = c.Collection([alloc, self._Parallelizer._map_alloc(obj)])
+        free = c.Collection([self._Parallelizer._map_delete(obj), free])
 
         storage._high_bw_mem[obj] = (decl, alloc, free)
 
@@ -146,13 +151,13 @@ class DeviceDataManager(DataManager):
         if obj in storage._high_bw_mem:
             return
 
-        alloc = DeviceOmpizer._map_to(obj)
+        alloc = self._Parallelizer._map_to(obj)
 
         if read_only is False:
-            free = c.Collection([DeviceOmpizer._map_update(obj),
-                                 DeviceOmpizer._map_release(obj)])
+            free = c.Collection([self._Parallelizer._map_update(obj),
+                                 self._Parallelizer._map_release(obj)])
         else:
-            free = DeviceOmpizer._map_delete(obj)
+            free = self._Parallelizer._map_delete(obj)
 
         storage._high_bw_mem[obj] = (None, alloc, free)
 
@@ -173,7 +178,7 @@ class DeviceDataManager(DataManager):
                 if not i.is_Expression:
                     # No-op
                     continue
-                if not any(isinstance(j, DeviceParallelIteration) for j in v):
+                if not any(isinstance(j, self._Parallelizer._Iteration) for j in v):
                     # Not an offloaded Iteration tree
                     continue
                 if i.write.is_DiscreteFunction:
@@ -193,20 +198,37 @@ class DeviceDataManager(DataManager):
 
 class DeviceOpenMPNoopOperator(OperatorCore):
 
+    CIRE_REPEATS_INV = 2
+    """
+    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
+    """
+
+    CIRE_REPEATS_SOPS = 2
+    """
+    Number of CIRE passes to detect and optimize away redundant sum-of-products.
+    """
+
     @classmethod
-    def _build(cls, *args, **kwargs):
+    def _normalize_kwargs(cls, **kwargs):
+        options = kwargs['options']
+
         # Strictly unneccesary, but make it clear that this Operator *will*
         # generate OpenMP code, bypassing any `openmp=False` provided in
         # input to Operator
-        kwargs['options'].pop('openmp')
+        options.pop('openmp')
 
-        return super(DeviceOpenMPNoopOperator, cls)._build(*args, **kwargs)
+        options['cire-repeats'] = {
+            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
+            'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        }
+
+        return kwargs
 
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
-        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
-        # but it will have to change
+        options = kwargs['options']
+        platform = kwargs['platform']
 
         # To create temporaries
         counter = generator()
@@ -216,11 +238,19 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
 
-        # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, **kwargs)
-
-        # Lifting
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, template, 'invariants', options, platform)
         clusters = Lift().process(clusters)
+
+        # Reduce flops (potential arithmetic alterations)
+        clusters = extract_increments(clusters, template)
+        clusters = cire(clusters, template, 'sops', options, platform)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+        clusters = freeze(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, template)
 
         # Lifting may create fusion opportunities, which in turn may enable
         # further optimizations
@@ -243,7 +273,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         DeviceOmpizer().make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceDataManager()
+        data_manager = DeviceOpenMPDataManager()
         data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -270,7 +300,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceDataManager()
+        data_manager = DeviceOpenMPDataManager()
         data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -336,7 +366,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DeviceDataManager()
+        data_manager = DeviceOpenMPDataManager()
         data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)

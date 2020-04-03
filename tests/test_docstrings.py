@@ -15,17 +15,14 @@ from importlib import import_module
 import pytest
 import doctest
 
-from conftest import skipif
-
-pytestmark = skipif(['yask', 'ops'])
-
 
 @pytest.mark.parametrize('modname', [
     'types.basic', 'types.dimension', 'types.constant', 'types.grid',
     'types.dense', 'types.sparse', 'types.equation', 'operator',
     'data.decomposition', 'finite_differences.finite_difference',
     'finite_differences.coefficients', 'finite_differences.derivative',
-    'ir.support.space', 'data.utils', 'data.allocators', 'builtins'
+    'ir.support.space', 'data.utils', 'data.allocators', 'builtins',
+    'symbolics.inspection'
 ])
 def test_docstrings(modname):
     module = import_module('devito.%s' % modname)

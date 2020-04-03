@@ -350,37 +350,42 @@ class SubDomain(object):
     def __subdomain_finalize__(self, dimensions, shape, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
+        sdshape = []
         counter = kwargs.get('counter', 0) - 1
-        for k, v in self.define(dimensions).items():
+        for k, v, s in zip(self.define(dimensions).keys(),
+                           self.define(dimensions).values(), shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
+                sdshape.append(s)
             else:
                 try:
                     # Case ('middle', int, int)
                     side, thickness_left, thickness_right = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('%si%d' %
-                                                              (k.name, counter),
+                    sub_dimensions.append(SubDimension.middle('i%d%s' %
+                                                              (counter, k.name),
                                                               k, thickness_left,
                                                               thickness_right))
+                    sdshape.append(s-thickness_left-thickness_right)
                 except ValueError:
                     side, thickness = v
                     if side == 'left':
-                        sub_dimensions.append(SubDimension.left('%si%d' %
-                                                                (k.name, counter),
+                        sub_dimensions.append(SubDimension.left('i%d%s' %
+                                                                (counter, k.name),
                                                                 k, thickness))
+                        sdshape.append(thickness)
                     elif side == 'right':
-                        sub_dimensions.append(SubDimension.right('%si%d' %
-                                                                 (k.name, counter),
+                        sub_dimensions.append(SubDimension.right('i%d%s' %
+                                                                 (counter, k.name),
                                                                  k, thickness))
+                        sdshape.append(thickness)
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
         self._dimensions = tuple(sub_dimensions)
 
         # Compute the SubDomain shape
-        self._shape = tuple(s - (sum(d._thickness_map.values()) if d.is_Sub else 0)
-                            for d, s in zip(self._dimensions, shape))
+        self._shape = tuple(sdshape)
 
     def __eq__(self, other):
         if not isinstance(other, SubDomain):

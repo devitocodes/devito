@@ -27,7 +27,7 @@ def skipif(items, whole_module=False):
     # multiple GPU languages (openmp, openacc, cuda, ...)
     accepted.add('device')
     accepted.update({'no%s' % i for i in configuration._accepted['backend']})
-    accepted.update({'nompi'})
+    accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
         raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
@@ -45,14 +45,20 @@ def skipif(items, whole_module=False):
             break
         try:
             _, noi = i.split('no')
-            if noi != configuration['backend']:
-                skipit = "`%s` backend unsupported" % i
-                break
+            if noi in configuration._accepted['backend']:
+                if noi != configuration['backend']:
+                    skipit = "`%s` backend unsupported" % i
+                    break
         except ValueError:
             pass
         # Skip if won't run on GPUs
         if i == 'device' and isinstance(configuration['platform'], Device):
             skipit = "device `%s` unsupported" % configuration['platform'].name
+            break
+        # Skip if must run GPUs but not currently on a GPU
+        if i == 'nodevice' and not isinstance(configuration['platform'], Device):
+            skipit = ("must run on device, but currently on `%s`" %
+                      configuration['platform'].name)
             break
     if skipit is False:
         return pytest.mark.skipif(False, reason='')
