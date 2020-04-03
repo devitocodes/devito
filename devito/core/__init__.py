@@ -18,20 +18,19 @@ operator_registry.add(CustomOperator, Cpu64, 'custom', 'C')
 operator_registry.add(CustomOperator, Cpu64, 'custom', 'openmp')
 
 operator_registry.add(CPU64NoopOperator, Cpu64, 'noop', 'C')
+operator_registry.add(CPU64NoopOperator, Cpu64, 'noop', 'openmp')
+
 operator_registry.add(CPU64Operator, Cpu64, 'advanced', 'C')
 operator_registry.add(CPU64OpenMPOperator, Cpu64, 'advanced', 'openmp')
 
-operator_registry.add(CPU64NoopOperator, Intel64, 'noop', 'C')
 operator_registry.add(Intel64Operator, Intel64, 'advanced', 'C')
 operator_registry.add(Intel64OpenMPOperator, Intel64, 'advanced', 'openmp')
 operator_registry.add(Intel64FSGOperator, Intel64, 'advanced-fsg', 'C')
 operator_registry.add(Intel64FSGOpenMPOperator, Intel64, 'advanced-fsg', 'openmp')
 
-operator_registry.add(CPU64NoopOperator, Arm, 'noop', 'C')
 operator_registry.add(ArmOperator, Arm, 'advanced', 'C')
 operator_registry.add(ArmOpenMPOperator, Arm, 'advanced', 'openmp')
 
-operator_registry.add(CPU64NoopOperator, Power, 'noop', 'C')
 operator_registry.add(PowerOperator, Power, 'advanced', 'C')
 operator_registry.add(PowerOpenMPOperator, Power, 'advanced', 'openmp')
 
@@ -41,10 +40,11 @@ operator_registry.add(DeviceOpenMPCustomOperator, Device, 'custom', 'openmp')
 operator_registry.add(DeviceOpenACCCustomOperator, Device, 'custom', 'openacc')
 
 operator_registry.add(DeviceOpenMPNoopOperator, Device, 'noop', 'C')
-operator_registry.add(DeviceOpenMPOperator, Device, 'advanced', 'C')
 operator_registry.add(DeviceOpenMPNoopOperator, Device, 'noop', 'openmp')
-operator_registry.add(DeviceOpenMPOperator, Device, 'advanced', 'openmp')
 operator_registry.add(DeviceOpenACCNoopOperator, Device, 'noop', 'openacc')
+
+operator_registry.add(DeviceOpenMPOperator, Device, 'advanced', 'C')
+operator_registry.add(DeviceOpenMPOperator, Device, 'advanced', 'openmp')
 operator_registry.add(DeviceOpenACCOperator, Device, 'advanced', 'openacc')
 
 # The following used by backends.backendSelector
