@@ -4,6 +4,7 @@ import numpy as np
 from sympy import prod
 from math import floor
 
+from devito.data import LEFT, RIGHT
 from devito.mpi import Distributor
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
@@ -122,7 +123,8 @@ class Grid(ArgProvider):
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self.dimensions, self.shape, self._distributor, counter=counter)
+            i.__subdomain_finalize__(self.dimensions, self.shape, self._distributor,
+                                     counter=counter)
         self._subdomains = subdomains
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -557,22 +559,36 @@ class SubDomainSet(SubDomain):
                 bounds_m = np.zeros(m.shape, dtype=m.dtype)
                 bounds_M = np.zeros(m.shape, dtype=m.dtype)
                 for j in range(m.size):
-                    lmin = m[j]
+                    lmin = d.glb_min + m[j]
                     lmax = d.glb_max - M[j]
+
+                    # Check if the subdomain doesn't intersect with the decomposition
+                    if lmin < d.loc_abs_min and lmax < d.loc_abs_min:
+                        bounds_m[j] = -1
+                        bounds_M[j] = -2
+                        continue
+                    if lmin > d.loc_abs_max and lmax > d.loc_abs_max:
+                        bounds_m[j] = -1
+                        bounds_M[j] = -2
+                        continue
 
                     if lmin < d.loc_abs_min:
                         bounds_m[j] = 0
                     elif lmin > d.loc_abs_max:
                         bounds_m[j] = -1
+                        bounds_M[j] = -2
+                        continue
                     else:
-                        bounds_m[j] = d.index_glb_to_loc(lmin)
+                        bounds_m[j] = d.index_glb_to_loc(m[j], LEFT)
 
                     if lmax < d.loc_abs_min:
-                        bounds_M[j] = -1
+                        bounds_m[j] = -1
+                        bounds_M[j] = -2
+                        continue
                     elif lmax >= d.loc_abs_max:
                         bounds_M[j] = 0
                     else:
-                        bounds_M[j] = d.loc_rel_max - d.index_glb_to_loc(lmax)
+                        bounds_M[j] = d.index_glb_to_loc(M[j], RIGHT)
 
                 processed.append(bounds_m)
                 processed.append(bounds_M)
@@ -591,14 +607,14 @@ class SubDomainSet(SubDomain):
         return self._local_bounds
 
     def _create_implicit_exprs(self):
-        if not len(self._global_bounds) == 2*len(self.dimensions):
+        if not len(self._local_bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
         n_domains = self.n_domains
         i_dim = self.implicit_dimension
         dat = []
         # Organise the data contained in 'bounds' into a form such that the
         # associated implicit equations can easily be created.
-        for j in range(len(self._global_bounds)):
+        for j in range(len(self._local_bounds)):
             index = floor(j/2)
             d = self.dimensions[index]
             if j % 2 == 0:
@@ -608,10 +624,10 @@ class SubDomainSet(SubDomain):
             func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ),
                             dtype=np.int32)
             # Check if shorthand notation has been provided:
-            if isinstance(self._global_bounds[j], int):
-                bounds = np.full((n_domains,), self._global_bounds[j], dtype=np.int32)
+            if isinstance(self._local_bounds[j], int):
+                bounds = np.full((n_domains,), self._local_bounds[j], dtype=np.int32)
                 func.data[:] = bounds
             else:
-                func.data[:] = self._global_bounds[j]
+                func.data[:] = self._local_bounds[j]
             dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
         return as_tuple(dat)

@@ -250,6 +250,7 @@ class Operator(Callable):
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
                     if e.subdomain not in seen:
+                        from IPython import embed; embed()
                         processed.extend([i.func(*i.args, implicit_dims=dims) for i in
                                           e.subdomain._create_implicit_exprs()])
                         seen.add(e.subdomain)

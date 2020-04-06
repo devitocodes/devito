@@ -1,4 +1,3 @@
-from mpi4py import MPI
 import numpy as np
 from math import floor
 
@@ -36,6 +35,9 @@ stencil = Eq(f.forward, solve(Eq(f.dt, 1), f.forward),
              subdomain=grid.subdomains['inner'])
 
 op = Operator(stencil)
+
+from IPython import embed; embed()
+
 op(time_m=0, time_M=9, dt=1)
 result = f.data[0]
 
@@ -43,6 +45,5 @@ expected = np.zeros((10, 10), dtype=np.int32)
 for j in range(0, n_domains):
     expected[j, bounds_ym[j]:n_domains-bounds_yM[j]] = 10
 
+#from IPython import embed; embed()
 #assert((np.array(result) == expected).all())
-
-from IPython import embed; embed()
