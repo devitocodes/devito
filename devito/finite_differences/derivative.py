@@ -73,6 +73,14 @@ class Derivative(sympy.Derivative, Differentiable):
 
     >>> u.dx2
     Derivative(u(x, y), (x, 2))
+
+    Derivative object are also callable to change default setup:
+
+    >>> u.dx2(x0=x + x.spacing)
+    Derivative(u(x, y), (x, 2))
+
+    will create the second derivative at x=x + x.spacing. Accepted arguments for dynamic
+    evaluation are `x0`, `fd_order` and `side`.
     """
 
     _state = ('expr', 'dims', 'side', 'fd_order', 'transpose', '_subs', 'x0')
@@ -141,8 +149,9 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._x0 = kwargs.get('x0', None)
         return obj
 
-    def __call__(self, x0=None, fd_order=None):
+    def __call__(self, x0=None, fd_order=None, side=None):
         self._fd_order = fd_order or self._fd_order
+        self._side = side or self._side
         if not x0:
             return self
         new_x0 = self._x0 or {}
@@ -150,14 +159,14 @@ class Derivative(sympy.Derivative, Differentiable):
         if isinstance(x0, dict):
             for k, v in x0.items():
                 if k in self._dims:
-                   new_x0[k] = v
+                    new_x0[k] = v
         # If x0 just values, make sure same number of element as dimensions and setup dict
         elif x0:
             assert len(self._dims) == len(as_tuple(x0))
             new_x0 = {k: v for k, v in zip(self._dims, as_tuple(x0))}
         self._x0 = new_x0
         return self
-        
+
     def subs(self, *args, **kwargs):
         """
         Bypass sympy.Subs as Devito has its own lazy evaluation mechanism.
