@@ -176,7 +176,7 @@ def generate_indices(func, dim, order, side=None, x0=None):
 
 def generate_indices_cartesian(dim, order, side, x0):
     shift = 0
-    offset_c = (dim - x0)/x.spacing
+    offset_c = (dim - x0)/dim.spacing
     if int(offset_c) == offset_c:
         offset_c = 0
     else:
