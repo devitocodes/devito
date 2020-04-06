@@ -205,7 +205,7 @@ def _(expr, args):
         _addsort(args)  # In-place sorting
         return expr.func(*args, evaluate=False)
     else:
-        return expr.func(*args)
+        return expr._new_rawargs(*args)
 
 
 @_uxreplace_handle.register(sympy.Mul)
@@ -214,7 +214,7 @@ def _(expr, args):
         _mulsort(args)  # In-place sorting
         return expr.func(*args, evaluate=False)
     else:
-        return expr.func(*args)
+        return expr._new_rawargs(*args)
 
 
 @_uxreplace_handle.register(Eq)
