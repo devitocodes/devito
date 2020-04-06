@@ -176,11 +176,15 @@ def generate_indices(func, dim, order, side=None, x0=None):
 
 def generate_indices_cartesian(dim, order, side, x0):
     shift = 0
+    o_start = -order//2
+    o_end = order//2 + 1
     offset_c = (dim - x0)/dim.spacing
     if int(offset_c) == offset_c:
         offset_c = 0
     else:
         offset_c = np.sign(offset_c) * (offset_c % 1)
+        o_start += np.ceil(offset_c)
+        o_end -= np.ceil(-offset_c)
     offset = offset_c * dim.spacing
     diff = dim.spacing
     if side is left:
@@ -188,7 +192,7 @@ def generate_indices_cartesian(dim, order, side, x0):
     if side in [left, right]:
         shift = 1
 
-    ind = [(x0 + (i + shift) * diff + offset) for i in range(-order//2, order//2 + 1)]
+    ind = [(x0 + (i + shift) * diff + offset) for i in range(o_start, o_end)]
     if order < 2:
         ind = [x0 + offset, x0 + diff + offset]
     return tuple(ind)
