@@ -123,8 +123,8 @@ class Grid(ArgProvider):
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self.dimensions, self.shape, self._distributor,
-                                     counter=counter)
+            i.__subdomain_finalize__(self.dimensions, self.shape,
+                                     distributor=self._distributor, counter=counter)
         self._subdomains = subdomains
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -544,18 +544,29 @@ class SubDomainSet(SubDomain):
                                   ('%si_%s' % (d.name, self.implicit_dimension.name),
                                    d, 0, 0))
         self._dimensions = tuple(sub_dimensions)
-        # Compute the SubDomain shape
-        # FIXME: _shape is not being calculated correctly - Here we should probably
-        # produce a tuple of tuples from 'bounds'.
-        self._shape = tuple(s - (sum(d._thickness_map.values()) if d.is_Sub else 0)
-                            for d, s in zip(self._dimensions, shape))
+
+        # Compute the SubDomainSet shapes
+        global_bounds = []
+        for i in self._global_bounds:
+            if isinstance(i, int):
+                global_bounds.append(np.full(self._n_domains, i, dtype=np.int32))
+            else:
+                global_bounds.append(i)
+        d_m = global_bounds[0::2]
+        d_M = global_bounds[1::2]
+        shapes = []
+        for i in range(self._n_domains):
+            dshape = []
+            for s, m, M in zip(shape, d_m, d_M):
+                assert(m.size == M.size)
+                dshape.append(s-m[i]-M[i])
+            shapes.append(as_tuple(dshape))
+        self._shape = as_tuple(shapes)
+
         if distributor and distributor.is_parallel:
             # Now create local bounds based on distributor
             processed = []
-            d_m = self._global_bounds[0::2]
-            d_M = self._global_bounds[1::2]
             for dim, d, m, M in zip(dimensions, distributor.decomposition, d_m, d_M):
-                assert(m.size == M.size)
                 bounds_m = np.zeros(m.shape, dtype=m.dtype)
                 bounds_M = np.zeros(m.shape, dtype=m.dtype)
                 for j in range(m.size):

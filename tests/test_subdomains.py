@@ -150,6 +150,8 @@ class TestSubdomains(object):
         my_sd = MySubdomains(N=n_domains, bounds=bounds)
         grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd, ))
 
+        assert(grid.subdomains['mydomains'].shape == ((3, 8), (3, 8)))
+
         f = Function(name='f', grid=grid, dtype=np.int32)
         g = Function(name='g', grid=grid, dtype=np.int32)
         h = Function(name='h', grid=grid, dtype=np.int32)
@@ -261,6 +263,9 @@ class TestSubdomains(object):
         inner_sd = Inner(N=n_domains, bounds=bounds)
 
         grid = Grid(extent=(10, 10), shape=(10, 10), subdomains=(inner_sd, ))
+
+        assert(grid.subdomains['inner'].shape == ((10, 1), (8, 1), (6, 1),
+                                                  (4, 1), (2, 1)))
 
         f = TimeFunction(name='f', grid=grid, dtype=np.int32)
         f.data[:] = 0
