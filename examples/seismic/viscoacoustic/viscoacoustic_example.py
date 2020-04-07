@@ -7,7 +7,7 @@ from examples.seismic import demo_model, setup_geometry
 
 def viscoacoustic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
                        nbl=40, constant=True, equation=1, **kwargs):
-    
+
     preset = 'constant-viscoacoustic' if constant else 'layers-viscoacoustic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
@@ -16,7 +16,7 @@ def viscoacoustic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_ord
     geometry = setup_geometry(model, tn)
 
     # Create solver object to provide relevant operators
-    solver = ViscoacousticWaveSolver(model, geometry, space_order=space_order, 
+    solver = ViscoacousticWaveSolver(model, geometry, space_order=space_order,
                                     equation=equation, **kwargs)
     return solver
 
@@ -25,7 +25,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
         space_order=4, nbl=40, autotune=False, constant=False, equation=1, **kwargs):
 
     solver = viscoacoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
-                                space_order=space_order, constant=constant, 
+                                space_order=space_order, constant=constant,
                                 equation=equation, **kwargs)
     info("Applying Forward")
 
@@ -33,7 +33,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     rec, p, summary = solver.forward(autotune=autotune)
 
     return (summary.gflopss, summary.oi, summary.timings, [rec])
-    
+
 
 if __name__ == "__main__":
     description = ("Example script for a set of viscoacoustic operators.")

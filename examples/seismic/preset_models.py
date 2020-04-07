@@ -86,8 +86,8 @@ def demo_model(preset, **kwargs):
         qp = kwargs.pop('qp', 100.)
         rho = 2.
 
-        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho, 
-                                  origin=origin, shape=shape, spacing=spacing, 
+        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho,
+                                  origin=origin, shape=shape, spacing=spacing,
                                   nbl=nbl, **kwargs)
 
     elif preset.lower() in ['constant-tti']:
@@ -327,7 +327,7 @@ def demo_model(preset, **kwargs):
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 3.5 km/s.
-  
+
         # Define a velocity profile in km/s
         vp = np.empty(shape, dtype=dtype)
         qp = np.empty(shape, dtype=dtype)
@@ -348,8 +348,8 @@ def demo_model(preset, **kwargs):
 
         rho[:] = 0.31*(vp[:]*1000.)**0.25 # Gardner's relation
 
-        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho, 
-                                  origin=origin, shape=shape, spacing=spacing, 
+        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho,
+                                  origin=origin, shape=shape, spacing=spacing,
                                   nbl=nbl, **kwargs)
 
     else:

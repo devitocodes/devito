@@ -7,7 +7,7 @@ from examples.seismic import PointSource, Receiver
 
 def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwargs):
     """
-    Stencil created from from Blanch and Symes (1995) / Dutta and Schuster (2014) 
+    Stencil created from from Blanch and Symes (1995) / Dutta and Schuster (2014)
     viscoacoustic wave equation.
 
     Parameters
@@ -15,11 +15,11 @@ def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwarg
     v : VectorTimeFunction
         The computed particle velocity.
     r : TimeFunction
-        Memory variable.    
+        Memory variable.
     p : TimeFunction
         The computed solution.
     vp : Function or float
-        The time-constant velocity. 
+        The time-constant velocity.
     irho : Function
         The time-constant inverse density.
     rho : Function
@@ -35,11 +35,11 @@ def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwarg
     """
     # Bulk modulus
     bm = rho * (vp * vp)
-    
+
     # Define PDE
     pde_v = v - s * irho * grad(p)
 
-    u_v = Eq(v.forward, damp * pde_v)    
+    u_v = Eq(v.forward, damp * pde_v)
 
     pde_r = r - s * (1. / t_s) * r - s * (1. / t_s) * tt * bm * div(v.forward)
 
@@ -47,13 +47,13 @@ def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwarg
 
     pde_p = p - s * bm * (tt + 1.) * div(v.forward) - s * r.forward
 
-    u_p = Eq(p.forward, damp * pde_p)    
+    u_p = Eq(p.forward, damp * pde_p)
 
     return [u_v, u_r, u_p]
 
 def viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
     """
-    Stencil created from Ren et al. (2014) viscoacoustic wave equation 
+    Stencil created from Ren et al. (2014) viscoacoustic wave equation
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ def viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
     p : TimeFunction
         The computed solution.
     vp : Function or float
-        The time-constant velocity. 
+        The time-constant velocity.
     irho : Function
         The time-constant inverse density.
     rho : Function
@@ -76,7 +76,7 @@ def viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
     damp : Function
         The damping field for absorbing boundary condition.
     """
-    # Angular frequency 
+    # Angular frequency
     w = 2. * np.pi * f0
 
     # Define PDE
@@ -98,7 +98,7 @@ def viscoacoustic_deng_mcmechan(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
     Parameters
     ----------
     v : VectorTimeFunction
-        The computed particle velocity.   
+        The computed particle velocity.
     p : TimeFunction
         The computed solution.
     vp : Function or float
@@ -116,15 +116,15 @@ def viscoacoustic_deng_mcmechan(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
     damp : Function
         The damping field for absorbing boundary condition.
     """
-    # Angular frequency 
+    # Angular frequency
     w = 2. * np.pi * f0
     # Define PDE
     pde_v = v - s * irho * grad(p)
-    
+
     u_v = Eq(v.forward, damp * pde_v)
-    
+
     pde_p = p - s * vp * vp * rho * div(v.forward) - s * (w / qp) * p
-    
+
     u_p = Eq(p.forward, damp * pde_p)
 
     return [u_v, u_p]
@@ -147,7 +147,7 @@ def ForwardOperator(model, geometry, space_order=4, equation=1, save=False, **kw
         indices (last three time steps). Defaults to False.
     equation : selects a visco-acoustic equation from the options below:
                 1 - Blanch and Symes (1995) / Dutta and Schuster (2014) viscoacoustic equation
-                2 - Ren et al. (2014) viscoacoustic equation  
+                2 - Ren et al. (2014) viscoacoustic equation
                 3 - Deng and McMechan (2007) viscoacoustic equation
                 Defaults to 1.
     """
@@ -180,21 +180,21 @@ def ForwardOperator(model, geometry, space_order=4, equation=1, save=False, **kw
     rec = Receiver(name="rec", grid=model.grid, time_range=geometry.time_axis,
                     npoint=geometry.nrec)
 
-    if equation == 1: 
-        # Implements PDEs from Blanch and Symes (1995) Dutta and Schuster (2014) 
+    if equation == 1:
+        # Implements PDEs from Blanch and Symes (1995) Dutta and Schuster (2014)
         # viscoacoustic equation
         eqn = viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp)
 
     elif equation == 2:
-        # Implements PDEs from Ren et al. (2014) viscoacoustic equation 
+        # Implements PDEs from Ren et al. (2014) viscoacoustic equation
         eqn = viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp)
 
     elif equation == 3:
         # Implements PDEs from Deng and McMechan (2007) viscoacoustic equation
         eqn = viscoacoustic_deng_mcmechan(v, p, vp, irho, rho, qp, f0, s, damp)
-     
-    else: 
-        # Implements PDEs from Blanch and Symes (1995) Dutta and Schuster (2014) 
+
+    else:
+        # Implements PDEs from Blanch and Symes (1995) Dutta and Schuster (2014)
         # viscoacoustic equation
         eqn = viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp)
 

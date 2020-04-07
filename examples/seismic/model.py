@@ -433,10 +433,10 @@ class ModelViscoacoustic(GenericModel):
     damp : Function
         The damping field for absorbing boundary condition.
     """
-    def __init__(self, origin, spacing, shape, space_order, vp, qp, rho, nbl=20, 
+    def __init__(self, origin, spacing, shape, space_order, vp, qp, rho, nbl=20,
                  subdomains=(), dtype=np.float32):
         super(ModelViscoacoustic, self).__init__(origin, spacing, shape, space_order,
-                                                nbl=nbl, subdomains=subdomains, 
+                                                nbl=nbl, subdomains=subdomains,
                                                 dtype=dtype, damp_mask=True)
 
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
@@ -446,7 +446,7 @@ class ModelViscoacoustic(GenericModel):
         self.rho = self._gen_phys_param(rho, 'rho', space_order, is_param=True)
 
         self.irho = self._gen_phys_param(1./rho, 'irho', space_order, is_param=True)
-        
+
     @property
     def _max_vp(self):
         return mmax(self.vp)
@@ -498,4 +498,4 @@ class ModelViscoacoustic(GenericModel):
                                  " %s without or %s with padding" % (self.shape,
                                                                      self.vp.shape))
         else:
-            self._vp.data = vp    
+            self._vp.data = vp

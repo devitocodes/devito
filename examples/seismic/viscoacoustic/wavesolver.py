@@ -19,9 +19,9 @@ class ViscoacousticWaveSolver(object):
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
     equation : selects a visco-acoustic equation from the options below:
-                1 - Blanch and Symes (1995) / Dutta and Schuster (2014) 
+                1 - Blanch and Symes (1995) / Dutta and Schuster (2014)
                 viscoacoustic equation
-                2 - Ren et al. (2014) viscoacoustic equation 
+                2 - Ren et al. (2014) viscoacoustic equation
                 3 - Deng and McMechan (2007) viscoacoustic equation
                 Defaults to 1.
     Notes
@@ -45,7 +45,7 @@ class ViscoacousticWaveSolver(object):
                                space_order=self.space_order, equation=self.equation,
                                **self._kwargs)
 
-    def forward(self, src=None, rec=None, qp=None, rho=None, v=None, r=None, p=None, 
+    def forward(self, src=None, rec=None, qp=None, rho=None, v=None, r=None, p=None,
                 vp=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -99,7 +99,7 @@ class ViscoacousticWaveSolver(object):
 
         kwargs.update({k.name: k for k in v})
 
-        # Pick physical parameters from model unless explicitly provided  
+        # Pick physical parameters from model unless explicitly provided
         rho = rho or self.model.rho
         qp = qp or self.model.qp
 
@@ -111,13 +111,13 @@ class ViscoacousticWaveSolver(object):
 
         if self.equation == 1:
             # Execute operator and return wavefield and receiver data
-            # With Memory variable             
+            # With Memory variable
             summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, rho=rho, r=r,
                                               p=p, irho=irho, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         else:
             # Execute operator and return wavefield and receiver data
-            # Without Memory variable 
+            # Without Memory variable
             summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, rho=rho, p=p,
                                               irho=irho, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
