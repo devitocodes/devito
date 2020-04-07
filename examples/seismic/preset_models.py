@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from examples.seismic.model import Model, ModelElastic, ModelViscoelastic
+from examples.seismic.model import ModelViscoacoustic
 
 __all__ = ['demo_model']
 
@@ -78,6 +79,16 @@ def demo_model(preset, **kwargs):
 
         return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
+
+    if preset.lower() in ['constant-viscoacoustic']:
+        # A constant single-layer model in a 2D or 3D domain
+        # with velocity 1.5 km/s.
+        qp = kwargs.pop('qp', 100.)
+        rho = 2.
+
+        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho, 
+                                  origin=origin, shape=shape, spacing=spacing, 
+                                  nbl=nbl, **kwargs)
 
     elif preset.lower() in ['constant-tti']:
         # A constant single-layer model in a 2D or 3D domain
@@ -310,6 +321,36 @@ def demo_model(preset, **kwargs):
         return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
                      dtype=np.float32, spacing=spacing, nbl=nbl, epsilon=epsilon,
                      delta=delta, theta=theta, phi=phi, **kwargs)
+
+    elif preset.lower() in ['layers-viscoacoustic']:
+        # A n-layers model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 3.5 km/s.
+  
+        # Define a velocity profile in km/s
+        vp = np.empty(shape, dtype=dtype)
+        qp = np.empty(shape, dtype=dtype)
+        rho = np.empty(shape, dtype=dtype)
+
+        # Top and bottom P-wave velocity
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 3.5)
+
+        # Define a velocity profile in km/s
+        vp = np.empty(shape, dtype=dtype)
+        vp[:] = vp_top  # Top velocity (background)
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            vp[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
+
+        qp[:] = 3.516*((vp[:]*1000.)**2.2)*10**(-6) # Li's empirical formula
+
+        rho[:] = 0.31*(vp[:]*1000.)**0.25 # Gardner's relation
+
+        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho, 
+                                  origin=origin, shape=shape, spacing=spacing, 
+                                  nbl=nbl, **kwargs)
 
     else:
         raise ValueError("Unknown model preset name")

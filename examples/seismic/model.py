@@ -7,7 +7,7 @@ from devito import (Grid, SubDomain, Function, Constant,
 from devito.builtins import initialize_function, gaussian_smooth, mmax
 from devito.tools import as_tuple
 
-__all__ = ['Model', 'ModelElastic', 'ModelViscoelastic']
+__all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'ModelViscoacoustic']
 
 
 def initialize_damp(damp, nbl, spacing, mask=False):
@@ -397,3 +397,105 @@ class ModelViscoelastic(ModelElastic):
         # for further details:
         dt = .85*np.min(self.spacing) / (np.sqrt(self.grid.dim)*self.maxvp)
         return self.dtype("%.3e" % dt)
+
+class ModelViscoacoustic(GenericModel):
+    """
+    The physical model used in seismic inversion processes.
+
+    Parameters
+    ----------
+    origin : tuple of floats
+        Origin of the model in m as a tuple in (x,y,z) order.
+    spacing : tuple of floats
+        Grid size in m as a Tuple in (x,y,z) order.
+    shape : tuple of int
+        Number of grid points size in (x,y,z) order.
+    space_order : int
+        Order of the spatial stencil discretisation.
+    vp : array_like or float
+        Velocity in km/s.
+    rho : float or array, optional
+        Density in kg/cm^3 (rho=1 for water).
+    qp : float or array, optional
+        P-wave quality factor (dimensionless).
+    f0: float or Scalar, optional
+        The dominant frequency
+    nbl : int, optional
+        The number of absorbin layers for boundary damping.
+    dtype : np.float32 or np.float64
+        Defaults to 32.
+
+    The `ModelViscoacoustic` provides two symbolic data objects for the
+    creation of seismic wave propagation operators:
+
+    m : array_like or float
+        The square slowness of the wave.
+    damp : Function
+        The damping field for absorbing boundary condition.
+    """
+    def __init__(self, origin, spacing, shape, space_order, vp, qp, rho, nbl=20, 
+                 subdomains=(), dtype=np.float32):
+        super(ModelViscoacoustic, self).__init__(origin, spacing, shape, space_order,
+                                                nbl=nbl, subdomains=subdomains, 
+                                                dtype=dtype, damp_mask=True)
+
+        self._vp = self._gen_phys_param(vp, 'vp', space_order)
+
+        self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
+
+        self.rho = self._gen_phys_param(rho, 'rho', space_order, is_param=True)
+
+        self.irho = self._gen_phys_param(1./rho, 'irho', space_order, is_param=True)
+        
+    @property
+    def _max_vp(self):
+        return mmax(self.vp)
+
+    @property
+    def critical_dt(self):
+        """
+        Critical computational time step value from the CFL condition.
+        """
+        # For a fixed time order this number decreases as the space order increases.
+        #
+        # The CFL condtion is then given by
+        # dt <= coeff * h / (max(velocity))
+        coeff = 0.38 if len(self.shape) == 3 else 0.42
+        dt = self.dtype(coeff * np.min(self.spacing) / (self._max_vp))
+        return self.dtype("%.3e" % dt)
+
+    @property
+    def vp(self):
+        """
+        `numpy.ndarray` holding the model velocity in km/s.
+
+        Notes
+        -----
+        Updating the velocity field also updates the square slowness
+        ``self.m``. However, only ``self.m`` should be used in seismic
+        operators, since it is of type `Function`.
+        """
+        return self._vp
+
+    @vp.setter
+    def vp(self, vp):
+        """
+        Set a new velocity model and update square slowness.
+
+        Parameters
+        ----------
+        vp : float or array
+            New velocity in km/s.
+        """
+        # Update the square slowness according to new value
+        if isinstance(vp, np.ndarray):
+            if vp.shape == self.vp.shape:
+                self.vp.data[:] = vp[:]
+            elif vp.shape == self.shape:
+                initialize_function(self._vp, vp, self.nbl)
+            else:
+                raise ValueError("Incorrect input size %s for model of size" % vp.shape +
+                                 " %s without or %s with padding" % (self.shape,
+                                                                     self.vp.shape))
+        else:
+            self._vp.data = vp    
