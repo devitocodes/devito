@@ -9,6 +9,7 @@ from devito.finite_differences.finite_difference import (generic_derivative,
 from devito.finite_differences.differentiable import Differentiable
 from devito.finite_differences.tools import direct, transpose
 from devito.tools import as_tuple, filter_ordered
+from devito.types.utils import DimensionTuple
 
 __all__ = ['Derivative']
 
@@ -73,6 +74,14 @@ class Derivative(sympy.Derivative, Differentiable):
 
     >>> u.dx2
     Derivative(u(x, y), (x, 2))
+
+    Derivative object are also callable to change default setup:
+
+    >>> u.dx2(x0=x + x.spacing)
+    Derivative(u(x, y), (x, 2))
+
+    will create the second derivative at x=x + x.spacing. Accepted arguments for dynamic
+    evaluation are `x0`, `fd_order` and `side`.
     """
 
     _state = ('expr', 'dims', 'side', 'fd_order', 'transpose', '_subs', 'x0')
@@ -83,6 +92,36 @@ class Derivative(sympy.Derivative, Differentiable):
         if not isinstance(expr, Differentiable):
             raise ValueError("`expr` must be a Differentiable object")
 
+        new_dims, orders, fd_o, var_count = cls._process_kwargs(expr, *dims, **kwargs)
+
+        # Construct the actual Derivative object
+        obj = Differentiable.__new__(cls, expr, *var_count)
+        obj._dims = tuple(OrderedDict.fromkeys(new_dims))
+
+        skip = kwargs.get('preprocessed', False) or obj.ndims == 1
+
+        obj._fd_order = fd_o if skip else DimensionTuple(*fd_o, getters=obj._dims)
+        obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
+        obj._side = kwargs.get("side")
+        obj._transpose = kwargs.get("transpose", direct)
+        obj._subs = as_tuple(kwargs.get("subs"))
+        obj._x0 = kwargs.get('x0', None)
+        return obj
+
+    @classmethod
+    def _process_kwargs(cls, expr, *dims, **kwargs):
+        """
+        Process arguments for the construction of a Derivative
+        """
+        # Skip costly processing if constructiong from preprocessed
+        if kwargs.get('preprocessed', False):
+            fd_orders = kwargs.get('fd_order')
+            deriv_orders = kwargs.get('deriv_order')
+            if len(dims) == 1:
+                dims = tuple([dims[0]]*deriv_orders)
+            variable_count = [sympy.Tuple(s, dims.count(s))
+                              for s in filter_ordered(dims)]
+            return dims, deriv_orders, fd_orders, variable_count
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
         # an iterable of 2-tuple (Dimension, deriv_order)
         if len(dims) == 0:
@@ -129,17 +168,37 @@ class Derivative(sympy.Derivative, Differentiable):
         # of the derivative
         variable_count = [sympy.Tuple(s, new_dims.count(s))
                           for s in filter_ordered(new_dims)]
+        return new_dims, orders, fd_orders, variable_count
 
-        # Construct the actual Derivative object
-        obj = Differentiable.__new__(cls, expr, *variable_count)
-        obj._dims = tuple(OrderedDict.fromkeys(new_dims))
-        obj._fd_order = fd_orders
-        obj._deriv_order = orders
-        obj._side = kwargs.get("side")
-        obj._transpose = kwargs.get("transpose", direct)
-        obj._subs = as_tuple(kwargs.get("subs"))
-        obj._x0 = kwargs.get('x0', None)
-        return obj
+    def __call__(self, x0=None, fd_order=None, side=None):
+        if self.ndims == 1:
+            _fd_order = fd_order or self._fd_order
+            _side = side or self._side
+            new_x0 = {self.dims[0]: x0} if x0 is not None else self.x0
+            return self._new_from_self(fd_order=_fd_order, side=_side, x0=new_x0)
+
+        if side is not None:
+            raise TypeError("Side only supported for first order single"
+                            "Dimension derivative such as `.dxl` or .dx(side=left)")
+        # Cross derivative
+        _x0 = self._x0 or {}
+        _fd_order = dict(self.fd_order._getters)
+        try:
+            _fd_order.update(**(fd_order or {}))
+            _fd_order = tuple(_fd_order.values())
+            _fd_order = DimensionTuple(*_fd_order, getters=self.dims)
+            _x0.update(x0)
+        except AttributeError:
+            raise TypeError("Multi-dimensional Derivative, input expected as a dict")
+
+        return self._new_from_self(fd_order=_fd_order, x0=_x0)
+
+    def _new_from_self(self, **kwargs):
+        _kwargs = {'deriv_order': self.deriv_order, 'fd_order': self.fd_order,
+                   'side': self.side, 'transpose': self.transpose, 'subs': self._subs,
+                   'x0': self.x0, 'preprocessed': True}
+        _kwargs.update(**kwargs)
+        return Derivative(self.expr, *self.dims, **_kwargs)
 
     def subs(self, *args, **kwargs):
         """
@@ -153,13 +212,15 @@ class Derivative(sympy.Derivative, Differentiable):
         substitutions until evaluation.
         """
         subs = self._subs + (subs,)  # Postponed substitutions
-        return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
-                          fd_order=self.fd_order, side=self.side,
-                          transpose=self.transpose, subs=subs, x0=self.x0), True
+        return self._new_from_self(subs=subs), True
 
     @property
     def dims(self):
         return self._dims
+
+    @property
+    def ndims(self):
+        return len(self._dims)
 
     @property
     def x0(self):
@@ -198,9 +259,7 @@ class Derivative(sympy.Derivative, Differentiable):
         else:
             adjoint = direct
 
-        return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
-                          fd_order=self.fd_order, side=self.side, transpose=adjoint,
-                          x0=self.x0, subs=self._subs)
+        return self._new_from_self(transpose=adjoint)
 
     def _eval_at(self, func):
         """
@@ -209,9 +268,7 @@ class Derivative(sympy.Derivative, Differentiable):
         has to be computed at x=x + h_x/2.
         """
         x0 = dict(zip(func.dimensions, func.indices_ref))
-        return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
-                          fd_order=self.fd_order, side=self.side,
-                          transpose=self.transpose, subs=self._subs, x0=x0)
+        return self._new_from_self(x0=x0)
 
     @property
     def evaluate(self):
