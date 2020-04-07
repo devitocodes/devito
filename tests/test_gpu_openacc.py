@@ -3,6 +3,7 @@ import numpy as np
 
 from conftest import skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, norm, solve
+from devito.data import LEFT
 from devito.ir.iet import retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
@@ -121,9 +122,12 @@ class TestMPI(object):
 
         op(time_M=1)
 
-        assert np.all(u.data[0] == [[11., 16., 17., 17., 16., 11.],
-                                    [16., 23., 24., 24., 23., 16.],
-                                    [17., 24., 25., 25., 24., 17.],
-                                    [17., 24., 25., 25., 24., 17.],
-                                    [16., 23., 24., 24., 23., 16.],
-                                    [11., 16., 17., 17., 16., 11.]])
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(u.data[0] == [[11., 16., 17., 17., 16., 11.],
+                                        [16., 23., 24., 24., 23., 16.],
+                                        [17., 24., 25., 25., 24., 17.]])
+        else:
+            assert np.all(u.data[0] == [[17., 24., 25., 25., 24., 17.],
+                                        [16., 23., 24., 24., 23., 16.],
+                                        [11., 16., 17., 17., 16., 11.]])
