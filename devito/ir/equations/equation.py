@@ -1,10 +1,10 @@
+from cached_property import cached_property
 import sympy
 
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Stencil, detect_accesses, detect_oobs, detect_io,
                                build_intervals, build_iterators)
-from devito.symbolics import FrozenExpr
 from devito.tools import Pickable, as_tuple
 from devito.types import Eq
 
@@ -39,7 +39,7 @@ class IREq(object):
     def dspace(self):
         return self._dspace
 
-    @property
+    @cached_property
     def dimensions(self):
         # Note: some dimensions may be in the iteration space but not in the
         # data space (e.g., a DerivedDimension); likewise, some dimensions may
@@ -175,7 +175,7 @@ class LoweredEq(sympy.Eq, IREq):
         return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(sympy.Eq, IREq, FrozenExpr, Pickable):
+class ClusterizedEq(sympy.Eq, IREq, Pickable):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)

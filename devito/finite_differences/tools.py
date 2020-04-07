@@ -2,7 +2,8 @@ from functools import wraps, partial
 from itertools import product
 
 import numpy as np
-from sympy import S
+from sympy import S, finite_diff_weights, cacheit
+
 
 from devito.tools import Tag, as_tuple
 from devito.finite_differences import Differentiable
@@ -155,6 +156,11 @@ def generate_fd_shortcuts(function):
 def symbolic_weights(function, deriv_order, indices, dim):
     return [function._coeff_symbol(indices[j], deriv_order, function, dim)
             for j in range(0, len(indices))]
+
+
+@cacheit
+def numeric_weights(deriv_order, indices, x0):
+    return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
 
 def generate_indices(func, dim, order, side=None, x0=None):

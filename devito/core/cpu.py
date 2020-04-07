@@ -4,8 +4,8 @@ from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
-                                    extract_increments, factorize, freeze, fuse,
-                                    optimize_pows, scalarize)
+                                    extract_increments, factorize, fuse, optimize_pows,
+                                    scalarize)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
                                optimize_halospots, loop_wrapping, hoist_prodders,
                                relax_incr_dimensions)
@@ -103,7 +103,6 @@ class CPU64Operator(CPU64NoopOperator):
         clusters = cire(clusters, template, 'sops', options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
-        clusters = freeze(clusters)
 
         # Reduce flops (no arithmetic alterations)
         clusters = cse(clusters, template)
@@ -218,7 +217,6 @@ class Intel64FSGOperator(Intel64Operator):
         clusters = cire(clusters, template, 'sops', options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
-        clusters = freeze(clusters)
 
         # Reduce flops (no arithmetic alterations)
         clusters = cse(clusters, template)

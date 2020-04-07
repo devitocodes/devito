@@ -3,12 +3,12 @@ from itertools import groupby
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
 from devito.passes.clusters.utils import cluster_pass
-from devito.symbolics import pow_to_mul, xreplace_indices, freeze as _freeze
+from devito.symbolics import pow_to_mul, xreplace_indices, uxreplace
 from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
 __all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows',
-           'extract_increments', 'freeze']
+           'extract_increments']
 
 
 class Lift(Queue):
@@ -130,11 +130,11 @@ def scalarize(clusters, template):
                     shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
                                 zip(f.indices, e.lhs.indices, i.indices)}
 
-                    handle = e.func(mapper[i], e.rhs.xreplace(mapper))
+                    handle = e.func(mapper[i], uxreplace(e.rhs, mapper))
                     handle = xreplace_indices(handle, shifting)
                     exprs.append(handle)
             else:
-                exprs.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+                exprs.append(e.func(e.lhs, uxreplace(e.rhs, mapper)))
 
         processed.append(c.rebuild(exprs))
 
@@ -175,13 +175,13 @@ def eliminate_arrays(clusters, template):
         subs = {}
         for f, v in mapper.items():
             for i in filter_ordered(i.indexed for i in c.scope[f]):
-                subs[i] = v[f.indices]
+                subs[i] = v[i.indices]
         exprs = []
         for e in c.exprs:
             if e.lhs.function in mapper:
                 # Drop the write
                 continue
-            exprs.append(e.xreplace(subs))
+            exprs.append(uxreplace(e, subs))
 
         processed.append(c.rebuild(exprs))
 
@@ -216,12 +216,3 @@ def extract_increments(cluster, template, *args):
             processed.append(e)
 
     return cluster.rebuild(processed)
-
-
-@cluster_pass(mode='all')
-def freeze(cluster):
-    """
-    Prevent future symbolic manipulations (e.g., xreplace, subs, ...) from
-    altering the arithmetic structure of the expressions.
-    """
-    return cluster.rebuild([_freeze(e) for e in cluster.exprs])

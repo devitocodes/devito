@@ -6,8 +6,9 @@ from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
+from devito.finite_differences.lazy import Evaluable
 from devito.logger import warning
-from devito.tools import Evaluable, EnrichedTuple, filter_ordered, flatten
+from devito.tools import EnrichedTuple, filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
@@ -262,6 +263,34 @@ class DifferentiableOp(Differentiable):
             obj = diffify(obj)
 
         return obj
+
+    # Bypass useless expensive SymPy _eval_ methods, for which we either already
+    # know or don't care about the answer, because it'd have ~zero impact on our
+    # average expressions
+
+    def _eval_is_even(self):
+        return None
+
+    def _eval_is_odd(self):
+        return None
+
+    def _eval_is_integer(self):
+        return None
+
+    def _eval_is_negative(self):
+        return None
+
+    def _eval_is_extended_negative(self):
+        return None
+
+    def _eval_is_positive(self):
+        return None
+
+    def _eval_is_extended_positive(self):
+        return None
+
+    def _eval_is_zero(self):
+        return None
 
 
 class Add(DifferentiableOp, sympy.Add):

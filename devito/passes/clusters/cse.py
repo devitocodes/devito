@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir import DummyEq, Cluster, Scope
 from devito.passes.clusters.utils import cluster_pass, makeit_ssa
-from devito.symbolics import count, estimate_cost, q_xop, q_leaf, yreplace
+from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace, yreplace
 from devito.types import Scalar
 
 __all__ = ['cse']
@@ -82,8 +82,8 @@ def _cse(maybe_exprs, make, mode='default'):
         mapper = OrderedDict([(e, make()) for i, e in enumerate(picked)])
 
         # Apply replacements
-        processed = [e.xreplace(mapper) for e in processed]
-        mapped = [e.xreplace(mapper) for e in mapped]
+        processed = [uxreplace(e, mapper) for e in processed]
+        mapped = [uxreplace(e, mapper) for e in mapped]
         mapped = [DummyEq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across

@@ -1,62 +1,18 @@
 from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
+from functools import singledispatch
 
 import sympy
 from sympy import Number, Indexed, Symbol, LM, LC
+from sympy.core.add import _addsort
+from sympy.core.mul import _mulsort
 
-from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_tuple, flatten, split
+from devito.types.equation import Eq
 
-__all__ = ['freeze', 'unfreeze', 'evaluate', 'yreplace', 'xreplace_indices',
-           'pow_to_mul', 'as_symbol', 'indexify', 'split_affine']
-
-
-def freeze(expr):
-    """
-    Reconstruct ``expr`` turning all sympy.Mul and sympy.Add
-    into FrozenExpr equivalents.
-    """
-    if expr.is_Atom or expr.is_Indexed:
-        return expr
-    elif expr.is_Add:
-        rebuilt_args = [freeze(e) for e in expr.args]
-        return Add(*rebuilt_args, evaluate=False)
-    elif expr.is_Mul:
-        rebuilt_args = [freeze(e) for e in expr.args]
-        return Mul(*rebuilt_args, evaluate=False)
-    elif expr.is_Pow:
-        rebuilt_args = [freeze(e) for e in expr.args]
-        return Pow(*rebuilt_args, evaluate=False)
-    elif expr.is_Equality:
-        rebuilt_args = [freeze(e) for e in expr.args]
-        if isinstance(expr, FrozenExpr):
-            # Avoid dropping metadata associated with /expr/
-            return expr.func(*rebuilt_args)
-        else:
-            return Eq(*rebuilt_args, evaluate=False)
-    else:
-        return expr.func(*[freeze(e) for e in expr.args])
-
-
-def unfreeze(expr):
-    """
-    Reconstruct ``expr`` turning all FrozenExpr subtrees into their
-    SymPy equivalents.
-    """
-    if expr.is_Atom or expr.is_Indexed:
-        return expr
-    func = expr.func.__base__ if isinstance(expr, FrozenExpr) else expr.func
-    return func(*[unfreeze(e) for e in expr.args])
-
-
-def evaluate(expr, **subs):
-    """
-    Numerically evaluate a SymPy expression. Subtrees of type FrozenExpr
-    are forcibly evaluated.
-    """
-    expr = unfreeze(expr)
-    return expr.subs(subs)
+__all__ = ['yreplace', 'xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
+           'split_affine', 'uxreplace']
 
 
 def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eager=False):
@@ -186,10 +142,7 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
 
             # The whole RHS may need to be replaced
             if flag and costmodel(ret):
-                if expr.lhs.function.is_Array:
-                    ret = root
-                else:
-                    ret = replace(root)
+                ret = replace(root)
 
             if repeat and ret != root:
                 root = ret
@@ -201,6 +154,74 @@ def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eag
         built.extend(expr.func(v, k) for k, v in list(found.items())[len(built):])
 
     return built + rebuilt, built
+
+
+def uxreplace(expr, rule):
+    """
+    An alternative to SymPy's ``xreplace`` for when the caller can guarantee
+    that no re-evaluations are necessary or when re-evaluations should indeed
+    be avoided at all costs (e.g., to prevent SymPy from unpicking Devito
+    transformations, such as factorization).
+
+    The canonical ordering of the arguments is however guaranteed; where this is
+    not possible, a re-evaluation will be enforced.
+
+    By avoiding re-evaluations, this function is typically much quicker than
+    SymPy's xreplace.
+    """
+    return _uxreplace(expr, rule)[0]
+
+
+def _uxreplace(expr, rule):
+    """
+    Helper for uxreplace.
+    """
+    if expr in rule:
+        return rule[expr], True
+    elif rule:
+        args = []
+        changed = False
+        for a in expr.args:
+            try:
+                ax, flag = _uxreplace(a, rule)
+                args.append(ax)
+                changed |= flag
+            except AttributeError:
+                # E.g., un-sympified numbers
+                args.append(a)
+        if changed:
+            return _uxreplace_handle(expr, args), True
+    return expr, False
+
+
+@singledispatch
+def _uxreplace_handle(expr, args):
+    return expr.func(*args)
+
+
+@_uxreplace_handle.register(sympy.Add)
+def _(expr, args):
+    if all(i.is_commutative for i in args):
+        _addsort(args)  # In-place sorting
+        return expr.func(*args, evaluate=False)
+    else:
+        return expr._new_rawargs(*args)
+
+
+@_uxreplace_handle.register(sympy.Mul)
+def _(expr, args):
+    if all(i.is_commutative for i in args):
+        _mulsort(args)  # In-place sorting
+        return expr.func(*args, evaluate=False)
+    else:
+        return expr._new_rawargs(*args)
+
+
+@_uxreplace_handle.register(Eq)
+def _(expr, args):
+    # Preserve properties such as `implicit_dims`
+    return expr.func(*args, subdomain=expr.subdomain, coefficients=expr.substitutions,
+                     implicit_dims=expr.implicit_dims)
 
 
 def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
@@ -227,8 +248,8 @@ def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
         handle = [i for i in handle if i.base.label in key]
     elif callable(key):
         handle = [i for i in handle if key(i)]
-    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
-    replaced = [i.xreplace(mapper) for i in as_tuple(exprs)]
+    mapper = dict(zip(handle, [uxreplace(i, mapper) for i in handle]))
+    replaced = [uxreplace(i, mapper) for i in as_tuple(exprs)]
     return replaced if isinstance(exprs, Iterable) else replaced[0]
 
 

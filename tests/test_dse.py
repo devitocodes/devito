@@ -7,6 +7,7 @@ from cached_property import cached_property
 from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
+from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
@@ -59,14 +60,19 @@ def test_scheduling_after_rewrite():
 def test_yreplace_time_invariants(exprs, expected):
     grid = Grid((3, 3, 3))
     dims = grid.dimensions
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()
-    t0 = Scalar(name='t0').indexify()
-    t1 = Scalar(name='t1').indexify()
-    exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
+
+    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()  # noqa
+    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()  # noqa
+    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()  # noqa
+    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    t0 = Scalar(name='t0').indexify()  # noqa
+    t1 = Scalar(name='t1').indexify()  # noqa
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = DummyEq(indexify(eval(e).evaluate))
+
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed, found = yreplace(exprs, make,
@@ -144,7 +150,7 @@ def test_cse(exprs, expected):
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
-        exprs[i] = DummyEq(indexify(eval(e).evaluate))
+        exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
@@ -340,7 +346,7 @@ class TestAliases(object):
         for i, e in enumerate(list(expected)):
             expected[i] = eval(e)
 
-        aliases = collect(exprs)
+        aliases = collect(exprs, False, lambda i: False)
 
         assert len(aliases) == len(expected)
         assert all(i in expected for i in aliases)
@@ -1297,7 +1303,7 @@ class TestTTIv2(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 197), (12, 389)
+        (4, 203), (12, 393)
     ])
     def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))

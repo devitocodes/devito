@@ -5,7 +5,7 @@ from sympy import S
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import retrieve_terminals, q_monoaffine
+from devito.symbolics import retrieve_terminals, q_constant, q_affine
 from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
                           filter_sorted, flatten, memoized_meth, memoized_generator)
 from devito.types import Dimension
@@ -78,36 +78,35 @@ class IterationInstance(LabeledVector):
 
     @cached_property
     def index_mode(self):
-        index_mode = []
+        retval = []
         for i, fi in zip(self, self.findices):
-            if q_monoaffine(i, fi, self.findices):
-                index_mode.append(AFFINE)
+            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            if len(dims) == 0 and q_constant(i):
+                retval.append(AFFINE)
+            elif len(dims) == 1:
+                candidate = dims.pop()
+                if fi in candidate._defines and q_affine(i, candidate):
+                    retval.append(AFFINE)
+                else:
+                    retval.append(IRREGULAR)
             else:
-                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
-                try:
-                    # There's still hope it's regular if a DerivedDimension is used
-                    candidate = dims.pop()
-                    if fi in candidate._defines:
-                        if q_monoaffine(i, candidate, self.findices):
-                            index_mode.append(AFFINE)
-                            continue
-                except (KeyError, AttributeError):
-                    pass
-                index_mode.append(IRREGULAR)
-        return tuple(index_mode)
+                retval.append(IRREGULAR)
+        return tuple(retval)
 
     @cached_property
     def aindices(self):
-        aindices = []
+        retval = []
         for i, fi in zip(self, self.findices):
-            if q_monoaffine(i, fi, self.findices):
-                aindices.append(fi)
+            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            if len(dims) == 1:
+                retval.append(dims.pop())
             elif isinstance(i, Dimension):
-                aindices.append(i)
+                retval.append(i)
+            elif q_constant(i):
+                retval.append(fi)
             else:
-                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
-                aindices.append(dims.pop() if len(dims) == 1 else None)
-        return EnrichedTuple(*aindices, getters=self.findices)
+                retval.append(None)
+        return EnrichedTuple(*retval, getters=self.findices)
 
     @property
     def findices(self):
@@ -144,7 +143,7 @@ class IterationInstance(LabeledVector):
         """
         return set(as_tuple(findices)).issubset(set(self.findices_irregular))
 
-    @property
+    @cached_property
     def is_regular(self):
         return all(i is AFFINE for i in self.index_mode)
 
@@ -155,21 +154,6 @@ class IterationInstance(LabeledVector):
     @property
     def is_scalar(self):
         return self.rank == 0
-
-    def distance(self, other):
-        """
-        Compute the distance from ``self`` to ``other``.
-
-        Parameters
-        ----------
-        other : IterationInstance
-            The IterationInstance from which the distance is computed.
-        """
-        assert isinstance(other, IterationInstance)
-        if self.findices != other.findices:
-            raise TypeError("Cannot compute distance due to mismatching `findices`")
-
-        return super(IterationInstance, self).distance(other)
 
 
 class TimedAccess(IterationInstance):
@@ -212,11 +196,16 @@ class TimedAccess(IterationInstance):
         return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
 
     def __eq__(self, other):
-        return (isinstance(other, TimedAccess) and
-                self.function is other.function and
+        if not isinstance(other, TimedAccess):
+            return False
+
+        # At this point no need to go through the class hierarchy's __eq__,
+        # which might require expensive comparisons of Vector entries (i.e.,
+        # SymPy expressions)
+
+        return (self.indexed is other.indexed and  # => self.function is other.function
                 self.mode == other.mode and
-                self.ispace == other.ispace and
-                super(TimedAccess, self).__eq__(other))
+                self.ispace == other.ispace)
 
     def __hash__(self):
         return super(TimedAccess, self).__hash__()
@@ -328,15 +317,25 @@ class TimedAccess(IterationInstance):
                 limit = self._cached_findices_index[findex] + 1
             except KeyError:
                 raise TypeError("Cannot compute distance as `findex` not in `findices`")
-        distance = list(super(TimedAccess, self).distance(other)[:limit])
 
-        # * If mismatching `directions`, set the distance to infinity
-        # * If direction is Backward, flip the sign
         ret = []
-        for i, it0, it1 in zip(distance, self.itintervals, other.itintervals):
-            if it0.direction is it1.direction and it0.interval == it1.interval:
-                ret.append(-i if it0.direction is Backward else i)
+        for n, (i, o) in enumerate(zip(self[:limit], other)):
+            try:
+                iit = self.itintervals[n]
+                oit = other.itintervals[n]
+            except IndexError:
+                # E.g., self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>
+                #       itintervals=(time, p_src)
+                break
+
+            if iit.direction is oit.direction and iit.interval == oit.interval:
+                if iit.direction is Backward:
+                    # Backward direction => flip the sign
+                    ret.append(o - i)
+                else:
+                    ret.append(i - o)
             else:
+                # Mismatching `itinterval` => Infinity
                 ret.append(S.Infinity)
                 break
 
@@ -534,6 +533,13 @@ class Dependence(object):
         """
         return self.source.timestamp == -1 or self.sink.timestamp == -1
 
+    @cached_property
+    def is_cross(self):
+        """
+        True if both source and sink are from the same IterationSpace, False otherwise.
+        """
+        return self.source.ispace is not self.sink.ispace
+
     @property
     def is_local(self):
         return self.function.is_Symbol
@@ -666,7 +672,7 @@ class DependenceGroup(set):
 
 class Scope(object):
 
-    def __init__(self, exprs):
+    def __init__(self, exprs, rules=None):
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
@@ -712,6 +718,10 @@ class Scope(object):
             for j in d.free_symbols:
                 v = self.reads.setdefault(j.function, [])
                 v.append(TimedAccess(j, 'R', -1))
+
+        # A set of rules to drive the collection of dependencies
+        self.rules = as_tuple(rules)
+        assert all(callable(i) for i in self.rules)
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -771,6 +781,10 @@ class Scope(object):
             for w in v:
                 for r in self.reads.get(k, []):
                     dependence = Dependence(w, r)
+
+                    if any(not rule(dependence) for rule in self.rules):
+                        continue
+
                     distance = dependence.distance
                     try:
                         is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
@@ -794,6 +808,10 @@ class Scope(object):
             for w in v:
                 for r in self.reads.get(k, []):
                     dependence = Dependence(r, w)
+
+                    if any(not rule(dependence) for rule in self.rules):
+                        continue
+
                     distance = dependence.distance
                     try:
                         is_anti = distance > 0 or (r.lex_lt(w) and distance == 0)
@@ -817,6 +835,10 @@ class Scope(object):
             for w1 in v:
                 for w2 in self.writes.get(k, []):
                     dependence = Dependence(w2, w1)
+
+                    if any(not rule(dependence) for rule in self.rules):
+                        continue
+
                     distance = dependence.distance
                     try:
                         is_output = distance > 0 or (w2.lex_gt(w1) and distance == 0)

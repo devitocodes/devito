@@ -14,7 +14,7 @@ from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedLi
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
-from devito.tools import flatten, powerset
+from devito.tools import flatten, powerset, timed_region
 from devito.types import Array, Scalar
 
 
@@ -67,10 +67,15 @@ class TestCodeGen(object):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim  # noqa
+
         u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to)  # noqa
         m = Function(name='m', grid=grid, space_order=0)  # noqa
+
         expr = eval(expr)
-        expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
+
+        with timed_region('x'):
+            expr = Operator._lower_exprs([expr])[0]
+
         assert str(expr).replace(' ', '') == expected
 
     @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [

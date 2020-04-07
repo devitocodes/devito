@@ -6,9 +6,9 @@ import sympy
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.queue import Queue
+from devito.ir.clusters.queue import Queue, QueueStateful
 from devito.symbolics import CondEq
-from devito.tools import DAG, as_tuple, flatten, timed_pass
+from devito.tools import DAG, as_tuple, timed_pass
 
 __all__ = ['clusterize', 'Toposort']
 
@@ -128,11 +128,18 @@ class Toposort(Queue):
         dag = DAG(nodes=cgroups)
         for n, cg0 in enumerate(cgroups):
             for cg1 in cgroups[n+1:]:
-                scope = Scope(exprs=cg0.exprs + cg1.exprs)
+                rule = lambda i: i.is_cross  # Only retain dep if cross-ClusterGroup
+                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=rule)
+
+                # Optimization: we exploit the following property:
+                # no prefix => (edge <=> at least one (any) dependence)
+                # To jump out of this potentially expensive loop as quickly as possible
+                if not prefix and any(scope.d_all_gen()):
+                    dag.add_edge(cg0, cg1)
+                    continue
 
                 # Handle anti-dependences
-                deps = scope.d_anti - (cg0.scope.d_anti + cg1.scope.d_anti)
-                if any(i.cause & prefix for i in deps):
+                if any(i.cause & prefix for i in scope.d_anti_gen()):
                     # Anti-dependences break the execution flow
                     # i) ClusterGroups between `cg0` and `cg1` must precede `cg1`
                     for cg2 in cgroups[n:cgroups.index(cg1)]:
@@ -141,26 +148,25 @@ class Toposort(Queue):
                     for cg2 in cgroups[cgroups.index(cg1)+1:]:
                         dag.add_edge(cg1, cg2)
                     break
-                elif deps:
+                elif any(scope.d_anti_gen()):
                     dag.add_edge(cg0, cg1)
+                    continue
 
                 # Flow-dependences along one of the `prefix` Dimensions can
                 # be ignored; all others require sequentialization
-                deps = scope.d_flow - (cg0.scope.d_flow + cg1.scope.d_flow)
-                if any(not (i.cause and i.cause & prefix) for i in deps):
+                if any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()):
                     dag.add_edge(cg0, cg1)
                     continue
 
                 # Handle increment-after-write dependences
-                deps = scope.d_output - (cg0.scope.d_output + cg1.scope.d_output)
-                if any(i.is_iaw for i in deps):
+                if any(i.is_iaw for i in scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
                     continue
 
         return dag
 
 
-class Schedule(Queue):
+class Schedule(QueueStateful):
 
     """
     This special Queue produces a new sequence of "scheduled" Clusters, which
@@ -218,7 +224,7 @@ class Schedule(Queue):
         # `clusters` are supposed to share it
         candidates = prefix[-1].dim._defines
 
-        scope = Scope(exprs=flatten(c.exprs for c in clusters))
+        scope = self._fetch_scope(clusters)
 
         # Handle the nastiest case -- ambiguity due to the presence of both a
         # flow- and an anti-dependence.

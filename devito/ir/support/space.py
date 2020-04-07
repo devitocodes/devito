@@ -137,6 +137,9 @@ class Interval(AbstractInterval):
         return hash((self.dim, self.offsets))
 
     def __eq__(self, o):
+        if self is o:
+            return True
+
         return (super(Interval, self).__eq__(o) and
                 self.lower == o.lower and
                 self.upper == o.upper)
@@ -491,7 +494,7 @@ class Space(object):
     def intervals(self):
         return self._intervals
 
-    @property
+    @cached_property
     def dimensions(self):
         return filter_ordered(self.intervals.dimensions)
 
@@ -628,6 +631,9 @@ class IterationSpace(Space):
         return "IterationSpace[%s]" % ret
 
     def __eq__(self, other):
+        if self is other:
+            return True
+
         return (isinstance(other, IterationSpace) and
                 self.intervals == other.intervals and
                 self.directions == other.directions)
@@ -724,15 +730,15 @@ class IterationSpace(Space):
     def directions(self):
         return self._directions
 
-    @property
+    @cached_property
     def itintervals(self):
         return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
 
-    @property
+    @cached_property
     def dimensions(self):
         sub_dims = [i.parent for v in self.sub_iterators.values() for i in v]
         return filter_ordered(self.intervals.dimensions + sub_dims)
 
-    @property
+    @cached_property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}

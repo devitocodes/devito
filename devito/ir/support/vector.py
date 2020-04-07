@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from sympy import Basic, true
+from sympy import true
 
 from devito.tools import as_tuple, is_integer, memoized_meth
 from devito.types import Dimension
@@ -11,33 +11,36 @@ __all__ = ['Vector', 'LabeledVector', 'vmin', 'vmax']
 class Vector(tuple):
 
     """
-    A representation of an object in Z^n.
+    An object in an N-dimensional space.
 
-    The elements of a Vector can be integers or generic SymPy expressions.
+    The elements of a vector can be anything as long as they support the
+    comparison operators (`__eq__`, `__lt__`, ...). Also, the `__sub__`
+    operator must be available.
 
     Notes
     -----
-    1) Vector-scalar comparison
+    1) Comparison of a Vector with a scalar
     If a comparison between a vector and a non-vector is attempted, then the
     non-vector is promoted to a vector; if this is not possible, an exception
     is raised. This is handy because it turns a vector-scalar comparison into
-    a vector-vector comparison with the scalar broadcasted to all vector entries.
-    For example: ::
+    a vector-vector comparison with the scalar broadcasted to as many vector
+    entries as necessary. For example:
 
         (3, 4, 5) > 4 => (3, 4, 5) > (4, 4, 4) => False
 
-    2) Comparing Vector entries when these are SymPy expressions
-    When we compare two symbolic (SymPy expressions) entries, it might not be
-    possible to determine the truth value of the relation. For example, the
-    truth value of `3*i < 4*j` cannot be determined (unless some information
-    about `i` and `j` is available). In some cases, however, the comparison is
-    feasible; for example, `i + 4 < i` is definitely False. A sufficient condition
-    for two Vectors to be comparable is that their pair-wise indices are affine
-    functions of the same variables, with identical coefficient.
-    If the Vector is instantiated passing the keyword argument ``smart = True``,
-    some manipulation will be attempted to infer the truth value of a non-trivial
-    symbolic relation. This increases the cost of the comparison, while potentially
-    being ineffective, so use it judiciously. By default, ``smart = False``.
+    2) Comparison of Vectors whose elements are SymPy expressions
+    We treat vectors of SymPy expressions as a very special case. When we
+    compare two elements, it might not be possible to determine the truth value
+    of the relation. For example, the truth value of `3*i < 4*j` cannot be
+    determined (unless some information about `i` and `j` is available). In
+    some cases, however, the comparison is feasible; for example, `i + 4 < i`
+    is definitely False. A sufficient condition for two Vectors to be
+    comparable is that their pair-wise indices are affine functions of the same
+    variables, with identical coefficient.  If the Vector is instantiated
+    passing the keyword argument ``smart = True``, some manipulation will be
+    attempted to infer the truth value of a non-trivial symbolic relation. This
+    increases the cost of the comparison (and not always an answer may be
+    derived), so use it judiciously. By default, ``smart = False``.
 
     Raises
     ------
@@ -46,8 +49,6 @@ class Vector(tuple):
     """
 
     def __new__(cls, *items, smart=False):
-        if not all(is_integer(i) or isinstance(i, Basic) for i in items):
-            raise TypeError("Illegal Vector element type")
         obj = super(Vector, cls).__new__(cls, items)
         obj.smart = smart
         return obj
@@ -94,7 +95,6 @@ class Vector(tuple):
     def __ne__(self, other):
         return super(Vector, self).__ne__(other)
 
-    @_asvector()
     def __lt__(self, other):
         # This might raise an exception if the distance between the i-th entry
         # of `self` and `other` isn't integer, but rather a generic expression
@@ -123,11 +123,38 @@ class Vector(tuple):
 
         return False
 
-    @_asvector()
     def __gt__(self, other):
-        return other.__lt__(self)
+        # This method is "symmetric" to `__lt__`, but instead of just returning
+        # `other.__lt__(self)` we implement it explicitly because this way we
+        # can avoid computing the distance in the special case `other is 0`
 
-    @_asvector()
+        # This might raise an exception if the distance between the i-th entry
+        # of `self` and `other` isn't integer, but rather a generic expression
+        # not comparable to 0. However, the implementation is "smart", in the
+        # sense that it will return as soon as the first two comparable entries
+        # (i.e., such that their distance is a non-zero integer) are found
+        for i in self.distance(other):
+            try:
+                val = int(i)
+                if val > 0:
+                    return True
+                elif val < 0:
+                    return False
+            except TypeError:
+                if self.smart:
+                    if (i > 0) == true:
+                        return True
+                    elif (i >= 0) == true:
+                        # If `i` can assume the value 0 in at least one case, then
+                        # definitely `i > 0` is generally False, so __gt__ must
+                        # return False
+                        return False
+                    elif (i <= 0) == true:
+                        return False
+                raise TypeError("Non-comparable index functions")
+
+        return False
+
     def __le__(self, other):
         if self.__eq__(other):
             return True
@@ -211,6 +238,15 @@ class Vector(tuple):
 
         There are 2, 2, and 4 points between [3-2], [2-4], and [1-5], respectively.
         """
+        try:
+            # Handle quickly the special (yet relevant) cases `other == 0`
+            if is_integer(other) and other == 0:
+                return self
+            elif all(i == 0 for i in other) and self.rank == other.rank:
+                return self
+        except TypeError:
+            pass
+
         return self - other
 
 
