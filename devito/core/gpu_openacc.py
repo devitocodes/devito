@@ -31,7 +31,7 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
         return 'acc parallel loop'
 
     @classmethod
-    def _make_clauses(cls, ncollapse=None, reduction=None, **kwargs):
+    def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
         clauses = super(DeviceOpenACCIteration, cls)._make_clauses(**kwargs)
 
@@ -179,7 +179,8 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         data_manager.place_casts(graph)
 
         # Initialize OpenACC environment
-        initialize(graph)
+        if options['mpi']:
+            initialize(graph)
 
         return graph
 
@@ -209,7 +210,8 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         data_manager.place_casts(graph)
 
         # Initialize OpenACC environment
-        initialize(graph)
+        if options['mpi']:
+            initialize(graph)
 
         return graph
 
@@ -278,6 +280,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         data_manager.place_casts(graph)
 
         # Initialize OpenACC environment
-        initialize(graph)
+        if options['mpi']:
+            initialize(graph)
 
         return graph
