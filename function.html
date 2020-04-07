@@ -184,9 +184,9 @@
             
   <div class="section" id="function">
 <h1>Function<a class="headerlink" href="#function" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
+<dl class="py class">
 <dt id="devito.types.Function">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.</code><code class="sig-name descname">Function</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Function" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.</code><code class="sig-name descname">Function</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Function" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dense.DiscreteFunction</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.finite_differences.differentiable.Differentiable</span></code></p>
 <p>Tensor symbol representing a discrete function in symbolic equations.</p>
 <p>A Function carries multi-dimensional data and provides operations to create
@@ -270,9 +270,9 @@ However, upon derivative expansion, this becomes clear</p>
 <p class="rubric">Notes</p>
 <p>The parameters must always be given as keyword arguments, since SymPy
 uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the symbolic object.</p>
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.avg">
-<code class="sig-name descname">avg</code><span class="sig-paren">(</span><em class="sig-param">p=None</em>, <em class="sig-param">dims=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#Function.avg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Function.avg" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">avg</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">p</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">dims</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#Function.avg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Function.avg" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate a symbolic expression computing the average of <code class="docutils literal notranslate"><span class="pre">p</span></code> points
 along the spatial dimensions <code class="docutils literal notranslate"><span class="pre">dims</span></code>.</p>
 <dl class="field-list simple">
@@ -286,7 +286,7 @@ along the spatial dimensions <code class="docutils literal notranslate"><span cl
 </dl>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.data">
 <em class="property">property </em><code class="sig-name descname">data</code><a class="headerlink" href="#devito.types.Function.data" title="Permalink to this definition">¶</a></dt>
 <dd><p>The domain data values, as a numpy.ndarray.</p>
@@ -297,7 +297,7 @@ get back. If you only need to look at the values, use <code class="xref py py-me
 instead.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.data_domain">
 <em class="property">property </em><code class="sig-name descname">data_domain</code><a class="headerlink" href="#devito.types.Function.data_domain" title="Permalink to this definition">¶</a></dt>
 <dd><p>The domain data values.</p>
@@ -309,19 +309,19 @@ get back. If you only need to look at the values, use
 <a class="reference internal" href="#devito.types.Function.data_ro_domain" title="devito.types.Function.data_ro_domain"><code class="xref py py-meth docutils literal notranslate"><span class="pre">data_ro_domain()</span></code></a> instead.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.data_ro_domain">
 <em class="property">property </em><code class="sig-name descname">data_ro_domain</code><a class="headerlink" href="#devito.types.Function.data_ro_domain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Read-only view of the domain data values.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.data_ro_with_halo">
 <em class="property">property </em><code class="sig-name descname">data_ro_with_halo</code><a class="headerlink" href="#devito.types.Function.data_ro_with_halo" title="Permalink to this definition">¶</a></dt>
 <dd><p>Read-only view of the domain+outhalo data values.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.data_with_halo">
 <em class="property">property </em><code class="sig-name descname">data_with_halo</code><a class="headerlink" href="#devito.types.Function.data_with_halo" title="Permalink to this definition">¶</a></dt>
 <dd><p>The domain+outhalo data values.</p>
@@ -332,31 +332,31 @@ get back. If you only need to look at the values, use
 <a class="reference internal" href="#devito.types.Function.data_ro_with_halo" title="devito.types.Function.data_ro_with_halo"><code class="xref py py-meth docutils literal notranslate"><span class="pre">data_ro_with_halo()</span></code></a> instead.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.dimensions">
 <em class="property">property </em><code class="sig-name descname">dimensions</code><a class="headerlink" href="#devito.types.Function.dimensions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Tuple of Dimensions representing the object indices.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.dtype">
 <em class="property">property </em><code class="sig-name descname">dtype</code><a class="headerlink" href="#devito.types.Function.dtype" title="Permalink to this definition">¶</a></dt>
 <dd><p>The data type of the object.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.grid">
 <em class="property">property </em><code class="sig-name descname">grid</code><a class="headerlink" href="#devito.types.Function.grid" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Grid on which the discretization occurred.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.name">
 <em class="property">property </em><code class="sig-name descname">name</code><a class="headerlink" href="#devito.types.Function.name" title="Permalink to this definition">¶</a></dt>
 <dd><p>The name of the object.</p>
 </dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="devito.types.Function.shape">
 <code class="sig-name descname">shape</code><a class="headerlink" href="#devito.types.Function.shape" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shape of the domain region. The domain constitutes the area of the
@@ -365,7 +365,7 @@ data written to by an Operator.</p>
 <p>In an MPI context, this is the <em>local</em> domain region shape.</p>
 </dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="devito.types.Function.shape_allocated">
 <code class="sig-name descname">shape_allocated</code><a class="headerlink" href="#devito.types.Function.shape_allocated" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shape of the allocated data. It includes the domain and inhalo regions,
@@ -374,7 +374,7 @@ as well as any additional padding surrounding the halo.</p>
 <p>In an MPI context, this is the <em>local</em> with_halo region shape.</p>
 </dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="devito.types.Function.shape_global">
 <code class="sig-name descname">shape_global</code><a class="headerlink" href="#devito.types.Function.shape_global" title="Permalink to this definition">¶</a></dt>
 <dd><p>Global shape of the domain region. The domain constitutes the area of
@@ -384,7 +384,7 @@ the data written to by an Operator.</p>
 therefore identical on all MPI ranks.</p>
 </dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="devito.types.Function.shape_with_halo">
 <code class="sig-name descname">shape_with_halo</code><a class="headerlink" href="#devito.types.Function.shape_with_halo" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shape of the domain+outhalo region. The outhalo is the region
@@ -396,21 +396,21 @@ the outhalo of boundary ranks contains a number of elements depending
 on the rank position in the decomposed grid (corner, side, …).</p>
 </dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="devito.types.Function.space_dimensions">
 <code class="sig-name descname">space_dimensions</code><a class="headerlink" href="#devito.types.Function.space_dimensions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Tuple of Dimensions defining the physical space.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.space_order">
 <em class="property">property </em><code class="sig-name descname">space_order</code><a class="headerlink" href="#devito.types.Function.space_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>The space order.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="devito.types.Function.sum">
-<code class="sig-name descname">sum</code><span class="sig-paren">(</span><em class="sig-param">p=None</em>, <em class="sig-param">dims=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#Function.sum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Function.sum" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">sum</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">p</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">dims</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#Function.sum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Function.sum" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate a symbolic expression computing the sum of <code class="docutils literal notranslate"><span class="pre">p</span></code> points
 along the spatial dimensions <code class="docutils literal notranslate"><span class="pre">dims</span></code>.</p>
 <dl class="field-list simple">

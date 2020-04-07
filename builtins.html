@@ -172,9 +172,9 @@
 in user code to facilitate development. These are exposed as free functions.</p>
 <p>All built-in Operators support MPI.</p>
 <span class="target" id="module-devito.builtins"></span><p>Built-in Operators provided by Devito.</p>
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.assign">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">assign</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">rhs=0</em>, <em class="sig-param">options=None</em>, <em class="sig-param">name='assign'</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#assign"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.assign" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">assign</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">rhs</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">options</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">'assign'</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#assign"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.assign" title="Permalink to this definition">¶</a></dt>
 <dd><p>Assign a list of RHSs to a list of Functions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -215,9 +215,9 @@ be passed to Eq.</p></li>
 </div>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.smooth">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">smooth</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">g</em>, <em class="sig-param">axis=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.smooth" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">smooth</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">g</span></em>, <em class="sig-param"><span class="n">axis</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.smooth" title="Permalink to this definition">¶</a></dt>
 <dd><p>Smooth a Function through simple moving average.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -236,9 +236,9 @@ to <code class="docutils literal notranslate"><span class="pre">f</span></code>�
 </div>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.gaussian_smooth">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">gaussian_smooth</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">sigma=1</em>, <em class="sig-param">truncate=4.0</em>, <em class="sig-param">mode='reflect'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#gaussian_smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.gaussian_smooth" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">gaussian_smooth</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">sigma</span><span class="o">=</span><span class="default_value">1</span></em>, <em class="sig-param"><span class="n">truncate</span><span class="o">=</span><span class="default_value">4.0</span></em>, <em class="sig-param"><span class="n">mode</span><span class="o">=</span><span class="default_value">'reflect'</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#gaussian_smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.gaussian_smooth" title="Permalink to this definition">¶</a></dt>
 <dd><p>Gaussian smooth function.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -253,9 +253,9 @@ accepted. Default mode is ‘reflect’.</p></li>
 </dl>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.initialize_function">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">initialize_function</code><span class="sig-paren">(</span><em class="sig-param">function</em>, <em class="sig-param">data</em>, <em class="sig-param">nbl</em>, <em class="sig-param">mapper=None</em>, <em class="sig-param">mode='constant'</em>, <em class="sig-param">name='padfunc'</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#initialize_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.initialize_function" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">initialize_function</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">function</span></em>, <em class="sig-param"><span class="n">data</span></em>, <em class="sig-param"><span class="n">nbl</span></em>, <em class="sig-param"><span class="n">mapper</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">mode</span><span class="o">=</span><span class="default_value">'constant'</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">'padfunc'</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#initialize_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.initialize_function" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize a Function with the given <code class="docutils literal notranslate"><span class="pre">data</span></code>. <code class="docutils literal notranslate"><span class="pre">data</span></code>
 does <em>not</em> include the <code class="docutils literal notranslate"><span class="pre">nbl</span></code> outer/boundary layers; these are added via padding
 by this function.</p>
@@ -318,9 +318,9 @@ executed after padding is complete.</p>
 </div>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.norm">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">norm</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">order=2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#norm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.norm" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">norm</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">order</span><span class="o">=</span><span class="default_value">2</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#norm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.norm" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute the norm of a Function.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -332,9 +332,9 @@ executed after padding is complete.</p>
 </dl>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.sumall">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">sumall</code><span class="sig-paren">(</span><em class="sig-param">f</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#sumall"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.sumall" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">sumall</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#sumall"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.sumall" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute the sum of all Function data.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -343,9 +343,9 @@ executed after padding is complete.</p>
 </dl>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.inner">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">inner</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">g</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#inner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.inner" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">inner</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">g</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#inner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.inner" title="Permalink to this definition">¶</a></dt>
 <dd><p>Inner product of two Functions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -366,9 +366,9 @@ executed after padding is complete.</p>
 the inner product corresponds to the dot product.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.mmin">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">mmin</code><span class="sig-paren">(</span><em class="sig-param">f</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#mmin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.mmin" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">mmin</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#mmin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.mmin" title="Permalink to this definition">¶</a></dt>
 <dd><p>Retrieve the minimum.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -377,9 +377,9 @@ the inner product corresponds to the dot product.</p>
 </dl>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt id="devito.builtins.mmax">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">mmax</code><span class="sig-paren">(</span><em class="sig-param">f</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#mmax"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.mmax" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">mmax</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#mmax"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.mmax" title="Permalink to this definition">¶</a></dt>
 <dd><p>Retrieve the maximum.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>

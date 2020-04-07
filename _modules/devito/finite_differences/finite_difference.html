@@ -153,11 +153,10 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.finite_differences.finite_difference</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">finite_diff_weights</span>
-
-<span class="kn">from</span> <span class="nn">devito.finite_differences.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">symbolic_weights</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span>
-                                             <span class="n">generate_indices</span><span class="p">,</span> <span class="n">centered</span><span class="p">,</span> <span class="n">check_input</span><span class="p">,</span>
-                                             <span class="n">check_symbolic</span><span class="p">,</span> <span class="n">direct</span><span class="p">,</span> <span class="n">transpose</span><span class="p">)</span>
+<span></span><span class="kn">from</span> <span class="nn">devito.finite_differences.differentiable</span> <span class="kn">import</span> <span class="n">Add</span>
+<span class="kn">from</span> <span class="nn">devito.finite_differences.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">numeric_weights</span><span class="p">,</span> <span class="n">symbolic_weights</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span>
+                                             <span class="n">right</span><span class="p">,</span> <span class="n">generate_indices</span><span class="p">,</span> <span class="n">centered</span><span class="p">,</span> <span class="n">direct</span><span class="p">,</span>
+                                             <span class="n">transpose</span><span class="p">,</span> <span class="n">check_input</span><span class="p">,</span> <span class="n">check_symbolic</span><span class="p">)</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;first_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">,</span>
            <span class="s1">&#39;generic_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;centered&#39;</span><span class="p">,</span> <span class="s1">&#39;transpose&#39;</span><span class="p">,</span>
@@ -245,7 +244,7 @@
     <span class="k">if</span> <span class="n">symbolic</span><span class="p">:</span>
         <span class="n">c</span> <span class="o">=</span> <span class="n">symbolic_weights</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numeric_weights</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="p">)</span></div>
 
@@ -410,7 +409,7 @@
     <span class="k">if</span> <span class="n">symbolic</span><span class="p">:</span>
         <span class="n">c</span> <span class="o">=</span> <span class="n">symbolic_weights</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numeric_weights</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="p">)</span></div>
 
@@ -418,19 +417,22 @@
 <span class="k">def</span> <span class="nf">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">inds</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Expression from lists of indices and weights.&quot;&quot;&quot;</span>
     <span class="n">diff</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span>
-    <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">all_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">expr</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">dim</span><span class="p">],)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span>
                          <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="ow">is</span> <span class="n">dim</span><span class="p">)))</span>
-
     <span class="n">d0</span> <span class="o">=</span> <span class="p">([</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span> <span class="ow">is</span> <span class="n">dim</span><span class="p">]</span> <span class="ow">or</span> <span class="p">[</span><span class="n">dim</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">dim</span><span class="p">:</span> <span class="n">d0</span><span class="p">,</span> <span class="n">diff</span><span class="p">:</span> <span class="n">matvec</span><span class="o">*</span><span class="n">diff</span><span class="p">}</span>
+
     <span class="c1"># Loop through weights</span>
+    <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inds</span><span class="p">,</span> <span class="n">weights</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">iloc</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d0</span><span class="p">,</span> <span class="n">diff</span><span class="p">:</span> <span class="n">matvec</span><span class="o">*</span><span class="n">diff</span><span class="p">})</span>
+            <span class="n">iloc</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
             <span class="n">iloc</span> <span class="o">=</span> <span class="n">i</span>
         <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">iloc</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">)</span>
-        <span class="n">deriv</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span>
+        <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span><span class="p">)</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
 </pre></div>
