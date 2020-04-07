@@ -20,10 +20,10 @@ from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph
-from devito.symbolics import (estimate_cost, indexify, retrieve_functions, retrieve_indexed,
+from devito.symbolics import (estimate_cost, retrieve_functions, retrieve_indexed,
                               uxreplace)
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
-                          filter_sorted, split, timed_pass, timed_region, Evaluable)
+                          filter_sorted, split, timed_pass, timed_region)
 from devito.types import Dimension, Eq
 
 __all__ = ['Operator']
