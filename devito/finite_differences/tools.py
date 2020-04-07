@@ -222,8 +222,8 @@ def generate_indices_cartesian(dim, order, side, x0):
         offset_c = 0
     else:
         offset_c = np.sign(offset_c) * (offset_c % 1)
-        o_start += np.ceil(offset_c)
-        o_end -= np.ceil(-offset_c)
+        o_start += np.ceil(-offset_c)
+        o_end -= np.ceil(offset_c)
     offset = offset_c * dim.spacing
     # Spacing
     diff = dim.spacing
