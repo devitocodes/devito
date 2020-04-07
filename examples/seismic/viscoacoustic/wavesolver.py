@@ -24,9 +24,7 @@ class ViscoacousticWaveSolver(object):
                 2 - Ren et al. (2014) viscoacoustic equation
                 3 - Deng and McMechan (2007) viscoacoustic equation
                 Defaults to 1.
-    Notes
-    -----
-    This is an experimental staggered grid viscoacoustic modeling kernel.
+
     """
     def __init__(self, model, geometry, space_order=4, equation=1, **kwargs):
         self.model = model

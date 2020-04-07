@@ -10,14 +10,17 @@ def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwarg
     Stencil created from from Blanch and Symes (1995) / Dutta and Schuster (2014)
     viscoacoustic wave equation.
 
+    https://library.seg.org/doi/pdf/10.1190/1.1822695
+    https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
+
     Parameters
     ----------
     v : VectorTimeFunction
-        The computed particle velocity.
+        Particle velocity.
     r : TimeFunction
         Memory variable.
     p : TimeFunction
-        The computed solution.
+        Pressure field.
     vp : Function or float
         The time-constant velocity.
     irho : Function
@@ -25,11 +28,9 @@ def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwarg
     rho : Function
         The time-constant density.
     t_s : Float
-        The relaxation parameter.
+        The stress relaxation parameter.
     tt : Float
-        The relaxation parameter.
-    s : float or Scalar
-        The time dimension spacing.
+        The relaxation time.
     damp : Function
         The damping field for absorbing boundary condition.
     """
@@ -53,14 +54,16 @@ def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwarg
 
 def viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
     """
-    Stencil created from Ren et al. (2014) viscoacoustic wave equation
+    Stencil created from Ren et al. (2014) viscoacoustic wave equation.
+
+    https://academic.oup.com/gji/article/197/2/948/616510
 
     Parameters
     ----------
     v : VectorTimeFunction
-        The computed particle velocity.
+        Particle velocity.
     p : TimeFunction
-        The computed solution.
+        Pressure field.
     vp : Function or float
         The time-constant velocity.
     irho : Function
@@ -93,14 +96,16 @@ def viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
 
 def viscoacoustic_deng_mcmechan(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
     """
-    Stencil created from Deng and McMechan (2007) viscoacoustic wave equation
+    Stencil created from Deng and McMechan (2007) viscoacoustic wave equation.
+
+    https://library.seg.org/doi/pdf/10.1190/1.2714334
 
     Parameters
     ----------
     v : VectorTimeFunction
-        The computed particle velocity.
+        Particle velocity.
     p : TimeFunction
-        The computed solution.
+        Pressure field.
     vp : Function or float
         The time-constant velocity.
     irho : Function
