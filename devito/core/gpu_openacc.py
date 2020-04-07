@@ -37,8 +37,8 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
 
         partree = kwargs['nodes']
         deviceptrs = [i.name for i in FindSymbols().visit(partree) if i.is_Array]
-        deviceptrs = "deviceptr(%s)" % ",".join(deviceptrs)
-        clauses.append(deviceptrs)
+        if deviceptrs:
+            clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
 
         return clauses
 
