@@ -113,7 +113,7 @@ def initialize(iet, **kwargs):
             body = [rank_decl, rank_init, ngpus_init, devicenum_init,
                     set_device_num, body]
 
-        init = List(header=(c.Line(), c.Comment('Begin of OpenACC+MPI setup')),
+        init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
                     body=body,
                     footer=(c.Comment('End of OpenACC+MPI setup'), c.Line()))
 
@@ -142,9 +142,6 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # Initialize OpenACC environment
-        initialize(graph)
-
         # GPU parallelism via OpenACC offloading
         DeviceAccizer().make_parallel(graph)
 
@@ -153,6 +150,9 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
+
+        # Initialize OpenACC environment
+        initialize(graph)
 
         return graph
 
@@ -169,9 +169,6 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # Initialize OpenACC environment
-        initialize(graph)
-
         # GPU parallelism via OpenACC offloading
         DeviceAccizer().make_parallel(graph)
 
@@ -183,6 +180,9 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
+
+        # Initialize OpenACC environment
+        initialize(graph)
 
         return graph
 
@@ -244,13 +244,13 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         if 'openacc' not in passes:
             passes_mapper['openacc'](graph)
 
-        # Initialize OpenACC environment
-        initialize(graph)
-
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager()
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
+
+        # Initialize OpenACC environment
+        initialize(graph)
 
         return graph
