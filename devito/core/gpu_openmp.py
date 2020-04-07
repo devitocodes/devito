@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial, singledispatch
 
 import cgen as c
 
@@ -14,8 +14,7 @@ from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_i
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.tools import (as_tuple, filter_sorted, generator, singledispatchmethod,
-                          timed_pass)
+from devito.tools import as_tuple, filter_sorted, generator, timed_pass
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -172,45 +171,51 @@ class DeviceOpenMPDataManager(DataManager):
         storage._high_bw_mem[obj] = (None, alloc, free)
 
     @iet_pass
-    @singledispatchmethod
     def place_ondevice(self, iet, **kwargs):
-        return iet, {}
 
-    @place_ondevice.register(Callable)
-    def _(self, iet, **kwargs):
-        # Collect written and read-only symbols
-        writes = set()
-        reads = set()
-        for i, v in MapExprStmts().visit(iet).items():
-            if not i.is_Expression:
-                # No-op
-                continue
-            if not any(isinstance(j, self._Parallelizer._Iteration) for j in v):
-                # Not an offloaded Iteration tree
-                continue
-            if i.write.is_DiscreteFunction:
-                writes.add(i.write)
-            reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
+        @singledispatch
+        def _place_ondevice(iet):
+            return iet
 
-        # Populate `storage`
-        storage = Storage()
-        for i in filter_sorted(writes):
-            self._map_function_on_high_bw_mem(i, storage)
-        for i in filter_sorted(reads):
-            self._map_function_on_high_bw_mem(i, storage, read_only=True)
+        @_place_ondevice.register(Callable)
+        def _(iet):
+            # Collect written and read-only symbols
+            writes = set()
+            reads = set()
+            for i, v in MapExprStmts().visit(iet).items():
+                if not i.is_Expression:
+                    # No-op
+                    continue
+                if not any(isinstance(j, self._Parallelizer._Iteration) for j in v):
+                    # Not an offloaded Iteration tree
+                    continue
+                if i.write.is_DiscreteFunction:
+                    writes.add(i.write)
+                reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
 
-        iet = self._dump_storage(iet, storage)
+            # Populate `storage`
+            storage = Storage()
+            for i in filter_sorted(writes):
+                self._map_function_on_high_bw_mem(i, storage)
+            for i in filter_sorted(reads):
+                self._map_function_on_high_bw_mem(i, storage, read_only=True)
 
-        return iet, {}
+            iet = self._dump_storage(iet, storage)
 
-    @place_ondevice.register(ElementalFunction)
-    def _(self, iet, **kwargs):
-        return iet, {}
+            return iet
 
-    @place_ondevice.register(CopyBuffer)
-    @place_ondevice.register(SendRecv)
-    @place_ondevice.register(HaloUpdate)
-    def _(self, iet, **kwargs):
+        @_place_ondevice.register(ElementalFunction)
+        def _(iet):
+            return iet
+
+        @_place_ondevice.register(CopyBuffer)
+        @_place_ondevice.register(SendRecv)
+        @_place_ondevice.register(HaloUpdate)
+        def _(iet):
+            return iet
+
+        iet = _place_ondevice(iet)
+
         return iet, {}
 
 
