@@ -5,10 +5,15 @@ from devito import Operator, norm, Function, Grid, SparseFunction
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
+from examples.seismic.tti import tti_setup
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},
     'layers': {'preset': 'layers-isotropic', 'nlayers': 2},
+}
+presets_tti = {
+    'constant': {'preset': 'constant-tti'},
+    'layers': {'preset': 'layers-tti', 'nlayers': 2},
 }
 
 
@@ -58,6 +63,46 @@ class TestAdjoint(object):
         info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
+
+    @pytest.mark.parametrize('mkey, shape, space_order', [
+        # 2D tests with varying space orders
+        ('layers', (30, 35), 8), ('layers', (30, 35), 4),
+        # 3D tests with varying space orders
+        ('layers', (30, 35, 40), 8), ('layers', (30, 35, 40), 4),
+        # Constant model in 2D and 3D
+        ('constant', (30, 35), 8), ('constant', (30, 35, 40), 4),
+        ('constant', (30, 35), 8), ('constant', (30, 35, 40), 4),
+    ])
+    def test_adjoint_tti_F(self, mkey, shape, space_order):
+        """
+        Adjoint test for the forward modeling operator.
+        The forward modeling operator F generates a shot record (measurements)
+        from a source while the adjoint of F generates measurments at the source
+        location from data. This test uses the conventional dot test:
+        < Fx, y> = <x, F^T y>
+        """
+        tn = 500.  # Final time
+
+        # Create solver from preset
+        solver = tti_setup(shape=shape, spacing=[15. for _ in shape],
+                           nbl=10, tn=tn, space_order=space_order,
+                           **(presets_tti[mkey]), dtype=np.float64)
+
+        # Create adjoint receiver symbol
+        srca = Receiver(name='srca', grid=solver.model.grid,
+                        time_range=solver.geometry.time_axis,
+                        coordinates=solver.geometry.src_positions)
+
+        # Run forward and adjoint operators
+        rec, _, _, _ = solver.forward(save=False)
+        solver.adjoint(rec=rec, srca=srca)
+
+        # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
+        term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)
+        term2 = norm(rec) ** 2
+        info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
+             % (term1, term2, (term1 - term2)/term1, term1 / term2))
+        assert np.isclose((term1 - term2)/term1, 0., atol=1.e-11)
 
     @pytest.mark.parametrize('space_order', [4, 8, 12])
     @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
