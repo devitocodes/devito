@@ -13,7 +13,7 @@ from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
 from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders, iet_pass
 from devito.symbolics import Byref, Macro
-from devito.tools import as_tuple, timed_pass
+from devito.tools import as_tuple, prod, timed_pass
 from devito.types import Symbol
 
 __all__ = ['DeviceOpenACCNoopOperator', 'DeviceOpenACCOperator',
@@ -73,6 +73,21 @@ class DeviceAccizer(DeviceOmpizer):
 class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     _Parallelizer = DeviceAccizer
+
+    def _alloc_array_on_high_bw_mem(self, obj, storage):
+        """Allocate an Array in the high bandwidth memory."""
+        if obj in storage._high_bw_mem:
+            return
+
+        decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
+        decl = c.Value(obj._C_typedata, decl)
+        size = prod(obj.symbolic_shape)
+        alloc = "acc_malloc(sizeof(%s[%s]))" % (obj._C_typedata, size)
+        init = c.Initializer(decl, alloc)
+
+        free = c.Statement('acc_free(%s)' % obj.name)
+
+        storage._high_bw_mem[obj] = (None, init, free)
 
 
 @iet_pass
