@@ -5,31 +5,30 @@ from examples.seismic import PointSource, Receiver
 from devito.finite_differences import centered, first_derivative, transpose
 
 
-def second_order_stencil(m, damp, epsilon, delta, s, u, v, H0, Hz, **kwargs):
+def second_order_stencil(model, u, v, H0, Hz, forward=True):
     """
     Creates the stencil corresponding to the second order TTI wave equation
     u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
     v.dt2 =  (delta * H0 + Hz) - damp * v.dt
     """
+
+    m, damp = model.m, model.damp
+    s = model.grid.stepping_dim.spacing
+
+    unext = u.forward if forward else u.backward
+    vnext = v.forward if forward else v.backward
+    uprev = u.backward if forward else u.forward
+    vprev = v.backward if forward else v.forward
+
     # Stencils
-    if kwargs.get('forward', True):
-        stencilp = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
-        stencilr = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * v + (s * damp - 2.0 * m) *
-             v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
-        first_stencil = Eq(u.forward, stencilp)
-        second_stencil = Eq(v.forward, stencilr)
-    else:
-        stencilp = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.forward + 2.0 * s ** 2 * (H0))
-        stencilr = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * v + (s * damp - 2.0 * m) *
-             v.forward + 2.0 * s ** 2 * (Hz))
-        first_stencil = Eq(u.backward, stencilp)
-        second_stencil = Eq(v.backward, stencilr)
+    stencilp = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * u + (s * damp - 2.0 * m) *
+         uprev + 2.0 * s ** 2 * (H0))
+    stencilr = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * v + (s * damp - 2.0 * m) *
+         vprev + 2.0 * s ** 2 * (Hz))
+    first_stencil = Eq(unext, stencilp)
+    second_stencil = Eq(vnext, stencilr)
 
     stencils = [first_stencil, second_stencil]
     return stencils
@@ -171,7 +170,7 @@ def Gxx_centered_2d(model, field, costheta, sintheta, space_order):
     return field.laplace - Gzz_centered_2d(model, field, costheta, sintheta, space_order)
 
 
-def kernel_centered_2d(model, u, v, space_order, **kwargs):
+def kernel_centered_2d(model, u, v, space_order, forward=True):
     """
     TTI finite difference kernel. The equation solved is:
 
@@ -179,7 +178,10 @@ def kernel_centered_2d(model, u, v, space_order, **kwargs):
     v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)
 
     where epsilon and delta are the thomsen parameters. This function computes
-    H0 = Gxx(u) + Gyy(u)
+    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u))
+    Hz = sqrt(1+ 2*delta) Gzz(v)
+
+    H0 = sqrt(1+ 2*delta)(Gxx(u)+Gyy(u))
     Hz = Gzz(v)
 
     Parameters
@@ -199,22 +201,24 @@ def kernel_centered_2d(model, u, v, space_order, **kwargs):
     costheta = cos(model.theta)
     sintheta = sin(model.theta)
 
-    m, damp, delta, epsilon = model.m, model.damp, model.delta, model.epsilon
-    epsilon = 1 + 2 * epsilon
-    delta = sqrt(1 + 2 * delta)
-    s = model.grid.stepping_dim.spacing
+    delta, epsilon = model.delta, model.epsilon
+    epsilon = 1 + 2*epsilon
+    delta = sqrt(1 + 2*delta)
 
-    if kwargs.get('forward', True):
+    if forward:
         Gxx = Gxx_centered_2d(model, u, costheta, sintheta, space_order)
         Gzz = Gzz_centered_2d(model, v, costheta, sintheta, space_order)
-        return second_order_stencil(m, damp, epsilon, delta, s, u, v, Gxx, Gzz)
+        H0 = epsilon*Gxx + delta*Gzz
+        Hz = delta*Gxx + Gzz
+        return second_order_stencil(model, u, v, H0, Hz)
     else:
-        Gxx = Gxx_centered_2d(model, (epsilon*u + delta*v), costheta, sintheta, space_order)
-        Gzz = Gzz_centered_2d(model, (delta*u + v), costheta, sintheta, space_order)
-        return second_order_stencil(m, damp, epsilon, delta, s, u, v, Gxx, Gzz, forward=False)
+        H0 = Gxx_centered_2d(model, (epsilon*u + delta*v), costheta,
+                             sintheta, space_order)
+        Hz = Gzz_centered_2d(model, (delta*u + v), costheta, sintheta, space_order)
+        return second_order_stencil(model, u, v, H0, Hz, forward=False)
 
 
-def kernel_centered_3d(model, u, v, space_order, **kwargs):
+def kernel_centered_3d(model, u, v, space_order, forward=True):
     """
     TTI finite difference kernel. The equation solved is:
 
@@ -222,7 +226,10 @@ def kernel_centered_3d(model, u, v, space_order, **kwargs):
     v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
 
     where epsilon and delta are the Thomsen parameters. This function computes
-    H0 = Gxx(u) + Gyy(u)
+    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u))
+    Hz = sqrt(1+ 2*delta) Gzz(v)
+
+    H0 = sqrt(1+ 2*delta)(Gxx(u)+Gyy(u))
     Hz = Gzz(v)
 
     Parameters
@@ -234,7 +241,7 @@ def kernel_centered_3d(model, u, v, space_order, **kwargs):
 
     Returns
     -------
-    u and v component of the rotated Laplacian in 2D.
+    u and v component of the rotated Laplacian in 3D.
     """
     # Tilt and azymuth setup
     costheta = cos(model.theta)
@@ -242,19 +249,22 @@ def kernel_centered_3d(model, u, v, space_order, **kwargs):
     cosphi = cos(model.phi)
     sinphi = sin(model.phi)
 
-    m, damp, delta, epsilon = model.m, model.damp, model.delta, model.epsilon
-    epsilon = 1 + 2 * epsilon
-    delta = sqrt(1 + 2 * delta)
-    s = model.grid.stepping_dim.spacing
+    delta, epsilon = model.delta, model.epsilon
+    epsilon = 1 + 2*epsilon
+    delta = sqrt(1 + 2*delta)
 
-    if kwargs.get('forward', True):
-    	Gxx = Gxxyy_centered(model, u, costheta, sintheta, cosphi, sinphi, space_order)
-    	Gzz = Gzz_centered(model, v, costheta, sintheta, cosphi, sinphi, space_order)
-    	return second_order_stencil(m, damp, epsilon, delta, s, u, v, Gxx, Gzz)
+    if forward:
+        Gxx = Gxxyy_centered(model, u, costheta, sintheta, cosphi, sinphi, space_order)
+        Gzz = Gzz_centered(model, v, costheta, sintheta, cosphi, sinphi, space_order)
+        H0 = epsilon*Gxx + delta*Gzz
+        Hz = delta*Gxx + Gzz
+        return second_order_stencil(model, u, v, H0, Hz)
     else:
-    	Gxx = Gxxyy_centered(model, (epsilon*u + delta*v), costheta, sintheta, cosphi, sinphi, space_order)
-    	Gzz = Gzz_centered(model, (delta*u + v), costheta, sintheta, cosphi, sinphi, space_order)
-    	return second_order_stencil(m, damp, epsilon, delta, s, u, v, Gxx, Gzz, forward=False)
+        H0 = Gxxyy_centered(model, (epsilon*u + delta*v), costheta, sintheta,
+                            cosphi, sinphi, space_order)
+        Hz = Gzz_centered(model, (delta*u + v), costheta, sintheta, cosphi,
+                          sinphi, space_order)
+        return second_order_stencil(model, u, v, H0, Hz, forward=False)
 
 
 def particle_velocity_fields(model, space_order):
@@ -375,7 +385,7 @@ def kernel_staggered_3d(model, u, v, space_order):
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='centered', **kwargs):
     """
-    Construct an forward modelling operator in an acoustic media.
+    Construct an forward modelling operator in an tti media.
 
     Parameters
     ----------
@@ -384,12 +394,13 @@ def ForwardOperator(model, geometry, space_order=4,
     geometry : AcquisitionGeometry
         Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
-    data : ndarray
-        IShot() object containing the acquisition geometry and field data.
-    time_order : int
-        Time discretization order.
-    space_order : int
+    space_order : int, optional
         Space discretization order.
+    save : int or Buffer, optional
+        Saving flag, True saves all time steps. False saves three timesteps.
+        Defaults to False.
+    kernel : str, optional
+        Type of discretization, centered or shifted
     """
 
     dt = model.grid.time_dim.spacing
@@ -426,9 +437,9 @@ def ForwardOperator(model, geometry, space_order=4,
 
 
 def AdjointOperator(model, geometry, space_order=4,
-                    save=False, kernel='centered', **kwargs):
+                    **kwargs):
     """
-    Construct an adjoint modelling operator in an acoustic media.
+    Construct an adjoint modelling operator in an tti media.
 
     Parameters
     ----------
@@ -437,44 +448,35 @@ def AdjointOperator(model, geometry, space_order=4,
     geometry : AcquisitionGeometry
         Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
-    data : ndarray
-        IShot() object containing the acquisition geometry and field data.
-    time_order : int
-        Time discretization order.
-    space_order : int
+    space_order : int, optional
         Space discretization order.
     """
 
     dt = model.grid.time_dim.spacing
     m = model.m
-    time_order = 1 if kernel == 'staggered' else 2
-    if kernel == 'staggered':
-        stagg_u = stagg_v = NODE
-    else:
-        stagg_u = stagg_v = None
+    time_order = 2
+    stagg_p = stagg_r = None
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeFunction(name='u', grid=model.grid, staggered=stagg_u,
-                     save=geometry.nt if save else None,
-                     time_order=time_order, space_order=space_order)
-    v = TimeFunction(name='v', grid=model.grid, staggered=stagg_v,
-                     save=geometry.nt if save else None,
-                     time_order=time_order, space_order=space_order)
+    p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p,
+                     save=None, time_order=time_order, space_order=space_order)
+    r = TimeFunction(name='r', grid=model.grid, staggered=stagg_r,
+                     save=None, time_order=time_order, space_order=space_order)
     srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
-                      npoint=geometry.nsrc)
+                       npoint=geometry.nsrc)
     rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
                    npoint=geometry.nrec)
 
     # FD kernels of the PDE
-    FD_kernel = kernels[(kernel, len(model.shape))]
-    stencils = FD_kernel(model, u, v, space_order,forward=False)
+    FD_kernel = kernels[('centered', len(model.shape))]
+    stencils = FD_kernel(model, p, r, space_order, forward=False)
 
     # Construct expression to inject receiver values
-    stencils += rec.inject(field=u.backward, expr=rec * dt**2 / m)
-    stencils += rec.inject(field=v.backward, expr=rec * dt**2 / m)
+    stencils += rec.inject(field=p.backward, expr=rec * dt**2 / m)
+    stencils += rec.inject(field=r.backward, expr=rec * dt**2 / m)
 
     # Create interpolation expression for the adjoint-source
-    stencils += srca.interpolate(expr=u + v)
+    stencils += srca.interpolate(expr=p + r)
 
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='AdjointTTI', **kwargs)
