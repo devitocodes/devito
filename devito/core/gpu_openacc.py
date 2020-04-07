@@ -7,7 +7,7 @@ from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIterat
                                     DeviceOmpizer, DeviceOpenMPDataManager)
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import Call, ElementalFunction, List, LocalExpression
+from devito.ir.iet import Call, ElementalFunction, FindSymbols, List, LocalExpression
 from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
@@ -29,6 +29,18 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
     @classmethod
     def _make_construct(cls, **kwargs):
         return 'acc parallel loop'
+
+    @classmethod
+    def _make_clauses(cls, ncollapse=None, reduction=None, **kwargs):
+        kwargs['chunk_size'] = False
+        clauses = super(DeviceOpenACCIteration, cls)._make_clauses(**kwargs)
+
+        partree = kwargs['nodes']
+        deviceptrs = [i.name for i in FindSymbols().visit(partree) if i.is_Array]
+        deviceptrs = "deviceptr(%s)" % ",".join(deviceptrs)
+        clauses.append(deviceptrs)
+
+        return clauses
 
 
 class DeviceAccizer(DeviceOmpizer):
