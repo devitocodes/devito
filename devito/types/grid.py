@@ -564,26 +564,26 @@ class SubDomainSet(SubDomain):
 
                     # Check if the subdomain doesn't intersect with the decomposition
                     if lmin < d.loc_abs_min and lmax < d.loc_abs_min:
-                        bounds_m[j] = -1
-                        bounds_M[j] = -2
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
                         continue
                     if lmin > d.loc_abs_max and lmax > d.loc_abs_max:
-                        bounds_m[j] = -1
-                        bounds_M[j] = -2
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
                         continue
 
                     if lmin < d.loc_abs_min:
                         bounds_m[j] = 0
                     elif lmin > d.loc_abs_max:
-                        bounds_m[j] = -1
-                        bounds_M[j] = -2
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
                         continue
                     else:
                         bounds_m[j] = d.index_glb_to_loc(m[j], LEFT)
 
                     if lmax < d.loc_abs_min:
-                        bounds_m[j] = -1
-                        bounds_M[j] = -2
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
                         continue
                     elif lmax >= d.loc_abs_max:
                         bounds_M[j] = 0
@@ -606,7 +606,7 @@ class SubDomainSet(SubDomain):
     def bounds(self):
         return self._local_bounds
 
-    def _create_implicit_exprs(self):
+    def _create_implicit_exprs(self, grid):
         if not len(self._local_bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
         n_domains = self.n_domains
@@ -622,7 +622,7 @@ class SubDomainSet(SubDomain):
             else:
                 fname = d.max_name
             func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ),
-                            dtype=np.int32)
+                            grid=grid, dtype=np.int32)
             # Check if shorthand notation has been provided:
             if isinstance(self._local_bounds[j], int):
                 bounds = np.full((n_domains,), self._local_bounds[j], dtype=np.int32)
