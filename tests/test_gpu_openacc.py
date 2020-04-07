@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from conftest import skipif
-from devito import Grid, Function, TimeFunction, Eq, Operator, configuration, norm, solve
+from devito import Grid, Function, TimeFunction, Eq, Operator, norm, solve
 from devito.ir.iet import retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 

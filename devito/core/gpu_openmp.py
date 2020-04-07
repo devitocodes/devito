@@ -6,7 +6,7 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.ir.iet import Block, Callable, ElementalFunction, List, MapExprStmts
+from devito.ir.iet import Callable, ElementalFunction, List, MapExprStmts
 from devito.logger import warning
 from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
