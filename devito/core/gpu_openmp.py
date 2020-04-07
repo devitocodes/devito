@@ -218,12 +218,6 @@ class DeviceOpenMPDataManager(DataManager):
         return iet._rebuild(body=body), {}
 
     @place_ondevice.register(SendRecv)
-    def _(self, iet, **kwargs):
-        header = [self._Parallelizer._map_pointers([iet.bufg, iet.bufs])]
-        body = Block(header=header, body=iet.body)
-
-        return iet._rebuild(body=body), {}
-
     @place_ondevice.register(HaloUpdate)
     def _(self, iet, **kwargs):
         return iet, {}
