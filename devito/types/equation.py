@@ -130,6 +130,24 @@ class Eq(sympy.Eq, Evaluable):
         return bool(self._symbolic_functions)
 
     @cached_property
+    def _functions(self):
+        try:
+            return self.lhs._functions.union(self.rhs._functions)
+        except AttributeError:
+            pass
+        try:
+            return self.lhs._functions
+        except AttributeError:
+            pass
+        try:
+            return self.rhs._functions
+        except AttributeError:
+            return frozenset()
+        else:
+            TypeError('Failed to retrieve symbolic functions')
+
+    @cached_property
+    # TODO: Tidy up if keeping _functions
     def _symbolic_functions(self):
         try:
             return self.lhs._symbolic_functions.union(self.rhs._symbolic_functions)

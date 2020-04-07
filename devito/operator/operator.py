@@ -23,7 +23,7 @@ from devito.passes import Graph
 from devito.symbolics import (estimate_cost, indexify, retrieve_functions, retrieve_indexed,
                               uxreplace)
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
-                          filter_sorted, split, timed_pass, timed_region)
+                          filter_sorted, split, timed_pass, timed_region, Evaluable)
 from devito.types import Dimension, Eq
 
 __all__ = ['Operator']
@@ -241,8 +241,17 @@ class Operator(Callable):
         """
 
         # Extract the grid - any grid with the correct distributor will do
-        functions = retrieve_functions(expressions, mode='unique')
-        grid = list(functions)[0].grid
+        # TODO: Hacky. Tidy.
+        functions = []
+        for e in expressions:
+            try:
+                functions.extend(as_list(e._functions))
+            except AttributeError:
+                continue
+        if functions:
+            grid = functions[0].grid
+        else:
+            grid = None
 
         processed = []
         seen = set()
