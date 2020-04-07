@@ -239,20 +239,6 @@ class Operator(Callable):
         Implicit expressions are those not explicitly defined by the user
         but instead are requisites of some specified functionality.
         """
-
-        # Extract the grid - any grid with the correct distributor will do
-        # TODO: Hacky. Tidy.
-        functions = []
-        for e in expressions:
-            try:
-                functions.extend(as_list(e._functions))
-            except AttributeError:
-                continue
-        if functions:
-            grid = functions[0].grid
-        else:
-            grid = None
-
         processed = []
         seen = set()
         for e in expressions:
@@ -264,6 +250,7 @@ class Operator(Callable):
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
                     if e.subdomain not in seen:
+                        grid = list(retrieve_functions(e, mode='unique'))[0].grid
                         processed.extend([i.func(*i.args, implicit_dims=dims) for i in
                                           e.subdomain._create_implicit_exprs(grid)])
                         seen.add(e.subdomain)
