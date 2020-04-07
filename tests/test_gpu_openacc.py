@@ -131,3 +131,8 @@ class TestMPI(object):
             assert np.all(u.data[0] == [[17., 24., 25., 25., 24., 17.],
                                         [16., 23., 24., 24., 23., 16.],
                                         [11., 16., 17., 17., 16., 11.]])
+
+    @skipif('nodevice')
+    @pytest.mark.parallel(mode=2)
+    def test_iso_ac(self):
+        TestOperator().test_iso_ac()
