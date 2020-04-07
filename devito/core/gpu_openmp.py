@@ -6,7 +6,7 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.ir.iet import Callable, ElementalFunction, List, MapExprStmts
+from devito.ir.iet import Callable, ElementalFunction, MapExprStmts
 from devito.logger import warning
 from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
@@ -208,15 +208,6 @@ class DeviceOpenMPDataManager(DataManager):
         return iet, {}
 
     @place_ondevice.register(CopyBuffer)
-    def _(self, iet, **kwargs):
-        functions = [i for i in iet.parameters if i.is_Tensor]
-        assert len(functions) == 2
-
-        header = [self._Parallelizer._map_present(f) for f in functions]
-        body = List(header=header, body=iet.body)
-
-        return iet._rebuild(body=body), {}
-
     @place_ondevice.register(SendRecv)
     @place_ondevice.register(HaloUpdate)
     def _(self, iet, **kwargs):
