@@ -46,7 +46,7 @@ jobs:
         RESOURCE_GROUP_REGION: uksouth
         VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: gpu_ci_vm-image-0104
+        IMAGE: gpu_ci_vm-image-PR-WIP-test
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
@@ -84,12 +84,13 @@ jobs:
               git checkout ${{ steps.extract_branch.outputs.branch }}
           fi
           # OpenMP offloading
+          pgaccelinfo
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test tests/test_gpu_openmp.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
           # OpenACC
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
-          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/acoustic/acoustic_example.py
+          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc python examples/seismic/acoustic/acoustic_example.py
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
