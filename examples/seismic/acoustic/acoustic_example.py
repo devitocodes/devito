@@ -23,12 +23,6 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     return solver
 
 
-def test_acoustic():
-    _, _, _, [rec1, u] = run()
-    norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec1), 582.71576, atol=1e-3, rtol=0)
-
-
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         space_order=4, kernel='OT2', nbl=40, full_run=False,
         autotune=False, preset='layers-isotropic', checkpointing=False, **kwargs):
