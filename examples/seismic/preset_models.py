@@ -344,9 +344,9 @@ def demo_model(preset, **kwargs):
         for i in range(1, nlayers):
             vp[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
-        qp[:] = 3.516*((vp[:]*1000.)**2.2)*10**(-6) # Li's empirical formula
+        qp[:] = 3.516*((vp[:]*1000.)**2.2)*10**(-6)  # Li's empirical formula
 
-        rho[:] = 0.31*(vp[:]*1000.)**0.25 # Gardner's relation
+        rho[:] = 0.31*(vp[:]*1000.)**0.25  # Gardner's relation
 
         return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho,
                                   origin=origin, shape=shape, spacing=spacing,
