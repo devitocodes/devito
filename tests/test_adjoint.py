@@ -12,7 +12,6 @@ presets = {
     'layers': {'preset': 'layers-isotropic', 'nlayers': 2},
 }
 presets_tti = {
-    'constant': {'preset': 'constant-tti'},
     'layers': {'preset': 'layers-tti', 'nlayers': 2},
 }
 
@@ -69,9 +68,6 @@ class TestAdjoint(object):
         ('layers', (30, 35), 8), ('layers', (30, 35), 4),
         # 3D tests with varying space orders
         ('layers', (30, 35, 40), 8), ('layers', (30, 35, 40), 4),
-        # Constant model in 2D and 3D
-        ('constant', (30, 35), 8), ('constant', (30, 35, 40), 4),
-        ('constant', (30, 35), 8), ('constant', (30, 35, 40), 4),
     ])
     def test_adjoint_tti_F(self, mkey, shape, space_order):
         """
