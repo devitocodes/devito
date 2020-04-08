@@ -257,4 +257,4 @@ class TestOperator(object):
 
         op(time=time_range.num-1, dt=dt)
 
-        assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
+        assert np.isclose(norm(rec), 491.55, atol=1e-2, rtol=0)
