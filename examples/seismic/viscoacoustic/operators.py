@@ -2,39 +2,59 @@ import sympy as sp
 import numpy as np
 
 from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, NODE,
-                    div, grad, diag)
+                    div, grad)
 from examples.seismic import PointSource, Receiver
 
-def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwargs):
+
+def blanch_symes(model, geometry, v, p, **kwargs):
     """
     Stencil created from from Blanch and Symes (1995) / Dutta and Schuster (2014)
     viscoacoustic wave equation.
 
+    https://library.seg.org/doi/pdf/10.1190/1.1822695
+    https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
+
     Parameters
     ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     v : VectorTimeFunction
-        The computed particle velocity.
-    r : TimeFunction
-        Memory variable.
+        Particle velocity.
     p : TimeFunction
-        The computed solution.
-    vp : Function or float
-        The time-constant velocity.
-    irho : Function
-        The time-constant inverse density.
-    rho : Function
-        The time-constant density.
-    t_s : Float
-        The relaxation parameter.
-    tt : Float
-        The relaxation parameter.
-    s : float or Scalar
-        The time dimension spacing.
-    damp : Function
-        The damping field for absorbing boundary condition.
+        Pressure field.
     """
+    space_order = kwargs.get('space_order')
+    save = kwargs.get('save')
+
+    s = model.grid.stepping_dim.spacing
+    irho = model.irho
+    vp = model.vp
+    damp = model.damp
+    qp = model.qp
+    f0 = geometry._f0
+
+    # The stress relaxation parameter
+    t_s = (sp.sqrt(1.+1./qp**2)-1./qp)/f0
+
+    # The strain relaxation parameter
+    t_ep = 1./(f0**2*t_s)
+
+    # The relaxation time
+    tt = (t_ep/t_s)-1.
+
+    # Density
+    rho = 1. / irho
+
     # Bulk modulus
     bm = rho * (vp * vp)
+
+    # Memory variable.
+    r = TimeFunction(name="r", grid=model.grid, staggered=NODE,
+                     save=geometry.nt if save else None,
+                     time_order=1, space_order=space_order)
 
     # Define PDE
     pde_v = v - s * irho * grad(p)
@@ -51,73 +71,82 @@ def viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp, **kwarg
 
     return [u_v, u_r, u_p]
 
-def viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
+
+def ren(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Ren et al. (2014) viscoacoustic wave equation
+    Stencil created from Ren et al. (2014) viscoacoustic wave equation.
+
+    https://academic.oup.com/gji/article/197/2/948/616510
 
     Parameters
     ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     v : VectorTimeFunction
-        The computed particle velocity.
+        Particle velocity.
     p : TimeFunction
-        The computed solution.
-    vp : Function or float
-        The time-constant velocity.
-    irho : Function
-        The time-constant inverse density.
-    rho : Function
-        The time-constant density.
-    qp : Function
-        The P-wave quality factor.
-    f0: float or Scalar
-        The dominant frequency
-    s : float or Scalar
-        The time dimension spacing.
-    damp : Function
-        The damping field for absorbing boundary condition.
+        Pressure field.
     """
+    s = model.grid.stepping_dim.spacing
+    f0 = geometry._f0
+    vp = model.vp
+    irho = model.irho
+    qp = model.qp
+    damp = model.damp
+
     # Angular frequency
     w = 2. * np.pi * f0
+
+    # Density
+    rho = 1. / irho
 
     # Define PDE
     pde_v = v - s * irho * grad(p)
 
     u_v = Eq(v.forward, damp * pde_v)
 
-    pde_u = p - s * vp * vp * rho * div(v.forward) + s * ((vp * vp * rho) / \
-            (w * qp)) * div(irho * grad(p))
+    pde_u = p - s * vp * vp * rho * div(v.forward) + \
+        s * ((vp * vp * rho) / (w * qp)) * div(irho * grad(p))
 
     u_p = Eq(p.forward, damp * pde_u)
 
     return [u_v, u_p]
 
-def viscoacoustic_deng_mcmechan(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
+
+def deng_mcmechan(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Deng and McMechan (2007) viscoacoustic wave equation
+    Stencil created from Deng and McMechan (2007) viscoacoustic wave equation.
+
+    https://library.seg.org/doi/pdf/10.1190/1.2714334
 
     Parameters
     ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     v : VectorTimeFunction
-        The computed particle velocity.
+        Particle velocity.
     p : TimeFunction
-        The computed solution.
-    vp : Function or float
-        The time-constant velocity.
-    irho : Function
-        The time-constant inverse density.
-    rho : Function
-        The time-constant density.
-    qp : Function
-        The P-wave quality factor.
-    f0: float or Scalar
-        The dominant frequency
-    s : float or Scalar
-        The time dimension spacing.
-    damp : Function
-        The damping field for absorbing boundary condition.
+        Pressure field.
     """
+    s = model.grid.stepping_dim.spacing
+    f0 = geometry._f0
+    vp = model.vp
+    irho = model.irho
+    qp = model.qp
+    damp = model.damp
+
     # Angular frequency
     w = 2. * np.pi * f0
+
+    # Density
+    rho = 1. / irho
+
     # Define PDE
     pde_v = v - s * irho * grad(p)
 
@@ -129,9 +158,11 @@ def viscoacoustic_deng_mcmechan(v, p, vp, irho, rho, qp, f0, s, damp, **kwargs):
 
     return [u_v, u_p]
 
-def ForwardOperator(model, geometry, space_order=4, equation=1, save=False, **kwargs):
+
+def ForwardOperator(model, geometry, space_order=4, kernel='blanch_symes', save=False,
+                    **kwargs):
     """
-    Construct method for the forward modelling operator in an viscoacoustic media.
+    Construct method for the forward modelling operator in a viscoacoustic media.
 
     Parameters
     ----------
@@ -142,33 +173,23 @@ def ForwardOperator(model, geometry, space_order=4, equation=1, save=False, **kw
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
+    kernel : selects a visco-acoustic equation from the options below:
+        blanch_symes - Blanch and Symes (1995) / Dutta and Schuster (2014)
+        viscoacoustic equation
+        ren - Ren et al. (2014) viscoacoustic equation
+        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        Defaults to blanch_symes.
     save : int or Buffer
         Saving flag, True saves all time steps, False saves three buffered
         indices (last three time steps). Defaults to False.
-    equation : selects a visco-acoustic equation from the options below:
-                1 - Blanch and Symes (1995) / Dutta and Schuster (2014) viscoacoustic equation
-                2 - Ren et al. (2014) viscoacoustic equation
-                3 - Deng and McMechan (2007) viscoacoustic equation
-                Defaults to 1.
     """
-    qp, rho, irho, vp, damp = \
-        model.qp, model.rho, model.irho, model.vp, model.damp
     s = model.grid.stepping_dim.spacing
-
-    f0 = geometry._f0
-    t_s = (sp.sqrt(1.+1./qp**2)-1./qp)/f0
-    t_ep = 1./(f0**2*t_s)
-    tt = (t_ep/t_s)-1.
 
     # Create symbols for forward wavefield, particle velocity, source and receivers
     # Velocity:
     v = VectorTimeFunction(name="v", grid=model.grid,
                            save=geometry.nt if save else None,
                            time_order=1, space_order=space_order)
-
-    r = TimeFunction(name="r", grid=model.grid, staggered=NODE,
-                     save=geometry.nt if save else None,
-                     time_order=1, space_order=space_order)
 
     p = TimeFunction(name="p", grid=model.grid, staggered=NODE,
                      save=geometry.nt if save else None,
@@ -178,31 +199,21 @@ def ForwardOperator(model, geometry, space_order=4, equation=1, save=False, **kw
                       npoint=geometry.nsrc)
 
     rec = Receiver(name="rec", grid=model.grid, time_range=geometry.time_axis,
-                    npoint=geometry.nrec)
+                   npoint=geometry.nrec)
 
-    if equation == 1:
-        # Implements PDEs from Blanch and Symes (1995) Dutta and Schuster (2014)
-        # viscoacoustic equation
-        eqn = viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp)
-
-    elif equation == 2:
-        # Implements PDEs from Ren et al. (2014) viscoacoustic equation
-        eqn = viscoacoustic_ren(v, p, vp, irho, rho, qp, f0, s, damp)
-
-    elif equation == 3:
-        # Implements PDEs from Deng and McMechan (2007) viscoacoustic equation
-        eqn = viscoacoustic_deng_mcmechan(v, p, vp, irho, rho, qp, f0, s, damp)
-
-    else:
-        # Implements PDEs from Blanch and Symes (1995) Dutta and Schuster (2014)
-        # viscoacoustic equation
-        eqn = viscoacoustic_blanch_symes(v, r, p, vp, irho, rho, t_s, tt, s, damp)
+    # Equations kernels
+    eq_kernel = kernels[kernel]
+    eqn = eq_kernel(model, geometry, v, p, space_order=space_order, save=save)
 
     # The source injection term
     src_term = src.inject(field=p.forward, expr=src * s)
+
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=p.forward)
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
                     name='Forward', **kwargs)
+
+
+kernels = {'blanch_symes': blanch_symes, 'ren': ren, 'deng_mcmechan': deng_mcmechan}

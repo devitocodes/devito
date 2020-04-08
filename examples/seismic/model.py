@@ -398,6 +398,7 @@ class ModelViscoelastic(ModelElastic):
         dt = .85*np.min(self.spacing) / (np.sqrt(self.grid.dim)*self.maxvp)
         return self.dtype("%.3e" % dt)
 
+
 class ModelViscoacoustic(GenericModel):
     """
     The physical model used in seismic inversion processes.
@@ -418,34 +419,28 @@ class ModelViscoacoustic(GenericModel):
         Density in kg/cm^3 (rho=1 for water).
     qp : float or array, optional
         P-wave quality factor (dimensionless).
-    f0: float or Scalar, optional
-        The dominant frequency
     nbl : int, optional
-        The number of absorbin layers for boundary damping.
+        The number of absorbing layers for boundary damping.
     dtype : np.float32 or np.float64
         Defaults to 32.
 
-    The `ModelViscoacoustic` provides two symbolic data objects for the
+    The `ModelViscoacoustic` provides one symbolic data object for the
     creation of seismic wave propagation operators:
 
-    m : array_like or float
-        The square slowness of the wave.
     damp : Function
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, qp, rho, nbl=20,
                  subdomains=(), dtype=np.float32):
         super(ModelViscoacoustic, self).__init__(origin, spacing, shape, space_order,
-                                                nbl=nbl, subdomains=subdomains,
-                                                dtype=dtype, damp_mask=True)
+                                                 nbl=nbl, subdomains=subdomains,
+                                                 dtype=dtype, damp_mask=True)
 
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
 
         self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
-        self.rho = self._gen_phys_param(rho, 'rho', space_order, is_param=True)
-
-        self.irho = self._gen_phys_param(1./rho, 'irho', space_order, is_param=True)
+        self.irho = self._gen_phys_param(1. / rho, 'irho', space_order, is_param=True)
 
     @property
     def _max_vp(self):
@@ -455,6 +450,12 @@ class ModelViscoacoustic(GenericModel):
     def critical_dt(self):
         """
         Critical computational time step value from the CFL condition.
+
+        According to the work of Robertsson et al. (1994)
+        https://library.seg.org/doi/pdf/10.1190/1.1443701
+        the stability criteria for the viscoelastic schemes are approximately
+        the same as for the analog elastic schemes. Thus, we can consider
+        the viscoacoustic case as a particularity of the viscoelastic case.
         """
         # For a fixed time order this number decreases as the space order increases.
         #
