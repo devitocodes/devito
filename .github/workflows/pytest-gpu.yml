@@ -46,10 +46,8 @@ jobs:
         RESOURCE_GROUP_REGION: uksouth
         VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: gpu_ci_vm-image-PR-WIP-test18333
-      run: |
-        err=0
-        trap 'err=1' ERR
+        IMAGE: gpu_ci_vm-image-PR-WIP-test1833
+      run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
         -servicePrincipalSecret ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
@@ -62,7 +60,6 @@ jobs:
         -vmImage $IMAGE
         -adminLogin ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         -adminPassword ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        test $err = 0
 
     - name: set host
       run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.CI_GPU_RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
