@@ -1,7 +1,8 @@
 from devito import VectorTimeFunction, TimeFunction, NODE
 from devito.tools import memoized_meth
-from examples.seismic import Receiver, RickerSource
+from examples.seismic import Receiver
 from examples.seismic.viscoacoustic.operators import ForwardOperator
+
 
 class ViscoacousticWaveSolver(object):
     """
@@ -18,21 +19,20 @@ class ViscoacousticWaveSolver(object):
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
-    equation : selects a visco-acoustic equation from the options below:
-                1 - Blanch and Symes (1995) / Dutta and Schuster (2014)
+    kernel : selects a visco-acoustic equation from the options below:
+                'blanch_symes' - Blanch and Symes (1995) / Dutta and Schuster (2014)
                 viscoacoustic equation
-                2 - Ren et al. (2014) viscoacoustic equation
-                3 - Deng and McMechan (2007) viscoacoustic equation
-                Defaults to 1.
-
+                'ren' - Ren et al. (2014) viscoacoustic equation
+                'deng_mcmechan' - Deng and McMechan (2007) viscoacoustic equation
+                Defaults to 'blanch_symes'.
     """
-    def __init__(self, model, geometry, space_order=4, equation=1, **kwargs):
+    def __init__(self, model, geometry, space_order=4, kernel='blanch_symes', **kwargs):
         self.model = model
         self.geometry = geometry
 
         self.space_order = space_order
         self.dt = self.model.critical_dt
-        self.equation = equation
+        self.kernel = kernel
         # Cache compiler options
         self._kwargs = kwargs
 
@@ -40,10 +40,10 @@ class ViscoacousticWaveSolver(object):
     def op_fwd(self, save=None):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
-                               space_order=self.space_order, equation=self.equation,
+                               space_order=self.space_order, kernel=self.kernel,
                                **self._kwargs)
 
-    def forward(self, src=None, rec=None, qp=None, rho=None, v=None, r=None, p=None,
+    def forward(self, src=None, rec=None, v=None, r=None, p=None, qp=None, irho=None,
                 vp=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -62,8 +62,8 @@ class ViscoacousticWaveSolver(object):
             Stores the computed wavefield.
         qp : Function, optional
             The P-wave quality factor.
-        rho : Function, optional
-            The time-constant density.
+        irho : Function, optional
+            The time-constant inverse density.
         vp : Function or float, optional
             The time-constant velocity.
         save : int or Buffer, optional
@@ -78,45 +78,43 @@ class ViscoacousticWaveSolver(object):
 
         # Create a new receiver object to store the result
         rec = rec or Receiver(name="rec", grid=self.model.grid,
-                                time_range=self.geometry.time_axis,
-                                coordinates=self.geometry.rec_positions)
+                              time_range=self.geometry.time_axis,
+                              coordinates=self.geometry.rec_positions)
 
         # Create all the fields v, p, r
         save_t = src.nt if save else None
         v = v or VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
-                               time_order=1, space_order=self.space_order)
+                                    time_order=1, space_order=self.space_order)
 
         # Create the forward wavefield if not provided
         p = p or TimeFunction(name="p", grid=self.model.grid, save=save_t,
-                               time_order=1, space_order=self.space_order,
-                               staggered=NODE)
+                              time_order=1, space_order=self.space_order,
+                              staggered=NODE)
+
         # Memory variable:
         r = r or TimeFunction(name="r", grid=self.model.grid, save=save_t,
-                               time_order=1, space_order=self.space_order,
-                               staggered=NODE)
+                              time_order=1, space_order=self.space_order,
+                              staggered=NODE)
 
         kwargs.update({k.name: k for k in v})
 
         # Pick physical parameters from model unless explicitly provided
-        rho = rho or self.model.rho
+        irho = irho or self.model.irho
         qp = qp or self.model.qp
 
         # Pick vp from model unless explicitly provided
         vp = vp or self.model.vp
 
-        # Pick physical parameters from model
-        irho = self.model.irho
-
-        if self.equation == 1:
+        if self.kernel == 'blanch_symes':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
-            summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, rho=rho, r=r,
+            summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, r=r,
                                               p=p, irho=irho, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         else:
             # Execute operator and return wavefield and receiver data
             # Without Memory variable
-            summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, rho=rho, p=p,
+            summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, p=p,
                                               irho=irho, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, p, summary

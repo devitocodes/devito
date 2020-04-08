@@ -440,9 +440,7 @@ class ModelViscoacoustic(GenericModel):
 
         self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
-        self.rho = self._gen_phys_param(rho, 'rho', space_order, is_param=True)
-
-        self.irho = self._gen_phys_param(1./rho, 'irho', space_order, is_param=True)
+        self.irho = self._gen_phys_param(1. / rho, 'irho', space_order, is_param=True)
 
     @property
     def _max_vp(self):
