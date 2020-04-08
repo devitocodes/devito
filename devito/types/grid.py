@@ -349,7 +349,7 @@ class SubDomain(object):
             raise ValueError("SubDomain requires a `name`")
         self._dimensions = None
 
-    def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
+    def __subdomain_finalize__(self, dimensions, shape, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
