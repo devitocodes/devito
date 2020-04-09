@@ -66,11 +66,21 @@ jobs:
       run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.CI_GPU_RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
       id: host
 
-    - name: execute tests on VM
+    - name: prepare VM
       uses: fifsky/ssh-action@master
       with:
         command: |
           source ~/anaconda3/etc/profile.d/conda.sh
+        host: ${{ steps.host.outputs.action_host }}
+        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
+        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+
+    - name: execute tests on VM
+      uses: fifsky/ssh-action@master
+      with:
+        command: |
+          err=0
+          trap 'err=1' ERR
           conda activate devito
           cd ~/devito
           # Ensure no merge conflicts arise
@@ -91,7 +101,7 @@ jobs:
           # OpenACC
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
+          test $err = 0
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        args: -tt
