@@ -160,14 +160,14 @@ class AbstractDistributor(ABC):
 class Distributor(AbstractDistributor):
 
     """
-    Decompose a set of Dimensions over a set of MPI processes.
+    Decompose a domain over a set of MPI processes.
 
     Parameters
     ----------
     shape : tuple of ints
         The shape of the domain to be decomposed.
     dimensions : tuple of Dimensions
-        The decomposed Dimensions.
+        The domain Dimensions.
     comm : MPI communicator, optional
         The set of processes over which the domain is distributed. Defaults to
         MPI.COMM_WORLD.

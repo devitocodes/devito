@@ -522,6 +522,7 @@ class FindSymbols(Visitor):
         Drive the search. Accepted:
         - ``symbolics``: Collect all AbstractFunction objects, default.
         - ``free-symbols``: Collect all free symbols.
+        - ``indexeds``: Collect all Indexeds.
         - ``defines``: Collect all defined (bound) objects.
     """
 
@@ -541,6 +542,7 @@ class FindSymbols(Visitor):
     rules = {
         'symbolics': _symbolics,
         'free-symbols': lambda e: e.free_symbols,
+        'indexeds': lambda e: [i for i in e.free_symbols if i.is_Indexed],
         'defines': _defines,
     }
 
