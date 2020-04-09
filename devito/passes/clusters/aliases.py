@@ -704,6 +704,15 @@ class Aliases(OrderedDict):
                     if not writeto and interval == interval.zero():
                         # Optimize away unnecessary temporary Dimensions
                         continue
+
+                    # Adjust the Interval's stamp
+                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                    # use `<1>` which is the actual stamp used in the Cluster
+                    # from which the aliasing expressions were extracted
+                    assert i.stamp >= interval.stamp
+                    while interval.stamp != i.stamp:
+                        interval = interval.lift()
+
                     writeto.append(interval)
 
             if writeto:

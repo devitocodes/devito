@@ -635,7 +635,7 @@ class Operator(Callable):
     # Execution
 
     def __call__(self, **kwargs):
-        self.apply(**kwargs)
+        return self.apply(**kwargs)
 
     def apply(self, **kwargs):
         """
