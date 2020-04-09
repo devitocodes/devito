@@ -70,7 +70,7 @@ jobs:
       uses: fifsky/ssh-action@master
       with:
         command: |
-          #! /bin/bash
+          bash
           err=0
           trap 'err=1' ERR
           source ~/anaconda3/etc/profile.d/conda.sh
