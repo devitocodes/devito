@@ -5,8 +5,9 @@ from unittest.mock import patch
 from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
-from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
+from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
+                    Dimension, SubDimension, Grid, Operator, norm, grad, div,
+                    switchconfig, configuration)
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
@@ -1133,6 +1134,44 @@ class TestAliases(object):
         u.data_with_halo[:] = 0.5
         op1(time_M=1)
         assert np.all(u.data == exp)
+
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    @switchconfig(profiling='advanced')
+    def test_extraction_from_lifted_ispace(self):
+        """
+        Test that the aliases are scheduled correctly when extracted from
+        Clusters whose iteration space is lifted (ie, stamp != 0).
+        """
+        so = 8
+        grid = Grid(shape=(6, 6, 6))
+
+        v = TimeFunction(name="v", grid=grid, space_order=so)
+        v.data_with_halo[:] = 1.
+        p = TimeFunction(name="p", grid=grid, space_order=so, staggered=NODE)
+        p.data_with_halo[:] = 0.5
+        f = Function(name='f', grid=grid, space_order=so, is_param=True)
+        f.data_with_halo[:] = 0.2
+
+        eqns = [Eq(v.forward, v - f*p),
+                Eq(p.forward, p - v.forward.dx + div(f*grad(p)))]
+
+        # Operator
+        op0 = Operator(eqns, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
+
+        # Check numerical output
+        op0(time_M=1)
+        exp_norm_v = norm(v)
+        exp_norm_p = norm(p)
+        v.data_with_halo[:] = 1.
+        p.data_with_halo[:] = 0.5
+        summary = op1(time_M=1)
+        assert np.isclose(norm(v), exp_norm_v, rtol=1e-5)
+        assert np.isclose(norm(p), exp_norm_p, atol=1e-5)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert summary[('section0', None)].ops == 115
 
 
 # Acoustic
