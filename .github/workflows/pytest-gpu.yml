@@ -1,4 +1,3 @@
-# Force build 3
 # Adapted from https://github.com/weeyin83/vm-actions
 name: CI-gpu
 
@@ -40,7 +39,6 @@ jobs:
     - name: find deploy script
       run: |
         ls '${{ env.OUTPUT_PATH }}/.github/azure'
-
     - name: deploy VM
       env:
         RESOURCE_GROUP: ${{ secrets.CI_GPU_RESOURCE_GROUP }}
@@ -61,24 +59,18 @@ jobs:
         -vmImage $IMAGE
         -adminLogin ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         -adminPassword ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-
     - name: set host
       run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.CI_GPU_RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
       id: host
 
-    - name: prepare VM
-      uses: fifsky/ssh-action@master
-      with:
-        command: |
-          source ~/anaconda3/etc/profile.d/conda.sh
-        host: ${{ steps.host.outputs.action_host }}
-        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-
     - name: execute tests on VM
-      uses: fifsky/ssh-action@master
+      uses: appleboy/ssh-action@master
       with:
-        command: |
+        host: ${{ steps.host.outputs.action_host }}
+        username: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
+        password: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+        script: |
+          #! /bin/bash
           err=0
           trap 'err=1' ERR
           conda activate devito
@@ -102,6 +94,3 @@ jobs:
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
           test $err = 0
-        host: ${{ steps.host.outputs.action_host }}
-        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
