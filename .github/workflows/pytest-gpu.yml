@@ -69,6 +69,7 @@ jobs:
         host: ${{ steps.host.outputs.action_host }}
         username: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         password: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+        debug: true
         script: |
           #! /bin/bash
           source ~/anaconda3/etc/profile.d/conda.sh
