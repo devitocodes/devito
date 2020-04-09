@@ -81,6 +81,7 @@ jobs:
               git fetch
               git checkout ${{ steps.extract_branch.outputs.branch }}
           fi
+          # Set error trap to catch a test fail
           err=0
           trap 'err=1' ERR
           # OpenMP offloading
