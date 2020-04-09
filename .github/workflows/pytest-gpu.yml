@@ -70,7 +70,6 @@ jobs:
       uses: fifsky/ssh-action@master
       with:
         command: |
-          bash
           err=0
           trap 'err=1' ERR
           source ~/anaconda3/etc/profile.d/conda.sh
@@ -98,3 +97,4 @@ jobs:
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+        args: -tt
