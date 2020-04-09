@@ -64,13 +64,9 @@ jobs:
       id: host
 
     - name: execute tests on VM
-      uses: appleboy/ssh-action@master
+      uses: fifsky/ssh-action@master
       with:
-        host: ${{ steps.host.outputs.action_host }}
-        username: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        password: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        script_stop: true
-        script: |
+        command: |
           #! /bin/bash
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
@@ -85,6 +81,8 @@ jobs:
               git fetch
               git checkout ${{ steps.extract_branch.outputs.branch }}
           fi
+          err=0
+          trap 'err=1' ERR
           # OpenMP offloading
           pgaccelinfo
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openmp py.test tests/test_gpu_openmp.py
@@ -93,3 +91,7 @@ jobs:
           # OpenACC
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
+          test $err = 0
+        host: ${{ steps.host.outputs.action_host }}
+        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
+        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
