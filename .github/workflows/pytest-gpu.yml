@@ -70,8 +70,6 @@ jobs:
       with:
         command: |
           #! /bin/bash
-          err=0
-          trap 'err=1' ERR
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
           cd ~/devito
@@ -85,6 +83,9 @@ jobs:
               git fetch
               git checkout ${{ steps.extract_branch.outputs.branch }}
           fi
+          # Set error trap to catch any failing test
+          err=0
+          trap 'err=1' ERR
           # OpenMP offloading
           pgaccelinfo
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openmp py.test tests/test_gpu_openmp.py
