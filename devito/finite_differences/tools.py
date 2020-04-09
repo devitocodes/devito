@@ -213,28 +213,23 @@ def generate_indices_cartesian(dim, order, side, x0):
     Ordered list of indices
     """
     shift = 0
-    # Min/max offsets for indices
-    o_start = -order//2
-    o_end = order//2 + 1
     # Shift if x0 is not on the grid
     offset_c = 0 if sympify(x0).is_Integer else (dim - x0)/dim.spacing
-    if int(offset_c) == offset_c:
-        offset_c = 0
-    else:
-        offset_c = np.sign(offset_c) * (offset_c % 1)
-        o_start += np.ceil(-offset_c)
-        o_end -= np.ceil(offset_c)
+    offset_c = np.sign(offset_c) * (offset_c % 1)
+    # left and right max offsets for indices
+    o_start = -order//2 + int(np.ceil(-offset_c))
+    o_end = order//2 + 1 - int(np.ceil(offset_c))
     offset = offset_c * dim.spacing
     # Spacing
     diff = dim.spacing
-    if side is left:
-        diff = -diff
     if side in [left, right]:
         shift = 1
+        diff *= side.val
     # Indices
-    ind = [(x0 + (i + shift) * diff + offset) for i in range(o_start, o_end)]
     if order < 2:
-        ind = [x0 + offset, x0 + diff + offset]
+        ind = [x0, x0 + diff] if offset == 0 else [x0 - offset, x0 + offset]
+    else:
+        ind = [(x0 + (i + shift) * diff + offset) for i in range(o_start, o_end)]
     return tuple(ind)
 
 
