@@ -70,10 +70,10 @@ jobs:
       uses: fifsky/ssh-action@master
       with:
         command: |
-          err=0
-          trap 'err=1' ERR
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
+          err=0
+          trap 'err=1' ERR
           cd ~/devito
           # Ensure no merge conflicts arise
           git checkout master
