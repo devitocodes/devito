@@ -69,9 +69,10 @@ jobs:
         host: ${{ steps.host.outputs.action_host }}
         username: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         password: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        debug: true
         script: |
           #! /bin/bash
+          err=0
+          trap 'err=1' ERR
           source ~/anaconda3/etc/profile.d/conda.sh
           conda activate devito
           cd ~/devito
@@ -93,3 +94,4 @@ jobs:
           # OpenACC
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
+          test $err = 0
