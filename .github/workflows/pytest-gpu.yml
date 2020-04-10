@@ -46,7 +46,7 @@ jobs:
         RESOURCE_GROUP_REGION: uksouth
         VM_SIZE: Standard_NC6_Promo
         SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: vpu-ci-vm-mpi4pypip3-PR
+        IMAGE: gpu-ci-vm-image-1226
       run: >
         pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
         -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
@@ -93,6 +93,7 @@ jobs:
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openmp py.test examples/seismic/elastic/elastic_example.py
           DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openmp py.test examples/seismic/viscoelastic/viscoelastic_example.py
           # OpenACC
+          alias python=python3.6
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
           DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
           test $err = 0
