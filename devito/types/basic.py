@@ -932,7 +932,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
                     if s.free_symbols.intersection(self.args[i].free_symbols)]
 
         # Substitution for each index
-        subs = {s: 1 for s in spacings}
+        subs = {a*s: a for s in spacings for a in [-1, 1]}
 
         # Indices after substitutions
         indices = [(a - o).xreplace(subs) for a, o in zip(self.args, self.origin)]
