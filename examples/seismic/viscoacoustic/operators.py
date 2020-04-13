@@ -209,7 +209,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='blanch_symes', save=
     src_term = src.inject(field=p.forward, expr=src * s)
 
     # Create interpolation expression for receivers
-    rec_term = rec.interpolate(expr=p.forward)
+    rec_term = rec.interpolate(expr=p)
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
