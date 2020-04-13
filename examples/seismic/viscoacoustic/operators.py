@@ -16,11 +16,6 @@ def blanch_symes(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    model : Model
-        Object containing the physical parameters.
-    geometry : AcquisitionGeometry
-        Geometry object that contains the source (SparseTimeFunction) and
-        receivers (SparseTimeFunction) and their position.
     v : VectorTimeFunction
         Particle velocity.
     p : TimeFunction
@@ -57,15 +52,12 @@ def blanch_symes(model, geometry, v, p, **kwargs):
 
     # Define PDE
     pde_v = v - s * irho * grad(p)
-
     u_v = Eq(v.forward, damp * pde_v)
 
     pde_r = r - s * (1. / t_s) * r - s * (1. / t_s) * tt * bm * div(v.forward)
-
     u_r = Eq(r.forward, damp * pde_r)
 
     pde_p = p - s * bm * (tt + 1.) * div(v.forward) - s * r.forward
-
     u_p = Eq(p.forward, damp * pde_p)
 
     return [u_v, u_r, u_p]
@@ -79,11 +71,6 @@ def ren(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    model : Model
-        Object containing the physical parameters.
-    geometry : AcquisitionGeometry
-        Geometry object that contains the source (SparseTimeFunction) and
-        receivers (SparseTimeFunction) and their position.
     v : VectorTimeFunction
         Particle velocity.
     p : TimeFunction
@@ -104,12 +91,10 @@ def ren(model, geometry, v, p, **kwargs):
 
     # Define PDE
     pde_v = v - s * irho * grad(p)
-
     u_v = Eq(v.forward, damp * pde_v)
 
     pde_u = p - s * vp * vp * rho * div(v.forward) + \
         s * ((vp * vp * rho) / (w * qp)) * div(irho * grad(p))
-
     u_p = Eq(p.forward, damp * pde_u)
 
     return [u_v, u_p]
@@ -123,11 +108,6 @@ def deng_mcmechan(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    model : Model
-        Object containing the physical parameters.
-    geometry : AcquisitionGeometry
-        Geometry object that contains the source (SparseTimeFunction) and
-        receivers (SparseTimeFunction) and their position.
     v : VectorTimeFunction
         Particle velocity.
     p : TimeFunction
@@ -148,11 +128,9 @@ def deng_mcmechan(model, geometry, v, p, **kwargs):
 
     # Define PDE
     pde_v = v - s * irho * grad(p)
-
     u_v = Eq(v.forward, damp * pde_v)
 
     pde_p = p - s * vp * vp * rho * div(v.forward) - s * (w / qp) * p
-
     u_p = Eq(p.forward, damp * pde_p)
 
     return [u_v, u_p]
