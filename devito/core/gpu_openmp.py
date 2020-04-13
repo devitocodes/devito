@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial, singledispatch
 
 import cgen as c
 
@@ -6,8 +6,9 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.ir.iet import MapExprStmts
+from devito.ir.iet import Callable, ElementalFunction, MapExprStmts
 from devito.logger import warning
+from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
                                     factorize, fuse, optimize_pows, scalarize)
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
@@ -77,6 +78,10 @@ class DeviceOmpizer(Ompizer):
                                                            for i in cls._map_data(f)))
 
     @classmethod
+    def _map_present(cls, f):
+        raise NotImplementedError
+
+    @classmethod
     def _map_update(cls, f):
         return cls.lang['map-update'](f.name, ''.join('[0:%s]' % i
                                                       for i in cls._map_data(f)))
@@ -90,6 +95,10 @@ class DeviceOmpizer(Ompizer):
     def _map_delete(cls, f):
         return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
                                                            for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_pointers(cls, f):
+        raise NotImplementedError
 
     def _make_threaded_prodders(self, partree):
         # no-op for now
@@ -163,18 +172,17 @@ class DeviceOpenMPDataManager(DataManager):
 
     @iet_pass
     def place_ondevice(self, iet, **kwargs):
-        efuncs = kwargs['efuncs']
 
-        storage = Storage()
+        @singledispatch
+        def _place_ondevice(iet):
+            return iet
 
-        if iet.is_ElementalFunction:
-            return iet, {}
-
-        # Collect written and read-only symbols
-        writes = set()
-        reads = set()
-        for efunc in efuncs:
-            for i, v in MapExprStmts().visit(efunc).items():
+        @_place_ondevice.register(Callable)
+        def _(iet):
+            # Collect written and read-only symbols
+            writes = set()
+            reads = set()
+            for i, v in MapExprStmts().visit(iet).items():
                 if not i.is_Expression:
                     # No-op
                     continue
@@ -185,13 +193,28 @@ class DeviceOpenMPDataManager(DataManager):
                     writes.add(i.write)
                 reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
 
-        # Update `storage`
-        for i in filter_sorted(writes):
-            self._map_function_on_high_bw_mem(i, storage)
-        for i in filter_sorted(reads):
-            self._map_function_on_high_bw_mem(i, storage, read_only=True)
+            # Populate `storage`
+            storage = Storage()
+            for i in filter_sorted(writes):
+                self._map_function_on_high_bw_mem(i, storage)
+            for i in filter_sorted(reads):
+                self._map_function_on_high_bw_mem(i, storage, read_only=True)
 
-        iet = self._dump_storage(iet, storage)
+            iet = self._dump_storage(iet, storage)
+
+            return iet
+
+        @_place_ondevice.register(ElementalFunction)
+        def _(iet):
+            return iet
+
+        @_place_ondevice.register(CopyBuffer)
+        @_place_ondevice.register(SendRecv)
+        @_place_ondevice.register(HaloUpdate)
+        def _(iet):
+            return iet
+
+        iet = _place_ondevice(iet)
 
         return iet, {}
 
@@ -273,7 +296,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -300,7 +323,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -366,7 +389,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager()
-        data_manager.place_ondevice(graph, efuncs=list(graph.efuncs.values()))
+        data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
