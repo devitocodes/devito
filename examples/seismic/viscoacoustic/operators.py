@@ -26,7 +26,6 @@ def blanch_symes(model, geometry, v, p, **kwargs):
     p : TimeFunction
         Pressure field.
     """
-    space_order = kwargs.get('space_order')
     save = kwargs.get('save')
 
     s = model.grid.stepping_dim.spacing
@@ -54,7 +53,7 @@ def blanch_symes(model, geometry, v, p, **kwargs):
     # Memory variable.
     r = TimeFunction(name="r", grid=model.grid, staggered=NODE,
                      save=geometry.nt if save else None,
-                     time_order=1, space_order=space_order)
+                     time_order=1)
 
     # Define PDE
     pde_v = v - s * irho * grad(p)
@@ -203,7 +202,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='blanch_symes', save=
 
     # Equations kernels
     eq_kernel = kernels[kernel]
-    eqn = eq_kernel(model, geometry, v, p, space_order=space_order, save=save)
+    eqn = eq_kernel(model, geometry, v, p, save=save)
 
     # The source injection term
     src_term = src.inject(field=p.forward, expr=src * s)
