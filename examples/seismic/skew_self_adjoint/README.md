@@ -7,16 +7,32 @@ The goal of this series of tutorials is to generate -- and then test for correct
 - **Jacobian forward**, linearized with respect to the model parameters 
 - **Jacobian adjoint**, linearized with respect to the model parameters
 
-Pairs of notebooks first implement and then test for correctness with the following three types of physics:
+These notebooks first implement and then test for correctness for three types of modeling physics.
 
-### 1. Variable density visco- acoustic isotropic
-- [ssa_01_iso_implementation.ipynb](ssa_01_variable_density_implementation.ipynb)
-- [ssa_02_iso_correctness.ipynb](ssa_01_variable_density_correctness.ipynb)
+| Physics         | Goal                          | Notebook                           |
+|:----------------|:----------------------------------|:-------------------------------------|
+| Isotropic       | Implementation, nonlinear ops | [ssa_01_iso_implementation1.ipynb] |
+| Isotropic       | Implementation, Jacobian ops  | [ssa_02_iso_implementation2.ipynb] |
+| Isotropic       | Correctness tests             | [ssa_03_iso_correctness.ipynb]     |
+|-----------------|-----------------------------------|--------------------------------------|
+| VTI Anisotropic | Implementation, nonlinear ops | [ssa_11_vti_implementation1.ipynb] |
+| VTI Anisotropic | Implementation, Jacobian ops  | [ssa_12_vti_implementation2.ipynb] |
+| VTI Anisotropic | Correctness tests             | [ssa_13_vti_correctness.ipynb]     |
+|-----------------|-----------------------------------|--------------------------------------|
+| TTI Anisotropic | Implementation, nonlinear ops | [ssa_21_tti_implementation1.ipynb] |
+| TTI Anisotropic | Implementation, Jacobian ops  | [ssa_22_tti_implementation2.ipynb] |
+| TTI Anisotropic | Correctness tests             | [ssa_23_tti_correctness.ipynb]     |
+|:----------------|:----------------------------------|:-------------------------------------|
 
-### 2. Variable density pseudo- visco- acoustic VTI anisotropic
-
-### 3. Variable density pseudo- visco- acoustic TTI anisotropic
-
+[ssa_01_iso_implementation1.ipynb]: ssa_01_iso_implementation1.ipynb
+[ssa_02_iso_implementation2.ipynb]: ssa_02_iso_implementation2.ipynb
+[ssa_03_iso_correctness.ipynb]:     ssa_03_iso_correctness.ipynb
+[ssa_11_vti_implementation1.ipynb]: ssa_11_vti_implementation1.ipynb
+[ssa_12_vti_implementation2.ipynb]: ssa_12_vti_implementation2.ipynb
+[ssa_13_vti_correctness.ipynb]:     ssa_13_vti_correctness.ipynb
+[ssa_21_tti_implementation1.ipynb]: ssa_21_tti_implementation1.ipynb
+[ssa_22_tti_implementation2.ipynb]: ssa_22_tti_implementation2.ipynb
+[ssa_23_tti_correctness.ipynb]:     ssa_23_tti_correctness.ipynb
 
 ## These operators are contributed by Chevron Energy Technology Company (2020)
 
