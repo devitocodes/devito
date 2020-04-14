@@ -460,26 +460,9 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">dimension_map</span> <span class="o">=</span> <span class="p">{}</span>
 
-            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
-
             <span class="c1"># Handle Functions (typical case)</span>
-            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">retrieve_functions</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-                <span class="c1"># Get spacing symbols for replacement</span>
-                <span class="n">spacings</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">spacing</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
-
-                <span class="c1"># Only keep the ones used as indices</span>
-                <span class="n">spacings</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">spacings</span><span class="p">)</span>
-                            <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)]</span>
-
-                <span class="c1"># Substitution for each index</span>
-                <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="p">{</span><span class="n">s</span><span class="p">:</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">spacings</span><span class="p">},</span> <span class="o">**</span><span class="n">dimension_map</span><span class="p">}</span>
-
-                <span class="c1"># Introduce shifting to align with the computational domain,</span>
-                <span class="c1"># and apply substitutions</span>
-                <span class="n">indices</span> <span class="o">=</span> <span class="p">[(</span><span class="n">a</span> <span class="o">-</span> <span class="n">i</span> <span class="o">+</span> <span class="n">o</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span>
-                           <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">_size_nodomain</span><span class="o">.</span><span class="n">left</span><span class="p">)]</span>
-
-                <span class="n">mapper</span><span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">indexify</span><span class="p">(</span><span class="n">lshift</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">dimension_map</span><span class="p">)</span>
+                      <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">retrieve_functions</span><span class="p">(</span><span class="n">expr</span><span class="p">)}</span>
 
             <span class="c1"># Handle Indexeds (from index notation)</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
