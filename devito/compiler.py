@@ -383,7 +383,7 @@ class ClangCompiler(Compiler):
         if platform is NVIDIAX:
             self.cflags.remove('-std=c99')
             # Clang has offloading support via OpenMP
-            if language == 'openmp':
+            if language in ['C', 'openmp']
                 # TODO: Need a generic -march setup
                 # self.cflags += ['-Xopenmp-target', '-march=sm_37']
                 self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
