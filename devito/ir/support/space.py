@@ -203,8 +203,10 @@ class Interval(AbstractInterval):
     def flip(self):
         return Interval(self.dim, self.upper, self.lower, self.stamp)
 
-    def lift(self):
-        return Interval(self.dim, self.lower, self.upper, self.stamp + 1)
+    def lift(self, v=None):
+        if v is None:
+            v = self.stamp + 1
+        return Interval(self.dim, self.lower, self.upper, v)
 
     def reset(self):
         return Interval(self.dim, self.lower, self.upper, 0)
@@ -373,9 +375,9 @@ class IntervalGroup(PartialOrderTuple):
         return IntervalGroup([i.zero() if i.dim in d else i for i in self],
                              relations=self.relations)
 
-    def lift(self, d):
+    def lift(self, d, v=None):
         d = set(self.dimensions if d is None else as_tuple(d))
-        return IntervalGroup([i.lift() if i.dim._defines & d else i for i in self],
+        return IntervalGroup([i.lift(v) if i.dim._defines & d else i for i in self],
                              relations=self.relations)
 
     def reset(self):
@@ -700,12 +702,13 @@ class IterationSpace(Space):
             func = lambda i: i in cond
 
         intervals = [i for i in self.intervals if func(i.dim)]
-
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
-
         directions = {k: v for k, v in self.directions.items() if func(k)}
-
         return IterationSpace(intervals, sub_iterators, directions)
+
+    def lift(self, d=None, v=None):
+        intervals = self.intervals.lift(d, v)
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
 
     def is_compatible(self, other):
         """
