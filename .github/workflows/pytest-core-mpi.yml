@@ -13,7 +13,6 @@ on:
 jobs:
   build:
     name: pytest-mpi
-    # Run on our self-hosted runners. Note: New tags coming soon.
     runs-on: self-hosted
 
     env:
