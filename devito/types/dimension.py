@@ -305,10 +305,6 @@ class BasicDimension(Dimension, Symbol):
     def __init_finalize__(self, name, spacing=None):
         self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
 
-    @cached_property
-    def _indexify_map(self):
-        return {self.spacing: 1}
-
 
 class DefaultDimension(Dimension, DataSymbol):
 
@@ -745,10 +741,6 @@ class ConditionalDimension(DerivedDimension):
         if self.condition is not None:
             retval |= self.condition.free_symbols
         return retval
-
-    @cached_property
-    def _indexify_map(self):
-        return {self.spacing: 1, -self.spacing: -1}
 
     # Pickling support
     _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition', 'indirect']

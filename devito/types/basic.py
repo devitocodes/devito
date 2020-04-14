@@ -919,17 +919,17 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """
         return default_allocator().guaranteed_alignment
 
-    def indexify(self, indices=None, w_shift=False, extra_subs=None):
+    def indexify(self, indices=None, lshift=False, subs=None):
         """Create a types.Indexed from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
 
         # Substitution for each index (spacing only used in own dimension)
-        extra_subs = extra_subs or {}
-        subs = [{**d._indexify_map, **extra_subs} for d in self.dimensions]
+        subs = subs or {}
+        subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
         # Add halo shift
-        shift = self._size_nodomain.left if w_shift else tuple([0]*len(self.dimensions))
+        shift = self._size_nodomain.left if lshift else tuple([0]*len(self.dimensions))
         # Indices after substitutions
         indices = [(a - o + f).xreplace(s) for a, o, f, s in
                    zip(self.args, self.origin, shift, subs)]

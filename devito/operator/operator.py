@@ -306,7 +306,7 @@ class Operator(Callable):
                 dimension_map = {}
 
             # Handle Functions (typical case)
-            mapper = {f: f.indexify(w_shift=True, extra_subs=dimension_map)
+            mapper = {f: f.indexify(lshift=True, subs=dimension_map)
                       for f in retrieve_functions(expr)}
 
             # Handle Indexeds (from index notation)
