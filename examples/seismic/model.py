@@ -197,9 +197,9 @@ class Model(GenericModel):
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
-                 subdomains=(), **kwargs):
+                 subdomains=(), damp_mask=False, **kwargs):
         super(Model, self).__init__(origin, spacing, shape, space_order, nbl, dtype,
-                                    subdomains)
+                                    subdomains, damp_mask)
 
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
@@ -399,7 +399,7 @@ class ModelViscoelastic(ModelElastic):
         return self.dtype("%.3e" % dt)
 
 
-class ModelViscoacoustic(GenericModel):
+class ModelViscoacoustic(Model):
     """
     The physical model used in seismic inversion processes.
 
@@ -427,76 +427,15 @@ class ModelViscoacoustic(GenericModel):
     The `ModelViscoacoustic` provides one symbolic data object for the
     creation of seismic wave propagation operators:
 
-    damp : Function
+    damp : Function, optional
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, qp, rho, nbl=20,
                  subdomains=(), dtype=np.float32):
         super(ModelViscoacoustic, self).__init__(origin, spacing, shape, space_order,
-                                                 nbl=nbl, subdomains=subdomains,
+                                                 vp=vp, nbl=nbl, subdomains=subdomains,
                                                  dtype=dtype, damp_mask=True)
-
-        self._vp = self._gen_phys_param(vp, 'vp', space_order)
 
         self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
         self.irho = self._gen_phys_param(1. / rho, 'irho', space_order, is_param=True)
-
-    @property
-    def _max_vp(self):
-        return mmax(self.vp)
-
-    @property
-    def critical_dt(self):
-        """
-        Critical computational time step value from the CFL condition.
-
-        According to the work of Robertsson et al. (1994)
-        https://library.seg.org/doi/pdf/10.1190/1.1443701
-        the stability criteria for the viscoelastic schemes are approximately
-        the same as for the analog elastic schemes. Thus, we can consider
-        the viscoacoustic case as a particularity of the viscoelastic case.
-        """
-        # For a fixed time order this number decreases as the space order increases.
-        #
-        # The CFL condtion is then given by
-        # dt <= coeff * h / (max(velocity))
-        coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * np.min(self.spacing) / (self._max_vp))
-        return self.dtype("%.3e" % dt)
-
-    @property
-    def vp(self):
-        """
-        `numpy.ndarray` holding the model velocity in km/s.
-
-        Notes
-        -----
-        Updating the velocity field also updates the square slowness
-        ``self.m``. However, only ``self.m`` should be used in seismic
-        operators, since it is of type `Function`.
-        """
-        return self._vp
-
-    @vp.setter
-    def vp(self, vp):
-        """
-        Set a new velocity model and update square slowness.
-
-        Parameters
-        ----------
-        vp : float or array
-            New velocity in km/s.
-        """
-        # Update the square slowness according to new value
-        if isinstance(vp, np.ndarray):
-            if vp.shape == self.vp.shape:
-                self.vp.data[:] = vp[:]
-            elif vp.shape == self.shape:
-                initialize_function(self._vp, vp, self.nbl)
-            else:
-                raise ValueError("Incorrect input size %s for model of size" % vp.shape +
-                                 " %s without or %s with padding" % (self.shape,
-                                                                     self.vp.shape))
-        else:
-            self._vp.data = vp
