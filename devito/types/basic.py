@@ -773,7 +773,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
                     for i, j, k in zip(domain, halo, padding))
         return DimensionTuple(*ret, getters=self.dimensions)
 
-    @property
+    @cached_property
     def indexed(self):
         """The wrapped IndexedData object."""
         return IndexedData(self.name, shape=self.shape, function=self.function)
@@ -919,25 +919,22 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """
         return default_allocator().guaranteed_alignment
 
-    def indexify(self, indices=None):
+    def indexify(self, indices=None, lshift=False, subs=None):
         """Create a types.Indexed from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
 
-        # Get spacing symbols for replacement
-        spacings = [i.spacing for i in self.dimensions]
+        # Substitution for each index (spacing only used in own dimension)
+        subs = subs or {}
+        subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
-        # Only keep the ones used as indices.
-        spacings = [s for i, s in enumerate(spacings)
-                    if s.free_symbols.intersection(self.args[i].free_symbols)]
-
-        # Substitution for each index
-        subs = {s: 1 for s in spacings}
-
+        # Add halo shift
+        shift = self._size_nodomain.left if lshift else tuple([0]*len(self.dimensions))
         # Indices after substitutions
-        indices = [(a - o).xreplace(subs) for a, o in zip(self.args, self.origin)]
+        indices = [(a - o + f).xreplace(s) for a, o, f, s in
+                   zip(self.args, self.origin, shift, subs)]
 
-        return Indexed(self.indexed, *indices)
+        return self.indexed[indices]
 
     def __getitem__(self, index):
         """Shortcut for ``self.indexed[index]``."""

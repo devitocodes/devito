@@ -305,26 +305,9 @@ class Operator(Callable):
             else:
                 dimension_map = {}
 
-            mapper = {}
-
             # Handle Functions (typical case)
-            for f in retrieve_functions(expr):
-                # Get spacing symbols for replacement
-                spacings = [i.spacing for i in f.dimensions]
-
-                # Only keep the ones used as indices
-                spacings = [s for i, s in enumerate(spacings)
-                            if s.free_symbols.intersection(f.args[i].free_symbols)]
-
-                # Substitution for each index
-                subs = {**{s: 1 for s in spacings}, **dimension_map}
-
-                # Introduce shifting to align with the computational domain,
-                # and apply substitutions
-                indices = [(a - i + o).xreplace(subs)
-                           for a, i, o in zip(f.args, f.origin, f._size_nodomain.left)]
-
-                mapper[f] = f.indexed[indices]
+            mapper = {f: f.indexify(lshift=True, subs=dimension_map)
+                      for f in retrieve_functions(expr)}
 
             # Handle Indexeds (from index notation)
             for i in retrieve_indexed(expr):
