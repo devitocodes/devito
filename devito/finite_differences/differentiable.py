@@ -369,6 +369,31 @@ class diffify(object):
         return obj.__class__
 
 
+def diff2sympy(expr):
+    """
+    Translate a Differentiable expression into a SymPy expression.
+    """
+
+    def _diff2sympy(obj):
+        flag = False
+        args = []
+        for a in obj.args:
+            ax, af = _diff2sympy(a)
+            args.append(ax)
+            flag |= af
+        if isinstance(obj, DifferentiableOp):
+            for cls in obj.__class__.mro()[1:]:
+                if obj.__class__.__name__ == cls.__name__:
+                    return cls(*args, evaluate=False), True
+            assert False
+        elif flag:
+            return obj.func(*args, evaluate=False), True
+        else:
+            return obj, False
+
+    return _diff2sympy(expr)[0]
+
+
 # Make sure `sympy.evalf` knows how to evaluate the inherited classes
 # Without these, `evalf` would rely on a much slower, much more generic, and
 # thus much more time-inefficient fallback routine. This would hit us
