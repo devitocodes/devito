@@ -1,1 +1,1 @@
-from .utilities import *  # noqa
+from .utils import *  # noqa

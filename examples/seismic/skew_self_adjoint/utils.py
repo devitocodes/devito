@@ -1,4 +1,4 @@
-def setup_wOverQ(wOverQ, w, qmin, qmax, npad, sigma=npad//5):
+def setup_wOverQ(wOverQ, w, qmin, qmax, npad, sigma=None):
     """
     Initialise spatially variable w/Q field used to implement attenuation and
     absorb outgoing waves at the edges of the model.
@@ -27,6 +27,8 @@ def setup_wOverQ(wOverQ, w, qmin, qmax, npad, sigma=npad//5):
     assert qmin > 0, "supplied qmin value [%f] must be positive" % (qmin)
     assert qmax > 0, "supplied qmax value [%f] must be positive" % (qmax)
     assert npad > 0, "supplied npad value [%f] must be positive" % (npad)
+
+    sigma = sigma or npad//5
     
     t1 = timer()
     lqmin = np.log(qmin);
@@ -47,4 +49,3 @@ def setup_wOverQ(wOverQ, w, qmin, qmax, npad, sigma=npad//5):
     q2 = (np.max(1 / (wOverQ.data / w)))
     t2 = timer()
     print("setup_wOverQ ran in %.4f seconds -- min/max Q values; %8.4f %8.4f" % (t2-t1, q1, q2)) 
-
