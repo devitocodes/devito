@@ -1,10 +1,11 @@
+from cached_property import cached_property
 import sympy
 
 from devito.ir.equations.algorithms import dimension_sort
+from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Stencil, detect_accesses, detect_oobs, detect_io,
                                build_intervals, build_iterators)
-from devito.symbolics import FrozenExpr
 from devito.tools import Pickable, as_tuple
 from devito.types import Eq
 
@@ -39,7 +40,7 @@ class IREq(object):
     def dspace(self):
         return self._dspace
 
-    @property
+    @cached_property
     def dimensions(self):
         # Note: some dimensions may be in the iteration space but not in the
         # data space (e.g., a DerivedDimension); likewise, some dimensions may
@@ -147,8 +148,11 @@ class LoweredEq(sympy.Eq, IREq):
                  for k, v in mapper.items() if k}
         dspace = DataSpace(dintervals, parts)
 
+        # Lower all Differentiable operations into SymPy operations
+        rhs = diff2sympy(expr.rhs)
+
         # Finally create the LoweredEq with all metadata attached
-        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
+        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, rhs, evaluate=False)
 
         expr._dspace = dspace
         expr._ispace = ispace
@@ -175,7 +179,7 @@ class LoweredEq(sympy.Eq, IREq):
         return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(sympy.Eq, IREq, FrozenExpr, Pickable):
+class ClusterizedEq(sympy.Eq, IREq, Pickable):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)

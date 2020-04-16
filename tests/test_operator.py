@@ -8,13 +8,14 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
 from devito.exceptions import InvalidOperator
+from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
-from devito.tools import flatten, powerset
+from devito.tools import flatten, powerset, timed_region
 from devito.types import Array, Scalar
 
 
@@ -67,10 +68,15 @@ class TestCodeGen(object):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim  # noqa
+
         u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to)  # noqa
         m = Function(name='m', grid=grid, space_order=0)  # noqa
+
         expr = eval(expr)
-        expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
+
+        with timed_region('x'):
+            expr = Operator._lower_exprs([expr])[0]
+
         assert str(expr).replace(' ', '') == expected
 
     @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [
@@ -1492,9 +1498,9 @@ class TestLoopScheduling(object):
         assert len(outer) == 1 and len(middle) == 2 and len(inner) == 3
         assert outer[0] == middle[0] == inner[0]
         assert middle[1] == inner[1]
-        assert outer[-1].nodes[0].exprs[0].expr.rhs == indexify(eq0.rhs)
-        assert middle[-1].nodes[0].exprs[0].expr.rhs == indexify(eq1.rhs)
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == indexify(eq2.rhs)
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq0.rhs))
+        assert middle[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq1.rhs))
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq2.rhs))
 
     def test_equations_emulate_bc(self):
         """

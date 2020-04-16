@@ -1,6 +1,6 @@
 from collections import Iterable, OrderedDict
 
-from devito.symbolics import retrieve_terminals
+from devito.symbolics import retrieve_terminals, uxreplace
 from devito.tools import flatten, timed_pass
 from devito.types import Dimension, Symbol
 
@@ -72,7 +72,7 @@ def makeit_ssa(exprs):
     processed = []
     for i, e in enumerate(exprs):
         where = seen[e.lhs]
-        rhs = e.rhs.xreplace(mapper)
+        rhs = uxreplace(e.rhs, mapper)
         if len(where) > 1:
             needssa = e.is_Scalar or where[-1] != i
             lhs = Symbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
@@ -93,6 +93,11 @@ def make_is_time_invariant(context):
     Given an ordered list of expressions, returns a callable that finds out whether
     a given expression is time invariant or not.
     """
+    dimensions = set().union(*[e.dimensions for e in context])
+    if len([i for i in dimensions if i.is_Time]) == 0:
+        # No concept of time in the provided set of expressions
+        return lambda i: False
+
     mapper = OrderedDict([(i.lhs, i) for i in makeit_ssa(context)])
 
     def is_time_invariant(mapper, expr):

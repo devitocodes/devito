@@ -160,12 +160,12 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
-        # Make the generated code less verbose: if a non-Array parameter does not
-        # appear in any Expression, that is, if the parameter is merely propagated
-        # down to another Call, then there's no need to cast it
         functions = FindSymbols().visit(iet)
         need_cast = {i for i in functions if i.is_Tensor}
-        need_cast.update({i for i in iet.parameters if i.is_Array})
+
+        # Make the generated code less verbose by avoiding unnecessary casts
+        indexed_names = {i.name for i in FindSymbols('indexeds').visit(iet)}
+        need_cast = {i for i in need_cast if i.name in indexed_names or i.is_Array}
 
         casts = tuple(ArrayCast(i) for i in iet.parameters if i in need_cast)
         iet = iet._rebuild(body=casts + iet.body)

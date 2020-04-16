@@ -91,6 +91,7 @@ jobs:
     - name: Seismic notebooks
       run: |
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml $SKIP examples/seismic/tutorials/
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:acc_coverage.xml $SKIP examples/seismic/acoustic/accuracy.ipynb
 
     - name: CFD notebooks
       run: |

@@ -13,10 +13,9 @@ from cgen import Struct, Value
 from frozendict import frozendict
 
 from devito.data import default_allocator
+from devito.finite_differences import Evaluable
 from devito.parameters import configuration
-from devito.symbolics import Add
-from devito.tools import (Evaluable, Pickable, ctypes_to_cstr, dtype_to_cstr,
-                          dtype_to_ctype)
+from devito.tools import Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
 from devito.types.utils import DimensionTuple
@@ -194,6 +193,11 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     is_AbstractSymbol = True
     is_Symbol = True
+
+    # SymPy default assumptions
+    is_real = True
+    is_imaginary = False
+    is_commutative = True
 
     @classmethod
     def _filter_assumptions(cls, **kwargs):
@@ -600,6 +604,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     is_AbstractFunction = True
 
+    # SymPy default assumptions
+    is_real = True
+    is_imaginary = False
+    is_commutative = True
+
     @classmethod
     def _cache_key(cls, *args, **kwargs):
         """An AbstractFunction caches on the class type itself."""
@@ -728,8 +737,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
             else:
                 weight *= 1/2
                 is_averaged = True
-                avg_list = [a.subs({i: i - d.spacing/2}) + a.subs({i: i + d.spacing/2})
-                            for a in avg_list]
+                avg_list = [(a.xreplace({i: i - d.spacing/2}) +
+                             a.xreplace({i: i + d.spacing/2})) for a in avg_list]
 
         if not is_averaged:
             return self
@@ -757,13 +766,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         padding regions. While halo and padding are known quantities (integers),
         the domain size is given as a symbol.
         """
-        halo = [Add(*i) for i in self._size_halo]
-        padding = [Add(*i) for i in self._size_padding]
+        halo = [sympy.Add(*i, evaluate=False) for i in self._size_halo]
+        padding = [sympy.Add(*i, evaluate=False) for i in self._size_padding]
         domain = [i.symbolic_size for i in self.dimensions]
-        ret = tuple(Add(i, j, k) for i, j, k in zip(domain, halo, padding))
+        ret = tuple(sympy.Add(i, j, k, evaluate=False)
+                    for i, j, k in zip(domain, halo, padding))
         return DimensionTuple(*ret, getters=self.dimensions)
 
-    @property
+    @cached_property
     def indexed(self):
         """The wrapped IndexedData object."""
         return IndexedData(self.name, shape=self.shape, function=self.function)
@@ -909,25 +919,22 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """
         return default_allocator().guaranteed_alignment
 
-    def indexify(self, indices=None):
+    def indexify(self, indices=None, lshift=False, subs=None):
         """Create a types.Indexed from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
 
-        # Get spacing symbols for replacement
-        spacings = [i.spacing for i in self.dimensions]
+        # Substitution for each index (spacing only used in own dimension)
+        subs = subs or {}
+        subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
-        # Only keep the ones used as indices.
-        spacings = [s for i, s in enumerate(spacings)
-                    if s.free_symbols.intersection(self.args[i].free_symbols)]
-
-        # Substitution for each index
-        subs = dict([(s, 1) for s in spacings])
-
+        # Add halo shift
+        shift = self._size_nodomain.left if lshift else tuple([0]*len(self.dimensions))
         # Indices after substitutions
-        indices = [(a - o).subs(subs) for a, o in zip(self.args, self.origin)]
+        indices = [(a - o + f).xreplace(s) for a, o, f, s in
+                   zip(self.args, self.origin, shift, subs)]
 
-        return Indexed(self.indexed, *indices)
+        return self.indexed[indices]
 
     def __getitem__(self, index):
         """Shortcut for ``self.indexed[index]``."""
@@ -1046,7 +1053,7 @@ class Array(AbstractFunction):
     def _C_typename(self):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
-    @property
+    @cached_property
     def free_symbols(self):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
@@ -1267,3 +1274,8 @@ class Indexed(sympy.Indexed):
     @property
     def origin(self):
         return self.function.origin
+
+    @cached_property
+    def free_symbols(self):
+        # Make it cached, since it's relatively expensive and called often
+        return super(Indexed, self).free_symbols

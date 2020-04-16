@@ -2,6 +2,7 @@ from collections import Counter
 
 from devito.ir.clusters import Queue
 from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
+from devito.symbolics import uxreplace
 from devito.tools import timed_pass
 from devito.types import IncrDimension
 
@@ -83,7 +84,7 @@ class Blocking(Queue):
                 ispace = decompose(c.ispace, d, block_dims)
 
                 # Use the innermost IncrDimension in place of `d`
-                exprs = [e.xreplace({d: bd}) for e in c.exprs]
+                exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
                 # The new Cluster properties
                 properties = dict(c.properties)

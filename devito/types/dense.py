@@ -98,14 +98,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
                              % type(initializer))
 
     def __eq__(self, other):
-        """Quick self == other comparison."""
-        if self.__class__ is not other.__class__:
-            return False
-        # Still need to check for different arguments eg `f(x)` and `f(x+3)`
-        # Note that hash(f(x)) == hash(f(x+3)), but clearly f(x) != f(x+3)
-        # However, checking the args by equality may be expensive due to
-        # sympify(), so here we rather check for idendity
-        return all(i is j for i, j in zip(self.args, other.args))
+        # The only possibility for two DiscreteFunctions to be considered equal
+        # is that they are indeed the same exact object
+        return self is other
 
     __hash__ = AbstractFunction.__hash__  # Required since we're overriding __eq__
 
@@ -1106,7 +1101,7 @@ class Function(DiscreteFunction, Differentiable):
                 rp = p // 2
             indices = [d - i for i in range(lp, 0, -1)]
             indices.extend([d + i for i in range(rp)])
-            points.extend([self.subs(d, i) for i in indices])
+            points.extend([self.subs({d: i}) for i in indices])
         return sum(points)
 
     def avg(self, p=None, dims=None):
@@ -1316,7 +1311,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.dimensions[self._time_position]
 
-        return self.subs(_t, _t + i * _t.spacing)
+        return self.subs({_t: _t + i * _t.spacing})
 
     @property
     def backward(self):
@@ -1324,7 +1319,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.dimensions[self._time_position]
 
-        return self.subs(_t, _t - i * _t.spacing)
+        return self.subs({_t: _t - i * _t.spacing})
 
     @property
     def _time_size(self):

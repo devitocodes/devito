@@ -2,6 +2,7 @@ import os
 from subprocess import check_call
 
 import pytest
+import sys
 
 from sympy import cos, Symbol  # noqa
 
@@ -125,16 +126,17 @@ def parallel(item):
             # run on the current machine
             continue
 
+        pyversion = sys.executable
         # Only spew tracebacks on rank 0.
         # Run xfailing tests to ensure that errors are reported to calling process
         if item.cls is not None:
             testname = "%s::%s::%s" % (item.fspath, item.cls.__name__, item.name)
         else:
             testname = "%s::%s" % (item.fspath, item.name)
-        args = ["-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
+        args = ["-n", "1", pyversion, "-m", "pytest", "--runxfail", "-s",
                 "-q", testname]
         if nprocs > 1:
-            args.extend([":", "-n", "%d" % (nprocs - 1), "python", "-m", "pytest",
+            args.extend([":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
                          "--runxfail", "--tb=no", "-q", testname])
         # OpenMPI requires an explicit flag for oversubscription. We need it as some
         # of the MPI tests will spawn lots of processes

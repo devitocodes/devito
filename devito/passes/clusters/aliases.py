@@ -3,11 +3,12 @@ from collections import OrderedDict, defaultdict
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval,
-                       IntervalGroup, LabeledVector, detect_accesses, build_intervals)
+from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval, IntervalGroup,
+                       LabeledVector, Scope, detect_accesses, build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
-                              q_sum_of_product, q_terminalop, retrieve_indexed, yreplace)
+                              q_sum_of_product, q_terminalop, retrieve_indexed,
+                              uxreplace, yreplace)
 from devito.tools import flatten
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
@@ -87,47 +88,60 @@ def cire(cluster, template, mode, options, platform):
     min_storage = options['min-storage']
 
     # Setup callbacks
-    if mode == 'invariants':
-        # Extraction rule
-        def extractor(context):
-            is_time_invariant = make_is_time_invariant(context)
-            return lambda e: is_time_invariant(e)
-
-        # Extraction model
+    def callbacks_invariants(context, *args):
+        extractor = make_is_time_invariant(context)
         model = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
-
-        # Selection rule
+        ignore_collected = lambda g: False
         selector = lambda c, n: c >= MIN_COST_ALIAS_INV and n >= 1
+        return extractor, model, ignore_collected, selector
 
-    elif mode == 'sops':
-        # Extraction rule
-        def extractor(context):
-            return lambda e: q_sum_of_product(e)
+    def callbacks_sops(context, n):
+        # The `depth` determines "how big" the extracted sum-of-products will be.
+        # We observe that in typical FD codes:
+        #   add(mul, mul, ...) -> stems from first order derivative
+        #   add(mul(add(mul, mul, ...), ...), ...) -> stems from second order derivative
+        # To catch the former, we would need `depth=1`; for the latter, `depth=3`
+        depth = 2*n + 1
 
-        # Extraction model
-        model = lambda e: not (q_leaf(e) or q_terminalop(e))
-
-        # Selection rule
+        extractor = lambda e: q_sum_of_product(e, depth)
+        model = lambda e: not (q_leaf(e) or q_terminalop(e, depth-1))
+        ignore_collected = lambda g: len(g) <= 1
         selector = lambda c, n: c >= MIN_COST_ALIAS and n > 1
+        return extractor, model, ignore_collected, selector
 
-    # Actual CIRE
+    callbacks_mapper = {
+        'invariants': callbacks_invariants,
+        'sops': callbacks_sops
+    }
+
+    # The main CIRE loop
     processed = []
     context = cluster.exprs
-    for _ in range(options['cire-repeats'][mode]):
+    for n in reversed(range(options['cire-repeats'][mode])):
+        # Get the callbacks
+        extractor, model, ignore_collected, selector = callbacks_mapper[mode](context, n)
+
         # Extract potentially aliasing expressions
-        exprs, extracted = extract(cluster, extractor(context), model, template)
+        exprs, extracted = extract(cluster, extractor, model, template)
         if not extracted:
             # Do not waste time
+            continue
+
+        # There can't be Dimension-dependent data dependences with any of
+        # the `processed` Clusters, otherwise we would risk either OOB accesses
+        # or reading from garbage uncomputed halo
+        scope = Scope(exprs=flatten(c.exprs for c in processed) + extracted)
+        if not all(i.is_indep() for i in scope.d_all_gen()):
             break
 
         # Search aliasing expressions
-        aliases = collect(extracted, min_storage)
+        aliases = collect(extracted, min_storage, ignore_collected)
 
         # Rule out aliasing expressions with a bad flops/memory trade-off
         chosen, others = choose(exprs, aliases, selector)
         if not chosen:
             # Do not waste time
-            break
+            continue
 
         # Create Aliases and assign them to Clusters
         clusters, subs = process(cluster, chosen, aliases, template, platform)
@@ -158,7 +172,7 @@ def extract(cluster, rule1, model, template):
     return yreplace(cluster.exprs, make, rule, model, eager=True)
 
 
-def collect(exprs, min_storage=False):
+def collect(exprs, min_storage, ignore_collected):
     """
     Find groups of aliasing expressions.
 
@@ -246,8 +260,12 @@ def collect(exprs, min_storage=False):
 
             group.append(u)
             unseen.remove(u)
-
         group = Group(group)
+
+        # Apply callback to heuristically discard groups
+        if ignore_collected(group):
+            continue
+
         if min_storage:
             k = group.dimensions_translated
         else:
@@ -297,7 +315,7 @@ def collect(exprs, min_storage=False):
                        for v in c.offsets]
             subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
                     for i, b, v in zip(c.indexeds, c.bases, offsets)}
-            alias = c.expr.xreplace(subs)
+            alias = uxreplace(c.expr, subs)
 
             # All aliased expressions
             aliaseds = [i.expr for i in g]
@@ -331,7 +349,7 @@ def choose(exprs, aliases, selector):
 def process(cluster, chosen, aliases, template, platform):
     clusters = []
     subs = {}
-    for alias, writeto, aliaseds, distances in aliases.schedule(cluster.ispace):
+    for alias, writeto, aliaseds, distances in aliases.iter(cluster.ispace):
         if all(i not in chosen for i in aliaseds):
             continue
 
@@ -365,7 +383,7 @@ def process(cluster, chosen, aliases, template, platform):
         # The expression computing `alias`
         adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]  # x -> xs
         indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
-        expression = Eq(array[indices], alias.xreplace(subs))
+        expression = Eq(array[indices], uxreplace(alias, subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
@@ -402,14 +420,14 @@ def process(cluster, chosen, aliases, template, platform):
 
         # Finally, build a new Cluster for `alias`
         built = cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace)
-        clusters.insert(0, built)
+        clusters.append(built)
 
     return clusters, subs
 
 
 def rebuild(cluster, others, aliases, subs):
     # Rebuild the non-aliasing expressions
-    exprs = [e.xreplace(subs) for e in others]
+    exprs = [uxreplace(e, subs) for e in others]
 
     # Add any new ShiftedDimension to the IterationSpace
     ispace = cluster.ispace.augment(aliases.index_mapper)
@@ -421,6 +439,9 @@ def rebuild(cluster, others, aliases, subs):
     dspace = DataSpace(cluster.dspace.intervals, parts)
 
     return cluster.rebuild(exprs=exprs, ispace=ispace, dspace=dspace)
+
+
+# Utilities
 
 
 class Candidate(object):
@@ -476,9 +497,6 @@ class Candidate(object):
     @cached_property
     def dimensions(self):
         return frozenset(i for i, _ in self.Toffsets)
-
-
-# Utilities
 
 
 class Group(tuple):
@@ -678,7 +696,7 @@ class Aliases(OrderedDict):
                 return aliaseds
         return []
 
-    def schedule(self, ispace):
+    def iter(self, ispace):
         """
         The aliases can be be scheduled in any order, but we privilege the one
         that minimizes storage while maximizing fusion.
@@ -694,6 +712,14 @@ class Aliases(OrderedDict):
                     if not writeto and interval == interval.zero():
                         # Optimize away unnecessary temporary Dimensions
                         continue
+
+                    # Adjust the Interval's stamp
+                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                    # use `<1>` which is the actual stamp used in the Cluster
+                    # from which the aliasing expressions were extracted
+                    assert i.stamp >= interval.stamp
+                    interval = interval.lift(i.stamp)
+
                     writeto.append(interval)
 
             if writeto:

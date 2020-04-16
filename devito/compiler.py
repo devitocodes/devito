@@ -383,7 +383,7 @@ class ClangCompiler(Compiler):
         if platform is NVIDIAX:
             self.cflags.remove('-std=c99')
             # Clang has offloading support via OpenMP
-            if language == 'openmp':
+            if language in ['C', 'openmp']:
                 # TODO: Need a generic -march setup
                 # self.cflags += ['-Xopenmp-target', '-march=sm_37']
                 self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
@@ -406,7 +406,7 @@ class ClangCompiler(Compiler):
 class PGICompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(PGICompiler, self).__init__(*args, **kwargs)
+        super(PGICompiler, self).__init__(*args, cpp=True, **kwargs)
 
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
@@ -416,9 +416,10 @@ class PGICompiler(Compiler):
         # self.cflags += ['-ta=tesla']    # Compile for a target GPU architecture
 
     def __lookup_cmds__(self):
-        self.CC = 'pgcc'
-        self.CXX = 'pgcc++'
-        self.MPICC = 'mpicc'
+        # NOTE: using `pgc++` instead of `pgcc` because of issue #1219
+        self.CC = 'pgc++'
+        self.CXX = 'pgc++'
+        self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
 
 

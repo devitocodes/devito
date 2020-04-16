@@ -7,7 +7,7 @@ from devito.tools import as_tuple, flatten, filter_sorted
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'align_accesses', 'detect_io']
+           'detect_io']
 
 
 def detect_accesses(exprs):
@@ -101,21 +101,6 @@ def build_intervals(stencil):
         dim = d.parent if d.is_NonlinearDerived else d
         mapper.setdefault(dim, set()).update(offs)
     return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
-
-
-def align_accesses(expr, key=lambda i: False):
-    """
-    ``expr -> expr'``, with ``expr'`` semantically equivalent to ``expr``, but
-    with data accesses aligned to the domain if ``key(function)`` gives True.
-    """
-    mapper = {}
-    for indexed in retrieve_indexed(expr):
-        f = indexed.function
-        if not key(f):
-            continue
-        subs = {i: i + j for i, j in zip(indexed.indices, f._size_nodomain.left)}
-        mapper[indexed] = indexed.xreplace(subs)
-    return expr.xreplace(mapper)
 
 
 def detect_io(exprs, relax=False):

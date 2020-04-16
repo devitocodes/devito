@@ -326,7 +326,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             iet = Iteration(iet, i, d.symbolic_size - 1, properties=(PARALLEL, AFFINE))
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
-        return Callable(name, iet, 'void', parameters, ('static',))
+        return CopyBuffer(name, iet, parameters)
 
     def _make_sendrecv(self, f, hse, key, **kwargs):
         comm = f.grid.distributor._obj_comm
@@ -366,7 +366,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         parameters = ([f] + list(bufs.shape) + ofsg + ofss + [fromrank, torank, comm])
-        return Callable('sendrecv_%s' % key, iet, 'void', parameters, ('static',))
+        return SendRecv(key, iet, parameters, bufg, bufs)
 
     def _call_sendrecv(self, name, *args, **kwargs):
         return Call(name, flatten(args))
@@ -423,7 +423,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values())
-        return Callable('haloupdate%d' % key, iet, 'void', parameters, ('static',))
+        return HaloUpdate(key, iet, parameters)
 
     def _call_haloupdate(self, name, f, hse, *args):
         comm = f.grid.distributor._obj_comm
@@ -497,7 +497,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values())
-        return Callable('haloupdate%d' % key, iet, 'void', parameters, ('static',))
+        return HaloUpdate(key, iet, parameters)
 
 
 class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
@@ -564,7 +564,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         iet = List(body=[recv, gather, send])
         parameters = ([f] + ofsg + [fromrank, torank, comm, msg])
-        return Callable('sendrecv_%s' % key, iet, 'void', parameters, ('static',))
+        return SendRecv(key, iet, parameters, bufg, bufs)
 
     def _call_sendrecv(self, name, *args, msg=None, haloid=None):
         # Drop `sizes` as this HaloExchangeBuilder conveys them through `msg`
@@ -737,7 +737,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ncomms = Symbol(name='ncomms')
         iet = Iteration([recv, gather, send], dim, ncomms - 1)
         parameters = ([f, comm, msg, ncomms]) + list(fixed.values())
-        return Callable('haloupdate%d' % key, iet, 'void', parameters, ('static',))
+        return HaloUpdate(key, iet, parameters)
 
     def _call_haloupdate(self, name, f, hse, msg):
         comm = f.grid.distributor._obj_comm
@@ -858,6 +858,36 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
     def _call_poke(self, poke):
         return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)
+
+
+# Callable sub-hierarchy
+
+
+class MPICallable(Callable):
+
+    def __init__(self, name, body, parameters):
+        super(MPICallable, self).__init__(name, body, 'void', parameters, ('static',))
+
+
+class CopyBuffer(MPICallable):
+    pass
+
+
+class SendRecv(MPICallable):
+
+    def __init__(self, key, body, parameters, bufg, bufs):
+        super(SendRecv, self).__init__('sendrecv_%s' % key, body, parameters)
+        self.bufg = bufg
+        self.bufs = bufs
+
+
+class HaloUpdate(MPICallable):
+
+    def __init__(self, key, body, parameters):
+        super(HaloUpdate, self).__init__('haloupdate_%s' % key, body, parameters)
+
+
+# Types sub-hierarchy
 
 
 class MPIStatusObject(LocalObject):

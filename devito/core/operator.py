@@ -1,5 +1,4 @@
 from devito.core.autotuning import autotune
-from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.passes import NThreads
 from devito.operator import Operator
@@ -8,13 +7,6 @@ __all__ = ['OperatorCore']
 
 
 class OperatorCore(Operator):
-
-    @classmethod
-    def _specialize_exprs(cls, expressions):
-        # Align data accesses to the computational domain
-        key = lambda i: i.is_DiscreteFunction
-        expressions = [align_accesses(e, key=key) for e in expressions]
-        return super(OperatorCore, cls)._specialize_exprs(expressions)
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:

@@ -72,7 +72,7 @@ class Node(Signer):
         handle.update(kwargs)
         return type(self)(**handle)
 
-    @property
+    @cached_property
     def ccode(self):
         """
         Generate C code.
@@ -264,9 +264,6 @@ class Expression(ExprStmt, Node):
     def __expr_finalize__(self, expr):
         """Finalize the Expression initialization."""
         self._expr = expr
-        self._reads, _ = detect_io(expr, relax=True)
-        self._dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
-        self._dimensions = tuple(filter_ordered(self._dimensions))
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -285,19 +282,20 @@ class Expression(ExprStmt, Node):
         """The Symbol/Indexed this Expression writes to."""
         return self.expr.lhs
 
-    @property
+    @cached_property
     def reads(self):
         """The Functions read by the Expression."""
-        return self._reads
+        return detect_io(self.expr, relax=True)[0]
 
     @property
     def write(self):
         """The Function written by the Expression."""
         return self.expr.lhs.function
 
-    @property
+    @cached_property
     def dimensions(self):
-        return self._dimensions
+        retval = flatten(i.indices for i in self.functions if i.is_Indexed)
+        return tuple(filter_ordered(retval))
 
     @property
     def is_scalar(self):
@@ -327,7 +325,7 @@ class Expression(ExprStmt, Node):
 
     @cached_property
     def functions(self):
-        functions = list(self._reads)
+        functions = list(self.reads)
         if self.write is not None:
             functions.append(self.write)
         return tuple(filter_ordered(functions))

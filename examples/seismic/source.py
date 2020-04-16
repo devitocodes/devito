@@ -211,6 +211,10 @@ class WaveletSource(PointSource):
         Peak frequency for Ricker wavelet in kHz.
     time_values : TimeAxis
         Discretized values of time in ms.
+    a : float, optional
+        Amplitude of the wavelet (defaults to 1).
+    t0 : float, optional
+        Firing time (defaults to 1 / f0)
     """
 
     def __new__(cls, *args, **kwargs):
@@ -228,14 +232,16 @@ class WaveletSource(PointSource):
         npoint = kwargs.pop('npoint', 1)
         obj = PointSource.__new__(cls, npoint=npoint, **kwargs)
         obj.f0 = kwargs.get('f0')
+        obj.a = kwargs.get('a')
+        obj.t0 = kwargs.get('t0')
         for p in range(npoint):
-            obj.data[:, p] = obj.wavelet(obj.f0, obj.time_values)
+            obj.data[:, p] = obj.wavelet
 
         return obj
 
     def wavelet(self, f0, t):
         """
-        Defines a wavelet with a peak frequency f0 at time t.
+        Returns a wavelet with a peak frequency f0 at time t.
 
         Parameters
         ----------
@@ -294,9 +300,10 @@ class RickerSource(WaveletSource):
     A Ricker wavelet.
     """
 
-    def wavelet(self, f0, t):
+    @property
+    def wavelet(self):
         """
-        Defines a Ricker wavelet with a peak frequency f0 at time t.
+        Returns a Ricker wavelet with a peak frequency f0 at time t.
 
         Parameters
         ----------
@@ -305,8 +312,10 @@ class RickerSource(WaveletSource):
         t : TimeAxis
             Discretized values of time in ms.
         """
-        r = (np.pi * f0 * (t - 1./f0))
-        return (1-2.*r**2)*np.exp(-r**2)
+        t0 = self.t0 or 1 / self.f0
+        a = self.a or 1
+        r = (np.pi * self.f0 * (self.time_values - t0))
+        return a * (1-2.*r**2)*np.exp(-r**2)
 
 
 class GaborSource(WaveletSource):
@@ -332,9 +341,11 @@ class GaborSource(WaveletSource):
     A Gabor wavelet.
     """
 
-    def wavelet(self, f0, t):
+    @property
+    def wavelet(self):
         """
-        Defines a Gabor wavelet with a peak frequency f0 at time t.
+        Returns a Gabor wavelet with a peak frequency f0 at time t.
+
         Parameters
         ----------
         f0 : float
@@ -342,10 +353,11 @@ class GaborSource(WaveletSource):
         t : TimeAxis
             Discretized values of time in ms.
         """
-        agauss = 0.5 * f0
-        tcut = 1.5 / agauss
-        s = (t-tcut) * agauss
-        return np.exp(-2*s**2) * np.cos(2 * np.pi * s)
+        agauss = 0.5 * self.f0
+        tcut = self.t0 or 1.5 / agauss
+        s = (self.time_values - tcut) * agauss
+        a = self.a or 1
+        return a * np.exp(-2*s**2) * np.cos(2 * np.pi * s)
 
 
 class DGaussSource(WaveletSource):
@@ -380,9 +392,10 @@ class DGaussSource(WaveletSource):
     The 1st order derivative of the Gaussian wavelet
     """
 
-    def wavelet(self, f0, t, a):
+    @property
+    def wavelet(self):
         """
-        Defines the 1st derivative of a Gaussian wavelet.
+        Returns the 1st derivative of a Gaussian wavelet.
 
         Parameters
         ----------
@@ -393,4 +406,7 @@ class DGaussSource(WaveletSource):
         a : float
             Maximum amplitude.
         """
-        return -2.*a*(t - 1/f0) * np.exp(-a * (t - 1/f0)**2)
+        t0 = self.t0 or 1 / self.f0
+        a = self.a or 1
+        time = (self.time_values - t0)
+        return -2 * a * time * np.exp(- a * time**2)

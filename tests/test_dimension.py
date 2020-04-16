@@ -8,6 +8,7 @@ from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
+from devito.symbolics import indexify, retrieve_functions
 from devito.types import Array
 
 
@@ -546,6 +547,22 @@ class TestConditionalDimension(object):
         op.apply(time_M=nt-2)
         # Verify that u2[x,y]= u[2*x, 2*y]
         assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
+
+    def test_time_subsampling_fd(self):
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        time = grid.time_dim
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled, time_order=2)
+
+        dx2 = [indexify(i) for i in retrieve_functions(usave.dt2.evaluate)]
+        assert dx2 == [usave[time_subsampled - 1, x, y],
+                       usave[time_subsampled + 1, x, y],
+                       usave[time_subsampled, x, y]]
 
     def test_subsampled_fd(self):
         """
