@@ -1,5 +1,6 @@
 import pytest
 import os
+import sys
 
 from devito import configuration
 from subprocess import check_call
@@ -23,7 +24,8 @@ def test_bench(mode, problem):
 
     baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
 
-    command_bench = ['python', '%sbenchmarks/user/benchmark.py' % baseline, mode,
+    pyversion = sys.executable
+    command_bench = [pyversion, '%sbenchmarks/user/benchmark.py' % baseline, mode,
                      '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
                      '%d' % tn, '-x', '1']
     check_call(command_bench)

@@ -13,7 +13,7 @@ on:
 jobs:
   build:
     name: pytest-mpi
-    runs-on: ubuntu-16.04
+    runs-on: self-hosted
 
     env:
       DEVITO_ARCH: "gcc-7"
@@ -21,26 +21,15 @@ jobs:
       DEVITO_BACKEND: "core"
       CC: "gcc-7"
       CXX: "g++-7"
-      PYTHON_VERSION: "3.7"
 
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
 
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.7
-
-    - name: Install MPI
-      run : |
-        sudo apt-get install -y mpich libmpich-dev
-
     - name: Install dependencies
       run: |
-        pip install --upgrade pip
-        pip install -e .[extras]
-        ipcluster start --profile=mpi -n 4 --daemon
+        pip3 install --upgrade pip
+        pip3 install -e .[extras]
 
     - name: Test with pytest
       run: |
@@ -49,8 +38,9 @@ jobs:
     - name: Test mpi notebook
       run : |
         # Currently not tested due to issue #859
+        # ipcluster start --profile=mpi -n 4 --daemon
         # py.test --nbval examples/mpi
-        ipcluster stop --profile=mpi
+        # ipcluster stop --profile=mpi
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
