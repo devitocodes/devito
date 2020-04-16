@@ -9,7 +9,6 @@ from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
-from devito.symbolics import evaluate
 from devito.tools import filter_ordered, flatten, is_integer, prod
 
 __all__ = ['autotune']
@@ -118,7 +117,7 @@ def autotune(operator, args, level, mode):
             # Make sure we remain within stack bounds, otherwise skip run
             try:
                 stack_footprint = operator._mem_summary['stack']
-                if int(evaluate(stack_footprint, **at_args)) > options['stack_limit']:
+                if int(stack_footprint.subs(at_args)) > options['stack_limit']:
                     continue
             except TypeError:
                 warning("could not determine stack size; skipping run %s" % str(i))

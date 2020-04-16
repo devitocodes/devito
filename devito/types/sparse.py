@@ -875,9 +875,9 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         """
         # Apply optional time symbol substitutions to field and expr
         if u_t is not None:
-            field = field.subs(field.time_dim, u_t)
+            field = field.subs({field.time_dim: u_t})
         if p_t is not None:
-            expr = expr.subs(self.time_dim, p_t)
+            expr = expr.subs({self.time_dim: p_t})
 
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 

@@ -3,12 +3,11 @@ from itertools import groupby
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
 from devito.passes.clusters.utils import cluster_pass
-from devito.symbolics import pow_to_mul, xreplace_indices, freeze as _freeze
+from devito.symbolics import pow_to_mul, uxreplace
 from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
-__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows',
-           'extract_increments', 'freeze']
+__all__ = ['Lift', 'fuse', 'eliminate_arrays', 'optimize_pows', 'extract_increments']
 
 
 class Lift(Queue):
@@ -100,48 +99,6 @@ def fuse(clusters):
 
 
 @timed_pass()
-def scalarize(clusters, template):
-    """
-    Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
-    into Scalars.
-    """
-    processed = []
-    for c in clusters:
-        # Get any Arrays appearing only in `c`
-        impacted = set(clusters) - {c}
-        arrays = {i for i in c.scope.writes if i.is_Array}
-        arrays -= set().union(*[i.scope.reads for i in impacted])
-
-        # Turn them into scalars
-        #
-        # r[x,y,z] = g(b[x,y,z])                 t0 = g(b[x,y,z])
-        # ... = r[x,y,z] + r[x,y,z+1]`  ---->    t1 = g(b[x,y,z+1])
-        #                                        ... = t0 + t1
-        mapper = {}
-        exprs = []
-        for n, e in enumerate(c.exprs):
-            f = e.lhs.function
-            if f in arrays:
-                indexeds = [i.indexed for i in c.scope[f] if i.timestamp > n]
-                for i in filter_ordered(indexeds):
-                    mapper[i] = Scalar(name=template(), dtype=f.dtype)
-
-                    assert len(f.indices) == len(e.lhs.indices) == len(i.indices)
-                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
-                                zip(f.indices, e.lhs.indices, i.indices)}
-
-                    handle = e.func(mapper[i], e.rhs.xreplace(mapper))
-                    handle = xreplace_indices(handle, shifting)
-                    exprs.append(handle)
-            else:
-                exprs.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
-
-        processed.append(c.rebuild(exprs))
-
-    return processed
-
-
-@timed_pass()
 def eliminate_arrays(clusters, template):
     """
     Eliminate redundant expressions stored in Arrays.
@@ -175,13 +132,13 @@ def eliminate_arrays(clusters, template):
         subs = {}
         for f, v in mapper.items():
             for i in filter_ordered(i.indexed for i in c.scope[f]):
-                subs[i] = v[f.indices]
+                subs[i] = v[i.indices]
         exprs = []
         for e in c.exprs:
             if e.lhs.function in mapper:
                 # Drop the write
                 continue
-            exprs.append(e.xreplace(subs))
+            exprs.append(uxreplace(e, subs))
 
         processed.append(c.rebuild(exprs))
 
@@ -216,12 +173,3 @@ def extract_increments(cluster, template, *args):
             processed.append(e)
 
     return cluster.rebuild(processed)
-
-
-@cluster_pass(mode='all')
-def freeze(cluster):
-    """
-    Prevent future symbolic manipulations (e.g., xreplace, subs, ...) from
-    altering the arithmetic structure of the expressions.
-    """
-    return cluster.rebuild([_freeze(e) for e in cluster.exprs])

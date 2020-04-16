@@ -9,6 +9,7 @@ import ctypes
 from devito.archinfo import platform_registry
 from devito.compiler import compiler_registry
 from devito.exceptions import InvalidOperator
+from devito.finite_differences import Evaluable
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import ClusterGroup, clusterize
@@ -19,9 +20,10 @@ from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph
-from devito.symbolics import estimate_cost, indexify
+from devito.symbolics import (estimate_cost, retrieve_functions, retrieve_indexed,
+                              uxreplace)
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
-                          filter_sorted, split, timed_pass, timed_region, Evaluable)
+                          filter_sorted, split, timed_pass, timed_region)
 from devito.types import Dimension, Eq
 
 __all__ = ['Operator']
@@ -248,8 +250,9 @@ class Operator(Callable):
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
                     if e.subdomain not in seen:
+                        grid = list(retrieve_functions(e, mode='unique'))[0].grid
                         processed.extend([i.func(*i.args, implicit_dims=dims) for i in
-                                          e.subdomain._create_implicit_exprs()])
+                                          e.subdomain._create_implicit_exprs(grid)])
                         seen.add(e.subdomain)
                     dims.extend(e.subdomain.dimensions)
                     new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
@@ -263,22 +266,6 @@ class Operator(Callable):
     @classmethod
     def _initialize_state(cls, **kwargs):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
-
-    @classmethod
-    def _apply_substitutions(cls, expressions, subs):
-        """
-        Transform ``expressions`` by:
-
-            * Applying any user-provided symbolic substitution;
-            * Replacing Dimensions with SubDimensions based on expression SubDomains.
-        """
-        processed = []
-        for e in expressions:
-            mapper = subs.copy()
-            if e.subdomain:
-                mapper.update(e.subdomain.dimension_map)
-            processed.append(e.xreplace(mapper))
-        return processed
 
     @classmethod
     def _specialize_exprs(cls, expressions):
@@ -300,17 +287,52 @@ class Operator(Callable):
             * Apply substitution rules;
             * Specialize (e.g., index shifting)
         """
-        subs = kwargs.get("subs", {})
-
+        # Add in implicit expressions, e.g., induced by SubDomains
         expressions = cls._add_implicit(expressions)
+
+        # Unfold lazyiness
         expressions = flatten([i.evaluate for i in expressions])
+
+        # Scalarize tensor expressions
         expressions = [j for i in expressions for j in i._flatten]
-        expressions = [indexify(i) for i in expressions]
-        expressions = cls._apply_substitutions(expressions, subs)
 
-        expressions = cls._specialize_exprs(expressions)
+        # Indexification
+        # E.g., f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
+        processed = []
+        for expr in expressions:
+            if expr.subdomain:
+                dimension_map = expr.subdomain.dimension_map
+            else:
+                dimension_map = {}
 
-        return expressions
+            # Handle Functions (typical case)
+            mapper = {f: f.indexify(lshift=True, subs=dimension_map)
+                      for f in retrieve_functions(expr)}
+
+            # Handle Indexeds (from index notation)
+            for i in retrieve_indexed(expr):
+                f = i.function
+
+                # Introduce shifting to align with the computational domain
+                indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
+
+                # Apply substitutions, if necessary
+                if dimension_map:
+                    indices = [j.xreplace(dimension_map) for j in indices]
+
+                mapper[i] = f.indexed[indices]
+
+            subs = kwargs.get('subs')
+            if subs:
+                # Include the user-supplied substitutions, and use
+                # `xreplace` for constant folding
+                processed.append(expr.xreplace({**mapper, **subs}))
+            else:
+                processed.append(uxreplace(expr, mapper))
+
+        processed = cls._specialize_exprs(processed)
+
+        return processed
 
     # Compilation -- Cluster level
 
@@ -596,7 +618,7 @@ class Operator(Callable):
     # Execution
 
     def __call__(self, **kwargs):
-        self.apply(**kwargs)
+        return self.apply(**kwargs)
 
     def apply(self, **kwargs):
         """

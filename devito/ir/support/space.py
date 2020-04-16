@@ -137,6 +137,9 @@ class Interval(AbstractInterval):
         return hash((self.dim, self.offsets))
 
     def __eq__(self, o):
+        if self is o:
+            return True
+
         return (super(Interval, self).__eq__(o) and
                 self.lower == o.lower and
                 self.upper == o.upper)
@@ -200,8 +203,10 @@ class Interval(AbstractInterval):
     def flip(self):
         return Interval(self.dim, self.upper, self.lower, self.stamp)
 
-    def lift(self):
-        return Interval(self.dim, self.lower, self.upper, self.stamp + 1)
+    def lift(self, v=None):
+        if v is None:
+            v = self.stamp + 1
+        return Interval(self.dim, self.lower, self.upper, v)
 
     def reset(self):
         return Interval(self.dim, self.lower, self.upper, 0)
@@ -370,9 +375,9 @@ class IntervalGroup(PartialOrderTuple):
         return IntervalGroup([i.zero() if i.dim in d else i for i in self],
                              relations=self.relations)
 
-    def lift(self, d):
+    def lift(self, d, v=None):
         d = set(self.dimensions if d is None else as_tuple(d))
-        return IntervalGroup([i.lift() if i.dim._defines & d else i for i in self],
+        return IntervalGroup([i.lift(v) if i.dim._defines & d else i for i in self],
                              relations=self.relations)
 
     def reset(self):
@@ -491,7 +496,7 @@ class Space(object):
     def intervals(self):
         return self._intervals
 
-    @property
+    @cached_property
     def dimensions(self):
         return filter_ordered(self.intervals.dimensions)
 
@@ -628,6 +633,9 @@ class IterationSpace(Space):
         return "IterationSpace[%s]" % ret
 
     def __eq__(self, other):
+        if self is other:
+            return True
+
         return (isinstance(other, IterationSpace) and
                 self.intervals == other.intervals and
                 self.directions == other.directions)
@@ -694,12 +702,13 @@ class IterationSpace(Space):
             func = lambda i: i in cond
 
         intervals = [i for i in self.intervals if func(i.dim)]
-
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
-
         directions = {k: v for k, v in self.directions.items() if func(k)}
-
         return IterationSpace(intervals, sub_iterators, directions)
+
+    def lift(self, d=None, v=None):
+        intervals = self.intervals.lift(d, v)
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
 
     def is_compatible(self, other):
         """
@@ -724,15 +733,15 @@ class IterationSpace(Space):
     def directions(self):
         return self._directions
 
-    @property
+    @cached_property
     def itintervals(self):
         return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
 
-    @property
+    @cached_property
     def dimensions(self):
         sub_dims = [i.parent for v in self.sub_iterators.values() for i in v]
         return filter_ordered(self.intervals.dimensions + sub_dims)
 
-    @property
+    @cached_property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}

@@ -1,9 +1,8 @@
-from collections import defaultdict
 from functools import cmp_to_key
 
-from devito.ir.clusters.queue import Queue
+from devito.ir.clusters.queue import QueueStateful
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               AFFINE, WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
+                               AFFINE, WRAPPABLE, ROUNDABLE, TILABLE, Forward)
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
@@ -11,7 +10,7 @@ __all__ = ['analyze']
 
 @timed_pass()
 def analyze(clusters):
-    state = State()
+    state = QueueStateful.State()
 
     # Collect properties
     clusters = Parallelism(state).process(clusters)
@@ -26,41 +25,7 @@ def analyze(clusters):
     return processed
 
 
-class State(object):
-
-    def __init__(self):
-        self.properties = {}
-        self.scopes = {}
-
-
-class Detector(Queue):
-
-    def __init__(self, state):
-        super(Detector, self).__init__()
-        self.state = state
-
-    def _fetch_scope(self, clusters):
-        key = as_tuple(clusters)
-        if key not in self.state.scopes:
-            self.state.scopes[key] = Scope(flatten(c.exprs for c in key))
-        return self.state.scopes[key]
-
-    def _fetch_properties(self, clusters, prefix):
-        # If the situation is:
-        #
-        # t
-        #   x0
-        #     <some clusters>
-        #   x1
-        #     <some other clusters>
-        #
-        # then retain only the "common" properties, that is those along `t`
-        properties = defaultdict(set)
-        for c in clusters:
-            v = self.state.properties.get(c, {})
-            for i in prefix:
-                properties[i.dim].update(v.get(i.dim, set()))
-        return properties
+class Detector(QueueStateful):
 
     def process(self, elements):
         return self._process_fatd(elements, 1)

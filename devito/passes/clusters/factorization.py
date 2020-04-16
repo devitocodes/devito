@@ -1,4 +1,6 @@
-from sympy import Add, Mul, collect, collect_const
+from collections import defaultdict
+
+from sympy import Add, Mul, collect
 
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import estimate_cost, retrieve_scalars
@@ -25,14 +27,14 @@ def factorize(cluster, *args):
     """
     processed = []
     for expr in cluster.exprs:
-        handle = _collect_nested(expr)
+        handle = collect_nested(expr)
         cost_handle = estimate_cost(handle)
 
         if cost_handle >= MIN_COST_FACTORIZE:
             handle_prev = handle
             cost_prev = estimate_cost(expr)
             while cost_handle < cost_prev:
-                handle_prev, handle = handle, _collect_nested(handle)
+                handle_prev, handle = handle, collect_nested(handle)
                 cost_prev, cost_handle = cost_handle, estimate_cost(handle)
             cost_handle, handle = cost_prev, handle_prev
 
@@ -41,7 +43,47 @@ def factorize(cluster, *args):
     return cluster.rebuild(processed)
 
 
-def _collect_nested(expr):
+def collect_const(expr):
+    """
+    *Much* faster alternative to sympy.collect_const. *Potentially* slightly less
+    powerful with complex expressions, but it is equally effective for the
+    expressions we have to deal with.
+    """
+    # Running example: `a*3. + b*2. + c*3.`
+
+    # -> {a: 3., b: 2., c: 3.}
+    mapper = expr.as_coefficients_dict()
+
+    # -> {3.: [a, c], 2: [b]}
+    inverse_mapper = defaultdict(list)
+    for k, v in mapper.items():
+        if v >= 0:
+            inverse_mapper[v].append(k)
+        else:
+            inverse_mapper[-v].append(-k)
+
+    terms = []
+    for k, v in inverse_mapper.items():
+        if len(v) == 1 and not v[0].is_Add:
+            # Special case: avoid e.g. (-2)*a
+            mul = Mul(k, *v)
+        elif all(i.is_Mul and len(i.args) == 2 and i.args[0] == -1 for i in v):
+            # Other special case: [-a, -b, -c ...]
+            add = Add(*[i.args[1] for i in v], evaluate=False)
+            mul = Mul(-k, add, evaluate=False)
+        else:
+            # Back to the running example
+            # -> (a + c)
+            add = Add(*v)
+            # -> 3.*(a + c)
+            mul = Mul(k, add, evaluate=False)
+
+        terms.append(mul)
+
+    return Add(*terms)
+
+
+def collect_nested(expr):
     """
     Collect numeric coefficients, trascendental functions, and symbolic powers,
     across all levels of the expression tree.
@@ -78,57 +120,60 @@ def _collect_nested(expr):
             coeffs = candidates.getall('coeffs', [])
 
             # Functions/Pows are collected first, coefficients afterwards
-            # Note: below we use sets, but SymPy will ensure determinism
-            args = set(args)
-            w_funcs = {i for i in args if any(j in funcs for j in i.args)}
-            args -= w_funcs
-            w_pows = {i for i in args if any(j in pows for j in i.args)}
-            args -= w_pows
-            w_coeffs = {i for i in args if any(j in coeffs for j in i.args)}
-            args -= w_coeffs
+            terms = []
+            w_funcs = []
+            w_pows = []
+            w_coeffs = []
+            for i in args:
+                _args = i.args
+                if any(j in funcs for j in _args):
+                    w_funcs.append(i)
+                elif any(j in pows for j in _args):
+                    w_pows.append(i)
+                elif any(j in coeffs for j in _args):
+                    w_coeffs.append(i)
+                else:
+                    terms.append(i)
 
             # Collect common funcs
-            w_funcs = collect(expr.func(*w_funcs), funcs, evaluate=False)
+            w_funcs = Add(*w_funcs, evaluate=False)
+            w_funcs = collect(w_funcs, funcs, evaluate=False)
             try:
-                w_funcs = Add(*[Mul(k, collect_const(v)) for k, v in w_funcs.items()])
+                terms.extend([Mul(k, collect_const(v), evaluate=False)
+                              for k, v in w_funcs.items()])
             except AttributeError:
                 assert w_funcs == 0
 
             # Collect common pows
-            w_pows = collect(expr.func(*w_pows), pows, evaluate=False)
+            w_pows = Add(*w_pows, evaluate=False)
+            w_pows = collect(w_pows, pows, evaluate=False)
             try:
-                w_pows = Add(*[Mul(k, collect_const(v)) for k, v in w_pows.items()])
+                terms.extend([Mul(k, collect_const(v), evaluate=False)
+                              for k, v in w_pows.items()])
             except AttributeError:
                 assert w_pows == 0
 
             # Collect common temporaries (r0, r1, ...)
-            w_coeffs = collect(expr.func(*w_coeffs), tuple(retrieve_scalars(expr)),
-                               evaluate=False)
-            try:
-                w_coeffs = Add(*[Mul(k, collect_const(v)) for k, v in w_coeffs.items()])
-            except AttributeError:
-                assert w_coeffs == 0
+            w_coeffs = Add(*w_coeffs, evaluate=False)
+            scalars = retrieve_scalars(w_coeffs)
+            if scalars:
+                w_coeffs = collect(w_coeffs, scalars, evaluate=False)
+                try:
+                    terms.extend([Mul(k, collect_const(v), evaluate=False)
+                                  for k, v in w_coeffs.items()])
+                except AttributeError:
+                    assert w_coeffs == 0
+            else:
+                terms.append(w_coeffs)
 
             # Collect common coefficients
-            w_coeffs = collect_const(w_coeffs)
-
-            rebuilt = Add(w_funcs, w_pows, w_coeffs, *args)
+            rebuilt = Add(*terms)
+            rebuilt = collect_const(rebuilt)
 
             return rebuilt, {}
         elif expr.is_Mul:
             args, candidates = zip(*[run(arg) for arg in expr.args])
-
-            # Always collect coefficients
-            rebuilt = collect_const(expr.func(*args))
-            try:
-                if rebuilt.args:
-                    # Note: Mul(*()) -> 1, and since sympy.S.Zero.args == (),
-                    # the `if` prevents turning 0 into 1
-                    rebuilt = Mul(*rebuilt.args)
-            except AttributeError:
-                pass
-
-            return rebuilt, ReducerMap.fromdicts(*candidates)
+            return Mul(*args), ReducerMap.fromdicts(*candidates)
         elif expr.is_Equality:
             args, candidates = zip(*[run(expr.lhs), run(expr.rhs)])
             return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)

@@ -13,7 +13,7 @@ import cgen as c
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call
 from devito.ir.support.space import Backward
-from devito.symbolics import ccode
+from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction
 
@@ -522,6 +522,7 @@ class FindSymbols(Visitor):
         Drive the search. Accepted:
         - ``symbolics``: Collect all AbstractFunction objects, default.
         - ``free-symbols``: Collect all free symbols.
+        - ``indexeds``: Collect all Indexeds.
         - ``defines``: Collect all defined (bound) objects.
     """
 
@@ -541,6 +542,7 @@ class FindSymbols(Visitor):
     rules = {
         'symbolics': _symbolics,
         'free-symbols': lambda e: e.free_symbols,
+        'indexeds': lambda e: [i for i in e.free_symbols if i.is_Indexed],
         'defines': _defines,
     }
 
@@ -734,12 +736,12 @@ class XSubs(Transformer):
     mapper : dict, optional
         The substitution rules.
     replacer : callable, optional
-        An ad-hoc function to perform the substitution. Defaults to SymPy's ``subs``.
+        An ad-hoc function to perform the substitution. Defaults to ``uxreplace``.
     """
 
     def __init__(self, mapper=None, replacer=None):
         super(XSubs, self).__init__()
-        self.replacer = replacer or (lambda i: i.subs(mapper))
+        self.replacer = replacer or (lambda i: uxreplace(i, mapper))
 
     def visit_Expression(self, o):
         return o._rebuild(expr=self.replacer(o.expr))

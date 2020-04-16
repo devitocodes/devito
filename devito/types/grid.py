@@ -4,6 +4,7 @@ import numpy as np
 from sympy import prod
 from math import floor
 
+from devito.data import LEFT, RIGHT
 from devito.mpi import Distributor
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
@@ -117,10 +118,13 @@ class Grid(ArgProvider):
         else:
             self._dimensions = dimensions
 
+        self._distributor = Distributor(self.shape, self.dimensions, comm)
+
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self.dimensions, self.shape, counter=counter)
+            i.__subdomain_finalize__(self.dimensions, self.shape,
+                                     distributor=self._distributor, counter=counter)
         self._subdomains = subdomains
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -140,8 +144,6 @@ class Grid(ArgProvider):
             self._stepping_dim = self._make_stepping_dim(self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
-
-        self._distributor = Distributor(self.shape, self.dimensions, comm)
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -531,19 +533,81 @@ class SubDomainSet(SubDomain):
             n = Dimension(name='n')
             self.implicit_dimension = n
         self._n_domains = kwargs.get('N', 1)
-        self._bounds = kwargs.get('bounds', None)
+        self._global_bounds = kwargs.get('bounds', None)
+        self._implicit_exprs = None
 
-    def __subdomain_finalize__(self, dimensions, shape, **kwargs):
+    def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         for d in dimensions:
-            sub_dimensions.append(
-                SubDimension.middle('%si_%s' % (d.name, self.implicit_dimension.name),
-                                    d, 0, 0))
+            sub_dimensions.append(SubDimension.middle
+                                  ('%si_%s' % (d.name, self.implicit_dimension.name),
+                                   d, 0, 0))
         self._dimensions = tuple(sub_dimensions)
-        # Compute the SubDomain shape
-        self._shape = tuple(s - (sum(d._thickness_map.values()) if d.is_Sub else 0)
-                            for d, s in zip(self._dimensions, shape))
+
+        # Compute the SubDomainSet shapes
+        global_bounds = []
+        for i in self._global_bounds:
+            if isinstance(i, int):
+                global_bounds.append(np.full(self._n_domains, i, dtype=np.int32))
+            else:
+                global_bounds.append(i)
+        d_m = global_bounds[0::2]
+        d_M = global_bounds[1::2]
+        shapes = []
+        for i in range(self._n_domains):
+            dshape = []
+            for s, m, M in zip(shape, d_m, d_M):
+                assert(m.size == M.size)
+                dshape.append(s-m[i]-M[i])
+            shapes.append(as_tuple(dshape))
+        self._shape = as_tuple(shapes)
+
+        if distributor and distributor.is_parallel:
+            # Now create local bounds based on distributor
+            processed = []
+            for dim, d, m, M in zip(dimensions, distributor.decomposition, d_m, d_M):
+                bounds_m = np.zeros(m.shape, dtype=m.dtype)
+                bounds_M = np.zeros(m.shape, dtype=m.dtype)
+                for j in range(m.size):
+                    lmin = d.glb_min + m[j]
+                    lmax = d.glb_max - M[j]
+
+                    # Check if the subdomain doesn't intersect with the decomposition
+                    if lmin < d.loc_abs_min and lmax < d.loc_abs_min:
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
+                        continue
+                    if lmin > d.loc_abs_max and lmax > d.loc_abs_max:
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
+                        continue
+
+                    if lmin < d.loc_abs_min:
+                        bounds_m[j] = 0
+                    elif lmin > d.loc_abs_max:
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
+                        continue
+                    else:
+                        bounds_m[j] = d.index_glb_to_loc(m[j], LEFT)
+
+                    if lmax < d.loc_abs_min:
+                        bounds_m[j] = d.loc_abs_max
+                        bounds_M[j] = d.loc_abs_max
+                        continue
+                    elif lmax >= d.loc_abs_max:
+                        bounds_M[j] = 0
+                    else:
+                        bounds_M[j] = d.index_glb_to_loc(M[j], RIGHT)
+
+                processed.append(bounds_m)
+                processed.append(bounds_M)
+            self._local_bounds = as_tuple(processed)
+        else:
+            # Not distributed and hence local and global bounds are
+            # equivalent.
+            self._local_bounds = self._global_bounds
 
     @property
     def n_domains(self):
@@ -551,17 +615,17 @@ class SubDomainSet(SubDomain):
 
     @property
     def bounds(self):
-        return self._bounds
+        return self._local_bounds
 
-    def _create_implicit_exprs(self):
-        if not len(self._bounds) == 2*len(self.dimensions):
+    def _create_implicit_exprs(self, grid):
+        if not len(self._local_bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
         n_domains = self.n_domains
         i_dim = self.implicit_dimension
         dat = []
         # Organise the data contained in 'bounds' into a form such that the
         # associated implicit equations can easily be created.
-        for j in range(len(self._bounds)):
+        for j in range(len(self._local_bounds)):
             index = floor(j/2)
             d = self.dimensions[index]
             if j % 2 == 0:
@@ -569,12 +633,12 @@ class SubDomainSet(SubDomain):
             else:
                 fname = d.max_name
             func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ),
-                            dtype=np.int32)
+                            grid=grid, dtype=np.int32)
             # Check if shorthand notation has been provided:
-            if isinstance(self._bounds[j], int):
-                bounds = np.full((n_domains,), self._bounds[j], dtype=np.int32)
+            if isinstance(self._local_bounds[j], int):
+                bounds = np.full((n_domains,), self._local_bounds[j], dtype=np.int32)
                 func.data[:] = bounds
             else:
-                func.data[:] = self._bounds[j]
+                func.data[:] = self._local_bounds[j]
             dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
         return as_tuple(dat)

@@ -5,8 +5,10 @@ from unittest.mock import patch
 from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
-from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
+from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
+                    Dimension, SubDimension, Grid, Operator, norm, grad, div,
+                    switchconfig, configuration, centered, first_derivative, transpose)
+from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
@@ -59,14 +61,19 @@ def test_scheduling_after_rewrite():
 def test_yreplace_time_invariants(exprs, expected):
     grid = Grid((3, 3, 3))
     dims = grid.dimensions
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()
-    t0 = Scalar(name='t0').indexify()
-    t1 = Scalar(name='t1').indexify()
-    exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
+
+    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()  # noqa
+    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()  # noqa
+    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()  # noqa
+    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    t0 = Scalar(name='t0').indexify()  # noqa
+    t1 = Scalar(name='t1').indexify()  # noqa
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = DummyEq(indexify(eval(e).evaluate))
+
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed, found = yreplace(exprs, make,
@@ -144,7 +151,7 @@ def test_cse(exprs, expected):
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
-        exprs[i] = DummyEq(indexify(eval(e).evaluate))
+        exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
@@ -340,7 +347,7 @@ class TestAliases(object):
         for i, e in enumerate(list(expected)):
             expected[i] = eval(e)
 
-        aliases = collect(exprs)
+        aliases = collect(exprs, False, lambda i: False)
 
         assert len(aliases) == len(expected)
         assert all(i in expected for i in aliases)
@@ -1128,6 +1135,102 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    @switchconfig(profiling='advanced')
+    def test_extraction_from_lifted_ispace(self):
+        """
+        Test that the aliases are scheduled correctly when extracted from
+        Clusters whose iteration space is lifted (ie, stamp != 0).
+        """
+        so = 8
+        grid = Grid(shape=(6, 6, 6))
+
+        v = TimeFunction(name="v", grid=grid, space_order=so)
+        v.data_with_halo[:] = 1.
+        p = TimeFunction(name="p", grid=grid, space_order=so, staggered=NODE)
+        p.data_with_halo[:] = 0.5
+        f = Function(name='f', grid=grid, space_order=so, is_param=True)
+        f.data_with_halo[:] = 0.2
+
+        eqns = [Eq(v.forward, v - f*p),
+                Eq(p.forward, p - v.forward.dx + div(f*grad(p)))]
+
+        # Operator
+        op0 = Operator(eqns, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
+
+        # Check numerical output
+        op0(time_M=1)
+        exp_norm_v = norm(v)
+        exp_norm_p = norm(p)
+        v.data_with_halo[:] = 1.
+        p.data_with_halo[:] = 0.5
+        summary = op1(time_M=1)
+        assert np.isclose(norm(v), exp_norm_v, rtol=1e-5)
+        assert np.isclose(norm(p), exp_norm_p, atol=1e-5)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert summary[('section0', None)].ops == 120
+
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    @switchconfig(profiling='advanced')
+    def test_tti_adjoint_akin(self):
+        """
+        Extrapolated from TTI adjoint.
+        """
+        so = 4
+        to = 2
+        soh = so // 2
+        T = transpose
+
+        grid = Grid(shape=(10, 10, 10), dtype=np.float64)
+        x, y, z = grid.dimensions
+
+        p = TimeFunction(name='p', grid=grid, space_order=so, time_order=to)
+        r = TimeFunction(name='r', grid=grid, space_order=so, time_order=to)
+        delta = Function(name='delta', grid=grid, space_order=so)
+        theta = Function(name='theta', grid=grid, space_order=so)
+        phi = Function(name='phi', grid=grid, space_order=so)
+
+        p.data_with_halo[:] = 1.
+        r.data_with_halo[:] = 0.5
+        delta.data_with_halo[:] = 0.2
+        theta.data_with_halo[:] = 0.8
+        phi.data_with_halo[:] = 0.2
+
+        costheta = cos(theta)
+        sintheta = sin(theta)
+        cosphi = cos(phi)
+        sinphi = sin(phi)
+
+        delta = sqrt(delta)
+
+        field = delta*p + r
+        Gz = -(sintheta * cosphi*first_derivative(field, dim=x, fd_order=soh) +
+               sintheta * sinphi*first_derivative(field, dim=y, fd_order=soh) +
+               costheta * first_derivative(field, dim=z, fd_order=soh))
+        Gzz = (first_derivative(Gz * sintheta * cosphi, dim=x, fd_order=soh, matvec=T) +
+               first_derivative(Gz * sintheta * sinphi, dim=y, fd_order=soh, matvec=T) +
+               first_derivative(Gz * costheta, dim=z, fd_order=soh, matvec=T))
+
+        # Equation
+        eqn = [Eq(r.backward, Gzz)]
+
+        op0 = Operator(eqn, subs=grid.spacing_map, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
+
+        # Check numerical output
+        op0(time_M=1)
+        exp_norm_r = norm(r)
+        r.data_with_halo[:] = 0.5
+        summary = op1(time_M=1)
+        assert np.isclose(norm(r), exp_norm_r, rtol=1e-5)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert summary[('section1', None)].ops == 39
+
 
 # Acoustic
 class TestIsoAcoustic(object):
@@ -1235,8 +1338,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 109
-        assert np.isclose(summary[('section1', None)].oi, 1.815, atol=0.001)
+        assert summary[('section1', None)].ops == 102
+        assert np.isclose(summary[('section1', None)].oi, 1.678, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -1260,12 +1363,6 @@ class TestTTI(object):
         assert len([i for i in arrays if i._mem_heap]) == 5
         assert len([i for i in arrays if i._mem_stack]) == 2
 
-        # We expect exactly 6 scalar expressions to compute the stack-scoped Arrays
-        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
-        assert len(trees) == 2
-        exprs = FindNodes(Expression).visit(trees[0][2])
-        assert len([i for i in exprs if i.is_scalar]) == 6
-
     @skipif(['nompi'])
     @switchconfig(profiling='advanced')
     @pytest.mark.parallel(mode=[(1, 'full')])
@@ -1285,7 +1382,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 178), (16, 316)
+        (8, 174), (16, 310)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
@@ -1297,7 +1394,7 @@ class TestTTIv2(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 197), (12, 389)
+        (4, 205), (12, 397)
     ])
     def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))

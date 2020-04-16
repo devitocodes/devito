@@ -785,8 +785,8 @@ class TestCodeGeneration(object):
         # There are exactly two halo exchange calls in the Operator body
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2 + 8  # 8 are due to loop blocking
-        assert calls[0].name == 'haloupdate0'
-        assert calls[1].name == 'haloupdate0'
+        assert calls[0].name == 'haloupdate_0'
+        assert calls[1].name == 'haloupdate_0'
 
         # ... and none in the created efuncs
         calls = FindNodes(Call).visit(op._func_table['bf0'].root)
@@ -878,7 +878,7 @@ class TestCodeGeneration(object):
 
         op = Operator(Eq(f.forward, eval(expr)), opt=('advanced', {'openmp': False}))
 
-        calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
+        calls = FindNodes(Call).visit(op._func_table['haloupdate_0'])
         destinations = {i.arguments[-2].field for i in calls}
         assert destinations == expected
 
