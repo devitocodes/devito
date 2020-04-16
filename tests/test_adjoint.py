@@ -29,15 +29,15 @@ class TestAdjoint(object):
         # 3D tests with varying time and space orders
         ('layers', (60, 70, 80), 'OT2', 8, acoustic_setup),
         ('layers', (60, 70, 80), 'OT2', 6, acoustic_setup),
-        ('layers', (60, 70, 80), 'OT2', 4, acoustic_setup), 
+        ('layers', (60, 70, 80), 'OT2', 4, acoustic_setup),
         ('layers', (60, 70, 80), 'OT4', 2, acoustic_setup),
         # Constant model in 2D and 3D
         ('constant', (60, 70), 'OT2', 10, acoustic_setup),
         ('constant', (60, 70, 80), 'OT2', 8, acoustic_setup),
         ('constant', (60, 70), 'OT2', 4, acoustic_setup),
         ('constant', (60, 70, 80), 'OT4', 2, acoustic_setup),
-        # 2D TTI tests with varying space orders 
-        ('layers-tti', (30, 35), 'None', 8, tti_setup), 
+        # 2D TTI tests with varying space orders
+        ('layers-tti', (30, 35), 'None', 8, tti_setup),
         ('layers-tti', (30, 35), 'None', 4, tti_setup),
         # 3D TTI tests with varying space orders
         ('layers-tti', (30, 35, 40), 'None', 8, tti_setup),
@@ -63,7 +63,7 @@ class TestAdjoint(object):
             solver = setup_func(shape=shape, spacing=[15. for _ in shape],
                                 nbl=10, tn=tn, space_order=space_order,
                                 **(presets[mkey]), dtype=np.float64)
-                                 
+
         # Create adjoint receiver symbol
         srca = Receiver(name='srca', grid=solver.model.grid,
                         time_range=solver.geometry.time_axis,
