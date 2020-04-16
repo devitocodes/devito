@@ -64,8 +64,8 @@ def collect_const(expr):
 
     terms = []
     for k, v in inverse_mapper.items():
-        if len(v) == 1:
-            # We can actually evaluate everything to avoid, e.g., (-1)*a
+        if len(v) == 1 and not v[0].is_Add:
+            # Special case: avoid e.g. (-2)*a
             mul = Mul(k, *v)
         elif all(i.is_Mul and len(i.args) == 2 and i.args[0] == -1 for i in v):
             # Other special case: [-a, -b, -c ...]

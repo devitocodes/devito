@@ -3,12 +3,11 @@ from itertools import groupby
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
 from devito.passes.clusters.utils import cluster_pass
-from devito.symbolics import pow_to_mul, xreplace_indices, uxreplace
+from devito.symbolics import pow_to_mul, uxreplace
 from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
-__all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays', 'optimize_pows',
-           'extract_increments']
+__all__ = ['Lift', 'fuse', 'eliminate_arrays', 'optimize_pows', 'extract_increments']
 
 
 class Lift(Queue):
@@ -95,48 +94,6 @@ def fuse(clusters):
                 # We end up here if, for example, some Clusters have same
                 # iteration Dimensions but different (partial) orderings
                 processed.extend(maybe_fusible)
-
-    return processed
-
-
-@timed_pass()
-def scalarize(clusters, template):
-    """
-    Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
-    into Scalars.
-    """
-    processed = []
-    for c in clusters:
-        # Get any Arrays appearing only in `c`
-        impacted = set(clusters) - {c}
-        arrays = {i for i in c.scope.writes if i.is_Array}
-        arrays -= set().union(*[i.scope.reads for i in impacted])
-
-        # Turn them into scalars
-        #
-        # r[x,y,z] = g(b[x,y,z])                 t0 = g(b[x,y,z])
-        # ... = r[x,y,z] + r[x,y,z+1]`  ---->    t1 = g(b[x,y,z+1])
-        #                                        ... = t0 + t1
-        mapper = {}
-        exprs = []
-        for n, e in enumerate(c.exprs):
-            f = e.lhs.function
-            if f in arrays:
-                indexeds = [i.indexed for i in c.scope[f] if i.timestamp > n]
-                for i in filter_ordered(indexeds):
-                    mapper[i] = Scalar(name=template(), dtype=f.dtype)
-
-                    assert len(f.indices) == len(e.lhs.indices) == len(i.indices)
-                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
-                                zip(f.indices, e.lhs.indices, i.indices)}
-
-                    handle = e.func(mapper[i], uxreplace(e.rhs, mapper))
-                    handle = xreplace_indices(handle, shifting)
-                    exprs.append(handle)
-            else:
-                exprs.append(e.func(e.lhs, uxreplace(e.rhs, mapper)))
-
-        processed.append(c.rebuild(exprs))
 
     return processed
 
