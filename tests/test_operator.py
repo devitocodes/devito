@@ -8,6 +8,7 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
 from devito.exceptions import InvalidOperator
+from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
@@ -1497,9 +1498,9 @@ class TestLoopScheduling(object):
         assert len(outer) == 1 and len(middle) == 2 and len(inner) == 3
         assert outer[0] == middle[0] == inner[0]
         assert middle[1] == inner[1]
-        assert outer[-1].nodes[0].exprs[0].expr.rhs == indexify(eq0.rhs)
-        assert middle[-1].nodes[0].exprs[0].expr.rhs == indexify(eq1.rhs)
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == indexify(eq2.rhs)
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq0.rhs))
+        assert middle[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq1.rhs))
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq2.rhs))
 
     def test_equations_emulate_bc(self):
         """
