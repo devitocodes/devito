@@ -254,6 +254,8 @@ class Differentiable(sympy.Expr, Evaluable):
 
 class DifferentiableOp(Differentiable):
 
+    __sympy_class__ = None
+
     def __new__(cls, *args, **kwargs):
         obj = cls.__base__.__new__(cls, *args, **kwargs)
 
@@ -294,18 +296,22 @@ class DifferentiableOp(Differentiable):
 
 
 class Add(DifferentiableOp, sympy.Add):
+    __sympy_class__ = sympy.Add
     __new__ = DifferentiableOp.__new__
 
 
 class Mul(DifferentiableOp, sympy.Mul):
+    __sympy_class__ = sympy.Mul
     __new__ = DifferentiableOp.__new__
 
 
 class Pow(DifferentiableOp, sympy.Pow):
+    __sympy_class__ = sympy.Pow
     __new__ = DifferentiableOp.__new__
 
 
 class Mod(DifferentiableOp, sympy.Mod):
+    __sympy_class__ = sympy.Mod
     __new__ = DifferentiableOp.__new__
 
 
@@ -381,12 +387,12 @@ def diff2sympy(expr):
             ax, af = _diff2sympy(a)
             args.append(ax)
             flag |= af
-        if isinstance(obj, DifferentiableOp):
-            for cls in obj.__class__.mro()[1:]:
-                if obj.__class__.__name__ == cls.__name__:
-                    return cls(*args, evaluate=False), True
-            assert False
-        elif flag:
+        try:
+            return obj.__sympy_class__(*args, evaluate=False), True
+        except AttributeError:
+            # Not of type DifferentiableOp
+            pass
+        if flag:
             return obj.func(*args, evaluate=False), True
         else:
             return obj, False
