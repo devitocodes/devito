@@ -10,29 +10,40 @@ from examples.seismic.tti import tti_setup
 presets = {
     'constant': {'preset': 'constant-isotropic'},
     'layers': {'preset': 'layers-isotropic', 'nlayers': 2},
-}
-presets_tti = {
-    'layers': {'preset': 'layers-tti', 'nlayers': 2},
+    'layers-tti': {'preset': 'layers-tti', 'nlayers': 2},
 }
 
 
 class TestAdjoint(object):
 
-    @pytest.mark.parametrize('mkey, shape, kernel, space_order', [
+    @pytest.mark.parametrize('mkey, shape, kernel, space_order, setup_func', [
         # 1 tests with varying time and space orders
-        ('layers', (60, ), 'OT2', 12), ('layers', (60, ), 'OT2', 8),
-        ('layers', (60, ), 'OT4', 4),
+        ('layers', (60, ), 'OT2', 12, acoustic_setup),
+        ('layers', (60, ), 'OT2', 8, acoustic_setup),
+        ('layers', (60, ), 'OT4', 4, acoustic_setup),
         # 2D tests with varying time and space orders
-        ('layers', (60, 70), 'OT2', 12), ('layers', (60, 70), 'OT2', 8),
-        ('layers', (60, 70), 'OT2', 4), ('layers', (60, 70), 'OT4', 2),
+        ('layers', (60, 70), 'OT2', 12, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 8, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 4, acoustic_setup),
+        ('layers', (60, 70), 'OT4', 2, acoustic_setup),
         # 3D tests with varying time and space orders
-        ('layers', (60, 70, 80), 'OT2', 8), ('layers', (60, 70, 80), 'OT2', 6),
-        ('layers', (60, 70, 80), 'OT2', 4), ('layers', (60, 70, 80), 'OT4', 2),
+        ('layers', (60, 70, 80), 'OT2', 8, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 6, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 4, acoustic_setup), 
+        ('layers', (60, 70, 80), 'OT4', 2, acoustic_setup),
         # Constant model in 2D and 3D
-        ('constant', (60, 70), 'OT2', 10), ('constant', (60, 70, 80), 'OT2', 8),
-        ('constant', (60, 70), 'OT2', 4), ('constant', (60, 70, 80), 'OT4', 2),
+        ('constant', (60, 70), 'OT2', 10, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT2', 8, acoustic_setup),
+        ('constant', (60, 70), 'OT2', 4, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT4', 2, acoustic_setup),
+        # 2D TTI tests with varying space orders 
+        ('layers-tti', (30, 35), 'None', 8, tti_setup), 
+        ('layers-tti', (30, 35), 'None', 4, tti_setup),
+        # 3D TTI tests with varying space orders
+        ('layers-tti', (30, 35, 40), 'None', 8, tti_setup),
+        ('layers-tti', (30, 35, 40), 'None', 4, tti_setup),
     ])
-    def test_adjoint_F(self, mkey, shape, kernel, space_order):
+    def test_adjoint_F(self, mkey, shape, kernel, space_order, setup_func):
         """
         Adjoint test for the forward modeling operator.
         The forward modeling operator F generates a shot record (measurements)
@@ -43,54 +54,26 @@ class TestAdjoint(object):
         tn = 500.  # Final time
 
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+        if setup_func.__name__ == 'acoustic_setup':
+            solver = setup_func(shape=shape, spacing=[15. for _ in shape],
+                                kernel=kernel, nbl=10, tn=tn,
+                                space_order=space_order,
+                                **(presets[mkey]), dtype=np.float64)
+        else:
+            solver = setup_func(shape=shape, spacing=[15. for _ in shape],
                                 nbl=10, tn=tn, space_order=space_order,
                                 **(presets[mkey]), dtype=np.float64)
-
+                                 
         # Create adjoint receiver symbol
         srca = Receiver(name='srca', grid=solver.model.grid,
                         time_range=solver.geometry.time_axis,
                         coordinates=solver.geometry.src_positions)
 
         # Run forward and adjoint operators
-        rec, _, _ = solver.forward(save=False)
-        solver.adjoint(rec=rec, srca=srca)
-
-        # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
-        term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)
-        term2 = norm(rec) ** 2
-        info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
-             % (term1, term2, (term1 - term2)/term1, term1 / term2))
-        assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
-
-    @pytest.mark.parametrize('mkey, shape, space_order', [
-        # 2D tests with varying space orders
-        ('layers', (30, 35), 8), ('layers', (30, 35), 4),
-        # 3D tests with varying space orders
-        ('layers', (30, 35, 40), 8), ('layers', (30, 35, 40), 4),
-    ])
-    def test_adjoint_tti_F(self, mkey, shape, space_order):
-        """
-        Adjoint test for the forward modeling operator.
-        The forward modeling operator F generates a shot record (measurements)
-        from a source while the adjoint of F generates measurments at the source
-        location from data. This test uses the conventional dot test:
-        < Fx, y> = <x, F^T y>
-        """
-        tn = 500.  # Final time
-
-        # Create solver from preset
-        solver = tti_setup(shape=shape, spacing=[15. for _ in shape],
-                           nbl=10, tn=tn, space_order=space_order,
-                           **(presets_tti[mkey]), dtype=np.float64)
-
-        # Create adjoint receiver symbol
-        srca = Receiver(name='srca', grid=solver.model.grid,
-                        time_range=solver.geometry.time_axis,
-                        coordinates=solver.geometry.src_positions)
-
-        # Run forward and adjoint operators
-        rec, _, _, _ = solver.forward(save=False)
+        if setup_func.__name__ == 'acoustic_setup':
+            rec, _, _ = solver.forward(save=False)
+        else:
+            rec, _, _, _ = solver.forward(save=False)
         solver.adjoint(rec=rec, srca=srca)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely

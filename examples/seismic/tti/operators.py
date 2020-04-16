@@ -173,16 +173,31 @@ def Gxx_centered_2d(model, field, costheta, sintheta, space_order):
 def kernel_centered_2d(model, u, v, space_order, forward=True):
     """
     TTI finite difference kernel. The equation solved is:
+    
+    u.dt2 = H0
+    v.dt2 = Hz
+    
+    where H0 and Hz are defined as:
 
-    u.dt2 = (1+2 *epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
-    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)
-
-    where epsilon and delta are the thomsen parameters. This function computes
-    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u))
-    Hz = sqrt(1+ 2*delta) Gzz(v)
-
-    H0 = sqrt(1+ 2*delta)(Gxx(u)+Gyy(u))
-    Hz = Gzz(v)
+    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+    Hz = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
+    
+    and
+    
+    H0 = (Gxx+Gyy)((1+2 *epsilon)*u + sqrt(1+ 2*delta)*v)
+    Hz = Gzz(sqrt(1+ 2*delta)*u + v)
+    
+    for the forward and adjoint cases, respectively. Epsilon and delta are the Thomsen
+    parameters. This function computes H0 and Hz.
+    
+    References
+    ----------
+    Zhang, Yu, Houzhu Zhang, and Guanquan Zhang. "A stable TTI reverse time migration and
+    its implementation." Geophysics 76.3 (2011): WA3-WA11.
+    
+    Louboutin, Mathias, Philipp Witte, and Felix J. Herrmann. "Effects of wrong adjoints
+    for RTM in TTI media." SEG Technical Program Expanded Abstracts 2018. Society of
+    Exploration Geophysicists, 2018. 331-335.
 
     Parameters
     ----------
@@ -221,16 +236,31 @@ def kernel_centered_2d(model, u, v, space_order, forward=True):
 def kernel_centered_3d(model, u, v, space_order, forward=True):
     """
     TTI finite difference kernel. The equation solved is:
+    
+    u.dt2 = H0
+    v.dt2 = Hz
+    
+    where H0 and Hz are defined as:
 
-    u.dt2 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
-    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
-
-    where epsilon and delta are the Thomsen parameters. This function computes
-    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u))
-    Hz = sqrt(1+ 2*delta) Gzz(v)
-
-    H0 = sqrt(1+ 2*delta)(Gxx(u)+Gyy(u))
-    Hz = Gzz(v)
+    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+    Hz = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
+    
+    and
+    
+    H0 = (Gxx+Gyy)((1+2 *epsilon)*u + sqrt(1+ 2*delta)*v)
+    Hz = Gzz(sqrt(1+ 2*delta)*u + v)
+    
+    for the forward and adjoint cases, respectively. Epsilon and delta are the Thomsen
+    parameters. This function computes H0 and Hz.
+    
+    References
+    ----------
+    Zhang, Yu, Houzhu Zhang, and Guanquan Zhang. "A stable TTI reverse time migration and
+    its implementation." Geophysics 76.3 (2011): WA3-WA11.
+    
+    Louboutin, Mathias, Philipp Witte, and Felix J. Herrmann. "Effects of wrong adjoints
+    for RTM in TTI media." SEG Technical Program Expanded Abstracts 2018. Society of
+    Exploration Geophysicists, 2018. 331-335.
 
     Parameters
     ----------
@@ -238,6 +268,8 @@ def kernel_centered_3d(model, u, v, space_order, forward=True):
         First TTI field.
     v : TimeFunction
         Second TTI field.
+    space_order : int
+        Space discretization order.
 
     Returns
     -------
@@ -455,13 +487,12 @@ def AdjointOperator(model, geometry, space_order=4,
     dt = model.grid.time_dim.spacing
     m = model.m
     time_order = 2
-    stagg_p = stagg_r = None
 
     # Create symbols for forward wavefield, source and receivers
-    p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p,
-                     save=None, time_order=time_order, space_order=space_order)
-    r = TimeFunction(name='r', grid=model.grid, staggered=stagg_r,
-                     save=None, time_order=time_order, space_order=space_order)
+    p = TimeFunction(name='p', grid=model.grid, save=None, time_order=time_order,
+                     space_order=space_order)
+    r = TimeFunction(name='r', grid=model.grid, save=None, time_order=time_order,
+                     space_order=space_order)
     srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
                        npoint=geometry.nsrc)
     rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
