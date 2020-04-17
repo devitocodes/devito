@@ -6,8 +6,8 @@ from cached_property import cached_property
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
-                    Eq, Inc, NODE, Operator, norm, inner, configuration, switchconfig,
-                    generic_derivative)
+                    SubDomain, Eq, Inc, NODE, Operator, norm, inner, configuration,
+                    switchconfig, generic_derivative)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
 from devito.mpi import MPI
@@ -1635,6 +1635,56 @@ class TestOperatorAdvanced(object):
         assert np.all(u.data[1, :-1, :1] == 5.)
         assert np.all(u.data[1, -1:] == 1.)
         assert np.all(u.data[1, :, 1:] == 1.)
+
+    @pytest.mark.parallel(mode=[(4, 'full')])
+    def test_custom_subdomain(self):
+        """
+        This test uses a custom SubDomain such that we end up with two loop
+        nests with a data dependence across them inducing two halo exchanges,
+        one for each loop nests. A crucial aspect of this test is that the data
+        dependence is across a Dimension (xl) that does *not* require a halo
+        exchange (xl is a local SubDimension). Unlike more typical cases of
+        when a dependence occurs along time, here the dependence distance goes
+        to infinity (there are indeed two consecutive separate loop nests), so
+        a halo exchange *is* required even though the halo Dimension (y) is not
+        the one inducing the dependence.
+        """
+
+        class mydomain(SubDomain):
+            name = 'd1'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 2), y: y}
+
+        mydomain = mydomain()
+
+        grid = Grid(shape=(8, 8), subdomains=mydomain)
+
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name="u", grid=grid)
+        v = TimeFunction(name="v", grid=grid)
+
+        u.data[:] = 0.6
+        v.data[:] = 0.4
+
+        eqns = [Eq(u.forward, u[t, x, y-1] + 1, subdomain=grid.subdomains['d1']),
+                Eq(v.forward, u[t+1, x+1, y+1] + 1, subdomain=grid.subdomains['d1'])]
+
+        op = Operator(eqns, subs=grid.spacing_map)
+
+        # We expect 2 halo-exchange sets of calls, for a total of 8 calls
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 8
+
+        # Compilation + run
+        op(time_M=4)
+
+        # Check numerical values
+        assert np.isclose(norm(u), 23.70654, atol=1e-5, rtol=0)
+        assert np.isclose(norm(v), 21.14994, atol=1e-5, rtol=0)
 
 
 def gen_serial_norms(shape, so):
