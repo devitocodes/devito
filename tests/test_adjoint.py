@@ -37,11 +37,11 @@ class TestAdjoint(object):
         ('constant', (60, 70), 'OT2', 4, acoustic_setup),
         ('constant', (60, 70, 80), 'OT4', 2, acoustic_setup),
         # 2D TTI tests with varying space orders
-        ('layers-tti', (30, 35), 'None', 8, tti_setup),
-        ('layers-tti', (30, 35), 'None', 4, tti_setup),
+        ('layers-tti', (30, 35), 'centered', 8, tti_setup),
+        ('layers-tti', (30, 35), 'centered', 4, tti_setup),
         # 3D TTI tests with varying space orders
-        ('layers-tti', (30, 35, 40), 'None', 8, tti_setup),
-        ('layers-tti', (30, 35, 40), 'None', 4, tti_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 8, tti_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 4, tti_setup),
     ])
     def test_adjoint_F(self, mkey, shape, kernel, space_order, setup_func):
         """
@@ -70,10 +70,7 @@ class TestAdjoint(object):
                         coordinates=solver.geometry.src_positions)
 
         # Run forward and adjoint operators
-        if setup_func.__name__ == 'acoustic_setup':
-            rec, _, _ = solver.forward(save=False)
-        else:
-            rec, _, _, _ = solver.forward(save=False)
+        rec = solver.forward(save=False)[0]
         solver.adjoint(rec=rec, srca=srca)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
