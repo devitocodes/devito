@@ -71,7 +71,7 @@ class HaloScheme(object):
             if halos:
                 loc_indices = compute_local_indices(f, local, ispace, scope)
                 self._mapper[f] = HaloSchemeEntry(immutabledict(loc_indices),
-                                                  immutableset(halos))
+                                                  frozenset(halos))
         self._mapper = immutabledict(self._mapper)
 
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions.
@@ -83,7 +83,7 @@ class HaloScheme(object):
             elif i.dim.is_Sub and not i.dim.local:
                 ltk, _ = i.dim.thickness.left
                 rtk, _ = i.dim.thickness.right
-                self._honored[i.dim.root] = immutableset([(ltk, rtk)])
+                self._honored[i.dim.root] = frozenset([(ltk, rtk)])
         self._honored = immutabledict(self._honored)
 
     def __repr__(self):
@@ -130,7 +130,7 @@ class HaloScheme(object):
 
             # Compute the `honored` union
             for d, v in i.honored.items():
-                honored[d] = honored.get(d, immutableset()) | v
+                honored[d] = honored.get(d, frozenset()) | v
 
         return HaloScheme.build(fmapper, honored)
 
