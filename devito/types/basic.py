@@ -10,7 +10,7 @@ import sympy
 from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
 from cgen import Struct, Value
-from frozendict import frozendict
+from immutabledict import immutabledict
 
 from devito.data import default_allocator
 from devito.finite_differences import Evaluable
@@ -350,7 +350,7 @@ class Symbol(AbstractSymbol, Cached):
         # From the kwargs
         key.update(kwargs)
 
-        return frozendict(key)
+        return immutabledict(key)
 
     def __new__(cls, *args, **kwargs):
         key = cls._cache_key(*args, **kwargs)
