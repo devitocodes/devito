@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from devito.logger import log
 
 from devito.logger import info
 from examples.seismic.skew_self_adjoint import *
