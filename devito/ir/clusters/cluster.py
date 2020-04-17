@@ -2,7 +2,7 @@ from itertools import chain
 
 import numpy as np
 from cached_property import cached_property
-from frozendict import frozendict
+from immutabledict import immutabledict
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (IterationSpace, DataSpace, Scope, detect_io,
@@ -39,11 +39,11 @@ class Cluster(object):
                             for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
-        self._guards = frozendict(guards or {})
+        self._guards = immutabledict(guards or {})
 
         properties = dict(properties or {})
         properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
-        self._properties = frozendict(properties)
+        self._properties = immutabledict(properties)
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)

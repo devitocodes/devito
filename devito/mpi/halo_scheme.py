@@ -3,7 +3,7 @@ from itertools import product
 from operator import attrgetter
 
 from cached_property import cached_property
-from frozendict import frozendict
+from immutabledict import immutabledict
 from sympy import Max, Min
 
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
@@ -70,9 +70,9 @@ class HaloScheme(object):
         for f, (halos, local) in classify(scope).items():
             if halos:
                 loc_indices = compute_local_indices(f, local, ispace, scope)
-                self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices),
-                                                  frozenset(halos))
-        self._mapper = frozendict(self._mapper)
+                self._mapper[f] = HaloSchemeEntry(immutabledict(loc_indices),
+                                                  immutableset(halos))
+        self._mapper = immutabledict(self._mapper)
 
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions.
         # These should be honored in the derivation of the `omapper`
@@ -83,8 +83,8 @@ class HaloScheme(object):
             elif i.dim.is_Sub and not i.dim.local:
                 ltk, _ = i.dim.thickness.left
                 rtk, _ = i.dim.thickness.right
-                self._honored[i.dim.root] = frozenset([(ltk, rtk)])
-        self._honored = frozendict(self._honored)
+                self._honored[i.dim.root] = immutableset([(ltk, rtk)])
+        self._honored = immutabledict(self._honored)
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
@@ -102,8 +102,8 @@ class HaloScheme(object):
     @classmethod
     def build(cls, fmapper, honored):
         obj = object.__new__(HaloScheme)
-        obj._mapper = frozendict(fmapper)
-        obj._honored = frozendict(honored)
+        obj._mapper = immutabledict(fmapper)
+        obj._honored = immutabledict(honored)
         return obj
 
     @classmethod
@@ -130,7 +130,7 @@ class HaloScheme(object):
 
             # Compute the `honored` union
             for d, v in i.honored.items():
-                honored[d] = honored.get(d, frozenset()) | v
+                honored[d] = honored.get(d, immutableset()) | v
 
         return HaloScheme.build(fmapper, honored)
 
@@ -294,7 +294,7 @@ class HaloScheme(object):
                         if nr != 0:
                             mapper[nl] = (0,)
                             mapper[nr] = (nr,)
-            processed.append((tuple(where), frozendict(mapper)))
+            processed.append((tuple(where), immutabledict(mapper)))
 
         _, core = processed.pop(0)
         owned = processed

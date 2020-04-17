@@ -4,7 +4,7 @@ from functools import reduce
 from operator import mul
 
 from cached_property import cached_property
-from frozendict import frozendict
+from immutabledict import immutabledict
 from sympy import Expr
 
 from devito.ir.support.vector import Vector, vmin, vmax
@@ -528,7 +528,7 @@ class DataSpace(Space):
 
     def __init__(self, intervals, parts):
         super(DataSpace, self).__init__(intervals)
-        self._parts = frozendict(parts)
+        self._parts = immutabledict(parts)
 
     def __eq__(self, other):
         return isinstance(other, DataSpace) and\
@@ -621,11 +621,11 @@ class IterationSpace(Space):
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
         super(IterationSpace, self).__init__(intervals)
-        self._sub_iterators = frozendict(sub_iterators or {})
+        self._sub_iterators = immutabledict(sub_iterators or {})
         if directions is None:
-            self._directions = frozendict([(i.dim, Any) for i in self.intervals])
+            self._directions = immutabledict([(i.dim, Any) for i in self.intervals])
         else:
-            self._directions = frozendict(directions)
+            self._directions = immutabledict(directions)
 
     def __repr__(self):
         ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
