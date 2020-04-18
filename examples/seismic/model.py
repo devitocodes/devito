@@ -7,7 +7,7 @@ from devito import (Grid, SubDomain, Function, Constant,
 from devito.builtins import initialize_function, gaussian_smooth, mmax
 from devito.tools import as_tuple
 
-__all__ = ['Model', 'ModelElastic', 'ModelViscoelastic']
+__all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'ModelViscoacoustic']
 
 
 def initialize_damp(damp, nbl, spacing, mask=False):
@@ -197,9 +197,9 @@ class Model(GenericModel):
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
-                 subdomains=(), **kwargs):
+                 subdomains=(), damp_mask=False, **kwargs):
         super(Model, self).__init__(origin, spacing, shape, space_order, nbl, dtype,
-                                    subdomains)
+                                    subdomains, damp_mask=damp_mask)
 
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
@@ -397,3 +397,45 @@ class ModelViscoelastic(ModelElastic):
         # for further details:
         dt = .85*np.min(self.spacing) / (np.sqrt(self.grid.dim)*self.maxvp)
         return self.dtype("%.3e" % dt)
+
+
+class ModelViscoacoustic(Model):
+    """
+    The physical model used in seismic inversion processes.
+
+    Parameters
+    ----------
+    origin : tuple of floats
+        Origin of the model in m as a tuple in (x,y,z) order.
+    spacing : tuple of floats
+        Grid size in m as a Tuple in (x,y,z) order.
+    shape : tuple of int
+        Number of grid points size in (x,y,z) order.
+    space_order : int
+        Order of the spatial stencil discretisation.
+    vp : array_like or float
+        Velocity in km/s.
+    rho : float or array, optional
+        Density in kg/cm^3 (rho=1 for water).
+    qp : float or array, optional
+        P-wave quality factor (dimensionless).
+    nbl : int, optional
+        The number of absorbing layers for boundary damping.
+    dtype : np.float32 or np.float64
+        Defaults to 32.
+
+    The `ModelViscoacoustic` provides one symbolic data object for the
+    creation of seismic wave propagation operators:
+
+    damp : Function, optional
+        The damping field for absorbing boundary condition.
+    """
+    def __init__(self, origin, spacing, shape, space_order, vp, qp, rho, nbl=20,
+                 subdomains=(), dtype=np.float32):
+        super(ModelViscoacoustic, self).__init__(origin, spacing, shape, space_order,
+                                                 vp=vp, nbl=nbl, subdomains=subdomains,
+                                                 dtype=dtype, damp_mask=True)
+
+        self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
+
+        self.irho = self._gen_phys_param(1. / rho, 'irho', space_order, is_param=True)

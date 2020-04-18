@@ -10,7 +10,7 @@ from devito.ir.iet import Callable, ElementalFunction, MapExprStmts
 from devito.logger import warning
 from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
-                                    factorize, fuse, optimize_pows, scalarize)
+                                    factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
@@ -278,7 +278,6 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         # further optimizations
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters, template)
-        clusters = scalarize(clusters, template)
 
         return clusters
 

@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+from sympy import S
+
 from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            MapNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
@@ -123,7 +125,9 @@ def _merge_halospots(iet):
             for f in hs.fmapper:
                 test = True
                 for dep in scope.d_flow.project(f):
-                    if not (dep.cause & set(hs.dimensions)):
+                    if not any(d in hs.dimensions or dep.distance_mapper[d] is S.Infinity
+                               for d in dep.cause):
+                        # The dependence cause isn't a halo Dimension
                         continue
                     if dep.is_regular and all(not any(dep.read.touched_halo(c.root))
                                               for c in dep.cause):
