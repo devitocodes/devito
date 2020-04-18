@@ -2,6 +2,7 @@ from cached_property import cached_property
 import sympy
 
 from devito.ir.equations.algorithms import dimension_sort
+from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Stencil, detect_accesses, detect_oobs, detect_io,
                                build_intervals, build_iterators)
@@ -147,8 +148,11 @@ class LoweredEq(sympy.Eq, IREq):
                  for k, v in mapper.items() if k}
         dspace = DataSpace(dintervals, parts)
 
+        # Lower all Differentiable operations into SymPy operations
+        rhs = diff2sympy(expr.rhs)
+
         # Finally create the LoweredEq with all metadata attached
-        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
+        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, rhs, evaluate=False)
 
         expr._dspace = dspace
         expr._ispace = ispace

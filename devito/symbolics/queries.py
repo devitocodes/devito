@@ -53,7 +53,12 @@ def q_xop(expr):
     return (expr.is_Add or expr.is_Mul or expr.is_Pow or q_routine(expr))
 
 
-def q_terminalop(expr):
+def q_terminalop(expr, depth=0):
+    assert depth >= 0
+
+    if depth > 0:
+        return all(q_leaf(a) or q_terminalop(a, depth-1) for a in expr.args)
+
     if expr.is_Function:
         return True
     elif expr.is_Add or expr.is_Mul:
@@ -71,8 +76,8 @@ def q_terminalop(expr):
         return False
 
 
-def q_sum_of_product(expr):
-    return q_leaf(expr) or q_terminalop(expr) or all(q_terminalop(i) for i in expr.args)
+def q_sum_of_product(expr, depth=1):
+    return q_leaf(expr) or q_terminalop(expr, depth)
 
 
 def q_indirect(expr):
