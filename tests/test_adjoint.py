@@ -54,15 +54,10 @@ class TestAdjoint(object):
         tn = 500.  # Final time
 
         # Create solver from preset
-        if setup_func.__name__ == 'acoustic_setup':
-            solver = setup_func(shape=shape, spacing=[15. for _ in shape],
-                                kernel=kernel, nbl=10, tn=tn,
-                                space_order=space_order,
-                                **(presets[mkey]), dtype=np.float64)
-        else:
-            solver = setup_func(shape=shape, spacing=[15. for _ in shape],
-                                nbl=10, tn=tn, space_order=space_order,
-                                **(presets[mkey]), dtype=np.float64)
+        solver = setup_func(shape=shape, spacing=[15. for _ in shape],
+                            kernel=kernel, nbl=10, tn=tn,
+                            space_order=space_order,
+                            **(presets[mkey]), dtype=np.float64)
 
         # Create adjoint receiver symbol
         srca = Receiver(name='srca', grid=solver.model.grid,
