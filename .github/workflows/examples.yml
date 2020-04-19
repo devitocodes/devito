@@ -63,6 +63,11 @@ jobs:
         py.test examples/seismic/elastic/elastic_example.py
         py.test examples/seismic/viscoelastic/viscoelastic_example.py
 
+    - name: Seismic viscoacoustic examples
+      shell: bash -l {0}
+      run: |
+        py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
+
     - name: Linear algebra example
       shell: bash -l {0}
       run: |
