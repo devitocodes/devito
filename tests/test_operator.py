@@ -1394,12 +1394,13 @@ class TestLoopScheduling(object):
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-+++', ['txyz'], 'txyz'),
-        # 13) Time goes backward so that information flows in time, interleaved
-        # with independent Eq
+        # 13) Time goes backward so that information flows in time, but the
+        # first and last Eqs are interleaved by a completely independent
+        # Eq. This results in three disjoint sets of loops
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         '-++++++', ['txyz', 'xyz'], 'txyzxyz'),
+         '-++++++++++', ['txyz', 'xyz', 'txyz'], 'txyzxyztxyz'),
         # 14) Time goes backward so that information flows in time
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
