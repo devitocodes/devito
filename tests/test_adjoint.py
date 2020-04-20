@@ -5,30 +5,45 @@ from devito import Operator, norm, Function, Grid, SparseFunction
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
+from examples.seismic.tti import tti_setup
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},
     'layers': {'preset': 'layers-isotropic', 'nlayers': 2},
+    'layers-tti': {'preset': 'layers-tti', 'nlayers': 2},
 }
 
 
 class TestAdjoint(object):
 
-    @pytest.mark.parametrize('mkey, shape, kernel, space_order', [
+    @pytest.mark.parametrize('mkey, shape, kernel, space_order, setup_func', [
         # 1 tests with varying time and space orders
-        ('layers', (60, ), 'OT2', 12), ('layers', (60, ), 'OT2', 8),
-        ('layers', (60, ), 'OT4', 4),
+        ('layers', (60, ), 'OT2', 12, acoustic_setup),
+        ('layers', (60, ), 'OT2', 8, acoustic_setup),
+        ('layers', (60, ), 'OT4', 4, acoustic_setup),
         # 2D tests with varying time and space orders
-        ('layers', (60, 70), 'OT2', 12), ('layers', (60, 70), 'OT2', 8),
-        ('layers', (60, 70), 'OT2', 4), ('layers', (60, 70), 'OT4', 2),
+        ('layers', (60, 70), 'OT2', 12, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 8, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 4, acoustic_setup),
+        ('layers', (60, 70), 'OT4', 2, acoustic_setup),
         # 3D tests with varying time and space orders
-        ('layers', (60, 70, 80), 'OT2', 8), ('layers', (60, 70, 80), 'OT2', 6),
-        ('layers', (60, 70, 80), 'OT2', 4), ('layers', (60, 70, 80), 'OT4', 2),
+        ('layers', (60, 70, 80), 'OT2', 8, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 6, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 4, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT4', 2, acoustic_setup),
         # Constant model in 2D and 3D
-        ('constant', (60, 70), 'OT2', 10), ('constant', (60, 70, 80), 'OT2', 8),
-        ('constant', (60, 70), 'OT2', 4), ('constant', (60, 70, 80), 'OT4', 2),
+        ('constant', (60, 70), 'OT2', 10, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT2', 8, acoustic_setup),
+        ('constant', (60, 70), 'OT2', 4, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT4', 2, acoustic_setup),
+        # 2D TTI tests with varying space orders
+        ('layers-tti', (30, 35), 'centered', 8, tti_setup),
+        ('layers-tti', (30, 35), 'centered', 4, tti_setup),
+        # 3D TTI tests with varying space orders
+        ('layers-tti', (30, 35, 40), 'centered', 8, tti_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 4, tti_setup),
     ])
-    def test_adjoint_F(self, mkey, shape, kernel, space_order):
+    def test_adjoint_F(self, mkey, shape, kernel, space_order, setup_func):
         """
         Adjoint test for the forward modeling operator.
         The forward modeling operator F generates a shot record (measurements)
@@ -39,9 +54,10 @@ class TestAdjoint(object):
         tn = 500.  # Final time
 
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbl=10, tn=tn, space_order=space_order,
-                                **(presets[mkey]), dtype=np.float64)
+        solver = setup_func(shape=shape, spacing=[15. for _ in shape],
+                            kernel=kernel, nbl=10, tn=tn,
+                            space_order=space_order,
+                            **(presets[mkey]), dtype=np.float64)
 
         # Create adjoint receiver symbol
         srca = Receiver(name='srca', grid=solver.model.grid,
@@ -49,15 +65,15 @@ class TestAdjoint(object):
                         coordinates=solver.geometry.src_positions)
 
         # Run forward and adjoint operators
-        rec, _, _ = solver.forward(save=False)
+        rec = solver.forward(save=False)[0]
         solver.adjoint(rec=rec, srca=srca)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)
         term2 = norm(rec) ** 2
-        info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
+        info('<x, A^Ty>: %f, <Ax,y>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
-        assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
+        assert np.isclose((term1 - term2)/term1, 0., atol=1.e-11)
 
     @pytest.mark.parametrize('space_order', [4, 8, 12])
     @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
@@ -97,7 +113,7 @@ class TestAdjoint(object):
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
         term2 = norm(du)**2
-        info('<Jx,y>: %f, <x, J^Ty>: %f, difference: %4.4e, ratio: %f'
+        info('<x, J^Ty>: %f, <Jx,y>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
 
