@@ -5,34 +5,38 @@ from examples.seismic import PointSource, Receiver
 from devito.finite_differences import centered, first_derivative, transpose
 
 
-def second_order_stencil(model, u, v, H0, Hz):
+def second_order_stencil(model, u, v, H0, Hz, forward=True):
     """
     Creates the stencil corresponding to the second order TTI wave equation
     u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
     v.dt2 =  (delta * H0 + Hz) - damp * v.dt
     """
-    # Stencils
-    m, damp, delta, epsilon = model.m, model.damp, model.delta, model.epsilon
-    epsilon = 1 + 2 * epsilon
-    delta = sqrt(1 + 2 * delta)
+
+    m, damp = model.m, model.damp
     s = model.grid.stepping_dim.spacing
 
+    unext = u.forward if forward else u.backward
+    vnext = v.forward if forward else v.backward
+    uprev = u.backward if forward else u.forward
+    vprev = v.backward if forward else v.forward
+
+    # Stencils
     stencilp = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
+         uprev + 2.0 * s ** 2 * (H0))
     stencilr = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
-    first_stencil = Eq(u.forward, stencilp)
-    second_stencil = Eq(v.forward, stencilr)
+         vprev + 2.0 * s ** 2 * (Hz))
+    first_stencil = Eq(unext, stencilp)
+    second_stencil = Eq(vnext, stencilr)
+
     stencils = [first_stencil, second_stencil]
     return stencils
 
 
-def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
+def Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
     """
     3D rotated second order derivative in the direction z.
-
     Parameters
     ----------
     field : Function
@@ -47,13 +51,12 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
         Sine of the azymuth angle.
     space_order : int
         Space discretization order.
-
     Returns
     -------
     Rotated second order derivative w.r.t. z.
     """
     order1 = space_order // 2
-    x, y, z = field.space_dimensions
+    x, y, z = model.space_dimensions
     Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
                                                 side=centered, fd_order=order1) +
            sintheta * sinphi * first_derivative(field, dim=y,
@@ -73,10 +76,9 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     return Gzz
 
 
-def Gzz_centered_2d(field, costheta, sintheta, space_order):
+def Gzz_centered_2d(model, field, costheta, sintheta, space_order):
     """
     2D rotated second order derivative in the direction z.
-
     Parameters
     ----------
     field : Function
@@ -87,13 +89,12 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
         Sine of the tilt angle.
     space_order : int
         Space discretization order.
-
     Returns
     -------
     Rotated second order derivative w.r.t. z.
     """
     order1 = space_order // 2
-    x, y = field.space_dimensions[:2]
+    x, y = model.space_dimensions[:2]
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, fd_order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, fd_order=order1))
     Gzz = (first_derivative(Gz * sintheta, dim=x,
@@ -106,13 +107,12 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
 
 
 # Centered case produces directly Gxx + Gyy
-def Gxxyy_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
+def Gxxyy_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
     """
     Sum of the 3D rotated second order derivative in the direction x and y.
     As the Laplacian is rotation invariant, it is computed as the conventional
     Laplacian minus the second order rotated second order derivative in the direction z
     Gxx + Gyy = field.laplace - Gzz
-
     Parameters
     ----------
     field : Function
@@ -127,22 +127,20 @@ def Gxxyy_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
         Sine of the azymuth angle.
     space_order : int
         Space discretization order.
-
     Returns
     -------
     Sum of the 3D rotated second order derivative in the direction x and y.
     """
-    Gzz = Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order)
+    Gzz = Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order)
     return field.laplace - Gzz
 
 
-def Gxx_centered_2d(field, costheta, sintheta, space_order):
+def Gxx_centered_2d(model, field, costheta, sintheta, space_order):
     """
     2D rotated second order derivative in the direction x.
     As the Laplacian is rotation invariant, it is computed as the conventional
     Laplacian minus the second order rotated second order derivative in the direction z
     Gxx = field.laplace - Gzz
-
     Parameters
     ----------
     field : TimeFunction
@@ -157,25 +155,40 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
         Sine of the azymuth angle.
     space_order : int
         Space discretization order.
-
     Returns
     -------
     Sum of the 3D rotated second order derivative in the direction x.
     """
-    return field.laplace - Gzz_centered_2d(field, costheta, sintheta, space_order)
+    return field.laplace - Gzz_centered_2d(model, field, costheta, sintheta, space_order)
 
 
-def kernel_centered_2d(model, u, v, space_order):
+def kernel_centered_2d(model, u, v, space_order, forward=True):
     """
     TTI finite difference kernel. The equation solved is:
 
-    u.dt2 = (1+2 *epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
-    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)
+    u.dt2 = H0
+    v.dt2 = Hz
 
-    where epsilon and delta are the thomsen parameters. This function computes
-    H0 = Gxx(u) + Gyy(u)
-    Hz = Gzz(v)
+    where H0 and Hz are defined as:
+    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+    Hz = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
 
+    and
+
+    H0 = (Gxx+Gyy)((1+2 *epsilon)*u + sqrt(1+ 2*delta)*v)
+    Hz = Gzz(sqrt(1+ 2*delta)*u + v)
+
+    for the forward and adjoint cases, respectively. Epsilon and delta are the Thomsen
+    parameters. This function computes H0 and Hz.
+
+    References
+    ----------
+    Zhang, Yu, Houzhu Zhang, and Guanquan Zhang. "A stable TTI reverse time migration and
+    its implementation." Geophysics 76.3 (2011): WA3-WA11.
+
+    Louboutin, Mathias, Philipp Witte, and Felix J. Herrmann. "Effects of wrong adjoints
+    for RTM in TTI media." SEG Technical Program Expanded Abstracts 2018. Society of
+    Exploration Geophysicists, 2018. 331-335.
     Parameters
     ----------
     u : TimeFunction
@@ -184,7 +197,6 @@ def kernel_centered_2d(model, u, v, space_order):
         Second TTI field.
     space_order : int
         Space discretization order.
-
     Returns
     -------
     u and v component of the rotated Laplacian in 2D.
@@ -193,32 +205,61 @@ def kernel_centered_2d(model, u, v, space_order):
     costheta = cos(model.theta)
     sintheta = sin(model.theta)
 
-    Gxx = Gxx_centered_2d(u, costheta, sintheta, space_order)
-    Gzz = Gzz_centered_2d(v, costheta, sintheta, space_order)
-    return second_order_stencil(model, u, v, Gxx, Gzz)
+    delta, epsilon = model.delta, model.epsilon
+    epsilon = 1 + 2*epsilon
+    delta = sqrt(1 + 2*delta)
+
+    if forward:
+        Gxx = Gxx_centered_2d(model, u, costheta, sintheta, space_order)
+        Gzz = Gzz_centered_2d(model, v, costheta, sintheta, space_order)
+        H0 = epsilon*Gxx + delta*Gzz
+        Hz = delta*Gxx + Gzz
+        return second_order_stencil(model, u, v, H0, Hz)
+    else:
+        H0 = Gxx_centered_2d(model, (epsilon*u + delta*v), costheta,
+                             sintheta, space_order)
+        Hz = Gzz_centered_2d(model, (delta*u + v), costheta, sintheta, space_order)
+        return second_order_stencil(model, u, v, H0, Hz, forward=False)
 
 
-def kernel_centered_3d(model, u, v, space_order):
+def kernel_centered_3d(model, u, v, space_order, forward=True):
     """
     TTI finite difference kernel. The equation solved is:
 
-    u.dt2 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
-    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
+    u.dt2 = H0
+    v.dt2 = Hz
 
-    where epsilon and delta are the Thomsen parameters. This function computes
-    H0 = Gxx(u) + Gyy(u)
-    Hz = Gzz(v)
+    where H0 and Hz are defined as:
+    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+    Hz = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
 
+    and
+
+    H0 = (Gxx+Gyy)((1+2 *epsilon)*u + sqrt(1+ 2*delta)*v)
+    Hz = Gzz(sqrt(1+ 2*delta)*u + v)
+
+    for the forward and adjoint cases, respectively. Epsilon and delta are the Thomsen
+    parameters. This function computes H0 and Hz.
+
+    References
+    ----------
+    Zhang, Yu, Houzhu Zhang, and Guanquan Zhang. "A stable TTI reverse time migration and
+    its implementation." Geophysics 76.3 (2011): WA3-WA11.
+
+    Louboutin, Mathias, Philipp Witte, and Felix J. Herrmann. "Effects of wrong adjoints
+    for RTM in TTI media." SEG Technical Program Expanded Abstracts 2018. Society of
+    Exploration Geophysicists, 2018. 331-335.
     Parameters
     ----------
     u : TimeFunction
         First TTI field.
     v : TimeFunction
         Second TTI field.
-
+    space_order : int
+        Space discretization order.
     Returns
     -------
-    u and v component of the rotated Laplacian in 2D.
+    u and v component of the rotated Laplacian in 3D.
     """
     # Tilt and azymuth setup
     costheta = cos(model.theta)
@@ -226,9 +267,22 @@ def kernel_centered_3d(model, u, v, space_order):
     cosphi = cos(model.phi)
     sinphi = sin(model.phi)
 
-    Gxx = Gxxyy_centered(u, costheta, sintheta, cosphi, sinphi, space_order)
-    Gzz = Gzz_centered(v, costheta, sintheta, cosphi, sinphi, space_order)
-    return second_order_stencil(model, u, v, Gxx, Gzz)
+    delta, epsilon = model.delta, model.epsilon
+    epsilon = 1 + 2*epsilon
+    delta = sqrt(1 + 2*delta)
+
+    if forward:
+        Gxx = Gxxyy_centered(model, u, costheta, sintheta, cosphi, sinphi, space_order)
+        Gzz = Gzz_centered(model, v, costheta, sintheta, cosphi, sinphi, space_order)
+        H0 = epsilon*Gxx + delta*Gzz
+        Hz = delta*Gxx + Gzz
+        return second_order_stencil(model, u, v, H0, Hz)
+    else:
+        H0 = Gxxyy_centered(model, (epsilon*u + delta*v), costheta, sintheta,
+                            cosphi, sinphi, space_order)
+        Hz = Gzz_centered(model, (delta*u + v), costheta, sintheta, cosphi,
+                          sinphi, space_order)
+        return second_order_stencil(model, u, v, H0, Hz, forward=False)
 
 
 def particle_velocity_fields(model, space_order):
@@ -349,8 +403,7 @@ def kernel_staggered_3d(model, u, v, space_order):
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='centered', **kwargs):
     """
-    Construct an forward modelling operator in an acoustic media.
-
+    Construct an forward modelling operator in an tti media.
     Parameters
     ----------
     model : Model
@@ -358,12 +411,13 @@ def ForwardOperator(model, geometry, space_order=4,
     geometry : AcquisitionGeometry
         Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
-    data : ndarray
-        IShot() object containing the acquisition geometry and field data.
-    time_order : int
-        Time discretization order.
-    space_order : int
+    space_order : int, optional
         Space discretization order.
+    save : int or Buffer, optional
+        Saving flag, True saves all time steps. False saves three timesteps.
+        Defaults to False.
+    kernel : str, optional
+        Type of discretization, centered or shifted
     """
 
     dt = model.grid.time_dim.spacing
@@ -397,6 +451,50 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
+
+
+def AdjointOperator(model, geometry, space_order=4,
+                    **kwargs):
+    """
+    Construct an adjoint modelling operator in an tti media.
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    """
+
+    dt = model.grid.time_dim.spacing
+    m = model.m
+    time_order = 2
+
+    # Create symbols for forward wavefield, source and receivers
+    p = TimeFunction(name='p', grid=model.grid, save=None, time_order=time_order,
+                     space_order=space_order)
+    r = TimeFunction(name='r', grid=model.grid, save=None, time_order=time_order,
+                     space_order=space_order)
+    srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
+                       npoint=geometry.nsrc)
+    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
+                   npoint=geometry.nrec)
+
+    # FD kernels of the PDE
+    FD_kernel = kernels[('centered', len(model.shape))]
+    stencils = FD_kernel(model, p, r, space_order, forward=False)
+
+    # Construct expression to inject receiver values
+    stencils += rec.inject(field=p.backward, expr=rec * dt**2 / m)
+    stencils += rec.inject(field=r.backward, expr=rec * dt**2 / m)
+
+    # Create interpolation expression for the adjoint-source
+    stencils += srca.interpolate(expr=p + r)
+
+    # Substitute spacing terms to reduce flops
+    return Operator(stencils, subs=model.spacing_map, name='AdjointTTI', **kwargs)
 
 
 kernels = {('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,
