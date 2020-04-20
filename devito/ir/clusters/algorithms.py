@@ -20,9 +20,6 @@ def clusterize(exprs):
     # Initialization
     clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
 
-    # Compute a topological ordering that honours flow- and anti-dependences
-    clusters = Toposort().process(clusters)
-
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
 
