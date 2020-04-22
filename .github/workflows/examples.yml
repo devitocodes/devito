@@ -44,6 +44,10 @@ jobs:
         pip install -e .
         pip install matplotlib
 
+    - name: Tests in examples
+      shell: bash -l {0}
+      run: py.test --cov --cov-config=.coveragerc --cov-report=xml examples/
+
     - name: Seismic acoustic examples
       shell: bash -l {0}
       run: |
@@ -60,13 +64,8 @@ jobs:
     - name: Seismic elastic examples
       shell: bash -l {0}
       run: |
-        py.test examples/seismic/elastic/elastic_example.py
-        py.test examples/seismic/viscoelastic/viscoelastic_example.py
-
-    - name: Seismic viscoacoustic examples
-      shell: bash -l {0}
-      run: |
-        py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
+        python examples/seismic/elastic/elastic_example.py
+        python examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Linear algebra example
       shell: bash -l {0}
@@ -77,4 +76,10 @@ jobs:
       shell: bash -l {0}
       run: |
         python examples/cfd/example_diffusion.py
-        py.test examples/cfd/example_diffusion.py
+
+    - name: Upload coverage to Codecov
+      if: matrix.name != 'pytest-docker-py36-gcc-omp'
+      uses: codecov/codecov-action@v1.0.6
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: ${{ matrix.name }}
