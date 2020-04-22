@@ -15,11 +15,6 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: [self-hosted, gpu]
 
-    set-env:
-      DEVITO_ARCH: ${{ matrix.arch }}
-      DEVITO_PLATFORM: ${{ matrix.platform }}
-      DEVITO_LANGUAGE: ${{ matrix.language }}
-
     strategy:
       # Prevent all build to stop if a single one fails
       fail-fast: false
@@ -45,6 +40,13 @@ jobs:
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
+
+    - name: set environment variables
+      uses: allenevans/set-env@v1.0.0
+      with:
+        DEVITO_ARCH: ${{ matrix.arch }}
+        DEVITO_PLATFORM: ${{ matrix.platform }}
+        DEVITO_LANGUAGE: ${{ matrix.language }}
 
     - name: Install dependencies
       run: |
