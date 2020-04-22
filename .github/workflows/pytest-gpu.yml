@@ -1,8 +1,4 @@
-# Adapted from https://github.com/weeyin83/vm-actions
 name: CI-gpu
-
-env:
-  OUTPUT_PATH: ${{ github.workspace }}
 
 on:
   # Trigger the workflow on push or pull request,
@@ -15,85 +11,59 @@ on:
       - master
 
 jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: [self-hosted, gpu]
 
-  # Deploy VM in Azure
-  deploy-vm:
-    runs-on: ubuntu-latest
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+
+      matrix:
+        name: [
+          pytest-gpu-omp,
+          pytest-gpu-acc
+        ]
+        include:
+        - name: pytest-gpu-omp
+          test_file: "tests/test_gpu_openmp.py"
+          arch: "clang"
+          platform: "nvidiaX"
+          language: "openmp"
+
+        - name: pytest-gpu-acc
+          test_file: "tests/test_gpu_openacc.py"
+          arch: "pgcc"
+          platform: "nvidiaX"
+          language: "openacc"
 
     steps:
-    # checkout code from repo
-    - name: checkout repo
+    - name: Checkout devito
       uses: actions/checkout@v1
 
-    - name: extract branch name
-      shell: bash
-      run: |
-        if [ "${{ github.head_ref }}" == "" ]; then
-          branch="master"
-        else
-          branch="${{ github.head_ref }}"
-        fi
-        echo ::set-output name=branch::$branch
-      id: extract_branch
-
-    - name: find deploy script
-      run: |
-        ls '${{ env.OUTPUT_PATH }}/.github/azure'
-
-    - name: deploy VM
-      env:
-        RESOURCE_GROUP: ${{ secrets.CI_GPU_RESOURCE_GROUP }}
-        RESOURCE_GROUP_REGION: uksouth
-        VM_SIZE: Standard_NC6_Promo
-        SERVER_NAME: gpu_ci_vm_${{ steps.extract_branch.outputs.branch }}
-        IMAGE: gpu_ci_vm-image-1226
-      run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\deployVM.ps1'"
-        -servicePrincipal ${{ secrets.SERVICE_PRINCIPAL_APPID }}
-        -servicePrincipalSecret ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
-        -servicePrincipalTenantId ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
-        -azureSubscriptionName ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        -resourceGroupName $RESOURCE_GROUP
-        -resourceGroupNameRegion $RESOURCE_GROUP_REGION
-        -size $VM_SIZE
-        -serverName $SERVER_NAME
-        -vmImage $IMAGE
-        -adminLogin ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        -adminPassword ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-
-    - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g ${{ secrets.CI_GPU_RESOURCE_GROUP }} -n gpu_ci_vm_${{ steps.extract_branch.outputs.branch }} --query publicIps -o tsv)
-      id: host
-
-    - name: execute tests on VM
-      uses: fifsky/ssh-action@master
+    - name: set environment variables
+      uses: allenevans/set-env@v1.0.0
       with:
-        command: |
-          #! /bin/bash
-          cd ~/devito
-          # Ensure no merge conflicts arise
-          git checkout master
-          if [ "${{ steps.extract_branch.outputs.branch }}" == "master" ]; then
-              git pull
-          else
-              git rev-parse --verify --quiet ${{ steps.extract_branch.outputs.branch }}
-              if [ $? -eq 0 ]; then git branch -D ${{ steps.extract_branch.outputs.branch }}; fi
-              git fetch
-              git checkout ${{ steps.extract_branch.outputs.branch }}
-          fi
-          # Set error trap to catch any failing test
-          err=0
-          trap 'err=1' ERR
-          # OpenMP offloading
-          pgaccelinfo
+        DEVITO_ARCH: ${{ matrix.arch }}
+        DEVITO_PLATFORM: ${{ matrix.platform }}
+        DEVITO_LANGUAGE: ${{ matrix.language }}
 
-          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test tests/test_gpu_openmp.py
-          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/elastic/elastic_example.py
-          DEVITO_ARCH=clang DEVITO_PLATFORM=nvidiaX py.test examples/seismic/viscoelastic/viscoelastic_example.py
-          # OpenACC
-          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test tests/test_gpu_openacc.py
-          DEVITO_ARCH=pgcc DEVITO_PLATFORM=nvidiaX DEVITO_LANGUAGE=openacc py.test examples/seismic/elastic/elastic_example.py
-          test $err == 0
-        host: ${{ steps.host.outputs.action_host }}
-        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+    - name: Install dependencies
+      run: |
+        pip3 install --upgrade pip
+        pip3 install -e .[extras]
+
+    - name: Test with pytest
+      run: |
+        pgaccelinfo
+        pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
+        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/elastic/elastic_example.py
+        if [ "${{ matrix.name }}" == 'pytest-gpu-omp' ]; then
+            pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoelastic/viscoelastic_example.py
+        fi
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1.0.6
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: ${{ matrix.name }}
