@@ -17,7 +17,7 @@ jobs:
 
     env:
       DEVITO_ARCH: "gcc-9"
-      DEVITO_OPENMP: 1
+      DEVITO_LANGUAGE: "openmp"
       CC: "gcc-9"
       CXX: "g++-9"
 
