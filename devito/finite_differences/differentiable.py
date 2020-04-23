@@ -88,7 +88,7 @@ class Differentiable(sympy.Expr, Evaluable):
         """The reference indices of the object (indices at first creation)."""
         if len(self._args_diff) == 1:
             return self._args_diff[0].indices_ref
-        return EnrichedTuple(*self.dimensions, getters=self.dimensions)
+        return EnrichedTuple(*self.indices, getters=self.dimensions)
 
     @cached_property
     def staggered(self):
@@ -116,6 +116,10 @@ class Differentiable(sympy.Expr, Evaluable):
             # Cartesian grid, do no waste time
             return self
         return self.func(*[getattr(a, '_eval_at', lambda x: a)(func) for a in self.args])
+
+    @property
+    def _eval_deriv(self):
+        return self.func(*[getattr(a, '_eval_deriv', a) for a in self.args])
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()
@@ -305,6 +309,48 @@ class Add(DifferentiableOp, sympy.Add):
 class Mul(DifferentiableOp, sympy.Mul):
     __sympy_class__ = sympy.Mul
     __new__ = DifferentiableOp.__new__
+
+    @property
+    def _gather_for_diff(self):
+        """
+        We handle Mul arguments by hand in case of staggered inputs
+        such as `f(x)*g(x + h_x/2)`
+        In that case, priority of indexing is applied to have single indices
+        The priority is from least to most:
+            - param
+            - NODE
+            - staggered
+        So for example f(x)*g(x + h_x/2) => .5*(f(x) + f(x + h_x))*g(x + h_x/2)
+        """
+
+        if len(set(f.staggered for f in self._args_diff)) == 1:
+            return self
+
+        def stagg_prio(func):
+            if func.staggered is None:
+                return 0
+            elif func.staggered in self.dimensions:
+                return 2
+            elif getattr(func, 'is_Derivative', False):
+                return 3
+            else:
+                return 1
+
+        func_args = sorted(self._args_diff, key=stagg_prio, reverse=True)
+        new_args = []
+        ref_inds = func_args[0].indices_ref._getters
+
+        for f in self.args:
+            if f not in self._args_diff:
+                new_args.append(f)
+            elif f is func_args[0]:
+                new_args.append(f)
+            else:
+                ind_f = f.indices_ref._getters
+                new_args.append(f.subs({ind_f.get(d, d): ref_inds.get(d, d)
+                                        for d in self.dimensions}))
+
+        return self.func(*new_args, evaluate=False)
 
 
 class Pow(DifferentiableOp, sympy.Pow):
