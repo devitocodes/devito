@@ -21,7 +21,7 @@ class IsotropicAcoustic(object):
     def time_forward(self, shape, space_order):
         solver = acoustic_setup(shape=shape,
                                 space_order=space_order,
-                                dle=('advanced', {'openmp': True}))
+                                opt=('advanced', {'openmp': True}))
 
         solver.forward(x0_blk0_size=IsotropicAcoustic.x0_blk0_size,
                        y0_blk0_size=IsotropicAcoustic.y0_blk0_size,
