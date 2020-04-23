@@ -19,7 +19,7 @@ jobs:
       DEVITO_ARCH: "${{ matrix.compiler }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
       DEVITO_BACKEND: "core"
-      PYTHON_VERSION: "3.6"
+      PYTHON_VERSION: "3.7"
       RUN_CMD: ""
 
     strategy:
@@ -58,11 +58,11 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v1
 
-    - name: Set up Python 3.6
+    - name: Set up Python 3.7
       if: matrix.name != 'tutos-docker-gcc-py36'
       uses: actions/setup-python@v1
       with:
-        python-version: 3.6
+        python-version: 3.7
 
     - name: Install compilers for OSX
       if: runner.os == 'macOS'
@@ -90,7 +90,7 @@ jobs:
 
     - name: User api notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/userapi
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:api_coverage.xml examples/userapi
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'tutos-docker-gcc-py36'
