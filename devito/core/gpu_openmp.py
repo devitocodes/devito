@@ -5,7 +5,6 @@ import cgen as c
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
-from devito.ir.clusters import Toposort
 from devito.ir.iet import Callable, ElementalFunction, MapExprStmts
 from devito.logger import warning
 from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
@@ -258,8 +257,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         template = lambda: "r%d" % counter()
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
-        clusters = Toposort().process(clusters)
-        clusters = fuse(clusters)
+        clusters = fuse(clusters, toposort=True)
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, template, 'invariants', options, platform)

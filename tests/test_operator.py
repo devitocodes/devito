@@ -1394,12 +1394,13 @@ class TestLoopScheduling(object):
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-+++', ['txyz'], 'txyz'),
-        # 13) Time goes backward so that information flows in time, interleaved
-        # with independent Eq
+        # 13) Time goes backward so that information flows in time, but the
+        # first and last Eqs are interleaved by a completely independent
+        # Eq. This results in three disjoint sets of loops
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         '-++++++', ['txyz', 'xyz'], 'txyzxyz'),
+         '-++++++++++', ['txyz', 'xyz', 'txyz'], 'txyzxyztxyz'),
         # 14) Time goes backward so that information flows in time
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
@@ -1423,7 +1424,7 @@ class TestLoopScheduling(object):
           'Eq(tw[t+1,z,z,z], tw[t+1,z,z,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t+1,x,y,z] + 1.)'),
          '+++++++++', ['txyz', 'ty', 'tz', 'txyz'], 'txyzyzxyz'),
-        # 18) WAR 1->3; expected=2
+        # 18) WAR 1->3; expected=3
         # 5 is expected to be moved before 4 but after 3, to be merged with 3
         (('Eq(tu[t+1,x,y,z], tv[t,x,y,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t,x,y,z] + 1.)',
@@ -1431,6 +1432,12 @@ class TestLoopScheduling(object):
           'Eq(f[x,x,z], tu[t,x,x,z] + tw[t,x,x,z])',
           'Eq(ti0[x,y,z], tw[t+1,x,y,z] + 1.)'),
          '++++++++', ['txyz', 'txyz', 'txz'], 'txyzxyzz'),
+        # 19) WAR 1->3; expected=3
+        # Cannot merge 1 with 3 otherwise we would break an anti-dependence
+        (('Eq(tv[t+1,x,y,z], tu[t,x,y,z] + tu[t,x+1,y,z])',
+          'Eq(tu[t+1,xi,yi,zi], tv[t+1,xi,yi,zi] + tv[t+1,xi+1,yi,zi])',
+          'Eq(tw[t+1,x,y,z], tv[t+1,x,y,z] + tv[t+1,x+1,y,z])'),
+         '++++++++++', ['txyz', 'ti0xi0yi0z', 'txyz'], 'txyzi0xi0yi0zxyz'),
     ])
     def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """
