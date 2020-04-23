@@ -2,7 +2,6 @@ from functools import partial
 
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
-from devito.ir.clusters import Toposort
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
@@ -87,8 +86,7 @@ class CPU64Operator(CPU64NoopOperator):
         template = lambda: "r%d" % counter()
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
-        clusters = Toposort().process(clusters)
-        clusters = fuse(clusters)
+        clusters = fuse(clusters, toposort=True)
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, template, 'invariants', options, platform)
@@ -203,8 +201,7 @@ class Intel64FSGOperator(Intel64Operator):
         template = lambda: "r%d" % counter()
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
-        clusters = Toposort().process(clusters)
-        clusters = fuse(clusters)
+        clusters = fuse(clusters, toposort=True)
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, template, 'invariants', options, platform)
@@ -244,18 +241,16 @@ ArmOpenMPOperator = CPU64OpenMPOperator
 class CustomOperator(CPU64Operator):
 
     _known_passes = ('blocking', 'denormals', 'optcomms', 'wrapping', 'openmp',
-                     'mpi', 'simd', 'prodders', 'topofuse', 'toposort', 'fuse')
+                     'mpi', 'simd', 'prodders', 'topofuse', 'fuse')
 
     @classmethod
     def _make_clusters_passes_mapper(cls, **kwargs):
         options = kwargs['options']
 
         return {
-            'toposort': Toposort().process,
-            'fuse': fuse,
             'blocking': Blocking(options).process,
-            # Pre-baked composite passes
-            'topofuse': lambda i: fuse(Toposort().process(i))
+            'fuse': fuse,
+            'topofuse': lambda i: fuse(i, toposort=True)
         }
 
     @classmethod

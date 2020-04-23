@@ -1,10 +1,11 @@
+from collections import Counter
 from itertools import groupby
 
-from devito.ir.clusters import Cluster, Queue
-from devito.ir.support import TILABLE
+from devito.ir.clusters import Cluster, ClusterGroup, Queue
+from devito.ir.support import TILABLE, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul, uxreplace
-from devito.tools import filter_ordered, timed_pass
+from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types import Scalar
 
 __all__ = ['Lift', 'fuse', 'eliminate_arrays', 'optimize_pows', 'extract_increments']
@@ -72,30 +73,135 @@ class Lift(Queue):
         return lifted + processed
 
 
-@timed_pass()
-def fuse(clusters):
-    """
-    Fuse sub-sequences of Clusters with compatible IterationSpace.
-    """
-    key = lambda c: (set(c.itintervals), c.guards)
+class Fusion(Queue):
 
-    processed = []
-    for k, g in groupby(clusters, key=key):
-        maybe_fusible = list(g)
+    """
+    Fuse Clusters with compatible IterationSpace.
+    """
 
-        if len(maybe_fusible) == 1:
-            processed.extend(maybe_fusible)
+    def __init__(self, toposort):
+        super(Fusion, self).__init__()
+        self.toposort = toposort
+
+    def process(self, clusters):
+        cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
+        cgroups = self._process_fdta(cgroups, 1)
+        clusters = ClusterGroup.concatenate(*cgroups)
+        return clusters
+
+    def callback(self, cgroups, prefix):
+        # Toposort to maximize fusion
+        if self.toposort:
+            clusters = self._toposort(cgroups, prefix)
         else:
-            try:
-                # Perform fusion
-                fused = Cluster.from_clusters(*maybe_fusible)
-                processed.append(fused)
-            except ValueError:
-                # We end up here if, for example, some Clusters have same
-                # iteration Dimensions but different (partial) orderings
-                processed.extend(maybe_fusible)
+            clusters = ClusterGroup(cgroups)
 
-    return processed
+        # Fusion
+        processed = []
+        for k, g in groupby(clusters, key=lambda c: (set(c.itintervals), c.guards)):
+            maybe_fusible = list(g)
+
+            if len(maybe_fusible) == 1:
+                processed.extend(maybe_fusible)
+            else:
+                try:
+                    # Perform fusion
+                    fused = Cluster.from_clusters(*maybe_fusible)
+                    processed.append(fused)
+                except ValueError:
+                    # We end up here if, for example, some Clusters have same
+                    # iteration Dimensions but different (partial) orderings
+                    processed.extend(maybe_fusible)
+
+        return [ClusterGroup(processed, prefix)]
+
+    def _toposort(self, cgroups, prefix):
+        # Are there any ClusterGroups that could potentially be fused? If
+        # not, do not waste time computing a new topological ordering
+        counter = Counter(cg.itintervals for cg in cgroups)
+        if not any(v > 1 for it, v in counter.most_common()):
+            return ClusterGroup(cgroups)
+
+        # Similarly, if all ClusterGroups have the same exact prefix, no
+        # need to attempt a topological sorting
+        if len(counter.most_common()) == 1:
+            return ClusterGroup(cgroups)
+
+        dag = self._build_dag(cgroups, prefix)
+
+        def choose_element(queue, scheduled):
+            # Heuristic: prefer a node having same IterationSpace as that
+            # of the last scheduled node to maximize Cluster fusion
+            if not scheduled:
+                return queue.pop()
+            last = scheduled[-1]
+            for i in list(queue):
+                if i.itintervals == last.itintervals:
+                    queue.remove(i)
+                    return i
+            return queue.popleft()
+
+        return ClusterGroup(dag.topological_sort(choose_element))
+
+    def _build_dag(self, cgroups, prefix):
+        """
+        A DAG representing the data dependences across the ClusterGroups within
+        a given scope.
+        """
+        prefix = {i.dim for i in as_tuple(prefix)}
+
+        dag = DAG(nodes=cgroups)
+        for n, cg0 in enumerate(cgroups):
+            for cg1 in cgroups[n+1:]:
+                # A Scope to compute all cross-ClusterGroup anti-dependences
+                rule = lambda i: i.is_cross
+                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=rule)
+
+                # Optimization: we exploit the following property:
+                # no prefix => (edge <=> at least one (any) dependence)
+                # to jump out of this potentially expensive loop as quickly as possible
+                if not prefix and any(scope.d_all_gen()):
+                    dag.add_edge(cg0, cg1)
+
+                # Anti-dependences along `prefix` break the execution flow
+                # (intuitively, "the loop nests are to be kept separated")
+                # * All ClusterGroups between `cg0` and `cg1` must precede `cg1`
+                # * All ClusterGroups after `cg1` cannot precede `cg1`
+                elif any(i.cause & prefix for i in scope.d_anti_gen()):
+                    for cg2 in cgroups[n:cgroups.index(cg1)]:
+                        dag.add_edge(cg2, cg1)
+                    for cg2 in cgroups[cgroups.index(cg1)+1:]:
+                        dag.add_edge(cg1, cg2)
+                    break
+
+                # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
+                # while not being its immediate successor (unless it already is),
+                # to avoid they are fused together (thus breaking the dependence)
+                elif any(scope.d_anti_gen()) or\
+                        any(i.is_iaw for i in scope.d_output_gen()):
+                    dag.add_edge(cg0, cg1)
+                    index = cgroups.index(cg1) - 1
+                    if index > n:
+                        dag.add_edge(cg0, cgroups[index])
+                        dag.add_edge(cgroups[index], cg1)
+
+                # Any flow-dependences along an inner Dimension (i.e., a Dimension
+                # that doesn't appear in `prefix`) impose that `cg1` follows `cg0`
+                elif any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()):
+                    dag.add_edge(cg0, cg1)
+
+        return dag
+
+
+@timed_pass()
+def fuse(clusters, toposort=False):
+    """
+    Clusters fusion.
+
+    If ``toposort=True``, then the Clusters are reordered to maximize the likelihood
+    of fusion; the new ordering is computed such that all data dependencies are honored.
+    """
+    return Fusion(toposort=toposort).process(clusters)
 
 
 @timed_pass()
