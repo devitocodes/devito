@@ -90,7 +90,7 @@ jobs:
 
     - name: User api notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:api_coverage.xml examples/userapi
+        $RUN_CMD py.test --nbval examples/userapi
 
     - name: Compiler notebooks
       run: |
