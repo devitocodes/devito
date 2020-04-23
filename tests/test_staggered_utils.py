@@ -16,6 +16,20 @@ def test_indices(ndim):
         for dd in d:
             assert f.indices_ref[dd] == dd + dd.spacing / 2
 
+def test_indices_differentiable():
+    """
+    Test that differentiable object have correct indices and indices_ref
+    """
+    grid = Grid((10,))
+    x = grid.dimensions[0]
+    x0 = x + x.spacing/2
+    f =  Function(name="f", grid=grid, staggered=x)
+    assert f.indices_ref[x] == x0
+    assert (1 * f).indices_ref[x] == x0
+    assert (1. * f).indices_ref[x] == x0
+    assert (1 + f).indices_ref[x] == x0
+    assert (1 / f).indices_ref[x] == x0
+
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
 def test_avg(ndim):

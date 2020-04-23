@@ -86,6 +86,8 @@ class Differentiable(sympy.Expr, Evaluable):
     @property
     def indices_ref(self):
         """The reference indices of the object (indices at first creation)."""
+        if len(self._args_diff) == 1:
+            return self._args_diff[0].indices_ref
         return EnrichedTuple(*self.dimensions, getters=self.dimensions)
 
     @cached_property
