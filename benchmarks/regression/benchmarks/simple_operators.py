@@ -1,4 +1,4 @@
-from devito import Grid, TimeFunction, Eq, Operator
+from devito import Grid, TimeFunction, Eq, Operator, norm
 
 
 repeat = 3
@@ -22,3 +22,11 @@ def time_laplacian():
     op = Operator(Eq(f.forward, 1e-8*(f.laplace + 1)))
 
     op.apply(time_M=100)
+
+
+def time_norm():
+    grid = Grid(shape=(400, 400, 400))
+
+    f = TimeFunction(name='f', grid=grid, space_order=2)
+
+    norm(f)
