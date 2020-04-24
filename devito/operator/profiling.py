@@ -380,7 +380,7 @@ class PerformanceSummary(OrderedDict):
 
 def create_profile(name):
     """Create a new Profiler."""
-    if configuration['log-level'] == 'DEBUG':
+    if configuration['log-level'] in ['DEBUG', 'PERF']:
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'
     else:
