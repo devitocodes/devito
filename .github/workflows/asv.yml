@@ -9,13 +9,13 @@ on:
 jobs:
   benchmarks:
     name: benchmarks
-    runs-on: ubuntu-16.04
+    runs-on: [self-hosted, asv]
 
     env:
       DEVITO_ARCH: "gcc-9"
       DEVITO_LANGUAGE: "openmp"
       DEVITO_BENCHMARKS: "1"
-      OMP_NUM_THREADS: "16"
+      OMP_NUM_THREADS: "8"
       CC: "gcc-9"
       CXX: "g++-9"
 
@@ -45,7 +45,7 @@ jobs:
 
     - name: Run benchmarks
       run: |
-        asv run -v --show-stderr --config benchmarks/regression/asv.conf.json HASHFILE:merge_history.txt --cpu-affinity 0-15
+        asv run -v --show-stderr --config benchmarks/regression/asv.conf.json HASHFILE:merge_history.txt --cpu-affinity 0-7
 
     - name: Create results (html)
       run: |
