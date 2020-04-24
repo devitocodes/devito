@@ -1,12 +1,8 @@
 name: asv-benchmarks
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the master branch
+  # Trigger the workflow on push to the master branch
   push:
-    branches:
-      - master
-  pull_request:
     branches:
       - master
 
