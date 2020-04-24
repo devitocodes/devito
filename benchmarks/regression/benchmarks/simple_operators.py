@@ -1,4 +1,4 @@
-from devito import Grid, TimeFunction, Eq, Operator, norm
+from devito import Grid, Function, TimeFunction, Eq, Operator, gaussian_smooth, norm
 
 
 repeat = 3
@@ -30,3 +30,11 @@ def time_norm():
     f = TimeFunction(name='f', grid=grid, space_order=2)
 
     norm(f)
+
+
+def time_gaussian_smoother():
+    grid = Grid(shape=(400, 400, 400))
+
+    f = Function(name='f', grid=grid, space_order=12)
+
+    gaussian_smooth(f, sigma=0.5)
