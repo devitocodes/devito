@@ -454,6 +454,7 @@ class TestNodeParallelism(object):
                 for k in i.pragmas:
                     assert 'omp for collapse' not in k.value
 
+    @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
     def test_scheduling(self):
         """
         Affine iterations -> #pragma omp ... schedule(dynamic,1) ...
@@ -481,6 +482,7 @@ class TestNestedParallelism(object):
 
     @patch("devito.passes.iet.openmp.Ompizer.NESTED", 0)
     @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 10000)
+    @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -512,6 +514,7 @@ class TestNestedParallelism(object):
     @patch("devito.passes.iet.openmp.Ompizer.NESTED", 0)
     @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 1)
     @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_WORK", 0)
+    @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
     def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -535,6 +538,7 @@ class TestNestedParallelism(object):
     @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     @patch("devito.passes.iet.openmp.Ompizer.NESTED", 0)
     @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 1)
+    @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions

@@ -883,6 +883,7 @@ class TestCodeGeneration(object):
         assert destinations == expected
 
     @pytest.mark.parallel(mode=[(1, 'full')])
+    @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
     def test_poke_progress(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
