@@ -188,8 +188,8 @@ class Cluster(object):
 
     @cached_property
     def ops(self):
-        """The Cluster operation count."""
-        return self.ispace.size*sum(estimate_cost(i) for i in self.exprs)
+        """Number of operations performed at each iteration."""
+        return sum(estimate_cost(i) for i in self.exprs)
 
     @cached_property
     def traffic(self):
