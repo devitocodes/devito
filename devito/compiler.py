@@ -297,6 +297,12 @@ class Compiler(GCCToolchain):
                 raise ValueError("Trying to use the JIT backdoor for `%s`, but "
                                  "the file isn't present" % src_file)
 
+        # Should the compilation command be emitted?
+        debug = configuration['log-level'] == 'DEBUG'
+
+        # Spinlock in case of MPI
+        sleep_delay = 0 if configuration['mpi'] else 1
+
         # `catch_warnings` suppresses codepy complaining that it's taking
         # too long to acquire the cache lock. This warning can only appear
         # in a multiprocess session, typically (but not necessarily) when
@@ -304,14 +310,9 @@ class Compiler(GCCToolchain):
         # when running the test suite in parallel)
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-
-            # Spinlock in case of MPI
-            sleep_delay = 0 if configuration['mpi'] else 1
-            _, _, _, recompiled = compile_from_string(
-                self, target, code, src_file,
-                cache_dir=cache_dir,
-                debug=configuration['debug-compiler'],
-                sleep_delay=sleep_delay)
+            _, _, _, recompiled = compile_from_string(self, target, code, src_file,
+                                                      cache_dir=cache_dir, debug=debug,
+                                                      sleep_delay=sleep_delay)
 
         return recompiled, src_file
 

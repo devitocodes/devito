@@ -167,9 +167,6 @@ Run with `DEVITO_LOGGING=DEBUG` to find out the specific performance
 optimizations applied by an Operator, how auto-tuning is getting along, and to
 emit more performance metrics.
 
-You can also set `DEVITO_DEBUG_COMPILER=1` to emit the command used to compile
-the generated code.
-
 ## Tips
 
 * The 'O3' mode has been found to be particularly beneficial in TTI Operators,
