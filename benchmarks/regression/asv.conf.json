@@ -13,11 +13,6 @@
     // project being benchmarked
     "repo": "https://github.com/devitocodes/devito.git",
 
-    // The Python project's subdirectory in your repo.  If missing or
-    // the empty string, the project is assumed to be located at the root
-    // of the repository.
-    // "repo_subdir": "",
-
     // Customizable commands for building, installing, and
     // uninstalling the project. See asv.conf.json documentation.
     //
@@ -31,13 +26,6 @@
     // List of branches to benchmark. If not provided, defaults to "master"
     // (for git) or "default" (for mercurial).
     // "branches": ["master"], // for git
-    // "branches": ["default"],    // for mercurial
-
-    // The DVCS being used.  If not set, it will be automatically
-    // determined from "repo" by looking at the protocol in the URL
-    // (if remote), or by looking for special directories, such as
-    // ".git" (if local).
-    // "dvcs": "git",
 
     // The tool to use to create environments.  May be "conda",
     // "virtualenv" or other value depending on the plugins in use.
@@ -55,7 +43,7 @@
 
     // The Pythons you'd like to test against.  If not provided, defaults
     // to the current version of Python used to run `asv`.
-    // "pythons": ["2.7", "3.6"],
+    // "pythons": ["3.6"],
 
     // The list of conda channel names to be searched for benchmark
     // dependency packages in the specified order
@@ -104,10 +92,10 @@
     // ],
     //
     // "include": [
-    //     // additional env for python2.7
-    //     {"python": "2.7", "numpy": "1.8"},
+    //     // additional env for python3.6
+    //     {"python": "3.6", "numpy": "1.8"},
     //     // additional env if run on windows+conda
-    //     {"platform": "win32", "environment_type": "conda", "python": "2.7", "libpython": ""},
+    //     {"platform": "win32", "environment_type": "conda", "python": "3.6", "libpython": ""},
     // ],
 
     // The directory (relative to the current directory) that benchmarks are
