@@ -277,6 +277,7 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
             iloc = i
         subs = dict((d, iloc) for d in all_dims)
         terms.append(expr.subs(subs) * c)
+
     deriv = Add(*terms)
 
     return deriv.evalf(_PRECISION)

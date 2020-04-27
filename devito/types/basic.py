@@ -622,7 +622,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(key)
+            newobj.__init_cached__(key, ignore=['_on_grid'])
             return newobj
 
         # Not in cache. Create a new Function via sympy.Function
@@ -663,6 +663,12 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
+
+    def subs(self, *args, **kwargs):
+        on_grid = kwargs.pop('on_grid', True)
+        newobj = super(AbstractFunction, self).subs(*args, **kwargs)
+        newobj._on_grid = on_grid
+        return newobj
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -725,8 +731,21 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return self._dimensions
 
     @property
+    def _eval_deriv(self):
+        return self
+
+    @property
+    def on_grid(self):
+        try:
+            return self._on_grid
+        except AttributeError:
+            return True
+
+    @property
     def evaluate(self):
         # Average values if at a location not on the Function's grid
+        if self.on_grid:
+            return self
         weight = 1.0
         avg_list = [self]
         is_averaged = False

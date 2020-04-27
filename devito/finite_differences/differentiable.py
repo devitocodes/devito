@@ -88,7 +88,7 @@ class Differentiable(sympy.Expr, Evaluable):
         """The reference indices of the object (indices at first creation)."""
         if len(self._args_diff) == 1:
             return self._args_diff[0].indices_ref
-        return EnrichedTuple(*self.indices, getters=self.dimensions)
+        return EnrichedTuple(*self.dimensions, getters=self.dimensions)
 
     @cached_property
     def staggered(self):
@@ -320,7 +320,7 @@ class Mul(DifferentiableOp, sympy.Mul):
             - param
             - NODE
             - staggered
-        So for example f(x)*g(x + h_x/2) => .5*(f(x) + f(x + h_x))*g(x + h_x/2)
+        So for example f(x)*g(x + h_x/2) => f(x + h_x/2)*g(x + h_x/2)
         """
 
         if len(set(f.staggered for f in self._args_diff)) == 1:
@@ -347,8 +347,13 @@ class Mul(DifferentiableOp, sympy.Mul):
                 new_args.append(f)
             else:
                 ind_f = f.indices_ref._getters
-                new_args.append(f.subs({ind_f.get(d, d): ref_inds.get(d, d)
-                                        for d in self.dimensions}))
+                mapper = {ind_f.get(d, d): ref_inds.get(d, d)
+                          for d in self.dimensions
+                          if ind_f.get(d, d) is not ref_inds.get(d, d)}
+                if mapper:
+                    new_args.append(f.subs(mapper, on_grid=False))
+                else:
+                    new_args.append(f)
 
         return self.func(*new_args, evaluate=False)
 

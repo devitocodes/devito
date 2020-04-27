@@ -958,9 +958,12 @@ class Function(DiscreteFunction, Differentiable):
     def _eval_at(self, func):
         if not self.is_parameter or self.staggered == func.staggered:
             return self
-
-        return self.subs({self.indices_ref[d1]: func.indices_ref[d1]
-                          for d1 in self.dimensions})
+        mapper = {self.indices_ref[d1]: func.indices_ref[d1]
+                  for d1 in self.dimensions
+                  if self.indices_ref[d1] is not func.indices_ref[d1]}
+        if mapper:
+            return self.subs(mapper, on_grid=False)
+        return self
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
