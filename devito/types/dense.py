@@ -951,6 +951,15 @@ class Function(DiscreteFunction, Differentiable):
         # parameter has to be computed at x + hx/2)
         self._is_parameter = kwargs.get('parameter', False)
 
+    @cached_property
+    def _fd_priority(self):
+        if self.staggered is None:
+            return 1
+        elif self.staggered is NODE:
+            return 1
+        else:
+            return 2
+
     @property
     def is_parameter(self):
         return self._is_parameter
@@ -1302,6 +1311,10 @@ class TimeFunction(Function):
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
         return tuple(shape)
+
+    @cached_property
+    def _fd_priority(self):
+        return super(TimeFunction, self)._fd_priority + .1
 
     @property
     def time_order(self):

@@ -85,6 +85,7 @@ class Derivative(sympy.Derivative, Differentiable):
     """
 
     _state = ('expr', 'dims', 'side', 'fd_order', 'transpose', '_subs', 'x0')
+    _fd_priority = 3
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) == sympy.Derivative:

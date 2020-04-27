@@ -665,9 +665,12 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     __hash__ = Cached.__hash__
 
     def subs(self, *args, **kwargs):
-        on_grid = kwargs.pop('on_grid', True)
+        on_grid = kwargs.pop('on_grid', self.on_grid)
         newobj = super(AbstractFunction, self).subs(*args, **kwargs)
-        newobj._on_grid = on_grid
+        try:
+            newobj._on_grid = on_grid
+        except AttributeError:
+            pass
         return newobj
 
     @classmethod
