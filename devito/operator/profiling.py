@@ -363,7 +363,14 @@ class PerformanceSummary(OrderedDict):
         gpoints = float(points)/10**9
         gpointss = gpoints/time
 
-        self.globals['fdlike'] = PerfEntry(time, None, gpointss, None, None, None)
+        if self.input:
+            ops = sum(v.ops for v in self.input.values())
+            gflops = float(ops)/10**9
+            gflopss = gflops/time
+        else:
+            gflopss = None
+
+        self.globals['fdlike'] = PerfEntry(time, gflopss, gpointss, None, None, None)
 
     @property
     def gflopss(self):
