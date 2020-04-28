@@ -6,6 +6,10 @@ repeat = 3
 
 class TTI(object):
 
+    # ASV config
+    repeat = 1
+    timeout = 600.0
+
     space_order = 12
 
     def setup(self):

@@ -3,11 +3,12 @@ from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 class IsotropicAcoustic(object):
 
+    # ASV parametrization
     params = ([(492, 492, 492)], [12])
     param_names = ['shape', 'space_order']
 
+    # ASV config
     repeat = 3
-
     timeout = 600.0
 
     # Default shape for loop blocking
