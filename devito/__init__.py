@@ -93,9 +93,6 @@ accepted = levels + [list(i) for i in product(levels, modes)]
 configuration.add('autotuning', 'off', accepted, callback=autotune_callback,
                   impacts_jit=False)
 
-# Should Devito emit the JIT compilation commands?
-configuration.add('debug-compiler', 0, [0, 1], preprocessor=bool, impacts_jit=False)
-
 # In develop-mode:
 # - Some optimizations may not be applied to the generated code.
 # - The compiler performs more type and value checking

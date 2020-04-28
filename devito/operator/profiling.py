@@ -15,8 +15,6 @@ from devito.ir.support import IntervalGroup
 from devito.logger import warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import estimate_cost
-from devito.tools import flatten
 from devito.types import CompositeObject
 
 __all__ = ['Timer', 'create_profile']
@@ -61,10 +59,10 @@ class Profiler(object):
             bundles = FindNodes(ExpressionBundle).visit(section)
 
             # Total operation count
-            ops = sum(i.ops for i in bundles)
+            ops = sum(i.ops*i.ispace.size for i in bundles)
 
             # Operation count at each section iteration
-            sops = sum(estimate_cost(i.expr) for i in flatten(b.exprs for b in bundles))
+            sops = sum(i.ops for i in bundles)
 
             # Total memory traffic
             mapper = {}
@@ -382,7 +380,7 @@ class PerformanceSummary(OrderedDict):
 
 def create_profile(name):
     """Create a new Profiler."""
-    if configuration['log-level'] == 'DEBUG':
+    if configuration['log-level'] in ['DEBUG', 'PERF']:
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'
     else:

@@ -5,10 +5,10 @@ import numpy as np
 import cgen as c
 from sympy import Function, Or, Max, Not
 
-from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder, Iteration,
-                       While, FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED,
-                       Transformer, IsPerfectIteration, retrieve_iteration_tree,
-                       filter_iterations)
+from devito.ir import (DummyEq, Conditional, Block, Expression, ExpressionBundle, List,
+                       Prodder, Iteration, While, FindSymbols, FindNodes, Return,
+                       COLLAPSED, VECTORIZED, Transformer, IsPerfectIteration,
+                       retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
@@ -95,6 +95,7 @@ class ParallelIteration(Iteration):
         properties = as_tuple(kwargs.pop('properties', None))
         properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
 
+        self.schedule = kwargs.pop('schedule', None)
         self.parallel = kwargs.pop('parallel', False)
         self.ncollapse = kwargs.pop('ncollapse', None)
         self.chunk_size = kwargs.pop('chunk_size', None)
@@ -122,13 +123,14 @@ class ParallelIteration(Iteration):
 
     @classmethod
     def _make_clauses(cls, ncollapse=None, chunk_size=None, nthreads=None,
-                      reduction=None, **kwargs):
+                      reduction=None, schedule=None, **kwargs):
         clauses = []
 
         clauses.append('collapse(%d)' % (ncollapse or 1))
 
         if chunk_size is not False:
-            clauses.append('schedule(dynamic,%s)' % (chunk_size or 1))
+            clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
+                                                chunk_size or 1))
 
         if nthreads:
             clauses.append('num_threads(%s)' % nthreads)
@@ -228,6 +230,12 @@ class Ompizer(object):
     CHUNKSIZE_NONAFFINE = 3
     """
     Coefficient to adjust the chunk size in parallelized non-affine Iterations.
+    """
+
+    DYNAMIC_WORK = 10
+    """
+    Use dynamic scheduling if the operation count per iteration exceeds this
+    threshold. Otherwise, use static scheduling.
     """
 
     lang = {
@@ -333,14 +341,22 @@ class Ompizer(object):
 
         # Prepare to build a ParallelTree
         if all(i.is_Affine for i in candidates):
+            bundles = FindNodes(ExpressionBundle).visit(root)
+            sops = sum(i.ops for i in bundles)
+            if sops >= self.DYNAMIC_WORK:
+                schedule = 'dynamic'
+            else:
+                schedule = 'static'
             if nthreads is None:
                 # pragma omp for ... schedule(..., 1)
                 nthreads = self.nthreads
-                body = ParallelIteration(ncollapse=ncollapse, **root.args)
+                body = ParallelIteration(schedule=schedule, ncollapse=ncollapse,
+                                         **root.args)
             else:
                 # pragma omp parallel for ... schedule(..., 1)
-                body = ParallelIteration(parallel=True, ncollapse=ncollapse,
-                                         nthreads=nthreads, **root.args)
+                body = ParallelIteration(schedule=schedule, parallel=True,
+                                         ncollapse=ncollapse, nthreads=nthreads,
+                                         **root.args)
             prefix = []
         else:
             # pragma omp for ... schedule(..., expr)
