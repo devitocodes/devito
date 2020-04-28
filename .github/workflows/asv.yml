@@ -1,0 +1,55 @@
+name: asv-benchmarks
+
+on:
+  # Trigger the workflow on push to the master branch
+  push:
+    branches:
+      - master
+
+jobs:
+  benchmarks:
+    name: benchmarks
+    runs-on: [self-hosted, asv]
+
+    env:
+      DEVITO_ARCH: "gcc-9"
+      DEVITO_LANGUAGE: "openmp"
+      DEVITO_BENCHMARKS: "1"
+      OMP_NUM_THREADS: "8"
+      CC: "gcc-9"
+      CXX: "g++-9"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Install GCC 9
+      run : sudo apt-get install -y g++-9
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .
+        pip install asv
+
+    - name: Setup asv
+      run: |
+        bash benchmarks/regression/merge_history.sh
+        cp merge_history.txt benchmarks/regression/
+        asv machine --config benchmarks/regression/asv.conf.json --yes
+
+    - name: Run benchmarks
+      run: |
+        asv run -v --show-stderr --config benchmarks/regression/asv.conf.json HASHFILE:merge_history.txt --cpu-affinity 0-7
+
+    - name: Create results (html)
+      run: |
+          asv publish --config benchmarks/regression/asv.conf.json
+
+    - name: Deploy results to devitocodes/devito-performance/gh-pages
+      uses: peaceiris/actions-gh-pages@v2.5.0
+      env:
+        ACTIONS_DEPLOY_KEY: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+        EXTERNAL_REPOSITORY: devitocodes/devito-performance
+        PUBLISH_BRANCH: gh-pages
+        PUBLISH_DIR: ./benchmarks/regression/.asv/html
