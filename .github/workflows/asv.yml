@@ -15,6 +15,7 @@ jobs:
       DEVITO_ARCH: "gcc-9"
       DEVITO_LANGUAGE: "openmp"
       DEVITO_BENCHMARKS: "1"
+      DEVITO_LOGGING: "PERF"
       OMP_NUM_THREADS: "8"
       CC: "gcc-9"
       CXX: "g++-9"
