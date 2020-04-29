@@ -31,8 +31,10 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 if __name__ == "__main__":
     description = ("Example script to execute a TTI forward operator.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
-                        help="Preset to determine the physical problem setup")
+    parser.add_argument("-nd", dest="ndim", default=3, type=int,
+                        help="Preset to determine the number of dimensions")
+    parser.add_argument("-d", "--shape", default=(50, 50, 50), type=int, nargs="+",
+                        help="Determine the grid shape")
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Whether or not to use an azimuth angle")
     parser.add_argument("-so", "--space_order", default=4,
@@ -51,15 +53,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
-    # 3D preset parameters
-    if args.dim2:
-        shape = (150, 150)
-        spacing = (10.0, 10.0)
-        tn = 750.0
-    else:
-        shape = (50, 50, 50)
-        spacing = (10.0, 10.0, 10.0)
-        tn = 250.0
+
+    # Preset parameters
+    ndim = args.ndim
+    shape = args.shape[:args.ndim]
+    spacing = tuple(ndim * [10.0])
+    tn = 750. if ndim < 3 else 250.
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, autotune=args.autotune,

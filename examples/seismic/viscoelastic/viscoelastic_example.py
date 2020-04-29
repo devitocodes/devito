@@ -45,8 +45,10 @@ def test_viscoelastic():
 if __name__ == "__main__":
     description = ("Example script for a set of viscoelastic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
-                        help="Preset to determine the physical problem setup")
+    parser.add_argument("-nd", dest='ndim', default=3, type=int,
+                        help="Preset to determine the number of dimensions")
+    parser.add_argument("-d", "--shape", default=(150, 150, 150), type=int, nargs="+",
+                        help="Determine the grid shape, defaults in (153, 153, 153)")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
@@ -61,16 +63,11 @@ if __name__ == "__main__":
                         help="Operator auto-tuning mode")
     args = parser.parse_args()
 
-    # 2D preset parameters
-    if args.dim2:
-        shape = (150, 150)
-        spacing = (10.0, 10.0)
-        tn = 750.0
-    # 3D preset parameters
-    else:
-        shape = (150, 150, 150)
-        spacing = (10.0, 10.0, 10.0)
-        tn = 1250.0
+    # Preset parameters
+    ndim = args.ndim
+    shape = args.shape[:args.ndim]
+    spacing = tuple(ndim * [10.0])
+    tn = 750. if ndim < 3 else 1250.
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, opt=args.opt,
         space_order=args.space_order, autotune=args.autotune, constant=args.constant)

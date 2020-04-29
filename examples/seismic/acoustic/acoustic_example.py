@@ -66,8 +66,10 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('-nd', dest='ndim', default=3, type=int,
+    parser.add_argument("-nd", dest="ndim", default=3, type=int,
                         help="Preset to determine the number of dimensions")
+    parser.add_argument("-d", "--shape", default=(51, 51, 51), type=int, nargs="+",
+                        help="Determine the grid shape")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
     parser.add_argument("-so", "--space_order", default=6,
@@ -90,9 +92,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 3D preset parameters
-    shape = tuple(args.ndim * [51])
-    spacing = tuple(args.ndim * [15.0])
-    tn = 750. if args.ndim < 3 else 250.
+    ndim = args.ndim
+    shape = args.shape[:args.ndim]
+    spacing = tuple(ndim * [15.0])
+    tn = 750. if ndim < 3 else 250.
+
     preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
