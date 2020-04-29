@@ -15,6 +15,7 @@ from frozendict import frozendict
 from devito.data import default_allocator
 from devito.finite_differences import Evaluable
 from devito.parameters import configuration
+from devito.symbolics import aligned_ind
 from devito.tools import Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
@@ -622,7 +623,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(key, ignore=['_on_grid'])
+            newobj.__init_cached__(key)
             return newobj
 
         # Not in cache. Create a new Function via sympy.Function
@@ -663,15 +664,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
-
-    def subs(self, *args, **kwargs):
-        on_grid = kwargs.pop('on_grid', self.on_grid)
-        newobj = super(AbstractFunction, self).subs(*args, **kwargs)
-        try:
-            newobj._on_grid = on_grid
-        except AttributeError:
-            pass
-        return newobj
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -739,10 +731,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     @property
     def on_grid(self):
-        try:
-            return self._on_grid
-        except AttributeError:
-            return True
+        return all([aligned_ind(i, j, d.spacing) for i, j, d in
+                    zip(self.indices, self.indices_ref, self.dimensions)])
 
     @property
     def evaluate(self):

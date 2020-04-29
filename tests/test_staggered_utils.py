@@ -46,7 +46,7 @@ def test_avg(ndim):
         # f at nod (x, y, z)
         shifted = f
         for dd in d:
-            shifted = shifted.subs({dd: dd - dd.spacing/2}, on_grid=False)
+            shifted = shifted.subs({dd: dd - dd.spacing/2})
         assert all(i == dd for i, dd in zip(shifted.indices, grid.dimensions))
         # Average automatically i.e.:
         # f not defined at x so f(x, y) = 0.5*f(x - h_x/2, y) + 0.5*f(x + h_x/2, y)

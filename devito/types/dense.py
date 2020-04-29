@@ -971,7 +971,7 @@ class Function(DiscreteFunction, Differentiable):
                   for d1 in self.dimensions
                   if self.indices_ref[d1] is not func.indices_ref[d1]}
         if mapper:
-            return self.subs(mapper, on_grid=False)
+            return self.subs(mapper)
         return self
 
     @classmethod

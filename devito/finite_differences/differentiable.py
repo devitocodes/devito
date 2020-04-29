@@ -287,6 +287,11 @@ class DifferentiableOp(Differentiable):
     def subs(self, *args, **kwargs):
         return self.func(*[getattr(a, 'subs', lambda x: a)(*args, **kwargs)
                            for a in self.args], evaluate=False)
+
+    @property
+    def _gather_for_diff(self):
+        return self
+
     # Bypass useless expensive SymPy _eval_ methods, for which we either already
     # know or don't care about the answer, because it'd have ~zero impact on our
     # average expressions
@@ -335,7 +340,7 @@ class Mul(DifferentiableOp, sympy.Mul):
             - param
             - NODE
             - staggered
-        So for example f(x)*g(x + h_x/2) => f(x + h_x/2)*g(x + h_x/2)
+        For example f(x)*g(x + h_x/2) => f(x + h_x/2)*g(x + h_x/2)
         """
 
         if len(set(f.staggered for f in self._args_diff)) == 1:
@@ -356,7 +361,7 @@ class Mul(DifferentiableOp, sympy.Mul):
                           for d in self.dimensions
                           if ind_f.get(d, d) is not ref_inds.get(d, d)}
                 if mapper:
-                    new_args.append(f.subs(mapper, on_grid=False))
+                    new_args.append(f.subs(mapper))
                 else:
                     new_args.append(f)
 

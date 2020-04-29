@@ -72,7 +72,7 @@ class Cached(object):
         # Add ourselves to the symbol cache
         _SymbolCache[key] = AugmentedWeakRef(self, self._cache_meta())
 
-    def __init_cached__(self, key, ignore=None):
+    def __init_cached__(self, key):
         """
         Initialise `self` with a cached object state.
 
@@ -82,9 +82,8 @@ class Cached(object):
             The cache key of the object whose state is used to initialize `self`.
             It must be hashable.
         """
-        ignore = ignore or []
-        self.__dict__ = {k: v for k, v in _SymbolCache[key]().__dict__.items()
-                         if k not in ignore}
+
+        self.__dict__ = _SymbolCache[key]().__dict__
 
     def __hash__(self):
         """
