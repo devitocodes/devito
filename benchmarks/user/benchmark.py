@@ -208,7 +208,7 @@ def run(problem, **kwargs):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
-    solver.forward(autotune=autotune, **options)
+    return solver.forward(autotune=autotune, **options)
 
 
 @benchmark.command(name='run-jit-backdoor')
