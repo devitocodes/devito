@@ -1,4 +1,13 @@
+# Runner informaiton:
+# Standard F8s_v2 (8 vcpus, 16 GiB memory)
+# Intel Xeon® Platinum 8168 (SkyLake)
+
 name: asv-benchmarks
+
+env:
+  OUTPUT_PATH: ${{ github.workspace }}
+  RESOURCE_GROUP: devito-regression
+  VM_NAME: asv-runner-00
 
 on:
   # Trigger the workflow on push to the master branch
@@ -7,8 +16,49 @@ on:
       - master
 
 jobs:
+  # Boot the self-hosted runner and start runner app
+  start-runner:
+    name: start-runner
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v1
+
+    - name: start VM
+      env:
+        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
+        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
+        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
+        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      run: >
+        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\startVM.ps1'"
+        -servicePrincipal $SP_APPID
+        -servicePrincipalSecret $SP_SECRET
+        -servicePrincipalTenantId $TENANT_ID
+        -azureSubscriptionName $SUB_ID
+        -resourceGroupName $RESOURCE_GROUP
+        -vmName $VM_NAME
+
+    - name: set host
+      run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n $VM_NAME --query publicIps -o tsv)
+      id: host
+
+    - name: start-runner-ap
+      uses: fifsky/ssh-action@master
+      with:
+        command: |
+          cd actions-runner
+          nohup ./run.sh &
+        host: ${{ steps.host.outputs.action_host }}
+        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
+        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+        args: -tt
+
+  # Run the asv benchmarks on the self-hosted runner
   benchmarks:
     name: benchmarks
+    needs: start-runner
     runs-on: [self-hosted, asv]
 
     env:
@@ -24,14 +74,11 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v1
 
-    - name: Install GCC 9
-      run : sudo apt-get install -y g++-9
-
     - name: Install dependencies
       run: |
         pip install --upgrade pip
         pip install -e .
-        pip install asv
+        pip install asv --upgrade
 
     - name: Setup asv
       run: |
@@ -45,7 +92,7 @@ jobs:
 
     - name: Create results (html)
       run: |
-          asv publish --config benchmarks/regression/asv.conf.json
+        asv publish --config benchmarks/regression/asv.conf.json
 
     - name: Deploy results to devitocodes/devito-performance/gh-pages
       uses: peaceiris/actions-gh-pages@v2.5.0
@@ -54,3 +101,28 @@ jobs:
         EXTERNAL_REPOSITORY: devitocodes/devito-performance
         PUBLISH_BRANCH: gh-pages
         PUBLISH_DIR: ./benchmarks/regression/.asv/html
+
+  # Stop the runner
+  stop-runner:
+    name: stop-runner
+    needs: benchmarks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v1
+
+    - name: stop VM
+      env:
+        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
+        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
+        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
+        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      run: >
+        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\stopVM.ps1'"
+        -servicePrincipal $SP_APPID
+        -servicePrincipalSecret $SP_SECRET
+        -servicePrincipalTenantId $TENANT_ID
+        -azureSubscriptionName $SUB_ID
+        -resourceGroupName $RESOURCE_GROUP
+        -vmName $VM_NAME
