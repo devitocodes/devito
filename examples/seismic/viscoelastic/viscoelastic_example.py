@@ -46,9 +46,9 @@ if __name__ == "__main__":
     description = ("Example script for a set of viscoelastic operators.")
     parser = ArgumentParser(description=description)
     parser.add_argument("-nd", dest='ndim', default=3, type=int,
-                        help="Preset to determine the number of dimensions")
+                        help="Number of dimensions")
     parser.add_argument("-d", "--shape", default=(150, 150, 150), type=int, nargs="+",
-                        help="Determine the grid shape, defaults in (153, 153, 153)")
+                        help="Number of grid points along each axis")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,

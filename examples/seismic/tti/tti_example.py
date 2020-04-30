@@ -32,9 +32,9 @@ if __name__ == "__main__":
     description = ("Example script to execute a TTI forward operator.")
     parser = ArgumentParser(description=description)
     parser.add_argument("-nd", dest="ndim", default=3, type=int,
-                        help="Preset to determine the number of dimensions")
+                        help="Number of dimensions")
     parser.add_argument("-d", "--shape", default=(50, 50, 50), type=int, nargs="+",
-                        help="Determine the grid shape")
+                        help="Number of grid points along each axis")
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Whether or not to use an azimuth angle")
     parser.add_argument("-so", "--space_order", default=4,

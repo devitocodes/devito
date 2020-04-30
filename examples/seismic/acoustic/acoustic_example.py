@@ -67,9 +67,9 @@ if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
     parser.add_argument("-nd", dest="ndim", default=3, type=int,
-                        help="Preset to determine the number of dimensions")
+                        help="Number of dimensions")
     parser.add_argument("-d", "--shape", default=(51, 51, 51), type=int, nargs="+",
-                        help="Determine the grid shape")
+                        help="Number of grid points along each axis")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
     parser.add_argument("-so", "--space_order", default=6,
