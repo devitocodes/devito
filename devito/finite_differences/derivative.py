@@ -269,11 +269,11 @@ class Derivative(sympy.Derivative, Differentiable):
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
-        # Split the Add case to handle different staggereing
+        # Split the Add case to handle different staggering
         x0 = dict(func.indices_ref._getters)
         if self.expr.is_Add:
-            args = [self._new_from_self(expr=a, x0=x0) for a in self.expr._args_diff]
-            args += [a for a in self.expr.args if a not in self.expr._args_diff]
+            args = [self._new_from_self(expr=a, x0=x0) if a in self.expr._args_diff else a
+                    for a in self.expr.args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
             return self._new_from_self(x0=x0, expr=self.expr._gather_for_diff)
@@ -293,11 +293,12 @@ class Derivative(sympy.Derivative, Differentiable):
     def _eval_fd(self, expr):
         """
         Evaluate finite difference approximation of the Derivative.
-        The evaluation goes in four steps:
-        - 1: Evaluate derivatives within the expression. For example `f.dx * g` will
-        evaluate `f.dx` first.
+        Evaluation is carried out via the following four steps:
+        - 1: Evaluate derivatives within the expression. For example given
+        `f.dx * g`, `f.dx` will be evaluated first.
         - 2: Evaluate the finite difference for the (new) expression.
-        - 3: Evaluate remaining (as `g` may need to be evaluated at a different point).
+        - 3: Evaluate remaining terms (as `g` may need to be evaluated
+        at a different point).
         - 4: Apply substitutions.
 
         """
@@ -318,6 +319,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
         # Step 3: Evaluate remaining part of expression
         res = res.evaluate
+
         # Step 4: Apply substitution
         for e in self._subs:
             res = res.xreplace(e)

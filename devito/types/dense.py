@@ -953,12 +953,7 @@ class Function(DiscreteFunction, Differentiable):
 
     @cached_property
     def _fd_priority(self):
-        if self.staggered is None:
-            return 1
-        elif self.staggered is NODE:
-            return 1
-        else:
-            return 2
+        return 1 if self.staggered in [NODE, None] else 2
 
     @property
     def is_parameter(self):
@@ -967,9 +962,9 @@ class Function(DiscreteFunction, Differentiable):
     def _eval_at(self, func):
         if not self.is_parameter or self.staggered == func.staggered:
             return self
-        mapper = {self.indices_ref[d1]: func.indices_ref[d1]
-                  for d1 in self.dimensions
-                  if self.indices_ref[d1] is not func.indices_ref[d1]}
+        mapper = {self.indices_ref[d]: func.indices_ref[d]
+                  for d in self.dimensions
+                  if self.indices_ref[d] is not func.indices_ref[d]}
         if mapper:
             return self.subs(mapper)
         return self

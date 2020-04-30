@@ -334,13 +334,13 @@ class Mul(DifferentiableOp, sympy.Mul):
     def _gather_for_diff(self):
         """
         We handle Mul arguments by hand in case of staggered inputs
-        such as `f(x)*g(x + h_x/2)`
-        In that case, priority of indexing is applied to have single indices
+        such as `f(x)*g(x + h_x/2)` that will be transformed into
+        f(x + h_x/2)*g(x + h_x/2) and priority  of indexing is applied
+        to have single indices as in this example.
         The priority is from least to most:
             - param
             - NODE
             - staggered
-        For example f(x)*g(x + h_x/2) => f(x + h_x/2)*g(x + h_x/2)
         """
 
         if len(set(f.staggered for f in self._args_diff)) == 1:

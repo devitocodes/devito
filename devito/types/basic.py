@@ -15,7 +15,7 @@ from frozendict import frozendict
 from devito.data import default_allocator
 from devito.finite_differences import Evaluable
 from devito.parameters import configuration
-from devito.symbolics import aligned_ind
+from devito.symbolics import aligned_indices
 from devito.tools import Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
@@ -729,15 +729,20 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _eval_deriv(self):
         return self
 
-    @property
-    def on_grid(self):
-        return all([aligned_ind(i, j, d.spacing) for i, j, d in
+    @cached_property
+    def _is_on_grid(self):
+        """
+        Check whether the object is on the grid or need averaging.
+        For example, if the original non-staggered function is f(x)
+        then f(x) is on the grid and f(x + h_x/2) is off the grid.
+        """
+        return all([aligned_indices(i, j, d.spacing) for i, j, d in
                     zip(self.indices, self.indices_ref, self.dimensions)])
 
     @property
     def evaluate(self):
         # Average values if at a location not on the Function's grid
-        if self.on_grid:
+        if self._is_on_grid:
             return self
         weight = 1.0
         avg_list = [self]
