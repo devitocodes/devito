@@ -172,6 +172,8 @@ def get_platform():
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']
+        elif 'amd' in brand:
+            return platform_registry['amd']
     except:
         pass
 
@@ -256,6 +258,11 @@ class Arm(Cpu64):
     known_isas = ('fp', 'asimd', 'asimdrdm')
 
 
+class Amd(Cpu64):
+
+    known_isas = ('cpp', 'sse', 'avx', 'avx2')
+
+
 class Power(Cpu64):
 
     def _detect_isa(self):
@@ -297,11 +304,13 @@ CLX = Intel64('clx')
 KNL = Intel64('knl')
 KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
 ARM = Arm('arm')
+AMD = Amd('amd')
 POWER8 = Power('power8')
 POWER9 = Power('power9')
 
 # Devices
 NVIDIAX = Device('nvidiaX')
+AMDGPUX = Device('amdgpuX')
 
 
 platform_registry = {
@@ -316,10 +325,12 @@ platform_registry = {
     'clx': CLX,  # Coffee Lake
     'knl': KNL,
     'knl7210': KNL7210,
-    'arm': ARM,
+    'arm': ARM,  # Generic ARM CPU
+    'amd': AMD,  # Generic AMD CPU
     'power8': POWER8,
     'power9': POWER9,
-    'nvidiaX': NVIDIAX
+    'nvidiaX': NVIDIAX,  # Generic NVidia GPU
+    'amdgpuX': AMDGPUX   # Generic AMD GPU
 }
 """
 Registry dict for deriving Platform classes according to the environment variable
