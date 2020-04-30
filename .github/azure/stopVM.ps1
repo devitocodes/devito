@@ -24,7 +24,7 @@ param(
 
     [Parameter(Mandatory = $True)]
     [string]
-    $serverName
+    $vmName
 )
 
 az login `

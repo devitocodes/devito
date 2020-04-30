@@ -668,7 +668,7 @@ class ConditionalDimension(DerivedDimension):
     >>> i = Dimension(name='i')
     >>> ci = ConditionalDimension(name='ci', parent=i, factor=factor)
     >>> g = Function(name='g', shape=(size,), dimensions=(i,))
-    >>> f = Function(name='f', shape=(size/factor,), dimensions=(ci,))
+    >>> f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
     >>> op = Operator([Eq(g, 1), Eq(f, g)])
 
     The Operator generates the following for-loop (pseudocode)
@@ -690,7 +690,7 @@ class ConditionalDimension(DerivedDimension):
     >>> from sympy import And
     >>> ci = ConditionalDimension(name='ci', parent=i,
     ...                           condition=And(g[i] > 0, g[i] < 4, evaluate=False))
-    >>> f = Function(name='f', shape=(size/factor,), dimensions=(ci,))
+    >>> f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
     >>> op = Operator(Eq(f[g[i]], f[g[i]] + 1))
 
     The Operator generates the following for-loop (pseudocode)
