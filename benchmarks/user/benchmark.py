@@ -8,6 +8,7 @@ from devito import (clear_cache, configuration, info, warning, set_log_level,
                     switchconfig)
 from devito.compiler import IntelCompiler
 from devito.mpi import MPI
+from devito.operator.profiling import PerformanceSummary
 from devito.tools import all_equal, as_tuple, sweep
 
 from benchmarks.user.tools import Driver, Executor, RooflinePlotter
@@ -180,6 +181,8 @@ def option_performance(f):
 @benchmark.command(name='run')
 @option_simulation
 @option_performance
+@click.option('--dump-summary', default=False,
+              help='File where the performance results are saved')
 def cli_run(problem, **kwargs):
     """`click` interface for the `run` mode."""
     configuration['develop-mode'] = False
@@ -208,7 +211,16 @@ def run(problem, **kwargs):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
-    return solver.forward(autotune=autotune, **options)
+    retval = solver.forward(autotune=autotune, **options)
+
+    dumpfile = kwargs.pop('dump_summary')
+    if dumpfile:
+        with open(dumpfile, 'w') as f:
+            summary = retval[-1]
+            assert isinstance(summary, PerformanceSummary)
+            f.write(str(summary.globals['fdlike']))
+
+    return retval
 
 
 @benchmark.command(name='run-jit-backdoor')
