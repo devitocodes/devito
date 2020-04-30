@@ -823,7 +823,7 @@
 <span class="sd">    &gt;&gt;&gt; i = Dimension(name=&#39;i&#39;)</span>
 <span class="sd">    &gt;&gt;&gt; ci = ConditionalDimension(name=&#39;ci&#39;, parent=i, factor=factor)</span>
 <span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, shape=(size,), dimensions=(i,))</span>
-<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, shape=(size/factor,), dimensions=(ci,))</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, shape=(int(size/factor),), dimensions=(ci,))</span>
 <span class="sd">    &gt;&gt;&gt; op = Operator([Eq(g, 1), Eq(f, g)])</span>
 
 <span class="sd">    The Operator generates the following for-loop (pseudocode)</span>
@@ -845,7 +845,7 @@
 <span class="sd">    &gt;&gt;&gt; from sympy import And</span>
 <span class="sd">    &gt;&gt;&gt; ci = ConditionalDimension(name=&#39;ci&#39;, parent=i,</span>
 <span class="sd">    ...                           condition=And(g[i] &gt; 0, g[i] &lt; 4, evaluate=False))</span>
-<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, shape=(size/factor,), dimensions=(ci,))</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, shape=(int(size/factor),), dimensions=(ci,))</span>
 <span class="sd">    &gt;&gt;&gt; op = Operator(Eq(f[g[i]], f[g[i]] + 1))</span>
 
 <span class="sd">    The Operator generates the following for-loop (pseudocode)</span>
