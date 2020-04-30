@@ -5,11 +5,12 @@ import numpy as np
 import click
 import os
 from devito import (clear_cache, configuration, info, warning, set_log_level,
-                    switchconfig)
+                    switchconfig, norm)
 from devito.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.operator.profiling import PerformanceSummary
 from devito.tools import all_equal, as_tuple, sweep
+from devito.types.dense import DiscreteFunction
 
 from benchmarks.user.tools import Driver, Executor, RooflinePlotter
 
@@ -183,6 +184,8 @@ def option_performance(f):
 @option_performance
 @click.option('--dump-summary', default=False,
               help='File where the performance results are saved')
+@click.option('--dump-norms', default=False,
+              help='File where the output norms are saved')
 def cli_run(problem, **kwargs):
     """`click` interface for the `run` mode."""
     configuration['develop-mode'] = False
@@ -219,6 +222,13 @@ def run(problem, **kwargs):
             summary = retval[-1]
             assert isinstance(summary, PerformanceSummary)
             f.write(str(summary.globals['fdlike']))
+
+    dumpfile = kwargs.pop('dump_norms')
+    if dumpfile:
+        norms = ["'%s': %f" % (i.name, norm(i)) for i in retval[:-1]
+                 if isinstance(i, DiscreteFunction)]
+        with open(dumpfile, 'w') as f:
+            f.write("{%s}" % ', '.join(norms))
 
     return retval
 
