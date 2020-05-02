@@ -44,16 +44,16 @@ jobs:
       run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n $VM_NAME --query publicIps -o tsv)
       id: host
 
-    - name: start-runner-ap
+    - name: start actions runner app
       uses: fifsky/ssh-action@master
       with:
         command: |
-          cd actions-runner
-          nohup ./run.sh &
+          #!/bin/bash
+          nohup actions-runner/run.sh >/dev/null 2>&1 &
         host: ${{ steps.host.outputs.action_host }}
         user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
         pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        args: -tt
+        args: "-tt"
 
   # Run the asv benchmarks on the self-hosted runner
   benchmarks:
