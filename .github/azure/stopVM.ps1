@@ -37,7 +37,6 @@ az account set --subscription $azureSubscriptionName
 
 Write-Output "Stopping VM"
 try {
-    az vm stop -g $resourceGroupName -n $vmName --verbose
     az vm deallocate -g $resourceGroupName -n $vmName --verbose
     Write-Output "VM stopped"
     }

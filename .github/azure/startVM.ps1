@@ -44,6 +44,6 @@ catch {
     Write-Output "VM already running"
     }
 # Add pause for safety
-Start-Sleep -s 60
+Start-Sleep -s 120
 az vm list -d -o table --query "[?name=='$vmName']"
 Write-Output ""
