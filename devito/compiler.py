@@ -12,7 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.archinfo import NVIDIAX, SKX, POWER8, POWER9
+from devito.archinfo import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -383,11 +383,18 @@ class ClangCompiler(Compiler):
 
         if platform is NVIDIAX:
             self.cflags.remove('-std=c99')
-            # Clang has offloading support via OpenMP
+            # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 # TODO: Need a generic -march setup
                 # self.cflags += ['-Xopenmp-target', '-march=sm_37']
                 self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
+        elif platform is AMDGPUX:
+            self.cflags.remove('-std=c99')
+            # Add flags for OpenMP offloading
+            if language in ['C', 'openmp']:
+                self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
+                self.ldflags += ['-fopenmp', '-fopenmp-targets=amdgcn-amd-amdhs']
+                self.ldflags += ['-march=%s' % platform.march]
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures

@@ -278,6 +278,8 @@ class Device(Platform):
         self.cores_physical = cores_physical
         self.isa = isa
 
+        self.march = self._detect_march()
+
     @classmethod
     def _mro(cls):
         # Retain only the Device Platforms
@@ -288,6 +290,41 @@ class Device(Platform):
             else:
                 break
         return retval
+
+    @classmethod
+    def _detect_march(cls):
+        return None
+
+
+class NvidiaDevice(Device):
+    pass
+
+
+class AmdDevice(Device):
+
+    @classmethod
+    def _detect_march(cls):
+        # TODO: this corresponds to Vega, which acts as the fallback `march`
+        # in case we don't manage to detect the actual `march`. Can we improve this?
+        fallback = 'gfx900'
+
+        # The AMD's AOMP compiler toolkit ships the `mygpu` program to (quoting
+        # from the --help):
+        #
+        #     Print out the real gpu name for the current system
+        #     or for the codename specified with -getgpuname option.
+        #     mygpu will only print values accepted by cuda clang in
+        #     the clang argument --cuda-gpu-arch.
+        try:
+            p1 = Popen(['mygpu', '-d', 'gfx900'], stdout=PIPE, stderr=PIPE)
+        except OSError:
+            return fallback
+
+        output, _ = p1.communicate()
+        if output:
+            return output.decode("utf-8").strip()
+        else:
+            return fallback
 
 
 # CPUs
@@ -309,8 +346,8 @@ POWER8 = Power('power8')
 POWER9 = Power('power9')
 
 # Devices
-NVIDIAX = Device('nvidiaX')
-AMDGPUX = Device('amdgpuX')
+NVIDIAX = NvidiaDevice('nvidiaX')
+AMDGPUX = AmdDevice('amdgpuX')
 
 
 platform_registry = {
