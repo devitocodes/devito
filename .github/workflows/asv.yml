@@ -84,11 +84,11 @@ jobs:
       run: |
         bash benchmarks/regression/merge_history.sh
         cp merge_history.txt benchmarks/regression/
-        asv machine --config benchmarks/regression/asv.conf.json --yes
+        asv machine --config benchmarks/regression/asv.conf.json --machine F8s_v2 --os ubuntu-18.04 --arch x86-64 --cpu IntelXeon8168 --num_cpu 8 --ram 16GB
 
     - name: Run benchmarks
       run: |
-        asv run -v --show-stderr --config benchmarks/regression/asv.conf.json HASHFILE:merge_history.txt --cpu-affinity 0-7
+        asv run -v --show-stderr --config benchmarks/regression/asv.conf.json HASHFILE:merge_history.txt --cpu-affinity 0-7 --machine F8s_v2
 
     - name: Create results (html)
       run: |
