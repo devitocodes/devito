@@ -88,6 +88,34 @@ jobs:
       run: |
         asv run -v --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine F8s_v2
 
+    - name: Stash benchmarks results
+      run: |
+        mkdir -p /tmp/asv-results/F8s_v2
+        mv benchmarks/regression/.asv/results/benchmarks.json /tmp/asv-results
+        mv benchmarks/regression/.asv/results/F8s_v2/*py*.json /tmp/asv-results/F8s_v2/
+
+    - name: Checkout asv-results branch
+      uses: actions/checkout@v1
+      with:
+        ref: asv-results
+
+    - name: Commit benchmarks results
+      run: |
+        mv /tmp/asv-results/benchmarks.json benchmarks/regression/.asv/results
+        mv /tmp/asv-results/F8s_v2/* benchmarks/regression/.asv/results/F8s_v2/
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add -f benchmarks/regression/.asv/results/
+        git status
+        git commit -m "Commit ASV results"
+
+    - name: Push benchmarks results to the asv-results branch
+      uses: ad-m/github-push-action@master
+      with:
+        branch: asv-results
+        force: true
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Create results (html)
       run: |
         asv publish --config benchmarks/regression/asv.conf.json
