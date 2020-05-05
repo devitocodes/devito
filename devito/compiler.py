@@ -393,7 +393,9 @@ class ClangCompiler(Compiler):
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
-                self.ldflags += ['-fopenmp', '-fopenmp-targets=amdgcn-amd-amdhs']
+                self.ldflags += ['-fopenmp',
+                                 '-fopenmp-targets=amdgcn-amd-amdhs',
+                                 '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += ['-march=%s' % platform.march]
         else:
             if platform in [POWER8, POWER9]:
@@ -407,6 +409,32 @@ class ClangCompiler(Compiler):
     def __lookup_cmds__(self):
         self.CC = 'clang'
         self.CXX = 'clang++'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
+
+
+class AOMPCompiler(Compiler):
+
+    """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
+
+    def __init__(self, *args, **kwargs):
+        super(AOMPCompiler, self).__init__(*args, **kwargs)
+
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
+
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        if platform in [NVIDIAX, AMDGPUX]:
+            self.cflags.remove('-std=c99')
+        elif platform in [POWER8, POWER9]:
+            # It doesn't make much sense to use AOMP on Power, but it should work
+            self.cflags += ['-mcpu=native']
+        else:
+            self.cflags += ['-march=native']
+
+    def __lookup_cmds__(self):
+        self.CC = 'aompcc'
+        self.CXX = 'aompcc'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
@@ -542,6 +570,7 @@ compiler_registry = {
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
     'clang': ClangCompiler,
+    'aomp': AOMPCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
     'osx': ClangCompiler,
