@@ -262,8 +262,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
 def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     """Expression from lists of indices and weights."""
     diff = dim.spacing
-    all_dims = tuple(set((expr.indices_ref[dim],) + tuple(expr.indices_ref[dim]
-                         for i in expr.dimensions if i.root is dim)))
+
     d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
 
     mapper = {dim: d0, diff: matvec*diff}
@@ -275,8 +274,9 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
             iloc = i.xreplace(mapper)
         except AttributeError:
             iloc = i
-        subs = dict((d, iloc) for d in all_dims)
+        subs = {expr.indices_ref[dim]: iloc}
         terms.append(expr.subs(subs) * c)
+
     deriv = Add(*terms)
 
     return deriv.evalf(_PRECISION)

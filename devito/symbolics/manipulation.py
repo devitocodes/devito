@@ -12,7 +12,7 @@ from devito.tools import as_tuple, flatten, split
 from devito.types.equation import Eq
 
 __all__ = ['yreplace', 'xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
-           'split_affine', 'uxreplace']
+           'split_affine', 'uxreplace', 'aligned_indices']
 
 
 def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eager=False):
@@ -344,3 +344,14 @@ def indexify(expr):
         except AttributeError:
             pass
     return expr.xreplace(mapper)
+
+
+def aligned_indices(i, j, spacing):
+    """
+    Check if two indices are aligned. Two indices are aligned if they
+    differ by an Integer*spacing.
+    """
+    try:
+        return int((i - j)/spacing) == (i - j)/spacing
+    except TypeError:
+        return False
