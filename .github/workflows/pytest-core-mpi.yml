@@ -46,6 +46,9 @@ jobs:
         # py.test --nbval examples/mpi
         # ipcluster stop --profile=mpi
 
+    - name: Test mpi fwi
+      run: mpirun -n 4 python examples/seismic/inversion/fwi.py
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
       with:

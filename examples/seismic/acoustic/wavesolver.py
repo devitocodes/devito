@@ -96,9 +96,7 @@ class AcousticWaveSolver(object):
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
         # Create a new receiver object to store the result
-        rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.geometry.time_axis,
-                              coordinates=self.geometry.rec_positions)
+        rec = rec or self.geometry.rec
 
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,

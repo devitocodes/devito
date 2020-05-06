@@ -66,21 +66,26 @@ class GenericModel(object):
     General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
-                 dtype=np.float32, subdomains=(), damp_mask=False):
+                 dtype=np.float32, subdomains=(), damp_mask=False,
+                 **kwargs):
         self.shape = shape
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
 
         # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index
-        origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
-        phydomain = PhysicalDomain(self.nbl)
-        subdomains = subdomains + (phydomain, )
-        shape_pml = np.array(shape) + 2 * self.nbl
-        # Physical extent is calculated per cell, so shape - 1
-        extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml, dtype=dtype,
-                         subdomains=subdomains)
+        grid = kwargs.get('grid')
+        if grid is None:
+            origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
+            phydomain = PhysicalDomain(self.nbl)
+            subdomains = subdomains + (phydomain, )
+            shape_pml = np.array(shape) + 2 * self.nbl
+            # Physical extent is calculated per cell, so shape - 1
+            extent = tuple(np.array(spacing) * (shape_pml - 1))
+            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
+                             dtype=dtype, subdomains=subdomains)
+        else:
+            self.grid = grid
 
         if self.nbl != 0:
             # Create dampening field as symbol `damp`
@@ -199,7 +204,7 @@ class Model(GenericModel):
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
                  subdomains=(), damp_mask=False, **kwargs):
         super(Model, self).__init__(origin, spacing, shape, space_order, nbl, dtype,
-                                    subdomains, damp_mask=damp_mask)
+                                    subdomains, damp_mask=damp_mask, **kwargs)
 
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
