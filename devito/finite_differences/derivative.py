@@ -269,14 +269,24 @@ class Derivative(sympy.Derivative, Differentiable):
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
-        # Split the Add case to handle different staggering
         x0 = dict(func.indices_ref._getters)
         if self.expr.is_Add:
+            # Derivatives are linear and  the derivative of an Add can be treated as an
+            # Add of derivatives which makes (u(x + h_x/2) + v(x)).dx` easier to handle
+            # since u(x + h_x/2) and v(x) require different indices
+            # for the finite difference.
             args = [self._new_from_self(expr=a, x0=x0) if a in self.expr._args_diff else a
                     for a in self.expr.args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
+            # For Mul, We treat the basic case `u(x + h_x/2) * v(x) which is what appear
+            # in most equation with div(a * u) for example. The expression is re-centered
+            # at the highest priority index (see _gather_for_diff) to compute the
+            # derivative at x0.
             return self._new_from_self(x0=x0, expr=self.expr._gather_for_diff)
+        # For every other cases, that has more functions or more complexe arithmetic,
+        # there is not actual way to decide what to do so it’s as safe to use
+        # the expression as is.
         return self._new_from_self(x0=x0)
 
     @property
