@@ -1106,6 +1106,10 @@
         <span class="c1"># parameter has to be computed at x + hx/2)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_parameter</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;parameter&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_fd_priority</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span> <span class="ow">in</span> <span class="p">[</span><span class="n">NODE</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="k">else</span> <span class="mi">2</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_parameter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_parameter</span>
@@ -1113,9 +1117,12 @@
     <span class="k">def</span> <span class="nf">_eval_at</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_parameter</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span> <span class="o">==</span> <span class="n">func</span><span class="o">.</span><span class="n">staggered</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span>
-
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="bp">self</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d1</span><span class="p">]:</span> <span class="n">func</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d1</span><span class="p">]</span>
-                          <span class="k">for</span> <span class="n">d1</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">})</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d</span><span class="p">]:</span> <span class="n">func</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
+                  <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span>
+                  <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">func</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">d</span><span class="p">]}</span>
+        <span class="k">if</span> <span class="n">mapper</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -1454,6 +1461,10 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`save` can be None, int or Buffer, not </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">save</span><span class="p">))</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_fd_priority</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_fd_priority</span> <span class="o">+</span> <span class="o">.</span><span class="mi">1</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">time_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
