@@ -82,6 +82,7 @@ class Cached(object):
             The cache key of the object whose state is used to initialize `self`.
             It must be hashable.
         """
+
         self.__dict__ = _SymbolCache[key]().__dict__
 
     def __hash__(self):

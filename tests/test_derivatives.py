@@ -421,7 +421,7 @@ class TestFD(object):
         deriv = getattr(f, derivative)
         coeff = 1 if derivative == 'dx2' else -1
         expected = coeff * getattr(f, derivative).evaluate.subs({x.spacing: -x.spacing})
-        assert deriv.T.evaluate == expected
+        assert simplify(deriv.T.evaluate) == simplify(expected)
 
         # Compute numerical derivatives and verify dot test
         #  i.e <f.dx, g> = <f, g.dx.T>

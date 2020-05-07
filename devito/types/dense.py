@@ -951,6 +951,10 @@ class Function(DiscreteFunction, Differentiable):
         # parameter has to be computed at x + hx/2)
         self._is_parameter = kwargs.get('parameter', False)
 
+    @cached_property
+    def _fd_priority(self):
+        return 1 if self.staggered in [NODE, None] else 2
+
     @property
     def is_parameter(self):
         return self._is_parameter
@@ -958,9 +962,12 @@ class Function(DiscreteFunction, Differentiable):
     def _eval_at(self, func):
         if not self.is_parameter or self.staggered == func.staggered:
             return self
-
-        return self.subs({self.indices_ref[d1]: func.indices_ref[d1]
-                          for d1 in self.dimensions})
+        mapper = {self.indices_ref[d]: func.indices_ref[d]
+                  for d in self.dimensions
+                  if self.indices_ref[d] is not func.indices_ref[d]}
+        if mapper:
+            return self.subs(mapper)
+        return self
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1299,6 +1306,10 @@ class TimeFunction(Function):
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
         return tuple(shape)
+
+    @cached_property
+    def _fd_priority(self):
+        return super(TimeFunction, self)._fd_priority + .1
 
     @property
     def time_order(self):

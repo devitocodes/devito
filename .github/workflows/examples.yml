@@ -54,6 +54,7 @@ jobs:
         python examples/seismic/acoustic/acoustic_example.py --full
         python examples/seismic/acoustic/acoustic_example.py --full --checkpointing
         python examples/seismic/acoustic/acoustic_example.py --constant --full
+        python examples/seismic/inversion/fwi.py
 
     - name: Seismic tti examples
       shell: bash -l {0}

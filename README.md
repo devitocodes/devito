@@ -6,6 +6,8 @@
 [![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)](https://codecov.io/gh/devitocodes/devito)
 [![Slack Status](https://img.shields.io/badge/chat-on%20slack-%2336C5F0)](https://opesci-slackin.now.sh)
 [![asv](http://img.shields.io/badge/benchmarked%20by-asv-blue.svg?style=flat)](https://devitocodes.github.io/devito-performance)
+[![PyPI version](https://badge.fury.io/py/devito.svg)](https://badge.fury.io/py/devito)
+
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
 optimized stencil computation (e.g., finite differences, image processing,
@@ -15,11 +17,12 @@ generation and just-in-time compilation to execute optimized computational
 kernels on several computer platforms, including CPUs, GPUs, and clusters
 thereof.
 
-- [About Devito](#about-devito)
-- [Installation](#installation)
-- [Resources](#resources)
-- [Performance](#performance)
-- [Get in touch](#get-in-touch)
+- [Devito: Fast Stencil Computation from Symbolic Specification](#devito-fast-stencil-computation-from-symbolic-specification)
+  - [About Devito](#about-devito)
+  - [Installation](#installation)
+  - [Resources](#resources)
+  - [Performance](#performance)
+  - [Get in touch](#get-in-touch)
 
 ## About Devito
 
