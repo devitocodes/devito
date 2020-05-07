@@ -8,7 +8,7 @@ from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
-from devito.symbolics import indexify, retrieve_functions
+from devito.symbolics import indexify, retrieve_functions, CondEq
 from devito.types import Array
 
 
@@ -829,6 +829,27 @@ class TestConditionalDimension(object):
             F[i] = i if i < stop_value else stop_value
 
         assert np.all(f.data == F)
+
+    def test_condition_lowering(self):
+        """
+        Test the lowering of a ConditionalDimension's condition.
+        """
+
+        # This test makes an Operator that should indexify and lower the condition
+        # passed in the Conditional Dimension
+
+        grid = Grid(shape=(3, 3))  # Define grid
+
+        # Define Function
+        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+        g.data[:] = 1
+        x, y = grid.dimensions
+
+        ci = ConditionalDimension(name='ci', parent=y, condition=CondEq(g[x, y], 1))
+
+        f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
+        Operator(Eq(f[x, ci], g[x, y])).apply()
+        assert np.all(f.data == 1)
 
     @skipif('device')
     def test_no_fusion_simple(self):
