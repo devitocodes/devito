@@ -89,20 +89,24 @@ jobs:
         asv run -v --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine F8s_v2
 
     - name: Stash benchmarks results
-      run: |
-        mkdir -p /tmp/asv-results/F8s_v2
-        mv benchmarks/regression/.asv/results/benchmarks.json /tmp/asv-results
-        mv benchmarks/regression/.asv/results/F8s_v2/*py*.json /tmp/asv-results/F8s_v2/
+      uses: actions/upload-artifact@v2
+      with:
+        name: asv-results
+        path: /benchmarks/regression/.asv/results/
 
     - name: Checkout asv-results branch
       uses: actions/checkout@v1
       with:
         ref: asv-results
 
+    - name: Recover benchmarks results
+      uses: actions/download-artifact@v2
+      with:
+        name: asv-results
+        path: /benchmarks/regression/.asv/results
+
     - name: Commit benchmarks results
       run: |
-        mv /tmp/asv-results/benchmarks.json benchmarks/regression/.asv/results
-        mv /tmp/asv-results/F8s_v2/* benchmarks/regression/.asv/results/F8s_v2/
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add -f benchmarks/regression/.asv/results/
