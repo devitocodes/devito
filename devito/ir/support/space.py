@@ -4,12 +4,11 @@ from functools import reduce
 from operator import mul
 
 from cached_property import cached_property
-from frozendict import frozendict
 from sympy import Expr
 
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
-                          toposort, is_integer)
+                          frozendict, toposort, is_integer)
 from devito.types import Dimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',

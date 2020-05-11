@@ -1,11 +1,10 @@
 pip>=9.0.1
 numpy>=1.14
-sympy>=1.4
+sympy>=1.5
 scipy
 pytest>=3.6
 pytest-runner
 flake8>=2.1.0
-jedi
 nbval
 cached-property
 psutil>=5.1.0
@@ -16,7 +15,6 @@ click
 codecov
 pytest-cov
 multidict
-frozendict
 anytree>=2.4.3
 pyrevolve>=2.1.3
 distributed>=1.27
