@@ -5,7 +5,6 @@ scipy
 pytest>=3.6
 pytest-runner
 flake8>=2.1.0
-jedi
 nbval
 cached-property
 psutil>=5.1.0
