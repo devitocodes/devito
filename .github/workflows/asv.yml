@@ -86,7 +86,7 @@ jobs:
 
     - name: Run benchmarks
       run: |
-        asv run -v --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine F8s_v2
+        asv run -v --strict --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine F8s_v2
 
     - name: Checkout asv-results branch
       uses: actions/checkout@v1
