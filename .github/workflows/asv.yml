@@ -88,22 +88,11 @@ jobs:
       run: |
         asv run -v --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine F8s_v2
 
-    - name: Stash benchmarks results
-      uses: actions/upload-artifact@v2
-      with:
-        name: asv-results
-        path: /benchmarks/regression/.asv/results/
-
     - name: Checkout asv-results branch
       uses: actions/checkout@v1
       with:
         ref: asv-results
-
-    - name: Recover benchmarks results
-      uses: actions/download-artifact@v2
-      with:
-        name: asv-results
-        path: /benchmarks/regression/.asv/results
+        clean: false
 
     - name: Commit benchmarks results
       run: |
