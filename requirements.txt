@@ -16,7 +16,6 @@ click
 codecov
 pytest-cov
 multidict
-frozendict
 anytree>=2.4.3
 pyrevolve>=2.1.3
 distributed>=1.27

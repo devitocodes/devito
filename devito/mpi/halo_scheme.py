@@ -3,12 +3,11 @@ from itertools import product
 from operator import attrgetter
 
 from cached_property import cached_property
-from frozendict import frozendict
 from sympy import Max, Min
 
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
-from devito.tools import Tag, as_mapper, as_tuple, filter_ordered, flatten
+from devito.tools import Tag, as_mapper, as_tuple, filter_ordered, flatten, frozendict
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException']
 
