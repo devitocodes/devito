@@ -17,12 +17,11 @@ generation and just-in-time compilation to execute optimized computational
 kernels on several computer platforms, including CPUs, GPUs, and clusters
 thereof.
 
-- [Devito: Fast Stencil Computation from Symbolic Specification](#devito-fast-stencil-computation-from-symbolic-specification)
-  - [About Devito](#about-devito)
-  - [Installation](#installation)
-  - [Resources](#resources)
-  - [Performance](#performance)
-  - [Get in touch](#get-in-touch)
+- [About Devito](#about-devito)
+- [Installation](#installation)
+- [Resources](#resources)
+- [Performance](#performance)
+- [Get in touch](#get-in-touch)
 
 ## About Devito
 
