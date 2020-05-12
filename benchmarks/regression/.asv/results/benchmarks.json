@@ -1,0 +1,125 @@
+{
+    "acoustic.IsotropicAcoustic.time_forward": {
+        "code": "class IsotropicAcoustic:\n    def time_forward(self, shape, space_order):\n        self.solver.forward(x0_blk0_size=IsotropicAcoustic.x0_blk0_size,\n                            y0_blk0_size=IsotropicAcoustic.y0_blk0_size,\n                            time_M=50)\n\n    def setup(self, shape, space_order):\n        self.solver = acoustic_setup(shape=shape, space_order=space_order,\n                                     opt=('advanced', {'openmp': True}))",
+        "min_run_count": 2,
+        "name": "acoustic.IsotropicAcoustic.time_forward",
+        "number": 0,
+        "param_names": [
+            "shape",
+            "space_order"
+        ],
+        "params": [
+            [
+                "(492, 492, 492)"
+            ],
+            [
+                "12"
+            ]
+        ],
+        "processes": 2,
+        "repeat": 3,
+        "sample_time": 0.01,
+        "timeout": 600.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "f8ca35d4df15942c3d0503d30af68493596ed84c3960fc10c4d50b767e79196f",
+        "warmup_time": -1
+    },
+    "codegen.TTI.time_adjoint": {
+        "code": "class TTI:\n    def time_adjoint(self):\n        self.solver.op_adj()\n\n    def setup(self):\n        self.solver = tti_setup(space_order=TTI.space_order)",
+        "min_run_count": 2,
+        "name": "codegen.TTI.time_adjoint",
+        "number": 0,
+        "param_names": [],
+        "params": [],
+        "processes": 2,
+        "repeat": 1,
+        "sample_time": 0.01,
+        "timeout": 600.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "792c265ef3a829b1d897ea464b5694e2b3529736fd92aedcb7713714b6aad671",
+        "warmup_time": -1
+    },
+    "codegen.TTI.time_forward": {
+        "code": "class TTI:\n    def time_forward(self):\n        self.solver.op_fwd()\n\n    def setup(self):\n        self.solver = tti_setup(space_order=TTI.space_order)",
+        "min_run_count": 2,
+        "name": "codegen.TTI.time_forward",
+        "number": 0,
+        "param_names": [],
+        "params": [],
+        "processes": 2,
+        "repeat": 1,
+        "sample_time": 0.01,
+        "timeout": 600.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "2edfcba3adca42090ac1dc38625050a7c78bad56fe1b3a4e24b71957ffc758a5",
+        "warmup_time": -1
+    },
+    "simple_operators.time_basic": {
+        "code": "def time_basic():\n    grid = Grid(shape=(400, 400, 400))\n\n    f = TimeFunction(name='f', grid=grid)\n\n    op = Operator(Eq(f.forward, f + 1))\n\n    op.apply(time_M=100)",
+        "min_run_count": 2,
+        "name": "simple_operators.time_basic",
+        "number": 0,
+        "param_names": [],
+        "params": [],
+        "processes": 2,
+        "repeat": 3,
+        "sample_time": 0.01,
+        "timeout": 60.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "19da0630eea256a3d1f0809a124e82601ddb1967a7c8719ea5886f0ab6d6708f",
+        "warmup_time": -1
+    },
+    "simple_operators.time_gaussian_smoother": {
+        "code": "def time_gaussian_smoother():\n    grid = Grid(shape=(400, 400, 400))\n\n    f = Function(name='f', grid=grid, space_order=12)\n\n    gaussian_smooth(f, sigma=0.5)",
+        "min_run_count": 2,
+        "name": "simple_operators.time_gaussian_smoother",
+        "number": 0,
+        "param_names": [],
+        "params": [],
+        "processes": 2,
+        "repeat": 3,
+        "sample_time": 0.01,
+        "timeout": 60.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "7abb634ac37c967e173f4450f9dc1090a382e2bc61d798a300ce63502b4c9866",
+        "warmup_time": -1
+    },
+    "simple_operators.time_laplacian": {
+        "code": "def time_laplacian():\n    grid = Grid(shape=(400, 400, 400))\n\n    f = TimeFunction(name='f', grid=grid, space_order=2)\n\n    op = Operator(Eq(f.forward, 1e-8*(f.laplace + 1)))\n\n    op.apply(time_M=100)",
+        "min_run_count": 2,
+        "name": "simple_operators.time_laplacian",
+        "number": 0,
+        "param_names": [],
+        "params": [],
+        "processes": 2,
+        "repeat": 3,
+        "sample_time": 0.01,
+        "timeout": 60.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "c4d5e7a640a02bc53f2cb9d04a424c0bdc8f5b45d1e171c987c80c8e5c9066f9",
+        "warmup_time": -1
+    },
+    "simple_operators.time_norm": {
+        "code": "def time_norm():\n    grid = Grid(shape=(400, 400, 400))\n\n    f = TimeFunction(name='f', grid=grid, space_order=2)\n\n    norm(f)",
+        "min_run_count": 2,
+        "name": "simple_operators.time_norm",
+        "number": 0,
+        "param_names": [],
+        "params": [],
+        "processes": 2,
+        "repeat": 3,
+        "sample_time": 0.01,
+        "timeout": 60.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "09ab2f25734f0c8be412feb02f7c5e174c068bee3b0b7fcaddc93351240eae29",
+        "warmup_time": -1
+    },
+    "version": 2
+}

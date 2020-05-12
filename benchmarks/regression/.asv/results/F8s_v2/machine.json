@@ -1,0 +1,9 @@
+{
+    "arch": "x86-64",
+    "cpu": "IntelXeon8168",
+    "machine": "F8s_v2",
+    "num_cpu": "8",
+    "os": "ubuntu-18.04",
+    "ram": "16GB",
+    "version": 1
+}
