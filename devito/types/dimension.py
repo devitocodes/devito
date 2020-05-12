@@ -6,9 +6,7 @@ from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
-# from devito.ir.support import indexify_expr
 from devito.logger import debug
-from devito.symbolics import (retrieve_indexed, retrieve_functions, uxreplace)
 from devito.tools import Pickable, dtype_to_cstr, is_integer, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
@@ -722,41 +720,18 @@ class ConditionalDimension(DerivedDimension):
     is_Conditional = True
 
     def __init_finalize__(self, name, parent, factor=None, condition=None,
-                          indirect=False, **kwargs):
+                          indirect=False):
         super().__init_finalize__(name, parent)
 
-        # condition = indexify_expr(condition)
-        # import pdb; pdb.set_trace()
-        processed = []
-        expr = condition
-        dimension_map = {}
+        # Local import of expr_lowering
+        from devito.ir.support import expr_lowering
 
-        # Handle Functions (typical case)
-        mapper = {f: f.indexify(lshift=True, subs=dimension_map)
-                  for f in retrieve_functions(expr)}
-
-        # Handle Indexeds (from index notation)
-        for i in retrieve_indexed(expr):
-            f = i.function
-
-        # Introduce shifting to align with the computational domain
-            indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
-
-        # Apply substitutions, if necessary
-            if dimension_map:
-                indices = [j.xreplace(dimension_map) for j in indices]
-
-            mapper[i] = f.indexed[indices]
-
-        subs = kwargs.get('subs')
-        if subs:
-            # Include the user-supplied substitutions, and use
-            # `xreplace` for constant folding
-            processed.append(expr.xreplace({**mapper, **subs}))
-        else:
-            processed.append(uxreplace(expr, mapper))
+        expressions = []
+        expressions.append(condition)
+        processed = expr_lowering(expressions)
 
         self._factor = factor
+        # import pdb; pdb.set_trace()
         self._condition = processed[0]
         self._indirect = indirect
 

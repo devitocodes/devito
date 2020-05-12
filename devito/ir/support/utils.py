@@ -8,7 +8,7 @@ from devito.tools import as_tuple, flatten, filter_sorted
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'detect_io', 'indexify_expr']
+           'detect_io', 'expr_lowering']
 
 
 def detect_accesses(exprs):
@@ -161,15 +161,17 @@ def detect_io(exprs, relax=False):
     return filter_sorted(reads), filter_sorted(writes)
 
 
-def indexify_expr(expressions, **kwargs):
+def expr_lowering(expressions, **kwargs):
     # Indexification
     # E.g., f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
-    # import pdb; pdb.set_trace()
     processed = []
     for expr in expressions:
-        if expr.subdomain:
-            dimension_map = expr.subdomain.dimension_map
-        else:
+        try:
+            if expr.subdomain:
+                dimension_map = expr.subdomain.dimension_map
+            else:
+                dimension_map = {}
+        except:
             dimension_map = {}
 
         # Handle Functions (typical case)
@@ -196,4 +198,5 @@ def indexify_expr(expressions, **kwargs):
             processed.append(expr.xreplace({**mapper, **subs}))
         else:
             processed.append(uxreplace(expr, mapper))
+
     return processed

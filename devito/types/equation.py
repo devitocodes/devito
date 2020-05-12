@@ -1,4 +1,4 @@
-"""User API to specify equations."""
+"""User API to specify equations and relations."""
 
 import sympy
 
@@ -7,7 +7,8 @@ from cached_property import cached_property
 from devito.finite_differences import Evaluable, default_rules
 from devito.tools import as_tuple
 
-__all__ = ['Eq', 'Inc', 'solve']
+__all__ = ['Eq', 'Inc', 'solve', 'Le', 'Lt', 'Ge',
+           'Gt', 'Ne']
 
 
 class Eq(sympy.Eq, Evaluable):
@@ -155,6 +156,191 @@ class Eq(sympy.Eq, Evaluable):
         return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
 
     __repr__ = __str__
+
+
+class Ne(sympy.Ne):
+    """
+    A Not-Equal ("!=") relation between two objects, the left-hand side and the
+    right-hand side.
+
+    The left-hand side may be a Function or a SparseFunction. The right-hand
+    side may be any arbitrary expressions with numbers, Dimensions, Constants,
+    Functions and SparseFunctions as operands.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like, optional
+        The right-hand side. Defaults to 0.
+    subdomain : SubDomain, optional
+        To restrict the evalaution of the relation to a particular sub-region in the
+        computational domain.
+
+    Examples
+    --------
+
+    Notes
+    -----
+    """
+
+    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
+        obj = sympy.Ne.__new__(self, lhs, rhs, **kwargs)
+        obj._subdomain = subdomain
+        return obj
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which the Le is defined."""
+        return self._subdomain
+
+
+class Le(sympy.Le):
+    """
+    A less-than ("<=") relation between two objects, the left-hand side and the
+    right-hand side.
+
+    The left-hand side may be a Function or a SparseFunction. The right-hand
+    side may be any arbitrary expressions with numbers, Dimensions, Constants,
+    Functions and SparseFunctions as operands.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like, optional
+        The right-hand side. Defaults to 0.
+    subdomain : SubDomain, optional
+        To restrict the evalaution of the relation to a particular sub-region in the
+        computational domain.
+
+    Examples
+    --------
+
+    Notes
+    -----
+    """
+
+    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
+        obj = sympy.Le.__new__(self, lhs, rhs, **kwargs)
+        obj._subdomain = subdomain
+        return obj
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which the Le is defined."""
+        return self._subdomain
+
+
+class Lt(sympy.Lt):
+    """
+    A strict-less-than ("<") relation between two objects, the left-hand side and the
+    right-hand side.
+
+    The left-hand side may be a Function or a SparseFunction. The right-hand
+    side may be any arbitrary expressions with numbers, Dimensions, Constants,
+    Functions and SparseFunctions as operands.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like, optional
+        The right-hand side. Defaults to 0.
+    subdomain : SubDomain, optional
+        To restrict the evalaution of the relation to a particular sub-region in the
+        computational domain.
+
+    Examples
+    --------
+
+    Notes
+    -----
+    """
+
+    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
+        obj = sympy.Lt.__new__(self, lhs, rhs, **kwargs)
+        obj._subdomain = subdomain
+        return obj
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which the Lt is defined."""
+        return self._subdomain
+
+
+class Ge(sympy.Ge):
+    """
+    A greater-than (">=") relation between two objects, the left-hand side and the
+    right-hand side.
+
+    The left-hand side may be a Function or a SparseFunction. The right-hand
+    side may be any arbitrary expressions with numbers, Dimensions, Constants,
+    Functions and SparseFunctions as operands.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like, optional
+        The right-hand side. Defaults to 0.
+    subdomain : SubDomain, optional
+        To restrict the evalaution of the relation to a particular sub-region in the
+        computational domain.
+
+    Examples
+    --------
+
+    Notes
+    -----
+    """
+
+    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
+        obj = sympy.Ge.__new__(self, lhs, rhs, **kwargs)
+        obj._subdomain = subdomain
+        return obj
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which the Ge is defined."""
+        return self._subdomain
+
+
+class Gt(sympy.Gt):
+    """
+    A strict-greater-than (">") relation between two objects, the left-hand side and the
+    right-hand side.
+
+    The left-hand side may be a Function or a SparseFunction. The right-hand
+    side may be any arbitrary expressions with numbers, Dimensions, Constants,
+    Functions and SparseFunctions as operands.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like, optional
+        The right-hand side. Defaults to 0.
+    subdomain : SubDomain, optional
+        To restrict the evalaution of the relation to a particular sub-region in the
+        computational domain.
+
+    Examples
+    --------
+
+    Notes
+    -----
+    """
+
+    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
+        obj = sympy.Gt.__new__(self, lhs, rhs, **kwargs)
+        obj._subdomain = subdomain
+        return obj
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which the Gt is defined."""
+        return self._subdomain
 
 
 class Inc(Eq):
