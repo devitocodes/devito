@@ -78,7 +78,7 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -e .
-        pip install asv --upgrade
+        pip install --upgrade https://github.com/airspeed-velocity/asv
 
     - name: Setup asv
       run: |
