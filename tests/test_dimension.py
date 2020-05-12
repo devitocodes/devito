@@ -6,10 +6,11 @@ import pytest
 
 from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
-                    Eq, Operator, Constant, Dimension, SubDimension, switchconfig)
+                    Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
+                    SubDomain)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
-from devito.symbolics import indexify, retrieve_functions, CondEq
-from devito.types import Array
+from devito.symbolics import indexify, retrieve_functions, CondEq, CondNe
+from devito.types import Array, Lt, Le, Gt, Ge
 
 
 class TestSubDimension(object):
@@ -833,10 +834,9 @@ class TestConditionalDimension(object):
     def test_condition_lowering(self):
         """
         Test the lowering of a ConditionalDimension's condition.
+        This test makes an Operator that should indexify and lower the condition
+        passed in the Conditional Dimension
         """
-
-        # This test makes an Operator that should indexify and lower the condition
-        # passed in the Conditional Dimension
 
         grid = Grid(shape=(3, 3))  # Define grid
 
@@ -850,6 +850,128 @@ class TestConditionalDimension(object):
         f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
         Operator(Eq(f[x, ci], g[x, y])).apply()
         assert np.all(f.data == 1)
+
+    @pytest.mark.parametrize('setup_rel, rhs, c1, c2, c3, c4', [
+        # Relation, RHS, c1 to c4 used as indexes in assert
+        (Lt, 3, 2, 4, 4, -1), (Le, 2, 2, 4, 4, -1), (Ge, 3, 4, 6, 1, 4),
+        (Gt, 2, 4, 6, 1, 4), (CondNe, 5, 2, 6, 1, 1)
+    ])
+    def test_relational_classes(self, setup_rel, rhs, c1, c2, c3, c4):
+        """
+        Test ConditionalDimension using conditions constructed with overriden
+        SymPy relation classes.
+        """
+
+        class InnerDomain(SubDomain):
+            name = 'inner'
+
+            def define(self, dimensions):
+                return {d: ('middle', 2, 2) for d in dimensions}
+
+        inner_domain = InnerDomain()
+        grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
+        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+
+        g.data[:4, :4] = 1
+        g.data[4:, :4] = 2
+        g.data[4:, 4:] = 3
+        g.data[:4, 4:] = 4
+
+        x, y = grid.dimensions
+        xi, yi = grid.subdomains['inner'].dimensions
+
+        cond = setup_rel(g[xi, yi], rhs, subdomain=grid.subdomains['inner'])
+        ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
+
+        f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
+
+        Eq1 = Eq(f[x, y], g[x, y])
+        Eq2 = Eq(f, 5)
+
+        Operator([Eq1, Eq2]).apply()
+
+        assert np.all(f.data[2:6, c1:c2] == 5.)
+        assert np.all(f.data[:, c3:c4] < 5.)
+
+    def test_condition_subdomains(self):
+        """
+        Test a ConditionalDimension applied in a subdomain.
+        """
+
+        class InnerDomain(SubDomain):
+            name = 'inner'
+
+            def define(self, dimensions):
+                return {d: ('middle', 2, 2) for d in dimensions}
+
+        inner_domain = InnerDomain()
+        grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
+
+        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+
+        #  1   4
+        #  2   3
+        g.data[:4, :4] = 1
+        g.data[4:, :4] = 2
+        g.data[4:, 4:] = 3
+        g.data[:4, 4:] = 4
+
+        x, y = grid.dimensions
+        xi, yi = grid.subdomains['inner'].dimensions
+
+        cond = And(g[xi, yi] < 3, subdomain=grid.subdomains['inner'])
+
+        ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
+
+        f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
+
+        Eq1 = Eq(f[x, y], g[x, y])
+        Eq2 = Eq(f, 5, subdomain=grid.subdomains['inner'])
+
+        # Execute Eq1 first
+        # Eq1 : First we copy g to f
+        # Eq2 : Then Conditional subdomain
+        Operator([Eq1, Eq2]).apply()
+
+        assert np.all(f.data[2:6, 2:4] == 5.)
+        assert np.all(f.data[:, 4:] < 5.)
+
+    def test_relational_subdomains(self):
+        """
+        Test a ConditionalDimension applied in a subdomain II.
+        """
+
+        class InnerDomain(SubDomain):
+            name = 'inner'
+
+            def define(self, dimensions):
+                return {d: ('middle', 2, 2) for d in dimensions}
+
+        inner_domain = InnerDomain()
+        grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
+        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+
+        g.data[:4, :4] = 1
+        g.data[4:, :4] = 2
+        g.data[4:, 4:] = 3
+        g.data[:4, 4:] = 4
+
+        x, y = grid.dimensions
+        xi, yi = grid.subdomains['inner'].dimensions
+
+        cond = And(g[xi, yi] < 3, subdomain=grid.subdomains['inner'])
+
+        ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
+
+        f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
+
+        Eq1 = Eq(f[x, y], g[x, y])
+        Eq2 = Eq(f, 5, subdomain=grid.subdomains['inner'])
+
+        Operator([Eq1, Eq2]).apply()
+
+        assert np.all(f.data[2:6, 2:4] == 5.)
+        assert np.all(f.data[:, 4:] < 5.)
 
     @skipif('device')
     def test_no_fusion_simple(self):
