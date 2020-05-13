@@ -9,7 +9,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFu
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
-from devito.symbolics import indexify, retrieve_functions, CondEq, CondNe
+from devito.symbolics import indexify, retrieve_functions
 from devito.types import Array, Lt, Le, Gt, Ge
 
 
@@ -845,16 +845,16 @@ class TestConditionalDimension(object):
         g.data[:] = 1
         x, y = grid.dimensions
 
-        ci = ConditionalDimension(name='ci', parent=y, condition=CondEq(g[x, y], 1))
+        ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, 1))
 
         f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
-        Operator(Eq(f[x, ci], g[x, y])).apply()
+        Operator(Eq(f, g)).apply()
         assert np.all(f.data == 1)
 
     @pytest.mark.parametrize('setup_rel, rhs, c1, c2, c3, c4', [
         # Relation, RHS, c1 to c4 used as indexes in assert
         (Lt, 3, 2, 4, 4, -1), (Le, 2, 2, 4, 4, -1), (Ge, 3, 4, 6, 1, 4),
-        (Gt, 2, 4, 6, 1, 4), (CondNe, 5, 2, 6, 1, 1)
+        (Gt, 2, 4, 6, 1, 4)
     ])
     def test_relational_classes(self, setup_rel, rhs, c1, c2, c3, c4):
         """
@@ -892,49 +892,6 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data[2:6, c1:c2] == 5.)
         assert np.all(f.data[:, c3:c4] < 5.)
-
-    def test_condition_subdomains(self):
-        """
-        Test a ConditionalDimension applied in a subdomain.
-        """
-
-        class InnerDomain(SubDomain):
-            name = 'inner'
-
-            def define(self, dimensions):
-                return {d: ('middle', 2, 2) for d in dimensions}
-
-        inner_domain = InnerDomain()
-        grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
-
-        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
-
-        #  1   4
-        #  2   3
-        g.data[:4, :4] = 1
-        g.data[4:, :4] = 2
-        g.data[4:, 4:] = 3
-        g.data[:4, 4:] = 4
-
-        x, y = grid.dimensions
-        xi, yi = grid.subdomains['inner'].dimensions
-
-        cond = And(g[xi, yi] < 3, subdomain=grid.subdomains['inner'])
-
-        ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
-
-        f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
-
-        Eq1 = Eq(f[x, y], g[x, y])
-        Eq2 = Eq(f, 5, subdomain=grid.subdomains['inner'])
-
-        # Execute Eq1 first
-        # Eq1 : First we copy g to f
-        # Eq2 : Then Conditional subdomain
-        Operator([Eq1, Eq2]).apply()
-
-        assert np.all(f.data[2:6, 2:4] == 5.)
-        assert np.all(f.data[:, 4:] < 5.)
 
     def test_relational_subdomains(self):
         """

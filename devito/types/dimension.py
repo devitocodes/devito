@@ -723,16 +723,14 @@ class ConditionalDimension(DerivedDimension):
                           indirect=False):
         super().__init_finalize__(name, parent)
 
-        # Local import of expr_lowering
-        from devito.ir.support import expr_lowering
+        # TODO: Avoid local import of lower_exprs
+        from devito.ir.equations.algorithms import lower_exprs
 
         expressions = []
         expressions.append(condition)
-        processed = expr_lowering(expressions)
 
         self._factor = factor
-        # import pdb; pdb.set_trace()
-        self._condition = processed[0]
+        self._condition = lower_exprs(expressions).pop()
         self._indirect = indirect
 
     @property

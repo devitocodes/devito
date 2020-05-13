@@ -2,13 +2,12 @@ from collections import OrderedDict, defaultdict
 
 from devito.ir.support.space import Interval
 from devito.ir.support.stencil import Stencil
-from devito.symbolics import (retrieve_indexed, retrieve_terminals,
-                              retrieve_functions, uxreplace)
+from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'detect_io', 'expr_lowering']
+           'detect_io']
 
 
 def detect_accesses(exprs):
@@ -159,44 +158,3 @@ def detect_io(exprs, relax=False):
             writes.append(f)
 
     return filter_sorted(reads), filter_sorted(writes)
-
-
-def expr_lowering(expressions, **kwargs):
-    # Indexification
-    # E.g., f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
-    processed = []
-    for expr in expressions:
-        try:
-            if expr.subdomain:
-                dimension_map = expr.subdomain.dimension_map
-            else:
-                dimension_map = {}
-        except:
-            dimension_map = {}
-
-        # Handle Functions (typical case)
-        mapper = {f: f.indexify(lshift=True, subs=dimension_map)
-                  for f in retrieve_functions(expr)}
-
-        # Handle Indexeds (from index notation)
-        for i in retrieve_indexed(expr):
-            f = i.function
-
-            # Introduce shifting to align with the computational domain
-            indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
-
-            # Apply substitutions, if necessary
-            if dimension_map:
-                indices = [j.xreplace(dimension_map) for j in indices]
-
-            mapper[i] = f.indexed[indices]
-
-        subs = kwargs.get('subs')
-        if subs:
-            # Include the user-supplied substitutions, and use
-            # `xreplace` for constant folding
-            processed.append(expr.xreplace({**mapper, **subs}))
-        else:
-            processed.append(uxreplace(expr, mapper))
-
-    return processed

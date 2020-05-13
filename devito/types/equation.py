@@ -1,4 +1,4 @@
-"""User API to specify equations and relations."""
+"""User API to specify equations."""
 
 import sympy
 
@@ -7,8 +7,7 @@ from cached_property import cached_property
 from devito.finite_differences import Evaluable, default_rules
 from devito.tools import as_tuple
 
-__all__ = ['Eq', 'Inc', 'solve', 'Le', 'Lt', 'Ge',
-           'Gt', 'Ne']
+__all__ = ['Eq', 'Inc', 'solve', 'Le', 'Lt', 'Ge', 'Gt']
 
 
 class Eq(sympy.Eq, Evaluable):
@@ -158,47 +157,11 @@ class Eq(sympy.Eq, Evaluable):
     __repr__ = __str__
 
 
-class Ne(sympy.Ne):
-    """
-    A Not-Equal ("!=") relation between two objects, the left-hand side and the
-    right-hand side.
-
-    The left-hand side may be a Function or a SparseFunction. The right-hand
-    side may be any arbitrary expressions with numbers, Dimensions, Constants,
-    Functions and SparseFunctions as operands.
-
-    Parameters
-    ----------
-    lhs : Function or SparseFunction
-        The left-hand side.
-    rhs : expr-like, optional
-        The right-hand side. Defaults to 0.
-    subdomain : SubDomain, optional
-        To restrict the evalaution of the relation to a particular sub-region in the
-        computational domain.
-
-    Examples
-    --------
-
-    Notes
-    -----
-    """
-
-    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
-        obj = sympy.Ne.__new__(self, lhs, rhs, **kwargs)
-        obj._subdomain = subdomain
-        return obj
-
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Le is defined."""
-        return self._subdomain
-
-
 class Le(sympy.Le):
     """
     A less-than ("<=") relation between two objects, the left-hand side and the
-    right-hand side.
+    right-hand side. Can be used to build conditionals but not directly to
+    construct an Operator.
 
     The left-hand side may be a Function or a SparseFunction. The right-hand
     side may be any arbitrary expressions with numbers, Dimensions, Constants,
@@ -216,9 +179,23 @@ class Le(sympy.Le):
 
     Examples
     --------
+    Le may be used to express a relation. Below, a summation along
+    the user-defined Dimension ``i``.
 
-    Notes
-    -----
+    >>> class InnerDomain(SubDomain):
+            name = 'inner'
+
+            def define(self, dimensions):
+                return {d: ('middle', 2, 2) for d in dimensions}
+    >>> inner_domain = InnerDomain()
+    >>> grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
+    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+    >>> x, y = grid.dimensions
+    >>> xi, yi = grid.subdomains['inner'].dimensions
+    >>> cond = Le(g[xi, yi], rhs, subdomain=grid.subdomains['inner'])
+    >>> ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
+    >>> f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
+    >>> Eq1 = Eq(f[x, y], g[x, y])
     """
 
     def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
@@ -235,7 +212,8 @@ class Le(sympy.Le):
 class Lt(sympy.Lt):
     """
     A strict-less-than ("<") relation between two objects, the left-hand side and the
-    right-hand side.
+    right-hand side. Can be used to build conditionals but not directly to
+    construct an Operator.
 
     The left-hand side may be a Function or a SparseFunction. The right-hand
     side may be any arbitrary expressions with numbers, Dimensions, Constants,
@@ -253,9 +231,22 @@ class Lt(sympy.Lt):
 
     Examples
     --------
+    Lt may be used to express a relation.
 
-    Notes
-    -----
+    >>> class InnerDomain(SubDomain):
+            name = 'inner'
+
+            def define(self, dimensions):
+                return {d: ('middle', 2, 2) for d in dimensions}
+    >>> inner_domain = InnerDomain()
+    >>> grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
+    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+    >>> x, y = grid.dimensions
+    >>> xi, yi = grid.subdomains['inner'].dimensions
+    >>> cond = Lt(g[xi, yi], rhs, subdomain=grid.subdomains['inner'])
+    >>> ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
+    >>> f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
+    >>> Eq1 = Eq(f[x, y], g[x, y])
     """
 
     def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
@@ -272,7 +263,8 @@ class Lt(sympy.Lt):
 class Ge(sympy.Ge):
     """
     A greater-than (">=") relation between two objects, the left-hand side and the
-    right-hand side.
+    right-hand side. Can be used to build conditionals but not directly to
+    construct an Operator.
 
     The left-hand side may be a Function or a SparseFunction. The right-hand
     side may be any arbitrary expressions with numbers, Dimensions, Constants,
@@ -290,9 +282,22 @@ class Ge(sympy.Ge):
 
     Examples
     --------
+    Ge may be used to express a relation.
 
-    Notes
-    -----
+    >>> class InnerDomain(SubDomain):
+            name = 'inner'
+
+            def define(self, dimensions):
+                return {d: ('middle', 2, 2) for d in dimensions}
+    >>> inner_domain = InnerDomain()
+    >>> grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
+    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+    >>> x, y = grid.dimensions
+    >>> xi, yi = grid.subdomains['inner'].dimensions
+    >>> cond = Ge(g[xi, yi], rhs, subdomain=grid.subdomains['inner'])
+    >>> ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
+    >>> f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
+    >>> Eq1 = Eq(f[x, y], g[x, y])
     """
 
     def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
@@ -309,7 +314,8 @@ class Ge(sympy.Ge):
 class Gt(sympy.Gt):
     """
     A strict-greater-than (">") relation between two objects, the left-hand side and the
-    right-hand side.
+    right-hand side. Can be used to build conditionals but not directly to
+    construct an Operator.
 
     The left-hand side may be a Function or a SparseFunction. The right-hand
     side may be any arbitrary expressions with numbers, Dimensions, Constants,
@@ -327,9 +333,22 @@ class Gt(sympy.Gt):
 
     Examples
     --------
+    Gt may be used to express a relation.
 
-    Notes
-    -----
+    >>> class InnerDomain(SubDomain):
+            name = 'inner'
+
+            def define(self, dimensions):
+                return {d: ('middle', 2, 2) for d in dimensions}
+    >>> inner_domain = InnerDomain()
+    >>> grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
+    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+    >>> x, y = grid.dimensions
+    >>> xi, yi = grid.subdomains['inner'].dimensions
+    >>> cond = Gt(g[xi, yi], rhs, subdomain=grid.subdomains['inner'])
+    >>> ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
+    >>> f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
+    >>> Eq1 = Eq(f[x, y], g[x, y])
     """
 
     def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
