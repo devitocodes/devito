@@ -622,8 +622,8 @@ class SubDimension(DerivedDimension):
                                                    self.thickness.left[1]-1, LEFT)
                 rtkn = grid.distributor.glb_to_loc(self.root,
                                                    self.thickness.right[1]-1, RIGHT)
-                ltkn = ltkn+1 if ltkn else 0
-                rtkn = rtkn+1 if rtkn else 0
+                ltkn = ltkn+1 if ltkn is not None else 0
+                rtkn = rtkn+1 if rtkn is not None else 0
             else:
                 # dimension is of type ``middle``
                 ltkn = grid.distributor.glb_to_loc(self.root, self.thickness.left[1],
