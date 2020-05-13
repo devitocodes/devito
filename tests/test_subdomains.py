@@ -86,6 +86,55 @@ class TestSubdomains(object):
         assert grid.subdomains['d1'].shape == (4, 2)
         assert grid.subdomains['d2'].shape == (3, 7)
 
+    def test_definitions(self):
+
+        class sd0(SubDomain):
+            name = 'sd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('right', 10)}
+
+        class sd1(SubDomain):
+            name = 'sd1'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('left', 10)}
+
+        class sd2(SubDomain):
+            name = 'sd2'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: y}
+
+        class sd3(SubDomain):
+            name = 'sd3'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 0, 0)}
+
+        sd_def0 = sd0()
+        sd_def1 = sd1()
+        sd_def2 = sd2()
+        sd_def3 = sd3()
+
+        grid = Grid(shape=(10, 10), extent=(10, 10),
+                    subdomains=(sd_def0, sd_def1, sd_def2, sd_def3))
+        u0 = Function(name='u0', grid=grid)
+        u1 = Function(name='u1', grid=grid)
+        u2 = Function(name='u2', grid=grid)
+        u3 = Function(name='u3', grid=grid)
+        eq0 = Eq(u0, u0+1, subdomain=grid.subdomains['sd0'])
+        eq1 = Eq(u1, u1+1, subdomain=grid.subdomains['sd1'])
+        eq2 = Eq(u2, u2+1, subdomain=grid.subdomains['sd2'])
+        eq3 = Eq(u3, u3+1, subdomain=grid.subdomains['sd3'])
+        Operator([eq0, eq1, eq2, eq3])()
+
+        assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
+
     def test_iterate_NDomains(self):
         """
         Test that a set of subdomains are iterated upon correctly.
