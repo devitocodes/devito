@@ -365,14 +365,11 @@ class SubDomain(object):
                     side, thickness_left, thickness_right = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    thickness = s-thickness_left-thickness_right
-                    if thickness <= 0:
-                        raise ValueError("All dimensions must have a thickness of "
-                                         "1 or greater, not %s" % thickness)
                     sub_dimensions.append(SubDimension.middle('i%d%s' %
                                                               (counter, k.name),
                                                               k, thickness_left,
                                                               thickness_right))
+                    thickness = s-thickness_left-thickness_right
                     sdshape.append(thickness)
                 except ValueError:
                     side, thickness = v
