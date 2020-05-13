@@ -15,7 +15,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
 from devito.ir.stree import stree_build
-from devito.ir.support import expr_lowering
+from devito.ir.equations.algorithms import lower_exprs
 from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
 from devito.mpi import MPI
@@ -296,7 +296,7 @@ class Operator(Callable):
         # Scalarize tensor expressions
         expressions = [j for i in expressions for j in i._flatten]
 
-        expressions = expr_lowering(expressions, **kwargs)
+        expressions = lower_exprs(expressions, **kwargs)
 
         processed = cls._specialize_exprs(expressions)
 
