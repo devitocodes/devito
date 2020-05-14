@@ -317,10 +317,3 @@ def IsoJacobianAdjOperator(model, rec, time_axis, space_order=8,
 
     return Operator([dm_update] + eqn + rec_term, subs=spacing_map,
                     name='IsoJacobianAdjOperator', **kwargs)
-
-    # TODO
-    #   figure out how/why this is broken: when the next two lines replace the two lines
-    #   above, there are different outcomes for unit tests. Possibly a different path is
-    #   chosen through the AST, and different c code is generated?
-    # return Operator(eqn + rec_term + [dm_update], subs=spacing_map,
-    #                 name='IsoJacobianAdjOperator', **kwargs)

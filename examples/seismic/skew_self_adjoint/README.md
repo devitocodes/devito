@@ -48,6 +48,22 @@ These notebooks first implement and then test for correctness for three types of
 
 ## TODO
 - [X] Devito-esque equation version of setup_w_over_q
+- [ ] figure out weird test failure depending on the order of equations in operator
+
+**Equation order 1**
+```
+    return Operator([dm_update] + eqn + rec_term, subs=spacing_map,
+                    name='IsoJacobianAdjOperator', **kwargs)
+```
+**Equation order 2**
+```
+    return Operator(eqn + rec_term + [dm_update], subs=spacing_map,
+                    name='IsoJacobianAdjOperator', **kwargs)
+```
+    - With Equation order 1, all tests pass
+    - With Equation order 2, there are different outcomes for tests 
+    - Possibly there is a different path chosen through the AST, and different c code is generated?
+
 - [ ] replace the conditional logic in the stencil with comprehension
 ```
     space_fd = sum([getattr(b * getattr(field, 'd%s'%d.name)(x0=d+d.spacing/2)),
