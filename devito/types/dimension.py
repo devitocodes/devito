@@ -615,10 +615,21 @@ class SubDimension(DerivedDimension):
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
-            ltkn = grid.distributor.glb_to_loc(self.root,
-                                               self.thickness.left[1], LEFT) or 0
-            rtkn = grid.distributor.glb_to_loc(self.root,
-                                               self.thickness.right[1], RIGHT) or 0
+            if self.local:
+                # dimension is of type ``left``/right`` - compute the 'offset'
+                # and then add 1 to get the appropriate thickness
+                ltkn = grid.distributor.glb_to_loc(self.root,
+                                                   self.thickness.left[1]-1, LEFT)
+                rtkn = grid.distributor.glb_to_loc(self.root,
+                                                   self.thickness.right[1]-1, RIGHT)
+                ltkn = ltkn+1 if ltkn is not None else 0
+                rtkn = rtkn+1 if rtkn is not None else 0
+            else:
+                # dimension is of type ``middle``
+                ltkn = grid.distributor.glb_to_loc(self.root, self.thickness.left[1],
+                                                   LEFT) or 0
+                rtkn = grid.distributor.glb_to_loc(self.root, self.thickness.right[1],
+                                                   RIGHT) or 0
             return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
         else:
             return {k.name: v for k, v in self.thickness}

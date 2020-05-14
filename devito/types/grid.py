@@ -369,15 +369,22 @@ class SubDomain(object):
                                                               (counter, k.name),
                                                               k, thickness_left,
                                                               thickness_right))
-                    sdshape.append(s-thickness_left-thickness_right)
+                    thickness = s-thickness_left-thickness_right
+                    sdshape.append(thickness)
                 except ValueError:
                     side, thickness = v
                     if side == 'left':
+                        if s-thickness < 0:
+                            raise ValueError("Maximum thickness of dimension %s "
+                                             "is %d, not %d" % (k.name, s, thickness))
                         sub_dimensions.append(SubDimension.left('i%d%s' %
                                                                 (counter, k.name),
                                                                 k, thickness))
                         sdshape.append(thickness)
                     elif side == 'right':
+                        if s-thickness < 0:
+                            raise ValueError("Maximum thickness of dimension %s "
+                                             "is %d, not %d" % (k.name, s, thickness))
                         sub_dimensions.append(SubDimension.right('i%d%s' %
                                                                  (counter, k.name),
                                                                  k, thickness))
