@@ -1,6 +1,5 @@
 import numpy as np
 
-from devito import info
 from examples.seismic import RickerSource
 from examples.seismic.skew_self_adjoint import (default_setup_iso,
                                                 SsaIsoAcousticWaveSolver)
