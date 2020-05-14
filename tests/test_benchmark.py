@@ -64,6 +64,6 @@ def test_run_mpi():
     pyversion = sys.executable
     command_bench = [pyversion, benchpath, 'run',
                      '-P', 'acoustic', '-d', '16', '16', '16', '--tn', '4',
-                     '--dump-summary', '/tmp/summary.txt',
-                     '--dump-norms', '/tmp/norms.txt']
+                     '--dump-summary', 'summary.txt',
+                     '--dump-norms', 'norms.txt']
     check_call(command_bench)
