@@ -1,38 +1,24 @@
 from scipy.special import hankel2
 import numpy as np
 import pytest
-<<<<<<< HEAD
 from devito import Grid, Function, Eq, SpaceDimension, Constant, Operator, info
 from examples.seismic import RickerSource, Receiver, TimeAxis
 from examples.seismic.skew_self_adjoint import (default_setup_iso,
                                                 SsaIsoAcousticWaveSolver)
-=======
-from devito import Grid, Function, Eq, SpaceDimension, Constant
-from examples.seismic import RickerSource, TimeAxis
-from examples.seismic.skew_self_adjoint import *
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
 
 # Defaults in global scope
 npad = 10
 fpeak = 0.010
 qmin = 0.1
 qmax = 500.0
-tmax = 1000.0
-<<<<<<< HEAD
-=======
-# shapes = [(101, 81), ]
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-shapes = [(101, 81), (101, 91, 81)]
+tmax = 500.0
+shapes = [(71, 61), (71, 61, 51)]
 dtypes = [np.float64, ]
 space_orders = [8, ]
 
 
 class TestWavesolver(object):
 
-<<<<<<< HEAD
-=======
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
@@ -41,19 +27,13 @@ class TestWavesolver(object):
         Test the linearity of the forward modeling operator by verifying:
             a F(s) = F(a s)
         """
+        np.random.seed(0)
         omega = 2.0 * np.pi * fpeak
         b, v, time_axis, src_coords, rec_coords = \
-<<<<<<< HEAD
             default_setup_iso(npad, shape, dtype, tmax=tmax)
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=so)
-=======
-            defaultSetupIso(npad, shape, dtype, tmax=tmax)
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=so)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
         src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1,
                            time_range=time_axis)
         src.coordinates.data[:] = src_coords[:]
@@ -67,24 +47,13 @@ class TestWavesolver(object):
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
         diff = (rec1.data - rec2.data) / rms2
-<<<<<<< HEAD
-        info("\nlinearity forward F %s (so=%d) rms 1,2,diff; "
+        info("linearity forward F %s (so=%d) rms 1,2,diff; "
              "%+16.10e %+16.10e %+16.10e" %
              (shape, so, np.sqrt(np.mean(rec1.data**2)), np.sqrt(np.mean(rec2.data**2)),
               np.sqrt(np.mean(diff**2))))
         tol = 1.e-12
         assert np.allclose(diff, 0.0, atol=tol)
 
-=======
-        print("\nlinearity forward F %s (so=%d) rms 1,2,diff; "
-              "%+16.10e %+16.10e %+16.10e" %
-              (shape, so, np.sqrt(np.mean(rec1.data**2)), np.sqrt(np.mean(rec2.data**2)),
-               np.sqrt(np.mean(diff**2))))
-        tol = 1.e-12
-        assert np.allclose(diff, 0.0, atol=tol)
-
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
@@ -93,19 +62,13 @@ class TestWavesolver(object):
         Test the linearity of the adjoint modeling operator by verifying:
             a F^T(r) = F^T(a r)
         """
+        np.random.seed(0)
         omega = 2.0 * np.pi * fpeak
         b, v, time_axis, src_coords, rec_coords = \
-<<<<<<< HEAD
             default_setup_iso(npad, shape, dtype, tmax=tmax)
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=so)
-=======
-            defaultSetupIso(npad, shape, dtype, tmax=tmax)
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=so)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
         src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
                             time_range=time_axis)
         src0.coordinates.data[:] = src_coords[:]
@@ -120,24 +83,13 @@ class TestWavesolver(object):
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(src2.data**2))
         diff = (src1.data - src2.data) / rms2
-<<<<<<< HEAD
-        info("\nlinearity adjoint F %s (so=%d) rms 1,2,diff; "
+        info("linearity adjoint F %s (so=%d) rms 1,2,diff; "
              "%+16.10e %+16.10e %+16.10e" %
              (shape, so, np.sqrt(np.mean(src1.data**2)), np.sqrt(np.mean(src2.data**2)),
               np.sqrt(np.mean(diff**2))))
         tol = 1.e-12
         assert np.allclose(diff, 0.0, atol=tol)
 
-=======
-        print("\nlinearity adjoint F %s (so=%d) rms 1,2,diff; "
-              "%+16.10e %+16.10e %+16.10e" %
-              (shape, so, np.sqrt(np.mean(src1.data**2)), np.sqrt(np.mean(src2.data**2)),
-               np.sqrt(np.mean(diff**2))))
-        tol = 1.e-12
-        assert np.allclose(diff, 0.0, atol=tol)
-
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
@@ -148,17 +100,10 @@ class TestWavesolver(object):
         """
         omega = 2.0 * np.pi * fpeak
         b, v, time_axis, src_coords, rec_coords = \
-<<<<<<< HEAD
             default_setup_iso(npad, shape, dtype, tmax=tmax)
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=so)
-=======
-            defaultSetupIso(npad, shape, dtype, tmax=tmax)
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=so)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
         src1 = RickerSource(name='src1', grid=v.grid, f0=fpeak, npoint=1,
                             time_range=time_axis)
         src1.coordinates.data[:] = src_coords[:]
@@ -172,18 +117,10 @@ class TestWavesolver(object):
         sum_s = np.dot(src1.data.reshape(-1), src2.data.reshape(-1))
         sum_r = np.dot(rec1.data.reshape(-1), rec2.data.reshape(-1))
         diff = (sum_s - sum_r) / (sum_s + sum_r)
-<<<<<<< HEAD
-        info("\nadjoint F %s (so=%d) sum_s, sum_r, diff; %+16.10e %+16.10e %+16.10e" %
+        info("adjoint F %s (so=%d) sum_s, sum_r, diff; %+16.10e %+16.10e %+16.10e" %
              (shape, so, sum_s, sum_r, diff))
         assert np.isclose(diff, 0., atol=1.e-12)
 
-=======
-        print("\nadjoint F %s (so=%d) sum_s, sum_r, diff; %+16.10e %+16.10e %+16.10e" %
-              (shape, so, sum_s, sum_r, diff))
-        assert np.isclose(diff, 0., atol=1.e-12)
-
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
@@ -197,19 +134,13 @@ class TestWavesolver(object):
 
         This is done by fitting a 1st order polynomial to the norms
         """
+        np.random.seed(0)
         omega = 2.0 * np.pi * fpeak
         b, v, time_axis, src_coords, rec_coords = \
-<<<<<<< HEAD
             default_setup_iso(npad, shape, dtype, tmax=tmax)
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=so)
-=======
-            defaultSetupIso(npad, shape, dtype, tmax=tmax)
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=so)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
         src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1,
                            time_range=time_axis)
         src.coordinates.data[:] = src_coords[:]
@@ -263,20 +194,13 @@ class TestWavesolver(object):
         #   Assert the 2nd order error has slope dh^4
         p1 = np.polyfit(np.log10(scale), np.log10(norm1), 1)
         p2 = np.polyfit(np.log10(scale), np.log10(norm2), 1)
-<<<<<<< HEAD
-        info("\nlinearization F %s (so=%d) 1st (%.1f) = %.4f, 2nd (%.1f) = %.4f" %
+        info("linearization F %s (so=%d) 1st (%.1f) = %.4f, 2nd (%.1f) = %.4f" %
              (shape, so, dh**2, p1[0], dh**4, p2[0]))
-        assert np.isclose(p1[0], dh**2, rtol=0.1)
-        assert np.isclose(p2[0], dh**4, rtol=0.1)
 
-=======
-        print("\nlinearization F %s (so=%d) 1st (%.1f) = %.4f, 2nd (%.1f) = %.4f" %
-              (shape, so, dh**2, p1[0], dh**4, p2[0]))
-        assert np.isclose(p1[0], dh**2, rtol=0.1)
-        assert np.isclose(p2[0], dh**4, rtol=0.1)
+        # we only really care the 2nd order err is valid, not so much the 1st order error
+        assert np.isclose(p1[0], dh**2, rtol=0.25)
+        assert np.isclose(p2[0], dh**4, rtol=0.10)
 
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
@@ -286,23 +210,15 @@ class TestWavesolver(object):
         by verifying
             a J(dm) = J(a dm)
         """
+        np.random.seed(0)
         omega = 2.0 * np.pi * fpeak
         b, v, time_axis, src_coords, rec_coords = \
-<<<<<<< HEAD
             default_setup_iso(npad, shape, dtype, tmax=tmax)
         nt = time_axis.num
 
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=so)
-=======
-            defaultSetupIso(npad, shape, dtype, tmax=tmax)
-        nt = time_axis.num
-
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=so)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
 
         src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
                             time_range=time_axis)
@@ -335,24 +251,13 @@ class TestWavesolver(object):
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
         diff = (rec1.data - rec2.data) / rms2
-<<<<<<< HEAD
-        info("\nlinearity forward J %s (so=%d) rms 1,2,diff; "
+        info("linearity forward J %s (so=%d) rms 1,2,diff; "
              "%+16.10e %+16.10e %+16.10e" %
              (shape, so, np.sqrt(np.mean(rec1.data**2)), np.sqrt(np.mean(rec2.data**2)),
               np.sqrt(np.mean(diff**2))))
         tol = 1.e-12
         assert np.allclose(diff, 0.0, atol=tol)
 
-=======
-        print("\nlinearity forward J %s (so=%d) rms 1,2,diff; "
-              "%+16.10e %+16.10e %+16.10e" %
-              (shape, so, np.sqrt(np.mean(rec1.data**2)), np.sqrt(np.mean(rec2.data**2)),
-               np.sqrt(np.mean(diff**2))))
-        tol = 1.e-12
-        assert np.allclose(diff, 0.0, atol=tol)
-
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
@@ -362,23 +267,15 @@ class TestWavesolver(object):
         by verifying
             a J^T(dr) = J^T(a dr)
         """
+        np.random.seed(0)
         omega = 2.0 * np.pi * fpeak
         b, v, time_axis, src_coords, rec_coords = \
-<<<<<<< HEAD
             default_setup_iso(npad, shape, dtype, tmax=tmax)
         nt = time_axis.num
 
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=so)
-=======
-            defaultSetupIso(npad, shape, dtype, tmax=tmax)
-        nt = time_axis.num
-
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=so)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
 
         src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
                             time_range=time_axis)
@@ -412,20 +309,11 @@ class TestWavesolver(object):
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(dm2.data**2))
         diff = (dm1.data - dm2.data) / rms2
-<<<<<<< HEAD
-        info("\nlinearity adjoint J %s (so=%d) rms 1,2,diff; "
+        info("linearity adjoint J %s (so=%d) rms 1,2,diff; "
              "%+16.10e %+16.10e %+16.10e" %
              (shape, so, np.sqrt(np.mean(dm1.data**2)), np.sqrt(np.mean(dm2.data**2)),
               np.sqrt(np.mean(diff**2))))
 
-=======
-        print("\nlinearity adjoint J %s (so=%d) rms 1,2,diff; "
-              "%+16.10e %+16.10e %+16.10e" %
-              (shape, so, np.sqrt(np.mean(dm1.data**2)), np.sqrt(np.mean(dm2.data**2)),
-               np.sqrt(np.mean(diff**2))))
-
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
@@ -435,23 +323,15 @@ class TestWavesolver(object):
         'random' dm, dr:
             dr . J(dm) = J^T(dr) . dm
         """
+        np.random.seed(0)
         omega = 2.0 * np.pi * fpeak
         b, v, time_axis, src_coords, rec_coords = \
-<<<<<<< HEAD
             default_setup_iso(npad, shape, dtype, tmax=tmax)
         nt = time_axis.num
 
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=so)
-=======
-            defaultSetupIso(npad, shape, dtype, tmax=tmax)
-        nt = time_axis.num
-
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=so)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
 
         src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
                             time_range=time_axis)
@@ -491,18 +371,10 @@ class TestWavesolver(object):
         sum_m = np.dot(dm1.data.reshape(-1), dm2.data.reshape(-1))
         sum_d = np.dot(rec1.data.reshape(-1), rec2.data.reshape(-1))
         diff = (sum_m - sum_d) / (sum_m + sum_d)
-<<<<<<< HEAD
-        info("\nadjoint J %s (so=%d) sum_m, sum_d, diff; %16.10e %+16.10e %+16.10e" %
+        info("adjoint J %s (so=%d) sum_m, sum_d, diff; %16.10e %+16.10e %+16.10e" %
              (shape, so, sum_m, sum_d, diff))
         assert np.isclose(diff, 0., atol=1.e-11)
 
-=======
-        print("\nadjoint J %s (so=%d) sum_m, sum_d, diff; %16.10e %+16.10e %+16.10e" %
-              (shape, so, sum_m, sum_d, diff))
-        assert np.isclose(diff, 0., atol=1.e-11)
-
-    @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
     def test_derivative_skew_symmetry(self, dtype, so):
@@ -512,6 +384,7 @@ class TestWavesolver(object):
         Are skew (anti) symmetric. See the notebook ssa_01_iso_implementation.ipynb
         for more details.
         """
+        np.random.seed(0)
         n = 101
         d = 1.0
         shape = (n, )
@@ -545,18 +418,10 @@ class TestWavesolver(object):
         g1f2 = np.dot(g1.data, f2.data)
         diff = (f1g2 + g1f2) / (f1g2 - g1f2)
 
-<<<<<<< HEAD
-        info("\nskew symmetry (so=%d) -- f1g2, g1f2, diff; %+16.10e %+16.10e %+16.10e" %
+        info("skew symmetry (so=%d) -- f1g2, g1f2, diff; %+16.10e %+16.10e %+16.10e" %
              (so, f1g2, g1f2, diff))
         assert np.isclose(diff, 0., atol=1.e-12)
 
-=======
-        print("\nskew symmetry (so=%d) -- f1g2, g1f2, diff; %+16.10e %+16.10e %+16.10e" %
-              (so, f1g2, g1f2, diff))
-        assert np.isclose(diff, 0., atol=1.e-12)
-
-    # @pytest.mark.skip(reason="temporarily skip")
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
     @pytest.mark.parametrize('dtype', dtypes)
     @pytest.mark.parametrize('so', space_orders)
     def test_analytic_comparison_2d(self, dtype, so):
@@ -573,13 +438,6 @@ class TestWavesolver(object):
         t0w = 1.0 / fpeak
         omega = 2.0 * np.pi * fpeak
         time_axis = TimeAxis(start=tmin, stop=tmax, step=dt)
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-        time = np.linspace(tmin, tmax, nt)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
 
         # Model
         space_order = 8
@@ -587,13 +445,6 @@ class TestWavesolver(object):
         dx, dz = 0.5, 0.5
         nx, nz = 801 + 2 * npad, 801 + 2 * npad
         shape = (nx, nz)
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-        spacing = (dx, dz)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
         extent = (dx * (nx - 1), dz * (nz - 1))
         origin = (0.0 - dx * npad, 0.0 - dz * npad)
         dtype = np.float64
@@ -609,15 +460,7 @@ class TestWavesolver(object):
         b.data[:] = 1.0
         v.data[:] = v0
 
-<<<<<<< HEAD
-<<<<<<< HEAD
         # Source and reciver coordinates
-=======
-        # Source and reciver coordinates 
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
-        # Source and reciver coordinates
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
         src_coords = np.empty((1, 2), dtype=dtype)
         rec_coords = np.empty((1, 2), dtype=dtype)
         src_coords[:, 0] = origin[0] + extent[0] / 2
@@ -626,26 +469,12 @@ class TestWavesolver(object):
         rec_coords[:, 1] = origin[1] + extent[1] / 2 + 60
 
         # Solver setup
-<<<<<<< HEAD
         solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
                                           src_coords, rec_coords, time_axis,
                                           space_order=space_order)
 
         # Source function
         src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1,
-=======
-        solver = SSA_ISO_AcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                            src_coords, rec_coords, time_axis,
-                                            space_order=space_order)
-
-<<<<<<< HEAD
-        # Source function 
-        src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1, 
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
-        # Source function
-        src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1,
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
                            time_range=time_axis, t0w=t0w)
         src.coordinates.data[:] = src_coords[:]
 
@@ -655,8 +484,6 @@ class TestWavesolver(object):
         # Analytic response
         def analytic_response():
             """
-<<<<<<< HEAD
-<<<<<<< HEAD
             Computes analytic solution of 2D acoustic wave-equation with Ricker wavelet
             peak frequency fpeak, temporal padding 20x per the accuracy notebook:
             examples/seismic/acoustic/accuracy.ipynb
@@ -667,49 +494,15 @@ class TestWavesolver(object):
                     q(w) = Fourier transform of Ricker source wavelet
                     H_0^2(k,r) Hankel function of the second kind
                     k = w/v (wavenumber)
-=======
-            Computes analytic solution of 2D acoustic wave-equation with Ricker wavelet 
-=======
-            Computes analytic solution of 2D acoustic wave-equation with Ricker wavelet
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
-            peak frequency fpeak, temporal padding 20x per the accuracy notebook:
-            examples/seismic/acoustic/accuracy.ipynb
-                u(r,t) = 1/(2 pi) sum[ -i pi H_0^2(k,r) q(w) e^{i w t} dw
-                where:
-                    r = sqrt{(x_s - x_r)^2 + (z_s - z_r)^2}
-                    w = 2 pi f
-                    q(w) = Fourier transform of Ricker source wavelet
-                    H_0^2(k,r) Hankel function of the second kind
-<<<<<<< HEAD
-                    k = w/v (wavenumber) 
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
-                    k = w/v (wavenumber)
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
             """
             sx, sz = src_coords[0, :]
             rx, rz = rec_coords[0, :]
             ntpad = 20 * (nt - 1) + 1
             tmaxpad = dt * (ntpad - 1)
             time_axis_pad = TimeAxis(start=tmin, stop=tmaxpad, step=dt)
-<<<<<<< HEAD
-<<<<<<< HEAD
             srcpad = RickerSource(name='srcpad', grid=v.grid, f0=fpeak, npoint=1,
                                   time_range=time_axis_pad, t0w=t0w)
             nf = int(ntpad / 2 + 1)
-=======
-            timepad = np.linspace(tmin, tmaxpad, ntpad)
-=======
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
-            print(time_axis_pad)
-            srcpad = RickerSource(name='srcpad', grid=v.grid, f0=fpeak, npoint=1,
-                                  time_range=time_axis_pad, t0w=t0w)
-            nf = int(ntpad / 2 + 1)
-<<<<<<< HEAD
-            fnyq = 1.0 / (2 * dt)
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
             df = 1.0 / tmaxpad
             faxis = df * np.arange(nf)
 
@@ -721,21 +514,9 @@ class TestWavesolver(object):
             # Compute the Hankel function and multiply by the source spectrum
             U_a = np.zeros((nf), dtype=complex)
             for a in range(1, nf - 1):
-<<<<<<< HEAD
-<<<<<<< HEAD
                 w = 2 * np.pi * faxis[a]
                 r = np.sqrt((rx - sx)**2 + (rz - sz)**2)
                 U_a[a] = -1j * np.pi * hankel2(0.0, w * r / v0) * R[a]
-=======
-                w = 2 * np.pi * faxis[a] 
-                r = np.sqrt((rx - sx)**2 + (rz - sz)**2)
-                U_a[a] = -1j * np.pi * hankel2(0.0,  w * r / v0) * R[a]
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
-                w = 2 * np.pi * faxis[a]
-                r = np.sqrt((rx - sx)**2 + (rz - sz)**2)
-                U_a[a] = -1j * np.pi * hankel2(0.0, w * r / v0) * R[a]
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
 
             # Do inverse fft on 0:dt:T and you have analytical solution
             U_t = 1.0/(2.0 * np.pi) * np.real(np.fft.ifft(U_a[:], ntpad))
@@ -752,17 +533,8 @@ class TestWavesolver(object):
         arms = np.max(np.abs(uAna))
         drms = np.max(np.abs(diff))
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-        info("\nMaximum absolute numerical,analytic,diff; %+12.6e %+12.6e %+12.6e" %
+        info("Maximum absolute numerical,analytic,diff; %+12.6e %+12.6e %+12.6e" %
              (nrms, arms, drms))
-=======
-        print("\nMaximum absolute numerical,analytic,diff; %+12.6e %+12.6e %+12.6e" % (nrms, arms, drms))
->>>>>>> 1da4f6b... completed notebook tutorials for SSA isotropic
-=======
-        print("\nMaximum absolute numerical,analytic,diff; %+12.6e %+12.6e %+12.6e" %
-              (nrms, arms, drms))
->>>>>>> f58d30e... examples: flake8 and nb edits for ssa
 
         # This isnt a very strict tolerance ...
         tol = 0.1

@@ -2,7 +2,6 @@ from sympy import exp, Min
 import numpy as np
 from devito import (Grid, Constant, Function, SpaceDimension, Eq, Operator)
 from examples.seismic import TimeAxis
-# from devito.builtins import gaussian_smooth
 
 __all__ = ['compute_critical_dt', 'setup_w_over_q', 'default_setup_iso']
 
@@ -72,17 +71,6 @@ def setup_w_over_q(wOverQ, w, qmin, qmax, npad, sigma=0):
     # due to MPI weirdness in reassignment of the numpy array
     eqn1 = Eq(wOverQ, w / val)
     Operator([eqn1], name='WOverQ_Operator')()
-
-#     eqn1 = Eq(wOverQ, val)
-#     Operator([eqn1], name='WOverQ_Operator_init')()
-#     # If we apply the smoother, we must renormalize output to [qmin,qmax]
-#     if sigma > 0:
-#         smooth = gaussian_smooth(wOverQ.data, sigma=sigma)
-#         smin, smax = np.min(smooth), np.max(smooth)
-#         smooth[:] = qmin + (qmax - qmin) * (smooth - smin) / (smax - smin)
-#         wOverQ.data[:] = smooth
-#     eqn2 = Eq(wOverQ, w / wOverQ)
-#     Operator([eqn2], name='WOverQ_Operator_recip')()
 
 
 def default_setup_iso(npad, shape, dtype,
