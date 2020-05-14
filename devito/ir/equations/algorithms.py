@@ -74,9 +74,10 @@ def lower_exprs(expressions, **kwargs):
         * Indexify functions
         * Align indexeds with the computational domain
         * Consider user-applied subs
-        """
-    # Indexification
+
     # E.g., f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
+    """
+
     processed = []
     for expr in expressions:
         try:
