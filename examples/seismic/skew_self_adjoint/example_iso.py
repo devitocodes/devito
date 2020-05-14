@@ -21,15 +21,4 @@ solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
 
 src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1, time_range=time_axis)
 src.coordinates.data[:] = src_coords[:]
-
-ns = src_coords.shape[0]
-nr = rec_coords.shape[0]
-info(time_axis)
-info("ns, nr;         ", ns, nr)
-info("grid.shape;     ", v.grid.shape)
-info("b.shape;        ", b.grid.shape)
-info("v.shape;        ", v.grid.shape)
-info("grid.origin;    ", (v.grid.origin[0].data, v.grid.origin[1].data))
-info("grid.spacing;   ", v.grid.spacing)
-
 rec, _, _ = solver.forward(src)
