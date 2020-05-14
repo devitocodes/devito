@@ -216,19 +216,26 @@ def run(problem, **kwargs):
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
     retval = solver.forward(autotune=autotune, **options)
 
-    dumpfile = kwargs.pop('dump_summary')
-    if dumpfile:
-        with open(dumpfile, 'w') as f:
-            summary = retval[-1]
-            assert isinstance(summary, PerformanceSummary)
-            f.write(str(summary.globals['fdlike']))
+    # With MPI, only rank0 writes to disk
+    try:
+        rank = MPI.COMM_WORLD.rank
+    except TypeError:
+        # MPI not available
+        rank = 0
+    if rank == 0:
+        dumpfile = kwargs.pop('dump_summary')
+        if dumpfile:
+            with open(dumpfile, 'w') as f:
+                summary = retval[-1]
+                assert isinstance(summary, PerformanceSummary)
+                f.write(str(summary.globals['fdlike']))
 
-    dumpfile = kwargs.pop('dump_norms')
-    if dumpfile:
-        norms = ["'%s': %f" % (i.name, norm(i)) for i in retval[:-1]
-                 if isinstance(i, DiscreteFunction)]
-        with open(dumpfile, 'w') as f:
-            f.write("{%s}" % ', '.join(norms))
+        dumpfile = kwargs.pop('dump_norms')
+        if dumpfile:
+            norms = ["'%s': %f" % (i.name, norm(i)) for i in retval[:-1]
+                     if isinstance(i, DiscreteFunction)]
+            with open(dumpfile, 'w') as f:
+                f.write("{%s}" % ', '.join(norms))
 
     return retval
 
