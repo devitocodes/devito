@@ -8,7 +8,7 @@ __all__ = ['Le', 'Lt', 'Ge', 'Gt']
 
 class Le(sympy.Le):
     """
-    A less-than ("<=") relation between two objects, the left-hand side and the
+    A less-than or equal ("<=") relation between two objects, the left-hand side and the
     right-hand side. Can be used to build conditionals but not directly to
     construct an Operator.
 
@@ -74,7 +74,7 @@ class Lt(sympy.Lt):
 
     Examples
     --------
-    Le may be used to express a relation (e.g. in a Subdomain).
+    Lt may be used to express a relation (e.g. in a Subdomain).
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Lt
