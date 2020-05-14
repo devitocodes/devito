@@ -6,6 +6,10 @@ from devito import configuration
 from subprocess import check_call
 
 
+baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
+benchpath = '%sbenchmarks/user/benchmark.py' % baseline
+
+
 @pytest.mark.parametrize('mode', ['bench'])
 @pytest.mark.parametrize('problem', ['acoustic', 'tti', 'elastic', 'viscoelastic'])
 def test_bench(mode, problem):
@@ -22,10 +26,8 @@ def test_bench(mode, problem):
     else:
         nthreads = 1
 
-    baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
-
     pyversion = sys.executable
-    command_bench = [pyversion, '%sbenchmarks/user/benchmark.py' % baseline, mode,
+    command_bench = [pyversion, benchpath, mode,
                      '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
                      '%d' % tn, '-x', '1']
     check_call(command_bench)
@@ -52,3 +54,16 @@ def test_bench(mode, problem):
 
     bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
     assert os.path.isfile(bench_filename)
+
+
+@pytest.mark.parallel(mode=2)
+def test_run_mpi():
+    """
+    Test the `run` mode over MPI, with all key arguments used.
+    """
+    pyversion = sys.executable
+    command_bench = [pyversion, benchpath, 'run',
+                     '-P', 'acoustic', '-d', '16', '16', '16', '--tn', '4',
+                     '--dump-summary', '/tmp/summary.txt',
+                     '--dump-norms', '/tmp/norms.txt']
+    check_call(command_bench)
