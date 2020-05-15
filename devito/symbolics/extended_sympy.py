@@ -256,7 +256,7 @@ class Byref(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class IndexedPointer(sympy.Expr):
+class IndexedPointer(sympy.Expr, Pickable):
 
     """
     Symbolic representation of the C notation ``symbol[...]``
