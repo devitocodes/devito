@@ -7,7 +7,9 @@ from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, ShiftedDimension)
-from devito.mpi.routines import MPIStatusObject, MPIRequestObject
+from devito.data import LEFT
+from devito.mpi.halo_scheme import Halo
+from devito.mpi.routines import MPIStatusObject, MPIMsgEnriched, MPIRequestObject
 from devito.operator.profiling import Timer
 from devito.types import Symbol as dSymbol, Scalar
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
@@ -354,6 +356,18 @@ def test_mpi_objects():
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
     assert obj.dtype == new_obj.dtype
+
+    # Message
+    x = grid.dimensions[0]
+    f = Function(name='f', grid=grid)
+    obj = MPIMsgEnriched('msg', f, [Halo(x, LEFT)])
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.function.name == new_obj.function.name
+    assert all(obj.function.dimensions[i].name == new_obj.function.dimensions[i].name
+               for i in range(grid.dim))
+    assert new_obj.function.dimensions[0] is new_obj.halos[0].dim
 
 
 @skipif(['nompi'])
