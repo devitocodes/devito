@@ -218,7 +218,7 @@ def run(problem, **kwargs):
 
     try:
         rank = MPI.COMM_WORLD.rank
-    except TypeError:
+    except AttributeError:
         # MPI not available
         rank = 0
 
