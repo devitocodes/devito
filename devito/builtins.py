@@ -199,9 +199,14 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     # Note: we impose the smoother runs on the host as there's generally not
     # enough parallelism to be performant on a device
     platform = 'cpu64'
+    # TODO: openacc on CPUs not supported yet
+    if dv.configuration['language'] == 'openacc':
+        language = 'openmp'
+    else:
+        language = dv.configuration['language']
 
     initialize_function(f_c, f, lw, mapper=mapper, mode='reflect', name='smooth',
-                        platform=platform)
+                        platform=platform, language=language)
 
     fset(f, f_c)
     return f
