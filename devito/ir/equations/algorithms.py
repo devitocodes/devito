@@ -69,7 +69,7 @@ def dimension_sort(expr):
 
 def lower_exprs(expressions, **kwargs):
     """
-    Expression lowering and indexification:
+    Lowering an expression consists of the following passes:
 
         * Indexify functions
         * Align indexeds with the computational domain

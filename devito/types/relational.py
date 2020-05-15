@@ -27,13 +27,12 @@ class Le(sympy.Le):
 
     Examples
     --------
-    Le may be used to express a relation (e.g. in a Subdomain).
+    `Le` may be used to express a relation (e.g. in a Subdomain).
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Le
     >>> grid = Grid(shape=(8, 8))
-    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
-    >>> x, y = grid.dimensions
+    >>> g = Function(name='g', grid=grid)
     >>> Le(g, 1)
     g(x, y) <= 1
     """
@@ -76,13 +75,12 @@ class Lt(sympy.Lt):
 
     Examples
     --------
-    Lt may be used to express a relation (e.g. in a Subdomain).
+    `Lt` may be used to express a relation (e.g. in a Subdomain).
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Lt
     >>> grid = Grid(shape=(8, 8))
-    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
-    >>> x, y = grid.dimensions
+    >>> g = Function(name='g', grid=grid)
     >>> Lt(g, 1)
     g(x, y) < 1
     """
@@ -125,13 +123,12 @@ class Ge(sympy.Ge):
 
     Examples
     --------
-    Ge may be used to express a relation (e.g. in a Subdomain).
+    `Ge` may be used to express a relation (e.g. in a Subdomain).
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Ge
     >>> grid = Grid(shape=(8, 8))
-    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
-    >>> x, y = grid.dimensions
+    >>> g = Function(name='g', grid=grid)
     >>> Ge(g, 1)
     g(x, y) >= 1
     """
@@ -175,13 +172,12 @@ class Gt(sympy.Gt):
 
     Examples
     --------
-    Gt may be used to express a relation.
+    `Gt` may be used to express a relation.
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Gt
     >>> grid = Grid(shape=(8, 8))
-    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
-    >>> x, y = grid.dimensions
+    >>> g = Function(name='g', grid=grid)
     >>> Gt(g, 1)
     g(x, y) > 1
     """
@@ -225,13 +221,12 @@ class Ne(sympy.Ne):
 
     Examples
     --------
-    Ne may be used to express a relation.
+    `Ne` may be used to express a relation.
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Ne
     >>> grid = Grid(shape=(8, 8))
-    >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
-    >>> x, y = grid.dimensions
+    >>> g = Function(name='g', grid=grid)
     >>> Ne(g, 0)
     Ne(g(x, y), 0)
 
