@@ -844,7 +844,6 @@ class TestConditionalDimension(object):
         g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
         g.data[:] = 1
         x, y = grid.dimensions
-
         ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, 1))
 
         f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
@@ -877,58 +876,19 @@ class TestConditionalDimension(object):
         g.data[4:, 4:] = 3
         g.data[:4, 4:] = 4
 
-        x, y = grid.dimensions
         xi, yi = grid.subdomains['inner'].dimensions
 
-        cond = setup_rel(g[xi, yi], rhs, subdomain=grid.subdomains['inner'])
+        cond = setup_rel(g, rhs, subdomain=grid.subdomains['inner'])
         ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
-
         f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
 
-        Eq1 = Eq(f[x, y], g[x, y])
+        Eq1 = Eq(f, g)
         Eq2 = Eq(f, 5)
 
         Operator([Eq1, Eq2]).apply()
 
         assert np.all(f.data[2:6, c1:c2] == 5.)
         assert np.all(f.data[:, c3:c4] < 5.)
-
-    def test_relational_subdomains(self):
-        """
-        Test a ConditionalDimension applied in a subdomain II.
-        """
-
-        class InnerDomain(SubDomain):
-            name = 'inner'
-
-            def define(self, dimensions):
-                return {d: ('middle', 2, 2) for d in dimensions}
-
-        inner_domain = InnerDomain()
-        grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
-        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
-
-        g.data[:4, :4] = 1
-        g.data[4:, :4] = 2
-        g.data[4:, 4:] = 3
-        g.data[:4, 4:] = 4
-
-        x, y = grid.dimensions
-        xi, yi = grid.subdomains['inner'].dimensions
-
-        cond = And(g[xi, yi] < 3, subdomain=grid.subdomains['inner'])
-
-        ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
-
-        f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
-
-        Eq1 = Eq(f[x, y], g[x, y])
-        Eq2 = Eq(f, 5, subdomain=grid.subdomains['inner'])
-
-        Operator([Eq1, Eq2]).apply()
-
-        assert np.all(f.data[2:6, 2:4] == 5.)
-        assert np.all(f.data[:, 4:] < 5.)
 
     @skipif('device')
     def test_no_fusion_simple(self):

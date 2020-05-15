@@ -2,7 +2,6 @@
 
 import sympy
 
-
 __all__ = ['Le', 'Lt', 'Ge', 'Gt']
 
 
@@ -36,13 +35,15 @@ class Le(sympy.Le):
     >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
     >>> x, y = grid.dimensions
     >>> cond = Le(g, 1)
-    >>> ci = ConditionalDimension(name='ci', parent=y, condition=cond)
-    >>> f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
-    >>> op = Operator(Eq(g, f))
+    >>> cond.canonical
+    g(x, y) <= 1
     """
 
-    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
-        obj = sympy.Le.__new__(self, lhs, rhs, **kwargs)
+    is_Relational = False
+
+    def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
+        kwargs.update({'evaluate': False})
+        obj = sympy.Le.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
         return obj
 
@@ -54,7 +55,7 @@ class Le(sympy.Le):
 
 class Lt(sympy.Lt):
     """
-    A strict-less-than ("<") relation between two objects, the left-hand side and the
+    A less-than ("<") relation between two objects, the left-hand side and the
     right-hand side. Can be used to build conditionals but not directly to
     construct an Operator.
 
@@ -82,13 +83,15 @@ class Lt(sympy.Lt):
     >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
     >>> x, y = grid.dimensions
     >>> cond = Lt(g, 1)
-    >>> ci = ConditionalDimension(name='ci', parent=y, condition=cond)
-    >>> f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
-    >>> op = Operator(Eq(g, f))
+    >>> cond.canonical
+    g(x, y) < 1
     """
 
-    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
-        obj = sympy.Lt.__new__(self, lhs, rhs, **kwargs)
+    is_Relational = False
+
+    def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
+        kwargs.update({'evaluate': False})
+        obj = sympy.Lt.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
         return obj
 
@@ -100,8 +103,8 @@ class Lt(sympy.Lt):
 
 class Ge(sympy.Ge):
     """
-    A greater-than (">=") relation between two objects, the left-hand side and the
-    right-hand side. Can be used to build conditionals but not directly to
+    A greater-than or equal (">=") relation between two objects, the left-hand side and
+    the right-hand side. Can be used to build conditionals but not directly to
     construct an Operator.
 
     The left-hand side may be a Function or a SparseFunction. The right-hand
@@ -120,7 +123,7 @@ class Ge(sympy.Ge):
 
     Examples
     --------
-    Le may be used to express a relation (e.g. in a Subdomain).
+    Ge may be used to express a relation (e.g. in a Subdomain).
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Ge
@@ -128,14 +131,17 @@ class Ge(sympy.Ge):
     >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
     >>> x, y = grid.dimensions
     >>> cond = Ge(g, 1)
-    >>> ci = ConditionalDimension(name='ci', parent=y, condition=cond)
-    >>> f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
-    >>> op = Operator(Eq(g, f))
+    >>> cond.canonical
+    g(x, y) >= 1
     """
 
-    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
-        obj = sympy.Ge.__new__(self, lhs, rhs, **kwargs)
+    is_Relational = False
+
+    def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
+        kwargs.update({'evaluate': False})
+        obj = sympy.Ge.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
+
         return obj
 
     @property
@@ -146,7 +152,7 @@ class Ge(sympy.Ge):
 
 class Gt(sympy.Gt):
     """
-    A strict-greater-than (">") relation between two objects, the left-hand side and the
+    A greater-than (">") relation between two objects, the left-hand side and the
     right-hand side. Can be used to build conditionals but not directly to
     construct an Operator.
 
@@ -167,20 +173,24 @@ class Gt(sympy.Gt):
     Examples
     --------
     Gt may be used to express a relation.
+
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
     >>> from devito.types import Gt
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
     >>> x, y = grid.dimensions
     >>> cond = Gt(g, 1)
-    >>> ci = ConditionalDimension(name='ci', parent=y, condition=cond)
-    >>> f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
-    >>> op = Operator(Eq(g, f))
+    >>> cond.canonical
+    g(x, y) > 1
     """
 
-    def __init__(self, lhs, rhs=0, subdomain=None, **kwargs):
-        obj = sympy.Gt.__new__(self, lhs, rhs, **kwargs)
+    is_Relational = False
+
+    def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
+        kwargs.update({'evaluate': False})
+        obj = sympy.Gt.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
+
         return obj
 
     @property
