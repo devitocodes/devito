@@ -1058,6 +1058,7 @@ class MPIRegion(CompositeObject):
         name = "%s%d" % (name, key)
         pname = "region%d" % key
 
+        self._key = key
         self._owned = owned
 
         # Sorting for deterministic codegen
@@ -1084,6 +1085,10 @@ class MPIRegion(CompositeObject):
         return self._arguments
 
     @property
+    def key(self):
+        return self._key
+
+    @property
     def owned(self):
         return self._owned
 
@@ -1108,4 +1113,4 @@ class MPIRegion(CompositeObject):
         return values
 
     # Pickling support
-    _pickle_args = ['name', 'arguments', 'owned']
+    _pickle_args = ['name', 'key', 'arguments', 'owned']
