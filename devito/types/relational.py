@@ -217,10 +217,10 @@ class Ne(sympy.Ne):
 
     Examples
     --------
-    Gt may be used to express a relation.
+    Ne may be used to express a relation.
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
-    >>> from devito.types import Gt
+    >>> from devito.types import Ne
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
     >>> x, y = grid.dimensions
