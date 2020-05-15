@@ -224,6 +224,9 @@ def run(problem, **kwargs):
 
     dumpfile = kwargs.pop('dump_summary')
     if dumpfile:
+        if configuration['profiling'] != 'advanced':
+            raise RuntimeError("Must set DEVITO_PROFILING=advanced (or, alternatively, "
+                               "DEVITO_LOGGING=PERF) with --dump-summary")
         if rank == 0:
             with open(dumpfile, 'w') as f:
                 summary = retval[-1]
