@@ -354,9 +354,14 @@
     <span class="c1"># Note: we impose the smoother runs on the host as there&#39;s generally not</span>
     <span class="c1"># enough parallelism to be performant on a device</span>
     <span class="n">platform</span> <span class="o">=</span> <span class="s1">&#39;cpu64&#39;</span>
+    <span class="c1"># TODO: openacc on CPUs not supported yet</span>
+    <span class="k">if</span> <span class="n">dv</span><span class="o">.</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;openacc&#39;</span><span class="p">:</span>
+        <span class="n">language</span> <span class="o">=</span> <span class="s1">&#39;openmp&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">language</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]</span>
 
     <span class="n">initialize_function</span><span class="p">(</span><span class="n">f_c</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">lw</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="n">mapper</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;reflect&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;smooth&#39;</span><span class="p">,</span>
-                        <span class="n">platform</span><span class="o">=</span><span class="n">platform</span><span class="p">)</span>
+                        <span class="n">platform</span><span class="o">=</span><span class="n">platform</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="n">language</span><span class="p">)</span>
 
     <span class="n">fset</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">f_c</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">f</span></div>
