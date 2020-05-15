@@ -216,24 +216,28 @@ def run(problem, **kwargs):
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
     retval = solver.forward(autotune=autotune, **options)
 
-    # With MPI, only rank0 writes to disk
     try:
         rank = MPI.COMM_WORLD.rank
     except TypeError:
         # MPI not available
         rank = 0
-    if rank == 0:
-        dumpfile = kwargs.pop('dump_summary')
-        if dumpfile:
+
+    dumpfile = kwargs.pop('dump_summary')
+    if dumpfile:
+        if configuration['profiling'] != 'advanced':
+            raise RuntimeError("Must set DEVITO_PROFILING=advanced (or, alternatively, "
+                               "DEVITO_LOGGING=PERF) with --dump-summary")
+        if rank == 0:
             with open(dumpfile, 'w') as f:
                 summary = retval[-1]
                 assert isinstance(summary, PerformanceSummary)
                 f.write(str(summary.globals['fdlike']))
 
-        dumpfile = kwargs.pop('dump_norms')
-        if dumpfile:
-            norms = ["'%s': %f" % (i.name, norm(i)) for i in retval[:-1]
-                     if isinstance(i, DiscreteFunction)]
+    dumpfile = kwargs.pop('dump_norms')
+    if dumpfile:
+        norms = ["'%s': %f" % (i.name, norm(i)) for i in retval[:-1]
+                 if isinstance(i, DiscreteFunction)]
+        if rank == 0:
             with open(dumpfile, 'w') as f:
                 f.write("{%s}" % ', '.join(norms))
 
