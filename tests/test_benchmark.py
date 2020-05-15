@@ -2,12 +2,9 @@ import pytest
 import os
 import sys
 
-from devito import configuration
+from benchmarks.user.benchmark import run
+from devito import configuration, switchconfig
 from subprocess import check_call
-
-
-baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
-benchpath = '%sbenchmarks/user/benchmark.py' % baseline
 
 
 @pytest.mark.parametrize('mode', ['bench'])
@@ -27,6 +24,9 @@ def test_bench(mode, problem):
         nthreads = 1
 
     pyversion = sys.executable
+    baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
+    benchpath = '%sbenchmarks/user/benchmark.py' % baseline
+
     command_bench = [pyversion, benchpath, mode,
                      '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
                      '%d' % tn, '-x', '1']
@@ -57,13 +57,19 @@ def test_bench(mode, problem):
 
 
 @pytest.mark.parallel(mode=2)
+@switchconfig(profiling='advanced')
 def test_run_mpi():
     """
     Test the `run` mode over MPI, with all key arguments used.
     """
-    pyversion = sys.executable
-    command_bench = [pyversion, benchpath, 'run',
-                     '-P', 'acoustic', '-d', '16', '16', '16', '--tn', '4',
-                     '--dump-summary', 'summary.txt',
-                     '--dump-norms', 'norms.txt']
-    check_call(command_bench)
+    kwargs = {
+        'space_order': [4],
+        'time_order': [2],
+        'autotune': 'off',
+        'block_shape': [],
+        'shape': (16, 16, 16),
+        'tn': 4,
+        'dump_summary': 'summary.txt',
+        'dump_norms': 'norms.txt'
+    }
+    run('acoustic', **kwargs)
