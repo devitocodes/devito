@@ -925,17 +925,19 @@ class MPIMsg(CompositeObject):
     else:
         c_mpirequest_p = type('MPI_Request', (c_void_p,), {})
 
-    def __init__(self, name, function, halos, fields=None):
+    fields = [
+        (_C_field_bufs, c_void_p),
+        (_C_field_bufg, c_void_p),
+        (_C_field_sizes, POINTER(c_int)),
+        (_C_field_rrecv, c_mpirequest_p),
+        (_C_field_rsend, c_mpirequest_p),
+    ]
+
+    def __init__(self, name, function, halos):
         self._function = function
         self._halos = halos
-        fields = (fields or []) + [
-            (MPIMsg._C_field_bufs, c_void_p),
-            (MPIMsg._C_field_bufg, c_void_p),
-            (MPIMsg._C_field_sizes, POINTER(c_int)),
-            (MPIMsg._C_field_rrecv, MPIMsg.c_mpirequest_p),
-            (MPIMsg._C_field_rsend, MPIMsg.c_mpirequest_p),
-        ]
-        super(MPIMsg, self).__init__(name, 'msg', fields)
+
+        super(MPIMsg, self).__init__(name, 'msg', self.fields)
 
         # Required for buffer allocation/deallocation before/after jumping/returning
         # to/from C-land
@@ -1009,14 +1011,12 @@ class MPIMsgEnriched(MPIMsg):
     _C_field_from = 'fromrank'
     _C_field_to = 'torank'
 
-    def __init__(self, name, function, halos):
-        fields = [
-            (MPIMsgEnriched._C_field_ofss, POINTER(c_int)),
-            (MPIMsgEnriched._C_field_ofsg, POINTER(c_int)),
-            (MPIMsgEnriched._C_field_from, c_int),
-            (MPIMsgEnriched._C_field_to, c_int)
-        ]
-        super(MPIMsgEnriched, self).__init__(name, function, halos, fields)
+    fields = MPIMsg.fields + [
+        (_C_field_ofss, POINTER(c_int)),
+        (_C_field_ofsg, POINTER(c_int)),
+        (_C_field_from, c_int),
+        (_C_field_to, c_int)
+    ]
 
     def _arg_defaults(self, alias=None):
         super(MPIMsgEnriched, self)._arg_defaults(alias)
