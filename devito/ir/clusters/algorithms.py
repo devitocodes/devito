@@ -6,6 +6,7 @@ from devito.ir.support import Any, Backward, Forward, IterationSpace
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import QueueStateful
+from devito.ir.equations.algorithms import lower_exprs
 from devito.symbolics import CondEq
 from devito.tools import timed_pass
 
@@ -176,7 +177,8 @@ def guard(clusters):
                 if cd.condition is None:
                     condition.append(CondEq(cd.parent % cd.factor, 0))
                 else:
-                    condition.append(cd.condition)
+                    cond = lower_exprs(cd.condition).pop()
+                    condition.append(cond)
             guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
             processed.append(c.rebuild(exprs=list(g), guards=guards))
 
