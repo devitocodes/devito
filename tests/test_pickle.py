@@ -371,11 +371,10 @@ def test_mpi_objects():
 
 
 @skipif(['nompi'])
-@pytest.mark.parallel(mode=[1])
+@pytest.mark.parallel(mode=[(1, 'basic'), (1, 'full')])
 def test_mpi_operator():
     grid = Grid(shape=(4,))
     f = TimeFunction(name='f', grid=grid)
-    g = TimeFunction(name='g', grid=grid)
 
     # Using `sum` creates a stencil in `x`, which in turn will
     # trigger the generation of code for MPI halo exchange
@@ -387,6 +386,8 @@ def test_mpi_operator():
 
     assert str(op) == str(new_op)
 
+    new_grid = new_op.input[0].grid
+    g = TimeFunction(name='g', grid=new_grid)
     new_op.apply(time=2, f=g)
     assert np.all(f.data[0] == [2., 3., 3., 3.])
     assert np.all(f.data[1] == [3., 6., 7., 7.])
