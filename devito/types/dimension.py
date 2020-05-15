@@ -723,14 +723,8 @@ class ConditionalDimension(DerivedDimension):
                           indirect=False):
         super().__init_finalize__(name, parent)
 
-        # TODO: Avoid local import of lower_exprs
-        from devito.ir.equations.algorithms import lower_exprs
-
-        expressions = []
-        expressions.append(condition)
-
         self._factor = factor
-        self._condition = lower_exprs(expressions).pop()
+        self._condition = [condition]
         self._indirect = indirect
 
     @property
@@ -756,8 +750,8 @@ class ConditionalDimension(DerivedDimension):
     @property
     def free_symbols(self):
         retval = super(ConditionalDimension, self).free_symbols
-        if self.condition is not None:
-            retval |= self.condition.free_symbols
+        if self.condition[0] is not None:
+            retval |= self.condition[0].free_symbols
         return retval
 
     # Pickling support

@@ -38,8 +38,6 @@ class Le(sympy.Le):
     g(x, y) <= 1
     """
 
-    is_Relational = False
-
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})
         obj = sympy.Le.__new__(cls, lhs, rhs, **kwargs)
@@ -50,6 +48,10 @@ class Le(sympy.Le):
     def subdomain(self):
         """The SubDomain in which the Le is defined."""
         return self._subdomain
+
+    @property
+    def negated(self):
+        return ops.get(self.func)(*self.args)
 
 
 class Lt(sympy.Lt):
@@ -85,8 +87,6 @@ class Lt(sympy.Lt):
     g(x, y) < 1
     """
 
-    is_Relational = False
-
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})
         obj = sympy.Lt.__new__(cls, lhs, rhs, **kwargs)
@@ -97,6 +97,10 @@ class Lt(sympy.Lt):
     def subdomain(self):
         """The SubDomain in which the Lt is defined."""
         return self._subdomain
+
+    @property
+    def negated(self):
+        return ops.get(self.func)(*self.args)
 
 
 class Ge(sympy.Ge):
@@ -132,8 +136,6 @@ class Ge(sympy.Ge):
     g(x, y) >= 1
     """
 
-    is_Relational = False
-
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})
         obj = sympy.Ge.__new__(cls, lhs, rhs, **kwargs)
@@ -145,6 +147,10 @@ class Ge(sympy.Ge):
     def subdomain(self):
         """The SubDomain in which the Ge is defined."""
         return self._subdomain
+
+    @property
+    def negated(self):
+        return ops.get(self.func)(*self.args)
 
 
 class Gt(sympy.Gt):
@@ -180,8 +186,6 @@ class Gt(sympy.Gt):
     g(x, y) > 1
     """
 
-    is_Relational = False
-
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})
         obj = sympy.Gt.__new__(cls, lhs, rhs, **kwargs)
@@ -193,6 +197,10 @@ class Gt(sympy.Gt):
     def subdomain(self):
         """The SubDomain in which the Gt is defined."""
         return self._subdomain
+
+    @property
+    def negated(self):
+        return ops.get(self.func)(*self.args)
 
 
 class Ne(sympy.Ne):
@@ -247,3 +255,6 @@ class Ne(sympy.Ne):
     def subdomain(self):
         """The SubDomain in which the Ne is defined."""
         return self._subdomain
+
+
+ops = {Ge: Lt, Gt: Le, Le: Gt, Lt: Ge}
