@@ -9,8 +9,8 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFu
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
-from devito.symbolics import indexify, retrieve_functions
-from devito.types import Array, Lt, Le, Gt, Ge
+from devito.symbolics import indexify, retrieve_functions, CondNe
+from devito.types import Array, Lt, Le, Gt, Ge, Ne
 
 
 class TestSubDimension(object):
@@ -853,7 +853,7 @@ class TestConditionalDimension(object):
     @pytest.mark.parametrize('setup_rel, rhs, c1, c2, c3, c4', [
         # Relation, RHS, c1 to c4 used as indexes in assert
         (Lt, 3, 2, 4, 4, -1), (Le, 2, 2, 4, 4, -1), (Ge, 3, 4, 6, 1, 4),
-        (Gt, 2, 4, 6, 1, 4)
+        (Gt, 2, 4, 6, 1, 4), (Ne, 5, 2, 6, 1, 2)
     ])
     def test_relational_classes(self, setup_rel, rhs, c1, c2, c3, c4):
         """
@@ -886,9 +886,20 @@ class TestConditionalDimension(object):
         Eq2 = Eq(f, 5)
 
         Operator([Eq1, Eq2]).apply()
-
         assert np.all(f.data[2:6, c1:c2] == 5.)
         assert np.all(f.data[:, c3:c4] < 5.)
+
+    def test_not_equal_form(self):
+        """
+        Test that Ne and CondNe.
+        """
+        grid = Grid(shape=(3, 3))
+        g = Function(name='g', grid=grid)
+        cond1 = Ne(g, 1)
+        cond2 = CondNe(g, 1)
+
+        assert str(cond1) == str(cond2)
+        assert cond1 != cond2
 
     @skipif('device')
     def test_no_fusion_simple(self):
