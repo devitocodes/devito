@@ -56,7 +56,7 @@ class Executor(object):
         
         for key in keys:
             # MPI disabled
-            if key.rank == None:
+            if key.rank is None:
                 return gflopss, oi, timings
             
             # MPI enabled

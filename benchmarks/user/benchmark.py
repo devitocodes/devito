@@ -379,7 +379,7 @@ def bench(problem, **kwargs):
     repeats = kwargs.pop('repeats')
 
     bench = get_ob_bench(problem, resultsdir, kwargs)
-    bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)    
+    bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)
     
     # With MPI, only rank0 writes to disk
     try:
@@ -387,10 +387,10 @@ def bench(problem, **kwargs):
     except TypeError:
         # MPI not available
         rank = 0
-        
+    
     if rank == 0:
-        bench.save()        
-
+        bench.save()
+    
     # Final clean up, just in case the benchmarker is used from external Python modules
     clear_cache()
 
