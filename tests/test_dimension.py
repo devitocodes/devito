@@ -831,7 +831,7 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data == F)
 
-    def test_condition_lowering(self):
+    def test_lowering(self):
         """
         Test the lowering of a ConditionalDimension's condition.
         This test makes an Operator that should indexify and lower the condition
@@ -841,7 +841,7 @@ class TestConditionalDimension(object):
         grid = Grid(shape=(3, 3))  # Define grid
 
         # Define Function
-        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+        g = Function(name='g', grid=grid)
         g.data[:] = 1
         x, y = grid.dimensions
         ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, 1))
@@ -850,7 +850,7 @@ class TestConditionalDimension(object):
         Operator(Eq(f, g)).apply()
         assert np.all(f.data == 1)
 
-    def test_expr_like_condition_lowering(self):
+    def test_expr_like_lowering(self):
         """
         Test the lowering of an expr-like ConditionalDimension's condition.
         This test makes an Operator that should indexify and lower the condition
@@ -859,8 +859,8 @@ class TestConditionalDimension(object):
 
         grid = Grid(shape=(3, 3))  # Define grid
         # Define Function
-        g1 = Function(name='g1', shape=grid.shape, dimensions=grid.dimensions)
-        g2 = Function(name='g2', shape=grid.shape, dimensions=grid.dimensions)
+        g1 = Function(name='g1', grid=grid)
+        g2 = Function(name='g2', grid=grid)
 
         g1.data[:] = 0.49
         g2.data[:] = 0.49
@@ -880,8 +880,7 @@ class TestConditionalDimension(object):
     ])
     def test_relational_classes(self, setup_rel, rhs, c1, c2, c3, c4):
         """
-        Test ConditionalDimension using conditions constructed with overriden
-        SymPy relation classes.
+        Test ConditionalDimension using using conditions based on Relations.
         """
 
         class InnerDomain(SubDomain):
@@ -905,10 +904,10 @@ class TestConditionalDimension(object):
         ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
         f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
 
-        Eq1 = Eq(f, g)
-        Eq2 = Eq(f, 5)
+        eq1 = Eq(f, g)
+        eq2 = Eq(f, 5)
 
-        Operator([Eq1, Eq2]).apply()
+        Operator([eq1, eq2]).apply()
         assert np.all(f.data[2:6, c1:c2] == 5.)
         assert np.all(f.data[:, c3:c4] < 5.)
 
