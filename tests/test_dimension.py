@@ -850,6 +850,29 @@ class TestConditionalDimension(object):
         Operator(Eq(f, g)).apply()
         assert np.all(f.data == 1)
 
+    def test_expr_like_condition_lowering(self):
+        """
+        Test the lowering of an expr-like ConditionalDimension's condition.
+        This test makes an Operator that should indexify and lower the condition
+        passed in the Conditional Dimension
+        """
+
+        grid = Grid(shape=(3, 3))  # Define grid
+        # Define Function
+        g1 = Function(name='g1', shape=grid.shape, dimensions=grid.dimensions)
+        g2 = Function(name='g2', shape=grid.shape, dimensions=grid.dimensions)
+
+        g1.data[:] = 0.49
+        g2.data[:] = 0.49
+        x, y = grid.dimensions
+        ci = ConditionalDimension(name='ci', parent=y, condition=Le((g1 + g2),
+                                  1.01*(g1 + g2)))
+
+        f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
+        Operator(Eq(f, g1+g2)).apply()
+
+        assert np.all(f.data[:] == g1.data[:] + g2.data[:])
+
     @pytest.mark.parametrize('setup_rel, rhs, c1, c2, c3, c4', [
         # Relation, RHS, c1 to c4 used as indexes in assert
         (Lt, 3, 2, 4, 4, -1), (Le, 2, 2, 4, 4, -1), (Ge, 3, 4, 6, 1, 4),
@@ -869,7 +892,7 @@ class TestConditionalDimension(object):
 
         inner_domain = InnerDomain()
         grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
-        g = Function(name='g', shape=grid.shape, dimensions=grid.dimensions)
+        g = Function(name='g', grid=grid)
 
         g.data[:4, :4] = 1
         g.data[4:, :4] = 2

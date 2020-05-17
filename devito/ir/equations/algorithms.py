@@ -81,11 +81,8 @@ def lower_exprs(expressions, **kwargs):
     processed = []
     for expr in expressions:
         try:
-            if expr.subdomain:
-                dimension_map = expr.subdomain.dimension_map
-            else:
-                dimension_map = {}
-        except:
+            dimension_map = expr.subdomain.dimension_map
+        except AttributeError:
             dimension_map = {}
 
         # Handle Functions (typical case)

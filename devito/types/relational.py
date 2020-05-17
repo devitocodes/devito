@@ -17,7 +17,7 @@ class Le(sympy.Le):
 
     Parameters
     ----------
-    lhs : Function or SparseFunction
+    lhs : expr-like
         The left-hand side.
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
@@ -65,7 +65,7 @@ class Lt(sympy.Lt):
 
     Parameters
     ----------
-    lhs : Function or SparseFunction
+    lhs : expr-like
         The left-hand side.
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
@@ -113,7 +113,7 @@ class Ge(sympy.Ge):
 
     Parameters
     ----------
-    lhs : Function or SparseFunction
+    lhs : expr-like
         The left-hand side.
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
@@ -162,7 +162,7 @@ class Gt(sympy.Gt):
 
     Parameters
     ----------
-    lhs : Function or SparseFunction
+    lhs : expr-like
         The left-hand side.
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
@@ -211,7 +211,7 @@ class Ne(sympy.Ne):
 
     Parameters
     ----------
-    lhs : Function or SparseFunction
+    lhs : expr-like
         The left-hand side.
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
@@ -243,7 +243,7 @@ class Ne(sympy.Ne):
         kwargs.update({'evaluate': False})
         obj = sympy.Ne.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
-        # import pdb; pdb.set_trace()
+
         return obj
 
     @property
