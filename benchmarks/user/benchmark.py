@@ -380,17 +380,17 @@ def bench(problem, **kwargs):
 
     bench = get_ob_bench(problem, resultsdir, kwargs)
     bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)
-    
+
     # With MPI, only rank0 writes to disk
     try:
         rank = MPI.COMM_WORLD.rank
     except TypeError:
         # MPI not available
         rank = 0
-    
+
     if rank == 0:
         bench.save()
-    
+
     # Final clean up, just in case the benchmarker is used from external Python modules
     clear_cache()
 
@@ -564,7 +564,7 @@ def get_ob_exec(func):
             clear_cache()
 
             gflopss, oi, timings, _ = self.func(*args, **kwargs)
-            
+
             gflopss, oi, timings = self.unify_mpi_measures(gflopss, oi, timings)
 
             for key in timings.keys():
