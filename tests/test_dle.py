@@ -535,7 +535,6 @@ class TestNestedParallelism(object):
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     @patch("devito.passes.iet.openmp.Ompizer.NESTED", 0)
     @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 1)
     @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
@@ -549,7 +548,7 @@ class TestNestedParallelism(object):
 
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-        op = Operator(eqn, openmp=True)
+        op = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2

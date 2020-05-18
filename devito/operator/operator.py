@@ -970,6 +970,8 @@ def parse_kwargs(**kwargs):
     options.setdefault('min-storage', opt_options.get('min-storage', False))
     options.setdefault('cire-repeats-inv', opt_options.get('cire-repeats-inv', None))
     options.setdefault('cire-repeats-sops', opt_options.get('cire-repeats-sops', None))
+    options.setdefault('cire-mincost-inv', opt_options.get('cire-mincost-inv', None))
+    options.setdefault('cire-mincost-sops', opt_options.get('cire-mincost-sops', None))
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
     kwargs['options'] = options

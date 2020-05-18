@@ -1465,7 +1465,6 @@ class TestOperatorAdvanced(object):
         assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_aliases(self):
         """
         Check correctness when the DSE extracts aliases and places them
@@ -1493,7 +1492,7 @@ class TestOperatorAdvanced(object):
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+1, y+1])*3*f +
                              (u[t, x+2, y+2] + u[t, x+3, y+3])*3*f + 1))
         op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn, opt='advanced')
+        op1 = Operator(eqn, opt=('advanced', {'cire-mincost-sops': 1}))
 
         op0(time_M=1)
         u0_norm = norm(u)
@@ -1505,7 +1504,6 @@ class TestOperatorAdvanced(object):
         assert u0_norm == u1_norm
 
     @pytest.mark.parallel(mode=[(4, 'overlap2', True)])
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_aliases_with_shifted_diagonal_halo_touch(self):
         """
         Like ``test_aliases`` but now the diagonal halos required to compute
@@ -1525,7 +1523,7 @@ class TestOperatorAdvanced(object):
         eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+2, y])*3*f +
                              (u[t, x+1, y+1] + u[t, x+3, y+1])*3*f + 1))
         op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn, opt='advanced')
+        op1 = Operator(eqn, opt=('advanced', {'cire-mincost-sops': 1}))
 
         op0(time_M=1)
         u0_norm = norm(u)

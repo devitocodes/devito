@@ -15,21 +15,6 @@ from devito.types import Array, Eq, ShiftedDimension, Scalar
 __all__ = ['cire']
 
 
-MIN_COST_ALIAS = 10
-"""
-Minimum operation count of an aliasing expression to be lifted into
-a vector temporary.
-"""
-
-MIN_COST_ALIAS_INV = 50
-"""
-Minimum operation count of a time-invariant aliasing expression to be
-lifted into a vector temporary. Time-invariant aliases are lifted outside
-of the time-marching loop, thus they will require vector temporaries as big
-as the entire grid.
-"""
-
-
 @cluster_pass
 def cire(cluster, template, mode, options, platform):
     """
@@ -80,19 +65,21 @@ def cire(cluster, template, mode, options, platform):
     t0 = 2.0*t2[x,y,z]
     t1 = 3.0*t2[x,y,z+1]
     """
-    # Sanity checks
-    assert mode in ['invariants', 'sops']
-    assert all(i > 0 for i in options['cire-repeats'].values())
-
     # Relevant options
     min_storage = options['min-storage']
+    min_cost = options['cire-mincost']
+    repeats = options['cire-repeats']
+
+    # Sanity checks
+    assert mode in ['invariants', 'sops']
+    assert all(i > 0 for i in repeats.values())
 
     # Setup callbacks
     def callbacks_invariants(context, *args):
         extractor = make_is_time_invariant(context)
-        model = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
+        model = lambda e: estimate_cost(e, True) >= min_cost['invariants']
         ignore_collected = lambda g: False
-        selector = lambda c, n: c >= MIN_COST_ALIAS_INV and n >= 1
+        selector = lambda c, n: c >= min_cost['invariants'] and n >= 1
         return extractor, model, ignore_collected, selector
 
     def callbacks_sops(context, n):
@@ -106,7 +93,7 @@ def cire(cluster, template, mode, options, platform):
         extractor = lambda e: q_sum_of_product(e, depth)
         model = lambda e: not (q_leaf(e) or q_terminalop(e, depth-1))
         ignore_collected = lambda g: len(g) <= 1
-        selector = lambda c, n: c >= MIN_COST_ALIAS and n > 1
+        selector = lambda c, n: c >= min_cost['sops'] and n > 1
         return extractor, model, ignore_collected, selector
 
     callbacks_mapper = {
@@ -117,7 +104,7 @@ def cire(cluster, template, mode, options, platform):
     # The main CIRE loop
     processed = []
     context = cluster.exprs
-    for n in reversed(range(options['cire-repeats'][mode])):
+    for n in reversed(range(repeats[mode])):
         # Get the callbacks
         extractor, model, ignore_collected, selector = callbacks_mapper[mode](context, n)
 
