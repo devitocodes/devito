@@ -170,13 +170,13 @@
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="kn">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">clusterize</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">iet_lower_dims</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="kn">import</span> <span class="n">stree_build</span>
+<span class="kn">from</span> <span class="nn">devito.ir.equations.algorithms</span> <span class="kn">import</span> <span class="n">lower_exprs</span>
 <span class="kn">from</span> <span class="nn">devito.operator.registry</span> <span class="kn">import</span> <span class="n">operator_selector</span>
 <span class="kn">from</span> <span class="nn">devito.operator.profiling</span> <span class="kn">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.passes</span> <span class="kn">import</span> <span class="n">Graph</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="p">(</span><span class="n">estimate_cost</span><span class="p">,</span> <span class="n">retrieve_functions</span><span class="p">,</span> <span class="n">retrieve_indexed</span><span class="p">,</span>
-                              <span class="n">uxreplace</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">retrieve_functions</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">DAG</span><span class="p">,</span> <span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span>
                           <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">split</span><span class="p">,</span> <span class="n">timed_pass</span><span class="p">,</span> <span class="n">timed_region</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">Eq</span>
@@ -451,41 +451,9 @@
         <span class="c1"># Scalarize tensor expressions</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">_flatten</span><span class="p">]</span>
 
-        <span class="c1"># Indexification</span>
-        <span class="c1"># E.g., f(x - 2*h_x, y) -&gt; f[xi + 2, yi + 4]  (assuming halo_size=4)</span>
-        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">subdomain</span><span class="p">:</span>
-                <span class="n">dimension_map</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subdomain</span><span class="o">.</span><span class="n">dimension_map</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">dimension_map</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">expressions</span> <span class="o">=</span> <span class="n">lower_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-            <span class="c1"># Handle Functions (typical case)</span>
-            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">indexify</span><span class="p">(</span><span class="n">lshift</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">dimension_map</span><span class="p">)</span>
-                      <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">retrieve_functions</span><span class="p">(</span><span class="n">expr</span><span class="p">)}</span>
-
-            <span class="c1"># Handle Indexeds (from index notation)</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-                <span class="n">f</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span>
-
-                <span class="c1"># Introduce shifting to align with the computational domain</span>
-                <span class="n">indices</span> <span class="o">=</span> <span class="p">[(</span><span class="n">a</span> <span class="o">+</span> <span class="n">o</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">_size_nodomain</span><span class="o">.</span><span class="n">left</span><span class="p">)]</span>
-
-                <span class="c1"># Apply substitutions, if necessary</span>
-                <span class="k">if</span> <span class="n">dimension_map</span><span class="p">:</span>
-                    <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">dimension_map</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">]</span>
-
-                <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
-
-            <span class="n">subs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;subs&#39;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">subs</span><span class="p">:</span>
-                <span class="c1"># Include the user-supplied substitutions, and use</span>
-                <span class="c1"># `xreplace` for constant folding</span>
-                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="o">**</span><span class="n">mapper</span><span class="p">,</span> <span class="o">**</span><span class="n">subs</span><span class="p">}))</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">uxreplace</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mapper</span><span class="p">))</span>
-
-        <span class="n">processed</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">processed</span>
 
