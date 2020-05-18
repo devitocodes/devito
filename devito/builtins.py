@@ -196,17 +196,10 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
-    # Note: we impose the smoother runs on the host as there's generally not
-    # enough parallelism to be performant on a device
-    platform = 'cpu64'
-    # TODO: openacc on CPUs not supported yet
-    if dv.configuration['language'] == 'openacc':
-        language = 'openmp'
-    else:
-        language = dv.configuration['language']
+    # Note: generally not enough parallelism to be performant on a gpu device
+    # TODO: Add openacc support for CPUs and set platform = 'cpu64'
 
-    initialize_function(f_c, f, lw, mapper=mapper, mode='reflect', name='smooth',
-                        platform=platform, language=language)
+    initialize_function(f_c, f, lw, mapper=mapper, mode='reflect', name='smooth')
 
     fset(f, f_c)
     return f
