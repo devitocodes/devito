@@ -13,7 +13,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
                                  MPIRegion)
 from devito.operator.profiling import Timer
 from devito.types import Symbol as dSymbol, Scalar
-from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
+from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer, DefFunction
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
@@ -223,6 +223,12 @@ def test_symbolics():
     pkl_li = pickle.dumps(li)
     new_li = pickle.loads(pkl_li)
     assert li == new_li
+
+    df = DefFunction('f', ['a', 1, 2])
+    pkl_df = pickle.dumps(df)
+    new_df = pickle.loads(pkl_df)
+    assert df == new_df
+    assert df.arguments == new_df.arguments
 
 
 def test_timers():
