@@ -11,5 +11,6 @@ from .equation import *  # noqa
 from .constant import *  # noqa
 from .grid import *  # noqa
 from .dense import * # noqa
+from .relational import *  # noqa
 from .sparse import *  # noqa
 from .tensor import *  # noqa

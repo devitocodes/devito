@@ -18,7 +18,7 @@ import doctest
 
 @pytest.mark.parametrize('modname', [
     'types.basic', 'types.dimension', 'types.constant', 'types.grid',
-    'types.dense', 'types.sparse', 'types.equation', 'operator',
+    'types.dense', 'types.sparse', 'types.equation', 'types.relational', 'operator',
     'data.decomposition', 'finite_differences.finite_difference',
     'finite_differences.coefficients', 'finite_differences.derivative',
     'ir.support.space', 'data.utils', 'data.allocators', 'builtins',

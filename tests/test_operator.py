@@ -10,13 +10,14 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
+from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar
+from devito.types import Array, Scalar, Le, Lt, Ge, Gt  # noqa
 
 
 def dimify(dimensions):
@@ -76,6 +77,26 @@ class TestCodeGen(object):
 
         with timed_region('x'):
             expr = Operator._lower_exprs([expr])[0]
+
+        assert str(expr).replace(' ', '') == expected
+
+    @pytest.mark.parametrize('expr, so, expected', [
+        ('Lt(0.1*(g1 + g2), 0.2*(g1 + g2))', 0,
+         '0.1*g1[x,y]+0.1*g2[x,y]<0.2*g1[x,y]+0.2*g2[x,y]'),
+        ('Le(0.1*(g1 + g2), 0.2*(g1 + g2))', 1,
+         '0.1*g1[x+1,y+1]+0.1*g2[x+1,y+1]<=0.2*g1[x+1,y+1]+0.2*g2[x+1,y+1]'),
+        ('Ge(0.1*(g1 + g2), 0.2*(g1 + g2))', 2,
+         '0.1*g1[x+2,y+2]+0.1*g2[x+2,y+2]>=0.2*g1[x+2,y+2]+0.2*g2[x+2,y+2]'),
+        ('Gt(0.1*(g1 + g2), 0.2*(g1 + g2))', 4,
+         '0.1*g1[x+4,y+4]+0.1*g2[x+4,y+4]>0.2*g1[x+4,y+4]+0.2*g2[x+4,y+4]'),
+    ])
+    def test_relationals_index_shifting(self, expr, so, expected):
+
+        grid = Grid(shape=(3, 3))
+        g1 = Function(name='g1', grid=grid, space_order=so)  # noqa
+        g2 = Function(name='g2', grid=grid, space_order=so)  # noqa
+        expr = eval(expr)
+        expr = lower_exprs(expr)
 
         assert str(expr).replace(' ', '') == expected
 
