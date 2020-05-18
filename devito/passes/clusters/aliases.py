@@ -75,14 +75,22 @@ def cire(cluster, template, mode, options, platform):
     assert all(i > 0 for i in repeats.values())
 
     # Setup callbacks
-    def callbacks_invariants(context, *args):
+    def callbacks_invariants(context, n):
+        min_cost_inv = min_cost['invariants']
+        if callable(min_cost_inv):
+            min_cost_inv = min_cost_inv(n)
+
         extractor = make_is_time_invariant(context)
-        model = lambda e: estimate_cost(e, True) >= min_cost['invariants']
+        model = lambda e: estimate_cost(e, True) >= min_cost_inv
         ignore_collected = lambda g: False
-        selector = lambda c, n: c >= min_cost['invariants'] and n >= 1
+        selector = lambda c, n: c >= min_cost_inv and n >= 1
         return extractor, model, ignore_collected, selector
 
     def callbacks_sops(context, n):
+        min_cost_sops = min_cost['sops']
+        if callable(min_cost_sops):
+            min_cost_sops = min_cost_sops(n)
+
         # The `depth` determines "how big" the extracted sum-of-products will be.
         # We observe that in typical FD codes:
         #   add(mul, mul, ...) -> stems from first order derivative
@@ -93,7 +101,7 @@ def cire(cluster, template, mode, options, platform):
         extractor = lambda e: q_sum_of_product(e, depth)
         model = lambda e: not (q_leaf(e) or q_terminalop(e, depth-1))
         ignore_collected = lambda g: len(g) <= 1
-        selector = lambda c, n: c >= min_cost['sops'] and n > 1
+        selector = lambda c, n: c >= min_cost_sops and n > 1
         return extractor, model, ignore_collected, selector
 
     callbacks_mapper = {
