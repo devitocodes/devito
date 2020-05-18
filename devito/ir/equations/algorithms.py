@@ -1,8 +1,10 @@
+from collections.abc import Iterable
+
 from operator import attrgetter
 
 from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
                               uxreplace)
-from devito.tools import PartialOrderTuple, filter_sorted, flatten
+from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
 from devito.types import Dimension
 
 __all__ = ['dimension_sort', 'lower_exprs']
@@ -79,7 +81,7 @@ def lower_exprs(expressions, **kwargs):
     """
 
     processed = []
-    for expr in expressions:
+    for expr in as_tuple(expressions):
         try:
             dimension_map = expr.subdomain.dimension_map
         except AttributeError:
@@ -110,4 +112,8 @@ def lower_exprs(expressions, **kwargs):
         else:
             processed.append(uxreplace(expr, mapper))
 
-    return processed
+    if isinstance(expressions, Iterable):
+        return processed  # a list
+    else:
+        assert len(processed) == 1
+        return processed.pop()

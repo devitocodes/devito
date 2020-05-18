@@ -177,7 +177,7 @@ def guard(clusters):
                 if cd.condition is None:
                     condition.append(CondEq(cd.parent % cd.factor, 0))
                 else:
-                    cond = lower_exprs([cd.condition]).pop()
+                    cond = lower_exprs(cd.condition)
                     condition.append(cond)
             guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
             processed.append(c.rebuild(exprs=list(g), guards=guards))
