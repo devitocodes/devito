@@ -8,12 +8,8 @@ __all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne']
 class Le(sympy.Le):
     """
     A less-than or equal ("<=") relation between two objects, the left-hand side and the
-    right-hand side. Can be used to build conditionals but not directly to
+    right-hand side. It can be used to build conditionals but not directly to
     construct an Operator.
-
-    The left-hand side may be a Function or a SparseFunction. The right-hand
-    side may be any arbitrary expressions with numbers, Dimensions, Constants,
-    Functions and SparseFunctions as operands.
 
     Parameters
     ----------
@@ -56,12 +52,8 @@ class Le(sympy.Le):
 class Lt(sympy.Lt):
     """
     A less-than ("<") relation between two objects, the left-hand side and the
-    right-hand side. Can be used to build conditionals but not directly to
+    right-hand side.It can be used to build conditionals but not directly to
     construct an Operator.
-
-    The left-hand side may be a Function or a SparseFunction. The right-hand
-    side may be any arbitrary expressions with numbers, Dimensions, Constants,
-    Functions and SparseFunctions as operands.
 
     Parameters
     ----------
@@ -104,12 +96,8 @@ class Lt(sympy.Lt):
 class Ge(sympy.Ge):
     """
     A greater-than or equal (">=") relation between two objects, the left-hand side and
-    the right-hand side. Can be used to build conditionals but not directly to
+    the right-hand side. It can be used to build conditionals but not directly to
     construct an Operator.
-
-    The left-hand side may be a Function or a SparseFunction. The right-hand
-    side may be any arbitrary expressions with numbers, Dimensions, Constants,
-    Functions and SparseFunctions as operands.
 
     Parameters
     ----------
@@ -153,12 +141,8 @@ class Ge(sympy.Ge):
 class Gt(sympy.Gt):
     """
     A greater-than (">") relation between two objects, the left-hand side and the
-    right-hand side. Can be used to build conditionals but not directly to
+    right-hand side. It can be used to build conditionals but not directly to
     construct an Operator.
-
-    The left-hand side may be a Function or a SparseFunction. The right-hand
-    side may be any arbitrary expressions with numbers, Dimensions, Constants,
-    Functions and SparseFunctions as operands.
 
     Parameters
     ----------
@@ -202,12 +186,8 @@ class Gt(sympy.Gt):
 class Ne(sympy.Ne):
     """
     A not-equal ("!=") relation between two objects (see Notes below), the left-hand side
-    and the right-hand side. Can be used to build conditionals but not directly to
+    and the right-hand side. It can be used to build conditionals but not directly to
     construct an Operator.
-
-    The left-hand side may be a Function or a SparseFunction. The right-hand
-    side may be any arbitrary expressions with numbers, Dimensions, Constants,
-    Functions and SparseFunctions as operands.
 
     Parameters
     ----------

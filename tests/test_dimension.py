@@ -9,7 +9,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFu
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
-from devito.symbolics import indexify, retrieve_functions, CondNe
+from devito.symbolics import indexify, retrieve_functions
 from devito.types import Array, Lt, Le, Gt, Ge, Ne
 
 
@@ -831,25 +831,6 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data == F)
 
-    def test_lowering(self):
-        """
-        Test the lowering of a ConditionalDimension's condition.
-        This test makes an Operator that should indexify and lower the condition
-        passed in the Conditional Dimension
-        """
-
-        grid = Grid(shape=(3, 3))  # Define grid
-
-        # Define Function
-        g = Function(name='g', grid=grid)
-        g.data[:] = 1
-        x, y = grid.dimensions
-        ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, 1))
-
-        f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
-        Operator(Eq(f, g)).apply()
-        assert np.all(f.data == 1)
-
     def test_expr_like_lowering(self):
         """
         Test the lowering of an expr-like ConditionalDimension's condition.
@@ -857,8 +838,7 @@ class TestConditionalDimension(object):
         passed in the Conditional Dimension
         """
 
-        grid = Grid(shape=(3, 3))  # Define grid
-        # Define Function
+        grid = Grid(shape=(3, 3))
         g1 = Function(name='g1', grid=grid)
         g2 = Function(name='g2', grid=grid)
 
@@ -880,7 +860,7 @@ class TestConditionalDimension(object):
     ])
     def test_relational_classes(self, setup_rel, rhs, c1, c2, c3, c4):
         """
-        Test ConditionalDimension using using conditions based on Relations.
+        Test ConditionalDimension using conditions based on Relations over SubDomains.
         """
 
         class InnerDomain(SubDomain):
@@ -892,6 +872,7 @@ class TestConditionalDimension(object):
         inner_domain = InnerDomain()
         grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
         g = Function(name='g', grid=grid)
+        g2 = Function(name='g', grid=grid)
 
         g.data[:4, :4] = 1
         g.data[4:, :4] = 2
@@ -900,28 +881,16 @@ class TestConditionalDimension(object):
 
         xi, yi = grid.subdomains['inner'].dimensions
 
-        cond = setup_rel(g, rhs, subdomain=grid.subdomains['inner'])
+        cond = setup_rel(0.25*g + 0.75*g2, rhs, subdomain=grid.subdomains['inner'])
         ci = ConditionalDimension(name='ci', parent=yi, condition=cond)
         f = Function(name='f', shape=grid.shape, dimensions=(xi, ci))
 
-        eq1 = Eq(f, g)
+        eq1 = Eq(f, 0.4*g + 0.6*g2)
         eq2 = Eq(f, 5)
 
         Operator([eq1, eq2]).apply()
         assert np.all(f.data[2:6, c1:c2] == 5.)
         assert np.all(f.data[:, c3:c4] < 5.)
-
-    def test_not_equal_form(self):
-        """
-        Test that Ne and CondNe.
-        """
-        grid = Grid(shape=(3, 3))
-        g = Function(name='g', grid=grid)
-        cond1 = Ne(g, 1)
-        cond2 = CondNe(g, 1)
-
-        assert str(cond1) == str(cond2)
-        assert cond1 != cond2
 
     @skipif('device')
     def test_no_fusion_simple(self):

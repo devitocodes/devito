@@ -722,7 +722,6 @@ class ConditionalDimension(DerivedDimension):
     def __init_finalize__(self, name, parent, factor=None, condition=None,
                           indirect=False):
         super().__init_finalize__(name, parent)
-
         self._factor = factor
         self._condition = condition
         self._indirect = indirect

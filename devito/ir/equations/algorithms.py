@@ -73,11 +73,13 @@ def lower_exprs(expressions, **kwargs):
     """
     Lowering an expression consists of the following passes:
 
-        * Indexify functions
-        * Align indexeds with the computational domain
-        * Consider user-applied subs
+        * Indexify functions;
+        * Align Indexeds with the computational domain;
+        * Apply user-provided substitution;
 
-    # E.g., f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
+    Examples
+    --------
+    f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
     """
 
     processed = []
@@ -85,6 +87,7 @@ def lower_exprs(expressions, **kwargs):
         try:
             dimension_map = expr.subdomain.dimension_map
         except AttributeError:
+            # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
 
         # Handle Functions (typical case)
@@ -113,7 +116,7 @@ def lower_exprs(expressions, **kwargs):
             processed.append(uxreplace(expr, mapper))
 
     if isinstance(expressions, Iterable):
-        return processed  # a list
+        return processed
     else:
         assert len(processed) == 1
         return processed.pop()
