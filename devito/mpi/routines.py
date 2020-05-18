@@ -1054,15 +1054,16 @@ class MPIMsgEnriched(MPIMsg):
 
 class MPIRegion(CompositeObject):
 
-    def __init__(self, name, key, arguments, owned):
-        name = "%s%d" % (name, key)
-        pname = "region%d" % key
-
+    def __init__(self, prefix, key, arguments, owned):
+        self._prefix = prefix
         self._key = key
         self._owned = owned
 
         # Sorting for deterministic codegen
         self._arguments = sorted(arguments, key=lambda i: i.name)
+
+        name = "%s%d" % (prefix, key)
+        pname = "region%d" % key
 
         fields = []
         for i in self.arguments:
@@ -1083,6 +1084,10 @@ class MPIRegion(CompositeObject):
     @property
     def arguments(self):
         return self._arguments
+
+    @property
+    def prefix(self):
+        return self._prefix
 
     @property
     def key(self):
@@ -1113,4 +1118,4 @@ class MPIRegion(CompositeObject):
         return values
 
     # Pickling support
-    _pickle_args = ['name', 'key', 'arguments', 'owned']
+    _pickle_args = ['prefix', 'key', 'arguments', 'owned']
