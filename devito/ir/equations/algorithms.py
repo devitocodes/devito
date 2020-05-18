@@ -1,10 +1,13 @@
+from collections.abc import Iterable
+
 from operator import attrgetter
 
-from devito.symbolics import retrieve_indexed, split_affine
-from devito.tools import PartialOrderTuple, filter_sorted, flatten
+from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
+                              uxreplace)
+from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
 from devito.types import Dimension
 
-__all__ = ['dimension_sort']
+__all__ = ['dimension_sort', 'lower_exprs']
 
 
 def dimension_sort(expr):
@@ -64,3 +67,56 @@ def dimension_sort(expr):
     ordering = PartialOrderTuple(extra, relations=(relations | implicit_relations))
 
     return ordering
+
+
+def lower_exprs(expressions, **kwargs):
+    """
+    Lowering an expression consists of the following passes:
+
+        * Indexify functions;
+        * Align Indexeds with the computational domain;
+        * Apply user-provided substitution;
+
+    Examples
+    --------
+    f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
+    """
+
+    processed = []
+    for expr in as_tuple(expressions):
+        try:
+            dimension_map = expr.subdomain.dimension_map
+        except AttributeError:
+            # Some Relationals may be pure SymPy objects, thus lacking the subdomain
+            dimension_map = {}
+
+        # Handle Functions (typical case)
+        mapper = {f: f.indexify(lshift=True, subs=dimension_map)
+                  for f in retrieve_functions(expr)}
+
+        # Handle Indexeds (from index notation)
+        for i in retrieve_indexed(expr):
+            f = i.function
+
+            # Introduce shifting to align with the computational domain
+            indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
+
+            # Apply substitutions, if necessary
+            if dimension_map:
+                indices = [j.xreplace(dimension_map) for j in indices]
+
+            mapper[i] = f.indexed[indices]
+
+        subs = kwargs.get('subs')
+        if subs:
+            # Include the user-supplied substitutions, and use
+            # `xreplace` for constant folding
+            processed.append(expr.xreplace({**mapper, **subs}))
+        else:
+            processed.append(uxreplace(expr, mapper))
+
+    if isinstance(expressions, Iterable):
+        return processed
+    else:
+        assert len(processed) == 1
+        return processed.pop()
