@@ -1,15 +1,16 @@
 import pytest
 import numpy as np
-from sympy import Symbol
+from sympy import Symbol, Min
 import pickle
 
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, ShiftedDimension)
-from devito.data import LEFT
+from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
-from devito.mpi.routines import MPIStatusObject, MPIMsgEnriched, MPIRequestObject
+from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
+                                 MPIRegion)
 from devito.operator.profiling import Timer
 from devito.types import Symbol as dSymbol, Scalar
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
@@ -327,8 +328,9 @@ def test_operator_timefunction_w_preallocation():
 @skipif(['nompi'])
 @pytest.mark.parallel(mode=[1])
 def test_mpi_objects():
-    # Neighbours
     grid = Grid(shape=(4, 4, 4))
+
+    # Neighbours
     obj = grid.distributor._obj_neighborhood
     pkl_obj = pickle.dumps(obj)
     new_obj = pickle.loads(pkl_obj)
@@ -357,8 +359,14 @@ def test_mpi_objects():
     assert obj.name == new_obj.name
     assert obj.dtype == new_obj.dtype
 
+
+@skipif(['nompi'])
+@pytest.mark.parallel(mode=[(1, 'full')])
+def test_mpi_fullmode_objects():
+    grid = Grid(shape=(4, 4, 4))
+    x, y, _ = grid.dimensions
+
     # Message
-    x = grid.dimensions[0]
     f = Function(name='f', grid=grid)
     obj = MPIMsgEnriched('msg', f, [Halo(x, LEFT)])
     pkl_obj = pickle.dumps(obj)
@@ -368,6 +376,29 @@ def test_mpi_objects():
     assert all(obj.function.dimensions[i].name == new_obj.function.dimensions[i].name
                for i in range(grid.dim))
     assert new_obj.function.dimensions[0] is new_obj.halos[0].dim
+
+    # Region
+    x_m, x_M = x.symbolic_min, x.symbolic_max
+    y_m, y_M = y.symbolic_min, y.symbolic_max
+    obj = MPIRegion('reg', 1, [y, x],
+                    [(((x, OWNED, LEFT),), {x: (x_m, Min(x_M, x_m))}),
+                     (((y, OWNED, LEFT),), {y: (y_m, Min(y_M, y_m))})])
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.prefix == new_obj.prefix
+    assert obj.key == new_obj.key
+    assert obj.name == new_obj.name
+    assert len(new_obj.arguments) == 2
+    assert all(d0.name == d1.name for d0, d1 in zip(obj.arguments, new_obj.arguments))
+    assert all(new_obj.arguments[i] is new_obj.owned[i][0][0][0]  # `x` and `y`
+               for i in range(2))
+    assert new_obj.owned[0][0][0][1] is new_obj.owned[1][0][0][1]  # `OWNED`
+    assert new_obj.owned[0][0][0][2] is new_obj.owned[1][0][0][2]  # `LEFT`
+    for n, i in enumerate(new_obj.owned):
+        d, v = list(i[1].items())[0]
+        assert d is new_obj.arguments[n]
+        assert v[0] is d.symbolic_min
+        assert v[1] == Min(d.symbolic_max, d.symbolic_min)
 
 
 @skipif(['nompi'])
