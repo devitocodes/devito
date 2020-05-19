@@ -35,6 +35,19 @@ class CPU64NoopOperator(OperatorCore):
     Number of CIRE passes to detect and optimize away redundant sum-of-products.
     """
 
+    CIRE_MINCOST_INV = 50
+    """
+    Minimum operation count of a Dimension-invariant aliasing expression to be
+    optimized away. Dimension-invariant aliases are lifted outside of one or more
+    invariant loop(s), so they require tensor temporaries that can be potentially
+    very large (e.g., the whole domain in the case of time-invariant aliases).
+    """
+
+    CIRE_MINCOST_SOPS = 10
+    """
+    Minimum operation count of a sum-of-product aliasing expression to be optimized away.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         options = kwargs['options']
@@ -44,6 +57,10 @@ class CPU64NoopOperator(OperatorCore):
         options['cire-repeats'] = {
             'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
             'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        }
+        options['cire-mincost'] = {
+            'invariants': options.pop('cire-mincost-inv') or cls.CIRE_MINCOST_INV,
+            'sops': options.pop('cire-mincost-sops') or cls.CIRE_MINCOST_SOPS
         }
 
         return kwargs
