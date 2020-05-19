@@ -831,6 +831,28 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data == F)
 
+    def test_conditional_timestepping(self):
+        """
+        Test the lowering of an expr-like ConditionalDimension's condition.
+        This test makes an Operator that should indexify and lower the condition
+        passed in the Conditional Dimension
+        """
+        shape = (4, 4)
+        grid = Grid(shape=shape)
+        x, y = grid.dimensions
+        limit = 10
+        g = TimeFunction(name='g', grid=grid)
+        cond = Le(g, limit)
+        ci = ConditionalDimension(name='ci', parent=y, condition=cond)
+
+        op = Operator(Eq(g.forward, g + 1, implicit_dims=ci))
+        print(op.ccode)
+        op.apply(time_M=limit+3)
+
+        # import pdb; pdb.set_trace()
+        assert np.all(g.data[0, :, :] == limit)
+        assert np.all(g.data[1, :, :] == limit+1)
+
     def test_expr_like_lowering(self):
         """
         Test the lowering of an expr-like ConditionalDimension's condition.

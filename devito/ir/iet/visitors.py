@@ -19,7 +19,7 @@ from devito.types.basic import AbstractFunction
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer']
+           'IsPerfectIteration', 'XSubs', 'XSubs_cond', 'printAST', 'CGen', 'Transformer']
 
 
 class Visitor(GenericVisitor):
@@ -745,6 +745,27 @@ class XSubs(Transformer):
 
     def visit_Expression(self, o):
         return o._rebuild(expr=self.replacer(o.expr))
+
+
+class XSubs_cond(Transformer):
+    """
+    Transformer that performs substitutions on Conditionals
+    in a given tree, akin to SymPy's ``subs``.
+
+    Parameters
+    ----------
+    mapper : dict, optional
+        The substitution rules.
+    replacer : callable, optional
+        An ad-hoc function to perform the substitution. Defaults to ``uxreplace``.
+    """
+
+    def __init__(self, mapper=None, replacer=None):
+        super(XSubs_cond, self).__init__()
+        self.replacer = replacer or (lambda i: uxreplace(i, mapper))
+
+    def visit_Conditional(self, o):
+        return o._rebuild(condition=self.replacer(o.condition))
 
 
 def printAST(node, verbose=True):
