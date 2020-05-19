@@ -5,7 +5,9 @@ notebooks, or as mini-apps built on top of Devito.
 
 Jupyter notebooks are files with extension `.ipynb`. To execute these, run
 `jupyter notebook`, and then click on the desired notebook in the window that
-pops up in your browser.
+pops up in your browser. In alternative, you may explore the pre-rendered
+notebooks directly on GitHub or, for a potentially smoother experience, [with
+nbviewer](https://nbviewer.jupyter.org/github/devitocodes/devito/tree/master/examples/).
 
 We recommend newcomers to start with the following sets of tutorials:
 
