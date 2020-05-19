@@ -475,6 +475,48 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
+    def test_uncontracted_shape_invariants(self):
+        """
+        Like `test_uncontracted_shape`, but now with some (outer-)Dimension-invariant
+        aliasing expressions.
+        """
+        grid = Grid(shape=(6, 6, 6))
+        x, y, z = grid.dimensions  # noqa
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] =\
+            np.linspace(-1, 1, f.data_with_halo.size).reshape(*f.shape_with_halo)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.5
+
+        def func(f):
+            return sqrt(f**2 + 1.)
+
+        # Leads to 3D aliases despite the potential contraction along x and y
+        eqn = Eq(u.forward, u*(func(f) + func(f[x, y, z-1])))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        x_size = op1.parameters[2]
+        y_size = op1.parameters[3]
+        z_size = op1.parameters[4]
+
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 3
+        assert a.halo == ((0, 0), (0, 0), (1, 0))
+        assert a.symbolic_shape[0] == x_size
+        assert a.symbolic_shape[1] == y_size
+        assert Add(*a.symbolic_shape[2].args) == z_size + 1
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.5
+        op1(time_M=1)
+        assert np.allclose(u.data, exp, rtol=10e-7)
+
     def test_full_shape_w_subdims(self):
         """
         Like `test_full_shape`, but SubDomains (and therefore SubDimensions) are used.

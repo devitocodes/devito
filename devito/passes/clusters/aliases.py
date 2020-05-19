@@ -72,7 +72,7 @@ def cire(cluster, template, mode, options, platform):
 
     # Sanity checks
     assert mode in ['invariants', 'sops']
-    assert all(i > 0 for i in repeats.values())
+    assert all(i >= 0 for i in repeats.values())
 
     # Setup callbacks
     def callbacks_invariants(context, n):
@@ -699,23 +699,37 @@ class Aliases(OrderedDict):
         items = []
         for alias, (intervals, aliaseds, distances) in self.items():
             mapper = {i.dim: i for i in intervals}
+            mapper.update({i.dim.parent: i for i in intervals
+                           if i.dim.is_NonlinearDerived})
 
+            # Becomes True as soon as a Dimension in `ispace` is found to
+            # be independent of `intervals`
+            flag = False
             writeto = []
-            for n, i in enumerate(ispace.intervals):
-                interval = mapper.get(i.dim)
-                if interval is not None:
-                    if not writeto and interval == interval.zero():
-                        # Optimize away unnecessary temporary Dimensions
-                        continue
+            for i in ispace.intervals:
+                try:
+                    interval = mapper[i.dim]
+                except KeyError:
+                    if not any(i.dim in d._defines for d in mapper):
+                        # E.g., `t[0,0]<0>` in the case of t-invariant aliases,
+                        # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
+                        # we would not enter here
+                        flag = True
+                    continue
 
-                    # Adjust the Interval's stamp
-                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
-                    # use `<1>` which is the actual stamp used in the Cluster
-                    # from which the aliasing expressions were extracted
-                    assert i.stamp >= interval.stamp
-                    interval = interval.lift(i.stamp)
+                # Try to optimize away unnecessary temporary Dimensions
+                if not flag and interval == interval.zero():
+                    continue
 
-                    writeto.append(interval)
+                # Adjust the Interval's stamp
+                # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                # use `<1>` which is the actual stamp used in the Cluster
+                # from which the aliasing expressions were extracted
+                assert i.stamp >= interval.stamp
+                interval = interval.lift(i.stamp)
+
+                writeto.append(interval)
+                flag = True
 
             if writeto:
                 writeto = IntervalGroup(writeto, relations=ispace.relations)
