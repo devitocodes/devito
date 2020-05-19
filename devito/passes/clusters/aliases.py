@@ -699,12 +699,17 @@ class Aliases(OrderedDict):
         items = []
         for alias, (intervals, aliaseds, distances) in self.items():
             mapper = {i.dim: i for i in intervals}
+            mapper.update({i.dim.parent: i for i in intervals
+                           if i.dim.is_NonlinearDerived})
 
+            # Becomes True as soon as a Dimension in `ispace` is found to
+            # be independent of `intervals`
+            flag = False
             writeto = []
-            for n, i in enumerate(ispace.intervals):
-                interval = mapper.get(i.dim)
-                if interval is not None:
-                    if not writeto and interval == interval.zero():
+            for i in ispace.intervals:
+                try:
+                    interval = mapper[i.dim]
+                    if not flag and interval == interval.zero():
                         # Optimize away unnecessary temporary Dimensions
                         continue
 
@@ -716,6 +721,15 @@ class Aliases(OrderedDict):
                     interval = interval.lift(i.stamp)
 
                     writeto.append(interval)
+                    flag = True
+
+                except KeyError:
+                    if any(i.dim in d._defines for d in mapper):
+                        # E.g., `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>`
+                        pass
+                    else:
+                        # E.g., `t[0,0]<0>` in the case of t-invariant aliases
+                        flag = True
 
             if writeto:
                 writeto = IntervalGroup(writeto, relations=ispace.relations)
