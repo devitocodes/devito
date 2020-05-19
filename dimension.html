@@ -194,19 +194,19 @@ into Functions, but it can also appear in the middle of a symbolic expression
 just like any other symbol.</p>
 <p>Dimension is the root of a hierarchy of classes, which looks as follows (only
 the classes exposed to the level of the user API are shown):</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>                            <span class="n">Dimension</span>
-                                <span class="o">|</span>
-                   <span class="o">---------------------------</span>
-                   <span class="o">|</span>                         <span class="o">|</span>
-            <span class="n">BasicDimension</span>            <span class="n">DefaultDimension</span>
-                   <span class="o">|</span>
-           <span class="n">DerivedDimension</span>
-                   <span class="o">|</span>
-<span class="o">----------------------------------------</span>
-<span class="o">|</span>                  <span class="o">|</span>                   <span class="o">|</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>                                 <span class="n">Dimension</span>
+                                     <span class="o">|</span>
+                        <span class="o">---------------------------</span>
+                        <span class="o">|</span>                         <span class="o">|</span>
+                 <span class="n">BasicDimension</span>            <span class="n">DefaultDimension</span>
+                        <span class="o">|</span>
+                <span class="n">DerivedDimension</span>
+                        <span class="o">|</span>
+      <span class="o">---------------------------------------</span>
+      <span class="o">|</span>                 <span class="o">|</span>                   <span class="o">|</span>
+<span class="n">SteppingDimension</span>   <span class="n">SubDimension</span>   <span class="n">ConditionalDimension</span>
 </pre></div>
 </div>
-<p>SteppingDimension   SubDimension   ConditionalDimension</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
