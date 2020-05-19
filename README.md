@@ -111,11 +111,16 @@ If you are interested in any of the following
 
 * Generation of parallel code (CPU, GPU, multi-node via MPI);
 * Performance tuning;
-* Benchmarking Devito;
-* Any other aspect concerning application performance;
+* Benchmarking operators;
 
 then you should take a look at this
 [README](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
+
+You may also be interested in
+[TheMatrix](https://github.com/devitocodes/thematrix) -- a cross-architecture
+benchmarking framework showing the performance of several production-grade
+seismic operators implemented with Devito. This is now our flagship project
+towards neat, open, and reproducible science.
 
 ## Get in touch
 
