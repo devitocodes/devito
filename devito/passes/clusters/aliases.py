@@ -72,7 +72,7 @@ def cire(cluster, template, mode, options, platform):
 
     # Sanity checks
     assert mode in ['invariants', 'sops']
-    assert all(i > 0 for i in repeats.values())
+    assert all(i >= 0 for i in repeats.values())
 
     # Setup callbacks
     def callbacks_invariants(context, n):
