@@ -1,10 +1,11 @@
 import numpy as np
 
-from examples.seismic import RickerSource
-from examples.seismic.skew_self_adjoint import (default_setup_iso,
+from examples.seismic import setup_geometry, Model
+from examples.seismic.skew_self_adjoint import (setup_w_over_q,
                                                 SsaIsoAcousticWaveSolver)
 
 shape = (221, 211, 201)
+spacing = (10., 10., 10.)
 dtype = np.float32
 npad = 20
 qmin = 0.1
@@ -12,12 +13,16 @@ qmax = 1000.0
 tmax = 500.0
 fpeak = 0.010
 omega = 2.0 * np.pi * fpeak
+vp = 1.5
+b = 1.0
+so = 8
 
-b, v, time_axis, src_coords, rec_coords = default_setup_iso(npad, shape, dtype, tmax=tmax)
+init_damp = lambda func, nbl: setup_w_over_q(func, omega, qmin, qmax, nbl, sigma=0)
 
-solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                  src_coords, rec_coords, time_axis, space_order=8)
+model = Model(origin=(0., 0., 0.), shape=shape, vp=1.5, b=b,
+              spacing=spacing, nbl=npad, space_order=so, bcs=init_damp)
 
-src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1, time_range=time_axis)
-src.coordinates.data[:] = src_coords[:]
-rec, _, _ = solver.forward(src)
+geometry = setup_geometry(model, tmax)
+solver = SsaIsoAcousticWaveSolver(model, geometry, space_order=so)
+
+rec, _, _ = solver.forward()

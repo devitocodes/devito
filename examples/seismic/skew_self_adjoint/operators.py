@@ -29,12 +29,7 @@ def iso_stencil(field, model, **kwargs):
     The time update stencil.
     """
     # Get the Functions for buoyancy, velocity, and wOverQ
-    assert 'b' in model, "model dictionary must contain key 'b'"
-    assert 'v' in model, "model dictionary must contain key 'b'"
-    assert 'wOverQ' in model, "model dictionary must contain key 'wOverQ'"
-    b = model['b']
-    v = model['v']
-    wOverQ = model['wOverQ']
+    vp, b, wOverQ = model.vp, model.b, model.damp
 
     # Define time step of pressure wavefield to be updated
     forward = kwargs.get('forward', True)
@@ -52,7 +47,7 @@ def iso_stencil(field, model, **kwargs):
     # Define the time update equation for 2d/3d
     if len(field.data.shape) == 3:
         t, x, z = field.dimensions
-        eq_time_update = (t.spacing**2 * v**2 / b) * \
+        eq_time_update = (t.spacing**2 * vp**2 / b) * \
             ((b * field.dx(x0=x+x.spacing/2)).dx(x0=x-x.spacing/2) +
              (b * field.dz(x0=z+z.spacing/2)).dz(x0=z-z.spacing/2) + q) + \
             (2 - t.spacing * wOverQ) * field + \
@@ -60,7 +55,7 @@ def iso_stencil(field, model, **kwargs):
 
     else:
         t, x, y, z = field.dimensions
-        eq_time_update = (t.spacing**2 * v**2 / b) * \
+        eq_time_update = (t.spacing**2 * vp**2 / b) * \
             ((b * field.dx(x0=x+x.spacing/2)).dx(x0=x-x.spacing/2) +
              (b * field.dy(x0=y+y.spacing/2)).dy(x0=y-y.spacing/2) +
              (b * field.dz(x0=z+z.spacing/2)).dz(x0=z-z.spacing/2) + q) + \
@@ -70,24 +65,19 @@ def iso_stencil(field, model, **kwargs):
     return [Eq(field_next, eq_time_update)]
 
 
-def IsoFwdOperator(model, src, rec, time_axis, space_order=8, save=False, **kwargs):
+def IsoFwdOperator(model, geometry, space_order=8, save=False, **kwargs):
     """
     Construct a forward modeling Operator in a variable density visco- acoustic media.
     See implementation notebook ssa_01_iso_implementation1.ipynb for more details.
 
     Parameters
     ----------
-    model : Dictionary <string>:<Function>, contains:
-        'b': Buoyancy = reciprocal density (units: m^3/kg)
-        'v': Velocity (units: m/msec or km/sec)
-        'wOverQ': The w/Q field for dissipation only attenuation.
-    src : SparseTimeFunction (PointSource)
-        Source position and time signature.
-    rec : SparseTimeFunction (PointSource)
-        Receiver positions and time signature.
-    time_axis : TimeAxis
-        Defines temporal sampling.
-    space_order : int, optional, Defaults to 8
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
         Space discretization order.
     save : int or Buffer, optional
         Saving flag, True saves all time steps. False saves three timesteps.
@@ -97,38 +87,32 @@ def IsoFwdOperator(model, src, rec, time_axis, space_order=8, save=False, **kwar
     ----------
     The Operator implementing forward modeling.
     """
-    # Get the Functions for buoyancy, velocity, wOverQ
-    assert 'b' in model, "model dictionary must contain key 'b'"
-    assert 'v' in model, "model dictionary must contain key 'v'"
-    assert 'wOverQ' in model, "model dictionary must contain key 'wOverQ'"
-    b = model['b']
-    v = model['v']
-
+    src = geometry.src
+    rec = geometry.rec
+    vp, b = model.vp, model.b
     # Create symbols for wavefield, source and receivers
-    u = TimeFunction(name='u', grid=v.grid,
-                     save=time_axis.num if save else None,
+    u = TimeFunction(name='u', grid=model.grid,
+                     save=geometry.num if save else None,
                      time_order=2, space_order=space_order)
 
     # Time update equation
     eqn = iso_stencil(u, model, forward=True)
 
     # Construct expression to inject source values, injecting at p(t+dt)
-    t = u.time_dim
-    src_term = src.inject(field=u.forward, expr=src * t.spacing**2 * v**2 / b)
+    t = u.grid.time_dim
+    src_term = src.inject(field=u.forward, expr=src * t.spacing**2 * vp**2 / b)
 
     # Create interpolation expression for receivers, extracting at p(t)
     rec_term = rec.interpolate(expr=u)
 
     # Substitute spacing terms to reduce flops
-    dt = time_axis.step
-    spacing_map = v.grid.spacing_map
-    spacing_map.update({t.spacing: dt})
+    spacing_map = model.spacing_map
 
     return Operator(eqn + src_term + rec_term, subs=spacing_map,
                     name='IsoFwdOperator', **kwargs)
 
 
-def IsoAdjOperator(model, src, rec, time_axis, space_order=8, save=False, **kwargs):
+def IsoAdjOperator(model, geometry, space_order=8, save=False, **kwargs):
     """
     Construct an adjoint modeling Operator in a variable density visco- acoustic media.
     Note the FD evolution will be time reversed.
@@ -136,17 +120,12 @@ def IsoAdjOperator(model, src, rec, time_axis, space_order=8, save=False, **kwar
 
     Parameters
     ----------
-    model : Dictionary <string>:<Function>, contains:
-        'b': Buoyancy = reciprocal density (units: m^3/kg)
-        'v': Velocity (units: m/msec or km/sec)
-        'wOverQ': The w/Q field for dissipation only attenuation.
-    src : SparseTimeFunction (PointSource)
-        Source position and time signature.
-    rec : SparseTimeFunction (PointSource)
-        Receiver positions and time signature.
-    time_axis : TimeAxis
-        Defines temporal sampling.
-    space_order : int, optional, Defaults to 8
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
         Space discretization order.
     save : int or Buffer, optional
         Saving flag, True saves all time steps. False saves three timesteps.
@@ -156,38 +135,32 @@ def IsoAdjOperator(model, src, rec, time_axis, space_order=8, save=False, **kwar
     ----------
     The Operator implementing adjoint modeling.
     """
-    # Get the Functions for buoyancy, velocity, wOverQ
-    assert 'b' in model, "model dictionary must contain key 'b'"
-    assert 'v' in model, "model dictionary must contain key 'v'"
-    assert 'wOverQ' in model, "model dictionary must contain key 'wOverQ'"
-    b = model['b']
-    v = model['v']
-
+    rec = geometry.rec
+    src = geometry.src
+    vp, b = model.vp, model.b
     # Create symbols for wavefield, source and receivers
-    u = TimeFunction(name='u', grid=v.grid,
-                     save=time_axis.num if save else None,
+    v = TimeFunction(name='v', grid=model.grid,
+                     save=geometry.num if save else None,
                      time_order=2, space_order=space_order)
 
     # Time update equation
-    eqn = iso_stencil(u, model, forward=False)
+    eqn = iso_stencil(v, model, forward=False)
 
     # Construct expression to inject receiver values, injecting at p(t-dt)
-    t = u.time_dim
-    rec_term = rec.inject(field=u.backward, expr=rec * t.spacing**2 * v**2 / b)
+    t = model.grid.time_dim
+    rec_term = rec.inject(field=v.backward, expr=rec * t.spacing**2 * vp**2 / b)
 
     # Create interpolation expression for the adjoint-source, extracting at p(t)
-    src_term = src.interpolate(expr=u)
+    src_term = src.interpolate(expr=v)
 
     # Substitute spacing terms to reduce flops
-    dt = time_axis.step
-    spacing_map = v.grid.spacing_map
-    spacing_map.update({t.spacing: dt})
+    spacing_map = model.spacing_map
 
     return Operator(eqn + rec_term + src_term, subs=spacing_map,
                     name='IsoAdjOperator', **kwargs)
 
 
-def IsoJacobianFwdOperator(model, src, rec, time_axis, space_order=8,
+def IsoJacobianFwdOperator(model, geometry, space_order=8,
                            save=False, **kwargs):
     """
     Construct a linearized JacobianForward modeling Operator in a variable density
@@ -195,17 +168,12 @@ def IsoJacobianFwdOperator(model, src, rec, time_axis, space_order=8,
 
     Parameters
     ----------
-    model : Dictionary <string>:<Function>, contains:
-        'b': Buoyancy = reciprocal density (units: m^3/kg)
-        'v': Velocity (units: m/msec or km/sec)
-        'wOverQ': The w/Q field for dissipation only attenuation.
-    src : SparseTimeFunction (PointSource)
-        Source position and time signature.
-    rec : SparseTimeFunction (PointSource)
-        Receiver positions and time signature.
-    time_axis : TimeAxis
-        Defines temporal sampling.
-    space_order : int, optional, Defaults to 8
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
         Space discretization order.
     save : int or Buffer, optional
         Saving flag, True saves all time steps. False saves three timesteps.
@@ -215,23 +183,18 @@ def IsoJacobianFwdOperator(model, src, rec, time_axis, space_order=8,
     ----------
     The Operator implementing Jacobian forward modeling.
     """
-    # Get the Functions for buoyancy, velocity, wOverQ
-    assert 'b' in model, "model dictionary must contain key 'b'"
-    assert 'v' in model, "model dictionary must contain key 'v'"
-    assert 'wOverQ' in model, "model dictionary must contain key 'wOverQ'"
-    b = model['b']
-    v = model['v']
-    wOverQ = model['wOverQ']
-
+    src = geometry.src
+    rec = geometry.rec
+    vp, b, wOverQ = model.vp, model.b, model.damp
     # Create p0, dp wavefields and dm velocity perturbation field
-    u0 = TimeFunction(name="u0", grid=v.grid,
-                      save=time_axis.num if save else None,
+    u0 = TimeFunction(name="u0", grid=model.grid,
+                      save=geometry.num if save else None,
                       time_order=2, space_order=space_order)
 
-    du = TimeFunction(name="du", grid=v.grid,
+    du = TimeFunction(name="du", grid=model.grid,
                       time_order=2, space_order=space_order)
 
-    dm = Function(name="dm", grid=v.grid, space_order=space_order)
+    dm = Function(name="dm", grid=model.grid, space_order=space_order)
 
     # Time update equations
     # JKW: this is pretty cool, simultaneously solving for p0 and dp!
@@ -239,25 +202,25 @@ def IsoJacobianFwdOperator(model, src, rec, time_axis, space_order=8,
     # The 2nd equation is derived in ssa_02_iso_implementation2.ipynb
     t = u0.time_dim
     eqn1 = iso_stencil(u0, model, forward=True)
-    eqn2 = iso_stencil(du, model, forward=True,
-                       q=2 * b * dm * v**-3 * (wOverQ * u0.dt(x0=t-t.spacing/2) + u0.dt2))
+
+    # Linearized source and stencil
+    lin_src = 2 * b * dm * vp**-3 * (wOverQ * u0.dt(x0=t-t.spacing/2) + u0.dt2)
+    eqn2 = iso_stencil(du, model, forward=True, q=lin_src)
 
     # Construct expression to inject source values, injecting at p0(t+dt)
-    src_term = src.inject(field=u0.forward, expr=src * t.spacing**2 * v**2 / b)
+    src_term = src.inject(field=u0.forward, expr=src * t.spacing**2 * vp**2 / b)
 
     # Create interpolation expression for receivers, extracting at dp(t)
     rec_term = rec.interpolate(expr=du)
 
     # Substitute spacing terms to reduce flops
-    dt = time_axis.step
-    spacing_map = v.grid.spacing_map
-    spacing_map.update({t.spacing: dt})
+    spacing_map = model.spacing_map
 
     return Operator(eqn1 + src_term + eqn2 + rec_term, subs=spacing_map,
                     name='IsoJacobianFwdOperator', **kwargs)
 
 
-def IsoJacobianAdjOperator(model, rec, time_axis, space_order=8,
+def IsoJacobianAdjOperator(model, geometry, space_order=8,
                            save=True, **kwargs):
     """
     Construct a linearized JacobianAdjoint modeling Operator in a variable density
@@ -265,15 +228,12 @@ def IsoJacobianAdjOperator(model, rec, time_axis, space_order=8,
 
     Parameters
     ----------
-    model : Dictionary <string>:<Function>, contains:
-        'b': Buoyancy = reciprocal density (units: m^3/kg)
-        'v': Velocity (units: m/msec or km/sec)
-        'wOverQ': The w/Q field for dissipation only attenuation.
-    rec : SparseTimeFunction (PointSource)
-        Receiver positions and time signature.
-    time_axis : TimeAxis
-        Defines temporal sampling.
-    space_order : int, optional, Defaults to 8
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
         Space discretization order.
     save : int or Buffer, optional
         Saving flag, True saves all time steps. False saves three timesteps.
@@ -283,37 +243,29 @@ def IsoJacobianAdjOperator(model, rec, time_axis, space_order=8,
     ----------
     The Operator implementing Jacobian adjoint modeling.
     """
-    # Get the Functions for buoyancy, velocity, wOverQ
-    assert 'b' in model, "model dictionary must contain key 'b'"
-    assert 'v' in model, "model dictionary must contain key 'v'"
-    assert 'wOverQ' in model, "model dictionary must contain key 'wOverQ'"
-    b = model['b']
-    v = model['v']
-    wOverQ = model['wOverQ']
-
+    rec = geometry.rec
+    vp, b, wOverQ = model.vp, model.b, model.damp
     # Create p0, dp wavefields and dm velocity perturbation field
-    u0 = TimeFunction(name="u0", grid=v.grid,
-                      save=time_axis.num if save else None,
+    u0 = TimeFunction(name="u0", grid=model.grid,
+                      save=geometry.num if save else None,
                       time_order=2, space_order=space_order)
 
-    du = TimeFunction(name="du", grid=v.grid,
+    du = TimeFunction(name="du", grid=model.grid,
                       time_order=2, space_order=space_order)
 
-    dm = Function(name="dm", grid=v.grid, space_order=space_order)
+    dm = Function(name="dm", grid=model.grid, space_order=space_order)
 
     # Time update equation
     t = u0.time_dim
     eqn = iso_stencil(du, model, forward=False)
     dm_update = Eq(dm, dm +
-                   du * (2 * b * v**-3 * (wOverQ * u0.dt(x0=t-t.spacing/2) + u0.dt2)))
+                   du * (2 * b * vp**-3 * (wOverQ * u0.dt(x0=t-t.spacing/2) + u0.dt2)))
 
     # Construct expression to inject receiver values, injecting at p(t-dt)
-    rec_term = rec.inject(field=du.backward, expr=rec * t.spacing**2 * v**2 / b)
+    rec_term = rec.inject(field=du.backward, expr=rec * t.spacing**2 * vp**2 / b)
 
     # Substitute spacing terms to reduce flops
-    dt = time_axis.step
-    spacing_map = v.grid.spacing_map
-    spacing_map.update({t.spacing: dt})
+    spacing_map = model.spacing_map
 
     return Operator([dm_update] + eqn + rec_term, subs=spacing_map,
                     name='IsoJacobianAdjOperator', **kwargs)
