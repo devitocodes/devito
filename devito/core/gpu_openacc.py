@@ -1,7 +1,6 @@
 from functools import partial, singledispatch
 
 import cgen as c
-from sympy import Function
 
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIteration,
                                     DeviceOmpizer, DeviceOpenMPDataManager)
@@ -12,7 +11,7 @@ from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
 from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders, iet_pass
-from devito.symbolics import Byref, Macro
+from devito.symbolics import Byref, DefFunction, Macro
 from devito.tools import as_tuple, prod, timed_pass
 from devito.types import Symbol
 
@@ -135,7 +134,7 @@ def initialize(iet, **kwargs):
             rank_init = Call('MPI_Comm_rank', [comm, Byref(rank)])
 
             ngpus = Symbol(name='ngpus')
-            call = Function('acc_get_num_devices')(device_nvidia)
+            call = DefFunction('acc_get_num_devices', device_nvidia)
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
 
             devicenum = Symbol(name='devicenum')
