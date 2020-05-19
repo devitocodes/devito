@@ -2,8 +2,7 @@ import os
 
 import numpy as np
 
-from examples.seismic.model import Model, ModelElastic, ModelViscoelastic
-from examples.seismic.model import ModelViscoacoustic
+from examples.seismic.model import SeismicModel
 
 __all__ = ['demo_model']
 
@@ -56,9 +55,9 @@ def demo_model(preset, **kwargs):
         vs = 0.5 * vp
         rho = 1.0
 
-        return ModelElastic(space_order=space_order, vp=vp, vs=vs, rho=rho, origin=origin,
-                            shape=shape, dtype=dtype, spacing=spacing, nbl=nbl,
-                            **kwargs)
+        return SeismicModel(space_order=space_order, vp=vp, vs=vs, rho=rho,
+                            origin=origin, shape=shape, dtype=dtype, spacing=spacing,
+                            nbl=nbl, **kwargs)
 
     if preset.lower() in ['constant-viscoelastic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -68,17 +67,17 @@ def demo_model(preset, **kwargs):
         qs = kwargs.pop('qs', 70.)
         rho = 2.
 
-        return ModelViscoelastic(space_order=space_order, vp=vp, qp=qp, vs=vs,
-                                 qs=qs, rho=rho, origin=origin, shape=shape,
-                                 dtype=dtype, spacing=spacing, nbl=nbl,
-                                 **kwargs)
+        return SeismicModel(space_order=space_order, vp=vp, qp=qp, vs=vs,
+                            qs=qs, rho=rho, origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbl=nbl,
+                            **kwargs)
 
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 1.5 km/s.
 
-        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
+        return SeismicModel(space_order=space_order, vp=vp, origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
     if preset.lower() in ['constant-viscoacoustic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -86,9 +85,8 @@ def demo_model(preset, **kwargs):
         qp = kwargs.pop('qp', 100.)
         rho = 2.
 
-        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho,
-                                  origin=origin, shape=shape, spacing=spacing,
-                                  nbl=nbl, **kwargs)
+        return SeismicModel(space_order=space_order, vp=vp, qp=qp, rho=rho, nbl=nbl,
+                            origin=origin, shape=shape, spacing=spacing, **kwargs)
 
     elif preset.lower() in ['constant-tti']:
         # A constant single-layer model in a 2D or 3D domain
@@ -102,9 +100,9 @@ def demo_model(preset, **kwargs):
         if len(shape) > 2:
             phi = .35*np.ones(shape, dtype=dtype)
 
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
-                     delta=delta, theta=theta, phi=phi, **kwargs)
+        return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
+                            delta=delta, theta=theta, phi=phi, **kwargs)
 
     elif preset.lower() in ['layers-isotropic']:
         # A n-layers model in a 2D or 3D domain with two different
@@ -121,8 +119,8 @@ def demo_model(preset, **kwargs):
         for i in range(1, nlayers):
             v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
+        return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
     elif preset.lower() in ['layers-elastic']:
         # A n-layers model in a 2D or 3D domain with two different
@@ -144,7 +142,7 @@ def demo_model(preset, **kwargs):
         rho[v < 1.51] = 1.0
         vs[v < 1.51] = 0.0
 
-        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
+        return SeismicModel(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=shape,
                             dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
@@ -188,10 +186,10 @@ def demo_model(preset, **kwargs):
         rho[:] = rho_top
         rho[..., int(shape[-1] / ratio):] = rho_bottom
 
-        return ModelViscoelastic(space_order=space_order, vp=vp, qp=qp,
-                                 vs=vs, qs=qs, rho=rho, origin=origin,
-                                 shape=shape, dtype=dtype, spacing=spacing,
-                                 nbl=nbl, **kwargs)
+        return SeismicModel(space_order=space_order, vp=vp, qp=qp,
+                            vs=vs, qs=qs, rho=rho, origin=origin,
+                            shape=shape, dtype=dtype, spacing=spacing,
+                            nbl=nbl, **kwargs)
 
     elif preset.lower() in ['layers-tti', 'layers-tti-noazimuth']:
         # A n-layers model in a 2D or 3D domain with two different
@@ -215,9 +213,9 @@ def demo_model(preset, **kwargs):
         if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
             phi = .25*(v - 1.5)
 
-        model = Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
-                      delta=delta, theta=theta, phi=phi, **kwargs)
+        model = SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
+                             dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
+                             delta=delta, theta=theta, phi=phi, **kwargs)
 
         if kwargs.get('smooth', True):
             if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
@@ -245,8 +243,8 @@ def demo_model(preset, **kwargs):
         y, x = np.ogrid[-a:shape[0]-a, -b:shape[1]-b]
         v[x*x + y*y <= r*r] = vp
 
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
+        return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
     elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
         shape = (1601, 401)
@@ -266,8 +264,8 @@ def demo_model(preset, **kwargs):
         # Cut the model to make it slightly cheaper
         v = v[301:-300, :]
 
-        return Model(space_order=space_order, vp=v, origin=origin, shape=v.shape,
-                     dtype=np.float32, spacing=spacing, nbl=nbl, **kwargs)
+        return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=v.shape,
+                            dtype=np.float32, spacing=spacing, nbl=nbl, **kwargs)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti',
                             'marmousi-tti3d', 'marmousi3d-tti']:
@@ -318,9 +316,9 @@ def demo_model(preset, **kwargs):
         spacing = tuple([10.0]*len(shape))
         origin = tuple([0.0]*len(shape))
 
-        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
-                     dtype=np.float32, spacing=spacing, nbl=nbl, epsilon=epsilon,
-                     delta=delta, theta=theta, phi=phi, **kwargs)
+        return SeismicModel(space_order=space_order, vp=vp, origin=origin, shape=shape,
+                            dtype=np.float32, spacing=spacing, nbl=nbl, epsilon=epsilon,
+                            delta=delta, theta=theta, phi=phi, **kwargs)
 
     elif preset.lower() in ['layers-viscoacoustic']:
         # A n-layers model in a 2D or 3D domain with two different
@@ -348,9 +346,8 @@ def demo_model(preset, **kwargs):
 
         rho[:] = 0.31*(vp[:]*1000.)**0.25  # Gardner's relation
 
-        return ModelViscoacoustic(space_order=space_order, vp=vp, qp=qp, rho=rho,
-                                  origin=origin, shape=shape, spacing=spacing,
-                                  nbl=nbl, **kwargs)
+        return SeismicModel(space_order=space_order, vp=vp, qp=qp, rho=rho, nbl=nbl,
+                            origin=origin, shape=shape, spacing=spacing, **kwargs)
 
     else:
         raise ValueError("Unknown model preset name")
