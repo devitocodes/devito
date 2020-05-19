@@ -46,10 +46,10 @@ def iso_stencil(field, model, **kwargs):
 
     # Define the time update equation for 2d/3d
     if len(field.data.shape) == 3:
-        t, x, z = field.dimensions
+        t, x, y = field.dimensions
         eq_time_update = (t.spacing**2 * vp**2 / b) * \
             ((b * field.dx(x0=x+x.spacing/2)).dx(x0=x-x.spacing/2) +
-             (b * field.dz(x0=z+z.spacing/2)).dz(x0=z-z.spacing/2) + q) + \
+             (b * field.dy(x0=y+y.spacing/2)).dy(x0=y-y.spacing/2) + q) + \
             (2 - t.spacing * wOverQ) * field + \
             (t.spacing * wOverQ - 1) * field_prev
 

@@ -161,7 +161,7 @@ class SsaIsoAcousticWaveSolver(object):
         kwargs.update({'dt': kwargs.pop('dt', self.dt)})
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj(save).apply(srca=src, rec=rec, **kwargs)
+        summary = self.op_adj(save).apply(src=srca, rec=rec, **kwargs)
         return srca, v, summary
 
     def jacobian_forward(self, dm, src, rec=None, b=None, vp=None, damp=None,

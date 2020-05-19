@@ -1,6 +1,6 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
-from examples.seismic import PointSource, Receiver
+from examples.seismic import PointSource
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )

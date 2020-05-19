@@ -37,7 +37,7 @@ class ElasticWaveSolver(object):
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec1=None, rec2=None, lam=None, mu=None, irho=None,
+    def forward(self, src=None, rec1=None, rec2=None, lam=None, mu=None, b=None,
                 v=None, tau=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -56,11 +56,11 @@ class ElasticWaveSolver(object):
         tau : TensorTimeFunction, optional
             The computed symmetric stress tensor.
         lam : Function, optional
-            The time-constant first Lame parameter lambda.
+            The time-constant first Lame parameter (rho * vp**2 - rho * vs **2).
         mu : Function, optional
-            The time-constant second Lame parameter mu.
-        irho : Function, optional
-            The time-constant inverse density (irho=1 for water).
+            The Shear modulus (rho * vs*2).
+        b : Function, optional
+            The time-constant inverse density (b=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.
 
@@ -88,11 +88,8 @@ class ElasticWaveSolver(object):
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})
         # Pick Lame parameters from model unless explicitly provided
-        lam = lam or self.model.lam
-        mu = mu or self.model.mu
-        irho = irho or self.model.irho
+        kwargs.update(self.model.physical_params(lam=lam, mu=mu, b=b))
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, lam=lam, mu=mu, irho=irho,
-                                          rec2=rec2, dt=kwargs.pop('dt', self.dt),
-                                          **kwargs)
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec1, rec2, v, tau, summary

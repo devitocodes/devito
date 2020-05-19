@@ -4,7 +4,7 @@ from sympy import sin, Abs
 
 from devito import (Grid, SubDomain, Function, Constant,
                     SubDimension, Eq, Inc, Operator)
-from devito.builtins import initialize_function, gaussian_smooth, mmax
+from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
 from devito.tools import as_tuple
 
 __all__ = ['SeismicModel', 'Model', 'ModelElastic',
@@ -107,7 +107,7 @@ class GenericModel(object):
         known = [getattr(self, i) for i in self.physical_parameters]
         return {i.name: kwargs.get(i.name, i) or i for i in known}
 
-    def _gen_phys_param(self, field, name, space_order, is_param=False,
+    def _gen_phys_param(self, field, name, space_order, is_param=True,
                         default_value=0):
         if field is None:
             return default_value
@@ -207,52 +207,77 @@ class SeismicModel(GenericModel):
         P-wave attenuation
     qs : array_like or float
         S-wave attenuation
-
+    lame: Bool
+        Whether to use Lame parameter (default) or vp/vs
     """
+    _known_parameters = ['vp', 'damp', 'vs', 'rho', 'b', 'epsilon', 'delta',
+                         'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
+
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20,
-                 dtype=np.float32, subdomains=(), bcs="damp", grid=None, **kwargs):
+                 dtype=np.float32, subdomains=(), bcs="mask", grid=None, **kwargs):
         super(SeismicModel, self).__init__(origin, spacing, shape, space_order, nbl,
                                            dtype, subdomains, grid=grid, bcs=bcs)
 
-        # All seismic models have at least a velocity
-        self.vp = self._gen_phys_param(vp, 'vp', space_order)
-
         # Initialize physics
-        self._initialize_physics(space_order, **kwargs)
+        self._initialize_physics(vp, space_order, **kwargs)
 
-        # User provided dt
+        # User provided dt
         self._dt = kwargs.get('dt')
 
-    def _initialize_physics(self, space_order, **kwargs):
+    def _initialize_physics(self, vp, space_order, **kwargs):
         """
         Initialize physical parameters and type of physics from inputs.
         The types of physics supportedare:
         - acoustic: vp and rho/b only
-        - elastic: vp + vs + b
+        - elastic: vp + vs + b turn into lam/mu/b
         - visco-acoustic: vp + b + qp
         - visco-elastic: vp + vs + b + qs
         - vti: epsilon + delta
         - tti: epsilon + delta + theta + phi
         """
         params = []
-        self._scale = 1
-        # Make sure only one of density and buoyancy is in input
+        # Make sure only one of density and buoyancy is created
         if 'rho' in kwargs.keys() and 'b' in kwargs.keys():
-            assert 1 /  kwargs.get('rho') == kwargs.get('b')
+            assert 1 / kwargs.get('rho') == kwargs.get('b')
             kwargs.pop('rho')
-        # Initialize input physical parameters
-        for k, v in kwargs.items():
-            setattr(self, k, self._gen_phys_param(v, k, space_order))
-            params.append(k)
-        # Update scale for tti
-        if 'epsilon' in params:
-            self._scale += 2 * np.max(kwargs.get('epsilon')) 
-        # Set CFL constant
-        self._cfl_coeff = .85 / np.sqrt(self.dim)
+
+        # Initialize elastic with Lame parametrization
+        if 'vs' in kwargs.keys():
+            vs = kwargs.get('vs')
+            b = kwargs.get('b')
+            self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order,
+                                            is_param=True)
+            self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True)
+            kwargs.pop('vs')
+        else:
+            # All other seismic models have at least a velocity
+            self.vp = self._gen_phys_param(vp, 'vp', space_order)
+        # Initialize rest of the input physical parameters
+        for name in self._known_parameters:
+            if kwargs.get(name) is not None:
+                new_field = self._gen_phys_param(kwargs.get(name), name, space_order)
+                setattr(self, name, new_field)
+                params.append(name)
 
     @property
     def _max_vp(self):
-        return mmax(self.vp)
+        if 'vp' in self._physical_parameters:
+            return mmax(self.vp)
+        else:
+            return mmin(self.b) * (mmax(self.lam) + 2 * mmax(self.mu))
+
+    @property
+    def _scale(self):
+        # Update scale for tti
+        if 'epsilon' in self._physical_parameters:
+            return 1 + 2 * mmax(self.epsilon)
+        return 1
+
+    @property
+    def _cfl_coeff(self):
+        if 'vs' in self._physical_parameters:
+            return .85 / np.sqrt(3.)
+        return 0.38 if len(self.shape) == 3 else 0.42
 
     @property
     def critical_dt(self):
@@ -286,7 +311,7 @@ class SeismicModel(GenericModel):
             elif value.shape == self.shape:
                 initialize_function(param, value, self.nbl)
             else:
-                raise ValueError("Incorrect input size %s for model of size" % value.shape +
+                raise ValueError("Incorrect input size %s for model" % value.shape +
                                  " %s without or %s with padding" % (self.shape,
                                                                      param.shape))
         else:
@@ -314,11 +339,6 @@ class SeismicModel(GenericModel):
         for i in physical_parameters:
             gaussian_smooth(model_parameters[i], sigma=sigma)
         return
-
-    @property
-    def spacing_map(self):
-        subs = super(SeismicModel, self).spacing_map
-        subs.update({self.grid.time_dim.spacing: self.critical_dt})
 
 
 # For backward ompativility

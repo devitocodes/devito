@@ -23,7 +23,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
         indices (last three time steps). Defaults to False.
     """
     l, qp, mu, qs, ro, damp = \
-        model.lam, model.qp, model.mu, model.qs, model.irho, model.damp
+        model.lam, model.qp, model.mu, model.qs, model.b, model.damp
     s = model.grid.stepping_dim.spacing
 
     f0 = geometry._f0

@@ -1,17 +1,12 @@
 from scipy.special import hankel2
 import numpy as np
 import pytest
-from devito import Grid, Function, Eq, SpaceDimension, Constant, Operator, info
-from examples.seismic import RickerSource, Receiver, TimeAxis
-from examples.seismic.skew_self_adjoint import (default_setup_iso,
+from devito import Grid, Function, Eq, Operator, info
+from examples.seismic import RickerSource, TimeAxis, Model, AcquisitionGeometry
+from examples.seismic.skew_self_adjoint import (acousticssa_setup, setup_w_over_q,
                                                 SsaIsoAcousticWaveSolver)
 
 # Defaults in global scope
-npad = 10
-fpeak = 0.010
-qmin = 0.1
-qmax = 500.0
-tmax = 500.0
 shapes = [(71, 61), (71, 61, 51)]
 dtypes = [np.float64, ]
 space_orders = [8, ]
@@ -27,16 +22,9 @@ class TestWavesolver(object):
         Test the linearity of the forward modeling operator by verifying:
             a F(s) = F(a s)
         """
-        np.random.seed(0)
-        omega = 2.0 * np.pi * fpeak
-        b, v, time_axis, src_coords, rec_coords = \
-            default_setup_iso(npad, shape, dtype, tmax=tmax)
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=so)
-        src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1,
-                           time_range=time_axis)
-        src.coordinates.data[:] = src_coords[:]
+        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        src = solver.geometry.src
+
         a = -1 + 2 * np.random.rand()
         rec1, _, _ = solver.forward(src)
         src.data[:] *= a
@@ -63,15 +51,8 @@ class TestWavesolver(object):
             a F^T(r) = F^T(a r)
         """
         np.random.seed(0)
-        omega = 2.0 * np.pi * fpeak
-        b, v, time_axis, src_coords, rec_coords = \
-            default_setup_iso(npad, shape, dtype, tmax=tmax)
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=so)
-        src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
-                            time_range=time_axis)
-        src0.coordinates.data[:] = src_coords[:]
+        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        src0 = solver.geometry.src
         rec, _, _ = solver.forward(src0)
         a = -1 + 2 * np.random.rand()
         src1, _, _ = solver.adjoint(rec)
@@ -98,18 +79,10 @@ class TestWavesolver(object):
         Test the forward modeling operator by verifying for random s, r:
             r . F(s) = F^T(r) . s
         """
-        omega = 2.0 * np.pi * fpeak
-        b, v, time_axis, src_coords, rec_coords = \
-            default_setup_iso(npad, shape, dtype, tmax=tmax)
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=so)
-        src1 = RickerSource(name='src1', grid=v.grid, f0=fpeak, npoint=1,
-                            time_range=time_axis)
-        src1.coordinates.data[:] = src_coords[:]
+        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        src1 = solver.geometry.src
+        rec1 = solver.geometry.rec
 
-        rec1 = Receiver(name='rec1', grid=v.grid, time_range=time_axis,
-                        coordinates=rec_coords)
         rec2, _, _ = solver.forward(src1)
         # flip sign of receiver data for adjoint to make it interesting
         rec1.data[:] = rec2.data[:]
@@ -135,20 +108,13 @@ class TestWavesolver(object):
         This is done by fitting a 1st order polynomial to the norms
         """
         np.random.seed(0)
-        omega = 2.0 * np.pi * fpeak
-        b, v, time_axis, src_coords, rec_coords = \
-            default_setup_iso(npad, shape, dtype, tmax=tmax)
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=so)
-        src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1,
-                           time_range=time_axis)
-        src.coordinates.data[:] = src_coords[:]
+        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        src = solver.geometry.src
 
         # Create Functions for models and perturbation
-        m0 = Function(name='m0', grid=v.grid, space_order=so)
-        mm = Function(name='mm', grid=v.grid, space_order=so)
-        dm = Function(name='dm', grid=v.grid, space_order=so)
+        m0 = Function(name='m0', grid=solver.model.grid, space_order=so)
+        mm = Function(name='mm', grid=solver.model.grid, space_order=so)
+        dm = Function(name='dm', grid=solver.model.grid, space_order=so)
 
         # Background model
         m0.data[:] = 1.5
@@ -168,10 +134,10 @@ class TestWavesolver(object):
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         # Compute F(m + dm)
-        rec0, u0, summary0 = solver.forward(src, v=m0)
+        rec0, u0, summary0 = solver.forward(src, vp=m0)
 
         # Compute J(dm)
-        rec1, u1, du, summary1 = solver.jacobian_forward(dm, src=src, v=m0)
+        rec1, u1, du, summary1 = solver.jacobian_forward(dm, src=src, vp=m0)
 
         # Linearization test via polyfit (see devito/tests/test_gradient.py)
         # Solve F(m + h dm) for sequence of decreasing h
@@ -184,7 +150,7 @@ class TestWavesolver(object):
         for kstep in range(nstep):
             h = h / dh
             mm.data[:] = m0.data + h * dm.data
-            rec2, _, _ = solver.forward(src, v=mm)
+            rec2, _, _ = solver.forward(src, vp=mm)
             scale[kstep] = h
             norm1[kstep] = 0.5 * np.linalg.norm(rec2.data - rec0.data)**2
             norm2[kstep] = 0.5 * np.linalg.norm(rec2.data - rec0.data - h * rec1.data)**2
@@ -211,21 +177,12 @@ class TestWavesolver(object):
             a J(dm) = J(a dm)
         """
         np.random.seed(0)
-        omega = 2.0 * np.pi * fpeak
-        b, v, time_axis, src_coords, rec_coords = \
-            default_setup_iso(npad, shape, dtype, tmax=tmax)
-        nt = time_axis.num
+        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
 
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=so)
+        src0 = solver.geometry.src
 
-        src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
-                            time_range=time_axis)
-        src0.coordinates.data[:] = src_coords[:]
-
-        m0 = Function(name='m0', grid=v.grid, space_order=so)
-        m1 = Function(name='m1', grid=v.grid, space_order=so)
+        m0 = Function(name='m0', grid=solver.model.grid, space_order=so)
+        m1 = Function(name='m1', grid=solver.model.grid, space_order=so)
         m0.data[:] = 1.5
 
         # Model perturbation, box of random values centered on middle of model
@@ -243,10 +200,10 @@ class TestWavesolver(object):
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         a = np.random.rand()
-        rec1, _, _, _ = solver.jacobian_forward(m1, src0, v=m0, save=nt)
+        rec1, _, _, _ = solver.jacobian_forward(m1, src0, vp=m0, save=True)
         rec1.data[:] = a * rec1.data[:]
         m1.data[:] = a * m1.data[:]
-        rec2, _, _, _ = solver.jacobian_forward(m1, src0, v=m0, save=nt)
+        rec2, _, _, _ = solver.jacobian_forward(m1, src0, vp=m0, save=True)
 
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
@@ -268,21 +225,12 @@ class TestWavesolver(object):
             a J^T(dr) = J^T(a dr)
         """
         np.random.seed(0)
-        omega = 2.0 * np.pi * fpeak
-        b, v, time_axis, src_coords, rec_coords = \
-            default_setup_iso(npad, shape, dtype, tmax=tmax)
-        nt = time_axis.num
+        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
 
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=so)
+        src0 = solver.geometry.src
 
-        src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
-                            time_range=time_axis)
-        src0.coordinates.data[:] = src_coords[:]
-
-        m0 = Function(name='m0', grid=v.grid, space_order=so)
-        m1 = Function(name='m1', grid=v.grid, space_order=so)
+        m0 = Function(name='m0', grid=solver.model.grid, space_order=so)
+        m1 = Function(name='m1', grid=solver.model.grid, space_order=so)
         m0.data[:] = 1.5
 
         # Model perturbation, box of random values centered on middle of model
@@ -300,11 +248,11 @@ class TestWavesolver(object):
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         a = np.random.rand()
-        rec0, u0, _ = solver.forward(src0, v=m0, save=nt)
-        dm1, _, _, _ = solver.jacobian_adjoint(rec0, u0, v=m0, save=nt)
+        rec0, u0, _ = solver.forward(src0, vp=m0, save=True)
+        dm1, _, _, _ = solver.jacobian_adjoint(rec0, u0, vp=m0, save=True)
         dm1.data[:] = a * dm1.data[:]
         rec0.data[:] = a * rec0.data[:]
-        dm2, _, _, _ = solver.jacobian_adjoint(rec0, u0, v=m0, save=nt)
+        dm2, _, _, _ = solver.jacobian_adjoint(rec0, u0, vp=m0, save=True)
 
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(dm2.data**2))
@@ -324,21 +272,12 @@ class TestWavesolver(object):
             dr . J(dm) = J^T(dr) . dm
         """
         np.random.seed(0)
-        omega = 2.0 * np.pi * fpeak
-        b, v, time_axis, src_coords, rec_coords = \
-            default_setup_iso(npad, shape, dtype, tmax=tmax)
-        nt = time_axis.num
+        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
 
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=so)
+        src0 = solver.geometry.src
 
-        src0 = RickerSource(name='src0', grid=v.grid, f0=fpeak, npoint=1,
-                            time_range=time_axis)
-        src0.coordinates.data[:] = src_coords[:]
-
-        m0 = Function(name='m0', grid=v.grid, space_order=so)
-        dm1 = Function(name='dm1', grid=v.grid, space_order=so)
+        m0 = Function(name='m0', grid=solver.model.grid, space_order=so)
+        dm1 = Function(name='dm1', grid=solver.model.grid, space_order=so)
         m0.data[:] = 1.5
 
         # Model perturbation, box of random values centered on middle of model
@@ -356,17 +295,16 @@ class TestWavesolver(object):
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         # Data perturbation
-        rec1 = Receiver(name='rec1', grid=v.grid, time_range=time_axis,
-                        coordinates=rec_coords)
+        rec1 = solver.geometry.rec
         nt, nr = rec1.data.shape
         rec1.data[:] = np.random.rand(nt, nr)
 
         # Nonlinear modeling
-        rec0, u0, _ = solver.forward(src0, v=m0, save=nt)
+        rec0, u0, _ = solver.forward(src0, vp=m0, save=nt)
 
         # Linearized modeling
-        rec2, _, _, _ = solver.jacobian_forward(dm1, src0, v=m0, save=nt)
-        dm2, _, _, _ = solver.jacobian_adjoint(rec1, u0, v=m0, save=nt)
+        rec2, _, _, _ = solver.jacobian_forward(dm1, src0, vp=m0, save=nt)
+        dm2, _, _, _ = solver.jacobian_adjoint(rec1, u0, vp=m0, save=nt)
 
         sum_m = np.dot(dm1.data.reshape(-1), dm2.data.reshape(-1))
         sum_d = np.dot(rec1.data.reshape(-1), rec2.data.reshape(-1))
@@ -437,49 +375,35 @@ class TestWavesolver(object):
         fpeak = 0.090
         t0w = 1.0 / fpeak
         omega = 2.0 * np.pi * fpeak
-        time_axis = TimeAxis(start=tmin, stop=tmax, step=dt)
 
         # Model
         space_order = 8
         npad = 50
-        dx, dz = 0.5, 0.5
-        nx, nz = 801 + 2 * npad, 801 + 2 * npad
-        shape = (nx, nz)
-        extent = (dx * (nx - 1), dz * (nz - 1))
-        origin = (0.0 - dx * npad, 0.0 - dz * npad)
+        dx = 0.5
+        shape = (801, 801)
         dtype = np.float64
         qmin = 0.1
         qmax = 100000
         v0 = 1.5
-        x = SpaceDimension(name='x', spacing=Constant(name='h_x', value=dx))
-        z = SpaceDimension(name='z', spacing=Constant(name='h_z', value=dz))
-        grid = Grid(extent=extent, shape=shape, origin=origin,
-                    dimensions=(x, z), dtype=dtype)
-        b = Function(name='b', grid=grid, space_order=space_order)
-        v = Function(name='v', grid=grid, space_order=space_order)
-        b.data[:] = 1.0
-        v.data[:] = v0
+        init_damp = lambda fu, nbl: setup_w_over_q(fu, omega, qmin, qmax, nbl, sigma=0)
+        o = tuple([0]*len(shape))
+        spacing = tuple([dx]*len(shape))
+        model = Model(origin=o, shape=shape, vp=v0, b=1.0, spacing=spacing, nbl=npad,
+                      space_order=space_order, bcs=init_damp)
 
         # Source and reciver coordinates
         src_coords = np.empty((1, 2), dtype=dtype)
         rec_coords = np.empty((1, 2), dtype=dtype)
-        src_coords[:, 0] = origin[0] + extent[0] / 2
-        src_coords[:, 1] = origin[1] + extent[1] / 2
-        rec_coords[:, 0] = origin[0] + extent[0] / 2 + 60
-        rec_coords[:, 1] = origin[1] + extent[1] / 2 + 60
+        src_coords[0, :] = np.array(model.domain_size) * .5
+        rec_coords[0, :] = np.array(model.domain_size) * .5 + 60
+        geometry = AcquisitionGeometry(model, rec_coords, src_coords,
+                                       t0=0.0, tn=tmax, src_type='Ricker', f0=fpeak)
 
         # Solver setup
-        solver = SsaIsoAcousticWaveSolver(npad, qmin, qmax, omega, b, v,
-                                          src_coords, rec_coords, time_axis,
-                                          space_order=space_order)
-
-        # Source function
-        src = RickerSource(name='src', grid=v.grid, f0=fpeak, npoint=1,
-                           time_range=time_axis, t0w=t0w)
-        src.coordinates.data[:] = src_coords[:]
+        solver = SsaIsoAcousticWaveSolver(model, geometry, space_order=space_order)
 
         # Numerical solution
-        recNum, uNum, _ = solver.forward(src)
+        recNum, uNum, _ = solver.forward()
 
         # Analytic response
         def analytic_response():
@@ -500,7 +424,7 @@ class TestWavesolver(object):
             ntpad = 20 * (nt - 1) + 1
             tmaxpad = dt * (ntpad - 1)
             time_axis_pad = TimeAxis(start=tmin, stop=tmaxpad, step=dt)
-            srcpad = RickerSource(name='srcpad', grid=v.grid, f0=fpeak, npoint=1,
+            srcpad = RickerSource(name='srcpad', grid=model.grid, f0=fpeak, npoint=1,
                                   time_range=time_axis_pad, t0w=t0w)
             nf = int(ntpad / 2 + 1)
             df = 1.0 / tmaxpad
