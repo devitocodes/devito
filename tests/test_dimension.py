@@ -833,9 +833,9 @@ class TestConditionalDimension(object):
 
     def test_conditional_timestepping(self):
         """
-        Test the lowering of an expr-like ConditionalDimension's condition.
-        This test makes an Operator that should indexify and lower the condition
-        passed in the Conditional Dimension
+        Test that ConditionalDimension is following timestepping.
+        This test makes a Forward Operator that should increase the value
+        in accordance to a conditional.
         """
         shape = (4, 4)
         grid = Grid(shape=shape)

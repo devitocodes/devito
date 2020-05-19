@@ -83,7 +83,6 @@ def _lower_stepping_dims(iet):
         # two different calls to `xreplace`
         mindices = [d for d in i.uindices if d.is_Modulo]
         groups = as_mapper(mindices, lambda d: d.modulo)
-
         for k, v in groups.items():
             mapper = {d.origin: d for d in v}
             rule = lambda i: i.function.is_TimeFunction and i.function._time_size == k
