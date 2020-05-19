@@ -220,6 +220,9 @@ class SeismicModel(GenericModel):
         # Initialize physics
         self._initialize_physics(space_order, **kwargs)
 
+        # User provided dt
+        self._dt = kwargs.get('dt')
+
     def _initialize_physics(self, space_order, **kwargs):
         """
         Initialize physical parameters and type of physics from inputs.
@@ -261,6 +264,9 @@ class SeismicModel(GenericModel):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         dt = self._cfl_coeff * np.min(self.spacing) / (self._scale*self._max_vp)
+        if self._dt:
+            assert self._dt < dt
+            return self._dt
         return self.dtype("%.3e" % dt)
 
     def update(self, name, value):
@@ -308,6 +314,11 @@ class SeismicModel(GenericModel):
         for i in physical_parameters:
             gaussian_smooth(model_parameters[i], sigma=sigma)
         return
+
+    @property
+    def spacing_map(self):
+        subs = super(SeismicModel, self).spacing_map
+        subs.update({self.grid.time_dim.spacing: self.critical_dt})
 
 
 # For backward ompativility
