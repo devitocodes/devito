@@ -709,27 +709,27 @@ class Aliases(OrderedDict):
             for i in ispace.intervals:
                 try:
                     interval = mapper[i.dim]
-                    if not flag and interval == interval.zero():
-                        # Optimize away unnecessary temporary Dimensions
-                        continue
-
-                    # Adjust the Interval's stamp
-                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
-                    # use `<1>` which is the actual stamp used in the Cluster
-                    # from which the aliasing expressions were extracted
-                    assert i.stamp >= interval.stamp
-                    interval = interval.lift(i.stamp)
-
-                    writeto.append(interval)
-                    flag = True
-
                 except KeyError:
-                    if any(i.dim in d._defines for d in mapper):
-                        # E.g., `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>`
-                        pass
-                    else:
-                        # E.g., `t[0,0]<0>` in the case of t-invariant aliases
+                    if not any(i.dim in d._defines for d in mapper):
+                        # E.g., `t[0,0]<0>` in the case of t-invariant aliases,
+                        # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
+                        # we would not enter here
                         flag = True
+                    continue
+
+                # Try to optimize away unnecessary temporary Dimensions
+                if not flag and interval == interval.zero():
+                    continue
+
+                # Adjust the Interval's stamp
+                # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                # use `<1>` which is the actual stamp used in the Cluster
+                # from which the aliasing expressions were extracted
+                assert i.stamp >= interval.stamp
+                interval = interval.lift(i.stamp)
+
+                writeto.append(interval)
+                flag = True
 
             if writeto:
                 writeto = IntervalGroup(writeto, relations=ispace.relations)
