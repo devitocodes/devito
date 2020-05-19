@@ -383,10 +383,13 @@ def bench(problem, **kwargs):
 
     # Only rank0 writes to disk
     try:
-        if MPI.COMM_WORLD.rank == 0:
-            bench.save()
+        rank = MPI.COMM_WORLD.rank
     except AttributeError:
-        pass
+        # MPI not available
+        rank = 0
+
+    if rank == 0:
+        bench.save()
 
     # Final clean up, just in case the benchmarker is used from external Python modules
     clear_cache()
