@@ -205,6 +205,24 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     return f
 
 
+def nbl_to_padsize(nbl, ndim):
+    """
+    Creates the pad sizes from `nbl`. The output is a tuple of tuple
+    such as ((40, 40), (40, 40)) where each subtuple is the left/right
+    pad size for the dimension
+    """
+    nb_t = as_tuple(nbl)
+    if len(nb_t) == 1 and len(nb_t) < ndim:
+        nbl = ndim*((nb_t[0], nb_t[0]),)
+    elif len(nb_t) == ndim:
+        if len(as_tuple(nb_t[0])) == 1:
+            nbl = tuple((nbd, nbd) for nbd in nb_t)
+    else:
+        raise ValueError("nbl must be an integer or tuple of integers of length" +
+                         " function.shape.")
+    return nbl
+
+
 def initialize_function(function, data, nbl, mapper=None, mode='constant',
                         name='padfunc', **kwargs):
     """
@@ -218,7 +236,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         The initialised object.
     data : ndarray or Function
         The data used for initialisation.
-    nbl : int or tuple of int
+    nbl : int or tuple of int or tuple of tuple of int
         Number of outer layers (such as absorbing layers for boundary damping).
     mapper : dict, optional
         Dictionary containing, for each dimension of `function`, a sub-dictionary
@@ -283,16 +301,10 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
             function.data[:] = data[:]
         return
 
-    if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < function.ndim:
-        nbl = function.ndim*(as_tuple(nbl)[0], )
-    elif len(as_tuple(nbl)) == function.ndim:
-        pass
-    else:
-        raise ValueError("nbl must be an integer or tuple of integers of length" +
-                         " function.shape.")
+    nbl = nbl_to_padsize(nbl, function.ndim)
 
-    slices = tuple([slice(n, -n) for _, n in zip(range(function.grid.dim),
-                                                 as_tuple(nbl))])
+    slices = tuple([slice(n[0], -n[1]) for _, n in zip(range(function.grid.dim),
+                                                       as_tuple(nbl))])
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
     else:
@@ -307,21 +319,21 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         local_size = function.shape
 
         def buff(i, j):
-            return [(i + k - 2*max(nbl)) for k in j]
+            return [(i + k - 2*max(max(nbl))) for k in j]
 
         b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo)))]
         if any(np.array(b) < 0):
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
     for d, n in zip(function.space_dimensions, as_tuple(nbl)):
-        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=n)
-        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=n)
+        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=n[0])
+        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=n[1])
         if mode == 'constant':
-            subsl = n
-            subsr = d.symbolic_max - n
+            subsl = n[0]
+            subsr = d.symbolic_max - n[1]
         elif mode == 'reflect':
-            subsl = 2*n - 1 - dim_l
-            subsr = 2*(d.symbolic_max - n) + 1 - dim_r
+            subsl = 2*n[0] - 1 - dim_l
+            subsr = 2*(d.symbolic_max - n[1]) + 1 - dim_r
         else:
             raise ValueError("Mode not available")
         lhs.append(function.subs({d: dim_l}))
