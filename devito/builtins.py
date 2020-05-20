@@ -209,18 +209,23 @@ def nbl_to_padsize(nbl, ndim):
     """
     Creates the pad sizes from `nbl`. The output is a tuple of tuple
     such as ((40, 40), (40, 40)) where each subtuple is the left/right
-    pad size for the dimension
+    pad size for the dimension.
     """
-    nb_t = as_tuple(nbl)
-    if len(nb_t) == 1 and len(nb_t) < ndim:
-        nbl = ndim*((nb_t[0], nb_t[0]),)
-    elif len(nb_t) == ndim:
-        if len(as_tuple(nb_t[0])) == 1:
-            nbl = tuple((nbd, nbd) for nbd in nb_t)
+    nb_total = as_tuple(nbl)
+    if len(nb_total) == 1 and len(nb_total) < ndim:
+        nb_pad = ndim*((nb_total[0], nb_total[0]),)
+    elif len(nb_total) == ndim:
+        nb_pad = []
+        for nb_dim in nb_total:
+            if len(as_tuple(nb_dim)) == 1:
+                nb_pad.append((nb_dim, nb_dim))
+            else:
+                assert len(nb_dim) == 2
+                nb_pad.append(nb_dim)
     else:
-        raise ValueError("nbl must be an integer or tuple of integers of length" +
-                         " function.shape.")
-    return nbl
+        raise ValueError("`nbl` must be an integer or tuple of (tuple of) integers"
+                         "of length `function.ndim`.")
+    return tuple(nb_pad)
 
 
 def initialize_function(function, data, nbl, mapper=None, mode='constant',
@@ -303,8 +308,8 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
 
     nbl = nbl_to_padsize(nbl, function.ndim)
 
-    slices = tuple([slice(n[0], -n[1]) for _, n in zip(range(function.grid.dim),
-                                                       as_tuple(nbl))])
+    slices = tuple([slice(nl, -nr) for _, (nl, nr) in zip(range(function.grid.dim),
+                                                          as_tuple(nbl))])
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
     else:
@@ -325,15 +330,15 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         if any(np.array(b) < 0):
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
-    for d, n in zip(function.space_dimensions, as_tuple(nbl)):
-        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=n[0])
-        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=n[1])
+    for d, (nl, nr) in zip(function.space_dimensions, as_tuple(nbl)):
+        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=nl)
+        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=nr)
         if mode == 'constant':
-            subsl = n[0]
-            subsr = d.symbolic_max - n[1]
+            subsl = nl
+            subsr = d.symbolic_max - nr
         elif mode == 'reflect':
-            subsl = 2*n[0] - 1 - dim_l
-            subsr = 2*(d.symbolic_max - n[1]) + 1 - dim_r
+            subsl = 2*nl - 1 - dim_l
+            subsr = 2*(d.symbolic_max - nr) + 1 - dim_r
         else:
             raise ValueError("Mode not available")
         lhs.append(function.subs({d: dim_l}))
