@@ -831,6 +831,29 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data == F)
 
+    def test_stepping_dim_in_condition_lowering(self):
+        """
+        Check that the compiler performs the following lowering::
+
+        if f[t, x] > 2 {            if f[time, x] > 2 {
+          ...                -->      ...
+        }                           }
+        """
+        grid = Grid(shape=(4, 4))
+        _, y = grid.dimensions
+
+        ths = 10
+        g = TimeFunction(name='g', grid=grid)
+
+        ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, ths))
+
+        op = Operator(Eq(g.forward, g + 1, implicit_dims=ci))
+
+        op.apply(time_M=ths+3)
+
+        assert np.all(g.data[0, :, :] == ths)
+        assert np.all(g.data[1, :, :] == ths + 1)
+
     def test_expr_like_lowering(self):
         """
         Test the lowering of an expr-like ConditionalDimension's condition.
