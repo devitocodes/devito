@@ -263,7 +263,7 @@ by this function.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>function</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The initialised object.</p></li>
 <li><p><strong>data</strong> (<em>ndarray</em><em> or </em><a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The data used for initialisation.</p></li>
-<li><p><strong>nbl</strong> (<em>int</em><em> or </em><em>tuple of int</em>) – Number of outer layers (such as absorbing layers for boundary damping).</p></li>
+<li><p><strong>nbl</strong> (<em>int</em><em> or </em><em>tuple of int</em><em> or </em><em>tuple of tuple of int</em>) – Number of outer layers (such as absorbing layers for boundary damping).</p></li>
 <li><p><strong>mapper</strong> (<em>dict</em><em>, </em><em>optional</em>) – Dictionary containing, for each dimension of <cite>function</cite>, a sub-dictionary
 containing the following keys:
 1) ‘lhs’: List of additional expressions to be added to the LHS expressions list.
