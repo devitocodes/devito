@@ -195,6 +195,18 @@ class TestInitializeFunction(object):
         assert np.all(a[::-1, :] - np.array(f.data[0:4, 4:8]) == 0)
         assert np.all(a[::-1, :] - np.array(f.data[8:12, 4:8]) == 0)
 
+    def test_if_serial_asymmetric(self):
+        """Test in serial with asymmetric padding."""
+        a = np.arange(35).reshape((7, 5))
+        grid = Grid(shape=(12, 12))
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        initialize_function(f, a, ((2, 3), (4, 3)), mode='reflect')
+
+        assert np.all(a[:, -2::-1] - np.array(f.data[2:9, 0:4]) == 0)
+        assert np.all(a[:, :1:-1] - np.array(f.data[2:9, 9:12]) == 0)
+        assert np.all(a[1::-1, :] - np.array(f.data[0:2, 4:9]) == 0)
+        assert np.all(a[6:3:-1, :] - np.array(f.data[9:12, 4:9]) == 0)
+
     def test_nbl_zero(self):
         """Test for nbl = 0."""
         a = np.arange(16).reshape((4, 4))
