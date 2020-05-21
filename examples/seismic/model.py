@@ -264,13 +264,13 @@ class SeismicModel(GenericModel):
         if 'vp' in self._physical_parameters:
             return mmax(self.vp)
         else:
-            return mmin(self.b) * (mmax(self.lam) + 2 * mmax(self.mu))
+            return np.sqrt(mmin(self.b) * (mmax(self.lam) + 2 * mmax(self.mu)))
 
     @property
     def _scale(self):
         # Update scale for tti
         if 'epsilon' in self._physical_parameters:
-            return 1 + 2 * mmax(self.epsilon)
+            return np.sqrt(1 + 2 * mmax(self.epsilon))
         return 1
 
     @property

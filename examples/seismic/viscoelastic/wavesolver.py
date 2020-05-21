@@ -58,7 +58,7 @@ class ViscoelasticWaveSolver(object):
         r : TensorTimeFunction, optional
             The computed memory variable.
         lam : Function, optional
-            The time-constant first Lame parameter (rho * vp**2 - rho * vs **2).
+            The time-constant first Lame parameter rho * (vp**2 - 2 * vs **2).
         mu : Function, optional
             The Shear modulus (rho * vs*2).
         qp : Function, optional
