@@ -210,7 +210,7 @@ class SeismicModel(GenericModel):
     lame: Bool
         Whether to use Lame parameter (default) or vp/vs
     """
-    _known_parameters = ['vp', 'damp', 'vs', 'rho', 'b', 'epsilon', 'delta',
+    _known_parameters = ['vp', 'damp', 'vs', 'b', 'epsilon', 'delta',
                          'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20,
@@ -228,7 +228,7 @@ class SeismicModel(GenericModel):
         """
         Initialize physical parameters and type of physics from inputs.
         The types of physics supportedare:
-        - acoustic: vp and rho/b only
+        - acoustic: vp and b only
         - elastic: vp + vs + b turn into lam/mu/b
         - visco-acoustic: vp + b + qp
         - visco-elastic: vp + vs + b + qs
@@ -236,15 +236,12 @@ class SeismicModel(GenericModel):
         - tti: epsilon + delta + theta + phi
         """
         params = []
-        # Make sure only one of density and buoyancy is created
-        if 'rho' in kwargs.keys() and 'b' in kwargs.keys():
-            assert 1 / kwargs.get('rho') == kwargs.get('b')
-            kwargs.pop('rho')
+        # Buoyancy
+        b = kwargs.get('b', 1)
 
         # Initialize elastic with Lame parametrization
         if 'vs' in kwargs.keys():
             vs = kwargs.get('vs')
-            b = kwargs.get('b')
             self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order,
                                             is_param=True)
             self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True)
@@ -276,7 +273,7 @@ class SeismicModel(GenericModel):
     @property
     def _cfl_coeff(self):
         if 'vs' in self._physical_parameters:
-            return .85 / np.sqrt(3.)
+            return .85 / np.sqrt(self.grid.dim)
         return 0.38 if len(self.shape) == 3 else 0.42
 
     @property

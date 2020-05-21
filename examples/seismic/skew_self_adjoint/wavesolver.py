@@ -44,8 +44,8 @@ class SsaIsoAcousticWaveSolver(object):
 
         self.space_order = space_order
 
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
-        self.dt = self.model.critical_dt
+        # Time step is .6 time smaller due to Q
+        self.dt = .6*self.model.critical_dt
 
         # Cache compiler options
         self._kwargs = kwargs
