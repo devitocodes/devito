@@ -9,22 +9,23 @@ from examples.seismic.skew_self_adjoint import (setup_w_over_q,
                                                 SsaIsoAcousticWaveSolver)
 
 
-def acousticssa_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                      tn=500., space_order=4, nbl=10, **kwargs):
+def acousticssa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
+                      tn=500., space_order=8, nbl=10, **kwargs):
     # SSA parameters
     qmin = 0.1
     qmax = 1000.0
     tmax = 500.0
     fpeak = 0.010
     omega = 2.0 * np.pi * fpeak
-    vp = 1.5
-    b = 1.0
+    vp = 1.5*np.ones(shape)
+    b = 1.0*np.ones(shape)
 
     init_damp = lambda func, nbl: setup_w_over_q(func, omega, qmin, qmax, nbl, sigma=0)
     o = tuple([0]*len(shape))
     spacing = spacing[:len(shape)]
     model = Model(origin=o, shape=shape, vp=vp, b=b, spacing=spacing, nbl=nbl,
-                  space_order=space_order, bcs=init_damp, **kwargs)
+                  space_order=space_order, bcs=init_damp,
+                  dtype=kwargs.pop('dtype', np.float32), **kwargs)
     # Source and receiver geometries
     geometry = setup_geometry(model, tmax)
 

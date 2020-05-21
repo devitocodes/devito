@@ -203,7 +203,7 @@ class TestWavesolver(object):
         rec1, _, _, _ = solver.jacobian_forward(m1, src0, vp=m0, save=True)
         rec1.data[:] = a * rec1.data[:]
         m1.data[:] = a * m1.data[:]
-        rec2, _, _, _ = solver.jacobian_forward(m1, src0, vp=m0, save=True)
+        rec2, _, _, _ = solver.jacobian_forward(m1, src0, vp=m0)
 
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
@@ -249,10 +249,10 @@ class TestWavesolver(object):
 
         a = np.random.rand()
         rec0, u0, _ = solver.forward(src0, vp=m0, save=True)
-        dm1, _, _, _ = solver.jacobian_adjoint(rec0, u0, vp=m0, save=True)
+        dm1, _, _, _ = solver.jacobian_adjoint(rec0, u0, vp=m0)
         dm1.data[:] = a * dm1.data[:]
         rec0.data[:] = a * rec0.data[:]
-        dm2, _, _, _ = solver.jacobian_adjoint(rec0, u0, vp=m0, save=True)
+        dm2, _, _, _ = solver.jacobian_adjoint(rec0, u0, vp=m0)
 
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(dm2.data**2))
@@ -299,12 +299,9 @@ class TestWavesolver(object):
         nt, nr = rec1.data.shape
         rec1.data[:] = np.random.rand(nt, nr)
 
-        # Nonlinear modeling
-        rec0, u0, _ = solver.forward(src0, vp=m0, save=nt)
-
         # Linearized modeling
-        rec2, _, _, _ = solver.jacobian_forward(dm1, src0, vp=m0, save=nt)
-        dm2, _, _, _ = solver.jacobian_adjoint(rec1, u0, vp=m0, save=nt)
+        rec2, u0, _, _ = solver.jacobian_forward(dm1, src0, vp=m0, save=True)
+        dm2, _, _, _ = solver.jacobian_adjoint(rec1, u0, vp=m0)
 
         sum_m = np.dot(dm1.data.reshape(-1), dm2.data.reshape(-1))
         sum_d = np.dot(rec1.data.reshape(-1), rec2.data.reshape(-1))

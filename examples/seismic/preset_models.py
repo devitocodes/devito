@@ -330,7 +330,6 @@ def demo_model(preset, **kwargs):
         # Define a velocity profile in km/s
         vp = np.empty(shape, dtype=dtype)
         qp = np.empty(shape, dtype=dtype)
-        b_top = np.empty(shape, dtype=dtype)
 
         # Top and bottom P-wave velocity
         vp_top = kwargs.pop('vp_top', 1.5)
@@ -345,7 +344,7 @@ def demo_model(preset, **kwargs):
 
         qp[:] = 3.516*((vp[:]*1000.)**2.2)*10**(-6)  # Li's empirical formula
 
-        b[:] = 1 / (0.31*(vp[:]*1000.)**0.25)  # Gardner's relation
+        b = 1 / (0.31*(vp[:]*1000.)**0.25)  # Gardner's relation
 
         return SeismicModel(space_order=space_order, vp=vp, qp=qp, b=b, nbl=nbl,
                             origin=origin, shape=shape, spacing=spacing, **kwargs)

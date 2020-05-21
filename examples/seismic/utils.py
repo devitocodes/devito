@@ -13,7 +13,7 @@ def setup_geometry(model, tn):
     src_coordinates = np.empty((1, model.dim))
     src_coordinates[0, :] = np.array(model.domain_size) * .5
     if model.dim > 1:
-        src_coordinates[0, -1] = model.origin[-1] + 2 * model.spacing[-1]
+        src_coordinates[0, -1] = model.origin[-1] + model.spacing[-1]
 
     rec_coordinates = setup_rec_coords(model)
 

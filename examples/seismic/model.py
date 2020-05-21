@@ -116,7 +116,7 @@ class GenericModel(object):
                                 parameter=is_param)
             initialize_function(function, field, self.nbl)
         else:
-            function = Constant(name=name, value=field)
+            function = Constant(name=name, value=field, dtype=self.grid.dtype)
         self._physical_parameters.append(name)
         return function
 

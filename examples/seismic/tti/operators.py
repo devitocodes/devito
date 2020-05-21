@@ -34,6 +34,29 @@ def second_order_stencil(model, u, v, H0, Hz, forward=True):
     return stencils
 
 
+def trig_func(model):
+    """
+    Trigonometric function of the tilt and azymuth angles
+    """
+    try:
+        theta = model.theta
+    except AttributeError:
+        theta = 0
+
+    costheta = cos(theta)
+    sintheta = sin(theta)
+    if model.dim == 3:
+        try:
+            phi = model.phi
+        except AttributeError:
+            phi = 0
+
+        cosphi = cos(phi)
+        sinphi = sin(phi)
+        return costheta, sintheta, cosphi, sinphi
+    return costheta, sintheta
+
+
 def Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
     """
     3D rotated second order derivative in the direction z.
@@ -202,8 +225,7 @@ def kernel_centered_2d(model, u, v, space_order, forward=True):
     u and v component of the rotated Laplacian in 2D.
     """
     # Tilt and azymuth setup
-    costheta = cos(model.theta)
-    sintheta = sin(model.theta)
+    costheta, sintheta = trig_func(model)
 
     delta, epsilon = model.delta, model.epsilon
     epsilon = 1 + 2*epsilon
@@ -261,11 +283,7 @@ def kernel_centered_3d(model, u, v, space_order, forward=True):
     -------
     u and v component of the rotated Laplacian in 3D.
     """
-    # Tilt and azymuth setup
-    costheta = cos(model.theta)
-    sintheta = sin(model.theta)
-    cosphi = cos(model.phi)
-    sinphi = sin(model.phi)
+    costheta, sintheta, cosphi, sinphi = trig_func(model)
 
     delta, epsilon = model.delta, model.epsilon
     epsilon = 1 + 2*epsilon
@@ -326,7 +344,8 @@ def kernel_staggered_2d(model, u, v, space_order):
     m * u.dt = - (1 + 2 epsilon) vx.dx - sqrt(1 + 2 delta) vz.dz + Fv
     """
     dampl = 1 - model.damp
-    m, epsilon, delta, theta = (model.m, model.epsilon, model.delta, model.theta)
+    m, epsilon, delta = model.m, model.epsilon, model.delta
+    costheta, sintheta = trig_func(model)
     epsilon = 1 + 2 * epsilon
     delta = sqrt(1 + 2 * delta)
     s = model.grid.stepping_dim.spacing
@@ -335,14 +354,14 @@ def kernel_staggered_2d(model, u, v, space_order):
     vx, vz, _ = particle_velocity_fields(model, space_order)
 
     # Stencils
-    phdx = cos(theta) * u.dx - sin(theta) * u.dy
+    phdx = costheta * u.dx - sintheta * u.dy
     u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-    pvdz = sin(theta) * v.dx + cos(theta) * v.dy
+    pvdz = sintheta * v.dx + costheta * v.dy
     u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-    dvx = cos(theta) * vx.forward.dx - sin(theta) * vx.forward.dy
-    dvz = sin(theta) * vz.forward.dx + cos(theta) * vz.forward.dy
+    dvx = costheta * vx.forward.dx - sintheta * vx.forward.dy
+    dvz = sintheta * vz.forward.dx + costheta * vz.forward.dy
 
     # u and v equations
     pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)))
@@ -362,8 +381,8 @@ def kernel_staggered_3d(model, u, v, space_order):
     m * u.dt = - (1 + 2 epsilon) (vx.dx + vy.dy) - sqrt(1 + 2 delta) vz.dz + Fv
     """
     dampl = 1 - model.damp
-    m, epsilon, delta, theta, phi = (model.m, model.epsilon, model.delta,
-                                     model.theta, model.phi)
+    m, epsilon, delta = model.m, model.epsilon, model.delta
+    costheta, sintheta, cosphi, sinphi = trig_func(model)
     epsilon = 1 + 2 * epsilon
     delta = sqrt(1 + 2 * delta)
     s = model.grid.stepping_dim.spacing
@@ -371,26 +390,26 @@ def kernel_staggered_3d(model, u, v, space_order):
     # Staggered setup
     vx, vz, vy = particle_velocity_fields(model, space_order)
     # Stencils
-    phdx = (cos(theta) * cos(phi) * u.dx +
-            cos(theta) * sin(phi) * u.dyc -
-            sin(theta) * u.dzc)
+    phdx = (costheta * cosphi * u.dx +
+            costheta * sinphi * u.dyc -
+            sintheta * u.dzc)
     u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-    phdy = -sin(phi) * u.dxc + cos(phi) * u.dy
+    phdy = -sinphi * u.dxc + cosphi * u.dy
     u_vy = Eq(vy.forward, dampl * vy - dampl * s * phdy)
 
-    pvdz = (sin(theta) * cos(phi) * v.dxc +
-            sin(theta) * sin(phi) * v.dyc +
-            cos(theta) * v.dz)
+    pvdz = (sintheta * cosphi * v.dxc +
+            sintheta * sinphi * v.dyc +
+            costheta * v.dz)
     u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-    dvx = (cos(theta) * cos(phi) * vx.forward.dx +
-           cos(theta) * sin(phi) * vx.forward.dyc -
-           sin(theta) * vx.forward.dzc)
-    dvy = -sin(phi) * vy.forward.dxc + cos(phi) * vy.forward.dy
-    dvz = (sin(theta) * cos(phi) * vz.forward.dxc +
-           sin(theta) * sin(phi) * vz.forward.dyc +
-           cos(theta) * vz.forward.dz)
+    dvx = (costheta * cosphi * vx.forward.dx +
+           costheta * sinphi * vx.forward.dyc -
+           sintheta * vx.forward.dzc)
+    dvy = -sinphi * vy.forward.dxc + cosphi * vy.forward.dy
+    dvz = (sintheta * cosphi * vz.forward.dxc +
+           sintheta * sinphi * vz.forward.dyc +
+           costheta * vz.forward.dz)
     # u and v equations
     pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)))
 

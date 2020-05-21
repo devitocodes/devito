@@ -92,7 +92,7 @@ def IsoFwdOperator(model, geometry, space_order=8, save=False, **kwargs):
     vp, b = model.vp, model.b
     # Create symbols for wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
-                     save=geometry.num if save else None,
+                     save=geometry.nt if save else None,
                      time_order=2, space_order=space_order)
 
     # Time update equation
@@ -140,7 +140,7 @@ def IsoAdjOperator(model, geometry, space_order=8, save=False, **kwargs):
     vp, b = model.vp, model.b
     # Create symbols for wavefield, source and receivers
     v = TimeFunction(name='v', grid=model.grid,
-                     save=geometry.num if save else None,
+                     save=geometry.nt if save else None,
                      time_order=2, space_order=space_order)
 
     # Time update equation
@@ -188,7 +188,7 @@ def IsoJacobianFwdOperator(model, geometry, space_order=8,
     vp, b, wOverQ = model.vp, model.b, model.damp
     # Create p0, dp wavefields and dm velocity perturbation field
     u0 = TimeFunction(name="u0", grid=model.grid,
-                      save=geometry.num if save else None,
+                      save=geometry.nt if save else None,
                       time_order=2, space_order=space_order)
 
     du = TimeFunction(name="du", grid=model.grid,
@@ -247,7 +247,7 @@ def IsoJacobianAdjOperator(model, geometry, space_order=8,
     vp, b, wOverQ = model.vp, model.b, model.damp
     # Create p0, dp wavefields and dm velocity perturbation field
     u0 = TimeFunction(name="u0", grid=model.grid,
-                      save=geometry.num if save else None,
+                      save=geometry.nt if save else None,
                       time_order=2, space_order=space_order)
 
     du = TimeFunction(name="du", grid=model.grid,

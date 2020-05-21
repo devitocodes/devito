@@ -40,7 +40,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_viscoacoustic():
     _, _, _, [rec] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec), 24.0908, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec), 21.5779, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":

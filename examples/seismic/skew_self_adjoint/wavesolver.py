@@ -1,5 +1,6 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
+from examples.seismic import PointSource
 from examples.seismic.skew_self_adjoint.operators import IsoFwdOperator, IsoAdjOperator, \
     IsoJacobianFwdOperator, IsoJacobianAdjOperator
 
@@ -150,8 +151,9 @@ class SsaIsoAcousticWaveSolver(object):
         and performance summary
         """
         # Create a new adjoint source and receiver symbol
-        srca = src or self.geometry.src
-
+        srca = src or PointSource(name='srca', grid=self.model.grid,
+                                  time_range=self.geometry.time_axis,
+                                  coordinates=self.geometry.src_positions)
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
@@ -161,7 +163,7 @@ class SsaIsoAcousticWaveSolver(object):
         kwargs.update({'dt': kwargs.pop('dt', self.dt)})
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj(save).apply(src=srca, rec=rec, **kwargs)
+        summary = self.op_adj(save).apply(src=srca, rec=rec, v=v, **kwargs)
         return srca, v, summary
 
     def jacobian_forward(self, dm, src, rec=None, b=None, vp=None, damp=None,
@@ -204,6 +206,7 @@ class SsaIsoAcousticWaveSolver(object):
 
         # Create the forward wavefields u and U if not provided
         u0 = u0 or TimeFunction(name='u0', grid=self.model.grid,
+                                save=self.geometry.nt if save else None,
                                 time_order=2, space_order=self.space_order)
         du = du or TimeFunction(name='du', grid=self.model.grid,
                                 time_order=2, space_order=self.space_order)
@@ -217,7 +220,7 @@ class SsaIsoAcousticWaveSolver(object):
         return rec, u0, du, summary
 
     def jacobian_adjoint(self, rec, u0, b=None, vp=None, damp=None,
-                         dm=None, du=None, save=None, **kwargs):
+                         dm=None, du=None, **kwargs):
         """
         Linearized JacobianForward modeling function that creates the necessary
         data objects for running a Jacobian forward modeling operator.
@@ -249,7 +252,8 @@ class SsaIsoAcousticWaveSolver(object):
         and performance summary
         """
         # Get model perturbation Function or create
-        dm = dm or Function(name='dm', grid=self.v.grid, space_order=self.space_order)
+        dm = dm or Function(name='dm', grid=self.model.grid,
+                            space_order=self.space_order)
 
         # Create the perturbation wavefield if not provided
         du = du or TimeFunction(name='du', grid=self.model.grid,
