@@ -1,10 +1,9 @@
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
-                                      q_trigonometry, q_scalar)
+                                      q_scalar)
 from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_xops', 'retrieve_trigonometry', 'search',
-           'retrieve_scalars']
+           'retrieve_terminals', 'retrieve_xops', 'retrieve_scalars', 'search']
 
 
 class Search(object):
@@ -165,11 +164,6 @@ def retrieve_function_carriers(exprs, mode='all'):
 def retrieve_terminals(exprs, mode='all', deep=False):
     """Shorthand to retrieve Indexeds and Symbols within ``exprs``."""
     return search(exprs, q_terminal, mode, 'dfs', deep)
-
-
-def retrieve_trigonometry(exprs):
-    """Shorthand to retrieve the trigonometric functions within ``exprs``."""
-    return search(exprs, q_trigonometry, 'unique', 'dfs')
 
 
 def retrieve_xops(exprs):
