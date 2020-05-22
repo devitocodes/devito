@@ -49,6 +49,10 @@ class PrecomputedSparseTimeFunction(with_metaclass(_BackendSelector, sparse.Prec
     pass
 
 
+class MatrixSparseTimeFunction(with_metaclass(_BackendSelector, sparse.MatrixSparseTimeFunction)):  # noqa
+    pass
+
+
 class Grid(with_metaclass(_BackendSelector, grid.Grid)):
     pass
 
