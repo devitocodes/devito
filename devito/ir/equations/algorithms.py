@@ -95,11 +95,19 @@ def lower_exprs(expressions, **kwargs):
                   for f in retrieve_functions(expr)}
 
         # Handle Indexeds (from index notation)
-        for i in retrieve_indexed(expr):
+        for i in retrieve_indexed(expr, deep=True):
             f = i.function
 
             # Introduce shifting to align with the computational domain
             indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
+
+            # Indexify indices of nested functions
+            tmp_mapper = {}
+            for index in indices:
+                for nested_func in retrieve_functions(index):
+                    tmp_mapper = {nested_func: nested_func.indexify(lshift=True)}
+                    index = index.xreplace(tmp_mapper)
+                    expr = expr.xreplace(tmp_mapper)
 
             # Apply substitutions, if necessary
             if dimension_map:
