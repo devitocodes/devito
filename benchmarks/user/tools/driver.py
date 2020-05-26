@@ -135,7 +135,7 @@ class Driver(object):
         Save all timing results in individually keyed files.
         """
         if not path.exists(self.resultsdir):
-            makedirs(self.resultsdir)
+            makedirs(self.resultsdir, exist_ok=True)
         timestamp = datetime.now().strftime('%Y-%m-%dT%H%M%S')
 
         for key in self.timings.keys():

@@ -30,19 +30,19 @@ class Dimension(ArgProvider):
     just like any other symbol.
 
     Dimension is the root of a hierarchy of classes, which looks as follows (only
-    the classes exposed to the level of the user API are shown).
+    the classes exposed to the level of the user API are shown)::
 
-                                      Dimension
-                                          |
-                             ---------------------------
-                             |                         |
-                      BasicDimension            DefaultDimension
-                             |
-                     DerivedDimension
-                             |
-          ----------------------------------------
-          |                  |                   |
-    SteppingDimension   SubDimension   ConditionalDimension
+                                       Dimension
+                                           |
+                              ---------------------------
+                              |                         |
+                       BasicDimension            DefaultDimension
+                              |
+                      DerivedDimension
+                              |
+            ---------------------------------------
+            |                 |                   |
+      SteppingDimension   SubDimension   ConditionalDimension
 
     Parameters
     ----------

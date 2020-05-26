@@ -3,13 +3,13 @@ import os
 
 import numpy as np
 import cgen as c
-from sympy import Function, Or, Max, Not
+from sympy import Or, Max, Not
 
 from devito.ir import (DummyEq, Conditional, Block, Expression, ExpressionBundle, List,
                        Prodder, Iteration, While, FindSymbols, FindNodes, Return,
                        COLLAPSED, VECTORIZED, Transformer, IsPerfectIteration,
                        retrieve_iteration_tree, filter_iterations)
-from devito.symbolics import CondEq, INT
+from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
@@ -193,12 +193,12 @@ class ThreadedProdder(Conditional, Prodder):
 
     def __init__(self, prodder):
         # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(Function('omp_get_thread_num')(), 0)
+        condition = CondEq(DefFunction('omp_get_thread_num'), 0)
 
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
         # as it's required
-        prod_until = Not(Function(prodder.name)(*[i.name for i in prodder.arguments]))
+        prod_until = Not(DefFunction(prodder.name, [i.name for i in prodder.arguments]))
         then_body = List(header=c.Comment('Entrap thread until comms have completed'),
                          body=While(prod_until))
 

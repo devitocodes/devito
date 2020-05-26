@@ -124,6 +124,7 @@ jobs:
   # Stop the runner
   stop-runner:
     name: stop-runner
+    if: ${{ always() }}
     needs: benchmarks
     runs-on: ubuntu-latest
 
