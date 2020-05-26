@@ -9,7 +9,7 @@ from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval, Interv
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
                               q_sum_of_product, q_terminalop, retrieve_indexed,
-                              search, uxreplace, yreplace)
+                              search, uxreplace)
 from devito.tools import flatten, split
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
@@ -163,11 +163,21 @@ class CallbacksInvariants(Callbacks):
         exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
         rule0 = lambda e: not e.free_symbols & exclude
         rule1 = make_is_time_invariant(context)
-        rule = lambda e: rule0(e) and rule1(e)
+        rule2 = lambda e: estimate_cost(e, True) >= min_cost
+        rule = lambda e: rule0(e) and rule1(e) and rule2(e)
 
-        model = lambda e: estimate_cost(e, True) >= min_cost
+        extracted = []
+        mapper = OrderedDict()
+        for e in cluster.exprs:
+            for i in search(e, rule, 'all', 'dfs_first_hit'):
+                if i not in mapper:
+                    symbol = make()
+                    mapper[i] = symbol
+                    extracted.append(e.func(symbol, i))
 
-        return yreplace(cluster.exprs, make, rule, model, eager=True)
+        processed = [uxreplace(e, mapper) for e in cluster.exprs]
+
+        return extracted + processed, extracted
 
     @classmethod
     def selector(cls, min_cost, cost, naliases):
