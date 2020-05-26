@@ -7,9 +7,8 @@ import numpy as np
 from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval, IntervalGroup,
                        LabeledVector, Scope, detect_accesses, build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
-from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
-                              q_sum_of_product, q_terminalop, retrieve_indexed,
-                              search, uxreplace)
+from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
+                              retrieve_indexed, search, uxreplace)
 from devito.tools import flatten, split
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
