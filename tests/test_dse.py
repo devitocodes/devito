@@ -1202,7 +1202,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 120
+        assert summary[('section0', None)].ops == 115
 
     @switchconfig(profiling='advanced')
     def test_tti_adjoint_akin(self):
@@ -1369,8 +1369,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 102
-        assert np.isclose(summary[('section1', None)].oi, 1.678, atol=0.001)
+        assert summary[('section1', None)].ops == 103
+        assert np.isclose(summary[('section1', None)].oi, 1.692, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -1413,7 +1413,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 174), (16, 310)
+        (8, 175), (16, 311)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
