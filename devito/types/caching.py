@@ -2,6 +2,8 @@ import gc
 import weakref
 
 import sympy
+from sympy import cache
+
 
 __all__ = ['Cached', '_SymbolCache', 'CacheManager']
 
@@ -130,7 +132,7 @@ class CacheManager(object):
     @classmethod
     def clear(cls, force=True):
         # Wipe out the "true" SymPy cache
-        sympy.cache.clear_cache()
+        cache.clear_cache()
 
         # Wipe out the hidden module-private SymPy caches
         sympy.polys.rootoftools.ComplexRootOf.clear_cache()
