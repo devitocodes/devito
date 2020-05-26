@@ -17,12 +17,13 @@ class IREq(object):
     """
     A mixin providing operations common to all :mod:`ir` equation types.
     """
-
     _state = ('is_Increment', 'ispace', 'dspace', 'conditionals', 'implicit_dims')
 
     @property
     def is_Scalar(self):
         return self.lhs.is_Symbol
+
+    is_scalar = is_Scalar
 
     @property
     def is_Tensor(self):
