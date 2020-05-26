@@ -836,9 +836,9 @@ class TestConditionalDimension(object):
         Check that the compiler performs lowering on conditions
         with TimeDimensions and generates the expected code::
 
-        if f[t, x] > 2 {            if f[time, x] > 2 {
-          ...                -->      ...
-        }                           }
+        if (g[t][x + 1][y + 1] <= 10){          if (g[t0][x + 1][y + 1] <= 10){
+            ...                          -->       ...
+        }                                       }
 
         This test increments a function by one at every timestep until it is
         less-or-equal to 10 (g<=10) while although operator runs for 13 timesteps.
