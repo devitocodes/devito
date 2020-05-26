@@ -833,11 +833,15 @@ class TestConditionalDimension(object):
 
     def test_stepping_dim_in_condition_lowering(self):
         """
-        Check that the compiler performs the following lowering::
+        Check that the compiler performs lowering on conditions
+        with TimeDimensions and generates the expected code::
 
         if f[t, x] > 2 {            if f[time, x] > 2 {
           ...                -->      ...
         }                           }
+
+        This test increments a function by one at every timestep until it is
+        less-or-equal to 10 (g<=10) while although operator runs for 13 timesteps.
         """
         grid = Grid(shape=(4, 4))
         _, y = grid.dimensions
@@ -850,9 +854,10 @@ class TestConditionalDimension(object):
         op = Operator(Eq(g.forward, g + 1, implicit_dims=ci))
 
         op.apply(time_M=ths+3)
-
         assert np.all(g.data[0, :, :] == ths)
         assert np.all(g.data[1, :, :] == ths + 1)
+        assert 'if (g[t0][x + 1][y + 1] <= 10)\n'
+        '{\n g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1' in str(op.ccode)
 
     def test_expr_like_lowering(self):
         """
