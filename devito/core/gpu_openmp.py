@@ -225,7 +225,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
     """
 
-    CIRE_REPEATS_SOPS = 2
+    CIRE_REPEATS_SOPS = 5
     """
     Number of CIRE passes to detect and optimize away redundant sum-of-products.
     """
