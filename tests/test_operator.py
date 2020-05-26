@@ -217,21 +217,25 @@ class TestCodeGen(object):
         u5 = Function(name="u5", grid=grid, dtype=np.int32)
 
         Eq1 = Eq(u1, u2[x, u3[x, u4[x, u5[x, u1]]]])
+        Eq2 = Eq(u1, u2[x, u3[x, u4[x, u5[x, u1[x + 1, y + 1]]]]])
 
         op1 = Operator([Eq1])
+        op2 = Operator([Eq2])
 
         op1.apply()
+        op2.apply()
 
-        print(op1.ccode)
-        assert ('u1[x + 1][y + 1] = u2[x][u3[x][u4[x][u5[x]'
-                '[u1[x + 1][y + 1]]]]]') in str(op1.ccode)
+        assert ('u1[x + 1][y + 1] = u2[x + 1][u3[x][u4[x][u5[x]'
+                '[u1[x + 1][y + 1]]]] + 1]') in str(op2.ccode)
+
+        assert str(op2.ccode) == str(op1.ccode)
 
     def test_nested_lowering_and_indexing_rhs_lhs(self):
         """
         Tests that deeply nested (depth > 2) functions used as indices are indexified.
         """
-        x1, x2, x3, x4, x5 = dimensions('x1 x2 x3 x4 x5')
-        y1, y2, y3, y4, y5 = dimensions('y1 y2 y3 y4 y5')
+        x1, x2, x3, x4 = dimensions('x1 x2 x3 x4')
+        y1, y2, y3, y4 = dimensions('y1 y2 y3 y4')
 
         u1 = Function(name="u1", shape=(4, 4), dimensions=(x1, y1), dtype=np.int32)
         u2 = Function(name="u2", shape=(4, 4), dimensions=(x2, y2), dtype=np.int32)
@@ -245,9 +249,6 @@ class TestCodeGen(object):
 
         op1.apply()
         op2.apply()
-
-        print(op1.ccode)
-        print(op2.ccode)
 
         assert str(op1.ccode) == str(op2.ccode)
 
