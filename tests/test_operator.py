@@ -203,91 +203,53 @@ class TestCodeGen(object):
         op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
         assert '#pragma omp for' not in str(op4)
 
-    def test_nested_lowering_and_indexing(self):
+    def test_nested_lowering(self):
         """
-        Tests that deeply nested (depth > 2) functions are lowered and indexified.
+        Tests that deeply nested (depth > 2) functions over subdomains are lowered.
         """
-        grid = Grid(shape=(4, 4))
+        grid = Grid(shape=(4, 4), dtype=np.int32)
         x, y = grid.dimensions
 
-        u1 = Function(name="u1", grid=grid, dtype=np.int32)
-        u2 = Function(name="u2", grid=grid, dtype=np.int32)
-        u3 = Function(name="u3", grid=grid, dtype=np.int32)
-        u4 = Function(name="u4", grid=grid, dtype=np.int32)
-        u5 = Function(name="u5", grid=grid, dtype=np.int32)
+        u0 = Function(name="u0", grid=grid)
+        u1 = Function(name="u1", grid=grid)
+        u2 = Function(name="u2", grid=grid)
+        u3 = Function(name="u3", grid=grid)
+        u4 = Function(name="u4", grid=grid)
 
-        Eq1 = Eq(u1, u2[x, u3[x, u4[x, u5[x, u1]]]])
-        Eq2 = Eq(u1, u2[x, u3[x, u4[x, u5[x, u1[x, y]]]]])
+        eq0 = Eq(u0, u1[x, u2[x, u3[x, u4[x, u0]]]], subdomain=grid.interior)
+        eq1 = Eq(u0, u1[x, u2[x, u3[x, u4[x, u0[x, y]]]]], subdomain=grid.interior)
+        op0 = Operator(eq0)
+        op1 = Operator(eq1)
 
-        op1 = Operator([Eq1])
-        op2 = Operator([Eq2])
-
+        op0.apply()
         op1.apply()
-        op2.apply()
-        assert ('u1[x + 1][y + 1] = u2[x + 1][u3[x + 1][u4[x + 1][u5[x + 1]'
-                '[u1[x + 1][y + 1] + 1] + 1] + 1] + 1]') in str(op2.ccode)
+        assert ('u0[i0x + 1][i0y + 1] = u1[i0x + 1][u2[i0x + 1][u3[i0x + 1][u4[i0x + 1]'
+                '[u0[i0x + 1][i0y + 1] + 1] + 1] + 1] + 1]') in str(op0.ccode)
 
-        assert str(op2.ccode) == str(op1.ccode)
+        assert str(op0.ccode) == str(op1.ccode)
 
-    def test_nested_lowering_and_indexing_rhs_lhs(self):
+    def test_multiple_nested_lowering(self):
         """
-        Tests that deeply nested (depth > 2) functions used as indices are indexified.
+        Tests that multiple nested functions (2 indirections at the same depth)
+        are lowered.
         """
-        x1, x2, x3, x4 = dimensions('x1 x2 x3 x4')
-        y1, y2, y3, y4 = dimensions('y1 y2 y3 y4')
+        x0, x1, x2, x3 = dimensions('x0 x1 x2 x3')
+        y0, y1, y2, y3 = dimensions('y0 y1 y2 y3')
 
+        u0 = Function(name="u0", shape=(4, 4), dimensions=(x0, y0), dtype=np.int32)
         u1 = Function(name="u1", shape=(4, 4), dimensions=(x1, y1), dtype=np.int32)
         u2 = Function(name="u2", shape=(4, 4), dimensions=(x2, y2), dtype=np.int32)
         u3 = Function(name="u3", shape=(4, 4), dimensions=(x3, y3), dtype=np.int32)
-        u4 = Function(name="u4", shape=(4, 4), dimensions=(x4, y4), dtype=np.int32)
 
-        Eq1 = Eq(u1, u2[u3, u4])
-        Eq2 = Eq(u1, u2[u3[x3, y3], u4[x4, y4]])
-        op1 = Operator([Eq1])
-        op2 = Operator([Eq2])
+        eq0 = Eq(u0, u1[u2, u3])
+        eq1 = Eq(u0, u1[u2[x2, y2], u3[x3, y3]])
+        op0 = Operator(eq0)
+        op1 = Operator(eq1)
 
+        op0.apply()
         op1.apply()
-        op2.apply()
 
-        assert str(op1.ccode) == str(op2.ccode)
-
-    def test_nested_indexing(self):
-        """
-        Tests that nested functions used as indices are indexified.
-        """
-        x, y1, y2 = dimensions('x y1 y2')
-        u1 = Function(name="u1", shape=(4, 4), dimensions=(x, y1), dtype=np.int32)
-        u2 = Function(name="u2", shape=(4, 4), dimensions=(x, y2), dtype=np.int32)
-
-        Eq1 = Eq(u2, u2[x, u1])  # Not indexed
-        Eq2 = Eq(u2, u2[x, u1[x, y1]])  # Explicit indexing
-
-        op1 = Operator([Eq1])
-        op2 = Operator([Eq2])
-
-        assert str(op1.ccode) == str(op2.ccode)
-
-    def test_deep_nested_indexing(self):
-        """
-        Tests that deeply nested (depth > 2) functions used as indices are indexified.
-        """
-        x, y1, y2, y3, y4 = dimensions('x y1 y2 y3 y4')
-
-        u1 = Function(name="u1", shape=(4, 4), dimensions=(x, y1), dtype=np.int32)
-        u2 = Function(name="u2", shape=(4, 4), dimensions=(x, y2), dtype=np.int32)
-        u3 = Function(name="u3", shape=(4, 4), dimensions=(x, y3), dtype=np.int32)
-        u4 = Function(name="u4", shape=(4, 4), dimensions=(x, y4), dtype=np.int32)
-
-        Eq1 = Eq(u1, u2[x, u3[x, u4]])
-        Eq2 = Eq(u1, u2[x, u3[x, u4[x, y4]]])
-
-        op1 = Operator([Eq1])
-        op2 = Operator([Eq2])
-
-        op1.apply()
-        op2.apply()
-
-        assert str(op1.ccode) == str(op2.ccode)
+        assert str(op0.ccode) == str(op1.ccode)
 
 
 class TestArithmetic(object):
