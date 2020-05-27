@@ -76,7 +76,6 @@ def lower_exprs(expressions, **kwargs):
         * Indexify functions;
         * Align Indexeds with the computational domain;
         * Apply user-provided substitution;
-        * Apply nested substitutions;
 
     Examples
     --------
@@ -96,7 +95,7 @@ def lower_exprs(expressions, **kwargs):
                   for f in retrieve_functions(expr)}
 
         # Handle Indexeds (from index notation)
-        for i in retrieve_indexed(expr, deep=True):
+        for i in retrieve_indexed(expr):
             f = i.function
 
             # Introduce shifting to align with the computational domain
