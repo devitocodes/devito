@@ -95,19 +95,13 @@ def lower_exprs(expressions, **kwargs):
         mapper = {f: f.indexify(lshift=True, subs=dimension_map)
                   for f in retrieve_functions(expr)}
 
-        nsubs = {}
         # Handle Indexeds (from index notation)
         for i in retrieve_indexed(expr, deep=True):
             f = i.function
 
             # Introduce shifting to align with the computational domain
-            indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
-
-            # Indexify indices of nested functions
-            for index in indices:
-                for nested_func in retrieve_functions(index):
-                    nsubs.update({nested_func: nested_func.indexify(lshift=True)})
-                    index = index.xreplace(nsubs)
+            indices = [(lower_exprs(a) + o) for a, o in
+                       zip(i.indices, f._size_nodomain.left)]
 
             # Apply substitutions, if necessary
             if dimension_map:
@@ -122,10 +116,6 @@ def lower_exprs(expressions, **kwargs):
             processed.append(expr.xreplace({**mapper, **subs}))
         else:
             processed.append(uxreplace(expr, mapper))
-
-        if nsubs:
-            # Apply the nested substitutions
-            processed = {d.xreplace(nsubs) for d in processed}
 
     if isinstance(expressions, Iterable):
         return processed

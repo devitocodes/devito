@@ -217,16 +217,15 @@ class TestCodeGen(object):
         u5 = Function(name="u5", grid=grid, dtype=np.int32)
 
         Eq1 = Eq(u1, u2[x, u3[x, u4[x, u5[x, u1]]]])
-        Eq2 = Eq(u1, u2[x, u3[x, u4[x, u5[x, u1[x + 1, y + 1]]]]])
+        Eq2 = Eq(u1, u2[x, u3[x, u4[x, u5[x, u1[x, y]]]]])
 
         op1 = Operator([Eq1])
         op2 = Operator([Eq2])
 
         op1.apply()
         op2.apply()
-
-        assert ('u1[x + 1][y + 1] = u2[x + 1][u3[x][u4[x][u5[x]'
-                '[u1[x + 1][y + 1]]]] + 1]') in str(op2.ccode)
+        assert ('u1[x + 1][y + 1] = u2[x + 1][u3[x + 1][u4[x + 1][u5[x + 1]'
+                '[u1[x + 1][y + 1] + 1] + 1] + 1] + 1]') in str(op2.ccode)
 
         assert str(op2.ccode) == str(op1.ccode)
 
