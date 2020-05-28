@@ -22,7 +22,8 @@ from devito.types.basic import AbstractFunction
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
-           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While']
+           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
+           'ParallelIteration']
 
 # First-class IET nodes
 
@@ -48,6 +49,7 @@ class Node(Signer):
     is_Section = False
     is_HaloSpot = False
     is_ExpressionBundle = False
+    is_ParallelIteration = False
 
     _traversable = []
     """
@@ -860,6 +862,15 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class ParallelIteration(Iteration):
+
+    """
+    Implement a parallel for-loop.
+    """
+
+    is_ParallelIteration = True
 
 
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))

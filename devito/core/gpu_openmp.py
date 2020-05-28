@@ -10,7 +10,7 @@ from devito.logger import warning
 from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
                                     factorize, fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
+from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
 from devito.tools import as_tuple, filter_sorted, generator, timed_pass
@@ -19,7 +19,7 @@ __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
 
 
-class DeviceOpenMPIteration(ParallelIteration):
+class DeviceOpenMPIteration(OpenMPIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):

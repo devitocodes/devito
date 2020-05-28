@@ -6,9 +6,9 @@ import cgen as c
 from sympy import Or, Max, Not
 
 from devito.ir import (DummyEq, Conditional, Block, Expression, ExpressionBundle, List,
-                       Prodder, Iteration, While, FindSymbols, FindNodes, Return,
-                       COLLAPSED, VECTORIZED, Transformer, IsPerfectIteration,
-                       retrieve_iteration_tree, filter_iterations)
+                       Prodder, Iteration, ParallelIteration, While, FindSymbols,
+                       FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
+                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
@@ -16,7 +16,7 @@ from devito.tools import as_tuple, is_integer, prod
 from devito.types import Constant, Symbol
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer',
-           'ParallelIteration', 'ParallelTree']
+           'OpenMPIteration', 'ParallelTree']
 
 
 def ncores():
@@ -86,7 +86,7 @@ class ParallelRegion(Block):
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
-class ParallelIteration(Iteration):
+class OpenMPIteration(ParallelIteration):
 
     def __init__(self, *args, **kwargs):
         kwargs.pop('pragmas', None)
@@ -102,7 +102,7 @@ class ParallelIteration(Iteration):
         self.nthreads = kwargs.pop('nthreads', None)
         self.reduction = kwargs.pop('reduction', None)
 
-        super(ParallelIteration, self).__init__(*args, pragmas=[pragma],
+        super(OpenMPIteration, self).__init__(*args, pragmas=[pragma],
                                                 properties=properties, **kwargs)
 
     @classmethod
@@ -350,21 +350,21 @@ class Ompizer(object):
             if nthreads is None:
                 # pragma omp for ... schedule(..., 1)
                 nthreads = self.nthreads
-                body = ParallelIteration(schedule=schedule, ncollapse=ncollapse,
-                                         **root.args)
+                body = OpenMPIteration(schedule=schedule, ncollapse=ncollapse,
+                                       **root.args)
             else:
                 # pragma omp parallel for ... schedule(..., 1)
-                body = ParallelIteration(schedule=schedule, parallel=True,
-                                         ncollapse=ncollapse, nthreads=nthreads,
-                                         **root.args)
+                body = OpenMPIteration(schedule=schedule, parallel=True,
+                                       ncollapse=ncollapse, nthreads=nthreads,
+                                       **root.args)
             prefix = []
         else:
             # pragma omp for ... schedule(..., expr)
             assert nthreads is None
             nthreads = self.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
-            body = ParallelIteration(ncollapse=ncollapse, chunk_size=chunk_size,
-                                     **root.args)
+            body = OpenMPIteration(ncollapse=ncollapse, chunk_size=chunk_size,
+                                   **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
             value = INT(Max(niters / (nthreads*self.CHUNKSIZE_NONAFFINE), 1))
