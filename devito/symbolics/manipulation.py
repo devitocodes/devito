@@ -266,12 +266,12 @@ def pow_to_mul(expr):
             # looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
-            return sympy.Mul(*[base]*exp, evaluate=False)
+            return sympy.Mul(*[base]*int(exp), evaluate=False)
         else:
             # SymPy represents 1/x as Pow(x,-1). Also, it represents
             # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
             # but just in case SymPy changes its internal conventions...
-            posexpr = sympy.Mul(*[base]*(-exp), evaluate=False)
+            posexpr = sympy.Mul(*[base]*(-int(exp)), evaluate=False)
             return sympy.Pow(posexpr, -1, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
