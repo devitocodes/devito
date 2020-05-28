@@ -23,7 +23,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration']
+           'ParallelIteration', 'ParallelBlock']
 
 # First-class IET nodes
 
@@ -50,6 +50,7 @@ class Node(Signer):
     is_HaloSpot = False
     is_ExpressionBundle = False
     is_ParallelIteration = False
+    is_ParallelBlock = False
 
     _traversable = []
     """
@@ -871,6 +872,16 @@ class ParallelIteration(Iteration):
     """
 
     is_ParallelIteration = True
+
+
+class ParallelBlock(Block):
+
+    """
+    A sequence of Nodes, wrapped in a parallel block {...}.
+    """
+
+    is_ParallelBlock = True
+
 
 
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))

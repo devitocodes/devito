@@ -6,8 +6,8 @@ import cgen as c
 from sympy import Or, Max, Not
 
 from devito.ir import (DummyEq, Conditional, Block, Expression, ExpressionBundle, List,
-                       Prodder, Iteration, ParallelIteration, While, FindSymbols,
-                       FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
+                       Prodder, Iteration, ParallelIteration, ParallelBlock, While,
+                       FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
@@ -73,11 +73,11 @@ class NThreadsNonaffine(NThreads):
     name = 'nthreads_nonaffine'
 
 
-class ParallelRegion(Block):
+class OpenMPRegion(ParallelBlock):
 
     def __init__(self, body, nthreads, private=None):
-        header = ParallelRegion._make_header(nthreads, private)
-        super(ParallelRegion, self).__init__(header=header, body=body)
+        header = OpenMPRegion._make_header(nthreads, private)
+        super(OpenMPRegion, self).__init__(header=header, body=body)
         self.nthreads = nthreads
 
     @classmethod
@@ -382,7 +382,7 @@ class Ompizer(object):
         private = [i for i in FindSymbols().visit(partree)
                    if i.is_Array and i._mem_stack]
         private = sorted(set([i.name for i in private]))
-        return ParallelRegion(partree, partree.nthreads, private)
+        return OpenMPRegion(partree, partree.nthreads, private)
 
     def _make_guard(self, partree, collapsed):
         # Do not enter the parallel region if the step increment is 0; this
