@@ -27,27 +27,31 @@ model_type = {
     'viscoelastic': {
         'run': viscoelastic_run,
         'setup': viscoelastic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'elastic': {
         'run': elastic_run,
         'setup': elastic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'tti': {
         'run': tti_run,
         'setup': tti_setup,
-        'default-section': 'section1'
+        'default-section': 'global'
     },
     'acoustic': {
         'run': acoustic_run,
         'setup': acoustic_setup,
+<<<<<<< HEAD
         'default-section': 'section0'
     },
     'acoustic_ssa': {
         'run': acoustic_ssa_run,
         'setup': acoustic_ssa_setup,
         'default-section': 'section0'
+=======
+        'default-section': 'global'
+>>>>>>> bench: summarize json file with only the global measures
     }
 }
 
@@ -374,12 +378,12 @@ def bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
-    run = model_type[problem]['run']
+    setup = model_type[problem]['setup']
     resultsdir = kwargs.pop('resultsdir')
     repeats = kwargs.pop('repeats')
 
     bench = get_ob_bench(problem, resultsdir, kwargs)
-    bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)
+    bench.execute(get_ob_exec(setup), warmups=0, repeats=repeats)
 
     # Only rank0 writes to disk
     try:
@@ -563,14 +567,19 @@ def get_ob_exec(func):
         def run(self, *args, **kwargs):
             clear_cache()
 
-            gflopss, oi, timings, _ = self.func(*args, **kwargs)
+            solver = self.func(*args, **kwargs)
+            retval = solver.forward()
 
-            gflopss, oi, timings = self.unify_mpi_measures(gflopss, oi, timings)
+            summary = retval[-1]
+            assert isinstance(summary, PerformanceSummary)
+            globals = summary.globals['fdlike']
 
-            for key in timings.keys():
-                self.register(gflopss[key], measure="gflopss", event=key.name)
-                self.register(oi[key], measure="oi", event=key.name)
-                self.register(timings[key], measure="timings", event=key.name)
+            # before there was a measure for each section
+            # now there is only the global measure
+            self.register(globals.gflopss, measure="gflopss", event="global")
+            self.register(globals.oi, measure="oi", event="global")
+            self.register(globals.gpointss, measure="gpointss", event="global")
+            self.register(globals.time, measure="timings", event="global")
 
     return DevitoExecutor(func)
 

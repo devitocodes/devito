@@ -1,6 +1,6 @@
 from collections import defaultdict
+
 from devito.logger import info
-import numpy as np
 
 
 __all__ = ['Executor']
@@ -42,49 +42,6 @@ class Executor(object):
         This method needs to be overridden by the user.
         """
         raise NotImplementedError("No custom executor function specified")
-
-    def unify_mpi_measures(self, gflopss, oi, timings):
-        """
-        Unify the measures of all MPI ranks,
-        reducing the values of all ranks to rank0 only
-        """
-        keys = list(timings.keys())
-
-        gflopss_temp = {}
-        oi_temp = {}
-        timings_temp = {}
-
-        for key in keys:
-            # MPI disabled
-            if key.rank is None:
-                return gflopss, oi, timings
-
-            # MPI enabled
-            if key.rank == 0:
-                gflopss_temp[(key.name, key.rank)] = gflopss[key]
-                oi_temp[(key.name, key.rank)] = oi[key]
-                timings_temp[(key.name, key.rank)] = timings[key]
-            else:
-                # Global gflops must the sum of gflops of all ranks
-                gflopss_temp[(key.name, 0)] += gflopss[key]
-                del gflopss[key]
-
-                # Global oi must be the maximum oi of all ranks
-                oi_temp[(key.name, 0)] = np.maximum(oi_temp[(key.name, 0)], oi[key])
-                del oi[key]
-
-                # Global timing must be the maximum timig of all ranks
-                timings_temp[(key.name, 0)] = np.maximum(timings_temp[(key.name, 0)],
-                                                         timings[key])
-                del timings[key]
-
-        # Update values in rank0
-        for key in timings.keys():
-            gflopss[key] = gflopss_temp[(key.name, 0)]
-            oi[key] = oi_temp[(key.name, 0)]
-            timings[key] = timings_temp[(key.name, 0)]
-
-        return gflopss, oi, timings
 
     def register(self, value, event='execute', measure='time'):
         """
