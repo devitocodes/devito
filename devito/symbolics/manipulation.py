@@ -12,7 +12,7 @@ from devito.tools import as_tuple, flatten, split
 from devito.types.equation import Eq
 
 __all__ = ['yreplace', 'xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
-           'split_affine', 'uxreplace', 'aligned_indices']
+           'split_affine', 'subs_op_args', 'uxreplace', 'aligned_indices']
 
 
 def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eager=False):
@@ -355,3 +355,13 @@ def aligned_indices(i, j, spacing):
         return int((i - j)/spacing) == (i - j)/spacing
     except TypeError:
         return False
+
+
+def subs_op_args(expr, args):
+    """
+    Substitute Operator argument values into an expression. `args` is
+    expected to be as produced by `Operator.arguments` -- it can only
+    contain string keys, with values that are not themselves expressions
+    which will be substituted into.
+    """
+    return expr.subs({i.name: args[i.name] for i in expr.free_symbols if i.name in args})
