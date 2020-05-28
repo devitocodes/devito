@@ -1635,6 +1635,43 @@ class TestOperatorAdvanced(object):
         assert np.all(u.data[1, -1:] == 1.)
         assert np.all(u.data[1, :, 1:] == 1.)
 
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'full')])
+    def test_misc_subdims_3D(self):
+        """
+        Test `SubDims` in 3D (so that spatial blocking is introduced).
+
+        Derived from issue https://github.com/devitocodes/devito/issues/1309
+        """
+        grid = Grid(shape=(12, 12, 12))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        u.data_with_halo[:] = 1.
+
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=2, thickness_right=2)
+        yi = SubDimension.middle(name='yi', parent=y, thickness_left=2, thickness_right=2)
+        zi = SubDimension.middle(name='zi', parent=z, thickness_left=2, thickness_right=2)
+
+        # A 7 point stencil expression
+        eqn = Eq(u[t+1, xi, yi, zi], (u[t, xi, yi, zi]
+                                      + u[t, xi-1, yi, zi] + u[t, xi+1, yi, zi]
+                                      + u[t, xi, yi-1, zi] + u[t, xi, yi+1, zi]
+                                      + u[t, xi, yi, zi-1] + u[t, xi, yi, zi+1]))
+
+        op = Operator(eqn)
+
+        op(time_M=0)
+
+        # Also try running it
+        assert np.all(u.data[1, 2:-2, 2:-2, 2:-2] == 7.)
+        assert np.all(u.data[1, 0:2, :, :] == 1.)
+        assert np.all(u.data[1, -2:, :, :] == 1.)
+        assert np.all(u.data[1, :, 0:2, :] == 1.)
+        assert np.all(u.data[1, :, -2:, :] == 1.)
+        assert np.all(u.data[1, :, :, 0:2] == 1.)
+        assert np.all(u.data[1, :, :, -2:] == 1.)
+
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_custom_subdomain(self):
         """
