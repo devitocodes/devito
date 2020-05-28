@@ -438,12 +438,12 @@ def process(cluster, chosen, aliases, template, platform):
         # The halo of the Array
         halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
-        # The memory scope of the Array
-        scope = 'stack' if any(d.is_Incr for d in writeto.dimensions) else 'heap'
+        # The data sharing mode of the Array
+        sharing = 'local' if any(d.is_Incr for d in writeto.dimensions) else 'shared'
 
         # Finally create the temporary Array that will store `alias`
         array = Array(name=template(), dimensions=dimensions, halo=halo,
-                      dtype=cluster.dtype, scope=scope)
+                      dtype=cluster.dtype, sharing=sharing)
 
         # The access Dimensions may differ from `writeto.dimensions`. This may
         # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
