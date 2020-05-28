@@ -373,6 +373,7 @@ class PerformanceSummary(OrderedDict):
             oi = float(ops/traffic)
         else:
             gflopss = None
+            oi = None
 
         self.globals['fdlike'] = PerfEntry(time, gflopss, gpointss, oi, None, None)
 
