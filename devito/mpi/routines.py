@@ -15,7 +15,7 @@ from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBu
 from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
-                              IndexedPointer, Macro)
+                              IndexedPointer, Macro, subs_op_args)
 from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
@@ -1108,11 +1108,11 @@ class MPIRegion(CompositeObject):
             for a in self.arguments:
                 if a.is_Dimension:
                     a_m, a_M = mapper[a]
-                    setattr(entry, a.min_name, mapper[a][0].subs(args))
-                    setattr(entry, a.max_name, mapper[a][1].subs(args))
+                    setattr(entry, a.min_name, subs_op_args(a_m, args))
+                    setattr(entry, a.max_name, subs_op_args(a_M, args))
                 else:
                     try:
-                        setattr(entry, a.name, mapper[a][0].subs(args))
+                        setattr(entry, a.name, subs_op_args(mapper[a][0], args))
                     except AttributeError:
                         setattr(entry, a.name, mapper[a][0])
         return values

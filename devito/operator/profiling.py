@@ -15,6 +15,7 @@ from devito.ir.support import IntervalGroup
 from devito.logger import warning
 from devito.mpi import MPI
 from devito.parameters import configuration
+from devito.symbolics import subs_op_args
 from devito.types import CompositeObject
 
 __all__ = ['Timer', 'create_profile']
@@ -182,16 +183,17 @@ class AdvancedProfiler(Profiler):
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
             # Number of FLOPs performed
-            ops = int(data.ops.subs(args))
+            ops = int(subs_op_args(data.ops, args))
 
             # Number of grid points computed
-            points = int(data.points.subs(args))
+            points = int(subs_op_args(data.points, args))
 
             # Compulsory traffic
-            traffic = float(data.traffic.subs(args)*dtype().itemsize)
+            traffic = float(subs_op_args(data.traffic, args)*dtype().itemsize)
 
             # Runtime itermaps/itershapes
-            itermaps = [OrderedDict([(k, int(v.subs(args))) for k, v in i.items()])
+            itermaps = [OrderedDict([(k, int(subs_op_args(v, args)))
+                                     for k, v in i.items()])
                         for i in data.itermaps]
             itershapes = tuple(tuple(i.values()) for i in itermaps)
 
