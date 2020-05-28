@@ -996,8 +996,9 @@ class Array(AbstractFunction):
     padding : iterable of 2-tuples, optional
         The padding region of the object.
     scope : str, optional
-        Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
-        to 'heap'.
+        Control memory allocation. Allowed values: 'heap', 'stack'. Defaults to 'heap'.
+    sharing : str, optional
+        Control data sharing. Allowed values: 'local', 'shared'. Defaults to 'local'.
 
     Warnings
     --------
@@ -1017,6 +1018,9 @@ class Array(AbstractFunction):
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack']
+
+        self._sharing = kwargs.get('sharing', 'local')
+        assert self._sharing in ['local', 'shared']
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -1068,12 +1072,24 @@ class Array(AbstractFunction):
         return self._scope
 
     @property
+    def sharing(self):
+        return self._sharing
+
+    @property
     def _mem_stack(self):
         return self._scope == 'stack'
 
     @property
     def _mem_heap(self):
         return self._scope == 'heap'
+
+    @property
+    def _mem_local(self):
+        return self._sharing == 'local'
+
+    @property
+    def _mem_shared(self):
+        return self._sharing == 'shared'
 
     @property
     def _C_typename(self):
@@ -1084,7 +1100,7 @@ class Array(AbstractFunction):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
     # Pickling support
-    _pickle_kwargs = AbstractFunction._pickle_kwargs + ['dimensions', 'scope']
+    _pickle_kwargs = AbstractFunction._pickle_kwargs + ['dimensions', 'scope', 'sharing']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
