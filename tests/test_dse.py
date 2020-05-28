@@ -169,7 +169,8 @@ def test_cse(exprs, expected):
     ('1/(fb[x]**2 + 1)', '1/(fb[x]*fb[x] + 1)'),
     ('1/(fa[x] + fb[x])', '1/(fa[x] + fb[x])'),
     ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
-    ('fa[x]/(fb[x]**2)', 'fa[x]/((fb[x]*fb[x]))')
+    ('fa[x]/(fb[x]**2)', 'fa[x]/((fb[x]*fb[x]))'),
+    ('(fa[x]**0.5)**2', 'fa[x]'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
