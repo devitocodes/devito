@@ -99,7 +99,8 @@ def lower_exprs(expressions, **kwargs):
             f = i.function
 
             # Introduce shifting to align with the computational domain
-            indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
+            indices = [(lower_exprs(a) + o) for a, o in
+                       zip(i.indices, f._size_nodomain.left)]
 
             # Apply substitutions, if necessary
             if dimension_map:

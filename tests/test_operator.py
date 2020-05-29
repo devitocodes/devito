@@ -203,6 +203,38 @@ class TestCodeGen(object):
         op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
         assert '#pragma omp for' not in str(op4)
 
+    def test_nested_lowering(self):
+        """
+        Tests that deeply nested (depth > 2) functions over subdomains are lowered.
+        """
+        grid = Grid(shape=(4, 4), dtype=np.int32)
+        x, y = grid.dimensions
+        x0, y0 = dimensions('x0 y0')
+
+        u0 = Function(name="u0", grid=grid)
+        u1 = Function(name="u1", shape=grid.shape, dimensions=(x0, y0), dtype=np.int32)
+        u2 = Function(name="u2", grid=grid)
+
+        u0.data[:2, :2] = 1
+        u0.data[2:, 2:] = 2
+        u1.data[:, :] = 1
+        u2.data[:, :] = 1
+
+        eq0 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2]], subdomain=grid.interior)
+        eq1 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2[x, y]]], subdomain=grid.interior)
+
+        op0 = Operator(eq0)
+        op1 = Operator(eq1)
+        op0.apply()
+
+        # Check they indeed produced the same code
+        assert str(op0.ccode) == str(op1.ccode)
+
+        # Also check for numerical correctness
+        assert np.all(u0.data[0, 3] == 0) and np.all(u0.data[3, 0] == 0)
+        assert np.all(u0.data[:2, :2] == 1) and np.all(u0.data[1:3, 1:3] == 1)
+        assert np.all(u0.data[2:3, 3] == 2) and np.all(u0.data[3, 2:3] == 2)
+
 
 class TestArithmetic(object):
 
