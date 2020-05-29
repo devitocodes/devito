@@ -831,7 +831,7 @@ class TestAliases(object):
         assert np.allclose(u.data, exp.data, rtol=10e-7)
 
     @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
-    def test_nested(self):
+    def test_nested_invariants(self):
         """
         Check that nested aliases are optimized away through "smaller" aliases.
 
@@ -1221,6 +1221,40 @@ class TestAliases(object):
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
         assert summary[('section1', None)].ops == 39
+
+    @switchconfig(profiling='advanced')
+    def test_nested_first_derivatives(self):
+        """
+        Test that aliasing sub-expressions from nested derivatives aren't split,
+        but rather they're captured together and scheduled to a single temporary.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        f.data_with_halo[:] = 0.5
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+        v.data_with_halo[:] = 1.
+
+        eqn = Eq(v.forward, (v.dx * (1 + 2*f) * f).dx)
+
+        # Operator
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+
+        # Check numerical output
+        op0(time_M=1)
+        v1 = TimeFunction(name="v", grid=grid, space_order=4)
+        v1.data_with_halo[:] = 1.
+        summary = op1(time_M=1, v=v1)
+        assert np.isclose(norm(v), norm(v1), rtol=1e-5)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert summary[('section0', None)].ops == 21
 
 
 # Acoustic
