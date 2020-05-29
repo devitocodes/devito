@@ -1376,8 +1376,8 @@ class TestTTI(object):
         assert not x._defines & y._defines
 
         # Also, in this operator, we expect seven temporary Arrays:
-        # * five Arrays are allocated on the heap
-        # * two Arrays are allocated on the stack and only appear within an efunc
+        # * all of the sever Arrays are allocated on the heap
+        # * two of them appear only in the efunc and are thread-local
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 5
         assert all(i._mem_heap and not i._mem_external for i in arrays)
@@ -1385,8 +1385,9 @@ class TestTTI(object):
                   if i.is_Array]
         assert len(arrays) == 7
         assert all(not i._mem_external for i in arrays)
-        assert len([i for i in arrays if i._mem_heap]) == 5
-        assert len([i for i in arrays if i._mem_stack]) == 2
+        assert len([i for i in arrays if i._mem_heap]) == 7
+        assert len([i for i in arrays if i._mem_shared]) == 5
+        assert len([i for i in arrays if i._mem_local]) == 2
 
     @skipif(['nompi'])
     @switchconfig(profiling='advanced')

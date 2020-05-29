@@ -1140,7 +1140,8 @@ class TestDeclarator(object):
         assert str(op.body[1].header[0]) == 'float (*a);'
         assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
                                              'sizeof(float[i_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
 
     def test_heap_perfect_2D(self):
         i, j, k = dimensions('i j k')
@@ -1165,8 +1166,9 @@ class TestDeclarator(object):
         assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
         assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
                                              'sizeof(float[i_size][j_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
-        assert str(op.body[1].footer[1]) == 'free(c);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
+        assert str(op.body[1].footer[2]) == 'free(c);'
 
     def test_heap_imperfect_2D(self):
         i, j, k = dimensions('i j k')
@@ -1191,8 +1193,9 @@ class TestDeclarator(object):
         assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
         assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
                                              'sizeof(float[i_size][j_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
-        assert str(op.body[1].footer[1]) == 'free(c);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
+        assert str(op.body[1].footer[2]) == 'free(c);'
 
     def test_stack_scalars(self):
         i, j = dimensions('i j')
@@ -1215,7 +1218,8 @@ class TestDeclarator(object):
         assert str(op.body[1].header[0]) == 'float (*a);'
         assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
                                              'sizeof(float[i_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
 
         assert op.body[1].body[1].body[0].is_ExpressionBundle
         assert str(op.body[1].body[1].body[0].body[0]) == 'float t0 = 1.00000000000000F;'
