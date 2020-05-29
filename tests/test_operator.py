@@ -209,47 +209,31 @@ class TestCodeGen(object):
         """
         grid = Grid(shape=(4, 4), dtype=np.int32)
         x, y = grid.dimensions
+        x0, y0 = dimensions('x0 y0')
 
         u0 = Function(name="u0", grid=grid)
-        u1 = Function(name="u1", grid=grid)
+        u1 = Function(name="u1", shape=grid.shape, dimensions=(x0, y0), dtype=np.int32)
         u2 = Function(name="u2", grid=grid)
-        u3 = Function(name="u3", grid=grid)
-        u4 = Function(name="u4", grid=grid)
 
-        eq0 = Eq(u0, u1[x, u2[x, u3[x, u4[x, u0]]]], subdomain=grid.interior)
-        eq1 = Eq(u0, u1[x, u2[x, u3[x, u4[x, u0[x, y]]]]], subdomain=grid.interior)
+        u0.data[:2, :2] = 1
+        u0.data[2:, 2:] = 2
+        u1.data[:, :] = 1
+        u2.data[:, :] = 1
+
+        eq0 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2]], subdomain=grid.interior)
+        eq1 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2[x, y]]], subdomain=grid.interior)
+
         op0 = Operator(eq0)
         op1 = Operator(eq1)
-
         op0.apply()
-        op1.apply()
-        assert ('u0[i0x + 1][i0y + 1] = u1[i0x + 1][u2[i0x + 1][u3[i0x + 1][u4[i0x + 1]'
-                '[u0[i0x + 1][i0y + 1] + 1] + 1] + 1] + 1]') in str(op0.ccode)
 
+        # Check they indeed produced the same code
         assert str(op0.ccode) == str(op1.ccode)
 
-    def test_multiple_nested_lowering(self):
-        """
-        Tests that multiple nested functions (2 indirections at the same depth)
-        are lowered.
-        """
-        x0, x1, x2, x3 = dimensions('x0 x1 x2 x3')
-        y0, y1, y2, y3 = dimensions('y0 y1 y2 y3')
-
-        u0 = Function(name="u0", shape=(4, 4), dimensions=(x0, y0), dtype=np.int32)
-        u1 = Function(name="u1", shape=(4, 4), dimensions=(x1, y1), dtype=np.int32)
-        u2 = Function(name="u2", shape=(4, 4), dimensions=(x2, y2), dtype=np.int32)
-        u3 = Function(name="u3", shape=(4, 4), dimensions=(x3, y3), dtype=np.int32)
-
-        eq0 = Eq(u0, u1[u2, u3])
-        eq1 = Eq(u0, u1[u2[x2, y2], u3[x3, y3]])
-        op0 = Operator(eq0)
-        op1 = Operator(eq1)
-
-        op0.apply()
-        op1.apply()
-
-        assert str(op0.ccode) == str(op1.ccode)
+        # Also check for numerical correctness
+        assert np.all(u0.data[0, 3] == 0) and np.all(u0.data[3, 0] == 0)
+        assert np.all(u0.data[:2, :2] == 1) and np.all(u0.data[1:3, 1:3] == 1)
+        assert np.all(u0.data[2:3, 3] == 2) and np.all(u0.data[3, 2:3] == 2)
 
 
 class TestArithmetic(object):
