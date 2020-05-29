@@ -76,11 +76,10 @@ class HaloScheme(object):
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions.
         # These should be honored in the derivation of the `omapper`
         self._honored = {}
-        # SubDimensions are not necessarily included in directloy in
+        # SubDimensions are not necessarily included directly in
         # ispace.dimensions and hence we need to first utilize the `_defines` method
-        dims = set().union(*[d._defines for d in ispace.dimensions])
-        dims.difference_update([d for d in ispace.dimensions if
-                                not d._defines & set(self.dimensions)])
+        dims = set().union(*[d._defines for d in ispace.dimensions
+                             if d._defines & self.dimensions])
         subdims = [d for d in dims if d.is_Sub and not d.local]
         for i in subdims:
             ltk, _ = i.thickness.left
