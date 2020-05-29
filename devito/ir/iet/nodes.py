@@ -197,6 +197,11 @@ class Block(List):
 
     is_Block = True
 
+    def __init__(self, header=None, body=None, footer=None):
+        self.header = as_tuple(header)
+        self.body = as_tuple(body)
+        self.footer = as_tuple(footer)
+
 
 class Element(Node):
 

@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from functools import partial, singledispatch
 
 import cgen as c
@@ -141,22 +142,27 @@ class DeviceOpenMPDataManager(DataManager):
 
     _Parallelizer = DeviceOmpizer
 
-    def _alloc_array_on_high_bw_mem(self, obj, storage):
-        if obj in storage._high_bw_mem:
+    def _alloc_array_on_high_bw_mem(self, scope, obj, storage):
+        handle = storage._high_bw_mem.setdefault(scope, OrderedDict())
+
+        if obj in handle:
             return
 
-        super(DeviceOpenMPDataManager, self)._alloc_array_on_high_bw_mem(obj, storage)
+        super(DeviceOpenMPDataManager, self)._alloc_array_on_high_bw_mem(scope, obj,
+                                                                         storage)
 
-        decl, alloc, free = storage._high_bw_mem[obj]
+        decl, alloc, free = handle[obj]
 
         alloc = c.Collection([alloc, self._Parallelizer._map_alloc(obj)])
         free = c.Collection([self._Parallelizer._map_delete(obj), free])
 
-        storage._high_bw_mem[obj] = (decl, alloc, free)
+        handle[obj] = (decl, alloc, free)
 
-    def _map_function_on_high_bw_mem(self, obj, storage, read_only=False):
+    def _map_function_on_high_bw_mem(self, scope, obj, storage, read_only=False):
         """Place a Function in the high bandwidth memory."""
-        if obj in storage._high_bw_mem:
+        handle = storage._high_bw_mem.setdefault(scope, OrderedDict())
+
+        if obj in handle:
             return
 
         alloc = self._Parallelizer._map_to(obj)
@@ -167,7 +173,7 @@ class DeviceOpenMPDataManager(DataManager):
         else:
             free = self._Parallelizer._map_delete(obj)
 
-        storage._high_bw_mem[obj] = (None, alloc, free)
+        handle[obj] = (None, alloc, free)
 
     @iet_pass
     def place_ondevice(self, iet, **kwargs):
@@ -195,9 +201,9 @@ class DeviceOpenMPDataManager(DataManager):
             # Populate `storage`
             storage = Storage()
             for i in filter_sorted(writes):
-                self._map_function_on_high_bw_mem(i, storage)
+                self._map_function_on_high_bw_mem(iet, i, storage)
             for i in filter_sorted(reads):
-                self._map_function_on_high_bw_mem(i, storage, read_only=True)
+                self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
 
             iet = self._dump_storage(iet, storage)
 

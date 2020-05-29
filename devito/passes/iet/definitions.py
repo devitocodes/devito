@@ -11,7 +11,7 @@ from devito.ir import (ArrayCast, Element, List, LocalExpression, FindSymbols,
                        MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import ccode
-from devito.tools import flatten
+from devito.tools import as_tuple, flatten
 
 __all__ = ['DataManager', 'Storage']
 
@@ -51,7 +51,7 @@ class DataManager(object):
         """Allocate an Array in the low latency memory."""
         handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
 
-        if obj in flatten(storage._low_lat_mem.values()):
+        if obj in handle:
             return
 
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
@@ -70,9 +70,11 @@ class DataManager(object):
         handle[obj] = None  # Placeholder to avoid reallocation
         storage._low_lat_mem[expr] = LocalExpression(**expr.args)
 
-    def _alloc_array_on_high_bw_mem(self, obj, storage):
+    def _alloc_array_on_high_bw_mem(self, scope, obj, storage):
         """Allocate an Array in the high bandwidth memory."""
-        if obj in storage._high_bw_mem:
+        handle = storage._high_bw_mem.setdefault(scope, OrderedDict())
+
+        if obj in handle:
             return
 
         decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
@@ -85,27 +87,35 @@ class DataManager(object):
 
         free = c.Statement('free(%s)' % obj.name)
 
-        storage._high_bw_mem[obj] = (decl, alloc, free)
+        handle[obj] = (decl, alloc, free)
 
     def _dump_storage(self, iet, storage):
-        # Introduce symbol definitions going in the low latency memory
-        mapper = dict(storage._on_low_lat_mem)
-        iet = Transformer(mapper, nested=True).visit(iet)
+        mapper = {}
 
-        # Introduce symbol definitions going in the high bandwidth memory
-        header = []
-        footer = []
-        for decl, alloc, free in storage._on_high_bw_mem:
-            if decl is None:
-                header.append(alloc)
-            else:
-                header.extend([decl, alloc])
-            footer.append(free)
-        if header or footer:
-            body = List(header=header, body=iet.body, footer=footer)
-            iet = iet._rebuild(body=body)
+        # Introduce symbol definitions going into the low latency memory
+        mapper.update(dict(storage._on_low_lat_mem))
 
-        return iet
+        # Introduce symbol definitions going into the high bandwidth memory
+        for scope, handle in storage._high_bw_mem.items():
+            header = []
+            footer = []
+            for decl, alloc, free in handle.values():
+                if decl is None:
+                    header.append(alloc)
+                else:
+                    header.extend([decl, alloc])
+                footer.append(free)
+            if header or footer:
+                header.append(c.Line())
+                footer.insert(0, c.Line())
+                body = List(header=header,
+                            body=as_tuple(mapper.get(scope)) + scope.body,
+                            footer=footer)
+                mapper[scope] = scope._rebuild(body=body, **scope.args_frozen)
+
+        processed = Transformer(mapper, nested=True).visit(iet)
+
+        return processed
 
     @iet_pass
     def place_definitions(self, iet, **kwargs):
@@ -138,10 +148,19 @@ class DataManager(object):
                         if i in iet.parameters:
                             # The Array is passed as a Callable argument
                             continue
-                        elif i._mem_stack:
-                            self._alloc_array_on_low_lat_mem(iet, i, storage)
+
+                        site = iet
+                        if i._mem_local:
+                            # If inside a ParallelRegion, make sure we allocate
+                            # inside of it
+                            for n in v:
+                                if n.is_ParallelBlock:
+                                    site = n
+                                    break
+                        if i._mem_heap:
+                            self._alloc_array_on_high_bw_mem(site, i, storage)
                         else:
-                            self._alloc_array_on_high_bw_mem(i, storage)
+                            self._alloc_array_on_low_lat_mem(site, i, storage)
                 except AttributeError:
                     # E.g., a generic SymPy expression
                     pass

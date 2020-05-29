@@ -90,9 +90,11 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     _Parallelizer = DeviceAccizer
 
-    def _alloc_array_on_high_bw_mem(self, obj, storage):
+    def _alloc_array_on_high_bw_mem(self, scope, obj, storage):
         """Allocate an Array in the high bandwidth memory."""
-        if obj in storage._high_bw_mem:
+        handle = storage._high_bw_mem.setdefault(scope, OrderedDict())
+
+        if obj in handle:
             return
 
         size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
@@ -104,7 +106,7 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
         free = c.Statement('acc_free(%s)' % obj.name)
 
-        storage._high_bw_mem[obj] = (None, init, free)
+        handle[obj] = (None, init, free)
 
 
 @iet_pass
