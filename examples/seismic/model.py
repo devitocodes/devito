@@ -1,5 +1,5 @@
 import numpy as np
-from sympy import sin, Abs
+from sympy import sin, Abs, finite_diff_weights
 
 
 from devito import (Grid, SubDomain, Function, Constant,
@@ -185,10 +185,10 @@ class SeismicModel(GenericModel):
         Velocity in km/s.
     nbl : int, optional
         The number of absorbin layers for boundary damping.
-    bcs: String or callable
-        Absorbing boundary type ("damp" or "mask") or initializer
+    bcs: str or callable
+        Absorbing boundary type ("damp" or "mask") or initializer.
     dtype : np.float32 or np.float64
-        Defaults to 32.
+        Defaults to np.float32.
     epsilon : array_like or float, optional
         Thomsen epsilon parameter (0<epsilon<1).
     delta : array_like or float
@@ -198,17 +198,15 @@ class SeismicModel(GenericModel):
     phi : array_like or float
         Asymuth angle in radian.
     b : array_like or float
-        Buoyancy
+        Buoyancy.
     rho : array_like or float
-        Density
+        Density.
     vs : array_like or float
-        S-wave velocity
+        S-wave velocity.
     qp : array_like or float
-        P-wave attenuation
+        P-wave attenuation.
     qs : array_like or float
-        S-wave attenuation
-    lame: Bool
-        Whether to use Lame parameter (default) or vp/vs
+        S-wave attenuation.
     """
     _known_parameters = ['vp', 'damp', 'vs', 'b', 'epsilon', 'delta',
                          'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
@@ -227,33 +225,32 @@ class SeismicModel(GenericModel):
     def _initialize_physics(self, vp, space_order, **kwargs):
         """
         Initialize physical parameters and type of physics from inputs.
-        The types of physics supportedare:
-        - acoustic: vp and b only
-        - elastic: vp + vs + b turn into lam/mu/b
-        - visco-acoustic: vp + b + qp
-        - visco-elastic: vp + vs + b + qs
-        - vti: epsilon + delta
-        - tti: epsilon + delta + theta + phi
+        The types of physics supported are:
+        - acoustic: [vp, b]
+        - elastic: [vp, vs, b] represented through Lame parameters [lam, mu, b]
+        - visco-acoustic: [vp, b, qp]
+        - visco-elastic: [vp, vs, b, qs]
+        - vti: [vp, epsilon, delta]
+        - tti: [epsilon, delta, theta, phi]
         """
         params = []
         # Buoyancy
         b = kwargs.get('b', 1)
 
         # Initialize elastic with Lame parametrization
-        if 'vs' in kwargs.keys():
-            vs = kwargs.get('vs')
+        if 'vs' in kwargs:
+            vs = kwargs.pop('vs')
             self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order,
                                             is_param=True)
             self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True)
-            kwargs.pop('vs')
         else:
             # All other seismic models have at least a velocity
             self.vp = self._gen_phys_param(vp, 'vp', space_order)
         # Initialize rest of the input physical parameters
         for name in self._known_parameters:
             if kwargs.get(name) is not None:
-                new_field = self._gen_phys_param(kwargs.get(name), name, space_order)
-                setattr(self, name, new_field)
+                field = self._gen_phys_param(kwargs.get(name), name, space_order)
+                setattr(self, name, field)
                 params.append(name)
 
     @property
@@ -272,9 +269,24 @@ class SeismicModel(GenericModel):
 
     @property
     def _cfl_coeff(self):
+        """
+        Courant number from the physics.
+        For the elastic case, we use the general `.85/sqrt(ndim)`.
+
+
+        For te acoustic case, we can get an accurate estimate from the spatial order.
+        One dan show that C = sqrt(a1/a2) where:
+        - a1 is the sum of absolute value of FD coefficients in time
+        - a2 is the sum of absolute value of FD coefficients in space
+        https://library.seg.org/doi/pdf/10.1190/1.1444605
+        """
+        # Elasic coefficient (see e.g )
         if 'vs' in self._physical_parameters:
             return .85 / np.sqrt(self.grid.dim)
-        return 0.38 if len(self.shape) == 3 else 0.42
+        a1 = 4  # 2nd order in time
+        coeffs = finite_diff_weights(2, range(-self.space_order, self.space_order+1), 0)
+        a2 = float(self.grid.dim * sum(np.abs(coeffs[-1][-1])))
+        return np.sqrt(a1/a2)
 
     @property
     def critical_dt(self):
@@ -293,7 +305,7 @@ class SeismicModel(GenericModel):
 
     def update(self, name, value):
         """
-        Update the physical parameter param
+        Update the physical parameter param.
         """
         try:
             param = getattr(self, name)
@@ -317,7 +329,7 @@ class SeismicModel(GenericModel):
     @property
     def m(self):
         """
-        Squared slowness
+        Squared slowness.
         """
         return 1 / (self.vp * self.vp)
 
@@ -338,7 +350,7 @@ class SeismicModel(GenericModel):
         return
 
 
-# For backward ompativility
+# For backward compatibility
 Model = SeismicModel
 ModelElastic = SeismicModel
 ModelViscoelastic = SeismicModel

@@ -63,7 +63,7 @@ def run(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    description = ("Example script for a set of acoustic operators.")
+    description = ("Example script for a set of SSA isotropic-acoustic operators.")
     parser = ArgumentParser(description=description)
     parser.add_argument("-nd", dest="ndim", default=3, type=int,
                         help="Number of dimensions")

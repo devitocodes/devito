@@ -56,9 +56,9 @@ class ElasticWaveSolver(object):
         tau : TensorTimeFunction, optional
             The computed symmetric stress tensor.
         lam : Function, optional
-            The time-constant first Lame parameter rho * (vp**2 - 2 * vs **2).
+            The time-constant first Lame parameter `rho * (vp**2 - 2 * vs **2)`.
         mu : Function, optional
-            The Shear modulus (rho * vs*2).
+            The Shear modulus `(rho * vs*2)`.
         b : Function, optional
             The time-constant inverse density (b=1 for water).
         save : int or Buffer, optional
