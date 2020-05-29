@@ -67,8 +67,7 @@ class GenericModel(object):
     General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
-                 dtype=np.float32, subdomains=(), bcs="damp",
-                 grid=None):
+                 dtype=np.float32, subdomains=(), bcs="damp", grid=None):
         self.shape = shape
         self.space_order = space_order
         self.nbl = int(nbl)
@@ -199,8 +198,6 @@ class SeismicModel(GenericModel):
         Asymuth angle in radian.
     b : array_like or float
         Buoyancy.
-    rho : array_like or float
-        Density.
     vs : array_like or float
         S-wave velocity.
     qp : array_like or float
@@ -273,7 +270,6 @@ class SeismicModel(GenericModel):
         Courant number from the physics.
         For the elastic case, we use the general `.85/sqrt(ndim)`.
 
-
         For te acoustic case, we can get an accurate estimate from the spatial order.
         One dan show that C = sqrt(a1/a2) where:
         - a1 is the sum of absolute value of FD coefficients in time
@@ -281,7 +277,7 @@ class SeismicModel(GenericModel):
         https://library.seg.org/doi/pdf/10.1190/1.1444605
         """
         # Elasic coefficient (see e.g )
-        if 'vs' in self._physical_parameters:
+        if 'lam' in self._physical_parameters or 'vs' in self._physical_parameters:
             return .85 / np.sqrt(self.grid.dim)
         a1 = 4  # 2nd order in time
         coeffs = finite_diff_weights(2, range(-self.space_order, self.space_order+1), 0)

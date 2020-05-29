@@ -1,16 +1,15 @@
 import numpy as np
-from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import configuration, smooth, Function
+from devito import smooth, Function
 
-from examples.seismic import setup_geometry, Model
+from examples.seismic import setup_geometry, Model, seismic_args
 from examples.seismic.skew_self_adjoint import (setup_w_over_q,
                                                 SsaIsoAcousticWaveSolver)
 
 
-def acousticssa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
-                      tn=500., space_order=8, nbl=10, **kwargs):
+def acoustic_ssa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
+                       tn=500., space_order=8, nbl=10, **kwargs):
     # SSA parameters
     qmin = 0.1
     qmax = 1000.0
@@ -38,8 +37,8 @@ def acousticssa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
 def run(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0), tn=1000.0,
         space_order=4, nbl=40, full_run=False, autotune=False, **kwargs):
 
-    solver = acousticssa_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
-                               space_order=space_order, **kwargs)
+    solver = acoustic_ssa_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
+                                space_order=space_order, **kwargs)
 
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
@@ -64,24 +63,7 @@ def run(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0), tn=1000.0,
 
 if __name__ == "__main__":
     description = ("Example script for a set of SSA isotropic-acoustic operators.")
-    parser = ArgumentParser(description=description)
-    parser.add_argument("-nd", dest="ndim", default=3, type=int,
-                        help="Number of dimensions")
-    parser.add_argument("-d", "--shape", default=(51, 51, 51), type=int, nargs="+",
-                        help="Number of grid points along each axis")
-    parser.add_argument('-f', '--full', default=False, action='store_true',
-                        help="Execute all operators and store forward wavefield")
-    parser.add_argument("-so", "--space_order", default=6,
-                        type=int, help="Space order of the simulation")
-    parser.add_argument("--nbl", default=40,
-                        type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("-opt", default="advanced",
-                        choices=configuration._accepted['opt'],
-                        help="Performance optimization level")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
-    args = parser.parse_args()
+    args = seismic_args(description)
 
     # 3D preset parameters
     ndim = args.ndim

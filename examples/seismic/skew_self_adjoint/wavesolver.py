@@ -92,12 +92,12 @@ class SsaIsoAcousticWaveSolver(object):
             The time-constant buoyancy.
         v : Function or float, optional, defaults to v at construction
             The time-constant velocity.
-        damp : Function or float, optional, defaults to damp at construction
+        damp : Function or float
             The time-constant dissipation only attenuation w/Q field.
-        u : Function or float, optional, defaults to new TimeFunction
+        u : Function or float
             Stores the computed wavefield.
-        save : int or Buffer, optional
-            The entire (unrolled) wavefield.
+        save : int or Buffer
+            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------
@@ -130,20 +130,20 @@ class SsaIsoAcousticWaveSolver(object):
 
         Parameters
         ----------
-        rec : SparseTimeFunction, required
+        rec : SparseTimeFunction
             The interpolated receiver data to be injected.
-        src : SparseTimeFunction, optional, defaults to new src
+        src : SparseTimeFunction
             Time series data for the adjoint source term.
-        b : Function or float, optional, defaults to b at construction
+        b : Function or float
             The time-constant buoyancy.
-        v : Function or float, optional, defaults to v at construction
+        v : Function or float
             The time-constant velocity.
-        damp : Function or float, optional, defaults to damp at construction
+        damp : Function or float
             The time-constant dissipation only attenuation w/Q field.
-        ua : Function or float, optional, defaults to new TimeFunction
+        ua : Function or float
             Stores the computed adjoint wavefield.
         save : int or Buffer, optional
-            The entire (unrolled) wavefield.
+            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------
@@ -175,24 +175,24 @@ class SsaIsoAcousticWaveSolver(object):
 
         Parameters
         ----------
-        dm : Function or float, required
+        dm : Function or float
             The perturbation to the velocity model.
-        src : SparseTimeFunction, required
+        src : SparseTimeFunction
             Time series data for the injected source term.
         rec : SparseTimeFunction, optional, defaults to new rec
             The interpolated receiver data.
-        b : Function or float, optional, defaults to b at construction
+        b : Function or float
             The time-constant buoyancy.
-        v : Function or float, optional, defaults to v at construction
+        v : Function or float
             The time-constant velocity.
-        damp : Function or float, optional, defaults to damp at construction
+        damp : Function or float
             The time-constant dissipation only attenuation w/Q field.
-        u0 : Function or float, optional, defaults to new TimeFunction
+        u0 : Function or float
             Stores the computed background wavefield.
-        du : Function or float, optional, defaults to new TimeFunction
+        du : Function or float
             Stores the computed perturbed wavefield.
-        save : int or Buffer, optional
-            The entire (unrolled) wavefield.
+        save : int or Buffer
+            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------
@@ -228,22 +228,22 @@ class SsaIsoAcousticWaveSolver(object):
 
         Parameters
         ----------
-        rec : SparseTimeFunction, required
+        rec : SparseTimeFunction
             The interpolated receiver data to be injected.
-        u0 : Function or float, required, (created with save=True)
+        u0 : Function or float
             Stores the computed background wavefield.
-        b : Function or float, optional, defaults to b at construction
+        b : Function or float
             The time-constant buoyancy.
-        v : Function or float, optional, defaults to v at construction
+        v : Function or float
             The time-constant velocity.
-        damp : Function or float, optional, defaults to damp at construction
+        damp : Function or float
             The time-constant dissipation only attenuation w/Q field.
-        dm : Function or float, optional, defaults to new Function
+        dm : Function or float
             The perturbation to the velocity model.
-        du : Function or float, optional, defaults to new TimeFunction
+        du : Function or float
             Stores the computed perturbed wavefield.
-        save : int or Buffer, optional
-            The entire (unrolled) wavefield.
+        save : int or Buffer
+            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------

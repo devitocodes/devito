@@ -1,9 +1,7 @@
 import numpy as np
-from argparse import ArgumentParser
 from devito.logger import info
-from devito import configuration
 from examples.seismic.viscoacoustic import ViscoacousticWaveSolver
-from examples.seismic import demo_model, setup_geometry
+from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
 def viscoacoustic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
@@ -40,37 +38,12 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_viscoacoustic():
     _, _, _, [rec] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec), 21.5779, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec), 18.7749, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":
     description = ("Example script for a set of viscoacoustic operators.")
-    parser = ArgumentParser(description=description)
-    parser.add_argument("-nd", dest='ndim', default=3, type=int,
-                        help="Number of dimensions")
-    parser.add_argument("-d", "--shape", default=(150, 150, 150), type=int, nargs="+",
-                        help="Number of grid points along each axis")
-    parser.add_argument("-so", "--space_order", default=4,
-                        type=int, help="Space order of the simulation")
-    parser.add_argument("--nbl", default=40,
-                        type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("--constant", default=False, action='store_true',
-                        help="Constant velocity model, default is a two layer model")
-    parser.add_argument("-opt", default="advanced",
-                        choices=configuration._accepted['opt'],
-                        help="Performance optimization level")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
-    parser.add_argument("-k", dest="kernel", default='blanch_symes',
-                        choices=['blanch_symes', 'ren', 'deng_mcmechan'],
-                        help="Selects a visco-acoustic equation from the options: \
-                        'blanch_symes' - Blanch and Symes (1995) / \
-                        Dutta and Schuster (2014) viscoacoustic equation. \
-                        'ren' - Ren et al. (2014) viscoacoustic equation. \
-                        'deng_mcmechan' - Deng and McMechan (2007) \
-                        viscoacoustic equation. Defaults to 'blanch_symes'")
-    args = parser.parse_args()
+    args = seismic_args(description)
 
     # Preset parameters
     ndim = args.ndim

@@ -36,7 +36,7 @@ def second_order_stencil(model, u, v, H0, Hz, forward=True):
 
 def trig_func(model):
     """
-    Trigonometric function of the tilt and azymuth angles
+    Trigonometric function of the tilt and azymuth angles.
     """
     try:
         theta = model.theta

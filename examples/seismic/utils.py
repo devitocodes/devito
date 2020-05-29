@@ -1,11 +1,12 @@
 import numpy as np
+from argparse import ArgumentParser
 
-from devito import error
+from devito import error, configuration
 from devito.tools import Pickable
 
 from .source import *
 
-__all__ = ['AcquisitionGeometry', 'setup_geometry']
+__all__ = ['AcquisitionGeometry', 'setup_geometry', 'seismic_args']
 
 
 def setup_geometry(model, tn):
@@ -158,3 +159,36 @@ class AcquisitionGeometry(Pickable):
 
 
 sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}
+
+
+def seismic_args(description):
+    """
+    Command line options for the seismic examples
+    """
+    parser = ArgumentParser(description=description)
+    parser.add_argument("-nd", dest="ndim", default=3, type=int,
+                        help="Number of dimensions")
+    parser.add_argument("-d", "--shape", default=(51, 51, 51), type=int, nargs="+",
+                        help="Number of grid points along each axis")
+    parser.add_argument('-f', '--full', default=False, action='store_true',
+                        help="Execute all operators and store forward wavefield")
+    parser.add_argument("-so", "--space_order", default=6,
+                        type=int, help="Space order of the simulation")
+    parser.add_argument("--nbl", default=40,
+                        type=int, help="Number of boundary layers around the domain")
+    parser.add_argument("-k", dest="kernel", default='OT2',
+                        choices=['OT2', 'OT4', 'centered', 'staggered'],
+                        help="Choice of finite-difference kernel")
+    parser.add_argument("--constant", default=False, action='store_true',
+                        help="Constant velocity model, default is a two layer model")
+    parser.add_argument("--checkpointing", default=False, action='store_true',
+                        help="Constant velocity model, default is a two layer model")
+    parser.add_argument("-opt", default="advanced",
+                        choices=configuration._accepted['opt'],
+                        help="Performance optimization level")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
+    parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
+                        help="Whether or not to use an azimuth angle")
+    return parser.parse_args()

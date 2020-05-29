@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from devito import Grid, Function, Eq, Operator, info
 from examples.seismic import RickerSource, TimeAxis, Model, AcquisitionGeometry
-from examples.seismic.skew_self_adjoint import (acousticssa_setup, setup_w_over_q,
+from examples.seismic.skew_self_adjoint import (acoustic_ssa_setup, setup_w_over_q,
                                                 SsaIsoAcousticWaveSolver)
 
 # Defaults in global scope
@@ -22,7 +22,7 @@ class TestWavesolver(object):
         Test the linearity of the forward modeling operator by verifying:
             a F(s) = F(a s)
         """
-        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        solver = acoustic_ssa_setup(shape=shape, dtype=dtype, space_order=so)
         src = solver.geometry.src
 
         a = -1 + 2 * np.random.rand()
@@ -51,7 +51,7 @@ class TestWavesolver(object):
             a F^T(r) = F^T(a r)
         """
         np.random.seed(0)
-        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        solver = acoustic_ssa_setup(shape=shape, dtype=dtype, space_order=so)
         src0 = solver.geometry.src
         rec, _, _ = solver.forward(src0)
         a = -1 + 2 * np.random.rand()
@@ -79,7 +79,7 @@ class TestWavesolver(object):
         Test the forward modeling operator by verifying for random s, r:
             r . F(s) = F^T(r) . s
         """
-        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        solver = acoustic_ssa_setup(shape=shape, dtype=dtype, space_order=so)
         src1 = solver.geometry.src
         rec1 = solver.geometry.rec
 
@@ -108,7 +108,7 @@ class TestWavesolver(object):
         This is done by fitting a 1st order polynomial to the norms
         """
         np.random.seed(0)
-        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        solver = acoustic_ssa_setup(shape=shape, dtype=dtype, space_order=so)
         src = solver.geometry.src
 
         # Create Functions for models and perturbation
@@ -177,7 +177,7 @@ class TestWavesolver(object):
             a J(dm) = J(a dm)
         """
         np.random.seed(0)
-        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        solver = acoustic_ssa_setup(shape=shape, dtype=dtype, space_order=so)
 
         src0 = solver.geometry.src
 
@@ -225,7 +225,7 @@ class TestWavesolver(object):
             a J^T(dr) = J^T(a dr)
         """
         np.random.seed(0)
-        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        solver = acoustic_ssa_setup(shape=shape, dtype=dtype, space_order=so)
 
         src0 = solver.geometry.src
 
@@ -272,7 +272,7 @@ class TestWavesolver(object):
             dr . J(dm) = J^T(dr) . dm
         """
         np.random.seed(0)
-        solver = acousticssa_setup(shape=shape, dtype=dtype, space_order=so)
+        solver = acoustic_ssa_setup(shape=shape, dtype=dtype, space_order=so)
 
         src0 = solver.geometry.src
 
