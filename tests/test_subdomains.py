@@ -288,7 +288,7 @@ class TestSubdomains(object):
 
         assert((np.array(f.data[:]+g.data[:]) == expected).all())
 
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap')])
     def test_subdomainset_mpi(self):
 
         n_domains = 5
