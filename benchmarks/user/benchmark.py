@@ -17,6 +17,8 @@ from benchmarks.user.tools import Driver, Executor, RooflinePlotter
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
+from examples.seismic.skew_self_adjoint.example_iso import run as acoustic_ssa_run, \
+    acoustic_ssa_setup
 from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run, \
     viscoelastic_setup
 
@@ -40,6 +42,11 @@ model_type = {
     'acoustic': {
         'run': acoustic_run,
         'setup': acoustic_setup,
+        'default-section': 'section0'
+    },
+    'acoustic_ssa': {
+        'run': acoustic_ssa_run,
+        'setup': acoustic_ssa_setup,
         'default-section': 'section0'
     }
 }
@@ -82,8 +89,10 @@ def option_simulation(f):
         click.option('-to', '--time-order', type=int, multiple=True,
                      callback=default_list, help='Time order of the simulation'),
         click.option('-t', '--tn', default=250,
-                     help='End time of the simulation in ms')
-    ]
+                     help='End time of the simulation in ms'),
+        click.option('-op', '--operator', type=click.Choice(['forward', 'adjoint',
+                                                             'born', 'gradient']),
+                     default='forward', help='Operator to run')]
     for option in reversed(options):
         f = option(f)
     return f
@@ -204,6 +213,7 @@ def run(problem, **kwargs):
     space_order = kwargs.pop('space_order')[0]
     autotune = kwargs.pop('autotune')
     block_shapes = as_tuple(kwargs.pop('block_shape'))
+    operator = kwargs.pop('operator', 'forward')
 
     # Should a specific block-shape be used? Useful if one wants to skip
     # the autotuning pass as a good block-shape is already known
@@ -214,7 +224,15 @@ def run(problem, **kwargs):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
-    retval = solver.forward(autotune=autotune, **options)
+    # Get forward wavefield if rrunning gradient
+    try:
+        if operator == "gradient":
+            u = solver.forward(autotune=autotune, **options)[1]
+            retval = getattr(solver, operator)(u, autotune=autotune, **options)
+        else:
+            retval = getattr(solver, operator)(autotune=autotune, **options)
+    except AttributeError:
+        raise AttributeError("Operator %s not implemented for %s" % (operator, problem))
 
     try:
         rank = MPI.COMM_WORLD.rank
