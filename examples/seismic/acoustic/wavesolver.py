@@ -1,6 +1,6 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
-from examples.seismic import PointSource, Receiver
+from examples.seismic import PointSource
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
@@ -224,9 +224,7 @@ class AcousticWaveSolver(object):
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
         # Create a new receiver object to store the result
-        rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.geometry.time_axis,
-                              coordinates=self.geometry.rec_positions)
+        rec = rec or self.geometry.rec
 
         # Create the forward wavefields u and U if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,

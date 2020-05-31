@@ -24,7 +24,7 @@ def blanch_symes(model, geometry, v, p, **kwargs):
     save = kwargs.get('save')
 
     s = model.grid.stepping_dim.spacing
-    irho = model.irho
+    b = model.b
     vp = model.vp
     damp = model.damp
     qp = model.qp
@@ -40,7 +40,7 @@ def blanch_symes(model, geometry, v, p, **kwargs):
     tt = (t_ep/t_s)-1.
 
     # Density
-    rho = 1. / irho
+    rho = 1. / b
 
     # Bulk modulus
     bm = rho * (vp * vp)
@@ -51,7 +51,7 @@ def blanch_symes(model, geometry, v, p, **kwargs):
                      time_order=1)
 
     # Define PDE
-    pde_v = v - s * irho * grad(p)
+    pde_v = v - s * b * grad(p)
     u_v = Eq(v.forward, damp * pde_v)
 
     pde_r = r - s * (1. / t_s) * r - s * (1. / t_s) * tt * bm * div(v.forward)
@@ -79,7 +79,7 @@ def ren(model, geometry, v, p, **kwargs):
     s = model.grid.stepping_dim.spacing
     f0 = geometry._f0
     vp = model.vp
-    irho = model.irho
+    b = model.b
     qp = model.qp
     damp = model.damp
 
@@ -87,14 +87,14 @@ def ren(model, geometry, v, p, **kwargs):
     w = 2. * np.pi * f0
 
     # Density
-    rho = 1. / irho
+    rho = 1. / b
 
     # Define PDE
-    pde_v = v - s * irho * grad(p)
+    pde_v = v - s * b * grad(p)
     u_v = Eq(v.forward, damp * pde_v)
 
     pde_u = p - s * vp * vp * rho * div(v.forward) + \
-        s * ((vp * vp * rho) / (w * qp)) * div(irho * grad(p))
+        s * ((vp * vp * rho) / (w * qp)) * div(b * grad(p))
     u_p = Eq(p.forward, damp * pde_u)
 
     return [u_v, u_p]
@@ -116,7 +116,7 @@ def deng_mcmechan(model, geometry, v, p, **kwargs):
     s = model.grid.stepping_dim.spacing
     f0 = geometry._f0
     vp = model.vp
-    irho = model.irho
+    b = model.b
     qp = model.qp
     damp = model.damp
 
@@ -124,10 +124,10 @@ def deng_mcmechan(model, geometry, v, p, **kwargs):
     w = 2. * np.pi * f0
 
     # Density
-    rho = 1. / irho
+    rho = 1. / b
 
     # Define PDE
-    pde_v = v - s * irho * grad(p)
+    pde_v = v - s * b * grad(p)
     u_v = Eq(v.forward, damp * pde_v)
 
     pde_p = p - s * vp * vp * rho * div(v.forward) - s * (w / qp) * p
