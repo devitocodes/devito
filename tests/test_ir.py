@@ -1,15 +1,16 @@
 import pytest
 import numpy as np
 from sympy import S
+import cgen
 
 from conftest import EVAL, skipif  # noqa
 from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
                     Operator, Dimension, SubDimension, switchconfig)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet import (Call, Conditional, Expression, Iteration, CGen, FindNodes,
-                           FindSymbols, retrieve_iteration_tree, filter_iterations,
-                           make_efunc)
+from devito.ir.iet import (Call, Conditional, Expression, Iteration, List, CGen,
+                           FindNodes, FindSymbols, retrieve_iteration_tree,
+                           filter_iterations, make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
@@ -809,6 +810,21 @@ else
         found = FindSymbols(mode).visit(call)
 
         assert [f.name for f in found] == eval(expected)
+
+    def test_list_denesting(self):
+        l0 = List(header=cgen.Line('a'), body=List(header=cgen.Line('b')))
+        l1 = l0._rebuild(body=List(header=cgen.Line('c')))
+        assert len(l0.body) == 0
+        assert len(l1.body) == 0
+        assert str(l1) == "a\nb\nc"
+
+        l2 = l1._rebuild(l1.body)
+        assert len(l2.body) == 0
+        assert str(l2) == str(l1)
+
+        l3 = l2._rebuild(l2.body, **l2.args_frozen)
+        assert len(l3.body) == 0
+        assert str(l3) == str(l2)
 
 
 class TestAnalysis(object):
