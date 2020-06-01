@@ -166,8 +166,8 @@ class SsaIsoAcousticWaveSolver(object):
         summary = self.op_adj(save).apply(src=srca, rec=rec, v=v, **kwargs)
         return srca, v, summary
 
-    def jacobian_forward(self, dm, src, rec=None, b=None, vp=None, damp=None,
-                         u0=None, du=None, save=None, **kwargs):
+    def jacobian(self, dm, src=None, rec=None, b=None, vp=None, damp=None,
+                 u0=None, du=None, save=None, **kwargs):
         """
         Linearized JacobianForward modeling function that creates the necessary
         data objects for running a Jacobian forward modeling operator.

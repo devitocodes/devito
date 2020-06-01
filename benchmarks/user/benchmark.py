@@ -73,7 +73,7 @@ def run_op(solver, operator, **options):
         return op(dm, **options)
     elif operator == "jacobian_adjoint":
         # I think we want the forward + gradient call, need to merge retvals
-        rec, u, _ = solver.forward(**options)
+        rec, u, _ = solver.forward(save=True, **options)
         return op(rec, u, **options)
     else:
         raise ValueError("Unrecognized operator %s" % operator)
@@ -102,9 +102,9 @@ def option_simulation(f):
         return list(value if len(value) > 0 else (2, ))
 
     options = [
-        click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti', 'elastic',
-                                                           'acoustic_ssa', 'viscoelastic']),
-                     help='Problem name'),
+        click.option('-P', '--problem', help='Problem name',
+                     type=click.Choice(['acoustic', 'tti',
+                                        'elastic', 'acoustic_ssa', 'viscoelastic'])),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
@@ -117,9 +117,9 @@ def option_simulation(f):
                      callback=default_list, help='Time order of the simulation'),
         click.option('-t', '--tn', default=250,
                      help='End time of the simulation in ms'),
-        click.option('-op', '--operator', type=click.Choice(['forward', 'adjoint',
-                                                             'born', 'gradient']),
-                     default='forward', help='Operator to run')]
+        click.option('-op', '--operator', default='forward', help='Operator to run',
+                     type=click.Choice(['forward', 'adjoint',
+                                        'jacobian', 'jacobian_adjoint']))]
     for option in reversed(options):
         f = option(f)
     return f

@@ -84,7 +84,7 @@ def fwi_gradient(vp_in):
         residual = compute_residual(residual, d_obs, d_syn)
 
         objective += .5*norm(residual)**2
-        solver.gradient(rec=residual, u=u0, vp=vp_in, grad=grad)
+        solver.jacobian_adjoint(rec=residual, u=u0, vp=vp_in, grad=grad)
 
     return objective, grad
 
