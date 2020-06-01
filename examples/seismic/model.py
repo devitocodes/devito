@@ -3,7 +3,7 @@ from sympy import sin, Abs, finite_diff_weights
 
 
 from devito import (Grid, SubDomain, Function, Constant,
-                    SubDimension, Eq, Inc, Operator)
+                    SubDimension, Eq, Inc, Operator, div)
 from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
 from devito.tools import as_tuple
 
@@ -328,6 +328,16 @@ class SeismicModel(GenericModel):
         Squared slowness.
         """
         return 1 / (self.vp * self.vp)
+
+    @property
+    def dm(self):
+        """
+        Create a simple model perturbation (in squared slowness) from the velocity
+        as `dm = div(m)`.
+        """
+        dm = Function(name="dm", grid=self.grid, space_order=self.space_order)
+        Operator(Eq(dm, div(self.m)))()
+        return dm
 
     def smooth(self, physical_parameters, sigma=5.0):
         """

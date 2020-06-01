@@ -64,7 +64,7 @@ class SsaIsoAcousticWaveSolver(object):
                               space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
-    def op_jadj(self, save=True):
+    def op_jacadj(self, save=True):
         """Cached operator for gradient runs"""
         return IsoJacobianAdjOperator(self.model, save=save, geometry=self.geometry,
                                       space_order=self.space_order, **self._kwargs)
@@ -264,5 +264,5 @@ class SsaIsoAcousticWaveSolver(object):
         kwargs.update({'dt': kwargs.pop('dt', self.dt)})
 
         # Run operator
-        summary = self.op_jadj().apply(rec=rec, dm=dm, du=du, u0=u0, **kwargs)
+        summary = self.op_jacadj().apply(rec=rec, dm=dm, du=du, u0=u0, **kwargs)
         return dm, u0, du, summary

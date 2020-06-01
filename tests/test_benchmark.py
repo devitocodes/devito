@@ -7,9 +7,13 @@ from devito import configuration, switchconfig
 from subprocess import check_call
 
 
-@pytest.mark.parametrize('mode', ['bench'])
-@pytest.mark.parametrize('problem', ['acoustic', 'tti', 'elastic', 'viscoelastic'])
-def test_bench(mode, problem):
+@pytest.mark.parametrize('mode, problem, op', [
+    ('bench', 'acoustic', 'forward'), ('run', 'acoustic', 'adjoint'),
+    ('run', 'acoustic', 'born'), ('bench', 'acoustic', 'gradient'),
+    ('bench', 'tti', 'forward'), ('bench', 'elastic', 'forward'),
+    ('bench', 'viscoelastic', 'forward')
+])
+def test_bench(mode, problem, op):
     """
     Test the Devito benchmark framework on various combinations of modes and problems.
     """
@@ -29,7 +33,9 @@ def test_bench(mode, problem):
 
     command_bench = [pyversion, benchpath, mode,
                      '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
-                     '%d' % tn, '-x', '1']
+                     '%d' % tn, '-op', op]
+    if mode == "bench":
+        command_bench.extend(['-x', '1'])
     check_call(command_bench)
 
     dir_name = 'results/'
@@ -49,11 +55,14 @@ def test_bench(mode, problem):
     np = 'np[1]'
     rank = 'rank[0]'
 
-    bench_corename = os.path.join('_'.join([base_filename, arch, shape, nbl, t,
-                                  so, to, opt, at, nt, mpi, np, rank]))
+    if mode == "bench":
+        bench_corename = os.path.join('_'.join([base_filename, arch, shape, nbl, t,
+                                      so, to, opt, at, nt, mpi, np, rank]))
 
-    bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
-    assert os.path.isfile(bench_filename)
+        bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
+        assert os.path.isfile(bench_filename)
+    else:
+        assert True
 
 
 @pytest.mark.parallel(mode=2)

@@ -1,7 +1,7 @@
 import numpy as np
 from argparse import ArgumentParser
 
-from devito import error, configuration
+from devito import error, configuration, warning
 from devito.tools import Pickable
 
 from .source import *
@@ -143,8 +143,23 @@ class AcquisitionGeometry(Pickable):
                         coordinates=self.rec_positions)
 
     @property
+    def adj_src(self):
+        if self.src_type is None:
+            warning("No surce type defined, returning uninitiallized (zero) shot record")
+            return self.rec
+        adj_src = sources[self.src_type](name='rec', grid=self.grid, f0=self.f0,
+                                         time_range=self.time_axis, npoint=self.nrec,
+                                         coordinates=self.rec_positions,
+                                         t0=self._t0w, a=self._a)
+        # Revert time axis to have a proper shot record and not compute on zeros
+        for i in range(self.nrec):
+            adj_src.data[:, i] = adj_src.data[::-1, i]
+        return adj_src
+
+    @property
     def src(self):
         if self.src_type is None:
+            warning("No surce type defined, returning uninistiallized (zero) source")
             return PointSource(name='src', grid=self.grid,
                                time_range=self.time_axis, npoint=self.nsrc,
                                coordinates=self.src_positions)
