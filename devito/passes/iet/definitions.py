@@ -11,7 +11,7 @@ from devito.ir import (ArrayCast, Element, List, LocalExpression, FindSymbols,
                        MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import ccode
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple
 
 __all__ = ['DataManager', 'Storage']
 

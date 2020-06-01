@@ -894,7 +894,6 @@ class ParallelBlock(Block):
     is_ParallelBlock = True
 
 
-
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))
 
 

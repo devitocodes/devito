@@ -5,9 +5,9 @@ import numpy as np
 import cgen as c
 from sympy import Or, Max, Not
 
-from devito.ir import (DummyEq, Conditional, Block, Expression, ExpressionBundle, List,
-                       Prodder, Iteration, ParallelIteration, ParallelBlock, While,
-                       FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
+from devito.ir import (DummyEq, Conditional, Expression, ExpressionBundle, List,
+                       Prodder, ParallelIteration, ParallelBlock, While, FindSymbols,
+                       FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
@@ -103,7 +103,7 @@ class OpenMPIteration(ParallelIteration):
         self.reduction = kwargs.pop('reduction', None)
 
         super(OpenMPIteration, self).__init__(*args, pragmas=[pragma],
-                                                properties=properties, **kwargs)
+                                              properties=properties, **kwargs)
 
     @classmethod
     def _make_header(cls, **kwargs):
