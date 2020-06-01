@@ -17,6 +17,8 @@ from benchmarks.user.tools import Driver, Executor, RooflinePlotter
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
+from examples.seismic.skew_self_adjoint.example_iso import run as acoustic_ssa_run, \
+    acoustic_ssa_setup
 from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run, \
     viscoelastic_setup
 
@@ -41,8 +43,40 @@ model_type = {
         'run': acoustic_run,
         'setup': acoustic_setup,
         'default-section': 'section0'
+    },
+    'acoustic_ssa': {
+        'run': acoustic_ssa_run,
+        'setup': acoustic_ssa_setup,
+        'default-section': 'section0'
     }
 }
+
+
+def run_op(solver, operator, **options):
+    """
+    Initialize any necessary input and run the operator associated with the solver.
+    """
+    # Get the operator if exist
+    try:
+        op = getattr(solver, operator)
+    except AttributeError:
+        raise AttributeError("Operator %s not implemented for %s" % (operator, solver))
+
+    # This is a bit ugly but not sure how to make clean input creation for different op
+    if operator == "forward":
+        return op(**options)
+    elif operator == "adjoint":
+        rec = solver.geometry.adj_src
+        return op(rec, **options)
+    elif operator == "born":
+        dm = solver.model.dm
+        return op(dm, **options)
+    elif operator == "gradient":
+        # I think we want the forward + gradient call, need to merge retvals
+        rec, u, _ = solver.forward(**options)
+        return op(rec, u, **options)
+    else:
+        raise ValueError("Unrecognized operator %s" % operator)
 
 
 @click.group()
@@ -82,8 +116,10 @@ def option_simulation(f):
         click.option('-to', '--time-order', type=int, multiple=True,
                      callback=default_list, help='Time order of the simulation'),
         click.option('-t', '--tn', default=250,
-                     help='End time of the simulation in ms')
-    ]
+                     help='End time of the simulation in ms'),
+        click.option('-op', '--operator', type=click.Choice(['forward', 'adjoint',
+                                                             'born', 'gradient']),
+                     default='forward', help='Operator to run')]
     for option in reversed(options):
         f = option(f)
     return f
@@ -203,7 +239,9 @@ def run(problem, **kwargs):
     time_order = kwargs.pop('time_order')[0]
     space_order = kwargs.pop('space_order')[0]
     autotune = kwargs.pop('autotune')
+    options['autotune'] = autotune
     block_shapes = as_tuple(kwargs.pop('block_shape'))
+    operator = kwargs.pop('operator', 'forward')
 
     # Should a specific block-shape be used? Useful if one wants to skip
     # the autotuning pass as a good block-shape is already known
@@ -214,7 +252,7 @@ def run(problem, **kwargs):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
-    retval = solver.forward(autotune=autotune, **options)
+    retval = run_op(solver, operator, **options)
 
     try:
         rank = MPI.COMM_WORLD.rank
@@ -284,7 +322,7 @@ def run_jit_backdoor(problem, **kwargs):
 
     @switchconfig(jit_backdoor=True)
     def _run_jit_backdoor():
-        return solver.forward(autotune=autotune)
+        return run_op(solver, 'forward', autotune=autotune)
 
     return _run_jit_backdoor()
 
