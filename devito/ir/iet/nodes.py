@@ -164,11 +164,17 @@ class List(Node):
 
     def __init__(self, header=None, body=None, footer=None):
         body = as_tuple(body)
-        if len(body) == 1 and type(body[0]) == List:
+        if len(body) == 1 and all(type(i) == List for i in [self, body[0]]):
             # De-nest Lists
-            self.header = as_tuple(header) + body[0].header
-            self.body = body[0].body
-            self.footer = as_tuple(footer) + body[0].footer
+            #
+            # Note: to avoid disgusting metaclass voodoo (due to
+            # https://stackoverflow.com/questions/56514586/\
+            #     arguments-of-new-and-init-for-metaclasses)
+            # we change the internal state here in __init__
+            # rather than in __new__
+            self._args['header'] = self.header = as_tuple(header) + body[0].header
+            self._args['body'] = self.body = body[0].body
+            self._args['footer'] = self.footer = as_tuple(footer) + body[0].footer
         else:
             self.header = as_tuple(header)
             self.body = as_tuple(body)
