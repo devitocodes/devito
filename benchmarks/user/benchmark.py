@@ -68,10 +68,10 @@ def run_op(solver, operator, **options):
     elif operator == "adjoint":
         rec = solver.geometry.adj_src
         return op(rec, **options)
-    elif operator == "born":
+    elif operator == "jacobian":
         dm = solver.model.dm
         return op(dm, **options)
-    elif operator == "gradient":
+    elif operator == "jacobian_adjoint":
         # I think we want the forward + gradient call, need to merge retvals
         rec, u, _ = solver.forward(**options)
         return op(rec, u, **options)
@@ -102,8 +102,8 @@ def option_simulation(f):
         return list(value if len(value) > 0 else (2, ))
 
     options = [
-        click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti',
-                                                           'elastic', 'viscoelastic']),
+        click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti', 'elastic',
+                                                           'acoustic_ssa', 'viscoelastic']),
                      help='Problem name'),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),

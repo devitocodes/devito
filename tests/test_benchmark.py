@@ -9,9 +9,11 @@ from subprocess import check_call
 
 @pytest.mark.parametrize('mode, problem, op', [
     ('bench', 'acoustic', 'forward'), ('run', 'acoustic', 'adjoint'),
-    ('run', 'acoustic', 'born'), ('bench', 'acoustic', 'gradient'),
+    ('run', 'acoustic', 'jacobian'), ('bench', 'acoustic', 'jacobian_adjoint'),
     ('bench', 'tti', 'forward'), ('bench', 'elastic', 'forward'),
-    ('bench', 'viscoelastic', 'forward')
+    ('bench', 'viscoelastic', 'forward'), ('run', 'acoustic_ssa', 'forward'),
+    ('run', 'acoustic_ssa', 'adjoint'), ('run', 'acoustic_ssa', 'jacobian'),
+    ('run', 'acoustic_ssa', 'jacobian_adjoint')
 ])
 def test_bench(mode, problem, op):
     """
