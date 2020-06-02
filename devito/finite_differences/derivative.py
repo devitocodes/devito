@@ -269,7 +269,8 @@ class Derivative(sympy.Derivative, Differentiable):
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
-        x0 = dict(func.indices_ref._getters)
+        # If an x0 already exists do not overwrite it
+        x0 = self.x0 or dict(func.indices_ref._getters)
         if self.expr.is_Add:
             # Derivatives are linear and  the derivative of an Add can be treated as an
             # Add of derivatives which makes (u(x + h_x/2) + v(x)).dx` easier to handle
