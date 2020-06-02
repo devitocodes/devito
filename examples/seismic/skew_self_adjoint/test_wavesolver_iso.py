@@ -137,7 +137,7 @@ class TestWavesolver(object):
         rec0, u0, summary0 = solver.forward(src, vp=m0)
 
         # Compute J(dm)
-        rec1, u1, du, summary1 = solver.jacobian_forward(dm, src=src, vp=m0)
+        rec1, u1, du, summary1 = solver.jacobian(dm, src=src, vp=m0)
 
         # Linearization test via polyfit (see devito/tests/test_gradient.py)
         # Solve F(m + h dm) for sequence of decreasing h
@@ -200,10 +200,10 @@ class TestWavesolver(object):
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         a = np.random.rand()
-        rec1, _, _, _ = solver.jacobian_forward(m1, src0, vp=m0, save=True)
+        rec1, _, _, _ = solver.jacobian(m1, src0, vp=m0, save=True)
         rec1.data[:] = a * rec1.data[:]
         m1.data[:] = a * m1.data[:]
-        rec2, _, _, _ = solver.jacobian_forward(m1, src0, vp=m0)
+        rec2, _, _, _ = solver.jacobian(m1, src0, vp=m0)
 
         # Normalize by rms of rec2, to enable using abolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
@@ -300,7 +300,7 @@ class TestWavesolver(object):
         rec1.data[:] = np.random.rand(nt, nr)
 
         # Linearized modeling
-        rec2, u0, _, _ = solver.jacobian_forward(dm1, src0, vp=m0, save=True)
+        rec2, u0, _, _ = solver.jacobian(dm1, src0, vp=m0, save=True)
         dm2, _, _, _ = solver.jacobian_adjoint(rec1, u0, vp=m0)
 
         sum_m = np.dot(dm1.data.reshape(-1), dm2.data.reshape(-1))

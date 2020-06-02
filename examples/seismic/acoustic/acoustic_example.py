@@ -56,9 +56,9 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, autotune=autotune)
+    solver.jacobian(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
+    solver.jacobian_adjoint(rec, u, autotune=autotune, checkpointing=checkpointing)
     return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
