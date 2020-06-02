@@ -1,0 +1,96 @@
+##############################################################
+# README with base system requirements
+# https://ngc.nvidia.com/catalog/containers/hpc:pgi-compilers
+#
+# BUILD: docker build --file docker/Dockerfile.pgi --tag devito:nvidia.pgi .
+# RUN: docker run --runtime=nvidia --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia.pgi
+##############################################################
+#FROM nvcr.io/nvidia/cuda:10.1-devel
+FROM nvcr.io/hpc/pgi-compilers:ce
+
+ENV DEBIAN_FRONTEND noninteractive 
+ENV CC="/usr/bin/gcc"
+ENV CXX="/usr/bin/g++"
+RUN mv '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc' '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc.devito'
+
+RUN apt-get update && apt-get install -y -q \
+    curl mpich \
+    libmpich-dev 
+
+# nodesource: nvdashboard requires nodejs>=10  
+RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+    apt-get install -y -q \
+        apt-utils \
+        python3.6 \
+        python3-pip python3-setuptools python3-dev python3-multidict python3-venv \
+        nodejs && \
+    apt-get update -y && \
+    rm -rf /var/lib/apt/lists/*
+
+
+ADD ./requirements.txt /app/requirements.txt
+ADD ./requirements-optional.txt /app/requirements-optional.txt
+ADD ./requirements-nvidia.txt /app/requirements-nvidia.txt
+
+RUN python3 -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir wheel && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt
+    
+ADD ./devito /app/devito
+ADD ./tests /app/tests
+ADD ./scripts /app/scripts
+ADD ./examples /app/examples
+ADD ./benchmarks /app/benchmarks
+COPY setup.cfg /app/
+
+ADD docker/run-jupyterlab.sh /jupyter
+ADD docker/run-tests.sh /tests
+ADD docker/run-print-defaults.sh /print-defaults
+ADD docker/entrypoint.sh /docker-entrypoint.sh
+ADD docker/nvdashboard.json /app/nvdashboard.json
+
+RUN chmod +x \
+    /print-defaults \
+    /jupyter \
+    /tests \
+    /docker-entrypoint.sh
+
+RUN /venv/bin/jupyter labextension install jupyterlab-nvdashboard && \
+    /venv/bin/jupyter labextension install dask-labextension && \
+    /venv/bin/jupyter serverextension enable dask_labextension && \
+    /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
+
+# Environment Variables for OpenACC Builds
+# Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
+# 
+#Options: [gcc, pgcc]
+ENV DEVITO_ARCH="pgcc" 
+#Options: [openmp, openacc]
+ENV DEVITO_LANGUAGE="openacc"
+#Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
+#ENV DEVITO_JIT_BACKDOOR=1 
+#Options: [unset, 1] Unset for openacc
+#ENV DEVITO_OPENMP=1
+#Options: [unset, 1] 1 to Enable
+#ENV DEVITO_MPI=1
+#Options: [unset, PERF, DEBUG]
+ENV DEVITO_LOGGING=DEBUG
+#Options: [unset, nvidiaX] Set for openacc
+ENV DEVITO_PLATFORM=nvidiaX
+#Options: [unset, 1] Only for PGI; Debug Timing 
+ENV PGI_ACC_TIME=1 
+
+ENV CC="/opt/pgi/linux86-64-llvm/19.10/bin/pgcc"
+ENV CXX="/opt/pgi/linux86-64-llvm/19.10/bin/pgc++"
+RUN mv '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc.devito' '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc' 
+#RUN /app/scripts/create_ipyparallel_mpi_profile.sh
+#RUN ipcluster start --profile=mpi -n 4
+
+WORKDIR /app
+EXPOSE 8888
+ENTRYPOINT ["/docker-entrypoint.sh"]
+#CMD ["/jupyter"]
+CMD ["/bin/bash"]
