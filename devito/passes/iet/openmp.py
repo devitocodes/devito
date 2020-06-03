@@ -247,7 +247,7 @@ class Ompizer(object):
     Shortcuts for the OpenMP language.
     """
 
-    def __init__(self, key=None):
+    def __init__(self, sregistry, key=None):
         """
         Parameters
         ----------
@@ -263,9 +263,10 @@ class Ompizer(object):
                     return False
                 return i.is_ParallelRelaxed and not i.is_Vectorized
             self.key = key
-        self.nthreads = NThreads(aliases='nthreads0')
-        self.nthreads_nested = NThreadsNested(aliases='nthreads1')
-        self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
+
+        self.nthreads = sregistry.nthreads
+        self.nthreads_nested = sregistry.nthreads_nested
+        self.nthreads_nonaffine = sregistry.nthreads_nonaffine
 
     def _find_collapsable(self, root, candidates):
         collapsable = []

@@ -14,7 +14,7 @@ from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_i
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.tools import as_tuple, filter_sorted, generator, timed_pass
+from devito.tools import as_tuple, filter_sorted, timed_pass
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -274,31 +274,28 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     def _specialize_clusters(cls, clusters, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
-
-        # To create temporaries
-        counter = generator()
-        template = lambda: "r%d" % counter()
+        sregistry = kwargs['sregistry']
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, 'invariants', options, platform)
+        clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
-        clusters = extract_increments(clusters, template)
-        clusters = cire(clusters, template, 'sops', options, platform)
+        clusters = extract_increments(clusters, sregistry)
+        clusters = cire(clusters, 'sops', sregistry, options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
         # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, template)
+        clusters = cse(clusters, sregistry)
 
         # Lifting may create fusion opportunities, which in turn may enable
         # further optimizations
         clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
+        clusters = eliminate_arrays(clusters)
 
         return clusters
 
@@ -306,13 +303,14 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer().make_parallel(graph)
+        DeviceOmpizer(sregistry).make_parallel(graph)
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager()
@@ -329,6 +327,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         optimize_halospots(graph)
@@ -336,7 +335,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer().make_parallel(graph)
+        DeviceOmpizer(sregistry).make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -359,8 +358,9 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
     @classmethod
     def _make_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
-        ompizer = DeviceOmpizer()
+        ompizer = DeviceOmpizer(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),

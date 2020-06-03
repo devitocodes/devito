@@ -16,7 +16,7 @@ __all__ = ['cire']
 
 
 @cluster_pass
-def cire(cluster, template, mode, options, platform):
+def cire(cluster, mode, sregistry, options, platform):
     """
     Cross-iteration redundancies elimination.
 
@@ -24,14 +24,14 @@ def cire(cluster, template, mode, options, platform):
     ----------
     cluster : Cluster
         Input Cluster, subject of the optimization pass.
-    template : callable
-        To build the symbols (temporaries) storing the redundant expressions.
     mode : str
         The transformation mode. Accepted: ['invariants', 'sops'].
         * 'invariants' is for sub-expressions that are invariant w.r.t. one or
           more Dimensions.
         * 'sops' stands for sums-of-products, that is redundancies are searched
           across all expressions in sum-of-product form.
+    sregistry : SymbolRegistry
+        To create the temporaries that will store the redundant expressions.
     options : dict
         The optimization options. Accepted: ['min-storage'].
         * 'min-storage': if True, the pass will try to minimize the amount of
@@ -74,9 +74,6 @@ def cire(cluster, template, mode, options, platform):
     assert mode in list(callbacks_mapper)
     assert all(i >= 0 for i in repeats.values())
 
-    # To create unique (temporary) symbols
-    make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-
     # The main CIRE loop
     processed = []
     context = cluster.exprs
@@ -85,7 +82,7 @@ def cire(cluster, template, mode, options, platform):
         extract, ignore_collected, selector = callbacks_mapper[mode](context, n, min_cost)
 
         # Extract potentially aliasing expressions
-        exprs, extracted = extract(cluster, make)
+        exprs, extracted = extract(cluster, sregistry)
         if not extracted:
             # Do not waste time
             continue
@@ -107,7 +104,7 @@ def cire(cluster, template, mode, options, platform):
             continue
 
         # Create Aliases and assign them to Clusters
-        clusters, subs = process(cluster, chosen, aliases, template, platform)
+        clusters, subs = process(cluster, chosen, aliases, sregistry, platform)
 
         # Rebuild `cluster` so as to use the newly created Aliases
         rebuilt = rebuild(cluster, others, aliases, subs)
@@ -141,7 +138,7 @@ class Callbacks(object):
                 partial(cls.selector, min_cost))
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, make):
+    def extract(cls, n, context, min_cost, cluster, sregistry):
         raise NotImplementedError
 
     @classmethod
@@ -158,7 +155,9 @@ class CallbacksInvariants(Callbacks):
     mode = 'invariants'
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, make):
+    def extract(cls, n, context, min_cost, cluster, sregistry):
+        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+
         exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
         rule0 = lambda e: not e.free_symbols & exclude
         rule1 = make_is_time_invariant(context)
@@ -188,7 +187,9 @@ class CallbacksSOPS(Callbacks):
     mode = 'sops'
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, make):
+    def extract(cls, n, context, min_cost, cluster, sregistry):
+        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+
         # The `depth` determines "how big" the extracted sum-of-products will be.
         # We observe that in typical FD codes:
         #   add(mul, mul, ...) -> stems from first order derivative
@@ -415,7 +416,7 @@ def choose(exprs, aliases, selector):
     return chosen, others
 
 
-def process(cluster, chosen, aliases, template, platform):
+def process(cluster, chosen, aliases, sregistry, platform):
     clusters = []
     subs = {}
     for alias, writeto, aliaseds, distances in aliases.iter(cluster.ispace):
@@ -442,7 +443,7 @@ def process(cluster, chosen, aliases, template, platform):
         sharing = 'local' if any(d.is_Incr for d in writeto.dimensions) else 'shared'
 
         # Finally create the temporary Array that will store `alias`
-        array = Array(name=template(), dimensions=dimensions, halo=halo,
+        array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
                       dtype=cluster.dtype, sharing=sharing)
 
         # The access Dimensions may differ from `writeto.dimensions`. This may

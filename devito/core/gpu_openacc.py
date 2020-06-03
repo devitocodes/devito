@@ -172,13 +172,14 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenACC offloading
-        DeviceAccizer().make_parallel(graph)
+        DeviceAccizer(sregistry).make_parallel(graph)
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager()
@@ -199,6 +200,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         optimize_halospots(graph)
@@ -206,7 +208,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenACC offloading
-        DeviceAccizer().make_parallel(graph)
+        DeviceAccizer(sregistry).make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -233,8 +235,9 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
     @classmethod
     def _make_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
-        accizer = DeviceAccizer()
+        accizer = DeviceAccizer(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),

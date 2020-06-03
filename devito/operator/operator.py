@@ -151,6 +151,9 @@ class Operator(Callable):
         # Normalize input arguments for the selected Operator
         kwargs = cls._normalize_kwargs(**kwargs)
 
+        # Create a symbol registry
+        kwargs['sregistry'] = cls._symbol_registry()
+
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
@@ -164,6 +167,10 @@ class Operator(Callable):
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         return kwargs
+
+    @classmethod
+    def _symbol_registry(cls):
+        return None
 
     @classmethod
     def _build(cls, expressions, **kwargs):
