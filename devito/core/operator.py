@@ -1,6 +1,6 @@
 from devito.core.autotuning import autotune
 from devito.parameters import configuration
-from devito.passes import NThreads, NThreadsNested, NThreadsNonaffine
+from devito.passes import NThreads, NThreadsNested, NThreadsNonaffine, ThreadId
 from devito.operator import Operator
 from devito.tools import generator
 
@@ -13,7 +13,8 @@ class SymbolRegistry(object):
 
     _symbol_prefix = 'r'
 
-    def __init__(self, nthreads=None, nthreads_nested=None, nthreads_nonaffine=None):
+    def __init__(self, nthreads=None, nthreads_nested=None, nthreads_nonaffine=None,
+                 threadid=None):
         # {name -> generator()} -- to create unique names for symbols, functions, ...
         self.counters = {}
 
@@ -21,6 +22,7 @@ class SymbolRegistry(object):
         self.nthreads = nthreads
         self.nthreads_nested = nthreads_nested
         self.nthreads_nonaffine = nthreads_nonaffine
+        self.threadid = threadid
 
     def make_name(self, prefix=None):
         # By default we're creating a new symbol
@@ -39,9 +41,12 @@ class OperatorCore(Operator):
 
     @classmethod
     def _symbol_registry(cls):
-        return SymbolRegistry(nthreads=NThreads(aliases='nthreads0'),
-                              nthreads_nested=NThreadsNested(aliases='nthreads1'),
-                              nthreads_nonaffine=NThreadsNonaffine(aliases='nthreads2'))
+        nthreads = NThreads(aliases='nthreads0')
+        nthreads_nested = NThreadsNested(aliases='nthreads1')
+        nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
+        threadid = ThreadId(nthreads=nthreads)
+
+        return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:
