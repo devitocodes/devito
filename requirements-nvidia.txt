@@ -1,4 +1,5 @@
-#cupy>=6
+cupy>=6
+dask-cuda
 jupyterlab==1.2.1
 jupyterlab-nvdashboard
 dask_labextension
