@@ -332,11 +332,10 @@ class SeismicModel(GenericModel):
     @property
     def dm(self):
         """
-        Create a simple model perturbation (in squared slowness) from the velocity
-        as `dm = div(m)`.
+        Create a simple model perturbation from the velocity as `dm = div(vp)`.
         """
         dm = Function(name="dm", grid=self.grid, space_order=self.space_order)
-        Operator(Eq(dm, div(self.m)))()
+        Operator(Eq(dm, div(self.vp)), subs=self.spacing_map)()
         return dm
 
     def smooth(self, physical_parameters, sigma=5.0):
