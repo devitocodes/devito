@@ -153,7 +153,7 @@ class AcquisitionGeometry(Pickable):
                                          t0=self._t0w, a=self._a)
         # Revert time axis to have a proper shot record and not compute on zeros
         for i in range(self.nrec):
-            adj_src.data[:, i] = adj_src.data[::-1, i]
+            adj_src.data[:, i] = adj_src.wavelet[::-1]
         return adj_src
 
     @property
