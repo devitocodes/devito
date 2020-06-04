@@ -187,7 +187,7 @@ def seismic_args(description):
                         help="Number of grid points along each axis")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
-    parser.add_argument("-so", "--space_order", default=6,
+    parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
                         type=int, help="Number of boundary layers around the domain")
