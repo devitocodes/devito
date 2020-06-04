@@ -950,7 +950,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # Indices after substitutions
         indices = [(a - o + f).xreplace(s) for a, o, f, s in
                    zip(self.args, self.origin, shift, subs)]
-
+        indices = [i.xreplace({k: int(k) for k in i.atoms(sympy.Float)}) for i in indices]
         return self.indexed[indices]
 
     def __getitem__(self, index):
