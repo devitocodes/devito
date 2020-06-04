@@ -1,10 +1,9 @@
 import numpy as np
-from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import Constant, Function, smooth, configuration
+from devito import Constant, Function, smooth
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, setup_geometry
+from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
@@ -57,40 +56,15 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, autotune=autotune)
+    solver.jacobian(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
+    solver.jacobian_adjoint(rec, u, autotune=autotune, checkpointing=checkpointing)
     return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
-    parser = ArgumentParser(description=description)
-    parser.add_argument("-nd", dest="ndim", default=3, type=int,
-                        help="Number of dimensions")
-    parser.add_argument("-d", "--shape", default=(51, 51, 51), type=int, nargs="+",
-                        help="Number of grid points along each axis")
-    parser.add_argument('-f', '--full', default=False, action='store_true',
-                        help="Execute all operators and store forward wavefield")
-    parser.add_argument("-so", "--space_order", default=6,
-                        type=int, help="Space order of the simulation")
-    parser.add_argument("--nbl", default=40,
-                        type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("-k", dest="kernel", default='OT2',
-                        choices=['OT2', 'OT4'],
-                        help="Choice of finite-difference kernel")
-    parser.add_argument("--constant", default=False, action='store_true',
-                        help="Constant velocity model, default is a two layer model")
-    parser.add_argument("--checkpointing", default=False, action='store_true',
-                        help="Constant velocity model, default is a two layer model")
-    parser.add_argument("-opt", default="advanced",
-                        choices=configuration._accepted['opt'],
-                        help="Performance optimization level")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
-    args = parser.parse_args()
-
+    args = seismic_args(description)
     # 3D preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]

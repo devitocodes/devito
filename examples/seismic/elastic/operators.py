@@ -54,10 +54,10 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     tau = TensorTimeFunction(name='tau', grid=model.grid,
                              space_order=space_order, time_order=1)
 
-    lam, mu, ro = model.lam, model.mu, model.irho
+    lam, mu, b = model.lam, model.mu, model.b
 
     dt = model.critical_dt
-    u_v = Eq(v.forward, model.damp * v + model.damp * dt * ro * div(tau))
+    u_v = Eq(v.forward, model.damp * v + model.damp * dt * b * div(tau))
     u_t = Eq(tau.forward, model.damp * tau +
              model.damp * dt * lam * diag(div(v.forward)) +
              model.damp * dt * mu * (grad(v.forward) + grad(v.forward).T))

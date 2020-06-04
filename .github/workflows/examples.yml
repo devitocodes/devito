@@ -55,12 +55,14 @@ jobs:
         python examples/seismic/acoustic/acoustic_example.py --full --checkpointing
         python examples/seismic/acoustic/acoustic_example.py --constant --full
         python examples/seismic/inversion/fwi.py
+        python examples/seismic/skew_self_adjoint/example_iso.py
 
     - name: Seismic tti examples
       shell: bash -l {0}
       run: |
         python examples/seismic/tti/tti_example.py -a basic
         python examples/seismic/tti/tti_example.py -a basic --noazimuth
+        python examples/seismic/tti/tti_example.py -k staggered
 
     - name: Seismic elastic examples
       shell: bash -l {0}

@@ -92,7 +92,6 @@ class AnisotropicWaveSolver(object):
         -------
         Receiver, wavefield and performance summary.
         """
-
         if kernel == 'staggered':
             time_order = 1
             dims = self.model.space_dimensions
@@ -132,6 +131,8 @@ class AnisotropicWaveSolver(object):
         kwargs.update(self.model.physical_params(
             vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
         )
+        if self.model.dim < 3:
+            kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
         op = self.op_fwd(kernel, save)
         summary = op.apply(src=src, rec=rec, u=u, v=v,
@@ -191,6 +192,8 @@ class AnisotropicWaveSolver(object):
         kwargs.update(self.model.physical_params(
             vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
         )
+        if self.model.dim < 3:
+            kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj().apply(srca=srca, rec=rec, p=p, r=r,
                                       dt=kwargs.pop('dt', self.dt), **kwargs)

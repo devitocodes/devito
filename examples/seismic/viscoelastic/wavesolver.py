@@ -40,7 +40,7 @@ class ViscoelasticWaveSolver(object):
                                space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec1=None, rec2=None, lam=None, qp=None, mu=None, qs=None,
-                irho=None, v=None, tau=None, r=None, save=None, **kwargs):
+                b=None, v=None, tau=None, r=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -57,15 +57,15 @@ class ViscoelasticWaveSolver(object):
             The computed stress.
         r : TensorTimeFunction, optional
             The computed memory variable.
-        lambda : Function, optional
-            The time-constant first Lame parameter (rho * vp**2 - rho * vs **2).
-        qp : Function, optional
-            The P-wave quality factor (dimensionless).
+        lam : Function, optional
+            The time-constant first Lame parameter rho * (vp**2 - 2 * vs **2).
         mu : Function, optional
             The Shear modulus (rho * vs*2).
+        qp : Function, optional
+            The P-wave quality factor (dimensionless).
         qs : Function, optional
             The S-wave quality factor (dimensionless).
-        irho : Function, optional
+        b : Function, optional
             The time-constant inverse density (1/rho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.
@@ -100,13 +100,9 @@ class ViscoelasticWaveSolver(object):
         kwargs.update({k.name: k for k in tau})
         kwargs.update({k.name: k for k in r})
         # Pick physical parameters from model unless explicitly provided
-        lam = lam or self.model.lam
-        qp = qp or self.model.qp
-        mu = mu or self.model.mu
-        qs = qs or self.model.qs
-        irho = irho or self.model.irho
+        kwargs.update(self.model.physical_params(lam=lam, mu=mu, b=b, qp=qp, qs=qs))
+
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, mu=mu, qp=qp, lam=lam,
-                                          qs=qs, irho=irho, rec2=rec2,
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec1, rec2, v, tau, summary
