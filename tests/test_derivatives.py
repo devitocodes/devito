@@ -329,6 +329,16 @@ class TestFD(object):
         # half shifted compare to explicit coeffs (Forneberg)
         assert str(u.dx(x0=x - .5 * x.spacing).evaluate) == expected
 
+    def test_new_x0_eval_at(self):
+        """
+        Make sure that explicitly set x0 does not get overwritten by eval_at.
+        """
+        grid = Grid((10,))
+        x = grid.dimensions[0]
+        u = Function(name="u", grid=grid, space_order=2)
+        v = Function(name="v", grid=grid, space_order=2)
+        assert u.dx(x0=x - x.spacing/2)._eval_at(v).x0 == {x: x - x.spacing/2}
+
     def test_fd_new_lo(self):
         grid = Grid((10,))
         x = grid.dimensions[0]
