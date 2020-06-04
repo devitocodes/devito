@@ -1,12 +1,11 @@
-from sympy import Eq, diff, cos, sin, nan
+from sympy import Eq, diff, nan
 
 from devito.tools import as_tuple, is_integer
 
 
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_routine', 'q_xop',
+__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_constant', 'q_affine',
-           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine',
-           'q_function']
+           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine']
 
 
 # The following SymPy objects are considered tree leaves:
@@ -38,10 +37,6 @@ def q_function(expr):
 
 def q_terminal(expr):
     return expr.is_Symbol or expr.is_Indexed
-
-
-def q_trigonometry(expr):
-    return expr.is_Function and expr.func in [sin, cos]
 
 
 def q_routine(expr):

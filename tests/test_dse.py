@@ -11,8 +11,7 @@ from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
-from devito.passes.clusters.utils import make_is_time_invariant
-from devito.symbolics import yreplace, estimate_cost, pow_to_mul, indexify
+from devito.symbolics import estimate_cost, pow_to_mul, indexify
 from devito.tools import generator
 from devito.types import Scalar, Array
 
@@ -41,45 +40,6 @@ def test_scheduling_after_rewrite():
     assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
-
-
-@pytest.mark.parametrize('exprs,expected', [
-    # simple
-    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
-     ['ti0[x, y, z] + ti1[x, y, z] + 5.0']),
-    # more ops
-    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)',
-      'Eq(tw, 2. + ti0*t1)', 'Eq(tu, (ti0*ti1*t0) + (ti1*tv) + (t1 + ti1)*tw)'],
-     ['t0 + 2.0', 't1*ti0[x, y, z] + 2.0', 't1 + ti1[x, y, z]',
-      't0*ti0[x, y, z]*ti1[x, y, z]']),
-    # wrapped
-    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)', 'Eq(tv, 2.4)',
-      'Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))'],
-     ['t0 + 2.0', 't0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
-])
-def test_yreplace_time_invariants(exprs, expected):
-    grid = Grid((3, 3, 3))
-    dims = grid.dimensions
-
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()  # noqa
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()  # noqa
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()  # noqa
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
-    t0 = Scalar(name='t0').indexify()  # noqa
-    t1 = Scalar(name='t1').indexify()  # noqa
-
-    # List comprehension would need explicit locals/globals mappings to eval
-    for i, e in enumerate(list(exprs)):
-        exprs[i] = DummyEq(indexify(eval(e).evaluate))
-
-    counter = generator()
-    make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed, found = yreplace(exprs, make,
-                                make_is_time_invariant(exprs),
-                                lambda i: estimate_cost(i) > 0)
-    assert len(found) == len(expected)
-    assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
 
 @pytest.mark.parametrize('exprs,expected', [
@@ -871,7 +831,7 @@ class TestAliases(object):
         assert np.allclose(u.data, exp.data, rtol=10e-7)
 
     @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
-    def test_nested(self):
+    def test_nested_invariants(self):
         """
         Check that nested aliases are optimized away through "smaller" aliases.
 
@@ -1202,7 +1162,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 120
+        assert summary[('section0', None)].ops == 115
 
     @switchconfig(profiling='advanced')
     def test_tti_adjoint_akin(self):
@@ -1261,6 +1221,40 @@ class TestAliases(object):
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
         assert summary[('section1', None)].ops == 39
+
+    @switchconfig(profiling='advanced')
+    def test_nested_first_derivatives(self):
+        """
+        Test that aliasing sub-expressions from nested derivatives aren't split,
+        but rather they're captured together and scheduled to a single temporary.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        f.data_with_halo[:] = 0.5
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+        v.data_with_halo[:] = 1.
+
+        eqn = Eq(v.forward, (v.dx * (1 + 2*f) * f).dx)
+
+        # Operator
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+
+        # Check numerical output
+        op0(time_M=1)
+        v1 = TimeFunction(name="v", grid=grid, space_order=4)
+        v1.data_with_halo[:] = 1.
+        summary = op1(time_M=1, v=v1)
+        assert np.isclose(norm(v), norm(v1), rtol=1e-5)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert summary[('section0', None)].ops == 21
 
 
 # Acoustic
@@ -1369,8 +1363,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 102
-        assert np.isclose(summary[('section1', None)].oi, 1.678, atol=0.001)
+        assert summary[('section1', None)].ops == 103
+        assert np.isclose(summary[('section1', None)].oi, 1.692, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -1413,7 +1407,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 174), (16, 310)
+        (8, 175), (16, 311)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
