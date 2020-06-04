@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir import DummyEq, Cluster, Scope
 from devito.passes.clusters.utils import cluster_pass, makeit_ssa
-from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace, yreplace
+from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace
 from devito.types import Scalar
 
 __all__ = ['cse']
@@ -116,8 +116,13 @@ def _compact_temporaries(exprs):
     for e in exprs:
         if e.lhs not in mapper:
             # The temporary is retained, and substitutions may be applied
-            handle, _ = yreplace(e, mapper, repeat=True)
-            assert len(handle) == 1
-            processed.extend(handle)
+            expr = e
+            while True:
+                handle = uxreplace(expr, mapper)
+                if handle == expr:
+                    break
+                else:
+                    expr = handle
+            processed.append(handle)
 
     return processed
