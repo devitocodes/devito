@@ -5,15 +5,15 @@ import numpy as np
 import cgen as c
 from sympy import Or, Max, Not
 
-from devito.ir import (DummyEq, Conditional, Expression, ExpressionBundle, List,
-                       Prodder, ParallelIteration, ParallelBlock, While, FindSymbols,
-                       FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
+from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
+                       List, Prodder, ParallelIteration, ParallelBlock, While,
+                       FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
-from devito.tools import as_tuple, is_integer, prod, memoized_meth
-from devito.types import Constant, Symbol
+from devito.tools import as_tuple, is_integer, prod
+from devito.types import Array, Constant, Symbol
 from devito.types.dimension import BasicDimension
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'ThreadId', 'Ompizer',
@@ -286,11 +286,7 @@ class Ompizer(object):
                     return False
                 return i.is_ParallelRelaxed and not i.is_Vectorized
             self.key = key
-
-        self.nthreads = sregistry.nthreads
-        self.nthreads_nested = sregistry.nthreads_nested
-        self.nthreads_nonaffine = sregistry.nthreads_nonaffine
-        self.threadid = sregistry.threadid
+        self.sregistry = sregistry
 
     def _find_collapsable(self, root, candidates):
         collapsable = []
@@ -374,7 +370,7 @@ class Ompizer(object):
                 schedule = 'static'
             if nthreads is None:
                 # pragma omp for ... schedule(..., 1)
-                nthreads = self.nthreads
+                nthreads = self.sregistry.nthreads
                 body = OpenMPIteration(schedule=schedule, ncollapse=ncollapse,
                                        **root.args)
             else:
@@ -386,7 +382,7 @@ class Ompizer(object):
         else:
             # pragma omp for ... schedule(..., expr)
             assert nthreads is None
-            nthreads = self.nthreads_nonaffine
+            nthreads = self.sregistry.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
             body = OpenMPIteration(ncollapse=ncollapse, chunk_size=chunk_size,
                                    **root.args)
@@ -403,11 +399,29 @@ class Ompizer(object):
         return root, partree, collapsed
 
     def _make_parregion(self, partree):
-        # Build the `omp-parallel` region
-        private = [i for i in FindSymbols().visit(partree)
-                   if i.is_Array and i._mem_stack]
-        private = sorted(set([i.name for i in private]))
-        return OpenMPRegion(partree, partree.nthreads, private)
+        arrays = [i for i in FindSymbols().visit(partree) if i.is_Array]
+
+        # Detect thread-private arrays on the stack
+        stack_private = [i for i in arrays if i._mem_stack and i._mem_local]
+        stack_private = sorted(set([i.name for i in stack_private]))
+
+        # Detect thread-private arrays on the heap and "map" them to shared
+        # vector-expanded (one entry per thread) Arrays
+        heap_private = [i for i in arrays if i._mem_heap and i._mem_local]
+        heap_globals = []
+        for i in heap_private:
+            array = Array(name=self.sregistry.make_name(), dtype=i.dtype,
+                          dimensions=(self.sregistry.threadid,) + i.dimensions,
+                          halo=((0, 0),) + i.halo)
+            heap_globals.append(Dereference(i, array))
+        if heap_globals:
+            tid = Expression(DummyEq(self.sregistry.threadid,
+                                     DefFunction('omp_get_thread_num')))
+            body = List(body=[tid] + heap_globals + [partree], footer=c.Line())
+        else:
+            body = partree
+
+        return OpenMPRegion(body, partree.nthreads, stack_private)
 
     def _make_guard(self, partree, collapsed):
         # Do not enter the parallel region if the step increment is 0; this
@@ -454,7 +468,8 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            subroot, subpartree, _ = self._make_partree(candidates, self.nthreads_nested)
+            subroot, subpartree, _ = self._make_partree(candidates,
+                                                        self.sregistry.nthreads_nested)
 
             mapper[subroot] = subpartree
 
@@ -492,8 +507,11 @@ class Ompizer(object):
 
         iet = Transformer(mapper).visit(iet)
 
-        # The used `nthreads` arguments
+        # The new arguments introduced by this pass
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
+        for n in FindNodes(Dereference).visit(iet):
+            args.append((n.array0, True))
+            args.append(n.array1)
 
         return iet, {'args': args, 'includes': ['omp.h']}
 
