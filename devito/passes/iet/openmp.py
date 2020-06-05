@@ -14,9 +14,8 @@ from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import Array, Constant, Symbol
-from devito.types.dimension import BasicDimension
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'ThreadId', 'Ompizer',
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer',
            'OpenMPIteration', 'ParallelTree']
 
 
@@ -72,28 +71,6 @@ class NThreadsNested(NThreadsMixin, Constant):
 class NThreadsNonaffine(NThreads):
 
     name = 'nthreads_nonaffine'
-
-
-class ThreadId(BasicDimension):
-
-    def __new__(cls, *args, **kwargs):
-        return super().__new__(cls, name='tid', **kwargs)
-
-    def __init_finalize__(self, name, nthreads=None):
-        self._nthreads = nthreads
-
-    @property
-    def symbolic_size(self):
-        return self._nthreads
-
-    def _arg_defaults(self):
-        return {}
-
-    def _arg_values(self, *args, **kwargs):
-        return {}
-
-    _pickle_args = []
-    _pickle_kwargs = ['symbolic_size']
 
 
 class OpenMPRegion(ParallelBlock):

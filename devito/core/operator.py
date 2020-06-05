@@ -1,8 +1,9 @@
 from devito.core.autotuning import autotune
 from devito.parameters import configuration
-from devito.passes import NThreads, NThreadsNested, NThreadsNonaffine, ThreadId
+from devito.passes import NThreads, NThreadsNested, NThreadsNonaffine
 from devito.operator import Operator
 from devito.tools import generator
+from devito.types import ThreadDimension
 
 __all__ = ['OperatorCore']
 
@@ -44,7 +45,7 @@ class OperatorCore(Operator):
         nthreads = NThreads(aliases='nthreads0')
         nthreads_nested = NThreadsNested(aliases='nthreads1')
         nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
-        threadid = ThreadId(nthreads=nthreads)
+        threadid = ThreadDimension(nthreads=nthreads)
 
         return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
