@@ -19,10 +19,7 @@ __all__ = ['DataManager', 'Storage']
 class Storage(object):
 
     def __init__(self):
-        # Storage with high bandwitdh
         self._high_bw_mem = OrderedDict()
-
-        # Storage with low latency
         self._low_lat_mem = OrderedDict()
 
     @property
@@ -129,6 +126,8 @@ class DataManager(object):
         """
         storage = Storage()
 
+        already_defined = list(iet.parameters)
+
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression:
                 if k.is_definition:
@@ -136,6 +135,9 @@ class DataManager(object):
                     self._alloc_scalar_on_low_lat_mem(site, k, storage)
                     continue
                 objs = [k.write]
+            elif k.is_Dereference:
+                already_defined.append(k.array0)
+                objs = [k.array1]
             elif k.is_Call:
                 objs = k.arguments
 
@@ -145,7 +147,7 @@ class DataManager(object):
                         site = v[-1] if v else iet
                         self._alloc_object_on_low_lat_mem(site, i, storage)
                     elif i.is_Array:
-                        if i in iet.parameters:
+                        if i in already_defined:
                             # The Array is passed as a Callable argument
                             continue
 
