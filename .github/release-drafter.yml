@@ -1,0 +1,28 @@
+name-template: 'v$NEXT_PATCH_VERSION 🌈'
+tag-template: 'v$NEXT_PATCH_VERSION'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug-performance-C'
+      - 'bug-performance-py'
+      - 'bug-py-minor'
+      - 'bug-py'
+      - 'bug-performance-gpu'
+  - title: 'API'
+    label: 'API'
+  - title: 'Examples'
+    label: 'examples'
+  - title: 'Documentation'
+    label: 'documentation'
+  - title: 'Compiler'
+    label: 'Compiler'
+  - title: 'MPI'
+    label: 'MPI'
+  - title: 'GPU'
+    label: 'GPUs'
+  - title: 'Testing'
+    label: 'testing'
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+template: |
+  ## Changes
+
+  $CHANGES
