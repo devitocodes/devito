@@ -23,7 +23,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock']
+           'ParallelIteration', 'ParallelBlock', 'Dereference']
 
 # First-class IET nodes
 
@@ -45,6 +45,7 @@ class Node(Signer):
     is_Call = False
     is_List = False
     is_ArrayCast = False
+    is_Dereference = False
     is_Element = False
     is_Section = False
     is_HaloSpot = False
@@ -742,6 +743,46 @@ class ArrayCast(Node):
     @property
     def defines(self):
         return ()
+
+
+class Dereference(ExprStmt, Node):
+
+    """
+    A node encapsulating a dereferentiation from higher-dimenensional Array
+    to a lower-dimension one.
+    """
+
+    is_Dereference = True
+
+    def __init__(self, array0, array1):
+        assert array0.is_Array
+        assert array1.is_Array
+        assert array1.ndim > array0.ndim
+
+        self.array0 = array0
+        self.array1 = array1
+
+    def __repr__(self):
+        return "<Dereference(%s,%s)>" % (self.array0, self.array1)
+
+    @property
+    def functions(self):
+        return (self.array0, self.array1)
+
+    @property
+    def free_symbols(self):
+        """
+        The symbols required by the ArrayCast.
+
+        This may include DiscreteFunctions as well as Dimensions.
+        """
+        return ((self.array0, self.array1) +
+                tuple(flatten(i.free_symbols for i in self.array0.symbolic_shape[1:])) +
+                tuple(flatten(i.free_symbols for i in self.array1.symbolic_shape[1:])))
+
+    @property
+    def defines(self):
+        return (self.array0,)
 
 
 class LocalExpression(Expression):
