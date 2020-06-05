@@ -1,6 +1,6 @@
 pip>=9.0.1
 numpy>=1.14
-sympy<1.6
+sympy<1.7
 scipy
 pytest>=3.6
 pytest-runner
