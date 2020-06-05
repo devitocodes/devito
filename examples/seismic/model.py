@@ -278,7 +278,7 @@ class SeismicModel(GenericModel):
         """
         # Elasic coefficient (see e.g )
         if 'lam' in self._physical_parameters or 'vs' in self._physical_parameters:
-            return .85 / np.sqrt(self.grid.dim)
+            return (.85 if self.grid.dim == 3 else .75) / np.sqrt(self.grid.dim)
         a1 = 4  # 2nd order in time
         coeffs = finite_diff_weights(2, range(-self.space_order, self.space_order+1), 0)
         a2 = float(self.grid.dim * sum(np.abs(coeffs[-1][-1])))
