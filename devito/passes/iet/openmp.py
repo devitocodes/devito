@@ -247,6 +247,9 @@ class Ompizer(object):
     Shortcuts for the OpenMP language.
     """
 
+    _Region = OpenMPRegion
+    _Iteration = OpenMPIteration
+
     def __init__(self, sregistry, key=None):
         """
         Parameters
