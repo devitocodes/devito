@@ -1,10 +1,12 @@
 """User API to specify equations."""
 
 import sympy
+from sympy.solvers.solveset import linear_coeffs
 
 from cached_property import cached_property
 
 from devito.finite_differences import Evaluable, default_rules
+from devito.logger import warning
 from devito.tools import as_tuple
 
 __all__ = ['Eq', 'Inc', 'solve']
@@ -225,18 +227,23 @@ def solve(eq, target, **kwargs):
         Symbolic optimizations applied while rearranging the equation. For more
         information. refer to ``sympy.solve.__doc__``.
     """
-    # Enforce certain parameters to values that are known to guarantee a quick
-    # turnaround time
-    kwargs['rational'] = False  # Avoid float indices
-    kwargs['simplify'] = False  # Do not attempt premature optimisation
-    kwargs['manual'] = True  # Force sympy to solve one line at a time for VectorFunction
     if isinstance(eq, Eq):
         eq = eq.lhs - eq.rhs if eq.rhs != 0 else eq.lhs
-    sol = sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
-
+    sols = []
+    for e, t in zip(as_tuple(eq), as_tuple(target)):
+        # Try first linear solver
+        try:
+            cc = linear_coeffs(e.evaluate, t)
+            sols.append(-cc[1]/cc[0])
+        except ValueError:
+            warning("Equation is not affine w.r.t the target, falling back to standard"
+                    "sympy.solve that may be extremely slow")
+            kwargs['rational'] = False  # Avoid float indices
+            kwargs['simplify'] = False  # Do not attempt premature optimisation
+            sols.append(sympy.solve(e.evaluate, t, **kwargs)[0])
     # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
     from devito.types import TensorFunction
     if isinstance(target, TensorFunction):
-        return target.new_from_mat(sol)
+        return target.new_from_mat(sols)
     else:
-        return sol
+        return sols[0]

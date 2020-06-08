@@ -1299,11 +1299,11 @@ class TestIsoAcoustic(object):
         assert len(op0._func_table) == 0
         assert len(op1._func_table) == 1  # due to loop blocking
 
-        assert summary0[('section0', None)].ops == 39
-        assert np.isclose(summary0[('section0', None)].oi, 2.224, atol=0.001)
+        assert summary0[('section0', None)].ops == 46
+        assert np.isclose(summary0[('section0', None)].oi, 2.623, atol=0.001)
 
-        assert summary1[('section0', None)].ops == 29
-        assert np.isclose(summary1[('section0', None)].oi, 1.654, atol=0.001)
+        assert summary1[('section0', None)].ops == 33
+        assert np.isclose(summary1[('section0', None)].oi, 1.882, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
         assert np.allclose(rec0.data, rec1.data, atol=10e-5)
@@ -1350,7 +1350,7 @@ class TestTTI(object):
         # Make sure no opts were applied
         op = wavesolver.op_fwd('centered', False)
         assert len(op._func_table) == 0
-        assert summary[('section0', None)].ops == 727
+        assert summary[('section0', None)].ops == 729
 
         return v, rec
 
@@ -1407,7 +1407,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 175), (16, 311)
+        (8, 173), (16, 307)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
