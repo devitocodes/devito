@@ -948,9 +948,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # Add halo shift
         shift = self._size_nodomain.left if lshift else tuple([0]*len(self.dimensions))
         # Indices after substitutions
-        indices = [(a - o + f).xreplace(s) for a, o, f, s in
+        indices = [sympy.sympify((a - o + f).xreplace(s)) for a, o, f, s in
                    zip(self.args, self.origin, shift, subs)]
-        indices = [sympy.sympify(i).xreplace({k: int(k) for k in i.atoms(sympy.Float)})
+        indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]
         return self.indexed[indices]
 
