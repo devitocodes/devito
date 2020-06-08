@@ -14,3 +14,7 @@ def test_float_indices():
     indices = u.subs({x: x0}).indexify().indices[0]
     assert len(indices.atoms(sympy.Float)) == 0
     assert indices == x + 1
+
+    indices = u.subs({x: 1.0}).indexify().indices[0]
+    assert len(indices.atoms(sympy.Float)) == 0
+    assert indices == 1
