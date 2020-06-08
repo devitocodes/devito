@@ -169,8 +169,59 @@
   <div class="section" id="module-devito.finite_differences.finite_difference">
 <span id="finite-difference-approximations"></span><h1>Finite-difference approximations<a class="headerlink" href="#module-devito.finite_differences.finite_difference" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
+<dt id="devito.finite_differences.finite_difference.cross_derivative">
+<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">cross_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#cross_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.cross_derivative" title="Permalink to this definition">¶</a></dt>
+<dd><p>Arbitrary-order cross derivative of a given expression.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the cross derivative is produced.</p></li>
+<li><p><strong>dims</strong> (<em>tuple of Dimension</em>) – Dimensions w.r.t. which to differentiate.</p></li>
+<li><p><strong>fd_order</strong> (<em>tuple of ints</em>) – Coefficient discretization order. Note: this impacts the width of
+the resulting stencil.</p></li>
+<li><p><strong>deriv_order</strong> (<em>tuple of ints</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
+<li><p><strong>stagger</strong> (<em>tuple of Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</p></li>
+<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Cross-derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>expr-like</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">second_derivative</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">g</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cross_derivative</span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">fd_order</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">deriv_order</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+<span class="go">-(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y + (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
+</pre></div>
+</div>
+<p>Semantically, this is equivalent to</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dxdy</span>
+<span class="go">Derivative(f(x, y)*g(x, y), x, y)</span>
+</pre></div>
+</div>
+<p>The only difference is that in the latter case derivatives remain unevaluated.
+The expanded form is obtained via <code class="docutils literal notranslate"><span class="pre">evaluate</span></code></p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dxdy</span><span class="o">.</span><span class="n">evaluate</span>
+<span class="go">-(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y + (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
+</pre></div>
+</div>
+<p>Finally the x0 argument allows to choose the origin of the finite-difference</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">cross_derivative</span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">fd_order</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">deriv_order</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>     <span class="n">x0</span><span class="o">=</span><span class="p">{</span><span class="n">x</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">-(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x)/h_y + (-f(1, h_y + 2)*g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
 <dt id="devito.finite_differences.finite_difference.first_derivative">
-<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">first_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="n">dim</span></em>, <em class="sig-param"><span class="n">fd_order</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">side</span><span class="o">=</span><span class="default_value">centered[0]</span></em>, <em class="sig-param"><span class="n">matvec</span><span class="o">=</span><span class="default_value">direct[1]</span></em>, <em class="sig-param"><span class="n">symbolic</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">x0</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#first_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.first_derivative" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">first_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#first_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.first_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>First-order derivative of a given expression.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -233,8 +284,56 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 </dd></dl>
 
 <dl class="py function">
+<dt id="devito.finite_differences.finite_difference.generate_indices">
+<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">generate_indices</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">func</span></em>, <em class="sig-param"><span class="n">dim</span></em>, <em class="sig-param"><span class="n">order</span></em>, <em class="sig-param"><span class="n">side</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">x0</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/tools.html#generate_indices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generate_indices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indices for the finite-difference scheme</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>func</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Function that is differentiated</p></li>
+<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – Dimensions w.r.t which the derivative is taken</p></li>
+<li><p><strong>order</strong> (<em>Int</em>) – Order of the finite-difference scheme</p></li>
+<li><p><strong>side</strong> (<em>Side</em>) – Side of the scheme, (centered, left, right)</p></li>
+<li><p><strong>x0</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>Expr</em><em> or </em><em>Number</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p></p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Ordered list of indices</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="devito.finite_differences.finite_difference.generic_derivative">
+<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">generic_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
+<dd><p>Arbitrary-order derivative of a given expression.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the derivative is produced.</p></li>
+<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</p></li>
+<li><p><strong>fd_order</strong> (<em>int</em>) – Coefficient discretization order. Note: this impacts the width of
+the resulting stencil.</p></li>
+<li><p><strong>deriv_order</strong> (<em>int</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
+<li><p><strong>stagger</strong> (<em>Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</p></li>
+<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">deriv-order</span></code> derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>expr-like</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt id="devito.finite_differences.finite_difference.second_derivative">
-<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">second_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="n">dim</span></em>, <em class="sig-param"><span class="n">fd_order</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#second_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.second_derivative" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">second_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#second_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.second_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Second-order derivative of a given expression.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -280,105 +379,6 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 <span class="go">-2.0*f(1, y)/h_x**2 + f(1 - h_x, y)/h_x**2 + f(h_x + 1, y)/h_x**2</span>
 </pre></div>
 </div>
-</dd></dl>
-
-<dl class="py function">
-<dt id="devito.finite_differences.finite_difference.cross_derivative">
-<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">cross_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="n">dims</span></em>, <em class="sig-param"><span class="n">fd_order</span></em>, <em class="sig-param"><span class="n">deriv_order</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#cross_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.cross_derivative" title="Permalink to this definition">¶</a></dt>
-<dd><p>Arbitrary-order cross derivative of a given expression.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the cross derivative is produced.</p></li>
-<li><p><strong>dims</strong> (<em>tuple of Dimension</em>) – Dimensions w.r.t. which to differentiate.</p></li>
-<li><p><strong>fd_order</strong> (<em>tuple of ints</em>) – Coefficient discretization order. Note: this impacts the width of
-the resulting stencil.</p></li>
-<li><p><strong>deriv_order</strong> (<em>tuple of ints</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
-<li><p><strong>stagger</strong> (<em>tuple of Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</p></li>
-<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Cross-derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>expr-like</p>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">second_derivative</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">g</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">cross_derivative</span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">fd_order</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">deriv_order</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
-<span class="go">-(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y + (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
-</pre></div>
-</div>
-<p>Semantically, this is equivalent to</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dxdy</span>
-<span class="go">Derivative(f(x, y)*g(x, y), x, y)</span>
-</pre></div>
-</div>
-<p>The only difference is that in the latter case derivatives remain unevaluated.
-The expanded form is obtained via <code class="docutils literal notranslate"><span class="pre">evaluate</span></code></p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dxdy</span><span class="o">.</span><span class="n">evaluate</span>
-<span class="go">-(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y + (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
-</pre></div>
-</div>
-<p>Finally the x0 argument allows to choose the origin of the finite-difference</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">cross_derivative</span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">fd_order</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">deriv_order</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>     <span class="n">x0</span><span class="o">=</span><span class="p">{</span><span class="n">x</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
-<span class="go">-(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x)/h_y + (-f(1, h_y + 2)*g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
-<dt id="devito.finite_differences.finite_difference.generic_derivative">
-<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">generic_derivative</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="n">dim</span></em>, <em class="sig-param"><span class="n">fd_order</span></em>, <em class="sig-param"><span class="n">deriv_order</span></em>, <em class="sig-param"><span class="n">symbolic</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">matvec</span><span class="o">=</span><span class="default_value">direct[1]</span></em>, <em class="sig-param"><span class="n">x0</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
-<dd><p>Arbitrary-order derivative of a given expression.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the derivative is produced.</p></li>
-<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</p></li>
-<li><p><strong>fd_order</strong> (<em>int</em>) – Coefficient discretization order. Note: this impacts the width of
-the resulting stencil.</p></li>
-<li><p><strong>deriv_order</strong> (<em>int</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
-<li><p><strong>stagger</strong> (<em>Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</p></li>
-<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">deriv-order</span></code> derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>expr-like</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt id="devito.finite_differences.finite_difference.generate_indices">
-<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">generate_indices</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">func</span></em>, <em class="sig-param"><span class="n">dim</span></em>, <em class="sig-param"><span class="n">order</span></em>, <em class="sig-param"><span class="n">side</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">x0</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/tools.html#generate_indices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generate_indices" title="Permalink to this definition">¶</a></dt>
-<dd><p>Indices for the finite-difference scheme</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>func</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Function that is differentiated</p></li>
-<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – Dimensions w.r.t which the derivative is taken</p></li>
-<li><p><strong>order</strong> (<em>Int</em>) – Order of the finite-difference scheme</p></li>
-<li><p><strong>side</strong> (<em>Side</em>) – Side of the scheme, (centered, left, right)</p></li>
-<li><p><strong>x0</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>Expr</em><em> or </em><em>Number</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>Ordered list of indices</p>
-</dd>
-</dl>
 </dd></dl>
 
 </div>

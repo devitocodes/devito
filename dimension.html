@@ -185,8 +185,119 @@
   <div class="section" id="module-devito.types.dimension">
 <span id="dimension"></span><h1>Dimension<a class="headerlink" href="#module-devito.types.dimension" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
+<dt id="devito.types.dimension.ConditionalDimension">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ConditionalDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ConditionalDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ConditionalDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
+<p>Symbol defining a non-convex iteration sub-space derived from a <code class="docutils literal notranslate"><span class="pre">parent</span></code>
+Dimension, implemented by the compiler generating conditional “if-then” code
+within the parent Dimension’s iteration space.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
+<li><p><strong>factor</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of iterations between two executions of the if-branch. If None
+(default), <code class="docutils literal notranslate"><span class="pre">condition</span></code> must be provided.</p></li>
+<li><p><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
+Dimension. When it evaluates to True, the if-branch is executed. If None
+(default), <code class="docutils literal notranslate"><span class="pre">factor</span></code> must be provided.</p></li>
+<li><p><strong>indirect</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, use <code class="docutils literal notranslate"><span class="pre">condition</span></code>, rather than the parent Dimension, to
+index into arrays. A typical use case is when arrays are accessed
+indirectly via the <code class="docutils literal notranslate"><span class="pre">condition</span></code> expression. Defaults to False.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Among the other things, ConditionalDimensions are indicated to implement
+Function subsampling. In the following example, an Operator evaluates the
+Function <code class="docutils literal notranslate"><span class="pre">g</span></code> and saves its content into <code class="docutils literal notranslate"><span class="pre">f</span></code> every <code class="docutils literal notranslate"><span class="pre">factor=4</span></code> iterations.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Operator</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">size</span><span class="p">,</span> <span class="n">factor</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">4</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">i</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ci</span> <span class="o">=</span> <span class="n">ConditionalDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ci&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">g</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">size</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">size</span><span class="o">/</span><span class="n">factor</span><span class="p">),),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">ci</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">g</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>The Operator generates the following for-loop (pseudocode)</p>
+<div class="highlight-C notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="n">i_m</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="n">i_M</span><span class="p">;</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+  <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">%</span><span class="mi">4</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">f</span><span class="p">[</span><span class="n">i</span> <span class="o">/</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Another typical use case is when one needs to constrain the execution of
+loop iterations to make sure certain conditions are honoured. The following
+artificial example employs indirect array accesses and uses ConditionalDimension
+to guard against out-of-bounds accesses.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">And</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ci</span> <span class="o">=</span> <span class="n">ConditionalDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ci&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
+<span class="gp">... </span>                          <span class="n">condition</span><span class="o">=</span><span class="n">And</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">size</span><span class="o">/</span><span class="n">factor</span><span class="p">),),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">ci</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]],</span> <span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The Operator generates the following for-loop (pseudocode)</p>
+<div class="highlight-C notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="n">i_m</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="n">i_M</span><span class="p">;</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt id="devito.types.dimension.ConditionalDimension.factor">
+<em class="property">property </em><code class="sig-name descname">factor</code><a class="headerlink" href="#devito.types.dimension.ConditionalDimension.factor" title="Permalink to this definition">¶</a></dt>
+<dd><p>See the factor() function in sympy.polys.polytools</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="devito.types.dimension.ConditionalDimension.free_symbols">
+<em class="property">property </em><code class="sig-name descname">free_symbols</code><a class="headerlink" href="#devito.types.dimension.ConditionalDimension.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return from the atoms of self those which are free symbols.</p>
+<p>For most expressions, all symbols are free symbols. For some classes
+this is not true. e.g. Integrals use Symbols for the dummy variables
+which are bound variables, so Integral has a method to return all
+symbols except those. Derivative keeps track of symbols with respect
+to which it will perform a derivative; those are
+bound variables, too, so it has its own free_symbols method.</p>
+<p>Any other method that uses bound variables should implement a
+free_symbols method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="devito.types.dimension.ConditionalDimension.spacing">
+<em class="property">property </em><code class="sig-name descname">spacing</code><a class="headerlink" href="#devito.types.dimension.ConditionalDimension.spacing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol representing the physical spacing along the Dimension.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="devito.types.dimension.DefaultDimension">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">DefaultDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#DefaultDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.DefaultDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.Dimension</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.DataSymbol</span></code></p>
+<p>Symbol defining an iteration space with statically-known size.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<em>Symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
+<li><p><strong>default_value</strong> (<em>float</em><em>, </em><em>optional</em>) – Default value associated with the Dimension.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>A DefaultDimension carries a value, so it has a mutable state. Hence, it is
+not cached.</p>
+</dd></dl>
+
+<dl class="py class">
 <dt id="devito.types.dimension.Dimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">Dimension</code><a class="reference internal" href="_modules/devito/types/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">Dimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.args.ArgProvider</span></code></p>
 <p>Symbol defining an iteration space.</p>
 <p>A Dimension represents a problem dimension. It is typically used to index
@@ -285,6 +396,59 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 </dd></dl>
 
 <dl class="py class">
+<dt id="devito.types.dimension.IncrDimension">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">IncrDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parent</span></em>, <em class="sig-param"><span class="n">_min</span></em>, <em class="sig-param"><span class="n">_max</span></em>, <em class="sig-param"><span class="n">step</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#IncrDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.IncrDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
+<p>Dimension symbol representing a non-contiguous sub-region of a given
+<code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, with one point every <code class="docutils literal notranslate"><span class="pre">step</span></code> points. Thus, if
+<code class="docutils literal notranslate"><span class="pre">step</span> <span class="pre">==</span> <span class="pre">k</span></code>, the dimension represents the sequence <code class="docutils literal notranslate"><span class="pre">min,</span> <span class="pre">min</span> <span class="pre">+</span> <span class="pre">k,</span>
+<span class="pre">min</span> <span class="pre">+</span> <span class="pre">2*k,</span> <span class="pre">...</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</p></li>
+<li><p><strong>_min</strong> (<em>expr-like</em>) – The minimum point of the Dimension.</p></li>
+<li><p><strong>_max</strong> (<em>expr-like</em>) – The maximum point of the Dimension.</p></li>
+<li><p><strong>step</strong> (<em>int</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
+symbolic size.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default Dimension name.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This type should not be instantiated directly in user code.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="devito.types.dimension.ModuloDimension">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ModuloDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parent</span></em>, <em class="sig-param"><span class="n">offset</span></em>, <em class="sig-param"><span class="n">modulo</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ModuloDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ModuloDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
+<p>Dimension symbol representing a non-contiguous sub-region of a given
+<code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, which cyclically produces a finite range of values,
+such as <code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">...</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</p></li>
+<li><p><strong>offset</strong> (<em>int</em>) – The offset from the parent dimension</p></li>
+<li><p><strong>modulo</strong> (<em>int</em>) – The divisor value.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This type should not be instantiated directly in user code; if in need for
+modulo buffered iteration, use SteppingDimension instead.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="devito.types.dimension.ShiftedDimension">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ShiftedDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">d</span></em>, <em class="sig-param"><span class="n">name</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ShiftedDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ShiftedDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.IncrDimension" title="devito.types.dimension.IncrDimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.IncrDimension</span></code></a></p>
+<p>A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.</p>
+</dd></dl>
+
+<dl class="py class">
 <dt id="devito.types.dimension.SpaceDimension">
 <em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">SpaceDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#SpaceDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.SpaceDimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.BasicDimension</span></code></p>
@@ -301,43 +465,6 @@ derivatives on Functions.</p>
 </ul>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py class">
-<dt id="devito.types.dimension.TimeDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">TimeDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#TimeDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.TimeDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.BasicDimension</span></code></p>
-<p>Symbol defining an iteration space.</p>
-<p>This symbol represents a time dimension that defines the extent of time.</p>
-<p>A TimeDimension create dedicated shortcut notations for time derivatives
-on Functions.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py class">
-<dt id="devito.types.dimension.DefaultDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">DefaultDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#DefaultDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.DefaultDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.Dimension</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.DataSymbol</span></code></p>
-<p>Symbol defining an iteration space with statically-known size.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>spacing</strong> (<em>Symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
-<li><p><strong>default_value</strong> (<em>float</em><em>, </em><em>optional</em>) – Default value associated with the Dimension.</p></li>
-</ul>
-</dd>
-</dl>
-<p class="rubric">Notes</p>
-<p>A DefaultDimension carries a value, so it has a mutable state. Hence, it is
-not cached.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -415,148 +542,21 @@ boundary conditions). To drop this assumption, pass <code class="docutils litera
 </dd></dl>
 
 <dl class="py class">
-<dt id="devito.types.dimension.ConditionalDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ConditionalDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ConditionalDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ConditionalDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
-<p>Symbol defining a non-convex iteration sub-space derived from a <code class="docutils literal notranslate"><span class="pre">parent</span></code>
-Dimension, implemented by the compiler generating conditional “if-then” code
-within the parent Dimension’s iteration space.</p>
+<dt id="devito.types.dimension.TimeDimension">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">TimeDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#TimeDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.TimeDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.BasicDimension</span></code></p>
+<p>Symbol defining an iteration space.</p>
+<p>This symbol represents a time dimension that defines the extent of time.</p>
+<p>A TimeDimension create dedicated shortcut notations for time derivatives
+on Functions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
-<li><p><strong>factor</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of iterations between two executions of the if-branch. If None
-(default), <code class="docutils literal notranslate"><span class="pre">condition</span></code> must be provided.</p></li>
-<li><p><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
-Dimension. When it evaluates to True, the if-branch is executed. If None
-(default), <code class="docutils literal notranslate"><span class="pre">factor</span></code> must be provided.</p></li>
-<li><p><strong>indirect</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, use <code class="docutils literal notranslate"><span class="pre">condition</span></code>, rather than the parent Dimension, to
-index into arrays. A typical use case is when arrays are accessed
-indirectly via the <code class="docutils literal notranslate"><span class="pre">condition</span></code> expression. Defaults to False.</p></li>
+<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
 </ul>
 </dd>
 </dl>
-<p class="rubric">Examples</p>
-<p>Among the other things, ConditionalDimensions are indicated to implement
-Function subsampling. In the following example, an Operator evaluates the
-Function <code class="docutils literal notranslate"><span class="pre">g</span></code> and saves its content into <code class="docutils literal notranslate"><span class="pre">f</span></code> every <code class="docutils literal notranslate"><span class="pre">factor=4</span></code> iterations.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Operator</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">size</span><span class="p">,</span> <span class="n">factor</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">4</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">i</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ci</span> <span class="o">=</span> <span class="n">ConditionalDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ci&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">g</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">size</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">size</span><span class="o">/</span><span class="n">factor</span><span class="p">),),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">ci</span><span class="p">,))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">g</span><span class="p">)])</span>
-</pre></div>
-</div>
-<p>The Operator generates the following for-loop (pseudocode)</p>
-<div class="highlight-C notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="n">i_m</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="n">i_M</span><span class="p">;</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
-  <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
-  <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">%</span><span class="mi">4</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-    <span class="n">f</span><span class="p">[</span><span class="n">i</span> <span class="o">/</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>Another typical use case is when one needs to constrain the execution of
-loop iterations to make sure certain conditions are honoured. The following
-artificial example employs indirect array accesses and uses ConditionalDimension
-to guard against out-of-bounds accesses.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">And</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ci</span> <span class="o">=</span> <span class="n">ConditionalDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ci&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
-<span class="gp">... </span>                          <span class="n">condition</span><span class="o">=</span><span class="n">And</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">size</span><span class="o">/</span><span class="n">factor</span><span class="p">),),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">ci</span><span class="p">,))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]],</span> <span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
-</pre></div>
-</div>
-<p>The Operator generates the following for-loop (pseudocode)</p>
-<div class="highlight-C notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="n">i_m</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="n">i_M</span><span class="p">;</span> <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
-  <span class="k">if</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">)</span> <span class="p">{</span>
-    <span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<dl class="py method">
-<dt id="devito.types.dimension.ConditionalDimension.factor">
-<em class="property">property </em><code class="sig-name descname">factor</code><a class="headerlink" href="#devito.types.dimension.ConditionalDimension.factor" title="Permalink to this definition">¶</a></dt>
-<dd><p>See the factor() function in sympy.polys.polytools</p>
-</dd></dl>
-
-<dl class="py method">
-<dt id="devito.types.dimension.ConditionalDimension.free_symbols">
-<em class="property">property </em><code class="sig-name descname">free_symbols</code><a class="headerlink" href="#devito.types.dimension.ConditionalDimension.free_symbols" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return from the atoms of self those which are free symbols.</p>
-<p>For most expressions, all symbols are free symbols. For some classes
-this is not true. e.g. Integrals use Symbols for the dummy variables
-which are bound variables, so Integral has a method to return all
-symbols except those. Derivative keeps track of symbols with respect
-to which it will perform a derivative; those are
-bound variables, too, so it has its own free_symbols method.</p>
-<p>Any other method that uses bound variables should implement a
-free_symbols method.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt id="devito.types.dimension.ConditionalDimension.spacing">
-<em class="property">property </em><code class="sig-name descname">spacing</code><a class="headerlink" href="#devito.types.dimension.ConditionalDimension.spacing" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol representing the physical spacing along the Dimension.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt id="devito.types.dimension.ModuloDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ModuloDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ModuloDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ModuloDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
-<p>Dimension symbol representing a non-contiguous sub-region of a given
-<code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, which cyclically produces a finite range of values,
-such as <code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">...</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</p></li>
-<li><p><strong>offset</strong> (<em>int</em>) – The offset from the parent dimension</p></li>
-<li><p><strong>modulo</strong> (<em>int</em>) – The divisor value.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</p></li>
-</ul>
-</dd>
-</dl>
-<p class="rubric">Notes</p>
-<p>This type should not be instantiated directly in user code; if in need for
-modulo buffered iteration, use SteppingDimension instead.</p>
-</dd></dl>
-
-<dl class="py class">
-<dt id="devito.types.dimension.IncrDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">IncrDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#IncrDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.IncrDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
-<p>Dimension symbol representing a non-contiguous sub-region of a given
-<code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, with one point every <code class="docutils literal notranslate"><span class="pre">step</span></code> points. Thus, if
-<code class="docutils literal notranslate"><span class="pre">step</span> <span class="pre">==</span> <span class="pre">k</span></code>, the dimension represents the sequence <code class="docutils literal notranslate"><span class="pre">min,</span> <span class="pre">min</span> <span class="pre">+</span> <span class="pre">k,</span>
-<span class="pre">min</span> <span class="pre">+</span> <span class="pre">2*k,</span> <span class="pre">...</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</p></li>
-<li><p><strong>_min</strong> (<em>expr-like</em>) – The minimum point of the Dimension.</p></li>
-<li><p><strong>_max</strong> (<em>expr-like</em>) – The maximum point of the Dimension.</p></li>
-<li><p><strong>step</strong> (<em>int</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
-symbolic size.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default Dimension name.</p></li>
-</ul>
-</dd>
-</dl>
-<p class="rubric">Notes</p>
-<p>This type should not be instantiated directly in user code.</p>
-</dd></dl>
-
-<dl class="py class">
-<dt id="devito.types.dimension.ShiftedDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ShiftedDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ShiftedDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ShiftedDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.IncrDimension" title="devito.types.dimension.IncrDimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.IncrDimension</span></code></a></p>
-<p>A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.</p>
 </dd></dl>
 
 </div>

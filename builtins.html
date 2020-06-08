@@ -215,27 +215,6 @@ be passed to Eq.</p></li>
 </dd></dl>
 
 <dl class="py function">
-<dt id="devito.builtins.smooth">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">smooth</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">g</span></em>, <em class="sig-param"><span class="n">axis</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.smooth" title="Permalink to this definition">¶</a></dt>
-<dd><p>Smooth a Function through simple moving average.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</p></li>
-<li><p><strong>g</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The right-hand side of the smoothing kernel, that is the Function being smoothed.</p></li>
-<li><p><strong>axis</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimensions</em><em>, </em><em>optional</em>) – The Dimension along which the smoothing operation is performed. Defaults
-to <code class="docutils literal notranslate"><span class="pre">f</span></code>’s innermost Dimension.</p></li>
-</ul>
-</dd>
-</dl>
-<p class="rubric">Notes</p>
-<p>More info about simple moving average available at:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">en</span><span class="o">.</span><span class="n">wikipedia</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">wiki</span><span class="o">/</span><span class="n">Moving_average</span><span class="c1">#Simple_moving_average</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
 <dt id="devito.builtins.gaussian_smooth">
 <code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">gaussian_smooth</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">sigma</span><span class="o">=</span><span class="default_value">1</span></em>, <em class="sig-param"><span class="n">truncate</span><span class="o">=</span><span class="default_value">4.0</span></em>, <em class="sig-param"><span class="n">mode</span><span class="o">=</span><span class="default_value">'reflect'</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#gaussian_smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.gaussian_smooth" title="Permalink to this definition">¶</a></dt>
 <dd><p>Gaussian smooth function.</p>
@@ -318,31 +297,6 @@ executed after padding is complete.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt id="devito.builtins.norm">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">norm</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">order</span><span class="o">=</span><span class="default_value">2</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#norm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.norm" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the norm of a Function.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input Function.</p></li>
-<li><p><strong>order</strong> (<em>int</em><em>, </em><em>optional</em>) – The order of the norm. Defaults to 2.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt id="devito.builtins.sumall">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">sumall</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#sumall"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.sumall" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the sum of all Function data.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input Function.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
 <dt id="devito.builtins.inner">
 <code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">inner</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">g</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#inner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.inner" title="Permalink to this definition">¶</a></dt>
 <dd><p>Inner product of two Functions.</p>
@@ -366,6 +320,17 @@ the inner product corresponds to the dot product.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt id="devito.builtins.mmax">
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">mmax</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#mmax"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.mmax" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve the maximum.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>f</strong> (<em>array_like</em><em> or </em><a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input operand.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt id="devito.builtins.mmin">
 <code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">mmin</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#mmin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.mmin" title="Permalink to this definition">¶</a></dt>
 <dd><p>Retrieve the minimum.</p>
@@ -377,12 +342,47 @@ the inner product corresponds to the dot product.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt id="devito.builtins.mmax">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">mmax</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#mmax"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.mmax" title="Permalink to this definition">¶</a></dt>
-<dd><p>Retrieve the maximum.</p>
+<dt id="devito.builtins.norm">
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">norm</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#norm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.norm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the norm of a Function.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>f</strong> (<em>array_like</em><em> or </em><a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input operand.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input Function.</p></li>
+<li><p><strong>order</strong> (<em>int</em><em>, </em><em>optional</em>) – The order of the norm. Defaults to 2.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="devito.builtins.smooth">
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">smooth</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em>, <em class="sig-param"><span class="n">g</span></em>, <em class="sig-param"><span class="n">axis</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.smooth" title="Permalink to this definition">¶</a></dt>
+<dd><p>Smooth a Function through simple moving average.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</p></li>
+<li><p><strong>g</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The right-hand side of the smoothing kernel, that is the Function being smoothed.</p></li>
+<li><p><strong>axis</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimensions</em><em>, </em><em>optional</em>) – The Dimension along which the smoothing operation is performed. Defaults
+to <code class="docutils literal notranslate"><span class="pre">f</span></code>’s innermost Dimension.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>More info about simple moving average available at:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">en</span><span class="o">.</span><span class="n">wikipedia</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">wiki</span><span class="o">/</span><span class="n">Moving_average</span><span class="c1">#Simple_moving_average</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt id="devito.builtins.sumall">
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">sumall</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">f</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#sumall"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.sumall" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the sum of all Function data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input Function.</p>
 </dd>
 </dl>
 </dd></dl>
