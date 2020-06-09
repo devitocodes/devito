@@ -237,13 +237,12 @@ def solve(eq, target, **kwargs):
             sols.append(-cc[1]/cc[0])
         except ValueError:
             warning("Equation is not affine w.r.t the target, falling back to standard"
-                    "sympy.solve that may be extremely slow")
+                    "sympy.solve that may be slow")
             kwargs['rational'] = False  # Avoid float indices
             kwargs['simplify'] = False  # Do not attempt premature optimisation
             sols.append(sympy.solve(e.evaluate, t, **kwargs)[0])
     # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
-    from devito.types import TensorFunction
-    if isinstance(target, TensorFunction):
+    if len(sols) > 1:
         return target.new_from_mat(sols)
     else:
         return sols[0]

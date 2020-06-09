@@ -56,14 +56,14 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     q = kwargs.get('q', 0)
     # Define PDE and update rule
     eq_time = solve(m * field.dt2 - lap - q + damp * udt, unext)
-    # return the Stencil with H replaced by its symbolic expression
+    # Time update stencil
     return [Eq(unext, eq_time)]
 
 
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='OT2', **kwargs):
     """
-    Construct a forward modelling operator in an acoustic media.
+    Construct a forward modelling operator in an acoustic medium.
 
     Parameters
     ----------

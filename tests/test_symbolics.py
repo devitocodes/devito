@@ -25,8 +25,8 @@ def test_float_indices():
 @pytest.mark.parametrize('so', [2, 4])
 def test_solve(so):
     """
-    Test that our solve produces the correct output and in a smaller time
-    for an affine equation (i.e PDE time steppers).
+    Test that our solve produces the correct output and faster than sympy's
+    default behavior for an affine equation (i.e. PDE time steppers).
     """
     grid = Grid((10, 10, 10))
     u = TimeFunction(name="u", grid=grid, time_order=2, space_order=so)
