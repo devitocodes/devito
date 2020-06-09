@@ -109,6 +109,9 @@ def lower_exprs(expressions, **kwargs):
             mapper[i] = f.indexed[indices]
 
         subs = kwargs.get('subs')
+        # Add dimensions map to the mapper in case dimensions are used
+        # as an expression, i.e. Eq(u, x, subdomain=xleft)
+        mapper.update(dimension_map)
         if subs:
             # Include the user-supplied substitutions, and use
             # `xreplace` for constant folding
