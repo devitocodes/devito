@@ -12,7 +12,7 @@ from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.operator.profiling import Timer
-from devito.types import Symbol as dSymbol, Scalar
+from devito.types import Array, Symbol as dSymbol, Scalar, PointerArray
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer, DefFunction
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
@@ -98,6 +98,34 @@ def test_internal_symbols():
     new_s = pickle.loads(pkl_s)
     assert new_s.name == s.name
     assert new_s.assumptions0['nonnegative'] is True
+
+
+def test_array():
+    grid = Grid(shape=(3, 3))
+    d = Dimension(name='d')
+
+    a = Array(name='a', dimensions=grid.dimensions, dtype=np.int32, halo=((1, 1), (2, 2)),
+              padding=((2, 2), (2, 2)), scope='stack', sharing='local')
+
+    pkl_a = pickle.dumps(a)
+    new_a = pickle.loads(pkl_a)
+    assert new_a.name == a.name
+    assert new_a.dtype is np.int32
+    assert new_a.dimensions[0].name == 'x'
+    assert new_a.dimensions[1].name == 'y'
+    assert new_a.halo == ((1, 1), (2, 2))
+    assert new_a.padding == ((2, 2), (2, 2))
+    assert new_a.scope == 'stack'
+    assert new_a.sharing == 'local'
+
+    # Now with a pointer array
+    pa = PointerArray(name='pa', dimensions=d, array=a)
+
+    pkl_pa = pickle.dumps(pa)
+    new_pa = pickle.loads(pkl_pa)
+    assert new_pa.name == pa.name
+    assert new_pa.dim.name == 'd'
+    assert new_pa.array.name == 'a'
 
 
 def test_sub_dimension():
