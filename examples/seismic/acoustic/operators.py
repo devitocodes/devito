@@ -1,5 +1,37 @@
-from devito import Eq, Operator, Function, TimeFunction, Inc, solve
+from sympy import sign
+
+from devito import Eq, Operator, Function, TimeFunction, Inc
+from devito.symbolics import retrieve_functions, INT
 from examples.seismic import PointSource, Receiver
+
+
+def freesurface(model, pde, u):
+    """
+    Generate the stencil that mirrors the field as a free surface modeling for
+    the acoustic wave equation
+    Parameters
+    ----------
+    field: TimeFunction or Tuple
+        Field for which to add a free surface
+    npml: int
+        Number of ABC points
+    forward: Bool
+        Whether it is forward or backward propagation (in time)
+    """
+    lhs = pde.lhs
+    rhs = pde.rhs.evaluate
+    # Add modulo replacements to to rhs
+    z = model.grid.dimensions[-1]
+    zfs = model.grid.subdomains['fsdomain'].dimensions[-1]
+
+    funcs = retrieve_functions(rhs)
+    mapper = {}
+    for f in funcs:
+        zind = f.indices[-1]
+        if (zind - z).as_coeff_Mul()[0] < 0:
+            s = sign(zind.subs({z: zfs, z.spacing: 1}))
+            mapper.update({f: s * f.subs({zind: INT(abs(zind))})})
+    return Eq(lhs, rhs.subs(mapper), subdomain=model.grid.subdomains['fsdomain'])
 
 
 def laplacian(field, m, s, kernel):
@@ -25,7 +57,7 @@ def laplacian(field, m, s, kernel):
     return field.laplace + s**2/12 * biharmonic
 
 
-def iso_stencil(field, m, s, damp, kernel, **kwargs):
+def iso_stencil(field, model, kernel, **kwargs):
     """
     Stencil for the acoustic isotropic wave-equation:
     u.dt2 - H + damp*u.dt = 0.
@@ -56,8 +88,14 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     q = kwargs.get('q', 0)
     # Define PDE and update rule
     eq_time = solve(m * field.dt2 - lap - q + damp * udt, unext)
-    # Time update stencil
-    return [Eq(unext, eq_time)]
+
+    # return the Stencil with H replaced by its symbolic expression
+    eqns = [Eq(next, eq_time, subdomain=model.grid.subdomains['physdomain'])]
+
+    # Add free surface
+    if model.fs:
+        eqns.append(freesurface(model, Eq(next, eq_time), field))
+    return eqns
 
 
 def ForwardOperator(model, geometry, space_order=4,
@@ -78,7 +116,7 @@ def ForwardOperator(model, geometry, space_order=4,
         Saving flag, True saves all time steps. False saves three timesteps.
         Defaults to False.
     """
-    m, damp = model.m, model.damp
+    m = model.m
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
@@ -91,7 +129,7 @@ def ForwardOperator(model, geometry, space_order=4,
                    npoint=geometry.nrec)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(u, m, s, damp, kernel)
+    eqn = iso_stencil(u, model, kernel)
 
     # Construct expression to inject source values
     src_term = src.inject(field=u.forward, expr=src * s**2 / m)
@@ -120,7 +158,7 @@ def AdjointOperator(model, geometry, space_order=4,
     kernel : str, optional
         Type of discretization, centered or shifted.
     """
-    m, damp = model.m, model.damp
+    m = model.m
 
     v = TimeFunction(name='v', grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
@@ -130,7 +168,7 @@ def AdjointOperator(model, geometry, space_order=4,
                    npoint=geometry.nrec)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
+    eqn = iso_stencil(v, model, kernel, forward=False)
 
     # Construct expression to inject receiver values
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
@@ -162,7 +200,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     kernel : str, optional
         Type of discretization, centered or shifted.
     """
-    m, damp = model.m, model.damp
+    m = model.m
 
     # Gradient symbol and wavefield symbols
     grad = Function(name='grad', grid=model.grid)
@@ -174,7 +212,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
                    npoint=geometry.nrec)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
+    eqn = iso_stencil(v, model, kernel, forward=False)
 
     if kernel == 'OT2':
         gradient_update = Inc(grad, - u.dt2 * v)
@@ -205,7 +243,7 @@ def BornOperator(model, geometry, space_order=4,
     kernel : str, optional
         Type of discretization, centered or shifted.
     """
-    m, damp = model.m, model.damp
+    m = model.m
 
     # Create source and receiver symbols
     src = Receiver(name='src', grid=model.grid, time_range=geometry.time_axis,
@@ -222,8 +260,8 @@ def BornOperator(model, geometry, space_order=4,
     dm = Function(name="dm", grid=model.grid, space_order=0)
 
     s = model.grid.stepping_dim.spacing
-    eqn1 = iso_stencil(u, m, s, damp, kernel)
-    eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2)
+    eqn1 = iso_stencil(u, model, kernel)
+    eqn2 = iso_stencil(U, model, kernel, q=-dm*u.dt2)
 
     # Add source term expression for u
     source = src.inject(field=u.forward, expr=src * s**2 / m)

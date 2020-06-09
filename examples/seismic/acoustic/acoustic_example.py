@@ -8,10 +8,10 @@ from examples.seismic import demo_model, setup_geometry, seismic_args
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., kernel='OT2', space_order=4, nbl=10,
-                   preset='layers-isotropic', **kwargs):
+                   preset='layers-isotropic', fs=False, **kwargs):
     model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing,
-                       **kwargs)
+                       fs=fs, **kwargs)
 
     # Source and receiver geometries
     geometry = setup_geometry(model, tn)
@@ -23,12 +23,12 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        space_order=4, kernel='OT2', nbl=40, full_run=False,
+        space_order=4, kernel='OT2', nbl=40, full_run=False, fs=False,
         autotune=False, preset='layers-isotropic', checkpointing=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
                             space_order=space_order, kernel=kernel,
-                            preset=preset, **kwargs)
+                            preset=preset, fs=fs, **kwargs)
 
     info("Applying Forward")
     # Whether or not we save the whole time history. We only need the full wavefield
@@ -75,4 +75,4 @@ if __name__ == "__main__":
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
         autotune=args.autotune, opt=args.opt, full_run=args.full,
-        checkpointing=args.checkpointing)
+        checkpointing=args.checkpointing, fs=args.fs)

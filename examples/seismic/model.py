@@ -3,7 +3,7 @@ from sympy import sin, Abs, finite_diff_weights
 
 
 from devito import (Grid, SubDomain, Function, Constant,
-                    SubDimension, Eq, Inc, Operator, div)
+                    SubDimension, Eq, Inc, Operator, div, warning)
 from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
 from devito.tools import as_tuple
 
@@ -11,7 +11,7 @@ __all__ = ['SeismicModel', 'Model', 'ModelElastic',
            'ModelViscoelastic', 'ModelViscoacoustic']
 
 
-def initialize_damp(damp, nbl, spacing, abc_type="damp"):
+def initialize_damp(damp, nbl, spacing, abc_type="damp", fs=False):
     """
     Initialise damping field with an absorbing boundary layer.
 
@@ -32,13 +32,14 @@ def initialize_damp(damp, nbl, spacing, abc_type="damp"):
 
     eqs = [Eq(damp, 1.0)] if abc_type == "mask" else []
     for d in damp.dimensions:
-        # left
-        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                  thickness=nbl)
-        pos = Abs((nbl - (dim_l - d.symbolic_min) + 1) / float(nbl))
-        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
-        val = -val if abc_type == "mask" else val
-        eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
+        if not fs or d is not damp.dimensions[-1]:
+            # left
+            dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                      thickness=nbl)
+            pos = Abs((nbl - (dim_l - d.symbolic_min) + 1) / float(nbl))
+            val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+            val = -val if abc_type == "mask" else val
+            eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
         # right
         dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
                                    thickness=nbl)
@@ -52,14 +53,36 @@ def initialize_damp(damp, nbl, spacing, abc_type="damp"):
 
 class PhysicalDomain(SubDomain):
 
-    name = 'phydomain'
+    name = 'physdomain'
 
-    def __init__(self, nbl):
+    def __init__(self, so, fs=False):
         super(PhysicalDomain, self).__init__()
-        self.nbl = nbl
+        self.so = so
+        self.fs = fs
 
     def define(self, dimensions):
-        return {d: ('middle', self.nbl, self.nbl) for d in dimensions}
+        map_d = {d: d for d in dimensions}
+        if self.fs:
+            map_d[dimensions[-1]] = ('middle', self.so, 0)
+        return map_d
+
+
+class FSDomain(SubDomain):
+
+    name = 'fsdomain'
+
+    def __init__(self, so):
+        super(FSDomain, self).__init__()
+        self.size = so
+
+    def define(self, dimensions):
+        """
+        Definition of the top part of the domain for wrapped indices FS
+        """
+        z = dimensions[-1]
+        map_d = {d: d for d in dimensions}
+        map_d.update({z: ('left', self.size)})
+        return map_d
 
 
 class GenericModel(object):
@@ -67,19 +90,30 @@ class GenericModel(object):
     General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
-                 dtype=np.float32, subdomains=(), bcs="damp", grid=None):
+                 dtype=np.float32, subdomains=(), bcs="damp", grid=None,
+                 fs=False):
         self.shape = shape
         self.space_order = space_order
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
+        self.fs = fs
+        if self.fs:
+            warning("Freesurface is only supported for isotropic acoustic solver")
+        # Default setup
+        origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing)]
+        shape_pml = np.array(shape) + 2 * self.nbl
 
+        # Model size depending on freesurface
+        physdomain = PhysicalDomain(space_order, fs=fs)
+        subdomains = subdomains + (physdomain,)
+        if fs:
+            fsdomain = FSDomain(space_order)
+            subdomains = subdomains + (fsdomain,)
+            origin_pml[-1] = origin[-1]
+            shape_pml[-1] -= self.nbl
         # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index
         if grid is None:
-            origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
-            phydomain = PhysicalDomain(self.nbl)
-            subdomains = subdomains + (phydomain, )
-            shape_pml = np.array(shape) + 2 * self.nbl
             # Physical extent is calculated per cell, so shape - 1
             extent = tuple(np.array(spacing) * (shape_pml - 1))
             self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
@@ -87,17 +121,26 @@ class GenericModel(object):
         else:
             self.grid = grid
 
+        # Create dampening field as symbol `damp`
         if self.nbl != 0:
-            # Create dampening field as symbol `damp`
             self.damp = Function(name="damp", grid=self.grid)
             if callable(bcs):
                 bcs(self.damp, self.nbl)
             else:
-                initialize_damp(self.damp, self.nbl, self.spacing, abc_type=bcs)
+                initialize_damp(self.damp, self.nbl, self.spacing, abc_type=bcs, fs=fs)
             self._physical_parameters = ['damp']
         else:
             self.damp = 1 if bcs == "mask" else 0
             self._physical_parameters = []
+
+    @property
+    def padsizes(self):
+        """
+        Padding size for each dimension.
+        """
+        padsizes = [(self.nbl, self.nbl) for _ in range(self.dim-1)]
+        padsizes.append((0 if self.fs else self.nbl, self.nbl))
+        return padsizes
 
     def physical_params(self, **kwargs):
         """
@@ -113,7 +156,7 @@ class GenericModel(object):
         if isinstance(field, np.ndarray):
             function = Function(name=name, grid=self.grid, space_order=space_order,
                                 parameter=is_param)
-            initialize_function(function, field, self.nbl)
+            initialize_function(function, field, self.padsizes)
         else:
             function = Constant(name=name, value=field, dtype=self.grid.dtype)
         self._physical_parameters.append(name)
@@ -208,10 +251,10 @@ class SeismicModel(GenericModel):
     _known_parameters = ['vp', 'damp', 'vs', 'b', 'epsilon', 'delta',
                          'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
 
-    def __init__(self, origin, spacing, shape, space_order, vp, nbl=20,
+    def __init__(self, origin, spacing, shape, space_order, vp, nbl=20, fs=False,
                  dtype=np.float32, subdomains=(), bcs="mask", grid=None, **kwargs):
         super(SeismicModel, self).__init__(origin, spacing, shape, space_order, nbl,
-                                           dtype, subdomains, grid=grid, bcs=bcs)
+                                           dtype, subdomains, grid=grid, bcs=bcs, fs=fs)
 
         # Initialize physics
         self._initialize_physics(vp, space_order, **kwargs)
