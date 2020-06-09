@@ -1,5 +1,6 @@
 # Need only from within Devito
 from .basic import *  # noqa
+from .array import *  # noqa
 
 # Needed both within and outside Devito
 from .dimension import *  # noqa
