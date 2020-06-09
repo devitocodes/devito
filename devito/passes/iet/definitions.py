@@ -8,7 +8,7 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (ArrayCast, List, LocalExpression, FindSymbols,
+from devito.ir import (List, LocalExpression, PointerCast, FindSymbols,
                        MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.openmp import Ompizer
@@ -242,7 +242,7 @@ class DataManager(object):
         indexed_names = {i.name for i in FindSymbols('indexeds').visit(iet)}
         need_cast = {i for i in need_cast if i.name in indexed_names or i.is_Array}
 
-        casts = tuple(ArrayCast(i) for i in iet.parameters if i in need_cast)
+        casts = tuple(PointerCast(i) for i in iet.parameters if i in need_cast)
         iet = iet._rebuild(body=casts + iet.body)
 
         return iet, {}

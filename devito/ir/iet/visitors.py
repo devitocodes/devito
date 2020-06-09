@@ -198,7 +198,7 @@ class CGen(Visitor):
                 ret.append(ccode(i))
         return ret
 
-    def visit_ArrayCast(self, o):
+    def visit_PointerCast(self, o):
         f = o.function
         shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
         if f.is_DiscreteFunction:
@@ -586,7 +586,7 @@ class FindSymbols(Visitor):
         symbols.extend([f for f in self.rule(o)])
         return filter_sorted(symbols, key=attrgetter('name'))
 
-    visit_ArrayCast = visit_Expression
+    visit_PointerCast = visit_Expression
     visit_Dereference = visit_Expression
 
 

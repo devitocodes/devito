@@ -21,7 +21,7 @@ from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
+           'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
            'ParallelIteration', 'ParallelBlock', 'Dereference']
 
@@ -44,7 +44,7 @@ class Node(Signer):
     is_ElementalFunction = False
     is_Call = False
     is_List = False
-    is_ArrayCast = False
+    is_PointerCast = False
     is_Dereference = False
     is_Element = False
     is_Section = False
@@ -700,23 +700,25 @@ class TimedList(List):
         return (self.timer,)
 
 
-class ArrayCast(Node):
+class PointerCast(Node):
 
     """
     A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
     """
 
-    is_ArrayCast = True
+    is_PointerCast = True
 
     def __init__(self, function):
         self.function = function
 
     def __repr__(self):
-        return "<ArrayCast(%s)>" % self.function
+        return "<PointerCast(%s)>" % self.function
 
     @property
     def castshape(self):
-        """The shape used in the left-hand side and right-hand side of the ArrayCast."""
+        """
+        The shape used in the left-hand side and right-hand side of the PointerCast.
+        """
         if self.function.is_Array:
             return self.function.symbolic_shape[1:]
         else:
@@ -730,7 +732,7 @@ class ArrayCast(Node):
     @property
     def free_symbols(self):
         """
-        The symbols required by the ArrayCast.
+        The symbols required by the PointerCast.
 
         This may include DiscreteFunctions as well as Dimensions.
         """
@@ -772,7 +774,7 @@ class Dereference(ExprStmt, Node):
     @property
     def free_symbols(self):
         """
-        The symbols required by the ArrayCast.
+        The symbols required by the PointerCast.
 
         This may include DiscreteFunctions as well as Dimensions.
         """
