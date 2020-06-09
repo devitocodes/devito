@@ -65,15 +65,19 @@ class Basic(object):
 
     # Symbolic objects created internally by Devito
     is_Symbol = False
+    is_ArrayBasic = False
     is_Array = False
+    is_PointerArray = False
     is_Object = False
     is_LocalObject = False
 
     # Created by the user
     is_Input = False
+
     # Scalar symbolic objects created by the user
     is_Dimension = False
     is_Constant = False
+
     # Tensor symbolic objects created by the user
     is_DiscreteFunction = False
     is_Function = False
