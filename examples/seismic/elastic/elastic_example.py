@@ -40,6 +40,12 @@ def test_elastic():
     assert np.isclose(norm(rec2), 0.627606, atol=1e-3, rtol=0)
 
 
+def test_elastic_stability():
+    _, _, _, [rec1, rec2, v, tau] = run(shape=(11, 11), tn=20000.0, nbl=0)
+    norm = lambda x: np.linalg.norm(x.data.reshape(-1))
+    assert np.isfinite(norm(rec1))
+
+
 if __name__ == "__main__":
     description = ("Example script for a set of elastic operators.")
     args = seismic_args(description).parse_args()

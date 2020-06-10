@@ -62,6 +62,12 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
+def test_isoacoustic_stability():
+    rec, _, _ = run(shape=(11, 11), tn=20000.0, nbl=0)
+    norm = lambda x: np.linalg.norm(x.data.reshape(-1))
+    assert np.isfinite(norm(rec))
+
+
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = seismic_args(description)

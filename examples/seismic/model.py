@@ -129,7 +129,7 @@ class GenericModel(object):
                 initialize_damp(self.damp, self.nbl, self.spacing, abc_type=bcs, fs=fs)
             self._physical_parameters = ['damp']
         else:
-            self.damp = 1.0 if bcs == "mask" else 0
+            self.damp = 1 if bcs == "mask" else 0
             self._physical_parameters = []
 
     @property
