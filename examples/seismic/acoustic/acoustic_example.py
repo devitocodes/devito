@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from devito.logger import info
 from devito import Constant, Function, smooth
@@ -62,8 +63,11 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
-def test_isoacoustic_stability():
-    rec, _, _ = run(shape=(11, 11), tn=20000.0, nbl=0)
+@pytest.mark.parametrize('ndim', [1, 2, 3])
+def test_isoacoustic_stability(ndim):
+    shape = tuple([11]*ndim)
+    spacing = tuple([20]*ndim)
+    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
     assert np.isfinite(norm(rec))
 

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from devito.logger import info
 from examples.seismic.viscoelastic import ViscoelasticWaveSolver
@@ -28,8 +29,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, v, tau, summary = solver.forward(autotune=autotune)
-    from devito import norm
-    print(norm(rec1), norm(rec2), norm(v[0]))
+
     return (summary.gflopss, summary.oi, summary.timings,
             [rec1, rec2, v, tau])
 
@@ -37,12 +37,15 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_viscoelastic():
     _, _, _, [rec1, rec2, v, tau] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec1), 11.75186, atol=1e-3, rtol=0)
-    assert np.isclose(norm(rec2), 0.275607, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec1), 12.28040, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 0.312461, atol=1e-3, rtol=0)
 
 
-def test_viscoelastic_stability():
-    _, _, _, [rec1, rec2, v, tau] = run(shape=(11, 11), tn=20000.0, nbl=0)
+@pytest.mark.parametrize('ndim', [1, 2, 3])
+def test_viscoelastic_stability(ndim):
+    shape = tuple([11]*ndim)
+    spacing = tuple([20]*ndim)
+    _, _, _, [rec1, rec2, v, tau] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
     assert np.isfinite(norm(rec1))
 

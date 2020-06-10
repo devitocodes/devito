@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from devito.logger import info
 from examples.seismic.elastic import ElasticWaveSolver
@@ -40,8 +41,11 @@ def test_elastic():
     assert np.isclose(norm(rec2), 0.627606, atol=1e-3, rtol=0)
 
 
-def test_elastic_stability():
-    _, _, _, [rec1, rec2, v, tau] = run(shape=(11, 11), tn=20000.0, nbl=0)
+@pytest.mark.parametrize('ndim', [1, 2, 3])
+def test_elastic_stability(ndim):
+    shape = tuple([11]*ndim)
+    spacing = tuple([20]*ndim)
+    _, _, _, [rec1, rec2, v, tau] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
     assert np.isfinite(norm(rec1))
 

@@ -1,7 +1,5 @@
 import numpy as np
-from sympy import sin, Abs
-from sympy import finite_diff_weights as fd_w
-
+from sympy import sin, Abs, finite_diff_weights as fd_w
 
 from devito import (Grid, SubDomain, Function, Constant,
                     SubDimension, Eq, Inc, Operator, div)
