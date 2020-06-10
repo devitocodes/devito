@@ -28,7 +28,11 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 if __name__ == "__main__":
     description = ("Example script to execute a TTI forward operator.")
-    args = seismic_args(description)
+    parser = seismic_args(description)
+    parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
+                        help="Whether or not to use an azimuth angle")
+    args = parser.parse_args()
+
     # Switch to TTI kernel if input is acoustic kernel
     kernel = 'centered' if args.kernel in ['OT2', 'OT4'] else args.kernel
     preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
@@ -37,7 +41,7 @@ if __name__ == "__main__":
     ndim = args.ndim
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [10.0])
-    tn = 750. if ndim < 3 else 250.
+    tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, autotune=args.autotune,

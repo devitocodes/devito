@@ -1,31 +1,32 @@
 from sympy import sign
 
-from devito import Eq, Operator, Function, TimeFunction, Inc
+from devito import Eq, Operator, Function, TimeFunction, Inc, solve
 from devito.symbolics import retrieve_functions, INT
 from examples.seismic import PointSource, Receiver
 
 
-def freesurface(model, pde, u):
+def freesurface(model, eq):
     """
     Generate the stencil that mirrors the field as a free surface modeling for
-    the acoustic wave equation
+    the acoustic wave equation.
+
     Parameters
     ----------
-    field: TimeFunction or Tuple
-        Field for which to add a free surface
-    npml: int
-        Number of ABC points
-    forward: Bool
-        Whether it is forward or backward propagation (in time)
+    model : Model
+        Physical model.
+    eq : Eq
+        Time-stepping stencil (time update) to mirror at the freesurface.
     """
-    lhs = pde.lhs
-    rhs = pde.rhs.evaluate
-    # Add modulo replacements to to rhs
-    z = model.grid.dimensions[-1]
+    lhs, rhs = eq.evaluate
+    # Get vertical dimension and corresponding subdimension
     zfs = model.grid.subdomains['fsdomain'].dimensions[-1]
+    z = zfs.parent
 
+    # Functions present in the stencil
     funcs = retrieve_functions(rhs)
     mapper = {}
+    # Antisymmetric mirror at negative indices
+    # TODO: Make a proper "mirror_indices" tool function
     for f in funcs:
         zind = f.indices[-1]
         if (zind - z).as_coeff_Mul()[0] < 0:
@@ -34,9 +35,9 @@ def freesurface(model, pde, u):
     return Eq(lhs, rhs.subs(mapper), subdomain=model.grid.subdomains['fsdomain'])
 
 
-def laplacian(field, m, s, kernel):
+def laplacian(field, model, kernel):
     """
-    Spacial discretization for the isotropic acoustic wave equation. For a 4th
+    Spatial discretization for the isotropic acoustic wave equation. For a 4th
     order in time formulation, the 4th order time derivative is replaced by a
     double laplacian:
     H = (laplacian + s**2/12 laplacian(1/m*laplacian))
@@ -45,15 +46,13 @@ def laplacian(field, m, s, kernel):
     ----------
     field : TimeFunction
         The computed solution.
-    m : Function or float
-        Square slowness.
-    s : float or Scalar
-        The time dimension spacing.
+    model : Model
+        Physical model.
     """
     if kernel not in ['OT2', 'OT4']:
         raise ValueError("Unrecognized kernel")
-
-    biharmonic = field.biharmonic(1/m) if kernel == 'OT4' else 0
+    s = model.grid.time_dim.spacing
+    biharmonic = field.biharmonic(1/model.m) if kernel == 'OT4' else 0
     return field.laplace + s**2/12 * biharmonic
 
 
@@ -66,16 +65,14 @@ def iso_stencil(field, model, kernel, **kwargs):
     ----------
     field : TimeFunction
         The computed solution.
-    m : Function or float
-        Square slowness.
-    s : float or Scalar
-        The time dimension spacing.
-    damp : Function
-        The damping field for absorbing boundary condition.
-    forward : bool
-        The propagation direction. Defaults to True.
+    model : Model
+        Physical model.
+    kernel : str, optional
+        Type of discretization, 'OT2' or 'OT4'.
     q : TimeFunction, Function or float
         Full-space/time source of the wave-equation.
+    forward : bool, optional
+        Whether to propagate forward (True) or backward (False) in time.
     """
     # Forward or backward
     forward = kwargs.get('forward', True)
@@ -83,18 +80,18 @@ def iso_stencil(field, model, kernel, **kwargs):
     unext = field.forward if forward else field.backward
     udt = field.dt if forward else field.dt.T
     # Get the spacial FD
-    lap = laplacian(field, m, s, kernel)
+    lap = laplacian(field, model, kernel)
     # Get source
     q = kwargs.get('q', 0)
     # Define PDE and update rule
-    eq_time = solve(m * field.dt2 - lap - q + damp * udt, unext)
+    eq_time = solve(model.m * field.dt2 - lap - q + model.damp * udt, unext)
 
-    # return the Stencil with H replaced by its symbolic expression
-    eqns = [Eq(next, eq_time, subdomain=model.grid.subdomains['physdomain'])]
+    # Time-stepping stencil.
+    eqns = [Eq(unext, eq_time, subdomain=model.grid.subdomains['physdomain'])]
 
     # Add free surface
     if model.fs:
-        eqns.append(freesurface(model, Eq(next, eq_time), field))
+        eqns.append(freesurface(model, Eq(unext, eq_time)))
     return eqns
 
 
@@ -115,6 +112,8 @@ def ForwardOperator(model, geometry, space_order=4,
     save : int or Buffer, optional
         Saving flag, True saves all time steps. False saves three timesteps.
         Defaults to False.
+    kernel : str, optional
+        Type of discretization, 'OT2' or 'OT4'.
     """
     m = model.m
 
@@ -156,7 +155,7 @@ def AdjointOperator(model, geometry, space_order=4,
     space_order : int, optional
         Space discretization order.
     kernel : str, optional
-        Type of discretization, centered or shifted.
+        Type of discretization, 'OT2' or 'OT4'.
     """
     m = model.m
 

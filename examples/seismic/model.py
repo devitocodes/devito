@@ -3,7 +3,7 @@ from sympy import sin, Abs, finite_diff_weights
 
 
 from devito import (Grid, SubDomain, Function, Constant,
-                    SubDimension, Eq, Inc, Operator, div, warning)
+                    SubDimension, Eq, Inc, Operator, div)
 from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
 from devito.tools import as_tuple
 
@@ -13,7 +13,7 @@ __all__ = ['SeismicModel', 'Model', 'ModelElastic',
 
 def initialize_damp(damp, nbl, spacing, abc_type="damp", fs=False):
     """
-    Initialise damping field with an absorbing boundary layer.
+    Initialize damping field with an absorbing boundary layer.
 
     Parameters
     ----------
@@ -79,10 +79,9 @@ class FSDomain(SubDomain):
         """
         Definition of the top part of the domain for wrapped indices FS
         """
-        z = dimensions[-1]
-        map_d = {d: d for d in dimensions}
-        map_d.update({z: ('left', self.size)})
-        return map_d
+
+        return {d: (d if not d == dimensions[-1] else ('left', self.size))
+                for d in dimensions}
 
 
 class GenericModel(object):
@@ -97,8 +96,6 @@ class GenericModel(object):
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
         self.fs = fs
-        if self.fs:
-            warning("Freesurface is only supported for isotropic acoustic solver")
         # Default setup
         origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing)]
         shape_pml = np.array(shape) + 2 * self.nbl
@@ -111,6 +108,7 @@ class GenericModel(object):
             subdomains = subdomains + (fsdomain,)
             origin_pml[-1] = origin[-1]
             shape_pml[-1] -= self.nbl
+
         # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index
         if grid is None:
