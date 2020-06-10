@@ -81,7 +81,7 @@ class OpenMPRegion(ParallelBlock):
         self.nthreads = nthreads
 
     @classmethod
-    def _make_header(cls, nthreads, private):
+    def _make_header(cls, nthreads, private=None):
         private = ('private(%s)' % ','.join(private)) if private else ''
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
@@ -193,7 +193,7 @@ class ThreadedProdder(Conditional, Prodder):
 
     def __init__(self, prodder):
         # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(DefFunction('omp_get_thread_num'), 0)
+        condition = CondEq(Ompizer.lang['thread-num'], 0)
 
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
@@ -241,7 +241,8 @@ class Ompizer(object):
     lang = {
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
-        'atomic': c.Pragma('omp atomic update')
+        'atomic': c.Pragma('omp atomic update'),
+        'thread-num': DefFunction('omp_get_thread_num')
     }
     """
     Shortcuts for the OpenMP language.
@@ -304,6 +305,10 @@ class Ompizer(object):
 
                 collapsable.append(i)
         return collapsable
+
+    @classmethod
+    def _make_tid(cls, tid):
+        return c.Initializer(c.Value(tid._C_typedata, tid.name), cls.lang['thread-num'])
 
     def _make_reductions(self, partree, collapsed):
         if not partree.is_ParallelAtomic:
@@ -395,9 +400,8 @@ class Ompizer(object):
                           halo=((0, 0),) + i.halo)
             heap_globals.append(Dereference(i, array))
         if heap_globals:
-            tid = Expression(DummyEq(self.sregistry.threadid,
-                                     DefFunction('omp_get_thread_num')))
-            body = List(body=[tid] + heap_globals + [partree], footer=c.Line())
+            body = List(header=self._make_tid(self.sregistry.threadid),
+                        body=heap_globals+[partree], footer=c.Line())
         else:
             body = partree
 
