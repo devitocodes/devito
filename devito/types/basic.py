@@ -729,7 +729,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _eval_deriv(self):
         return self
 
-    @cached_property
+    @property
     def _is_on_grid(self):
         """
         Check whether the object is on the grid or need averaging.

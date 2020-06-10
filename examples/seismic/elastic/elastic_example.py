@@ -36,8 +36,8 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_elastic():
     _, _, _, [rec1, rec2, v, tau] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec1), 20.59193, atol=1e-3, rtol=0)
-    assert np.isclose(norm(rec2), 0.671578, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec1), 19.25636, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 0.627606, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import numpy as np
-from sympy import sin, Abs, finite_diff_weights
+from sympy import sin, Abs
+from sympy import finite_diff_weights as fd_w
 
 
 from devito import (Grid, SubDomain, Function, Constant,
@@ -128,7 +129,7 @@ class GenericModel(object):
                 initialize_damp(self.damp, self.nbl, self.spacing, abc_type=bcs, fs=fs)
             self._physical_parameters = ['damp']
         else:
-            self.damp = 1 if bcs == "mask" else 0
+            self.damp = 1.0 if bcs == "mask" else 0
             self._physical_parameters = []
 
     @property
@@ -308,22 +309,19 @@ class SeismicModel(GenericModel):
     @property
     def _cfl_coeff(self):
         """
-        Courant number from the physics.
-        For the elastic case, we use the general `.85/sqrt(ndim)`.
-
-        For te acoustic case, we can get an accurate estimate from the spatial order.
-        One dan show that C = sqrt(a1/a2) where:
-        - a1 is the sum of absolute value of FD coefficients in time
-        - a2 is the sum of absolute value of FD coefficients in space
-        https://library.seg.org/doi/pdf/10.1190/1.1444605
+        Courant number from the physics and spatial discretization order.
+        The CFL coefficients are described in:
+        - https://doi.org/10.1137/0916052 for the elastic case
+        - https://library.seg.org/doi/pdf/10.1190/1.1444605 for the acoustic case
         """
         # Elasic coefficient (see e.g )
         if 'lam' in self._physical_parameters or 'vs' in self._physical_parameters:
-            return (.85 if self.grid.dim == 3 else .75) / np.sqrt(self.grid.dim)
+            coeffs = fd_w(1, range(-self.space_order//2+1, self.space_order//2+1), .5)
+            c_fd = sum(np.abs(coeffs[-1][-1])) / 2
+            return np.sqrt(self.dim) / self.dim / c_fd
         a1 = 4  # 2nd order in time
-        coeffs = finite_diff_weights(2, range(-self.space_order, self.space_order+1), 0)
-        a2 = float(self.grid.dim * sum(np.abs(coeffs[-1][-1])))
-        return np.sqrt(a1/a2)
+        coeffs = fd_w(2, range(-self.space_order, self.space_order+1), 0)[-1][-1]
+        return np.sqrt(a1/float(self.grid.dim * sum(np.abs(coeffs))))
 
     @property
     def critical_dt(self):
