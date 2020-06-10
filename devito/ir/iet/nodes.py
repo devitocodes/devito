@@ -719,7 +719,7 @@ class PointerCast(Node):
         """
         The shape used in the left-hand side and right-hand side of the PointerCast.
         """
-        if self.function.is_Array:
+        if self.function.is_ArrayBasic:
             return self.function.symbolic_shape[1:]
         else:
             return tuple(self.function._C_get_field(FULL, d).size
@@ -736,7 +736,7 @@ class PointerCast(Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        if self.function.is_Array:
+        if self.function.is_ArrayBasic:
             sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
             return (self.function, ) + as_tuple(sizes)
         else:
@@ -750,26 +750,24 @@ class PointerCast(Node):
 class Dereference(ExprStmt, Node):
 
     """
-    A node encapsulating a dereferentiation from higher-dimenensional Array
-    to a lower-dimension one.
+    A node encapsulating a dereferentiation from a PointerArray to an Array.
     """
 
     is_Dereference = True
 
-    def __init__(self, array0, array1):
-        assert array0.is_Array
-        assert array1.is_Array
-        assert array1.ndim > array0.ndim
+    def __init__(self, array, parray):
+        assert array
+        assert parray
 
-        self.array0 = array0
-        self.array1 = array1
+        self.array = array
+        self.parray = parray
 
     def __repr__(self):
-        return "<Dereference(%s,%s)>" % (self.array0, self.array1)
+        return "<Dereference(%s,%s)>" % (self.array, self.parray)
 
     @property
     def functions(self):
-        return (self.array0, self.array1)
+        return (self.array, self.parray)
 
     @property
     def free_symbols(self):
@@ -778,13 +776,13 @@ class Dereference(ExprStmt, Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        return ((self.array0, self.array1) +
-                tuple(flatten(i.free_symbols for i in self.array0.symbolic_shape[1:])) +
-                tuple(flatten(i.free_symbols for i in self.array1.symbolic_shape[1:])))
+        return ((self.array, self.parray) +
+                tuple(flatten(i.free_symbols for i in self.array.symbolic_shape[1:])) +
+                tuple(self.parray.free_symbols))
 
     @property
     def defines(self):
-        return (self.array0,)
+        return (self.array,)
 
 
 class LocalExpression(Expression):

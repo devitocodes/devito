@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from functools import partial, singledispatch
 
 import cgen as c
@@ -91,13 +90,10 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     _Parallelizer = DeviceAccizer
 
-    def _alloc_array_on_high_bw_mem(self, scope, obj, storage):
-        """Allocate an Array in the high bandwidth memory."""
-        handle = storage._high_bw_mem.setdefault(scope, OrderedDict())
-
-        if obj in handle:
-            return
-
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Allocate an Array in the high bandwidth memory.
+        """
         size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
         decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
         cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
@@ -107,7 +103,7 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
         free = c.Statement('acc_free(%s)' % obj.name)
 
-        handle[obj] = (None, init, free)
+        storage.update(obj, site, allocs=init, frees=free)
 
 
 @iet_pass

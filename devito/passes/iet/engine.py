@@ -109,7 +109,7 @@ class Graph(object):
                             if a in processed:
                                 processed.remove(a)
                             continue
-                    except (TypeError, IndexException):
+                    except (TypeError, ValueError, IndexException):
                         a = _a
 
                     if a in processed:

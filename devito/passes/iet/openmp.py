@@ -13,7 +13,7 @@ from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
-from devito.types import Array, Constant, Symbol
+from devito.types import Constant, PointerArray, Symbol
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer',
            'OpenMPIteration', 'ParallelTree']
@@ -395,10 +395,9 @@ class Ompizer(object):
         heap_private = [i for i in arrays if i._mem_heap and i._mem_local]
         heap_globals = []
         for i in heap_private:
-            array = Array(name=self.sregistry.make_name(), dtype=i.dtype,
-                          dimensions=(self.sregistry.threadid,) + i.dimensions,
-                          halo=((0, 0),) + i.halo)
-            heap_globals.append(Dereference(i, array))
+            pi = PointerArray(name=self.sregistry.make_name(),
+                              dimensions=(self.sregistry.threadid,), array=i)
+            heap_globals.append(Dereference(i, pi))
         if heap_globals:
             body = List(header=self._make_tid(self.sregistry.threadid),
                         body=heap_globals+[partree], footer=c.Line())
@@ -494,8 +493,7 @@ class Ompizer(object):
         # The new arguments introduced by this pass
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
         for n in FindNodes(Dereference).visit(iet):
-            args.append((n.array0, True))
-            args.append(n.array1)
+            args.extend([(n.array, True), n.parray])
 
         return iet, {'args': args, 'includes': ['omp.h']}
 
