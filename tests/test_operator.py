@@ -1132,9 +1132,9 @@ class TestDeclarator(object):
         op = Operator([Eq(a[i], a[i] + b[i] + 5.),
                        Eq(f[j], a[j])])
 
-        assert op.body[0].is_PointerCast
-        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
-                                   '((aligned (64))) = (float (*)) f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) == ('float (*restrict f) __attribute__ '
+                                           '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
@@ -1154,10 +1154,10 @@ class TestDeclarator(object):
                        Eq(c[i, j], c[i, j]*a[i]),
                        Eq(f[j, k], a[j] + c[j, k])])
 
-        assert op.body[0].is_PointerCast
-        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
-                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
-                                   'f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+             '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
@@ -1181,10 +1181,10 @@ class TestDeclarator(object):
                        Eq(c[i, j], c[i, j]*a[i]),
                        Eq(f[j, k], a[j] + c[j, k])])
 
-        assert op.body[0].is_PointerCast
-        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
-                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
-                                   'f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+             '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
@@ -1210,9 +1210,10 @@ class TestDeclarator(object):
                        Eq(a[i], t0*t1*3.),
                        Eq(f, a[j])])
 
-        assert op.body[0].is_PointerCast
-        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
-                                   '((aligned (64))) = (float (*)) f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f) __attribute__ '
+             '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
@@ -1235,13 +1236,13 @@ class TestDeclarator(object):
         op = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.),
                        Eq(f, c[s, q])])
 
-        assert op.body[0].is_PointerCast
-        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
-                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
-                                   'f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+             '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
-        assert op.body[1].is_Element
-        assert str(op.body[1]) == 'float c[i_size][j_size] __attribute__((aligned(64)));'
+        assert str(op.body[1].header[0]) ==\
+            'float c[i_size][j_size] __attribute__((aligned(64)));'
 
     def test_conditional_declarations(self):
         x = Dimension(name="x")
