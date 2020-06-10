@@ -1327,7 +1327,7 @@ class TimeFunction(Function):
 
     @cached_property
     def _fd_priority(self):
-        return super(TimeFunction, self)._fd_priority + .1
+        return 2.1 if self.staggered in [NODE, None] else 2.2
 
     @property
     def time_order(self):

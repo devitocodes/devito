@@ -452,7 +452,7 @@ class Scalar(Symbol, ArgProvider):
         return kwargs.get('dtype', np.float32)
 
 
-class AbstractTensor(sympy.FunctionMatrix, Basic, Cached, Pickable, Evaluable):
+class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     """
     Base class for vector and tensor valued functions. It inherits from and
     mimicks the behavior of a sympy.ImmutableDenseMatrix.
@@ -487,42 +487,27 @@ class AbstractTensor(sympy.FunctionMatrix, Basic, Cached, Pickable, Evaluable):
     is_VectorValued = False
 
     @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        return cls
-
-    @classmethod
-    def __new__(cls, *args, **kwargs):
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
-
-        if obj is not None:
-            newobj = sympy.FunctionMatrix.__new__(cls, *args, **kwargs)
-            newobj.__init_cached__(key)
-            return newobj
-
-        name = kwargs.get('name')
-        indices, _ = cls.__indices_setup__(**kwargs)
-
-        # Create new, unique type instance from cls and the symbol name
-        newcls = type(name, (cls,), dict(cls.__dict__))
-
-        # Create the new Function object and invoke __init__
-        comps, ndims = cls.__subfunc_setup__(*args, **kwargs)
-        fun = sympy.Function(name.upper())
-        newobj = sympy.FunctionMatrix.__new__(newcls, ndims[0], ndims[1], fun)
-        newobj._comps = np.asarray(comps)
-        # Initialization. The following attributes must be available
-        newobj._indices = indices
-        newobj._name = name
-        newobj._dtype = cls.__dtype_setup__(**kwargs)
-        newobj.__init_finalize__(*args, **kwargs)
-
-        # Store new instance in symbol cache
-        Cached.__init__(newobj, newcls)
-
+    def _new(cls, *args, **kwargs):
+        if args:
+            try:
+                # Constructor if input is (rows, cols, lambda)
+                newobj = super(AbstractTensor, cls)._new(*args)
+            except ValueError:
+                # Constructor if input is list of list as (row, cols, list_of_list)
+                # doesn't work as it expects a flattened.
+                newobj = super(AbstractTensor, cls)._new(args[2])
+            # Initialized with constructed object
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj._mat)
+        else:
+            # Initialize components and create new Matrix from standard
+            # Devito inputs
+            comps = cls.__subfunc_setup__(*args, **kwargs)  
+            newobj = super(AbstractTensor, cls)._new(comps)
+            newobj.__init_finalize__(*args, **kwargs)
+    
         return newobj
 
-    __hash__ = Cached.__hash__
+    __hash__ = sympy.ImmutableDenseMatrix.__hash__
 
     def doit(self, **hint):
         return self
@@ -530,28 +515,30 @@ class AbstractTensor(sympy.FunctionMatrix, Basic, Cached, Pickable, Evaluable):
     def __init_finalize__(self, *args, **kwargs):
         pass
 
-    @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        """Extract the object data type from ``kwargs``."""
-        return None
+    def _eval_matrix_mul(self, other):
+        other_len = other.rows*other.cols
+        new_len = self.rows*other.cols
+        new_mat = [self.zero]*new_len
+
+        # if we multiply an n x 0 with a 0 x m, the
+        # expected behavior is to produce an n x m matrix of zeros
+        if self.cols != 0 and other.rows != 0:
+            self_cols = self.cols
+            mat = self._mat
+            other_mat = other._mat
+            for i in range(new_len):
+                row, col = i // other.cols, i % other.cols
+                row_indices = range(self_cols*row, self_cols*(row+1))
+                col_indices = range(col, other_len, other.cols)
+                vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices)]
+                new_mat[i] = sum(vec)
+
+        return classof(self, other)._new(self.rows, other.cols, new_mat, copy=False)
 
     @classmethod
     def __subfunc_setup__(cls, *args, **kwargs):
         """Setup each component of the tensor as a Devito type."""
         return []
-
-    @classmethod
-    def __indices_setup__(cls, *args, **kwargs):
-        """Extract the object indices from ``kwargs``."""
-        return (), ()
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def dtype(self):
-        return self._dtype
 
 
 class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
@@ -597,6 +584,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
                                          interpolation scheme, instead of linear
                                          interpolators.
     """
+    # Sympy attributes, explicitly say these are not Matrices
+    is_MatrixLike = False
+    is_Matrix = False
 
     is_AbstractFunction = True
 

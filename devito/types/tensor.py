@@ -3,7 +3,8 @@ from collections import OrderedDict
 import numpy as np
 from sympy.core.sympify import converter as sympify_converter
 
-from devito.finite_differences import DifferentiableMatrix
+from devito.finite_differences import Differentiable
+from devito.tools import flatten
 from devito.types.basic import AbstractTensor
 from devito.types.dense import Function, TimeFunction
 from devito.types.utils import NODE
@@ -11,7 +12,7 @@ from devito.types.utils import NODE
 __all__ = ['TensorFunction', 'TensorTimeFunction', 'VectorFunction', 'VectorTimeFunction']
 
 
-class TensorFunction(AbstractTensor, DifferentiableMatrix):
+class TensorFunction(AbstractTensor):
     """
     Tensor valued Function represented as a Matrix.
     Each component is a Function or TimeFunction.
@@ -31,13 +32,20 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
     """
     _is_TimeDependent = False
     _sub_type = Function
-    _op_priority = DifferentiableMatrix._op_priority + 2.
     _class_priority = 10
+    _op_priority = Differentiable._op_priority + 1.
 
     def __init_finalize__(self, *args, **kwargs):
-        self._staggered = kwargs.get('staggered', self.space_dimensions)
-        self._grid = kwargs.get('grid')
-        self._space_order = kwargs.get('space_order', 1)
+        if args:
+            comps = flatten(args[2])
+            grid = comps[0].grid
+            dimensions = None if grid else comps[0].dimensions
+        else:
+            grid = kwargs.get('grid')
+            dimensions = kwargs.get('dimensions')
+        inds, _  = Function.__indices_setup__(grid=grid,
+                                              dimensions=dimensions)
+        self._space_dimensions = inds
 
     @classmethod
     def __subfunc_setup__(cls, *args, **kwargs):
@@ -67,7 +75,6 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
             funcs2 = [0 for _ in range(len(dims))]
             start = i if symm else 0
             stop = i + 1 if diag else len(dims)
-            print(symm, diag, start, stop)
             for j in range(start, stop):
                 kwargs["name"] = "%s_%s%s" % (name, d.name, dims[j].name)
                 kwargs["staggered"] = (stagg[i][j] if stagg is not None
@@ -79,7 +86,7 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
         if symm:
             funcs = np.array(funcs) + np.triu(np.array(funcs), k=1).T
             funcs = funcs.tolist()
-        return funcs, (grid.dim, grid.dim)
+        return funcs
 
     def __getattr__(self, name):
         """
@@ -104,10 +111,6 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
         return self.__new__(self.rows, self.cols, entry)
 
     @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        return Function.__dtype_setup__(**kwargs)
-
-    @classmethod
     def __indices_setup__(cls, **kwargs):
         return Function.__indices_setup__(grid=kwargs.get('grid'),
                                           dimensions=kwargs.get('dimensions'))
@@ -117,61 +120,17 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
         return self._is_TimeDependent
 
     @property
+    def space_dimensions(self):
+        return self._space_dimensions
+
+    @property
     def is_diagonal(self):
         return np.all([self[i, j] == 0  for j in range(self.cols)
                        for i in range(self.rows) if i != j])
 
     @property
-    def is_symmetric(self):
-        return np.all(self._comps.T == self._comps)
-
-    @property
-    def indices(self):
-        return self._indices
-
-    @property
-    def dimensions(self):
-        return self._indices
-
-    @property
-    def staggered(self):
-        return self._staggered
-
-    @property
-    def space_dimensions(self):
-        return self.indices
-
-    @property
-    def grid(self):
-        return self._grid
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def space_order(self):
-        return self._space_order
-
-    @property
     def evaluate(self):
         return self.applyfunc(lambda x: getattr(x, 'evaluate', x))
-
-    # Custom repr and str
-    def __str__(self):
-        return "%s(%s)" % (self.name, self.indices)
-
-    __repr__ = __str__
-
-    def _sympy_(self):
-        return self
-
-    @classmethod
-    def _sympify(cls, arg):
-        return arg
-
-    def _entry(self, i, j, **kwargs):
-        return self._comps[i, j]
 
     def values(self):
         if self.is_diagonal:
@@ -188,13 +147,12 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
         Divergence of the TensorFunction (is a VectorFunction).
         """
         comps = []
-        to = getattr(self, 'time_order', 0)
         func = vec_func(self, self)
         for j, d in enumerate(self.space_dimensions):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
                               for i, d in enumerate(self.space_dimensions)]))
-        return func(name='div_%s' % self.name, grid=self.grid,
-                    space_order=self.space_order, components=comps, time_order=to)
+        n = len(comps)
+        return func._new(n, 1, comps)
 
     @property
     def laplace(self):
@@ -202,13 +160,12 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
         Laplacian of the TensorFunction.
         """
         comps = []
-        to = getattr(self, 'time_order', 0)
         func = vec_func(self, self)
         for j, d in enumerate(self.space_dimensions):
             comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
                               for i, d in enumerate(self.space_dimensions)]))
-        return func(name='lap_%s' % self.name, grid=self.grid,
-                    space_order=self.space_order, components=comps, time_order=to)
+        n = len(comps[0])
+        return func._new(n, n, comps)
 
     @property
     def grad(self):
@@ -216,11 +173,8 @@ class TensorFunction(AbstractTensor, DifferentiableMatrix):
 
     def new_from_mat(self, mat):
         func = tens_func(self, self)
-        name = "%s%s" % ("_", self.name)
-        to = getattr(self, 'time_order', 0)
-        return func(name=name, grid=self.grid, space_order=self.space_order,
-                    components=mat, time_order=to, symmetric=self.is_symmetric,
-                    diagonal=self.is_diagonal)
+        n, m = np.array(mat).shape
+        return func._new(n, m, mat)
 
 
 class TensorTimeFunction(TensorFunction):
@@ -231,25 +185,6 @@ class TensorTimeFunction(TensorFunction):
     is_TensorValued = True
 
     _sub_type = TimeFunction
-    _time_position = 0
-
-    def __init_finalize__(self, *args, **kwargs):
-        super(TensorTimeFunction, self).__init_finalize__(*args, **kwargs)
-        self._time_order = kwargs.get('time_order', 1)
-
-    @classmethod
-    def __indices_setup__(cls, **kwargs):
-        return TimeFunction.__indices_setup__(grid=kwargs.get('grid'),
-                                              save=kwargs.get('save'),
-                                              dimensions=kwargs.get('dimensions'))
-
-    @property
-    def space_dimensions(self):
-        return self.indices[self._time_position+1:]
-
-    @property
-    def time_order(self):
-        return self._time_order
 
     @property
     def forward(self):
@@ -259,11 +194,13 @@ class TensorTimeFunction(TensorFunction):
 
         return self.subs({_t: _t + i * _t.spacing})
 
-    def _eval_scalar_mul(self, other):
-        mul = super(TensorFunction, self)._eval_scalar_mul(other)
-        if getattr(other, 'is_TimeFunction', False) and not self.is_TimeDependent:
-            return mul._as_time(other)
-        return mul
+    @property
+    def backward(self):
+        """Symbol for the time-forward state of the VectorTimeFunction."""
+        i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        _t = self.indices[self._time_position]
+
+        return self.subs({_t: _t - i * _t.spacing})
 
 
 class VectorFunction(TensorFunction):
@@ -302,9 +239,9 @@ class VectorFunction(TensorFunction):
         for i, d in enumerate(dims):
             kwargs["name"] = "%s_%s" % (name, d.name)
             kwargs["staggered"] = stagg[i] if stagg is not None else d
-            funcs.append([cls._sub_type(**kwargs)])
+            funcs.append(cls._sub_type(**kwargs))
 
-        return funcs, (grid.dim, 1)
+        return funcs
 
     # Custom repr and str
     def __str__(self):
@@ -349,47 +286,24 @@ class VectorFunction(TensorFunction):
         comp3 = getattr(self[1], derivs[0]) - getattr(self[0], derivs[1])
 
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
-        to = getattr(self, 'time_order', 0)
-        return vec_func(name='curl_%s' % self.name, grid=self.grid,
-                        space_order=self.space_order, time_order=to,
-                        components=[comp1, comp2, comp3])
+        return vec_func._new(3, 1, [comp1, comp2, comp3])
 
     @property
     def grad(self):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
         """
-        to = getattr(self, 'time_order', 0)
         func = tens_func(self, self)
         comps = [[getattr(f, 'd%s' % d.name) for d in self.space_dimensions]
                  for f in self]
-        return func(name='grad_%s' % self.name, grid=self.grid, time_order=to,
-                    space_order=self.space_order, components=comps, symmetric=False)
-
-    def _eval_matrix_mul(self, other):
-        if self.is_transposed and other.is_TensorValued:
-            return (other.T*self.T).T
-        return super(VectorFunction, self)._eval_matrix_mul(other)
-
-    def _eval_matrix_rmul(self, other):
-        if self.is_transposed and other.is_VectorValued:
-            return self.outer(other)
-        mul = super(VectorFunction, self)._eval_matrix_rmul(other)
-        if not self.is_TimeDependent and other.is_TimeDependent:
-            return mul._as_time(other)
-        return mul
-
-    def _as_time(self, time_func):
-        return VectorTimeFunction(name='%st' % self.name, grid=self.grid,
-                                  space_order=self.space_order, components=self._mat,
-                                  time_order=time_func.time_order)
+        n = len(comps[0])
+        return func._new(n, n, comps)
 
     def outer(self, other):
         comps = [[self[i] * other[j] for i in range(self.cols)] for j in range(self.cols)]
         func = tens_func(self, other)
-        to = getattr(self, 'time_order', 0)
-        return func(name='grad_%s' % self.name, grid=self.grid, time_order=to,
-                    space_order=self.space_order, components=comps, symmetric=False)
+        n = len(comps[0])
+        return func._new(n, n, comps)
 
 
 class TensorTimeFunction(TensorFunction):
