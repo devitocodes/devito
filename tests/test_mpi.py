@@ -858,6 +858,41 @@ class TestCodeGeneration(object):
         op.apply()
         assert np.all(f.data[:] == 2.)
 
+    @pytest.mark.parallel(mode=2)
+    def test_avoid_haloudate_if_flowdep_along_other_dim(self):
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        xl = SubDimension.left(name='xl', parent=x, thickness=2)
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        f.data_with_halo[:] = 1.2
+        g.data_with_halo[:] = 2.
+
+        # Note: the subdomain is used to prevent the compiler from fusing the
+        # third Eq in the first Eq's loop
+        eqns = [Eq(f.forward, f[t, x-1] + f[t, x+1]),
+                Eq(f[t+1, xl], f[t+1, xl] + 1.),
+                Eq(g.forward, f[t, x-1] + f[t, x+1], subdomain=grid.interior)]
+
+        op = Operator(eqns)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+        op.apply(time_M=1)
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        R = 1e-07  # Can't use np.all due to rounding error at the tails
+        if LEFT in glb_pos_map[x]:
+            assert np.allclose(f.data_ro_domain[0, :5], [5.6, 6.8, 5.8, 4.8, 4.8], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, :5], [2., 5.8, 5.8, 4.8, 4.8], rtol=R)
+        else:
+            assert np.allclose(f.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 3.6], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.], rtol=R)
+
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
         ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
