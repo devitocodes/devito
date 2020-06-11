@@ -1,6 +1,6 @@
 from sympy import cos, sin, sqrt
 
-from devito import Eq, Operator, TimeFunction, NODE
+from devito import Eq, Operator, TimeFunction, NODE, solve
 from examples.seismic import PointSource, Receiver
 from devito.finite_differences import centered, first_derivative, transpose
 
@@ -8,25 +8,20 @@ from devito.finite_differences import centered, first_derivative, transpose
 def second_order_stencil(model, u, v, H0, Hz, forward=True):
     """
     Creates the stencil corresponding to the second order TTI wave equation
-    u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
-    v.dt2 =  (delta * H0 + Hz) - damp * v.dt
+    m * u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
+    m * v.dt2 =  (delta * H0 + Hz) - damp * v.dt
     """
-
     m, damp = model.m, model.damp
-    s = model.grid.stepping_dim.spacing
 
     unext = u.forward if forward else u.backward
     vnext = v.forward if forward else v.backward
-    uprev = u.backward if forward else u.forward
-    vprev = v.backward if forward else v.forward
+    udt = u.dt if forward else u.dt.T
+    vdt = v.dt if forward else v.dt.T
 
     # Stencils
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
-         uprev + 2.0 * s ** 2 * (H0))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
-         vprev + 2.0 * s ** 2 * (Hz))
+    stencilp = solve(m * u.dt2 - H0 + damp * udt, unext)
+    stencilr = solve(m * v.dt2 - Hz + damp * vdt, vnext)
+
     first_stencil = Eq(unext, stencilp)
     second_stencil = Eq(vnext, stencilr)
 
