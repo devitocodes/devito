@@ -108,6 +108,27 @@ def _merge_halospots(iet):
     Merge HaloSpots on the same Iteration tree level where all data dependencies
     would be honored.
     """
+
+    # Merge rules -- if the retval is True, then it means the input `dep` is not
+    # a stopper to halo merging
+
+    def rule0(dep, hs, *args):
+        # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>` => True
+        return not any(d in hs.dimensions or dep.distance_mapper[d] is S.Infinity
+                       for d in dep.cause)
+
+    def rule1(dep, *args):
+        # TODO This is apparently never hit, but feeling uncomfortable to remove it
+        return dep.is_regular and all(not any(dep.read.touched_halo(d.root))
+                                      for d in dep.cause)
+
+    def rule2(dep, hs, loc_indices, *args):
+        # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
+        return all(dep.distance_mapper[d] == 0 and dep.source[d] is not v
+                   for d, v in loc_indices.items())
+
+    merge_rules = [rule0, rule1, rule2]
+
     # Analysis
     mapper = {}
     for i, halo_spots in MapNodes(Iteration, HaloSpot, 'immediate').visit(iet).items():
@@ -122,15 +143,10 @@ def _merge_halospots(iet):
         for hs in halo_spots[1:]:
             mapper[hs] = hs.halo_scheme
 
-            for f in hs.fmapper:
+            for f, (loc_indices, _) in hs.fmapper.items():
                 test = True
                 for dep in scope.d_flow.project(f):
-                    if not any(d in hs.dimensions or dep.distance_mapper[d] is S.Infinity
-                               for d in dep.cause):
-                        # The dependence cause isn't a halo Dimension
-                        continue
-                    if dep.is_regular and all(not any(dep.read.touched_halo(c.root))
-                                              for c in dep.cause):
+                    if any(rule(dep, hs, loc_indices) for rule in merge_rules):
                         continue
                     test = False
                     break
