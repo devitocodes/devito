@@ -273,7 +273,6 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         """
         raise NotImplementedError
 
-    @memoized_meth
     def _arg_defaults(self, alias=None):
         key = alias or self
         mapper = {self: key}
