@@ -151,9 +151,14 @@ def _merge_halospots(iet):
                     test = False
                     break
                 if test:
-                    mapper[hs0] = HaloScheme.union([mapper[hs0],
-                                                    hs.halo_scheme.project(f)])
-                    mapper[hs] = mapper[hs].drop(f)
+                    try:
+                        mapper[hs0] = HaloScheme.union([mapper[hs0],
+                                                        hs.halo_scheme.project(f)])
+                        mapper[hs] = mapper[hs].drop(f)
+                    except ValueError:
+                        # `hs.loc_indices=<frozendict {t: t1}` and
+                        # `hs0.loc_indices=<frozendict {t: t0}`
+                        pass
 
     # Post-process analysis
     mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
