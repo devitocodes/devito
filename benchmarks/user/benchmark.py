@@ -42,16 +42,12 @@ model_type = {
     'acoustic': {
         'run': acoustic_run,
         'setup': acoustic_setup,
-<<<<<<< HEAD
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'acoustic_ssa': {
         'run': acoustic_ssa_run,
         'setup': acoustic_ssa_setup,
-        'default-section': 'section0'
-=======
         'default-section': 'global'
->>>>>>> bench: summarize json file with only the global measures
     }
 }
 
@@ -573,14 +569,15 @@ def get_ob_exec(func):
         def run(self, *args, **kwargs):
             clear_cache()
 
+            operator = kwargs.pop('operator')
+            dump_format = kwargs.pop('dump_format')
+
             solver = self.func(*args, **kwargs)
-            retval = solver.forward()
+            retval = run_op(solver, operator)
 
             summary = retval[-1]
             assert isinstance(summary, PerformanceSummary)
             globals = summary.globals['fdlike']
-
-            dump_format = kwargs.pop('dump_format')
 
             # global: produces one json from rank 0 with global metrics
             # local: produces one json per rank, each rank produces local metrics
