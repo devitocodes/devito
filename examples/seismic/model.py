@@ -76,7 +76,7 @@ class FSDomain(SubDomain):
 
     def define(self, dimensions):
         """
-        Definition of the top part of the domain for wrapped indices FS
+        Definition of the upper section of the domain for wrapped indices FS.
         """
 
         return {d: (d if not d == dimensions[-1] else ('left', self.size))
