@@ -59,6 +59,17 @@ class Lift(Queue):
                 processed.append(c)
                 continue
 
+            # Catch symbolic_bounds that are written 
+            sbounds = set()
+            for imp in impacted:
+                for i in imp.ispace.dimensions:
+                    sbounds.update([i.symbolic_min, i.symbolic_max])
+
+            if any(swrites & sbounds):
+                import pdb; pdb.set_trace()
+                processed.append(c)
+                continue
+
             # Contract iteration and data spaces for the lifted Cluster
             key = lambda d: d not in hope_invariant
             ispace = c.ispace.project(key).reset()

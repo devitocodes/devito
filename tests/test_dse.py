@@ -5,9 +5,9 @@ from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, Grid, Operator, norm, grad, div,
-                    switchconfig, configuration, centered, first_derivative, transpose)
-from devito.exceptions import InvalidOperator
+                    Dimension, SubDimension, TimeDimension, Grid, Operator, norm, grad,
+                    div, switchconfig, configuration, centered, first_derivative,
+                    transpose)
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
@@ -884,6 +884,26 @@ class TestAliases(object):
         u.data[:] = 1.
         op1(time_M=1)
         assert np.allclose(u.data, exp.data, rtol=10e-7)
+
+    def test_implicit_invariant(self):
+
+        x = Dimension(name='x')
+        y = Dimension(name='y')
+        time = TimeDimension(name='time')
+
+        g = TimeFunction(name='g', shape=(1, 3), dimensions=(time, x),
+                         time_order=0, dtype=np.int32)
+        g.data[0, :] = [1, 2, 3]
+        h1 = TimeFunction(name='h1', shape=(1, 1), dimensions=(time, y), time_order=0)
+        h1.data[0, 0] = 0
+
+        eq0 = Eq(y.symbolic_max, g[0, x], implicit_dims=(time, x))
+        eq1 = Inc(h1[0, 0], 1, implicit_dims=(time, x, y))
+
+        op = Operator([eq0, eq1])
+        op.apply()
+
+        assert(h1.data == 9.)
 
     @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
     def test_nested_invariants(self):
