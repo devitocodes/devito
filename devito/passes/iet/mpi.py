@@ -112,17 +112,17 @@ def _merge_halospots(iet):
     # Merge rules -- if the retval is True, then it means the input `dep` is not
     # a stopper to halo merging
 
-    def rule0(dep, hs, *args):
+    def rule0(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>` => True
         return not any(d in hs.dimensions or dep.distance_mapper[d] is S.Infinity
                        for d in dep.cause)
 
-    def rule1(dep, *args):
+    def rule1(dep, hs, loc_indices):
         # TODO This is apparently never hit, but feeling uncomfortable to remove it
         return dep.is_regular and all(not any(dep.read.touched_halo(d.root))
                                       for d in dep.cause)
 
-    def rule2(dep, hs, loc_indices, *args):
+    def rule2(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
         return all(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                    for d, v in loc_indices.items())
