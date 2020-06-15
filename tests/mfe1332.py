@@ -1,3 +1,4 @@
+# TO BE DROPPED
 import numpy as np
 from devito import Eq, Operator, Dimension, Inc, TimeFunction, TimeDimension
 
