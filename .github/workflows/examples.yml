@@ -54,6 +54,7 @@ jobs:
         python examples/seismic/acoustic/acoustic_example.py --full
         python examples/seismic/acoustic/acoustic_example.py --full --checkpointing
         python examples/seismic/acoustic/acoustic_example.py --constant --full
+        python examples/seismic/acoustic/acoustic_example.py --fs
         python examples/seismic/inversion/fwi.py
         python examples/seismic/skew_self_adjoint/example_iso.py
 

@@ -64,12 +64,16 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
-    args = seismic_args(description)
+    parser = seismic_args(description)
+    parser.add_argument('--fs', dest='fs', default=False, action='store_true',
+                        help="Whether or not to use a freesurface")
+    args = parser.parse_args()
+
     # 3D preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [15.0])
-    tn = 750. if ndim < 3 else 250.
+    tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,

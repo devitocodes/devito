@@ -63,13 +63,13 @@ def run(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0), tn=1000.0,
 
 if __name__ == "__main__":
     description = ("Example script for a set of SSA isotropic-acoustic operators.")
-    args = seismic_args(description)
+    args = seismic_args(description).parse_args()
 
     # 3D preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [15.0])
-    tn = 750. if ndim < 3 else 250.
+    tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, autotune=args.autotune,
         space_order=args.space_order, opt=args.opt, full_run=args.full)

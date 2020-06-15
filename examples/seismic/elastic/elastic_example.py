@@ -42,13 +42,12 @@ def test_elastic():
 
 if __name__ == "__main__":
     description = ("Example script for a set of elastic operators.")
-    args = seismic_args(description)
-
+    args = seismic_args(description).parse_args()
     # Preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [10.0])
-    tn = 750. if ndim < 3 else 1250.
+    tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, opt=args.opt,
         space_order=args.space_order, autotune=args.autotune, constant=args.constant)
