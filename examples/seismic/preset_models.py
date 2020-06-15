@@ -48,6 +48,7 @@ def demo_model(preset, **kwargs):
     dtype = kwargs.pop('dtype', np.float32)
     vp = kwargs.pop('vp', 1.5)
     nlayers = kwargs.pop('nlayers', 3)
+    fs = kwargs.pop('fs', False)
 
     if preset.lower() in ['constant-elastic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -77,7 +78,7 @@ def demo_model(preset, **kwargs):
         # with velocity 1.5 km/s.
 
         return SeismicModel(space_order=space_order, vp=vp, origin=origin, shape=shape,
-                            dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
+                            dtype=dtype, spacing=spacing, nbl=nbl, fs=fs, **kwargs)
 
     if preset.lower() in ['constant-viscoacoustic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -120,7 +121,8 @@ def demo_model(preset, **kwargs):
             v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
-                            dtype=dtype, spacing=spacing, nbl=nbl, bcs="damp", **kwargs)
+                            dtype=dtype, spacing=spacing, nbl=nbl, bcs="damp",
+                            fs=fs, **kwargs)
 
     elif preset.lower() in ['layers-elastic']:
         # A n-layers model in a 2D or 3D domain with two different
@@ -244,7 +246,8 @@ def demo_model(preset, **kwargs):
         v[x*x + y*y <= r*r] = vp
 
         return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
-                            dtype=dtype, spacing=spacing, nbl=nbl, bcs="damp", **kwargs)
+                            dtype=dtype, spacing=spacing, nbl=nbl, bcs="damp",
+                            fs=fs, **kwargs)
 
     elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
         shape = (1601, 401)
@@ -266,7 +269,7 @@ def demo_model(preset, **kwargs):
 
         return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=v.shape,
                             dtype=np.float32, spacing=spacing, nbl=nbl, bcs="damp",
-                            **kwargs)
+                            fs=fs, **kwargs)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti',
                             'marmousi-tti3d', 'marmousi3d-tti']:
