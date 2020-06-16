@@ -25,8 +25,7 @@ class Le(sympy.Le):
     --------
     `Le` may be used to express a relation (e.g. in a Subdomain).
 
-    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
-    >>> from devito.types import Le
+    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator, Le
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', grid=grid)
     >>> Le(g, 1)
@@ -69,8 +68,7 @@ class Lt(sympy.Lt):
     --------
     `Lt` may be used to express a relation (e.g. in a Subdomain).
 
-    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
-    >>> from devito.types import Lt
+    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator, Lt
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', grid=grid)
     >>> Lt(g, 1)
@@ -113,8 +111,7 @@ class Ge(sympy.Ge):
     --------
     `Ge` may be used to express a relation (e.g. in a Subdomain).
 
-    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
-    >>> from devito.types import Ge
+    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator, Ge
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', grid=grid)
     >>> Ge(g, 1)
@@ -158,8 +155,7 @@ class Gt(sympy.Gt):
     --------
     `Gt` may be used to express a relation.
 
-    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
-    >>> from devito.types import Gt
+    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator, Gt
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', grid=grid)
     >>> Gt(g, 1)
@@ -204,7 +200,7 @@ class Ne(sympy.Ne):
     `Ne` may be used to express a relation.
 
     >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
-    >>> from devito.types import Ne
+    >>> from devito import Ne
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', grid=grid)
     >>> Ne(g, 0)

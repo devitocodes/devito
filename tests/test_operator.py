@@ -7,6 +7,7 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+from devito import  Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
@@ -17,7 +18,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar, Le, Lt, Ge, Gt  # noqa
+from devito.types import Array, Scalar  # noqa
 
 
 def dimify(dimensions):

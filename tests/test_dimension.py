@@ -7,10 +7,10 @@ import pytest
 from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
-                    SubDomain)
+                    SubDomain, Lt, Le, Gt, Ge, Ne)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
 from devito.symbolics import indexify, retrieve_functions
-from devito.types import Array, Lt, Le, Gt, Ge, Ne
+from devito.types import Array
 
 
 class TestSubDimension(object):
