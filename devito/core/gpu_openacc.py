@@ -224,7 +224,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
 class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
 
     _known_passes = ('optcomms', 'openacc', 'mpi', 'prodders')
-    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'wrapping', 'simd')
+    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod

@@ -347,7 +347,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
     _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders')
-    _known_passes_disabled = ('blocking', 'denormals', 'wrapping', 'simd')
+    _known_passes_disabled = ('blocking', 'denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
