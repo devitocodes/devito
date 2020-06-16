@@ -161,11 +161,9 @@ class TimedAccess(IterationInstance):
     """
     An IterationInstance enriched with additional information:
 
-        * a "timestamp"; that is, an integer indicating the statement within
+        * an IterationSpace, from which the TimedAccess is extracted;
+        * A "timestamp", that is an integer indicating the statement within
           which the TimedAccess appears in the execution flow;
-        * an array of Intervals, which represent the space in which the
-          TimedAccess iterates;
-        * an array of IterationDirections (one for each findex).
 
     Notes
     -----
@@ -409,6 +407,9 @@ class Dependence(object):
         self.source = source
         self.sink = sink
 
+    def __repr__(self):
+        return "%s -> %s" % (self.source, self.sink)
+
     def __eq__(self, other):
         # If the timestamps are equal in `self` (ie, an inplace dependence) then
         # they must be equal in `other` too
@@ -617,9 +618,6 @@ class Dependence(object):
                     any(i.is_NonlinearDerived for i in d._defines)):
                 return True
         return False
-
-    def __repr__(self):
-        return "%s -> %s" % (self.source, self.sink)
 
 
 class DependenceGroup(set):
