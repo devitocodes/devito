@@ -27,27 +27,27 @@ model_type = {
     'viscoelastic': {
         'run': viscoelastic_run,
         'setup': viscoelastic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'elastic': {
         'run': elastic_run,
         'setup': elastic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'tti': {
         'run': tti_run,
         'setup': tti_setup,
-        'default-section': 'section1'
+        'default-section': 'global'
     },
     'acoustic': {
         'run': acoustic_run,
         'setup': acoustic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'acoustic_ssa': {
         'run': acoustic_ssa_run,
         'setup': acoustic_ssa_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     }
 }
 
@@ -361,6 +361,9 @@ def test(problem, **kwargs):
               help='Directory containing results')
 @click.option('-x', '--repeats', default=3,
               help='Number of test case repetitions')
+@click.option('-df', '--dump-format', default='global',
+              type=click.Choice(['global', 'local', 'all']),
+              help='Dump format of measures')
 @option_simulation
 @option_performance
 def cli_bench(problem, **kwargs):
@@ -374,13 +377,25 @@ def bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
-    run = model_type[problem]['run']
+    setup = model_type[problem]['setup']
     resultsdir = kwargs.pop('resultsdir')
     repeats = kwargs.pop('repeats')
+    dump_format = kwargs.get('dump_format')
 
     bench = get_ob_bench(problem, resultsdir, kwargs)
-    bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)
-    bench.save()
+    bench.execute(get_ob_exec(setup), warmups=0, repeats=repeats)
+
+    try:
+        rank = MPI.COMM_WORLD.rank
+    except AttributeError:
+        # MPI not available
+        rank = 0
+
+    if dump_format == 'global':
+        if rank == 0:
+            bench.save(rank)
+    else:
+        bench.save(rank)
 
     # Final clean up, just in case the benchmarker is used from external Python modules
     clear_cache()
@@ -554,12 +569,39 @@ def get_ob_exec(func):
         def run(self, *args, **kwargs):
             clear_cache()
 
-            gflopss, oi, timings, _ = self.func(*args, **kwargs)
+            operator = kwargs.pop('operator')
+            dump_format = kwargs.pop('dump_format')
 
-            for key in timings.keys():
-                self.register(gflopss[key], measure="gflopss", event=key.name)
-                self.register(oi[key], measure="oi", event=key.name)
-                self.register(timings[key], measure="timings", event=key.name)
+            solver = self.func(*args, **kwargs)
+            retval = run_op(solver, operator)
+
+            summary = retval[-1]
+            assert isinstance(summary, PerformanceSummary)
+            globals = summary.globals['fdlike']
+
+            # global: produces one json from rank 0 with global metrics
+            # local: produces one json per rank, each rank produces local metrics
+            # all: rank 0 produces globals and local, other ranks produce local metrics
+            if dump_format == 'global' or dump_format == 'all':
+                self.register(globals.gflopss, measure="gflopss", event="global")
+                self.register(globals.oi, measure="oi", event="global")
+                self.register(globals.gpointss, measure="gpointss", event="global")
+                self.register(globals.time, measure="timings", event="global")
+
+            if dump_format == 'local' or dump_format == 'all':
+                for key in summary.keys():
+                    entry = summary[key]
+
+                    k_rank = key.rank if key.rank is not None else 0
+
+                    self.register(entry.gflopss, measure="gflopss", event=key.name,
+                                  rank=k_rank)
+                    self.register(entry.oi, measure="oi", event=key.name,
+                                  rank=k_rank)
+                    self.register(entry.gpointss, measure="gpointss", event=key.name,
+                                  rank=k_rank)
+                    self.register(entry.time, measure="timings", event=key.name,
+                                  rank=k_rank)
 
     return DevitoExecutor(func)
 
