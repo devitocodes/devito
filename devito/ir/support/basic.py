@@ -19,6 +19,12 @@ class IndexMode(Tag):
 AFFINE = IndexMode('affine')  # noqa
 IRREGULAR = IndexMode('irregular')
 
+TOP = Dimension(name='⊤')
+"""Special Dimension to denote "any Dimensions"."""
+
+BOT = Dimension(name='⊥')
+"""Special Dimension to denote "no Dimensions"."""
+
 
 class IterationInstance(LabeledVector):
 
@@ -70,11 +76,6 @@ class IterationInstance(LabeledVector):
 
     def __hash__(self):
         return super(IterationInstance, self).__hash__()
-
-    @cached_property
-    def _cached_findices_index(self):
-        # Avoiding to call self.findices.index repeatedly speeds analysis up
-        return {fi: i for i, fi in enumerate(self.findices)}
 
     @cached_property
     def index_mode(self):
@@ -301,43 +302,38 @@ class TimedAccess(IterationInstance):
         findex : Dimension, optional
             If supplied, compute the distance only up to and including ``findex``.
         """
-        assert isinstance(other, TimedAccess)
-
-        if not self.rank:
-            return Vector()
-
-        # Compute distance up to `limit`, ignoring `directions` for the moment
-        if findex is None:
-            findex = self.findices[-1]
-            limit = self.rank
-        else:
-            try:
-                limit = self._cached_findices_index[findex] + 1
-            except KeyError:
-                raise TypeError("Cannot compute distance as `findex` not in `findices`")
-
+        n = -1
         ret = []
-        for n, (i, o) in enumerate(zip(self[:limit], other)):
-            try:
-                iit = self.itintervals[n]
-                oit = other.itintervals[n]
-            except IndexError:
-                # E.g., self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>
-                #       itintervals=(time, p_src)
-                break
+        for n, (iit, oit) in enumerate(zip(self.itintervals, other.itintervals)):
+            # If mismatching `itinterval`, then the distance is Infinity
+            if iit != oit:
+                return LabeledVector(ret + [(TOP, S.Infinity)])
 
-            if iit.direction is oit.direction and iit.interval == oit.interval:
-                if iit.direction is Backward:
-                    # Backward direction => flip the sign
-                    ret.append(o - i)
-                else:
-                    ret.append(i - o)
+            d = iit.dim
+            i = self[d]
+
+            if i is None:
+                # E.g., `self=R<f,[x + 2]>`, `itintervals=(time, x)`, and `iit.dim=time`
+                ret.append((d, 0))
+                continue
+
+            o = other[oit.dim]
+
+            # If backward direction, then flip the sign
+            if iit.direction is Backward:
+                ret.append((d, o - i))
             else:
-                # Mismatching `itinterval` => Infinity
-                ret.append(S.Infinity)
-                break
+                ret.append((d, i - o))
 
-        return Vector(*ret)
+        from IPython import emebd; embed()
+        if len(other.itintervals) > len(self.itintervals):
+            oit = other.itintervals[n+1]
+            return LabeledVector(ret + [(oit.dim, S.Infinity)])
+        elif len(self.itintervals) > len(other.itintervals):
+            iit = self.itintervals[n+1]
+            return LabeledVector(ret + [(iit.dim, S.Infinity)])
+        else:
+            return LabeledVector(ret)
 
     def touched_halo(self, findex):
         """
