@@ -19,12 +19,6 @@ class IndexMode(Tag):
 AFFINE = IndexMode('affine')  # noqa
 IRREGULAR = IndexMode('irregular')
 
-TOP = Dimension(name='⊤')
-"""Special Dimension to denote "any Dimensions"."""
-
-BOT = Dimension(name='⊥')
-"""Special Dimension to denote "no Dimensions"."""
-
 
 class IterationInstance(LabeledVector):
 
@@ -291,7 +285,7 @@ class TimedAccess(IterationInstance):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
-    def distance(self, other, findex=None):
+    def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
 
@@ -299,41 +293,32 @@ class TimedAccess(IterationInstance):
         ----------
         other : TimedAccess
             The TimedAccess from which the distance is computed.
-        findex : Dimension, optional
-            If supplied, compute the distance only up to and including ``findex``.
         """
-        n = -1
+        if not self.rank:
+            return Vector()
+
         ret = []
-        for n, (iit, oit) in enumerate(zip(self.itintervals, other.itintervals)):
-            # If mismatching `itinterval`, then the distance is Infinity
-            if iit != oit:
-                return LabeledVector(ret + [(TOP, S.Infinity)])
+        for n, (i, o) in enumerate(zip(self, other)):
+            try:
+                iit = self.itintervals[n]
+                oit = other.itintervals[n]
+            except IndexError:
+                # E.g., self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>
+                #       itintervals=(time, p_src)
+                break
 
-            d = iit.dim
-            i = self[d]
-
-            if i is None:
-                # E.g., `self=R<f,[x + 2]>`, `itintervals=(time, x)`, and `iit.dim=time`
-                ret.append((d, 0))
-                continue
-
-            o = other[oit.dim]
-
-            # If backward direction, then flip the sign
-            if iit.direction is Backward:
-                ret.append((d, o - i))
+            if iit == oit:
+                if iit.direction is Backward:
+                    # Backward direction => flip the sign
+                    ret.append(o - i)
+                else:
+                    ret.append(i - o)
             else:
-                ret.append((d, i - o))
+                # Mismatching `itinterval` => Infinity
+                ret.append(S.Infinity)
+                break
 
-        from IPython import emebd; embed()
-        if len(other.itintervals) > len(self.itintervals):
-            oit = other.itintervals[n+1]
-            return LabeledVector(ret + [(oit.dim, S.Infinity)])
-        elif len(self.itintervals) > len(other.itintervals):
-            iit = self.itintervals[n+1]
-            return LabeledVector(ret + [(iit.dim, S.Infinity)])
-        else:
-            return LabeledVector(ret)
+        return Vector(*ret)
 
     def touched_halo(self, findex):
         """
