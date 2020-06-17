@@ -21,11 +21,11 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph
+from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine
 from devito.symbolics import estimate_cost, retrieve_functions
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import Dimension, Eq
+from devito.types import CustomDimension, Dimension, Eq
 
 __all__ = ['Operator']
 
@@ -171,7 +171,13 @@ class Operator(Callable):
 
     @classmethod
     def _symbol_registry(cls):
-        return SymbolRegistry()
+        # Special symbols an Operator might use
+        nthreads = NThreads(aliases='nthreads0')
+        nthreads_nested = NThreadsNested(aliases='nthreads1')
+        nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
+        threadid = CustomDimension(name='tid', symbolic_size=nthreads)
+
+        return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
     @classmethod
     def _build(cls, expressions, **kwargs):

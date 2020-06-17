@@ -1,22 +1,12 @@
 from devito.core.autotuning import autotune
 from devito.parameters import configuration
-from devito.passes import NThreads, NThreadsNested, NThreadsNonaffine
-from devito.operator import Operator, SymbolRegistry
-from devito.types import CustomDimension
+from devito.passes import NThreads
+from devito.operator import Operator
 
 __all__ = ['OperatorCore']
 
 
 class OperatorCore(Operator):
-
-    @classmethod
-    def _symbol_registry(cls):
-        nthreads = NThreads(aliases='nthreads0')
-        nthreads_nested = NThreadsNested(aliases='nthreads1')
-        nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
-        threadid = CustomDimension(name='tid', symbolic_size=nthreads)
-
-        return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:
