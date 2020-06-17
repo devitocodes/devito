@@ -74,7 +74,7 @@ def test_isoacoustic_stability(ndim):
 @pytest.mark.parametrize('fs, normrec', [(True, 369.955), (False, 459.1678)])
 def test_isoacoustic(fs, normrec):
     _, _, _, [rec, _] = run(fs=fs)
-    assert np.isclose(norm(rec), normrec, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec), normrec, rtol=1e-3, atol=0)
 
 
 if __name__ == "__main__":

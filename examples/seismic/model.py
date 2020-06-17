@@ -258,6 +258,11 @@ class SeismicModel(GenericModel):
 
         # User provided dt
         self._dt = kwargs.get('dt')
+        # Some wave equation need a rescaled dt that can't be infered from the model
+        # parameters, such as isoacoustic OT4 that can use a dt sqrt(3) larger than
+        # isoacoustic OT2. This property should be set from a wavesolver or after model
+        # instanciation only via model.dt_scale = value.
+        self._dt_scale = 1
 
     def _initialize_physics(self, vp, space_order, **kwargs):
         """
@@ -298,11 +303,19 @@ class SeismicModel(GenericModel):
             return np.sqrt(mmin(self.b) * (mmax(self.lam) + 2 * mmax(self.mu)))
 
     @property
-    def _scale(self):
+    def _thomsen_scale(self):
         # Update scale for tti
         if 'epsilon' in self._physical_parameters:
             return np.sqrt(1 + 2 * mmax(self.epsilon))
         return 1
+
+    @property
+    def dt_scale(self):
+        return self._dt_scale
+
+    @dt_scale.setter
+    def dt_scale(self, val):
+        self._dt_scale = val
 
     @property
     def _cfl_coeff(self):
@@ -330,7 +343,8 @@ class SeismicModel(GenericModel):
         #
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
-        dt = self._cfl_coeff * np.min(self.spacing) / (self._scale*self._max_vp)
+        dt = self._cfl_coeff * np.min(self.spacing) / (self._thomsen_scale*self._max_vp)
+        dt = self.dt_scale * dt
         if self._dt:
             assert self._dt < dt
             return self._dt
