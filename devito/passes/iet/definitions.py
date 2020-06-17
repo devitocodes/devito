@@ -108,8 +108,9 @@ class DataManager(object):
             * The pointer array `obj`;
             * The pointee Array `obj.array`
 
-        If the pointer array is defined over a ThreadDimension, then each `obj.array`
-        slice is allocated and freed individually by the logically-owning thread.
+        If the pointer array is defined over `sregistry.threadid`, that it a thread
+        Dimension, then each `obj.array` slice is allocated and freed individually
+        by the logically-owning thread.
         """
         # The pointer array
         decl = "**%s" % obj.name

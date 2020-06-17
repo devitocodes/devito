@@ -12,7 +12,7 @@ from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.operator.profiling import Timer
-from devito.types import Array, Symbol as dSymbol, Scalar, PointerArray
+from devito.types import Array, CustomDimension, Symbol as dSymbol, Scalar, PointerArray
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer, DefFunction
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
@@ -179,6 +179,17 @@ def test_shifted_dimension():
 
     assert dd.name == new_dd.name
     assert dd.parent == new_dd.parent
+
+
+def test_custom_dimension():
+    symbolic_size = Constant(name='d_custom_size')
+    d = CustomDimension(name='d', symbolic_size=symbolic_size)
+
+    pkl_d = pickle.dumps(d)
+    new_d = pickle.loads(pkl_d)
+
+    assert d.name == new_d.name
+    assert d.symbolic_size.name == new_d.symbolic_size.name
 
 
 def test_receiver():

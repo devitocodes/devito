@@ -12,8 +12,8 @@ from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
-           'ModuloDimension', 'IncrDimension', 'ShiftedDimension', 'ThreadDimension']
+           'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
+           'dimensions', 'ModuloDimension', 'IncrDimension', 'ShiftedDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -95,6 +95,7 @@ class Dimension(ArgProvider):
     is_Time = False
 
     is_Default = False
+    is_Custom = False
     is_Derived = False
     is_NonlinearDerived = False
     is_Sub = False
@@ -827,6 +828,9 @@ class SteppingDimension(DerivedDimension):
         return values
 
 
+# The Dimensions below are for internal use only
+
+
 class ModuloDimension(DerivedDimension):
 
     """
@@ -1060,21 +1064,25 @@ class ShiftedDimension(IncrDimension):
     _pickle_kwargs = []
 
 
-class ThreadDimension(BasicDimension):
+class CustomDimension(BasicDimension):
 
     """
-    A special Dimension over threads in a shared-memory parallel program.
+    Dimension defining an iteration space with custom (known) size.
+
+    Notes
+    -----
+    This could be extended in the future for more customization (e.g., min point,
+    max point, etc.).
     """
 
-    def __new__(cls, *args, **kwargs):
-        return super().__new__(cls, name='tid', **kwargs)
+    is_Custom = True
 
-    def __init_finalize__(self, name, nthreads=None):
-        self._nthreads = nthreads
+    def __init_finalize__(self, name, symbolic_size=None):
+        self._symbolic_size = symbolic_size
 
     @property
     def symbolic_size(self):
-        return self._nthreads
+        return self._symbolic_size
 
     def _arg_defaults(self):
         return {}
@@ -1082,7 +1090,7 @@ class ThreadDimension(BasicDimension):
     def _arg_values(self, *args, **kwargs):
         return {}
 
-    _pickle_args = []
+    # Pickling support
     _pickle_kwargs = ['symbolic_size']
 
 
