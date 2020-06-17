@@ -16,8 +16,9 @@ from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
 from devito.ir.stree import stree_build
 from devito.ir.equations.algorithms import lower_exprs
-from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
+from devito.operator.registry import operator_selector
+from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph
@@ -170,7 +171,7 @@ class Operator(Callable):
 
     @classmethod
     def _symbol_registry(cls):
-        return None
+        return SymbolRegistry()
 
     @classmethod
     def _build(cls, expressions, **kwargs):

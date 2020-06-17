@@ -1,41 +1,10 @@
 from devito.core.autotuning import autotune
 from devito.parameters import configuration
 from devito.passes import NThreads, NThreadsNested, NThreadsNonaffine
-from devito.operator import Operator
-from devito.tools import generator
+from devito.operator import Operator, SymbolRegistry
 from devito.types import ThreadDimension
 
 __all__ = ['OperatorCore']
-
-
-class SymbolRegistry(object):
-
-    """A registry for all the symbols used by a `core` Operator."""
-
-    _symbol_prefix = 'r'
-
-    def __init__(self, nthreads=None, nthreads_nested=None, nthreads_nonaffine=None,
-                 threadid=None):
-        # {name -> generator()} -- to create unique names for symbols, functions, ...
-        self.counters = {}
-
-        # Special symbols
-        self.nthreads = nthreads
-        self.nthreads_nested = nthreads_nested
-        self.nthreads_nonaffine = nthreads_nonaffine
-        self.threadid = threadid
-
-    def make_name(self, prefix=None):
-        # By default we're creating a new symbol
-        if prefix is None:
-            prefix = self._symbol_prefix
-
-        try:
-            counter = self.counters[prefix]
-        except KeyError:
-            counter = self.counters.setdefault(prefix, generator())
-
-        return "%s%d" % (prefix, counter())
 
 
 class OperatorCore(Operator):
