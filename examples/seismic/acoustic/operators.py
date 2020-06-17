@@ -17,7 +17,7 @@ def freesurface(model, eq):
     eq : Eq
         Time-stepping stencil (time update) to mirror at the freesurface.
     """
-    lhs, rhs = eq.evaluate
+    lhs, rhs = eq.evaluate.args
     # Get vertical dimension and corresponding subdimension
     zfs = model.grid.subdomains['fsdomain'].dimensions[-1]
     z = zfs.parent

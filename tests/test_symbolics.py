@@ -3,6 +3,7 @@ import time
 import pytest
 
 from devito import Grid, Function, solve, div, grad, TimeFunction
+from devito.symbolics import retrieve_functions
 
 
 def test_float_indices():
@@ -20,6 +21,17 @@ def test_float_indices():
     indices = u.subs({x: 1.0}).indexify().indices[0]
     assert len(indices.atoms(sympy.Float)) == 0
     assert indices == 1
+
+
+def test_is_on_grid():
+    grid = Grid((10,))
+    x = grid.dimensions[0]
+    x0 = x + .5 * x.spacing
+    u = Function(name="u", grid=grid, space_order=2)
+
+    assert u._is_on_grid
+    assert not u.subs({x: x0})._is_on_grid
+    assert all(uu._is_on_grid for uu in retrieve_functions(u.subs({x: x0}).evaluate))
 
 
 @pytest.mark.parametrize('so', [2, 4])
