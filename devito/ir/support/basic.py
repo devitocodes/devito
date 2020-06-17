@@ -292,31 +292,33 @@ class TimedAccess(IterationInstance):
         Parameters
         ----------
         other : TimedAccess
-            The TimedAccess from which the distance is computed.
+            The TimedAccess w.r.t. which the distance is computed.
         """
-        if not self.rank:
-            return Vector()
+        queue = list(zip(self.itintervals, other.itintervals))
 
         ret = []
-        for n, (i, o) in enumerate(zip(self, other)):
+        for i, o, fi in zip(self, other, self.findices):
             try:
-                iit = self.itintervals[n]
-                oit = other.itintervals[n]
+                iit, oit = queue.pop(0)
             except IndexError:
-                # E.g., self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>
-                #       itintervals=(time, p_src)
+                # E.g., `self=R<f,[0,1]>` and `self.itintervals=()`
+                ret.append(i - o)
+                continue
+
+            if iit != oit:
+                # E.g., `self=R<f,[x + 2]>` and `other=W<f,[i + 1]>`
+                ret.append(S.Infinity)
                 break
 
-            if iit == oit:
+            if fi in iit.dim._defines:
                 if iit.direction is Backward:
                     # Backward direction => flip the sign
                     ret.append(o - i)
                 else:
                     ret.append(i - o)
             else:
-                # Mismatching `itinterval` => Infinity
-                ret.append(S.Infinity)
-                break
+                # E.g., `self=R<f,[x + 2]>`, `self.itintervals=(time, x)`, and `iit=time+`
+                #TODO
 
         return Vector(*ret)
 
