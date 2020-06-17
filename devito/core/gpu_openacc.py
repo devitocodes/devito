@@ -178,7 +178,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         DeviceAccizer(sregistry).make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager()
+        data_manager = DeviceOpenACCDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -210,7 +210,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager()
+        data_manager = DeviceOpenACCDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -260,6 +260,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
@@ -281,7 +282,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
             passes_mapper['openacc'](graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager()
+        data_manager = DeviceOpenACCDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)

@@ -80,7 +80,7 @@ class CPU64NoopOperator(OperatorCore):
             ompizer.make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -151,7 +151,7 @@ class CPU64Operator(CPU64NoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -189,7 +189,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -314,6 +314,7 @@ class CustomOperator(CPU64Operator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
@@ -335,7 +336,7 @@ class CustomOperator(CPU64Operator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 

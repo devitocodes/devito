@@ -53,6 +53,15 @@ class DataManager(object):
 
     _Parallelizer = Ompizer
 
+    def __init__(self, sregistry):
+        """
+        Parameters
+        ----------
+        sregistry : SymbolRegistry
+            The symbol registry, to create new symbols and to access special symbols.
+        """
+        self.sregistry = sregistry
+
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
         Allocate a LocalObject in the low latency memory.
@@ -122,7 +131,7 @@ class DataManager(object):
 
         free1 = c.Statement('free(%s[%s])' % (obj.name, obj.dim.name))
 
-        if obj.dim.is_Thread:
+        if obj.dim is self.sregistry.threadid:
             storage.update(obj, site, allocs=(decl, alloc0), frees=free0,
                            pallocs=(obj.dim, alloc1), pfrees=(obj.dim, free1))
         else:

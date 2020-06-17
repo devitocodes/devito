@@ -103,7 +103,6 @@ class Dimension(ArgProvider):
     is_Modulo = False
     is_Incr = False
     is_Shifted = False
-    is_Thread = False
 
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
@@ -1066,8 +1065,6 @@ class ThreadDimension(BasicDimension):
     """
     A special Dimension over threads in a shared-memory parallel program.
     """
-
-    is_Thread = True
 
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls, name='tid', **kwargs)

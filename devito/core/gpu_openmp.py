@@ -301,7 +301,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         DeviceOmpizer(sregistry).make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager()
+        data_manager = DeviceOpenMPDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -329,7 +329,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager()
+        data_manager = DeviceOpenMPDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -375,6 +375,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
@@ -396,7 +397,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager()
+        data_manager = DeviceOpenMPDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
