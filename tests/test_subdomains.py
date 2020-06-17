@@ -4,12 +4,35 @@ from math import floor
 
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
+from devito.tools import timed_region
 
 
 class TestSubdomains(object):
     """
     Class for testing SubDomains
     """
+
+    def test_subdomain_dim(self):
+        """
+        Test that all dimensions including ones used as an expression
+        are replaced by the subdimension dimensions.
+        """
+        class sd0(SubDomain):
+            name = 'd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 6), y: ('middle', 1, 1)}
+        s_d0 = sd0()
+        grid = Grid(shape=(10, 10), subdomains=(s_d0,))
+        x, y = grid.dimensions
+        x1, y1 = s_d0.dimensions
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        eq0 = Eq(f, x*f+y, subdomain=grid.subdomains['d0'])
+        with timed_region('x'):
+            expr = Operator._lower_exprs([eq0])[0]
+        assert expr.rhs == x1 * f[x1 + 1, y1 + 1] + y1
 
     def test_multiple_middle(self):
         """
@@ -288,7 +311,7 @@ class TestSubdomains(object):
 
         assert((np.array(f.data[:]+g.data[:]) == expected).all())
 
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap')])
     def test_subdomainset_mpi(self):
 
         n_domains = 5

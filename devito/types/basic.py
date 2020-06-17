@@ -16,7 +16,7 @@ from devito.finite_differences import Evaluable
 from devito.parameters import configuration
 from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
-                          frozendict)
+                          frozendict, memoized_meth)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
 from devito.types.utils import DimensionTuple
@@ -729,15 +729,23 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _eval_deriv(self):
         return self
 
-    @cached_property
+    @property
     def _is_on_grid(self):
         """
-        Check whether the object is on the grid or need averaging.
+        Check whether the object is on the grid and requires averaging.
         For example, if the original non-staggered function is f(x)
         then f(x) is on the grid and f(x + h_x/2) is off the grid.
         """
+        return self._check_indices(inds=self.indices)
+
+    @memoized_meth
+    def _check_indices(self, inds=None):
+        """
+        Check if the function indices are aligned with the dimensions.
+        """
+        inds = inds or self.indices
         return all([aligned_indices(i, j, d.spacing) for i, j, d in
-                    zip(self.indices, self.indices_ref, self.dimensions)])
+                    zip(inds, self.indices_ref, self.dimensions)])
 
     @property
     def evaluate(self):
@@ -948,9 +956,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # Add halo shift
         shift = self._size_nodomain.left if lshift else tuple([0]*len(self.dimensions))
         # Indices after substitutions
-        indices = [(a - o + f).xreplace(s) for a, o, f, s in
+        indices = [sympy.sympify((a - o + f).xreplace(s)) for a, o, f, s in
                    zip(self.args, self.origin, shift, subs)]
-
+        indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
+                   for i in indices]
         return self.indexed[indices]
 
     def __getitem__(self, index):

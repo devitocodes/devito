@@ -15,7 +15,7 @@ from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBu
 from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
-                              IndexedPointer, Macro)
+                              IndexedPointer, Macro, subs_op_args)
 from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
@@ -925,17 +925,19 @@ class MPIMsg(CompositeObject):
     else:
         c_mpirequest_p = type('MPI_Request', (c_void_p,), {})
 
-    def __init__(self, name, function, halos, fields=None):
+    fields = [
+        (_C_field_bufs, c_void_p),
+        (_C_field_bufg, c_void_p),
+        (_C_field_sizes, POINTER(c_int)),
+        (_C_field_rrecv, c_mpirequest_p),
+        (_C_field_rsend, c_mpirequest_p),
+    ]
+
+    def __init__(self, name, function, halos):
         self._function = function
         self._halos = halos
-        fields = (fields or []) + [
-            (MPIMsg._C_field_bufs, c_void_p),
-            (MPIMsg._C_field_bufg, c_void_p),
-            (MPIMsg._C_field_sizes, POINTER(c_int)),
-            (MPIMsg._C_field_rrecv, MPIMsg.c_mpirequest_p),
-            (MPIMsg._C_field_rsend, MPIMsg.c_mpirequest_p),
-        ]
-        super(MPIMsg, self).__init__(name, 'msg', fields)
+
+        super(MPIMsg, self).__init__(name, 'msg', self.fields)
 
         # Required for buffer allocation/deallocation before/after jumping/returning
         # to/from C-land
@@ -1009,14 +1011,12 @@ class MPIMsgEnriched(MPIMsg):
     _C_field_from = 'fromrank'
     _C_field_to = 'torank'
 
-    def __init__(self, name, function, halos):
-        fields = [
-            (MPIMsgEnriched._C_field_ofss, POINTER(c_int)),
-            (MPIMsgEnriched._C_field_ofsg, POINTER(c_int)),
-            (MPIMsgEnriched._C_field_from, c_int),
-            (MPIMsgEnriched._C_field_to, c_int)
-        ]
-        super(MPIMsgEnriched, self).__init__(name, function, halos, fields)
+    fields = MPIMsg.fields + [
+        (_C_field_ofss, POINTER(c_int)),
+        (_C_field_ofsg, POINTER(c_int)),
+        (_C_field_from, c_int),
+        (_C_field_to, c_int)
+    ]
 
     def _arg_defaults(self, alias=None):
         super(MPIMsgEnriched, self)._arg_defaults(alias)
@@ -1054,14 +1054,16 @@ class MPIMsgEnriched(MPIMsg):
 
 class MPIRegion(CompositeObject):
 
-    def __init__(self, name, key, arguments, owned):
-        name = "%s%d" % (name, key)
-        pname = "region%d" % key
-
+    def __init__(self, prefix, key, arguments, owned):
+        self._prefix = prefix
+        self._key = key
         self._owned = owned
 
         # Sorting for deterministic codegen
         self._arguments = sorted(arguments, key=lambda i: i.name)
+
+        name = "%s%d" % (prefix, key)
+        pname = "region%d" % key
 
         fields = []
         for i in self.arguments:
@@ -1084,6 +1086,14 @@ class MPIRegion(CompositeObject):
         return self._arguments
 
     @property
+    def prefix(self):
+        return self._prefix
+
+    @property
+    def key(self):
+        return self._key
+
+    @property
     def owned(self):
         return self._owned
 
@@ -1098,14 +1108,14 @@ class MPIRegion(CompositeObject):
             for a in self.arguments:
                 if a.is_Dimension:
                     a_m, a_M = mapper[a]
-                    setattr(entry, a.min_name, mapper[a][0].subs(args))
-                    setattr(entry, a.max_name, mapper[a][1].subs(args))
+                    setattr(entry, a.min_name, subs_op_args(a_m, args))
+                    setattr(entry, a.max_name, subs_op_args(a_M, args))
                 else:
                     try:
-                        setattr(entry, a.name, mapper[a][0].subs(args))
+                        setattr(entry, a.name, subs_op_args(mapper[a][0], args))
                     except AttributeError:
                         setattr(entry, a.name, mapper[a][0])
         return values
 
     # Pickling support
-    _pickle_args = ['name', 'arguments', 'owned']
+    _pickle_args = ['prefix', 'key', 'arguments', 'owned']

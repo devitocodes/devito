@@ -7,16 +7,18 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+from devito import  Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
+from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar
+from devito.types import Array, Scalar  # noqa
 
 
 def dimify(dimensions):
@@ -76,6 +78,26 @@ class TestCodeGen(object):
 
         with timed_region('x'):
             expr = Operator._lower_exprs([expr])[0]
+
+        assert str(expr).replace(' ', '') == expected
+
+    @pytest.mark.parametrize('expr, so, expected', [
+        ('Lt(0.1*(g1 + g2), 0.2*(g1 + g2))', 0,
+         '0.1*g1[x,y]+0.1*g2[x,y]<0.2*g1[x,y]+0.2*g2[x,y]'),
+        ('Le(0.1*(g1 + g2), 0.2*(g1 + g2))', 1,
+         '0.1*g1[x+1,y+1]+0.1*g2[x+1,y+1]<=0.2*g1[x+1,y+1]+0.2*g2[x+1,y+1]'),
+        ('Ge(0.1*(g1 + g2), 0.2*(g1 + g2))', 2,
+         '0.1*g1[x+2,y+2]+0.1*g2[x+2,y+2]>=0.2*g1[x+2,y+2]+0.2*g2[x+2,y+2]'),
+        ('Gt(0.1*(g1 + g2), 0.2*(g1 + g2))', 4,
+         '0.1*g1[x+4,y+4]+0.1*g2[x+4,y+4]>0.2*g1[x+4,y+4]+0.2*g2[x+4,y+4]'),
+    ])
+    def test_relationals_index_shifting(self, expr, so, expected):
+
+        grid = Grid(shape=(3, 3))
+        g1 = Function(name='g1', grid=grid, space_order=so)  # noqa
+        g2 = Function(name='g2', grid=grid, space_order=so)  # noqa
+        expr = eval(expr)
+        expr = lower_exprs(expr)
 
         assert str(expr).replace(' ', '') == expected
 
@@ -181,6 +203,38 @@ class TestCodeGen(object):
         # Check that local config takes precedence over global config
         op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
         assert '#pragma omp for' not in str(op4)
+
+    def test_nested_lowering(self):
+        """
+        Tests that deeply nested (depth > 2) functions over subdomains are lowered.
+        """
+        grid = Grid(shape=(4, 4), dtype=np.int32)
+        x, y = grid.dimensions
+        x0, y0 = dimensions('x0 y0')
+
+        u0 = Function(name="u0", grid=grid)
+        u1 = Function(name="u1", shape=grid.shape, dimensions=(x0, y0), dtype=np.int32)
+        u2 = Function(name="u2", grid=grid)
+
+        u0.data[:2, :2] = 1
+        u0.data[2:, 2:] = 2
+        u1.data[:, :] = 1
+        u2.data[:, :] = 1
+
+        eq0 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2]], subdomain=grid.interior)
+        eq1 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2[x, y]]], subdomain=grid.interior)
+
+        op0 = Operator(eq0)
+        op1 = Operator(eq1)
+        op0.apply()
+
+        # Check they indeed produced the same code
+        assert str(op0.ccode) == str(op1.ccode)
+
+        # Also check for numerical correctness
+        assert np.all(u0.data[0, 3] == 0) and np.all(u0.data[3, 0] == 0)
+        assert np.all(u0.data[:2, :2] == 1) and np.all(u0.data[1:3, 1:3] == 1)
+        assert np.all(u0.data[2:3, 3] == 2) and np.all(u0.data[3, 2:3] == 2)
 
 
 class TestArithmetic(object):

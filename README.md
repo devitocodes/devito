@@ -7,7 +7,7 @@
 [![Slack Status](https://img.shields.io/badge/chat-on%20slack-%2336C5F0)](https://opesci-slackin.now.sh)
 [![asv](http://img.shields.io/badge/benchmarked%20by-asv-blue.svg?style=flat)](https://devitocodes.github.io/devito-performance)
 [![PyPI version](https://badge.fury.io/py/devito.svg)](https://badge.fury.io/py/devito)
-
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/master)
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
 optimized stencil computation (e.g., finite differences, image processing,
@@ -22,6 +22,7 @@ thereof.
 - [Resources](#resources)
 - [Performance](#performance)
 - [Get in touch](#get-in-touch)
+- [Interactive jupyter notebooks](#interactive-jupyter-notebooks)
 
 ## About Devito
 
@@ -111,14 +112,22 @@ If you are interested in any of the following
 
 * Generation of parallel code (CPU, GPU, multi-node via MPI);
 * Performance tuning;
-* Benchmarking Devito;
-* Any other aspect concerning application performance;
+* Benchmarking operators;
 
 then you should take a look at this
 [README](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
+
+You may also be interested in
+[TheMatrix](https://github.com/devitocodes/thematrix) -- a cross-architecture
+benchmarking framework showing the performance of several production-grade
+seismic operators implemented with Devito. This is now our flagship project
+towards neat, open, and reproducible science.
 
 ## Get in touch
 
 If you're using Devito, we would like to hear from you. Whether you
 are facing issues or just trying it out, join the
 [conversation](https://opesci-slackin.now.sh).
+
+## Interactive jupyter notebooks
+The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/master) jupyterhub. 

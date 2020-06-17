@@ -104,6 +104,10 @@ jobs:
     - name: Compiler notebooks
       run: |
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/compiler
+        
+    - name: Finance notebooks
+      run: |
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/finance
 
     - name: GPU notebooks (only codegen)
       run: |

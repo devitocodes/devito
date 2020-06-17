@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+from functools import partial
 
 from cached_property import cached_property
 import numpy as np
@@ -6,28 +7,12 @@ import numpy as np
 from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval, IntervalGroup,
                        LabeledVector, Scope, detect_accesses, build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
-from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_leaf,
-                              q_sum_of_product, q_terminalop, retrieve_indexed,
-                              uxreplace, yreplace)
-from devito.tools import flatten
+from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
+                              retrieve_indexed, search, uxreplace)
+from devito.tools import flatten, split
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
 __all__ = ['cire']
-
-
-MIN_COST_ALIAS = 10
-"""
-Minimum operation count of an aliasing expression to be lifted into
-a vector temporary.
-"""
-
-MIN_COST_ALIAS_INV = 50
-"""
-Minimum operation count of a time-invariant aliasing expression to be
-lifted into a vector temporary. Time-invariant aliases are lifted outside
-of the time-marching loop, thus they will require vector temporaries as big
-as the entire grid.
-"""
 
 
 @cluster_pass
@@ -80,49 +65,27 @@ def cire(cluster, template, mode, options, platform):
     t0 = 2.0*t2[x,y,z]
     t1 = 3.0*t2[x,y,z+1]
     """
-    # Sanity checks
-    assert mode in ['invariants', 'sops']
-    assert all(i > 0 for i in options['cire-repeats'].values())
-
     # Relevant options
     min_storage = options['min-storage']
+    min_cost = options['cire-mincost']
+    repeats = options['cire-repeats']
 
-    # Setup callbacks
-    def callbacks_invariants(context, *args):
-        extractor = make_is_time_invariant(context)
-        model = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
-        ignore_collected = lambda g: False
-        selector = lambda c, n: c >= MIN_COST_ALIAS_INV and n >= 1
-        return extractor, model, ignore_collected, selector
+    # Sanity checks
+    assert mode in list(callbacks_mapper)
+    assert all(i >= 0 for i in repeats.values())
 
-    def callbacks_sops(context, n):
-        # The `depth` determines "how big" the extracted sum-of-products will be.
-        # We observe that in typical FD codes:
-        #   add(mul, mul, ...) -> stems from first order derivative
-        #   add(mul(add(mul, mul, ...), ...), ...) -> stems from second order derivative
-        # To catch the former, we would need `depth=1`; for the latter, `depth=3`
-        depth = 2*n + 1
-
-        extractor = lambda e: q_sum_of_product(e, depth)
-        model = lambda e: not (q_leaf(e) or q_terminalop(e, depth-1))
-        ignore_collected = lambda g: len(g) <= 1
-        selector = lambda c, n: c >= MIN_COST_ALIAS and n > 1
-        return extractor, model, ignore_collected, selector
-
-    callbacks_mapper = {
-        'invariants': callbacks_invariants,
-        'sops': callbacks_sops
-    }
+    # To create unique (temporary) symbols
+    make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
 
     # The main CIRE loop
     processed = []
     context = cluster.exprs
-    for n in reversed(range(options['cire-repeats'][mode])):
+    for n in reversed(range(repeats[mode])):
         # Get the callbacks
-        extractor, model, ignore_collected, selector = callbacks_mapper[mode](context, n)
+        extract, ignore_collected, selector = callbacks_mapper[mode](context, n, min_cost)
 
         # Extract potentially aliasing expressions
-        exprs, extracted = extract(cluster, extractor, model, template)
+        exprs, extracted = extract(cluster, make)
         if not extracted:
             # Do not waste time
             continue
@@ -159,17 +122,123 @@ def cire(cluster, template, mode, options, platform):
     return processed
 
 
-def extract(cluster, rule1, model, template):
-    make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
+class Callbacks(object):
 
-    # Rule out symbols inducing Dimension-independent data dependences
-    exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
-    rule0 = lambda e: not e.free_symbols & exclude
+    """
+    Interface for the callbacks needed by the CIRE loop. Each CIRE mode needs
+    to provide an implementation of these callbackes in a suitable subclass.
+    """
 
-    # Composite extraction rule -- correctness(0) + logic(1)
-    rule = lambda e: rule0(e) and rule1(e)
+    mode = None
 
-    return yreplace(cluster.exprs, make, rule, model, eager=True)
+    def __new__(cls, context, n, min_cost):
+        min_cost = min_cost[cls.mode]
+        if callable(min_cost):
+            min_cost = min_cost(n)
+
+        return (partial(cls.extract, n, context, min_cost),
+                cls.ignore_collected,
+                partial(cls.selector, min_cost))
+
+    @classmethod
+    def extract(cls, n, context, min_cost, cluster, make):
+        raise NotImplementedError
+
+    @classmethod
+    def ignore_collected(cls, group):
+        return False
+
+    @classmethod
+    def selector(cls, min_cost, cost, naliases):
+        raise NotImplementedError
+
+
+class CallbacksInvariants(Callbacks):
+
+    mode = 'invariants'
+
+    @classmethod
+    def extract(cls, n, context, min_cost, cluster, make):
+        exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
+        rule0 = lambda e: not e.free_symbols & exclude
+        rule1 = make_is_time_invariant(context)
+        rule2 = lambda e: estimate_cost(e, True) >= min_cost
+        rule = lambda e: rule0(e) and rule1(e) and rule2(e)
+
+        extracted = []
+        mapper = OrderedDict()
+        for e in cluster.exprs:
+            for i in search(e, rule, 'all', 'dfs_first_hit'):
+                if i not in mapper:
+                    symbol = make()
+                    mapper[i] = symbol
+                    extracted.append(e.func(symbol, i))
+
+        processed = [uxreplace(e, mapper) for e in cluster.exprs]
+
+        return extracted + processed, extracted
+
+    @classmethod
+    def selector(cls, min_cost, cost, naliases):
+        return cost >= min_cost and naliases >= 1
+
+
+class CallbacksSOPS(Callbacks):
+
+    mode = 'sops'
+
+    @classmethod
+    def extract(cls, n, context, min_cost, cluster, make):
+        # The `depth` determines "how big" the extracted sum-of-products will be.
+        # We observe that in typical FD codes:
+        #   add(mul, mul, ...) -> stems from first order derivative
+        #   add(mul(add(mul, mul, ...), ...), ...) -> stems from second order derivative
+        # To search the muls in the former case, we need `depth=0`; to search the outer
+        # muls in the latter case, we need `depth=2`
+        depth = n
+
+        exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
+        rule0 = lambda e: not e.free_symbols & exclude
+        rule1 = lambda e: e.is_Mul and q_terminalop(e, depth)
+        rule = lambda e: rule0(e) and rule1(e)
+
+        extracted = OrderedDict()
+        mapper = {}
+        for e in cluster.exprs:
+            for i in search(e, rule, 'all', 'bfs_first_hit'):
+                if i in mapper:
+                    continue
+
+                # Separate numbers and Functions, as they could be a derivative coeff
+                terms, others = split(i.args, lambda a: a.is_Add)
+                if terms:
+                    k = i.func(*terms)
+                    try:
+                        symbol, _ = extracted[k]
+                    except KeyError:
+                        symbol, _ = extracted.setdefault(k, (make(), e))
+                    mapper[i] = i.func(symbol, *others)
+
+        if mapper:
+            extracted = [e.func(v, k) for k, (v, e) in extracted.items()]
+            processed = [uxreplace(e, mapper) for e in cluster.exprs]
+            return extracted + processed, extracted
+        else:
+            return cluster.exprs, []
+
+    @classmethod
+    def ignore_collected(cls, group):
+        return len(group) <= 1
+
+    @classmethod
+    def selector(cls, min_cost, cost, naliases):
+        return cost >= min_cost and naliases > 1
+
+
+callbacks_mapper = {
+    CallbacksInvariants.mode: CallbacksInvariants,
+    CallbacksSOPS.mode: CallbacksSOPS
+}
 
 
 def collect(exprs, min_storage, ignore_collected):
@@ -273,7 +342,7 @@ def collect(exprs, min_storage, ignore_collected):
         mapper.setdefault(k, []).append(group)
 
     aliases = Aliases()
-    for _groups in mapper.values():
+    for _groups in list(mapper.values()):
         groups = list(_groups)
 
         while groups:
@@ -704,23 +773,37 @@ class Aliases(OrderedDict):
         items = []
         for alias, (intervals, aliaseds, distances) in self.items():
             mapper = {i.dim: i for i in intervals}
+            mapper.update({i.dim.parent: i for i in intervals
+                           if i.dim.is_NonlinearDerived})
 
+            # Becomes True as soon as a Dimension in `ispace` is found to
+            # be independent of `intervals`
+            flag = False
             writeto = []
-            for n, i in enumerate(ispace.intervals):
-                interval = mapper.get(i.dim)
-                if interval is not None:
-                    if not writeto and interval == interval.zero():
-                        # Optimize away unnecessary temporary Dimensions
-                        continue
+            for i in ispace.intervals:
+                try:
+                    interval = mapper[i.dim]
+                except KeyError:
+                    if not any(i.dim in d._defines for d in mapper):
+                        # E.g., `t[0,0]<0>` in the case of t-invariant aliases,
+                        # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
+                        # we would not enter here
+                        flag = True
+                    continue
 
-                    # Adjust the Interval's stamp
-                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
-                    # use `<1>` which is the actual stamp used in the Cluster
-                    # from which the aliasing expressions were extracted
-                    assert i.stamp >= interval.stamp
-                    interval = interval.lift(i.stamp)
+                # Try to optimize away unnecessary temporary Dimensions
+                if not flag and interval == interval.zero():
+                    continue
 
-                    writeto.append(interval)
+                # Adjust the Interval's stamp
+                # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                # use `<1>` which is the actual stamp used in the Cluster
+                # from which the aliasing expressions were extracted
+                assert i.stamp >= interval.stamp
+                interval = interval.lift(i.stamp)
+
+                writeto.append(interval)
+                flag = True
 
             if writeto:
                 writeto = IntervalGroup(writeto, relations=ispace.relations)

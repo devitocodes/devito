@@ -117,6 +117,7 @@ class CodePrinter(C99CodePrinter):
 
     _print_Byref = _print_IntDiv
     _print_IndexedPointer = _print_IntDiv
+    _print_DefFunction = _print_IntDiv
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)

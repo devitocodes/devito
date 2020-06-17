@@ -1,18 +1,18 @@
 import numpy as np
-from sympy import sin, Abs
-
+from sympy import sin, Abs, finite_diff_weights as fd_w
 
 from devito import (Grid, SubDomain, Function, Constant,
-                    SubDimension, Eq, Inc, Operator)
-from devito.builtins import initialize_function, gaussian_smooth, mmax
+                    SubDimension, Eq, Inc, Operator, div)
+from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
 from devito.tools import as_tuple
 
-__all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'ModelViscoacoustic']
+__all__ = ['SeismicModel', 'Model', 'ModelElastic',
+           'ModelViscoelastic', 'ModelViscoacoustic']
 
 
-def initialize_damp(damp, nbl, spacing, mask=False):
+def initialize_damp(damp, nbl, spacing, abc_type="damp", fs=False):
     """
-    Initialise damping field with an absorbing boundary layer.
+    Initialize damping field with an absorbing boundary layer.
 
     Parameters
     ----------
@@ -29,21 +29,22 @@ def initialize_damp(damp, nbl, spacing, mask=False):
     """
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
 
-    eqs = [Eq(damp, 1.0)] if mask else []
+    eqs = [Eq(damp, 1.0)] if abc_type == "mask" else []
     for d in damp.dimensions:
-        # left
-        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                  thickness=nbl)
-        pos = Abs((nbl - (dim_l - d.symbolic_min) + 1) / float(nbl))
-        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
-        val = -val if mask else val
-        eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
+        if not fs or d is not damp.dimensions[-1]:
+            # left
+            dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                      thickness=nbl)
+            pos = Abs((nbl - (dim_l - d.symbolic_min) + 1) / float(nbl))
+            val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+            val = -val if abc_type == "mask" else val
+            eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
         # right
         dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
                                    thickness=nbl)
         pos = Abs((nbl - (d.symbolic_max - dim_r) + 1) / float(nbl))
         val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
-        val = -val if mask else val
+        val = -val if abc_type == "mask" else val
         eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
 
     Operator(eqs, name='initdamp')()
@@ -51,14 +52,35 @@ def initialize_damp(damp, nbl, spacing, mask=False):
 
 class PhysicalDomain(SubDomain):
 
-    name = 'phydomain'
+    name = 'physdomain'
 
-    def __init__(self, nbl):
+    def __init__(self, so, fs=False):
         super(PhysicalDomain, self).__init__()
-        self.nbl = nbl
+        self.so = so
+        self.fs = fs
 
     def define(self, dimensions):
-        return {d: ('middle', self.nbl, self.nbl) for d in dimensions}
+        map_d = {d: d for d in dimensions}
+        if self.fs:
+            map_d[dimensions[-1]] = ('middle', self.so, 0)
+        return map_d
+
+
+class FSDomain(SubDomain):
+
+    name = 'fsdomain'
+
+    def __init__(self, so):
+        super(FSDomain, self).__init__()
+        self.size = so
+
+    def define(self, dimensions):
+        """
+        Definition of the upper section of the domain for wrapped indices FS.
+        """
+
+        return {d: (d if not d == dimensions[-1] else ('left', self.size))
+                for d in dimensions}
 
 
 class GenericModel(object):
@@ -66,20 +88,29 @@ class GenericModel(object):
     General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
-                 dtype=np.float32, subdomains=(), damp_mask=False,
-                 **kwargs):
+                 dtype=np.float32, subdomains=(), bcs="damp", grid=None,
+                 fs=False):
         self.shape = shape
+        self.space_order = space_order
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
+        self.fs = fs
+        # Default setup
+        origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing)]
+        shape_pml = np.array(shape) + 2 * self.nbl
+
+        # Model size depending on freesurface
+        physdomain = PhysicalDomain(space_order, fs=fs)
+        subdomains = subdomains + (physdomain,)
+        if fs:
+            fsdomain = FSDomain(space_order)
+            subdomains = subdomains + (fsdomain,)
+            origin_pml[-1] = origin[-1]
+            shape_pml[-1] -= self.nbl
 
         # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index
-        grid = kwargs.get('grid')
         if grid is None:
-            origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
-            phydomain = PhysicalDomain(self.nbl)
-            subdomains = subdomains + (phydomain, )
-            shape_pml = np.array(shape) + 2 * self.nbl
             # Physical extent is calculated per cell, so shape - 1
             extent = tuple(np.array(spacing) * (shape_pml - 1))
             self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
@@ -87,14 +118,26 @@ class GenericModel(object):
         else:
             self.grid = grid
 
+        # Create dampening field as symbol `damp`
         if self.nbl != 0:
-            # Create dampening field as symbol `damp`
             self.damp = Function(name="damp", grid=self.grid)
-            initialize_damp(self.damp, self.nbl, self.spacing, mask=damp_mask)
+            if callable(bcs):
+                bcs(self.damp, self.nbl)
+            else:
+                initialize_damp(self.damp, self.nbl, self.spacing, abc_type=bcs, fs=fs)
             self._physical_parameters = ['damp']
         else:
-            self.damp = 1 if damp_mask else 0
+            self.damp = 1 if bcs == "mask" else 0
             self._physical_parameters = []
+
+    @property
+    def padsizes(self):
+        """
+        Padding size for each dimension.
+        """
+        padsizes = [(self.nbl, self.nbl) for _ in range(self.dim-1)]
+        padsizes.append((0 if self.fs else self.nbl, self.nbl))
+        return padsizes
 
     def physical_params(self, **kwargs):
         """
@@ -103,16 +146,16 @@ class GenericModel(object):
         known = [getattr(self, i) for i in self.physical_parameters]
         return {i.name: kwargs.get(i.name, i) or i for i in known}
 
-    def _gen_phys_param(self, field, name, space_order, is_param=False,
+    def _gen_phys_param(self, field, name, space_order, is_param=True,
                         default_value=0):
         if field is None:
             return default_value
         if isinstance(field, np.ndarray):
             function = Function(name=name, grid=self.grid, space_order=space_order,
                                 parameter=is_param)
-            initialize_function(function, field, self.nbl)
+            initialize_function(function, field, self.padsizes)
         else:
-            function = Constant(name=name, value=field)
+            function = Constant(name=name, value=field, dtype=self.grid.dtype)
         self._physical_parameters.append(name)
         return function
 
@@ -163,7 +206,7 @@ class GenericModel(object):
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
 
-class Model(GenericModel):
+class SeismicModel(GenericModel):
     """
     The physical model used in seismic inversion processes.
 
@@ -181,8 +224,10 @@ class Model(GenericModel):
         Velocity in km/s.
     nbl : int, optional
         The number of absorbin layers for boundary damping.
+    bcs: str or callable
+        Absorbing boundary type ("damp" or "mask") or initializer.
     dtype : np.float32 or np.float64
-        Defaults to 32.
+        Defaults to np.float32.
     epsilon : array_like or float, optional
         Thomsen epsilon parameter (0<epsilon<1).
     delta : array_like or float
@@ -191,36 +236,103 @@ class Model(GenericModel):
         Tilt angle in radian.
     phi : array_like or float
         Asymuth angle in radian.
-
-    The `Model` provides two symbolic data objects for the
-    creation of seismic wave propagation operators:
-
-    m : array_like or float
-        The square slowness of the wave.
-    damp : Function
-        The damping field for absorbing boundary condition.
+    b : array_like or float
+        Buoyancy.
+    vs : array_like or float
+        S-wave velocity.
+    qp : array_like or float
+        P-wave attenuation.
+    qs : array_like or float
+        S-wave attenuation.
     """
-    def __init__(self, origin, spacing, shape, space_order, vp, nbl=20,
-                 dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
-                 subdomains=(), damp_mask=False, **kwargs):
-        super(Model, self).__init__(origin, spacing, shape, space_order, nbl, dtype,
-                                    subdomains, damp_mask=damp_mask, **kwargs)
+    _known_parameters = ['vp', 'damp', 'vs', 'b', 'epsilon', 'delta',
+                         'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
 
-        # Create square slowness of the wave as symbol `m`
-        self._vp = self._gen_phys_param(vp, 'vp', space_order)
+    def __init__(self, origin, spacing, shape, space_order, vp, nbl=20, fs=False,
+                 dtype=np.float32, subdomains=(), bcs="mask", grid=None, **kwargs):
+        super(SeismicModel, self).__init__(origin, spacing, shape, space_order, nbl,
+                                           dtype, subdomains, grid=grid, bcs=bcs, fs=fs)
 
-        # Additional parameter fields for TTI operators
-        self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
-        self.scale = 1 if epsilon is None else np.sqrt(1 + 2 * np.max(epsilon))
+        # Initialize physics
+        self._initialize_physics(vp, space_order, **kwargs)
 
-        self.delta = self._gen_phys_param(delta, 'delta', space_order)
-        self.theta = self._gen_phys_param(theta, 'theta', space_order)
-        if self.grid.dim > 2:
-            self.phi = self._gen_phys_param(phi, 'phi', space_order)
+        # User provided dt
+        self._dt = kwargs.get('dt')
+        # Some wave equation need a rescaled dt that can't be infered from the model
+        # parameters, such as isoacoustic OT4 that can use a dt sqrt(3) larger than
+        # isoacoustic OT2. This property should be set from a wavesolver or after model
+        # instanciation only via model.dt_scale = value.
+        self._dt_scale = 1
+
+    def _initialize_physics(self, vp, space_order, **kwargs):
+        """
+        Initialize physical parameters and type of physics from inputs.
+        The types of physics supported are:
+        - acoustic: [vp, b]
+        - elastic: [vp, vs, b] represented through Lame parameters [lam, mu, b]
+        - visco-acoustic: [vp, b, qp]
+        - visco-elastic: [vp, vs, b, qs]
+        - vti: [vp, epsilon, delta]
+        - tti: [epsilon, delta, theta, phi]
+        """
+        params = []
+        # Buoyancy
+        b = kwargs.get('b', 1)
+
+        # Initialize elastic with Lame parametrization
+        if 'vs' in kwargs:
+            vs = kwargs.pop('vs')
+            self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order,
+                                            is_param=True)
+            self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True)
+        else:
+            # All other seismic models have at least a velocity
+            self.vp = self._gen_phys_param(vp, 'vp', space_order)
+        # Initialize rest of the input physical parameters
+        for name in self._known_parameters:
+            if kwargs.get(name) is not None:
+                field = self._gen_phys_param(kwargs.get(name), name, space_order)
+                setattr(self, name, field)
+                params.append(name)
 
     @property
     def _max_vp(self):
-        return mmax(self.vp)
+        if 'vp' in self._physical_parameters:
+            return mmax(self.vp)
+        else:
+            return np.sqrt(mmin(self.b) * (mmax(self.lam) + 2 * mmax(self.mu)))
+
+    @property
+    def _thomsen_scale(self):
+        # Update scale for tti
+        if 'epsilon' in self._physical_parameters:
+            return np.sqrt(1 + 2 * mmax(self.epsilon))
+        return 1
+
+    @property
+    def dt_scale(self):
+        return self._dt_scale
+
+    @dt_scale.setter
+    def dt_scale(self, val):
+        self._dt_scale = val
+
+    @property
+    def _cfl_coeff(self):
+        """
+        Courant number from the physics and spatial discretization order.
+        The CFL coefficients are described in:
+        - https://doi.org/10.1137/0916052 for the elastic case
+        - https://library.seg.org/doi/pdf/10.1190/1.1444605 for the acoustic case
+        """
+        # Elasic coefficient (see e.g )
+        if 'lam' in self._physical_parameters or 'vs' in self._physical_parameters:
+            coeffs = fd_w(1, range(-self.space_order//2+1, self.space_order//2+1), .5)
+            c_fd = sum(np.abs(coeffs[-1][-1])) / 2
+            return np.sqrt(self.dim) / self.dim / c_fd
+        a1 = 4  # 2nd order in time
+        coeffs = fd_w(2, range(-self.space_order, self.space_order+1), 0)[-1][-1]
+        return np.sqrt(a1/float(self.grid.dim * sum(np.abs(coeffs))))
 
     @property
     def critical_dt(self):
@@ -231,49 +343,51 @@ class Model(GenericModel):
         #
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
-        coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*self._max_vp))
+        dt = self._cfl_coeff * np.min(self.spacing) / (self._thomsen_scale*self._max_vp)
+        dt = self.dt_scale * dt
+        if self._dt:
+            assert self._dt < dt
+            return self._dt
         return self.dtype("%.3e" % dt)
 
-    @property
-    def vp(self):
+    def update(self, name, value):
         """
-        `numpy.ndarray` holding the model velocity in km/s.
-
-        Notes
-        -----
-        Updating the velocity field also updates the square slowness
-        ``self.m``. However, only ``self.m`` should be used in seismic
-        operators, since it is of type `Function`.
+        Update the physical parameter param.
         """
-        return self._vp
-
-    @vp.setter
-    def vp(self, vp):
-        """
-        Set a new velocity model and update square slowness.
-
-        Parameters
-        ----------
-        vp : float or array
-            New velocity in km/s.
-        """
+        try:
+            param = getattr(self, name)
+        except AttributeError:
+            # No physical parameter with tha name, create it
+            setattr(self, name, self._gen_phys_param(name, value, self.space_order))
+            return
         # Update the square slowness according to new value
-        if isinstance(vp, np.ndarray):
-            if vp.shape == self.vp.shape:
-                self.vp.data[:] = vp[:]
-            elif vp.shape == self.shape:
-                initialize_function(self._vp, vp, self.nbl)
+        if isinstance(value, np.ndarray):
+            if value.shape == param.shape:
+                param.data[:] = value[:]
+            elif value.shape == self.shape:
+                initialize_function(param, value, self.nbl)
             else:
-                raise ValueError("Incorrect input size %s for model of size" % vp.shape +
+                raise ValueError("Incorrect input size %s for model" % value.shape +
                                  " %s without or %s with padding" % (self.shape,
-                                                                     self.vp.shape))
+                                                                     param.shape))
         else:
-            self._vp.data = vp
+            param.data = value
 
     @property
     def m(self):
+        """
+        Squared slowness.
+        """
         return 1 / (self.vp * self.vp)
+
+    @property
+    def dm(self):
+        """
+        Create a simple model perturbation from the velocity as `dm = div(vp)`.
+        """
+        dm = Function(name="dm", grid=self.grid, space_order=self.space_order)
+        Operator(Eq(dm, div(self.vp)), subs=self.spacing_map)()
+        return dm
 
     def smooth(self, physical_parameters, sigma=5.0):
         """
@@ -292,155 +406,8 @@ class Model(GenericModel):
         return
 
 
-class ModelElastic(GenericModel):
-    """
-    The physical model used in seismic inversion processes.
-
-    Parameters
-    ----------
-    origin : tuple of floats
-        Origin of the model in m as a tuple in (x,y,z) order.
-    spacing : tuple of floats, optional
-        Grid size in m as a Tuple in (x,y,z) order.
-    shape : tuple of int
-        Number of grid points size in (x,y,z) order.
-    space_order : int
-        Order of the spatial stencil discretisation.
-    vp : float or array
-        P-wave velocity in km/s.
-    vs : float or array
-        S-wave velocity in km/s.
-    nbl : int, optional
-        The number of absorbing layers for boundary damping.
-    rho : float or array, optional
-        Density in kg/cm^3 (rho=1 for water).
-
-    The `ModelElastic` provides a symbolic data objects for the
-    creation of seismic wave propagation operators:
-
-    damp : Function, optional
-        The damping field for absorbing boundary condition.
-    """
-    def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbl=20,
-                 subdomains=(), dtype=np.float32):
-        super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbl=nbl, subdomains=subdomains, dtype=dtype,
-                                           damp_mask=True)
-
-        self.maxvp = np.max(vp)
-        self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)*rho, 'lam', space_order,
-                                        is_param=True)
-
-        self.mu = self._gen_phys_param(vs**2 * rho, 'mu', space_order, is_param=True)
-
-        self.irho = self._gen_phys_param(1./rho, 'irho', space_order, is_param=True)
-
-    @property
-    def critical_dt(self):
-        """
-        Critical computational time step value from the CFL condition.
-        """
-        # For a fixed time order this number decreases as the space order increases.
-        #
-        # The CFL condtion is then given by
-        # dt < h / (sqrt(ndim) * max(vp)))
-        dt = .85*np.min(self.spacing) / (np.sqrt(3.)*self.maxvp)
-        return self.dtype("%.3e" % dt)
-
-
-class ModelViscoelastic(ModelElastic):
-    """
-    The physical model used in seismic inversion processes.
-
-    Parameters
-    ----------
-    origin : tuple of floats
-        Origin of the model in m as a tuple in (x,y,z) order.
-    spacing : tuple of floats, optional
-        Grid size in m as a Tuple in (x,y,z) order.
-    shape : tuple of int
-        Number of grid points size in (x,y,z) order.
-    space_order : int
-        Order of the spatial stencil discretisation.
-    vp : float or array
-        P-wave velocity in km/s.
-    qp : float or array
-        P-wave quality factor (dimensionless).
-    vs : float or array
-        S-wave velocity in km/s.
-    qs : float or array
-        S-wave qulaity factor (dimensionless).
-    nbl : int, optional
-        The number of absorbing layers for boundary damping.
-    rho : float or array, optional
-        Density in kg/cm^3 (rho=1 for water).
-
-    The `ModelElastic` provides a symbolic data objects for the
-    creation of seismic wave propagation operators:
-
-    damp : Function, optional
-        The damping field for absorbing boundary condition.
-    """
-    def __init__(self, origin, spacing, shape, space_order, vp, qp, vs, qs, rho,
-                 nbl=20, subdomains=(), dtype=np.float32):
-        super(ModelViscoelastic, self).__init__(origin, spacing, shape, space_order,
-                                                vp, vs, rho, nbl=nbl,
-                                                subdomains=subdomains, dtype=dtype)
-
-        self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
-
-        self.qs = self._gen_phys_param(qs, 'qs', space_order, is_param=True)
-
-    @property
-    def critical_dt(self):
-        """
-        Critical computational time step value from the CFL condition.
-        """
-        # For a fixed time order this number decreases as the space order increases.
-        # See Blanch, J. O., 1995, "A study of viscous effects in seismic modelling,
-        # imaging, and inversion: methodology, computational aspects and sensitivity"
-        # for further details:
-        dt = .85*np.min(self.spacing) / (np.sqrt(self.grid.dim)*self.maxvp)
-        return self.dtype("%.3e" % dt)
-
-
-class ModelViscoacoustic(Model):
-    """
-    The physical model used in seismic inversion processes.
-
-    Parameters
-    ----------
-    origin : tuple of floats
-        Origin of the model in m as a tuple in (x,y,z) order.
-    spacing : tuple of floats
-        Grid size in m as a Tuple in (x,y,z) order.
-    shape : tuple of int
-        Number of grid points size in (x,y,z) order.
-    space_order : int
-        Order of the spatial stencil discretisation.
-    vp : array_like or float
-        Velocity in km/s.
-    rho : float or array, optional
-        Density in kg/cm^3 (rho=1 for water).
-    qp : float or array, optional
-        P-wave quality factor (dimensionless).
-    nbl : int, optional
-        The number of absorbing layers for boundary damping.
-    dtype : np.float32 or np.float64
-        Defaults to 32.
-
-    The `ModelViscoacoustic` provides one symbolic data object for the
-    creation of seismic wave propagation operators:
-
-    damp : Function, optional
-        The damping field for absorbing boundary condition.
-    """
-    def __init__(self, origin, spacing, shape, space_order, vp, qp, rho, nbl=20,
-                 subdomains=(), dtype=np.float32):
-        super(ModelViscoacoustic, self).__init__(origin, spacing, shape, space_order,
-                                                 vp=vp, nbl=nbl, subdomains=subdomains,
-                                                 dtype=dtype, damp_mask=True)
-
-        self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
-
-        self.irho = self._gen_phys_param(1. / rho, 'irho', space_order, is_param=True)
+# For backward compatibility
+Model = SeismicModel
+ModelElastic = SeismicModel
+ModelViscoelastic = SeismicModel
+ModelViscoacoustic = SeismicModel

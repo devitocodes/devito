@@ -43,7 +43,7 @@ class ViscoacousticWaveSolver(object):
                                space_order=self.space_order, kernel=self.kernel,
                                **self._kwargs)
 
-    def forward(self, src=None, rec=None, v=None, r=None, p=None, qp=None, irho=None,
+    def forward(self, src=None, rec=None, v=None, r=None, p=None, qp=None, b=None,
                 vp=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -62,7 +62,7 @@ class ViscoacousticWaveSolver(object):
             Stores the computed wavefield.
         qp : Function, optional
             The P-wave quality factor.
-        irho : Function, optional
+        b : Function, optional
             The time-constant inverse density.
         vp : Function or float, optional
             The time-constant velocity.
@@ -99,7 +99,7 @@ class ViscoacousticWaveSolver(object):
         kwargs.update({k.name: k for k in v})
 
         # Pick physical parameters from model unless explicitly provided
-        irho = irho or self.model.irho
+        b = b or self.model.b
         qp = qp or self.model.qp
 
         # Pick vp from model unless explicitly provided
@@ -109,12 +109,12 @@ class ViscoacousticWaveSolver(object):
             # Execute operator and return wavefield and receiver data
             # With Memory variable
             summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, r=r,
-                                              p=p, irho=irho, vp=vp,
+                                              p=p, b=b, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         else:
             # Execute operator and return wavefield and receiver data
             # Without Memory variable
             summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, p=p,
-                                              irho=irho, vp=vp,
+                                              b=b, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, p, summary

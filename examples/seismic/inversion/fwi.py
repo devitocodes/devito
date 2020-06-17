@@ -84,7 +84,7 @@ def fwi_gradient(vp_in):
         residual = compute_residual(residual, d_obs, d_syn)
 
         objective += .5*norm(residual)**2
-        solver.gradient(rec=residual, u=u0, vp=vp_in, grad=grad)
+        solver.jacobian_adjoint(rec=residual, u=u0, vp=vp_in, grad=grad)
 
     return objective, grad
 
@@ -92,9 +92,9 @@ def fwi_gradient(vp_in):
 # Compute gradient of initial model
 ff, update = fwi_gradient(model0.vp)
 print(ff, mmin(update), mmax(update))
-assert np.isclose(ff, 57010, atol=1e1, rtol=0)
-assert np.isclose(mmin(update), -1198, atol=1e1, rtol=0)
-assert np.isclose(mmax(update), 3558, atol=1e1, rtol=0)
+assert np.isclose(ff, 39113, atol=1e1, rtol=0)
+assert np.isclose(mmin(update), -821, atol=1e1, rtol=0)
+assert np.isclose(mmax(update), 2442, atol=1e1, rtol=0)
 
 # Run FWI with gradient descent
 history = np.zeros((fwi_iterations, 1))
@@ -118,4 +118,4 @@ for i in range(0, fwi_iterations):
     # Log the progress made
     print('Objective value is %f at iteration %d' % (phi, i+1))
 
-assert np.isclose(history[-1], 5583, atol=1e1, rtol=0)
+assert np.isclose(history[-1], 3828, atol=1e1, rtol=0)

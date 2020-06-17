@@ -1,7 +1,6 @@
 from sympy import Add, cos, sin, sqrt  # noqa
 import numpy as np
 import pytest
-from unittest.mock import patch
 from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
@@ -12,8 +11,7 @@ from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
-from devito.passes.clusters.utils import make_is_time_invariant
-from devito.symbolics import yreplace, estimate_cost, pow_to_mul, indexify
+from devito.symbolics import estimate_cost, pow_to_mul, indexify
 from devito.tools import generator
 from devito.types import Scalar, Array
 
@@ -42,45 +40,6 @@ def test_scheduling_after_rewrite():
     assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
-
-
-@pytest.mark.parametrize('exprs,expected', [
-    # simple
-    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
-     ['ti0[x, y, z] + ti1[x, y, z] + 5.0']),
-    # more ops
-    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)',
-      'Eq(tw, 2. + ti0*t1)', 'Eq(tu, (ti0*ti1*t0) + (ti1*tv) + (t1 + ti1)*tw)'],
-     ['t0 + 2.0', 't1*ti0[x, y, z] + 2.0', 't1 + ti1[x, y, z]',
-      't0*ti0[x, y, z]*ti1[x, y, z]']),
-    # wrapped
-    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)', 'Eq(tv, 2.4)',
-      'Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))'],
-     ['t0 + 2.0', 't0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
-])
-def test_yreplace_time_invariants(exprs, expected):
-    grid = Grid((3, 3, 3))
-    dims = grid.dimensions
-
-    tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()  # noqa
-    tv = TimeFunction(name="tv", grid=grid, space_order=4).indexify()  # noqa
-    tw = TimeFunction(name="tw", grid=grid, space_order=4).indexify()  # noqa
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
-    t0 = Scalar(name='t0').indexify()  # noqa
-    t1 = Scalar(name='t1').indexify()  # noqa
-
-    # List comprehension would need explicit locals/globals mappings to eval
-    for i, e in enumerate(list(exprs)):
-        exprs[i] = DummyEq(indexify(eval(e).evaluate))
-
-    counter = generator()
-    make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed, found = yreplace(exprs, make,
-                                make_is_time_invariant(exprs),
-                                lambda i: estimate_cost(i) > 0)
-    assert len(found) == len(expected)
-    assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
 
 @pytest.mark.parametrize('exprs,expected', [
@@ -170,7 +129,8 @@ def test_cse(exprs, expected):
     ('1/(fb[x]**2 + 1)', '1/(fb[x]*fb[x] + 1)'),
     ('1/(fa[x] + fb[x])', '1/(fa[x] + fb[x])'),
     ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
-    ('fa[x]/(fb[x]**2)', 'fa[x]/((fb[x]*fb[x]))')
+    ('fa[x]/(fb[x]**2)', 'fa[x]/((fb[x]*fb[x]))'),
+    ('(fa[x]**0.5)**2', 'fa[x]'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
@@ -352,7 +312,6 @@ class TestAliases(object):
         assert len(aliases) == len(expected)
         assert all(i in expected for i in aliases)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape(self):
         """
         Check the shape of the Array used to store an aliasing expression.
@@ -372,7 +331,7 @@ class TestAliases(object):
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         x0_blk_size = op1.parameters[2]
         y0_blk_size = op1.parameters[3]
@@ -396,7 +355,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_contracted_shape(self):
         """
         Conceptually like `test_full_shape`, but the Operator used in this
@@ -415,7 +373,7 @@ class TestAliases(object):
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
                              (u[t, x, y+2, z+2] + u[t, x, y+3, z+3])*3*f + 1))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         y0_blk_size = op1.parameters[2]
         z_size = op1.parameters[3]
@@ -436,7 +394,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_uncontracted_shape(self):
         """
         Like `test_contracted_shape`, but the potential contraction is
@@ -456,7 +413,7 @@ class TestAliases(object):
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z])*3*f +
                              (u[t, x+2, y+2, z] + u[t, x+3, y+3, z])*3*f + 1))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         x0_blk_size = op1.parameters[2]
         y0_blk_size = op1.parameters[3]
@@ -479,7 +436,48 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
+    def test_uncontracted_shape_invariants(self):
+        """
+        Like `test_uncontracted_shape`, but now with some (outer-)Dimension-invariant
+        aliasing expressions.
+        """
+        grid = Grid(shape=(6, 6, 6))
+        x, y, z = grid.dimensions  # noqa
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] =\
+            np.linspace(-1, 1, f.data_with_halo.size).reshape(*f.shape_with_halo)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.5
+
+        def func(f):
+            return sqrt(f**2 + 1.)
+
+        # Leads to 3D aliases despite the potential contraction along x and y
+        eqn = Eq(u.forward, u*(func(f) + func(f[x, y, z-1])))
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        x_size = op1.parameters[2]
+        y_size = op1.parameters[3]
+        z_size = op1.parameters[4]
+
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 3
+        assert a.halo == ((0, 0), (0, 0), (1, 0))
+        assert a.symbolic_shape[0] == x_size
+        assert a.symbolic_shape[1] == y_size
+        assert Add(*a.symbolic_shape[2].args) == z_size + 1
+
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.5
+        op1(time_M=1)
+        assert np.allclose(u.data, exp, rtol=10e-7)
+
     def test_full_shape_w_subdims(self):
         """
         Like `test_full_shape`, but SubDomains (and therefore SubDimensions) are used.
@@ -498,7 +496,7 @@ class TestAliases(object):
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1),
                  subdomain=grid.interior)
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         i0x0_blk_size = op1.parameters[1]
         i0y0_blk_size = op1.parameters[2]
@@ -522,7 +520,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_mixed_shapes(self):
         """
         Test that if running with ``opt=(..., {'min-storage': True})``, then,
@@ -549,7 +546,8 @@ class TestAliases(object):
                   (u[t, x, y+1, z+1] + u[t, x+1, y+1, z+1])*3*f +
                   (u[t, x, y+3, z+1] + u[t, x+1, y+3, z+1])*3*f))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True,
+                                              'cire-mincost-sops': 1}))
 
         x0_blk_size = op1.parameters[3]
         y0_blk_size = op1.parameters[4]
@@ -578,7 +576,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_mixed_shapes_v2_w_subdims(self):
         """
         Analogous `test_mixed_shapes`, but with different sets of aliasing expressions.
@@ -606,7 +603,8 @@ class TestAliases(object):
                  subdomain=grid.interior)
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True,
+                                              'cire-mincost-sops': 1}))
 
         i0x0_blk_size = op1.parameters[2]
         i0y0_blk_size = op1.parameters[3]
@@ -635,7 +633,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_in_bounds_w_shift(self):
         """
         Make sure the iteration space and indexing of the aliasing expressions
@@ -661,7 +658,7 @@ class TestAliases(object):
                   (u[t, x, y-4, z+1] + u[t, x+1, y-4, z+1])*3*f +
                   (u[t, x-1, y-3, z+1] + u[t, x, y-3, z+1])*3*f))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         x0_blk_size = op1.parameters[3]
         y0_blk_size = op1.parameters[4]
@@ -687,7 +684,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_constant_symbolic_distance(self):
         """
         Test the detection of aliasing expressions in the case of a
@@ -715,7 +711,7 @@ class TestAliases(object):
                   (u[t, x+2, y_m+3, z+2] + u[t, x+3, y_m+3, z+3])*3*f +
                   (u[t, x+1, y_m+3, z+1] + u[t, x+2, y_m+3, z+2])*3*f))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         x0_blk_size = op1.parameters[2]
         y0_blk_size = op1.parameters[4]
@@ -740,7 +736,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_outlier_with_long_diameter(self):
         """
         Test that if there is a potentially aliasing expression, say A, with
@@ -766,7 +761,7 @@ class TestAliases(object):
                              (u[t, x, y-3, z+1] + u[t, x+1, y+3, z+1])*3*f +  # outlier
                              (u[t, x, y+3, z+2] + u[t, x+1, y+3, z+2])*3*f))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         y0_blk_size = op1.parameters[2]
         z_size = op1.parameters[3]
@@ -822,7 +817,7 @@ class TestAliases(object):
                 sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
 
         op0 = Operator(Eq(u.forward, expr), opt='noop')
-        op1 = Operator(Eq(u.forward, expr))
+        op1 = Operator(Eq(u.forward, expr), opt=('advanced', {'cire-mincost-sops': 1}))
 
         # We expect two temporary Arrays, one for `cos(g)` and one for `sin(g)`
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
@@ -836,7 +831,7 @@ class TestAliases(object):
         assert np.allclose(u.data, exp.data, rtol=10e-7)
 
     @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
-    def test_nested(self):
+    def test_nested_invariants(self):
         """
         Check that nested aliases are optimized away through "smaller" aliases.
 
@@ -865,7 +860,6 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_from_different_nests(self):
         """
         Check that aliases arising from two sets of equations A and B,
@@ -892,7 +886,7 @@ class TestAliases(object):
                                (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward +
                                1))]
         op0 = Operator(eqns, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         # Check code generation
         assert 'bf0' in op1._func_table
@@ -914,7 +908,6 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_minimize_remainders_due_to_autopadding(self):
         """
         Check that the bounds of the Iteration computing an aliasing expression are
@@ -934,7 +927,7 @@ class TestAliases(object):
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
         op0 = Operator(eqn, opt=('noop', {'openmp': False}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': False}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': False, 'cire-mincost-sops': 1}))
 
         x0_blk_size = op1.parameters[2]
         y0_blk_size = op1.parameters[3]
@@ -998,7 +991,6 @@ class TestAliases(object):
         assert all(e.write in arrays for e in tmp_exprs)
         assert all(e.write._mem_heap and not e.write._mem_external for e in tmp_exprs)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1000)
     def test_catch_duplicate_from_different_clusters(self):
         """
         Check that the compiler is able to detect redundant aliases when these
@@ -1022,13 +1014,12 @@ class TestAliases(object):
                 s.inject(e.forward, expr=s) +
                 [Eq(f.forward, deriv2 + f + e.forward.dx)])
 
-        op = Operator(eqns)
+        op = Operator(eqns, opt=('advanced', {'cire-mincost-sops': 1000}))
 
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 3
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS_INV", 28)
     def test_hoisting_if_coupled(self):
         """
         Test that coupled aliases are successfully hoisted out of the time loop.
@@ -1048,7 +1039,8 @@ class TestAliases(object):
         eqns = [Eq(e.forward, e + 1),
                 Eq(f.forward, f*subexpr0 - f*subexpr1 + e.forward.dx)]
 
-        op = Operator(eqns, opt=('advanced', {'cire-repeats-inv': 2}))
+        op = Operator(eqns, opt=('advanced', {'cire-repeats-inv': 2,
+                                              'cire-mincost-inv': 28}))
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
@@ -1093,7 +1085,6 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape_big_temporaries(self):
         """
         Test that if running with ``opt=advanced-fsg``, then the compiler uses
@@ -1112,7 +1103,8 @@ class TestAliases(object):
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True,
+                                                  'cire-mincost-sops': 1}))
 
         # Two separate blocked loop nests
         assert len(op1._func_table) == 2
@@ -1135,7 +1127,6 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     @switchconfig(profiling='advanced')
     def test_extraction_from_lifted_ispace(self):
         """
@@ -1157,7 +1148,7 @@ class TestAliases(object):
 
         # Operator
         op0 = Operator(eqns, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         # Check numerical output
         op0(time_M=1)
@@ -1171,9 +1162,8 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 120
+        assert summary[('section0', None)].ops == 115
 
-    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     @switchconfig(profiling='advanced')
     def test_tti_adjoint_akin(self):
         """
@@ -1218,7 +1208,8 @@ class TestAliases(object):
         eqn = [Eq(r.backward, Gzz)]
 
         op0 = Operator(eqn, subs=grid.spacing_map, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, subs=grid.spacing_map,
+                       opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
         # Check numerical output
         op0(time_M=1)
@@ -1230,6 +1221,40 @@ class TestAliases(object):
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
         assert summary[('section1', None)].ops == 39
+
+    @switchconfig(profiling='advanced')
+    def test_nested_first_derivatives(self):
+        """
+        Test that aliasing sub-expressions from nested derivatives aren't split,
+        but rather they're captured together and scheduled to a single temporary.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        f.data_with_halo[:] = 0.5
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+        v.data_with_halo[:] = 1.
+
+        eqn = Eq(v.forward, (v.dx * (1 + 2*f) * f).dx)
+
+        # Operator
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+
+        # Check numerical output
+        op0(time_M=1)
+        v1 = TimeFunction(name="v", grid=grid, space_order=4)
+        v1.data_with_halo[:] = 1.
+        summary = op1(time_M=1, v=v1)
+        assert np.isclose(norm(v), norm(v1), rtol=1e-5)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert summary[('section0', None)].ops == 21
 
 
 # Acoustic
@@ -1274,11 +1299,11 @@ class TestIsoAcoustic(object):
         assert len(op0._func_table) == 0
         assert len(op1._func_table) == 1  # due to loop blocking
 
-        assert summary0[('section0', None)].ops == 39
-        assert np.isclose(summary0[('section0', None)].oi, 2.226, atol=0.001)
+        assert summary0[('section0', None)].ops == 46
+        assert np.isclose(summary0[('section0', None)].oi, 2.623, atol=0.001)
 
-        assert summary1[('section0', None)].ops == 29
-        assert np.isclose(summary1[('section0', None)].oi, 1.655, atol=0.001)
+        assert summary1[('section0', None)].ops == 33
+        assert np.isclose(summary1[('section0', None)].oi, 1.882, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
         assert np.allclose(rec0.data, rec1.data, atol=10e-5)
@@ -1325,7 +1350,7 @@ class TestTTI(object):
         # Make sure no opts were applied
         op = wavesolver.op_fwd('centered', False)
         assert len(op._func_table) == 0
-        assert summary[('section0', None)].ops == 727
+        assert summary[('section0', None)].ops == 729
 
         return v, rec
 
@@ -1338,8 +1363,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 102
-        assert np.isclose(summary[('section1', None)].oi, 1.678, atol=0.001)
+        assert summary[('section1', None)].ops == 103
+        assert np.isclose(summary[('section1', None)].oi, 1.692, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -1382,7 +1407,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 174), (16, 310)
+        (8, 173), (16, 307)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)

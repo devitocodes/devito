@@ -640,6 +640,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+
+        # stash a reference to the array on _obj, so we don't let it get freed
+        # while we hold onto _obj
+        dataobj._obj.underlying_array = data
+
         return dataobj
 
     def _C_as_ndarray(self, dataobj):

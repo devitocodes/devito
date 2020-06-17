@@ -743,6 +743,12 @@ class XSubs(Transformer):
         super(XSubs, self).__init__()
         self.replacer = replacer or (lambda i: uxreplace(i, mapper))
 
+    def visit_Conditional(self, o):
+        condition = self.replacer(o.condition)
+        then_body = self._visit(o.then_body)
+        else_body = self._visit(o.else_body)
+        return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
+
     def visit_Expression(self, o):
         return o._rebuild(expr=self.replacer(o.expr))
 
