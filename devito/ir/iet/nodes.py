@@ -750,15 +750,12 @@ class PointerCast(Node):
 class Dereference(ExprStmt, Node):
 
     """
-    A node encapsulating a dereferentiation from a PointerArray to an Array.
+    A node encapsulating a dereference from a PointerArray to an Array.
     """
 
     is_Dereference = True
 
     def __init__(self, array, parray):
-        assert array
-        assert parray
-
         self.array = array
         self.parray = parray
 
