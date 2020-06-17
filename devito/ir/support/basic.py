@@ -294,31 +294,41 @@ class TimedAccess(IterationInstance):
         other : TimedAccess
             The TimedAccess w.r.t. which the distance is computed.
         """
-        queue = list(zip(self.itintervals, other.itintervals))
-
         ret = []
-        for i, o, fi in zip(self, other, self.findices):
-            try:
-                iit, oit = queue.pop(0)
-            except IndexError:
-                # E.g., `self=R<f,[0,1]>` and `self.itintervals=()`
-                ret.append(i - o)
-                continue
+        for sit, oit in zip(self.itintervals, other.itintervals):
+            n = len(ret)
 
-            if iit != oit:
-                # E.g., `self=R<f,[x + 2]>` and `other=W<f,[i + 1]>`
-                ret.append(S.Infinity)
+            try:
+                sai = self.aindices[n]
+                oai = other.aindices[n]
+            except IndexError:
+                # E.g., `self=R<f,[x]>` and `self.itintervals=(x, i)`
                 break
 
-            if fi in iit.dim._defines:
-                if iit.direction is Backward:
-                    # Backward direction => flip the sign
-                    ret.append(o - i)
+            try:
+                if not (sit == oit and sai.root is oai.root):
+                    # E.g., `self=R<f,[x + 2]>` and `other=W<f,[i + 1]>`
+                    # E.g., `self=R<f,[x]>`, `other=W<f,[x + 1]>`,
+                    #       `self.itintervals=(x<0>,)` and `other.itintervals=(x<1>,)`
+                    ret.append(S.Infinity)
+                    break
+            except AttributeError:
+                # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
+                pass
+
+            ai = sai
+            fi = self.findices[n]
+
+            if not ai or ai._defines & sit.dim._defines:
+                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)` and `ai=t`
+                if sit.direction is Backward:
+                    ret.append(other[n] - self[n])
                 else:
-                    ret.append(i - o)
-            else:
-                # E.g., `self=R<f,[x + 2]>`, `self.itintervals=(time, x)`, and `iit=time+`
-                #TODO
+                    ret.append(self[n] - other[n])
+            elif fi in sit.dim._defines:
+                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>` and `fi=p_src` (`n=1`)
+                ret.append(S.Infinity)
+                break
 
         return Vector(*ret)
 

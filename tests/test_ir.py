@@ -266,11 +266,13 @@ class TestVectorHierarchy(object):
         assert rev_tcxy_w0.distance(rev_tcx1y1_r1) == (1, -1)
         assert rev_tcx1y1_r1.distance(rev_tcxy_w0) == (-1, 1)
 
-        # The distance is a symbolic expression when the findices directions
-        # are homogeneous, but one of the two TimedAccesses is irregular
-        assert tcxy_w0.distance(tcyx_irr0) == (x - y, -x + y)
-        assert tcx1y_r1.distance(tcyx_irr0) == (x - y + 1, -x + y)
-        assert tcxy_w0.distance(tcxx_irr1) == (0, -x + y)
+        # The distance must be infinity when the findices directions
+        # are homogeneous, but one of the two TimedAccesses is irregular (in
+        # this case, the aindices differ, as the irregular TimedAccess uses
+        # `y` where `x` is expected)
+        assert tcxy_w0.distance(tcyx_irr0) == (S.Infinity)
+        assert tcx1y_r1.distance(tcyx_irr0) == (S.Infinity)
+        assert tcxy_w0.distance(tcxx_irr1) == (0, S.Infinity)
 
         # The distance must be infinity when the aindices are compatible but
         # one of the TimedAccesses is irregular due to mismatching
