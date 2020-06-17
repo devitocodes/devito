@@ -199,8 +199,7 @@ class Ne(sympy.Ne):
     --------
     `Ne` may be used to express a relation.
 
-    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator
-    >>> from devito import Ne
+    >>> from devito import Grid, Function, ConditionalDimension, Eq, Operator, Ne
     >>> grid = Grid(shape=(8, 8))
     >>> g = Function(name='g', grid=grid)
     >>> Ne(g, 0)
