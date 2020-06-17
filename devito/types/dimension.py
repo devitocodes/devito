@@ -721,11 +721,12 @@ class ConditionalDimension(DerivedDimension):
     is_Conditional = True
 
     def __init_finalize__(self, name, parent, factor=None, condition=None,
-                          indirect=False):
+                          indirect=False, breakc=False):
         super().__init_finalize__(name, parent)
         self._factor = factor
         self._condition = condition
         self._indirect = indirect
+        self._break = breakc
 
     @property
     def spacing(self):
@@ -738,6 +739,10 @@ class ConditionalDimension(DerivedDimension):
     @property
     def condition(self):
         return self._condition
+
+    @property
+    def breakc(self):
+        return self._break
 
     @property
     def indirect(self):

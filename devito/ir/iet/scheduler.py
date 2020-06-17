@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
+from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional, Break,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
                            XSubs)
 from devito.symbolics import IntDiv, xreplace_indices
@@ -27,7 +27,7 @@ def iet_build(stree):
             body = ExpressionBundle(i.ispace, i.ops, i.traffic, body=exprs)
 
         elif i.is_Conditional:
-            body = Conditional(i.guard, queues.pop(i))
+            body = Conditional(i.guard, queues.pop(i), Break())
 
         elif i.is_Iteration:
             # Order to ensure deterministic code generation

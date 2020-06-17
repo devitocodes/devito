@@ -23,7 +23,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock', 'Dereference']
+           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Break']
 
 # First-class IET nodes
 
@@ -656,6 +656,13 @@ class Conditional(Node):
     @property
     def defines(self):
         return ()
+
+
+class Break(Node):
+
+    """A node representing a break statement"""
+
+    is_Break = True
 
 
 # Second level IET nodes
