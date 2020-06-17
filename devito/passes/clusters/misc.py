@@ -31,6 +31,7 @@ class Lift(Queue):
             # No iteration space to be lifted from
             return clusters
 
+        # import pdb; pdb.set_trace()
         hope_invariant = {i.dim for i in prefix}
 
         lifted = []
@@ -60,14 +61,15 @@ class Lift(Queue):
                 continue
 
             # Catch symbolic_bounds that are written
-            sbounds = set()
-            for imp in impacted:
-                for i in imp.ispace.dimensions:
-                    sbounds.update([i.symbolic_min, i.symbolic_max])
+            # sbounds = set()
+            # for imp in impacted:
+            #    for i in imp.ispace.dimensions:
+            #        sbounds.update([i.symbolic_min, i.symbolic_max])
 
-            if any(swrites & sbounds):
-                processed.append(c)
-                continue
+            # if any(swrites & sbounds):
+            #    import pdb; pdb.set_trace()
+            #    processed.append(c)
+            #    continue
 
             # Contract iteration and data spaces for the lifted Cluster
             key = lambda d: d not in hope_invariant
