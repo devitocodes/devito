@@ -75,10 +75,19 @@ def _hoist_halospots(iet):
             for f in hs.fmapper:
                 for n, i in enumerate(iters):
                     maybe_hoistable = set().union(*[i.dim._defines for i in iters[n:]])
-                    d_flow = scopes[i].d_flow.project(f)
 
-                    if all(not (dep.cause & maybe_hoistable) or dep.write.is_increment
-                           for dep in d_flow):
+                    test = True
+                    for dep in scopes[i].d_flow.project(f):
+                        if all(dep.distance_mapper.get(d) == 0 for d in maybe_hoistable):
+                            continue
+
+                        if dep.write.is_increment:
+                            continue
+
+                        test = False
+                        break
+
+                    if test:
                         hsmapper[hs] = hsmapper[hs].drop(f)
                         imapper[i].append(hs.halo_scheme.project(f))
                         break
