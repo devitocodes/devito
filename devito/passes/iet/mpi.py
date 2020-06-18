@@ -62,6 +62,23 @@ def _hoist_halospots(iet):
     Hoist HaloSpots from inner to outer Iterations where all data dependencies
     would be honored.
     """
+
+    # Hoisting rules -- if the retval is True, then it means the input `dep` is not
+    # a stopper to halo hoisting
+
+    def rule0(dep, candidates):
+        # E.g., `dep=W<f,[x]> -> R<f,[x-1]>` and `candidates=(time, x)` => False
+        # E.g., `dep=W<f,[t1, x, y]> -> R<f,[t0, x-1, y+1]>`, `dep.cause={t,time}` and
+        #       `candidates=(x,)` => True
+        return (all(d in dep.distance_mapper for d in candidates) and
+                not dep.cause & candidates)
+
+    def rule1(dep, candidates):
+        # An increment isn't a stopper to hoisting
+        return dep.write.is_increment
+
+    hoist_rules = [rule0, rule1]
+
     # Precompute scopes to save time
     scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
 
@@ -74,11 +91,15 @@ def _hoist_halospots(iet):
 
             for f in hs.fmapper:
                 for n, i in enumerate(iters):
-                    maybe_hoistable = set().union(*[i.dim._defines for i in iters[n:]])
-                    d_flow = scopes[i].d_flow.project(f)
+                    candidates = set().union(*[i.dim._defines for i in iters[n:]])
 
-                    if all(not (dep.cause & maybe_hoistable) or dep.write.is_increment
-                           for dep in d_flow):
+                    test = True
+                    for dep in scopes[i].d_flow.project(f):
+                        if any(rule(dep, candidates) for rule in hoist_rules):
+                            continue
+                        test = False
+                        break
+                    if test:
                         hsmapper[hs] = hsmapper[hs].drop(f)
                         imapper[i].append(hs.halo_scheme.project(f))
                         break

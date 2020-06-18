@@ -316,8 +316,8 @@ class LabeledVector(Vector):
         if isinstance(index, (slice, int)):
             return super(LabeledVector, self).__getitem__(index)
         elif isinstance(index, Dimension):
-            for d in index._defines:
-                if d in self.labels:
+            for d in self.labels:
+                if d._defines & index._defines:
                     i = self.labels.index(d)
                     return super(LabeledVector, self).__getitem__(i)
             return None

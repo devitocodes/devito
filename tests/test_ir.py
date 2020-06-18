@@ -266,15 +266,13 @@ class TestVectorHierarchy(object):
         assert rev_tcxy_w0.distance(rev_tcx1y1_r1) == (1, -1)
         assert rev_tcx1y1_r1.distance(rev_tcxy_w0) == (-1, 1)
 
-        # Distance up to provided dimension
-        assert tcx1y1_r1.distance(tcxy_r0, x) == (1,)
-        assert tcx1y1_r1.distance(tcxy_r0, y) == (1, 1)
-
-        # The distance is a symbolic expression when the findices directions
-        # are homogeneous, but one of the two TimedAccesses is irregular
-        assert tcxy_w0.distance(tcyx_irr0) == (x - y, -x + y)
-        assert tcx1y_r1.distance(tcyx_irr0) == (x - y + 1, -x + y)
-        assert tcxy_w0.distance(tcxx_irr1) == (0, -x + y)
+        # The distance must be infinity when the findices directions
+        # are homogeneous, but one of the two TimedAccesses is irregular (in
+        # this case, the aindices differ, as the irregular TimedAccess uses
+        # `y` where `x` is expected)
+        assert tcxy_w0.distance(tcyx_irr0) == (S.Infinity)
+        assert tcx1y_r1.distance(tcyx_irr0) == (S.Infinity)
+        assert tcxy_w0.distance(tcxx_irr1) == (0, S.Infinity)
 
         # The distance must be infinity when the aindices are compatible but
         # one of the TimedAccesses is irregular due to mismatching
@@ -931,45 +929,6 @@ class TestAnalysis(object):
         assert all([not i.is_ParallelAtomic for i in iters if i.dim.name not in atomic])
         assert all([i.is_Parallel for i in iters if i.dim.name in parallel])
         assert all([not i.is_Parallel for i in iters if i.dim.name not in parallel])
-
-    @pytest.mark.parametrize('exprs,wrappable', [
-        # Easy: wrappable
-        (['Eq(u.forward, u + 1)'], True),
-        # Easy: wrappable
-        (['Eq(w.forward, w + 1)'], True),
-        # Not wrappable, as we're accessing w's back in a subsequent equation
-        (['Eq(w.forward, w + 1)', 'Eq(v.forward, w)'], False),
-        # Wrappable, but need to touch multiple indices with different modulos
-        (['Eq(w.forward, u + w + 1)'], True),
-        # Wrappable as the back timeslot is accessed only once, even though
-        # later equations are writing again to w.forward
-        (['Eq(w.forward, w + 1)', 'Eq(w.forward, w.forward + 2)'], True),
-        # Not wrappable as the front is written before the back timeslot could be read
-        (['Eq(w.forward, w + 1)', 'Eq(u.forward, u + w + 2)'], False),
-    ])
-    def test_loop_wrapping(self, exprs, wrappable):
-        """Tests detection of WRAPPABLE property."""
-        grid = Grid(shape=(3, 3, 3))
-
-        u = TimeFunction(name='u', grid=grid)  # noqa
-        v = TimeFunction(name='v', grid=grid, time_order=4)  # noqa
-        w = TimeFunction(name='w', grid=grid, time_order=4)  # noqa
-
-        # List comprehension would need explicit locals/globals mappings to eval
-        for i, e in enumerate(list(exprs)):
-            exprs[i] = eval(e)
-
-        op = Operator(exprs)
-
-        iters = FindNodes(Iteration).visit(op)
-
-        # Dependence analysis checks
-        time_iter = [i for i in iters if i.dim.is_Time]
-        assert len(time_iter) == 1
-        time_iter = time_iter[0]
-        if wrappable:
-            assert time_iter.is_Wrappable
-        assert all(not i.is_Wrappable for i in iters if i is not time_iter)
 
 
 class TestEquationAlgorithms(object):

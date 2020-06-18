@@ -5,8 +5,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
-                               optimize_halospots, loop_wrapping, hoist_prodders,
-                               relax_incr_dimensions)
+                               optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import as_tuple, generator, timed_pass
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'CPU64OpenMPOperator',
@@ -257,8 +256,8 @@ ArmOpenMPOperator = CPU64OpenMPOperator
 
 class CustomOperator(CPU64Operator):
 
-    _known_passes = ('blocking', 'denormals', 'optcomms', 'wrapping', 'openmp',
-                     'mpi', 'simd', 'prodders', 'topofuse', 'fuse')
+    _known_passes = ('blocking', 'denormals', 'optcomms', 'openmp', 'mpi',
+                     'simd', 'prodders', 'topofuse', 'fuse')
 
     @classmethod
     def _make_clusters_passes_mapper(cls, **kwargs):
@@ -280,7 +279,6 @@ class CustomOperator(CPU64Operator):
         return {
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
-            'wrapping': loop_wrapping,
             'blocking': partial(relax_incr_dimensions, counter=generator()),
             'openmp': ompizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),

@@ -814,6 +814,38 @@ class TestCodeGeneration(object):
         assert op.body[-1].body[0].body[0].body[0].is_Call
         assert op.body[-1].body[0].body[0].body[1].is_Iteration
 
+    @pytest.mark.parallel(mode=2)
+    def test_unhoist_haloupdate_if_invariant(self):
+        """
+        Test an Operator that computes coupled equations in which the first
+        one *does require* a halo update on a Dimension-invariant Function.
+        """
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+
+        f.data_with_halo[:] = 2.
+        u.data_with_halo[:] = 1.
+
+        eqns = [Eq(u.forward, u + f[x-1] + f[x+1] + 1.),
+                Eq(f, u[t+1, x-1] + u[t+1, x+1] + 1.)]
+
+        op = Operator(eqns)
+        op.apply(time=1)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+        glb_pos_map = grid.distributor.glb_pos_map
+        R = 1e-07
+        if LEFT in glb_pos_map[x]:
+            assert np.allclose(f.data_ro_domain[:5], [30., 56., 62., 67., 67.], rtol=R)
+        else:
+            assert np.allclose(f.data_ro_domain[5:], [67., 67., 62., 56., 30.], rtol=R)
+
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
