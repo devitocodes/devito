@@ -58,7 +58,9 @@ class DataManager(object):
         Parameters
         ----------
         sregistry : SymbolRegistry
-            The symbol registry, to create new symbols and to access special symbols.
+            The symbol registry, to quickly access the special symbols that may
+            appear in the IET (e.g., `sregistry.threadid`, that is the thread
+            Dimension, used by the DataManager for parallel memory allocation).
         """
         self.sregistry = sregistry
 

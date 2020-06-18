@@ -256,7 +256,8 @@ class Ompizer(object):
         Parameters
         ----------
         sregistry : SymbolRegistry
-            The symbol registry, to create new symbols and to access special symbols.
+            The symbol registry, to quickly access the special symbols that may
+            appear in the IET (e.g., `sregistry.threadid`, `sregistry.nthreads`).
         key : callable, optional
             Return True if an Iteration can be parallelized, False otherwise.
         """

@@ -31,7 +31,7 @@ def cire(cluster, mode, sregistry, options, platform):
         * 'sops' stands for sums-of-products, that is redundancies are searched
           across all expressions in sum-of-product form.
     sregistry : SymbolRegistry
-        To create the temporaries that will store the redundant expressions.
+        The symbol registry, to create unique temporary names.
     options : dict
         The optimization options. Accepted: ['min-storage'].
         * 'min-storage': if True, the pass will try to minimize the amount of
