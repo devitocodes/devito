@@ -280,6 +280,22 @@ free_symbols method.</p>
 </dd></dl>
 
 <dl class="py class">
+<dt id="devito.types.dimension.CustomDimension">
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">CustomDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#CustomDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.CustomDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.BasicDimension</span></code></p>
+<p>Dimension defining an iteration space with custom (known) size.</p>
+<p class="rubric">Notes</p>
+<p>This could be extended in the future for more customization (e.g., min point,
+max point, etc.).</p>
+<dl class="py method">
+<dt id="devito.types.dimension.CustomDimension.symbolic_size">
+<em class="property">property </em><code class="sig-name descname">symbolic_size</code><a class="headerlink" href="#devito.types.dimension.CustomDimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbolic size of the Dimension.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt id="devito.types.dimension.DefaultDimension">
 <em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">DefaultDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#DefaultDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.DefaultDimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.Dimension</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.DataSymbol</span></code></p>
