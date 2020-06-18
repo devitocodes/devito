@@ -9,11 +9,11 @@ __all__ = ['cse']
 
 
 @cluster_pass
-def cse(cluster, template, *args):
+def cse(cluster, sregistry, *args):
     """
     Common sub-expressions elimination (CSE).
     """
-    make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
+    make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
     processed = _cse(cluster.exprs, make)
 
     return cluster.rebuild(processed)
