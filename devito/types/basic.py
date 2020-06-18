@@ -617,7 +617,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return cls
 
     def __new__(cls, *args, **kwargs):
-        options = kwargs.get('options', {})
+        options = kwargs.get('options', {'evaluate': False})
 
         key = cls._cache_key(*args, **kwargs)
         obj = cls._cache_get(key)
@@ -769,6 +769,15 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         if not is_averaged:
             return self
         return weight * sum(avg_list)
+
+    def _subs(self, old, new, **hints):
+        args = list(self.args)
+        for i, arg in enumerate(args):
+            try:
+                args[i] = arg._subs(old, new, **hints)
+            except AttributeError:
+                continue
+        return self.func(*args)
 
     @property
     def shape(self):

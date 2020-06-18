@@ -2,7 +2,6 @@ from sympy import cos, sin, sqrt
 
 from devito import Eq, Operator, TimeFunction, NODE, solve
 from examples.seismic import PointSource, Receiver
-from devito.finite_differences import centered, first_derivative, transpose
 
 
 def second_order_stencil(model, u, v, H0, Hz, forward=True):
@@ -75,22 +74,13 @@ def Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
     """
     order1 = space_order // 2
     x, y, z = model.space_dimensions
-    Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
-                                                side=centered, fd_order=order1) +
-           sintheta * sinphi * first_derivative(field, dim=y,
-                                                side=centered, fd_order=order1) +
-           costheta * first_derivative(field, dim=z,
-                                       side=centered, fd_order=order1))
+    Gz = -(sintheta * cosphi * field.dx(fd_order=order1) +
+           sintheta * sinphi * field.dy(fd_order=order1) +
+           costheta * field.dz(fd_order=order1))
 
-    Gzz = (first_derivative(Gz * sintheta * cosphi,
-                            dim=x, side=centered, fd_order=order1,
-                            matvec=transpose) +
-           first_derivative(Gz * sintheta * sinphi,
-                            dim=y, side=centered, fd_order=order1,
-                            matvec=transpose) +
-           first_derivative(Gz * costheta,
-                            dim=z, side=centered, fd_order=order1,
-                            matvec=transpose))
+    Gzz = ((Gz * sintheta * cosphi).dx(fd_order=order1).T +
+           (Gz * sintheta * sinphi).dy(fd_order=order1).T +
+           (Gz * costheta).dz(fd_order=order1).T)
     return Gzz
 
 
@@ -113,14 +103,10 @@ def Gzz_centered_2d(model, field, costheta, sintheta, space_order):
     """
     order1 = space_order // 2
     x, y = model.space_dimensions[:2]
-    Gz = -(sintheta * first_derivative(field, dim=x, side=centered, fd_order=order1) +
-           costheta * first_derivative(field, dim=y, side=centered, fd_order=order1))
-    Gzz = (first_derivative(Gz * sintheta, dim=x,
-                            side=centered, fd_order=order1,
-                            matvec=transpose) +
-           first_derivative(Gz * costheta, dim=y,
-                            side=centered, fd_order=order1,
-                            matvec=transpose))
+    Gz = -(sintheta * field.dx(fd_order=order1) +
+           costheta * field.dy(fd_order=order1))
+    Gzz = ((Gz * sintheta).dx(fd_order=order1).T +
+           (Gz * costheta).dy(fd_order=order1).T)
     return Gzz
 
 

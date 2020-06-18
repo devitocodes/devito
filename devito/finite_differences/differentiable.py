@@ -288,6 +288,15 @@ class DifferentiableOp(Differentiable):
         return self.func(*[getattr(a, 'subs', lambda x: a)(*args, **kwargs)
                            for a in self.args], evaluate=False)
 
+    def _subs(self, old, new, **hints):
+        args = list(self.args)
+        for i, arg in enumerate(args):
+            try:
+                args[i] = arg._subs(old, new, **hints)
+            except AttributeError:
+                continue
+        return self.func(*args, evaluate=False)
+
     @property
     def _gather_for_diff(self):
         return self
