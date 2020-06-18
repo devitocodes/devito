@@ -696,18 +696,6 @@ class Scope(object):
             if not e.is_Increment and e.is_scalar:
                 self.initialized.add(e.lhs.function)
 
-        # If expr has implicit_dims add their symolic bounds to the scope
-        # import pdb; pdb.set_trace()
-        impl_dims = set().union(*[e.implicit_dims for e in exprs])
-        for j in impl_dims:
-            try:
-                v = self.reads.setdefault(j.symbolic_min.function, [])
-                v.append(TimedAccess(j.symbolic_min, 'R', -1))
-                v = self.reads.setdefault(j.symbolic_max.function, [])
-                v.append(TimedAccess(j.symbolic_max, 'R', -1))
-            except:
-                pass
-
         # The iterators symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
         for d in dimensions:
