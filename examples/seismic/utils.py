@@ -205,5 +205,6 @@ def seismic_args(description):
                         help="Operator auto-tuning mode")
     parser.add_argument("-tn", "--tn", default=0,
                         type=float, help="Simulation time in millisecond")
-
+    parser.add_argument("-dtype", dest="dtype", default='float32',
+                        choices=['float32', 'float64'])
     return parser
