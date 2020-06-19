@@ -771,6 +771,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return weight * sum(avg_list)
 
     def _subs(self, old, new, **hints):
+        if old is self:
+            return new
         args = list(self.args)
         for i, arg in enumerate(args):
             try:

@@ -78,9 +78,14 @@ def Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
            sintheta * sinphi * field.dy(fd_order=order1) +
            costheta * field.dz(fd_order=order1))
 
-    Gzz = ((Gz * sintheta * cosphi).dx(fd_order=order1).T +
-           (Gz * sintheta * sinphi).dy(fd_order=order1).T +
-           (Gz * costheta).dz(fd_order=order1).T)
+    Gzz = (Gz * costheta).dz(fd_order=order1).T
+    # Add rotated derivative if angles are not zero. If angles are
+    # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
+    if sintheta != 0:
+        Gzz += (Gz * sintheta * cosphi).dx(fd_order=order1).T
+    if sinphi != 0:
+        Gzz += (Gz * sintheta * sinphi).dy(fd_order=order1).T
+
     return Gzz
 
 
