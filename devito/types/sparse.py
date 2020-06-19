@@ -5,7 +5,7 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
 from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
@@ -19,7 +19,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
 
 
-class AbstractSparseFunction(DiscreteFunction, Differentiable):
+class AbstractSparseFunction(DiscreteFunction):
 
     """
     An abstract class to define behaviours common to all sparse functions.

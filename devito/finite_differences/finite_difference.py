@@ -274,10 +274,11 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     for i, c in zip(inds, weights):
         # Apply replacements to indices. Needs to be sympified in case
         # the indices are pure numbers
-        iloc = sympify(i).xreplace(mapper)
+        try:
+            iloc = i.xreplace(mapper)
+        except AttributeError:
+            iloc = sympify(i).xreplace(mapper)
         # Enforce fixed precision FD coefficients to avoid variations in results
-        # TODO: check if this is still strictly necessary
-        # (was making CI fail due to variance in results)
         c = sympify(c).evalf(_PRECISION)
         terms.append(expr._subs(expr.indices_ref[dim], iloc) * c)
 

@@ -770,17 +770,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
             return self
         return weight * sum(avg_list)
 
-    def _subs(self, old, new, **hints):
-        if old is self:
-            return new
-        args = list(self.args)
-        for i, arg in enumerate(args):
-            try:
-                args[i] = arg._subs(old, new, **hints)
-            except AttributeError:
-                continue
-        return self.func(*args)
-
     @property
     def shape(self):
         """The shape of the object."""
