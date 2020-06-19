@@ -885,7 +885,30 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.allclose(u.data, exp.data, rtol=10e-7)
 
-    def test_implicit_invariant(self):
+    @pytest.mark.parametrize('exprs,expected', [
+        # none (different distance)
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(time, x))',
+         'Inc(h1[0, 0], 1, implicit_dims=(time, x, y))'],
+         [6., 0., 0.]),
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(time, x))',
+         'Eq(h1[0, 0], y, implicit_dims=(time, x, y))'],
+         [2., 0., 0.]),
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(time, x))',
+         'Eq(h1[0, y], y, implicit_dims=(time, x, y))'],
+         [0., 1., 2.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(time, x))',
+         'Eq(h1[0, y], 3 - y, implicit_dims=(time, x, y))'],
+         [3., 2., 1.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(time, x))',
+          'Eq(y.symbolic_max, g[0, x], implicit_dims=(time, x))',
+          'Eq(h1[0, y], y, implicit_dims=(time, x, y))'],
+         [0., 1., 2.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(time, x))',
+          'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(time, x))',
+          'Eq(h1[0, y], y, implicit_dims=(time, x, y))'],
+         [0., 0., 0.])
+    ])
+    def test_implicit_invariant_increment(self, exprs, expected):
 
         x = Dimension(name='x')
         y = Dimension(name='y')
@@ -893,17 +916,17 @@ class TestAliases(object):
 
         g = TimeFunction(name='g', shape=(1, 3), dimensions=(time, x),
                          time_order=0, dtype=np.int32)
-        g.data[0, :] = [1, 2, 3]
-        h1 = TimeFunction(name='h1', shape=(1, 1), dimensions=(time, y), time_order=0)
-        h1.data[0, 0] = 0
+        g.data[0, :] = [0, 1, 2]
+        h1 = TimeFunction(name='h1', shape=(1, 3), dimensions=(time, y), time_order=0)
+        h1.data[0, :] = 0
 
-        eq0 = Eq(y.symbolic_max, g[0, x], implicit_dims=(time, x))
-        eq1 = Inc(h1[0, 0], 1, implicit_dims=(time, x, y))
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
 
-        op = Operator([eq0, eq1])
+        op = Operator(exprs)
         op.apply()
-
-        assert(h1.data == 9.)
+        assert np.all(h1.data == expected)
 
     @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
     def test_nested_invariants(self):
