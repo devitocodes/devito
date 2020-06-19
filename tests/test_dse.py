@@ -903,12 +903,30 @@ class TestAliases(object):
           'Eq(y.symbolic_max, g[0, x], implicit_dims=(time, x))',
           'Eq(h1[0, y], y, implicit_dims=(time, x, y))'],
          [0., 1., 2.]),
+        (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(time, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(time, x))',
+          'Eq(h1[0, y], y, implicit_dims=(time, x, y))'],
+         [0., 1., 2.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(time, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(time, x))',
+          'Inc(h1[0, y], y, implicit_dims=(time, x, y))'],
+         [0., 2., 6.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(time, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(time, x))',
+          'Inc(h1[0, x], y, implicit_dims=(time, x, y))'],
+         [3., 3., 2.]),
+        (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(time, x))',
+          'Inc(h1[0, y], x, implicit_dims=(time, x, y))'],
+         [3., 3., 3.]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(time, x))',
+          'Inc(h1[0, x], y.symbolic_min, implicit_dims=(time, x))'],
+         [2., 2., 2.]),
         (['Eq(y.symbolic_min, g[0, x], implicit_dims=(time, x))',
           'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(time, x))',
           'Eq(h1[0, y], y, implicit_dims=(time, x, y))'],
          [0., 0., 0.])
     ])
-    def test_implicit_invariant_increment(self, exprs, expected):
+    def test_false_invariant_lifting(self, exprs, expected):
 
         x = Dimension(name='x')
         y = Dimension(name='y')
@@ -926,6 +944,7 @@ class TestAliases(object):
 
         op = Operator(exprs)
         op.apply()
+
         assert np.all(h1.data == expected)
 
     @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")

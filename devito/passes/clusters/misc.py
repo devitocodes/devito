@@ -46,6 +46,7 @@ class Lift(Queue):
                 processed.append(c)
                 continue
 
+            # Union of processed clusters and incoming clusters
             impacted = set(processed) | set(clusters[n+1:])
 
             # None of the Functions appearing in a lifted Cluster can be written to
@@ -60,24 +61,29 @@ class Lift(Queue):
                 continue
 
             # Catch symbolic_bounds that are written
-            sbounds = set()
-            impacted_fs = set()
+            # Store the symbolic bounds of dimensions in impacted clusters
+            imp_bounds = set()
+            # Store the free symbols of expressions in impacted clusters
+            imp_free_symbols = set()
             for imp in impacted:
-                impacted_fs.update(imp.free_symbols)
+                imp_free_symbols.update(imp.free_symbols)
                 for i in imp.ispace.dimensions:
-                    sbounds.update([i.symbolic_min, i.symbolic_max])
+                    imp_bounds.update([i.symbolic_min, i.symbolic_max])
 
-            if any(swrites & sbounds):
+            # Are we writing to the loop bounds of an impacted cluster?
+            if any(swrites & imp_bounds):
                 processed.append(c)
                 continue
 
             # Catch cases where impacted free_symbols read from affected symbolic_bounds
+            # Store the symbolic bounds of dimensions in the cluster's Scope's reads
             sreadsbounds = set()
             sreads = {f for f in c.scope.reads if f.is_Dimension}
             for i in sreads:
                 sreadsbounds.update([i.symbolic_min, i.symbolic_max])
 
-            if any(sreadsbounds & impacted_fs):
+            # Are we reading inside a loop that has dynamic bounds?
+            if any(sreadsbounds & imp_free_symbols):
                 processed.append(c)
                 continue
 
