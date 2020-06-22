@@ -70,12 +70,14 @@ class Lift(Queue):
                 for i in imp.ispace.dimensions:
                     imp_bounds.update([i.symbolic_min, i.symbolic_max])
 
-            # Are we writing to the loop bounds of an impacted cluster?
+            # Prevent lifting if cluster's scope writes affects
+            # the symbolic bounds of impacted clusters
             if any(swrites & imp_bounds):
                 processed.append(c)
                 continue
 
-            # Catch cases where impacted free_symbols read from affected symbolic_bounds
+            # Catch cases where free_symbols of impacted clusters read from affected
+            # symbolic_bounds
             # Store the symbolic bounds of dimensions in the cluster's Scope's reads
             sreadsbounds = set()
             sreads = {f for f in c.scope.reads if f.is_Dimension}
