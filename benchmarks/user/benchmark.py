@@ -17,6 +17,8 @@ from benchmarks.user.tools import Driver, Executor, RooflinePlotter
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
+from examples.seismic.skew_self_adjoint.example_iso import run as acoustic_ssa_run, \
+    acoustic_ssa_setup
 from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run, \
     viscoelastic_setup
 
@@ -25,24 +27,56 @@ model_type = {
     'viscoelastic': {
         'run': viscoelastic_run,
         'setup': viscoelastic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'elastic': {
         'run': elastic_run,
         'setup': elastic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
     },
     'tti': {
         'run': tti_run,
         'setup': tti_setup,
-        'default-section': 'section1'
+        'default-section': 'global'
     },
     'acoustic': {
         'run': acoustic_run,
         'setup': acoustic_setup,
-        'default-section': 'section0'
+        'default-section': 'global'
+    },
+    'acoustic_ssa': {
+        'run': acoustic_ssa_run,
+        'setup': acoustic_ssa_setup,
+        'default-section': 'global'
     }
 }
+
+
+def run_op(solver, operator, **options):
+    """
+    Initialize any necessary input and run the operator associated with the solver.
+    """
+    # Get the operator if exist
+    try:
+        op = getattr(solver, operator)
+    except AttributeError:
+        raise AttributeError("Operator %s not implemented for %s" % (operator, solver))
+
+    # This is a bit ugly but not sure how to make clean input creation for different op
+    if operator == "forward":
+        return op(**options)
+    elif operator == "adjoint":
+        rec = solver.geometry.adj_src
+        return op(rec, **options)
+    elif operator == "jacobian":
+        dm = solver.model.dm
+        return op(dm, **options)
+    elif operator == "jacobian_adjoint":
+        # I think we want the forward + gradient call, need to merge retvals
+        rec, u, _ = solver.forward(save=True, **options)
+        return op(rec, u, **options)
+    else:
+        raise ValueError("Unrecognized operator %s" % operator)
 
 
 @click.group()
@@ -68,9 +102,9 @@ def option_simulation(f):
         return list(value if len(value) > 0 else (2, ))
 
     options = [
-        click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti',
-                                                           'elastic', 'viscoelastic']),
-                     help='Problem name'),
+        click.option('-P', '--problem', help='Problem name',
+                     type=click.Choice(['acoustic', 'tti',
+                                        'elastic', 'acoustic_ssa', 'viscoelastic'])),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
@@ -82,8 +116,10 @@ def option_simulation(f):
         click.option('-to', '--time-order', type=int, multiple=True,
                      callback=default_list, help='Time order of the simulation'),
         click.option('-t', '--tn', default=250,
-                     help='End time of the simulation in ms')
-    ]
+                     help='End time of the simulation in ms'),
+        click.option('-op', '--operator', default='forward', help='Operator to run',
+                     type=click.Choice(['forward', 'adjoint',
+                                        'jacobian', 'jacobian_adjoint']))]
     for option in reversed(options):
         f = option(f)
     return f
@@ -203,7 +239,9 @@ def run(problem, **kwargs):
     time_order = kwargs.pop('time_order')[0]
     space_order = kwargs.pop('space_order')[0]
     autotune = kwargs.pop('autotune')
+    options['autotune'] = autotune
     block_shapes = as_tuple(kwargs.pop('block_shape'))
+    operator = kwargs.pop('operator', 'forward')
 
     # Should a specific block-shape be used? Useful if one wants to skip
     # the autotuning pass as a good block-shape is already known
@@ -214,7 +252,7 @@ def run(problem, **kwargs):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
-    retval = solver.forward(autotune=autotune, **options)
+    retval = run_op(solver, operator, **options)
 
     try:
         rank = MPI.COMM_WORLD.rank
@@ -284,7 +322,7 @@ def run_jit_backdoor(problem, **kwargs):
 
     @switchconfig(jit_backdoor=True)
     def _run_jit_backdoor():
-        return solver.forward(autotune=autotune)
+        return run_op(solver, 'forward', autotune=autotune)
 
     return _run_jit_backdoor()
 
@@ -323,6 +361,9 @@ def test(problem, **kwargs):
               help='Directory containing results')
 @click.option('-x', '--repeats', default=3,
               help='Number of test case repetitions')
+@click.option('-df', '--dump-format', default='global',
+              type=click.Choice(['global', 'local', 'all']),
+              help='Dump format of measures')
 @option_simulation
 @option_performance
 def cli_bench(problem, **kwargs):
@@ -336,13 +377,25 @@ def bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
-    run = model_type[problem]['run']
+    setup = model_type[problem]['setup']
     resultsdir = kwargs.pop('resultsdir')
     repeats = kwargs.pop('repeats')
+    dump_format = kwargs.get('dump_format')
 
     bench = get_ob_bench(problem, resultsdir, kwargs)
-    bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)
-    bench.save()
+    bench.execute(get_ob_exec(setup), warmups=0, repeats=repeats)
+
+    try:
+        rank = MPI.COMM_WORLD.rank
+    except AttributeError:
+        # MPI not available
+        rank = 0
+
+    if dump_format == 'global':
+        if rank == 0:
+            bench.save(rank)
+    else:
+        bench.save(rank)
 
     # Final clean up, just in case the benchmarker is used from external Python modules
     clear_cache()
@@ -516,12 +569,39 @@ def get_ob_exec(func):
         def run(self, *args, **kwargs):
             clear_cache()
 
-            gflopss, oi, timings, _ = self.func(*args, **kwargs)
+            operator = kwargs.pop('operator')
+            dump_format = kwargs.pop('dump_format')
 
-            for key in timings.keys():
-                self.register(gflopss[key], measure="gflopss", event=key.name)
-                self.register(oi[key], measure="oi", event=key.name)
-                self.register(timings[key], measure="timings", event=key.name)
+            solver = self.func(*args, **kwargs)
+            retval = run_op(solver, operator)
+
+            summary = retval[-1]
+            assert isinstance(summary, PerformanceSummary)
+            globals = summary.globals['fdlike']
+
+            # global: produces one json from rank 0 with global metrics
+            # local: produces one json per rank, each rank produces local metrics
+            # all: rank 0 produces globals and local, other ranks produce local metrics
+            if dump_format == 'global' or dump_format == 'all':
+                self.register(globals.gflopss, measure="gflopss", event="global")
+                self.register(globals.oi, measure="oi", event="global")
+                self.register(globals.gpointss, measure="gpointss", event="global")
+                self.register(globals.time, measure="timings", event="global")
+
+            if dump_format == 'local' or dump_format == 'all':
+                for key in summary.keys():
+                    entry = summary[key]
+
+                    k_rank = key.rank if key.rank is not None else 0
+
+                    self.register(entry.gflopss, measure="gflopss", event=key.name,
+                                  rank=k_rank)
+                    self.register(entry.oi, measure="oi", event=key.name,
+                                  rank=k_rank)
+                    self.register(entry.gpointss, measure="gpointss", event=key.name,
+                                  rank=k_rank)
+                    self.register(entry.time, measure="timings", event=key.name,
+                                  rank=k_rank)
 
     return DevitoExecutor(func)
 

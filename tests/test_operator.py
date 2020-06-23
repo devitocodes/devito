@@ -7,6 +7,7 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+from devito import  Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
@@ -17,7 +18,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar, Le, Lt, Ge, Gt  # noqa
+from devito.types import Array, Scalar  # noqa
 
 
 def dimify(dimensions):
@@ -202,6 +203,38 @@ class TestCodeGen(object):
         # Check that local config takes precedence over global config
         op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
         assert '#pragma omp for' not in str(op4)
+
+    def test_nested_lowering(self):
+        """
+        Tests that deeply nested (depth > 2) functions over subdomains are lowered.
+        """
+        grid = Grid(shape=(4, 4), dtype=np.int32)
+        x, y = grid.dimensions
+        x0, y0 = dimensions('x0 y0')
+
+        u0 = Function(name="u0", grid=grid)
+        u1 = Function(name="u1", shape=grid.shape, dimensions=(x0, y0), dtype=np.int32)
+        u2 = Function(name="u2", grid=grid)
+
+        u0.data[:2, :2] = 1
+        u0.data[2:, 2:] = 2
+        u1.data[:, :] = 1
+        u2.data[:, :] = 1
+
+        eq0 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2]], subdomain=grid.interior)
+        eq1 = Eq(u0, u0[u1[x0+1, y0+2], u2[x, u2[x, y]]], subdomain=grid.interior)
+
+        op0 = Operator(eq0)
+        op1 = Operator(eq1)
+        op0.apply()
+
+        # Check they indeed produced the same code
+        assert str(op0.ccode) == str(op1.ccode)
+
+        # Also check for numerical correctness
+        assert np.all(u0.data[0, 3] == 0) and np.all(u0.data[3, 0] == 0)
+        assert np.all(u0.data[:2, :2] == 1) and np.all(u0.data[1:3, 1:3] == 1)
+        assert np.all(u0.data[2:3, 3] == 2) and np.all(u0.data[3, 2:3] == 2)
 
 
 class TestArithmetic(object):
@@ -1099,15 +1132,16 @@ class TestDeclarator(object):
         op = Operator([Eq(a[i], a[i] + b[i] + 5.),
                        Eq(f[j], a[j])])
 
-        assert op.body[0].is_ArrayCast
-        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
-                                   '((aligned (64))) = (float (*)) f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) == ('float (*restrict f) __attribute__ '
+                                           '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
         assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
                                              'sizeof(float[i_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
 
     def test_heap_perfect_2D(self):
         i, j, k = dimensions('i j k')
@@ -1120,10 +1154,10 @@ class TestDeclarator(object):
                        Eq(c[i, j], c[i, j]*a[i]),
                        Eq(f[j, k], a[j] + c[j, k])])
 
-        assert op.body[0].is_ArrayCast
-        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
-                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
-                                   'f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+             '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
@@ -1132,8 +1166,9 @@ class TestDeclarator(object):
         assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
         assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
                                              'sizeof(float[i_size][j_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
-        assert str(op.body[1].footer[1]) == 'free(c);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
+        assert str(op.body[1].footer[2]) == 'free(c);'
 
     def test_heap_imperfect_2D(self):
         i, j, k = dimensions('i j k')
@@ -1146,10 +1181,10 @@ class TestDeclarator(object):
                        Eq(c[i, j], c[i, j]*a[i]),
                        Eq(f[j, k], a[j] + c[j, k])])
 
-        assert op.body[0].is_ArrayCast
-        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
-                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
-                                   'f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+             '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
@@ -1158,8 +1193,9 @@ class TestDeclarator(object):
         assert str(op.body[1].header[2]) == 'float (*c)[j_size];'
         assert str(op.body[1].header[3]) == ('posix_memalign((void**)&c, 64, '
                                              'sizeof(float[i_size][j_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
-        assert str(op.body[1].footer[1]) == 'free(c);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
+        assert str(op.body[1].footer[2]) == 'free(c);'
 
     def test_stack_scalars(self):
         i, j = dimensions('i j')
@@ -1174,15 +1210,17 @@ class TestDeclarator(object):
                        Eq(a[i], t0*t1*3.),
                        Eq(f, a[j])])
 
-        assert op.body[0].is_ArrayCast
-        assert str(op.body[0]) == ('float (*restrict f) __attribute__ '
-                                   '((aligned (64))) = (float (*)) f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f) __attribute__ '
+             '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert op.body[1].is_List
         assert str(op.body[1].header[0]) == 'float (*a);'
         assert str(op.body[1].header[1]) == ('posix_memalign((void**)&a, 64, '
                                              'sizeof(float[i_size]));')
-        assert str(op.body[1].footer[0]) == 'free(a);'
+        assert str(op.body[1].footer[0]) == ''
+        assert str(op.body[1].footer[1]) == 'free(a);'
 
         assert op.body[1].body[1].body[0].is_ExpressionBundle
         assert str(op.body[1].body[1].body[0].body[0]) == 'float t0 = 1.00000000000000F;'
@@ -1198,13 +1236,13 @@ class TestDeclarator(object):
         op = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.),
                        Eq(f, c[s, q])])
 
-        assert op.body[0].is_ArrayCast
-        assert str(op.body[0]) == ('float (*restrict f)[f_vec->size[1]] __attribute__ '
-                                   '((aligned (64))) = (float (*)[f_vec->size[1]]) '
-                                   'f_vec->data;')
+        assert op.body[0].body[0].is_PointerCast
+        assert str(op.body[0].body[0]) ==\
+            ('float (*restrict f)[f_vec->size[1]] __attribute__ '
+             '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
-        assert op.body[1].is_Element
-        assert str(op.body[1]) == 'float c[i_size][j_size] __attribute__((aligned(64)));'
+        assert str(op.body[1].header[0]) ==\
+            'float c[i_size][j_size] __attribute__((aligned(64)));'
 
     def test_conditional_declarations(self):
         x = Dimension(name="x")
@@ -1213,7 +1251,7 @@ class TestDeclarator(object):
         list_initialize = Expression(ClusterizedEq(Eq(a, init_value)))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
-        iet = DataManager.place_definitions.__wrapped__(DataManager(), iet)[0]
+        iet = DataManager.place_definitions.__wrapped__(DataManager(None), iet)[0]
         for i in iet.body[0].children:
             assert len(i) == 1
             assert i[0].is_Expression

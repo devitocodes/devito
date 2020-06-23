@@ -1,6 +1,4 @@
-from argparse import ArgumentParser
-from devito import configuration
-from examples.seismic import demo_model, setup_geometry
+from examples.seismic import demo_model, setup_geometry, seismic_args
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
@@ -30,36 +28,21 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 if __name__ == "__main__":
     description = ("Example script to execute a TTI forward operator.")
-    parser = ArgumentParser(description=description)
-    parser.add_argument("-nd", dest="ndim", default=3, type=int,
-                        help="Number of dimensions")
-    parser.add_argument("-d", "--shape", default=(50, 50, 50), type=int, nargs="+",
-                        help="Number of grid points along each axis")
+    parser = seismic_args(description)
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Whether or not to use an azimuth angle")
-    parser.add_argument("-so", "--space_order", default=4,
-                        type=int, help="Space order of the simulation")
-    parser.add_argument("--nbl", default=40,
-                        type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("-k", dest="kernel", default='centered',
-                        choices=['centered', 'staggered'],
-                        help="Choice of finite-difference kernel")
-    parser.add_argument("-opt", default="advanced",
-                        choices=configuration._accepted['opt'],
-                        help="Performance optimization level")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
     args = parser.parse_args()
 
+    # Switch to TTI kernel if input is acoustic kernel
+    kernel = 'centered' if args.kernel in ['OT2', 'OT4'] else args.kernel
     preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
 
     # Preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [10.0])
-    tn = 750. if ndim < 3 else 250.
+    tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, autotune=args.autotune,
-        opt=args.opt, kernel=args.kernel, preset=preset)
+        opt=args.opt, kernel=kernel, preset=preset)

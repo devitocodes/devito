@@ -1,18 +1,18 @@
 import numpy as np
-from argparse import ArgumentParser
+import pytest
 
 from devito.logger import info
-from devito import Constant, Function, smooth, configuration
+from devito import Constant, Function, smooth, norm
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, setup_geometry
+from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., kernel='OT2', space_order=4, nbl=10,
-                   preset='layers-isotropic', **kwargs):
+                   preset='layers-isotropic', fs=False, **kwargs):
     model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing,
-                       **kwargs)
+                       fs=fs, **kwargs)
 
     # Source and receiver geometries
     geometry = setup_geometry(model, tn)
@@ -24,11 +24,11 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        space_order=4, kernel='OT2', nbl=40, full_run=False,
+        space_order=4, kernel='OT2', nbl=40, full_run=False, fs=False,
         autotune=False, preset='layers-isotropic', checkpointing=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
-                            space_order=space_order, kernel=kernel,
+                            space_order=space_order, kernel=kernel, fs=fs,
                             preset=preset, **kwargs)
 
     info("Applying Forward")
@@ -57,48 +57,41 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, autotune=autotune)
+    solver.jacobian(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
+    solver.jacobian_adjoint(rec, u, autotune=autotune, checkpointing=checkpointing)
     return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
+
+
+@pytest.mark.parametrize('ndim', [1, 2, 3])
+def test_isoacoustic_stability(ndim):
+    shape = tuple([11]*ndim)
+    spacing = tuple([20]*ndim)
+    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
+    assert np.isfinite(norm(rec))
+
+
+@pytest.mark.parametrize('fs, normrec', [(True, 369.955), (False, 459.1678)])
+def test_isoacoustic(fs, normrec):
+    _, _, _, [rec, _] = run(fs=fs)
+    assert np.isclose(norm(rec), normrec, rtol=1e-3, atol=0)
 
 
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
-    parser = ArgumentParser(description=description)
-    parser.add_argument("-nd", dest="ndim", default=3, type=int,
-                        help="Number of dimensions")
-    parser.add_argument("-d", "--shape", default=(51, 51, 51), type=int, nargs="+",
-                        help="Number of grid points along each axis")
-    parser.add_argument('-f', '--full', default=False, action='store_true',
-                        help="Execute all operators and store forward wavefield")
-    parser.add_argument("-so", "--space_order", default=6,
-                        type=int, help="Space order of the simulation")
-    parser.add_argument("--nbl", default=40,
-                        type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("-k", dest="kernel", default='OT2',
-                        choices=['OT2', 'OT4'],
-                        help="Choice of finite-difference kernel")
-    parser.add_argument("--constant", default=False, action='store_true',
-                        help="Constant velocity model, default is a two layer model")
-    parser.add_argument("--checkpointing", default=False, action='store_true',
-                        help="Constant velocity model, default is a two layer model")
-    parser.add_argument("-opt", default="advanced",
-                        choices=configuration._accepted['opt'],
-                        help="Performance optimization level")
-    parser.add_argument('-a', '--autotune', default='off',
-                        choices=(configuration._accepted['autotuning']),
-                        help="Operator auto-tuning mode")
+    parser = seismic_args(description)
+    parser.add_argument('--fs', dest='fs', default=False, action='store_true',
+                        help="Whether or not to use a freesurface")
     args = parser.parse_args()
 
     # 3D preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [15.0])
-    tn = 750. if ndim < 3 else 250.
+    tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
-    run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
+    run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, fs=args.fs,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
         autotune=args.autotune, opt=args.opt, full_run=args.full,
         checkpointing=args.checkpointing)

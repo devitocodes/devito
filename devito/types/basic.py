@@ -2,7 +2,6 @@ import abc
 from collections import namedtuple
 from ctypes import POINTER, Structure, byref
 from functools import reduce
-from math import ceil
 from operator import mul
 
 import numpy as np
@@ -13,16 +12,14 @@ from cgen import Struct, Value
 
 from devito.data import default_allocator
 from devito.finite_differences import Evaluable
-from devito.parameters import configuration
 from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
-                          frozendict)
+                          frozendict, memoized_meth)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
-           'LocalObject', 'CompositeObject']
+__all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject', 'CompositeObject']
 
 
 Size = namedtuple('Size', 'left right')
@@ -68,15 +65,19 @@ class Basic(object):
 
     # Symbolic objects created internally by Devito
     is_Symbol = False
+    is_ArrayBasic = False
     is_Array = False
+    is_PointerArray = False
     is_Object = False
     is_LocalObject = False
 
     # Created by the user
     is_Input = False
+
     # Scalar symbolic objects created by the user
     is_Dimension = False
     is_Constant = False
+
     # Tensor symbolic objects created by the user
     is_DiscreteFunction = False
     is_Function = False
@@ -729,15 +730,23 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _eval_deriv(self):
         return self
 
-    @cached_property
+    @property
     def _is_on_grid(self):
         """
-        Check whether the object is on the grid or need averaging.
+        Check whether the object is on the grid and requires averaging.
         For example, if the original non-staggered function is f(x)
         then f(x) is on the grid and f(x + h_x/2) is off the grid.
         """
+        return self._check_indices(inds=self.indices)
+
+    @memoized_meth
+    def _check_indices(self, inds=None):
+        """
+        Check if the function indices are aligned with the dimensions.
+        """
+        inds = inds or self.indices
         return all([aligned_indices(i, j, d.spacing) for i, j, d in
-                    zip(self.indices, self.indices_ref, self.dimensions)])
+                    zip(inds, self.indices_ref, self.dimensions)])
 
     @property
     def evaluate(self):
@@ -948,9 +957,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # Add halo shift
         shift = self._size_nodomain.left if lshift else tuple([0]*len(self.dimensions))
         # Indices after substitutions
-        indices = [(a - o + f).xreplace(s) for a, o, f, s in
+        indices = [sympy.sympify((a - o + f).xreplace(s)) for a, o, f, s in
                    zip(self.args, self.origin, shift, subs)]
-
+        indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
+                   for i in indices]
         return self.indexed[indices]
 
     def __getitem__(self, index):
@@ -964,118 +974,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def _pickle_reconstruct(self):
         return self.__class__.__base__
-
-
-class Array(AbstractFunction):
-    """
-    Tensor symbol representing an array in symbolic equations.
-
-    An Array is very similar to a sympy.Indexed, though it also carries
-    metadata essential for code generation.
-
-    Parameters
-    ----------
-    name : str
-        Name of the symbol.
-    dimensions : tuple of Dimension
-        Dimensions associated with the object.
-    dtype : data-type, optional
-        Any object that can be interpreted as a numpy data type. Defaults
-        to ``np.float32``.
-    halo : iterable of 2-tuples, optional
-        The halo region of the object.
-    padding : iterable of 2-tuples, optional
-        The padding region of the object.
-    scope : str, optional
-        Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
-        to 'heap'.
-
-    Warnings
-    --------
-    Arrays are created and managed directly by Devito (IOW, they are not
-    expected to be used directly in user code).
-    """
-
-    is_Array = True
-    is_Tensor = True
-
-    def __new__(cls, *args, **kwargs):
-        kwargs.update({'options': {'evaluate': False}})
-        return AbstractFunction.__new__(cls, *args, **kwargs)
-
-    def __init_finalize__(self, *args, **kwargs):
-        super(Array, self).__init_finalize__(*args, **kwargs)
-
-        self._scope = kwargs.get('scope', 'heap')
-        assert self._scope in ['heap', 'stack']
-
-    def __padding_setup__(self, **kwargs):
-        padding = kwargs.get('padding')
-        if padding is None:
-            padding = [(0, 0) for _ in range(self.ndim)]
-            if kwargs.get('autopadding', configuration['autopadding']):
-                # Heuristic 1; Arrays are typically introduced for temporaries
-                # introduced during compilation, and are almost always used together
-                # with loop blocking.  Since the typical block size is a multiple of
-                # the SIMD vector length, `vl`, padding is made such that the
-                # NODOMAIN size is a multiple of `vl` too
-
-                # Heuristic 2: the right-NODOMAIN size is not only a multiple of
-                # `vl`, but also guaranteed to be *at least* greater or equal than
-                # `vl`, so that the compiler can tweak loop trip counts to maximize
-                # the effectiveness of SIMD vectorization
-
-                # Let UB be a function that rounds up a value `x` to the nearest
-                # multiple of the SIMD vector length
-                vl = configuration['platform'].simd_items_per_reg(self.dtype)
-                ub = lambda x: int(ceil(x / vl)) * vl
-
-                fvd_halo_size = sum(self.halo[-1])
-                fvd_pad_size = (ub(fvd_halo_size) - fvd_halo_size) + vl
-
-                padding[-1] = (0, fvd_pad_size)
-            return tuple(padding)
-        elif isinstance(padding, int):
-            return tuple((0, padding) for _ in range(self.ndim))
-        elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            return tuple((0, i) if isinstance(i, int) else i for i in padding)
-        else:
-            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-
-    @classmethod
-    def __indices_setup__(cls, **kwargs):
-        return tuple(kwargs['dimensions']), tuple(kwargs['dimensions'])
-
-    @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        return kwargs.get('dtype', np.float32)
-
-    @property
-    def shape(self):
-        return self.symbolic_shape
-
-    @property
-    def scope(self):
-        return self._scope
-
-    @property
-    def _mem_stack(self):
-        return self._scope == 'stack'
-
-    @property
-    def _mem_heap(self):
-        return self._scope == 'heap'
-
-    @property
-    def _C_typename(self):
-        return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
-
-    @cached_property
-    def free_symbols(self):
-        return super().free_symbols - {d for d in self.dimensions if d.is_Default}
-
-    # Pickling support
-    _pickle_kwargs = AbstractFunction._pickle_kwargs + ['dimensions', 'scope']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures

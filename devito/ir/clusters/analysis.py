@@ -1,8 +1,6 @@
-from functools import cmp_to_key
-
 from devito.ir.clusters.queue import QueueStateful
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               AFFINE, WRAPPABLE, ROUNDABLE, TILABLE, Forward)
+                               AFFINE, ROUNDABLE, TILABLE, Forward)
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
@@ -16,7 +14,6 @@ def analyze(clusters):
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
     clusters = Tiling(state).process(clusters)
-    clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
     # Reconstruct Clusters attaching the discovered properties
@@ -112,62 +109,6 @@ class Parallelism(Detector):
             return {PARALLEL, PARALLEL_INDEP}
         else:
             return PARALLEL
-
-
-class Wrapping(Detector):
-
-    """
-    Detect the WRAPPABLE Dimensions.
-    """
-
-    def _callback(self, clusters, d, prefix):
-        if not d.is_Time:
-            return
-
-        scope = self._fetch_scope(clusters)
-        accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
-
-        # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
-        if not accesses or any(not a.function._time_buffering_default for a in accesses):
-            return
-
-        stepping = {a.function.time_dim for a in accesses}
-        if len(stepping) > 1:
-            # E.g., with ConditionalDimensions we may have `stepping={t, tsub}`
-            return
-        stepping = stepping.pop()
-
-        # All accesses must be affine in `stepping`
-        if any(not a.affine_if_present(stepping._defines) for a in accesses):
-            return
-
-        # Pick the `back` and `front` slots accessed
-        try:
-            compareto = cmp_to_key(lambda a0, a1: a0.distance(a1, stepping))
-            accesses = sorted(accesses, key=compareto)
-            back, front = accesses[0][stepping], accesses[-1][stepping]
-        except TypeError:
-            return
-
-        # Check we're not accessing (read, write) always the same slot
-        if back == front:
-            return
-
-        accesses_back = [a for a in accesses if a[stepping] == back]
-
-        # There must be NO writes to the `back` timeslot
-        if any(a.is_write for a in accesses_back):
-            return
-
-        # There must be NO further accesses to the `back` timeslot after
-        # any earlier timeslot is written
-        # Note: potentially, this can be relaxed by replacing "any earlier timeslot"
-        # with the `front timeslot`
-        if not all(all(i.sink is not a or i.source.lex_ge(a) for i in scope.d_flow)
-                   for a in accesses_back):
-            return
-
-        return WRAPPABLE
 
 
 class Rounding(Detector):

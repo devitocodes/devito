@@ -90,11 +90,10 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     _Parallelizer = DeviceAccizer
 
-    def _alloc_array_on_high_bw_mem(self, obj, storage):
-        """Allocate an Array in the high bandwidth memory."""
-        if obj in storage._high_bw_mem:
-            return
-
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Allocate an Array in the high bandwidth memory.
+        """
         size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
         decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
         cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
@@ -104,7 +103,7 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
         free = c.Statement('acc_free(%s)' % obj.name)
 
-        storage._high_bw_mem[obj] = (None, init, free)
+        storage.update(obj, site, allocs=init, frees=free)
 
 
 @iet_pass
@@ -169,16 +168,17 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenACC offloading
-        DeviceAccizer().make_parallel(graph)
+        DeviceAccizer(sregistry).make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager()
+        data_manager = DeviceOpenACCDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -196,6 +196,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         optimize_halospots(graph)
@@ -203,13 +204,13 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenACC offloading
-        DeviceAccizer().make_parallel(graph)
+        DeviceAccizer(sregistry).make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager()
+        data_manager = DeviceOpenACCDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -224,14 +225,15 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
 class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
 
     _known_passes = ('optcomms', 'openacc', 'mpi', 'prodders')
-    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'wrapping', 'simd')
+    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
     def _make_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
-        accizer = DeviceAccizer()
+        accizer = DeviceAccizer(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
@@ -258,6 +260,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
@@ -279,7 +282,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
             passes_mapper['openacc'](graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager()
+        data_manager = DeviceOpenACCDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)

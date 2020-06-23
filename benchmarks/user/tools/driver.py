@@ -130,7 +130,7 @@ class Driver(object):
             self.timings[tuple(params.items())] = executor.timings
             self.meta[tuple(params.items())] = executor.meta
 
-    def save(self):
+    def save(self, rank):
         """
         Save all timing results in individually keyed files.
         """
@@ -142,7 +142,7 @@ class Driver(object):
             datadict = OrderedDict()
             datadict['timestamp'] = timestamp
             datadict['meta'] = self.meta[key]
-            datadict['timings'] = self.timings[key]
+            datadict['timings'] = self.timings[key][rank]
 
             filename = '%s_%s.json' % (self.name, self.param_string(key))
             with open(path.join(self.resultsdir, filename), 'w') as f:

@@ -10,7 +10,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimensi
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
 from devito.passes import NThreads, NThreadsNonaffine
-from devito.passes.iet.openmp import ParallelRegion
+from devito.passes.iet.openmp import OpenMPRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
 
@@ -393,7 +393,7 @@ class TestNodeParallelism(object):
 
         op = Operator(eqns, opt='openmp')
 
-        parregions = FindNodes(ParallelRegion).visit(op)
+        parregions = FindNodes(OpenMPRegion).visit(op)
         assert len(parregions) == 2
 
         # Check suitable `num_threads` appear in the generated code

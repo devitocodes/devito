@@ -99,7 +99,8 @@ def lower_exprs(expressions, **kwargs):
             f = i.function
 
             # Introduce shifting to align with the computational domain
-            indices = [(a + o) for a, o in zip(i.indices, f._size_nodomain.left)]
+            indices = [(lower_exprs(a) + o) for a, o in
+                       zip(i.indices, f._size_nodomain.left)]
 
             # Apply substitutions, if necessary
             if dimension_map:
@@ -108,6 +109,9 @@ def lower_exprs(expressions, **kwargs):
             mapper[i] = f.indexed[indices]
 
         subs = kwargs.get('subs')
+        # Add dimensions map to the mapper in case dimensions are used
+        # as an expression, i.e. Eq(u, x, subdomain=xleft)
+        mapper.update(dimension_map)
         if subs:
             # Include the user-supplied substitutions, and use
             # `xreplace` for constant folding

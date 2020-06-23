@@ -129,7 +129,7 @@ def test_tti_aggressive():
     wave_solver = TestTTI().tti_operator(opt='advanced')
     op = wave_solver.op_fwd(kernel='centered')
     op.apply(time=0, autotune='aggressive')
-    assert op._state['autotuning'][0]['runs'] == 28
+    assert op._state['autotuning'][0]['runs'] == 30
 
 
 @switchconfig(develop_mode=False)

@@ -4,6 +4,7 @@ from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
 import devito.types.basic as basic
+import devito.types.array as array
 import devito.types.caching as caching
 import devito.types.dense as dense
 import devito.types.grid as grid
@@ -16,7 +17,7 @@ class Scalar(with_metaclass(_BackendSelector, basic.Scalar)):
     pass
 
 
-class Array(with_metaclass(_BackendSelector, basic.Array)):
+class Array(with_metaclass(_BackendSelector, array.Array)):
     pass
 
 

@@ -25,10 +25,11 @@ class TestCodeGeneration(object):
         assert op.body[1].header[0].value ==\
             ('acc enter data copyin(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[1].footer[0].contents[0].value ==\
+        assert str(op.body[1].footer[0]) == ''
+        assert op.body[1].footer[1].contents[0].value ==\
             ('acc exit data copyout(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[1].footer[0].contents[1].value ==\
+        assert op.body[1].footer[1].contents[1].value ==\
             ('acc exit data delete(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 

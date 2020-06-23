@@ -72,11 +72,6 @@ class IterationInstance(LabeledVector):
         return super(IterationInstance, self).__hash__()
 
     @cached_property
-    def _cached_findices_index(self):
-        # Avoiding to call self.findices.index repeatedly speeds analysis up
-        return {fi: i for i, fi in enumerate(self.findices)}
-
-    @cached_property
     def index_mode(self):
         retval = []
         for i, fi in zip(self, self.findices):
@@ -161,11 +156,9 @@ class TimedAccess(IterationInstance):
     """
     An IterationInstance enriched with additional information:
 
-        * a "timestamp"; that is, an integer indicating the statement within
+        * an IterationSpace, from which the TimedAccess is extracted;
+        * A "timestamp", that is an integer indicating the statement within
           which the TimedAccess appears in the execution flow;
-        * an array of Intervals, which represent the space in which the
-          TimedAccess iterates;
-        * an array of IterationDirections (one for each findex).
 
     Notes
     -----
@@ -292,50 +285,48 @@ class TimedAccess(IterationInstance):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
-    def distance(self, other, findex=None):
+    def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
 
         Parameters
         ----------
         other : TimedAccess
-            The TimedAccess from which the distance is computed.
-        findex : Dimension, optional
-            If supplied, compute the distance only up to and including ``findex``.
+            The TimedAccess w.r.t. which the distance is computed.
         """
-        assert isinstance(other, TimedAccess)
-
-        if not self.rank:
-            return Vector()
-
-        # Compute distance up to `limit`, ignoring `directions` for the moment
-        if findex is None:
-            findex = self.findices[-1]
-            limit = self.rank
-        else:
-            try:
-                limit = self._cached_findices_index[findex] + 1
-            except KeyError:
-                raise TypeError("Cannot compute distance as `findex` not in `findices`")
-
         ret = []
-        for n, (i, o) in enumerate(zip(self[:limit], other)):
+        for sit, oit in zip(self.itintervals, other.itintervals):
+            n = len(ret)
+
             try:
-                iit = self.itintervals[n]
-                oit = other.itintervals[n]
+                sai = self.aindices[n]
+                oai = other.aindices[n]
             except IndexError:
-                # E.g., self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>
-                #       itintervals=(time, p_src)
+                # E.g., `self=R<f,[x]>` and `self.itintervals=(x, i)`
                 break
 
-            if iit.direction is oit.direction and iit.interval == oit.interval:
-                if iit.direction is Backward:
-                    # Backward direction => flip the sign
-                    ret.append(o - i)
+            try:
+                if not (sit == oit and sai.root is oai.root):
+                    # E.g., `self=R<f,[x + 2]>` and `other=W<f,[i + 1]>`
+                    # E.g., `self=R<f,[x]>`, `other=W<f,[x + 1]>`,
+                    #       `self.itintervals=(x<0>,)` and `other.itintervals=(x<1>,)`
+                    ret.append(S.Infinity)
+                    break
+            except AttributeError:
+                # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
+                pass
+
+            ai = sai
+            fi = self.findices[n]
+
+            if not ai or ai._defines & sit.dim._defines:
+                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)` and `ai=t`
+                if sit.direction is Backward:
+                    ret.append(other[n] - self[n])
                 else:
-                    ret.append(i - o)
-            else:
-                # Mismatching `itinterval` => Infinity
+                    ret.append(self[n] - other[n])
+            elif fi in sit.dim._defines:
+                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>` and `fi=p_src` (`n=1`)
                 ret.append(S.Infinity)
                 break
 
@@ -408,6 +399,9 @@ class Dependence(object):
         assert source.function is sink.function
         self.source = source
         self.sink = sink
+
+    def __repr__(self):
+        return "%s -> %s" % (self.source, self.sink)
 
     def __eq__(self, other):
         # If the timestamps are equal in `self` (ie, an inplace dependence) then
@@ -617,9 +611,6 @@ class Dependence(object):
                     any(i.is_NonlinearDerived for i in d._defines)):
                 return True
         return False
-
-    def __repr__(self):
-        return "%s -> %s" % (self.source, self.sink)
 
 
 class DependenceGroup(set):
