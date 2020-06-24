@@ -17,13 +17,16 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         autotune=False, time_order=2, space_order=4, nbl=10,
-        kernel='centered', **kwargs):
+        kernel='centered', full_run=False, **kwargs):
 
     solver = tti_setup(shape, spacing, tn, space_order, nbl, **kwargs)
 
     rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
 
-    return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
+    if not full_run:
+        return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
+
+    solver.adjoint(rec, autotune=autotune, kernel=kernel)
 
 
 if __name__ == "__main__":
@@ -45,4 +48,4 @@ if __name__ == "__main__":
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, autotune=args.autotune,
-        opt=args.opt, kernel=kernel, preset=preset)
+        opt=args.opt, kernel=kernel, preset=preset, full_run=args.full)
