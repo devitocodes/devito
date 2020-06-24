@@ -617,7 +617,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return cls
 
     def __new__(cls, *args, **kwargs):
-        options = kwargs.get('options', {})
+        options = kwargs.get('options', {'evaluate': False})
 
         key = cls._cache_key(*args, **kwargs)
         obj = cls._cache_get(key)
