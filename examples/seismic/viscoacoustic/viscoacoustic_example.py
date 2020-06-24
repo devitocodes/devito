@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+
 from devito.logger import info
 from devito import norm
 from examples.seismic.viscoacoustic import ViscoacousticWaveSolver
@@ -39,6 +41,14 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_viscoacoustic():
     _, _, _, [rec] = run()
     assert np.isclose(norm(rec), 18.7749, atol=1e-3, rtol=0)
+
+
+@pytest.mark.parametrize('ndim', [1, 2, 3])
+def test_viscoacoustic_stability(ndim):
+    shape = tuple([11]*ndim)
+    spacing = tuple([20]*ndim)
+    _, _, _, [rec] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
+    assert np.isfinite(norm(rec))
 
 
 if __name__ == "__main__":
