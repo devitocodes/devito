@@ -1,4 +1,4 @@
-from devito import VectorTimeFunction, TimeFunction, NODE
+from devito import VectorTimeFunction, TimeFunction, NODE, warning
 from devito.tools import memoized_meth
 from examples.seismic import Receiver
 from examples.seismic.viscoacoustic.operators import ForwardOperator
@@ -31,6 +31,10 @@ class ViscoacousticWaveSolver(object):
         self.geometry = geometry
 
         self.space_order = space_order
+        self.dt = self.model.critical_dt
+        if kernel not in {'blanch_symes', 'ren', 'deng_mcmechan'}:
+            kernel = 'blanch_symes'
+            warning("Using default kernel `%s`" % str(kernel))
         self.kernel = kernel
         # Cache compiler options
         self._kwargs = kwargs

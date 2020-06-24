@@ -192,7 +192,8 @@ def seismic_args(description):
     parser.add_argument("--nbl", default=40,
                         type=int, help="Number of boundary layers around the domain")
     parser.add_argument("-k", dest="kernel", default='OT2',
-                        choices=['OT2', 'OT4', 'centered', 'staggered'],
+                        choices=['OT2', 'OT4', 'centered', 'staggered',
+                                 'blanch_symes', 'ren', 'deng_mcmechan'],
                         help="Choice of finite-difference kernel")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
