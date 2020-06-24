@@ -1254,7 +1254,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 21
+        assert summary[('section0', None)].ops == 19
 
 
 # Acoustic
@@ -1364,7 +1364,7 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 103
-        assert np.isclose(summary[('section1', None)].oi, 1.692, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 1.625, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -1411,7 +1411,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 173), (16, 307)
+        (8, 173), (16, 309)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
