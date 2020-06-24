@@ -191,7 +191,7 @@
 <span class="n">RegionMeta</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;RegionMeta&#39;</span><span class="p">,</span> <span class="s1">&#39;offset size&#39;</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">DiscreteFunction</span><span class="p">(</span><span class="n">AbstractFunction</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">DiscreteFunction</span><span class="p">(</span><span class="n">AbstractFunction</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">Differentiable</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a discrete function in symbolic equations.</span>
@@ -259,6 +259,8 @@
         <span class="c1"># The only possibility for two DiscreteFunctions to be considered equal</span>
         <span class="c1"># is that they are indeed the same exact object</span>
         <span class="k">return</span> <span class="bp">self</span> <span class="ow">is</span> <span class="n">other</span>
+
+    <span class="n">_subs</span> <span class="o">=</span> <span class="n">Differentiable</span><span class="o">.</span><span class="n">_subs</span>
 
     <span class="fm">__hash__</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="fm">__hash__</span>  <span class="c1"># Required since we&#39;re overriding __eq__</span>
 
@@ -990,7 +992,7 @@
         <span class="p">[</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="s1">&#39;initializer&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../../function.html#devito.types.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Differentiable</span><span class="p">):</span>
+<div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../../function.html#devito.types.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a discrete function in symbolic equations.</span>
@@ -1485,7 +1487,7 @@
         <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">1</span>
         <span class="n">_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">_t</span><span class="p">:</span> <span class="n">_t</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">})</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1493,7 +1495,7 @@
         <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">1</span>
         <span class="n">_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">_t</span><span class="p">:</span> <span class="n">_t</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">})</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_time_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

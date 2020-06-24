@@ -163,7 +163,7 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
-<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
+<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">generate_fd_shortcuts</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
 <span class="kn">from</span> <span class="nn">devito.operations</span> <span class="kn">import</span> <span class="n">LinearInterpolator</span><span class="p">,</span> <span class="n">PrecomputedInterpolator</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
@@ -177,7 +177,7 @@
            <span class="s1">&#39;PrecomputedSparseTimeFunction&#39;</span><span class="p">]</span>
 
 
-<span class="k">class</span> <span class="nc">AbstractSparseFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Differentiable</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">AbstractSparseFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An abstract class to define behaviours common to all sparse functions.</span>
