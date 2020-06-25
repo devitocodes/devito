@@ -1,5 +1,5 @@
 # coding: utf-8
-from devito import TimeFunction, warning, error
+from devito import TimeFunction, warning
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import particle_velocity_fields
@@ -170,8 +170,9 @@ class AnisotropicWaveSolver(object):
         -------
         Adjoint source, wavefield and performance summary.
         """
-        if not kernel is 'centered':
-            error('Only centered kernel is supported for the adjoint')
+        if kernel != 'centered':
+            raise RuntimeError('Only centered kernel is supported for the adjoint')
+
         time_order = 2
         stagg_p = stagg_r = None
         # Source term is read-only, so re-use the default

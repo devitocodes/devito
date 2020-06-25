@@ -334,28 +334,8 @@ class Symbol(AbstractSymbol, Cached):
     actual objects.
     """
 
-    @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        args = list(args)
-        key = {}
-
-        # The base type is necessary, otherwise two objects such as
-        # `Scalar(name='s')` and `Dimension(name='s')` would have the same key
-        key['cls'] = cls
-
-        # The name is always present, and added as if it were an arg
-        key['name'] = kwargs.pop('name', None) or args.pop(0)
-
-        # From the args
-        key['args'] = tuple(args)
-
-        # From the kwargs
-        key.update(kwargs)
-
-        return frozendict(key)
-
     def __new__(cls, *args, **kwargs):
-        key = cls._cache_key(*args, **kwargs)
+        key = cls._make_key(*args, **kwargs)
         obj = cls._cache_get(key)
 
         if obj is not None:
@@ -377,6 +357,26 @@ class Symbol(AbstractSymbol, Cached):
 
         return newobj
 
+    @classmethod
+    def _make_key(cls, *args, **kwargs):
+        args = list(args)
+        key = {}
+
+        # The base type is necessary, otherwise two objects such as
+        # `Scalar(name='s')` and `Dimension(name='s')` would have the same key
+        key['cls'] = cls
+
+        # The name is always present, and added as if it were an arg
+        key['name'] = kwargs.pop('name', None) or args.pop(0)
+
+        # From the args
+        key['args'] = tuple(args)
+
+        # From the kwargs
+        key.update(kwargs)
+
+        return frozendict(key)
+
     __hash__ = Cached.__hash__
 
 
@@ -386,14 +386,8 @@ class DataSymbol(AbstractSymbol, Cached):
     A scalar symbol, cached by both Devito and SymPy, which carries data.
     """
 
-    @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        """A DataSymbol caches on the class type itself."""
-        return cls
-
     def __new__(cls, *args, **kwargs):
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
+        obj = cls._cache_get(cls)
 
         if obj is not None:
             return obj
@@ -487,20 +481,14 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
     is_TensorValued = True
     is_VectorValued = False
 
-    @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        """An AbstractTensor caches on the class type itself."""
-        return cls
-
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
 
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
+        obj = cls._cache_get(cls)
 
         if obj is not None:
             newobj = sympy.Matrix.__new__(cls, *args, **options)
-            newobj.__init_cached__(key)
+            newobj.__init_cached__(cls)
             return newobj
 
         name = kwargs.get('name')
@@ -611,20 +599,20 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     is_imaginary = False
     is_commutative = True
 
-    @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        """An AbstractFunction caches on the class type itself."""
-        return cls
-
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {'evaluate': False})
 
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
+        # Is it an existing shifted index?
+        obj = cls._cache_get((cls, *args))
+        if obj is not None:
+            return obj
 
+        # Does the base object exist?
+        obj = cls._cache_get(cls)
         if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(key)
+            newobj.__init_cached__(cls)
+            Cached.__init__(newobj, (cls, *args), alias=cls)
             return newobj
 
         # Not in cache. Create a new Function via sympy.Function
@@ -650,8 +638,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # object will point to `newobj`, the "actual Function".
         newobj.function = newobj
 
-        # Store new instance in symbol cache
-        Cached.__init__(newobj, newcls)
+        # Cache with indices as well to avoid recreating the base function
+        Cached.__init__(newobj, (newcls, *indices), alias=newcls)
         return newobj
 
     def __init__(self, *args, **kwargs):

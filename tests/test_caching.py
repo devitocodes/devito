@@ -434,8 +434,8 @@ class TestCaching(object):
             assert(len(_SymbolCache) == cache_size)
 
             Function(name='u', grid=grid, space_order=2)
-
-            assert(len(_SymbolCache) == cache_size + 1)
+            # Both u and u(inds) added to cache
+            assert(len(_SymbolCache) == cache_size + 2)
 
             clear_cache()
 
@@ -492,8 +492,8 @@ class TestCaching(object):
 
         u = SparseFunction(name='u', grid=grid, npoint=1, nt=10)
 
-        # created: u, p_u, h_p_u, u_coords, d, h_d
-        ncreated = 6
+        # created: u, u(inds), p_u, h_p_u, u_coords, u_coords(inds), d, h_d
+        ncreated = 8
         assert len(_SymbolCache) == cur_cache_size + ncreated
 
         cur_cache_size = len(_SymbolCache)
@@ -521,7 +521,7 @@ class TestCaching(object):
         # ii_u_* Symbols are still alive, as well as p_u and h_p_u. This is because
         # in the first clear_cache they were still referenced by their "parent" objects
         # (e.g., ii_u_* by ConditionalDimensions, through `condition`)
-        assert len(_SymbolCache) == init_cache_size + 6
+        assert len(_SymbolCache) == init_cache_size + 8
         clear_cache()
         # Now we should be back to the original state
         assert len(_SymbolCache) == init_cache_size
@@ -670,12 +670,15 @@ class TestMemoryLeaks(object):
         del eqn
         del grid
 
+        # Only deleted `u` shift reference still existing
         # `u` points to the various Dimensions, the Dimensions point to the various
-        # spacing symbols, hence, we need three sweeps to clear up the cache
-        assert len(_SymbolCache) == 12
+        # spacing symbols, hence, we need four sweeps to clear up the cache
+        assert len(_SymbolCache) == 16
         clear_cache()
-        assert len(_SymbolCache) == 8
+        assert len(_SymbolCache) == 9
         clear_cache()
-        assert len(_SymbolCache) == 2
+        assert len(_SymbolCache) == 3
+        clear_cache()
+        assert len(_SymbolCache) == 1
         clear_cache()
         assert len(_SymbolCache) == 0
