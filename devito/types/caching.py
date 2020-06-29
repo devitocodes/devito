@@ -26,15 +26,33 @@ class Cached(object):
     """
 
     @classmethod
+    def _cache_key(cls, *args, **kwargs):
+        """
+        A unique, deterministic key from the input arguments.
+
+        Notes
+        -----
+        To be implemented by subclasses.
+
+        Returns
+        -------
+        The cache key. It must be hashable.
+        """
+        raise NotImplementedError("Subclass must implement _cache_key")
+
+    @classmethod
     def _cache_get(cls, key):
         """
-        Retrieve the object corresponding to a given key. If the key is not in
-        the symbol cache or if the mapped object is not alive anymore, returns None.
+        Look up the cache for a given key.
 
         Parameters
         ----------
         key : object
             The cache key. It must be hashable.
+
+        Returns
+        -------
+        The object if in the cache and alive, otherwise None.
         """
         if key in _SymbolCache:
             # There is indeed an object mapped to `key`. But is it still alive?

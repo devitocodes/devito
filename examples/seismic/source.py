@@ -107,11 +107,12 @@ class PointSource(SparseTimeFunction):
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
 
-        obj = cls._cache_get(cls)
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
 
         if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(cls)
+            newobj.__init_cached__(key)
             return newobj
 
         # Not in cache. Create a new PointSouce via devito.SparseTimeFunction
@@ -219,11 +220,12 @@ class WaveletSource(PointSource):
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
 
-        obj = cls._cache_get(cls)
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
 
         if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(cls)
+            newobj.__init_cached__(key)
             return newobj
 
         # Not in cache. Create a new WaveletSouce via PointSource
