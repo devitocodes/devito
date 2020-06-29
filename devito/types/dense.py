@@ -1004,9 +1004,9 @@ class Function(DiscreteFunction):
             for s in as_tuple(staggered):
                 c, s = s.as_coeff_Mul()
                 mapper.update({s: s + c * s.spacing/2})
+            staggered_indices = mapper.values()
 
-            staggered_indices = tuple(mapper.values())
-        return tuple(dimensions), staggered_indices
+        return tuple(dimensions), tuple(staggered_indices)
 
     @property
     def is_Staggered(self):
