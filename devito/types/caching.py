@@ -66,7 +66,7 @@ class Cached(object):
         else:
             return None
 
-    def __init__(self, key, alias=None):
+    def __init__(self, key, *aliases):
         """
         Store `self` in the symbol cache.
 
@@ -74,15 +74,16 @@ class Cached(object):
         ----------
         key : object
             The cache key. It must be hashable.
+        *aliases
+            Additional keys to which self is mapped.
         """
-        # Precompute hash. This uniquely depends on the cache key and is not modified
-        # by an alias
-        self._cache_key_hash = hash(alias or key)
+        # Precompute hash. This uniquely depends on the cache key
+        self._cache_key_hash = hash(key)
 
         # Add ourselves to the symbol cache
-        _SymbolCache[key] = AugmentedWeakRef(self, self._cache_meta())
-        if alias and alias not in _SymbolCache:
-            _SymbolCache[alias] = AugmentedWeakRef(self, self._cache_meta())
+        awr = AugmentedWeakRef(self, self._cache_meta())
+        for i in (key,) + aliases:
+            _SymbolCache[i] = awr
 
     def __init_cached__(self, key):
         """
@@ -94,13 +95,11 @@ class Cached(object):
             The cache key of the object whose state is used to initialize `self`.
             It must be hashable.
         """
-
-        self.__dict__ = _SymbolCache[key]().__dict__
+        self.__dict__ = _SymbolCache[key]().__dict__.copy()
 
     def __hash__(self):
         """
-        The hash value of an object that caches on its type is the
-        hash value of the type itself.
+        The hash value of a cached object is the hash of its cache key.
         """
         return self._cache_key_hash
 

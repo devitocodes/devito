@@ -502,7 +502,6 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
             return newobj
 
         name = kwargs.get('name')
-        # Number of dimensions
         indices, _ = cls.__indices_setup__(**kwargs)
 
         # Create new, unique type instance from cls and the symbol name
@@ -519,6 +518,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
 
         # Store new instance in symbol cache
         Cached.__init__(newobj, newcls)
+
         return newobj
 
     __hash__ = Cached.__hash__
@@ -627,7 +627,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
             newobj.__init_cached__(cls)
-            Cached.__init__(newobj, key, alias=cls)
+            Cached.__init__(newobj, key)
             return newobj
 
         # Not in cache. Create a new Function via sympy.Function
@@ -653,8 +653,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # object will point to `newobj`, the "actual Function".
         newobj.function = newobj
 
-        # Cache with indices as well to avoid recreating the base function
-        Cached.__init__(newobj, (newcls, indices), alias=newcls)
+        # Store new instance in symbol cache
+        key = (newcls, indices)
+        Cached.__init__(newobj, key, newcls)
+
         return newobj
 
     def __init__(self, *args, **kwargs):
