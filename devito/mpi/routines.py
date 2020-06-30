@@ -342,8 +342,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        gather = MPICall('gather_%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
-        scatter = MPICall('scatter_%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
+        gather = Call('gather_%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
+        scatter = Call('scatter_%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
@@ -354,10 +354,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         count = reduce(mul, bufs.shape, 1)
         rrecv = MPIRequestObject(name='rrecv')
         rsend = MPIRequestObject(name='rsend')
-        recv = GPUDirectMPICall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                                  fromrank, Integer(13), comm, rrecv])
-        send = GPUDirectMPICall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                                  torank, Integer(13), comm, rsend])
+        recv = IrecvCall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                                       fromrank, Integer(13), comm, rrecv])
+        send = IsendCall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                                       torank, Integer(13), comm, rsend])
 
         waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
@@ -367,7 +367,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         return SendRecv(key, iet, parameters, bufg, bufs)
 
     def _call_sendrecv(self, name, *args, **kwargs):
-        return MPICall(name, flatten(args))
+        return Call(name, flatten(args))
 
     def _make_haloupdate(self, f, hse, key, **kwargs):
         distributor = f.grid.distributor
@@ -427,7 +427,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         comm = f.grid.distributor._obj_comm
         nb = f.grid.distributor._obj_neighborhood
         args = [f, comm, nb] + list(hse.loc_indices.values())
-        return MPICall(name, flatten(args))
+        return Call(name, flatten(args))
 
     def _make_compute(self, *args):
         return
@@ -548,17 +548,17 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
 
-        gather = MPICall('gather_%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Call('gather_%s' % key, [bufg] + sizes + [f] + ofsg)
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         count = reduce(mul, sizes, 1)
         rrecv = Byref(FieldFromPointer(msg._C_field_rrecv, msg))
         rsend = Byref(FieldFromPointer(msg._C_field_rsend, msg))
-        recv = GPUDirectMPICall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                                  fromrank, Integer(13), comm, rrecv])
-        send = GPUDirectMPICall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                                  torank, Integer(13), comm, rsend])
+        recv = IrecvCall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                                       fromrank, Integer(13), comm, rrecv])
+        send = IsendCall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                                       torank, Integer(13), comm, rsend])
 
         iet = List(body=[recv, gather, send])
         parameters = ([f] + ofsg + [fromrank, torank, comm, msg])
@@ -570,7 +570,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         # to collect and scatter the result of an MPI_Irecv
         f, _, ofsg, _, fromrank, torank, comm = args
         msg = Byref(IndexedPointer(msg, haloid))
-        return MPICall(name, [f] + ofsg + [fromrank, torank, comm, msg])
+        return Call(name, [f] + ofsg + [fromrank, torank, comm, msg])
 
     def _make_haloupdate(self, f, hse, key, msg=None):
         iet = super(OverlapHaloExchangeBuilder, self)._make_haloupdate(f, hse, key,
@@ -605,7 +605,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
-        scatter = MPICall('scatter_%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Call('scatter_%s' % key, [bufs] + sizes + [f] + ofss)
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -647,7 +647,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
     def _call_halowait(self, name, f, hse, msg):
         nb = f.grid.distributor._obj_neighborhood
-        return MPICall(name, [f] + list(hse.loc_indices.values()) + [nb, msg])
+        return Call(name, [f] + list(hse.loc_indices.values()) + [nb, msg])
 
     def _make_remainder(self, hs, key, callcompute, *args):
         assert callcompute.is_Call
@@ -719,17 +719,17 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
-        gather = MPICall('gather_%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Call('gather_%s' % key, [bufg] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
         count = reduce(mul, sizes, 1)
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
         rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
-        recv = GPUDirectMPICall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                                  fromrank, Integer(13), comm, rrecv])
-        send = GPUDirectMPICall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                                  torank, Integer(13), comm, rsend])
+        recv = IrecvCall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                                       fromrank, Integer(13), comm, rrecv])
+        send = IsendCall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                                       torank, Integer(13), comm, rsend])
 
         # The -1 below is because an Iteration, by default, generates <=
         ncomms = Symbol(name='ncomms')
@@ -739,7 +739,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
     def _call_haloupdate(self, name, f, hse, msg):
         comm = f.grid.distributor._obj_comm
-        return MPICall(name, [f, comm, msg, msg.npeers] + list(hse.loc_indices.values()))
+        return Call(name, [f, comm, msg, msg.npeers] + list(hse.loc_indices.values()))
 
     def _make_sendrecv(self, *args):
         return
@@ -766,7 +766,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
-        scatter = MPICall('scatter_%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Call('scatter_%s' % key, [bufs] + sizes + [f] + ofss)
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
@@ -781,7 +781,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return Callable('halowait%d' % key, iet, 'void', parameters, ('static',))
 
     def _call_halowait(self, name, f, hse, msg):
-        return MPICall(name, [f] + list(hse.loc_indices.values()) + [msg, msg.npeers])
+        return Call(name, [f] + list(hse.loc_indices.values()) + [msg, msg.npeers])
 
     def _make_wait(self, *args):
         return
@@ -887,15 +887,16 @@ class HaloUpdate(MPICallable):
 
 # Call sub-hierarchy
 
-class MPICall(Call):
+class IsendCall(Call):
 
     def __init__(self, name, parameters):
-        super(MPICall, self).__init__(name, parameters)
+        super(IsendCall, self).__init__(name, parameters)
 
-class GPUDirectMPICall(Call):
+
+class IrecvCall(Call):
 
     def __init__(self, name, parameters):
-        super(GPUDirectMPICall, self).__init__(name, parameters)
+        super(IrecvCall, self).__init__(name, parameters)
 
 # Types sub-hierarchy
 

@@ -2,28 +2,26 @@ from functools import partial, singledispatch
 
 import cgen as c
 
+from copy import deepcopy
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import Callable, ElementalFunction, MapExprStmts
+from devito.ir.equations import DummyEq
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, FindNodes,
+                           LocalExpression, List, MapExprStmts, Transformer)
 from devito.logger import warning
-from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
+from devito.mpi.distributed import MPICommObject
+from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
+                                 MPICallable)
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
                                     factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.tools import as_tuple, filter_sorted, timed_pass
-##
-from devito.tools import generator
-from devito.mpi.distributed import MPICommObject
 from devito.symbolics import Byref
+from devito.tools import as_tuple, filter_sorted, timed_pass
 from devito.types import Symbol
-from devito.ir.equations import DummyEq
-from devito.mpi.routines import MPICallable, MPICall, GPUDirectMPICall
-from devito.ir.iet import Call, LocalExpression, List, FindNodes, Transformer, Block
 from sympy import Function
-from copy import deepcopy
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -62,7 +60,8 @@ class DeviceOmpizer(Ompizer):
         'map-update': lambda i, j:
             c.Pragma('omp target update from(%s%s) device(devicenum)' % (i, j)),
         'map-release': lambda i, j:
-            c.Pragma('omp target exit data map(release: %s%s) device(devicenum)' % (i, j)),
+            c.Pragma('omp target exit data map(release: %s%s) device(devicenum)'
+                     % (i, j)),
         'map-exit-delete': lambda i, j:
             c.Pragma('omp target exit data map(delete: %s%s) device(devicenum)' % (i, j)),
     })
@@ -221,6 +220,7 @@ class DeviceOpenMPDataManager(DataManager):
 
         return iet, {}
 
+
 @iet_pass
 def initialize(iet, **kwargs):
     """
@@ -235,7 +235,7 @@ def initialize(iet, **kwargs):
             if isinstance(i, MPICommObject):
                 comm = i
                 break
-            
+
         if comm is not None:
             rank = Symbol(name='rank')
             rank_decl = LocalExpression(DummyEq(rank, 0))
@@ -244,21 +244,21 @@ def initialize(iet, **kwargs):
             ngpus = Symbol(name='ngpus')
             call = Function('omp_get_num_devices')()
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
-            
+
             devicenum_init = LocalExpression(DummyEq(devicenum, rank % ngpus))
 
             body = [rank_decl, rank_init, ngpus_init, devicenum_init]
 
             init = List(header=c.Comment('Begin of OpenMP5.0+MPI setup'),
-                    body=body,
-                    footer=(c.Comment('End of OpenMP5.0+MPI setup'), c.Line()))
+                        body=body,
+                        footer=(c.Comment('End of OpenMP5.0+MPI setup'), c.Line()))
         else:
             devicenum_init = LocalExpression(DummyEq(devicenum, 0))
             body = [devicenum_init]
 
             init = List(header=c.Comment('Begin of OpenMP5.0 setup'),
-                    body=body,
-                    footer=(c.Comment('End of OpenMP5.0 setup'), c.Line()))
+                        body=body,
+                        footer=(c.Comment('End of OpenMP5.0 setup'), c.Line()))
 
         iet = iet._rebuild(body=(init,) + iet.body)
 
@@ -273,31 +273,30 @@ def initialize(iet, **kwargs):
 
     return iet, {}
 
+
 @iet_pass
-def mpiOmpizer(iet, **kwargs):
+def mpi_ompizer(iet, **kwargs):
     """
     Modifies functions to enable multiple GPUs performing GPU-Direct communication
     """
     @singledispatch
-    def _mpiOmpizer(iet):
-        devicenum = Symbol(name='devicenum')
+    def _mpi_ompizer(iet):
         mapper = {}
-        # adds devicenum to functions signatures and calls
-        for node in FindNodes((MPICallable, MPICall)).visit(iet):
-            mapper[node] = node
-            mapper[node]._args['parameters'].append(devicenum)
-        # modifies MPI_Isend and MPI_Irecv to perform GPU Direct communication
-        for node in FindNodes(GPUDirectMPICall).visit(iet):
-            header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' % node._args['parameters'][0].name)
-            mapper[node] = Block(header=header,body=deepcopy(node))
+        # Modify MPI_Isend and MPI_Irecv to perform GPU Direct communication
+        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
+            header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' %
+                              node._args['parameters'][0].name)
+            mapper[node] = Block(header=header, body=deepcopy(node))
 
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet
 
-    iet = _mpiOmpizer(iet)
+    iet = _mpi_ompizer(iet)
+    devicenum = Symbol(name='devicenum')
 
-    return iet, {}
+    return iet, {'args': devicenum}
+
 
 class DeviceOpenMPNoopOperator(OperatorCore):
 
@@ -395,9 +394,10 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # Initialize OpenMP environment
         initialize(graph)
-        mpiOmpizer(graph)
+        mpi_ompizer(graph)
 
         return graph
+
 
 class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
@@ -426,9 +426,10 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
         # Initialize OpenMP environment
         initialize(graph)
-        mpiOmpizer(graph)
+        mpi_ompizer(graph)
 
         return graph
+
 
 class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
@@ -497,6 +498,6 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
         # Initialize OpenMP environment
         initialize(graph)
-        mpiOmpizer(graph)
+        mpi_ompizer(graph)
 
         return graph
