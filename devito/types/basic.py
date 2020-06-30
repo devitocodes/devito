@@ -630,6 +630,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
             Cached.__init__(newobj, key)
             return newobj
 
+        # Preprocess arguments
+        args, kwargs = cls.__args_setup__(*args, **kwargs)
+
         # Not in cache. Create a new Function via sympy.Function
         name = kwargs.get('name')
         dimensions, indices = cls.__indices_setup__(**kwargs)
@@ -670,6 +673,17 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
+
+    @classmethod
+    def __args_setup__(cls, *args, **kwargs):
+        """
+        Preprocess *args and **kwargs before object initialization.
+
+        Notes
+        -----
+        This stub is invoked only if a look up in the cache fails.
+        """
+        return args, kwargs
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
