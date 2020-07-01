@@ -670,9 +670,11 @@ class TestMemoryLeaks(object):
         del eqn
         del grid
 
-        # Only deleted `u` shift reference still existing
-        # `u` points to the various Dimensions, the Dimensions point to the various
-        # spacing symbols, hence, we need four sweeps to clear up the cache
+        # We only deleted `u`, however we also cache shifted version created by the
+        # finite difference (u.dt, u.dx2). In this case we have three extra references
+        # to u(t + dt), u(x - h_x) and u(x + h_x) that have to be cleared.
+        # Then `u` points to the various Dimensions, the Dimensions point to the various
+        # spacing symbols, hence, we need five sweeps to clear up the cache.
         assert len(_SymbolCache) == 16
         clear_cache()
         assert len(_SymbolCache) == 9
