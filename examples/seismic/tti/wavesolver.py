@@ -141,7 +141,7 @@ class AnisotropicWaveSolver(object):
 
     def adjoint(self, rec, srca=None, p=None, r=None, vp=None,
                 epsilon=None, delta=None, theta=None, phi=None,
-                save=None, **kwargs):
+                save=None, kernel='centered', **kwargs):
         """
         Adjoint modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -170,6 +170,8 @@ class AnisotropicWaveSolver(object):
         -------
         Adjoint source, wavefield and performance summary.
         """
+        if kernel != 'centered':
+            raise RuntimeError('Only centered kernel is supported for the adjoint')
 
         time_order = 2
         stagg_p = stagg_r = None

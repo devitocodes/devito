@@ -64,6 +64,7 @@ jobs:
         python examples/seismic/tti/tti_example.py -a basic
         python examples/seismic/tti/tti_example.py -a basic --noazimuth
         python examples/seismic/tti/tti_example.py -k staggered
+        python examples/seismic/tti/tti_example.py --full -so 12
 
     - name: Seismic elastic examples
       shell: bash -l {0}

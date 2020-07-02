@@ -388,7 +388,6 @@ class DataSymbol(AbstractSymbol, Cached):
 
     @classmethod
     def _cache_key(cls, *args, **kwargs):
-        """A DataSymbol caches on the class type itself."""
         return cls
 
     def __new__(cls, *args, **kwargs):
@@ -489,7 +488,6 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
 
     @classmethod
     def _cache_key(cls, *args, **kwargs):
-        """An AbstractTensor caches on the class type itself."""
         return cls
 
     def __new__(cls, *args, **kwargs):
@@ -504,7 +502,6 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
             return newobj
 
         name = kwargs.get('name')
-        # Number of dimensions
         indices, _ = cls.__indices_setup__(**kwargs)
 
         # Create new, unique type instance from cls and the symbol name
@@ -521,6 +518,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
 
         # Store new instance in symbol cache
         Cached.__init__(newobj, newcls)
+
         return newobj
 
     __hash__ = Cached.__hash__
@@ -613,19 +611,27 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     @classmethod
     def _cache_key(cls, *args, **kwargs):
-        """An AbstractFunction caches on the class type itself."""
-        return cls
+        return cls, args
 
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {'evaluate': False})
 
+        # Is the object already in cache (e.g., f(x), f(x+1)) ?
         key = cls._cache_key(*args, **kwargs)
         obj = cls._cache_get(key)
+        if obj is not None:
+            return obj
 
+        # Does the base object exist at least (e.g. f(x))?
+        obj = cls._cache_get(cls)
         if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(key)
+            newobj.__init_cached__(cls)
+            Cached.__init__(newobj, key)
             return newobj
+
+        # Preprocess arguments
+        args, kwargs = cls.__args_setup__(*args, **kwargs)
 
         # Not in cache. Create a new Function via sympy.Function
         name = kwargs.get('name')
@@ -651,7 +657,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         newobj.function = newobj
 
         # Store new instance in symbol cache
-        Cached.__init__(newobj, newcls)
+        key = (newcls, indices)
+        Cached.__init__(newobj, key, newcls)
+
         return newobj
 
     def __init__(self, *args, **kwargs):
@@ -665,6 +673,17 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
+
+    @classmethod
+    def __args_setup__(cls, *args, **kwargs):
+        """
+        Preprocess *args and **kwargs before object initialization.
+
+        Notes
+        -----
+        This stub is invoked only if a look up in the cache fails.
+        """
+        return args, kwargs
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
