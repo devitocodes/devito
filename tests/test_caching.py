@@ -198,6 +198,28 @@ class TestCaching(object):
         u = u0.dx.evaluate.args[0].args[1]
         assert np.allclose(u.data, u0.data)
 
+    @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
+    def test_function_duplicates(self, FunctionType):
+        """Test caching of u[x + h, y] instance from derivative"""
+        grid = Grid(shape=(3, 4))
+        _cache_size = len(_SymbolCache)
+        x = grid.dimensions[0]
+        u0 = FunctionType(name='u', grid=grid)
+        # u[x + h_x]
+        uf = u0.subs({x: x + x.spacing})
+        # u[x] shifting back from u[x + h_x]
+        ub = uf.subs({x: x - x.spacing})
+        # Make sure ub is u0
+        assert ub is u0
+        assert hash(ub) == hash(u0)
+        # Three new cache entries: u, u(t,x,y), u(t, x+h_x, y)
+        ncreated = 3
+        assert len(_SymbolCache) == _cache_size + ncreated
+        # shift again, no new entry should be created
+        uf2 = ub.subs({x: x + x.spacing})
+        assert uf is uf2
+        assert len(_SymbolCache) == _cache_size + ncreated
+
     def test_symbols(self):
         """
         Test that ``Symbol(name='s') != Scalar(name='s') != Dimension(name='s')``.
@@ -674,7 +696,7 @@ class TestMemoryLeaks(object):
         # finite difference (u.dt, u.dx2). In this case we have three extra references
         # to u(t + dt), u(x - h_x) and u(x + h_x) that have to be cleared.
         # Then `u` points to the various Dimensions, the Dimensions point to the various
-        # spacing symbols, hence, we need five sweeps to clear up the cache.
+        # spacing symbols, hence, we need four sweeps to clear up the cache.
         assert len(_SymbolCache) == 16
         clear_cache()
         assert len(_SymbolCache) == 9
