@@ -35,13 +35,15 @@ class AcousticWaveSolver(object):
         self.space_order = space_order
         self.kernel = kernel
 
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
-        if self.kernel == 'OT4':
-            self.model.dt_scale = 1.73
-        self.dt = self.model.critical_dt
-
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        # Time step can be \sqrt{3}=1.73 bigger with 4th order
+        if self.kernel == 'OT4':
+            return self.model.dtype(1.73 * self.model.critical_dt)
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, save=None):
