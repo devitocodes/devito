@@ -76,6 +76,9 @@ class Data(np.ndarray):
         self._allocator.free(*self._memfree_args)
         self._memfree_args = None
 
+    def __reduce__(self):
+        raise NotImplementedError("Pickling of `Data` objects is not supported")
+
     def __array_finalize__(self, obj):
         # `self` is the newly created object
         # `obj` is the object from which `self` was created
