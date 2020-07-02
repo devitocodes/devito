@@ -961,11 +961,26 @@ class Function(DiscreteFunction):
         # Dynamically add derivative short-cuts
         self._fd = generate_fd_shortcuts(self)
 
+        # Check if defined on a subdomain
+        self._subdomain = kwargs.get('subdomain', None)
+
         # Flag whether it is a parameter or a variable.
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
         # parameter has to be computed at x + hx/2)
         self._is_parameter = kwargs.get('parameter', False)
+
+    # TODO: Review/tidy new properties
+    @cached_property
+    def on_subdomain(self):
+        return bool(self._subdomain)
+
+    @cached_property
+    def _domain(self):
+        """ Shortcut to the computational domain on which the function
+            is defined """
+        # TODO: Add sanity check here
+        return self._subdomain if self._subdomain else self.grid
 
     @cached_property
     def _fd_priority(self):
@@ -988,12 +1003,16 @@ class Function(DiscreteFunction):
     @classmethod
     def __indices_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
+        subdomain = kwargs.get('subdomain')
         dimensions = kwargs.get('dimensions')
         if grid is None:
             if dimensions is None:
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
-            dimensions = grid.dimensions
+            if subdomain is None:
+                dimensions = grid.dimensions
+            else:
+                dimensions = subdomain.dimensions
 
         # Staggered indices
         staggered = kwargs.get("staggered", None)
@@ -1015,15 +1034,21 @@ class Function(DiscreteFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
+        subdomain = kwargs.get('subdomain')
         dimensions = kwargs.get('dimensions')
         shape = kwargs.get('shape', kwargs.get('shape_global'))
         if grid is None:
             if shape is None:
                 raise TypeError("Need either `grid` or `shape`")
         elif shape is None:
-            if dimensions is not None and dimensions != grid.dimensions:
+            if dimensions is not None and dimensions != (grid.dimensions or
+                                                         subdomain.dimensions):
                 raise TypeError("Need `shape` as not all `dimensions` are in `grid`")
-            shape = grid.shape_local
+            # TODO: Fix this:
+            if subdomain:
+                shape = subdomain.shape_local
+            else:
+                shape = grid.shape_local
         elif dimensions is None:
             raise TypeError("`dimensions` required if both `grid` and "
                             "`shape` are provided")

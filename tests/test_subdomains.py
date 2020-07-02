@@ -356,3 +356,60 @@ class TestSubdomains(object):
         fex.data[:] = np.transpose(expected)
 
         assert((np.array(result) == np.array(fex.data[:])).all())
+
+
+class TestSubdomainFunctions(object):
+    """
+    Class for testing `Function`'s defined on `SubDomain`'s
+    """
+
+    def test_basic_function(self):
+        """
+        Fill me in.
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        mid = Middle()
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.), subdomains=(mid, ))
+        f = Function(name='f', grid=grid, subdomain=grid.subdomains['middle'])
+        eq = Eq(f, f+1).subs(f._domain._access_map)
+
+        assert(f.shape == grid.subdomains['middle'].shape)
+
+        Operator(eq)()
+
+        assert(np.all(f.data[:] == 1))
+
+    @pytest.mark.parallel(mode=4)
+    def test_mpi_function(self):
+        """
+        Fill me in.
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        mid = Middle()
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.), subdomains=(mid, ))
+        f = Function(name='f', grid=grid, subdomain=grid.subdomains['middle'])
+        eq = Eq(f, f+1).subs(f._domain._access_map)
+
+        assert(f.shape == grid.subdomains['middle'].shape_local)
+
+        Operator(eq)()
+
+        assert(np.all(f.data[:] == 1))
