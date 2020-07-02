@@ -318,13 +318,22 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        if self._distributor.is_parallel and any(left) > 0 or any(right) > 0:
+        if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
             try:
+                warning_msg = """A space order of {0} and a halo size of {1} has been
+                                 set but the current rank ({2}) has a domain size of
+                                 only {3}""".format(self._space_order,
+                                                    max(self._size_inhalo),
+                                                    self._distributor.myrank,
+                                                    min(self.grid.shape_local))
                 if not self._distributor.is_boundary_rank:
-                    warning("A space order of %d  and a halo size of %d has been set "
-                            "but the current rank (%d) has a domain size of only %d" %
-                            (self._space_order, max(self._size_inhalo),
-                             self._distributor.myrank, min(self.grid.shape_local)))
+                    warning(warning_msg)
+                else:
+                    for i, j, k, l in zip(left, right, self._distributor.mycoords,
+                                          self._distributor.topology):
+                        if j > 0 and k == 0 or i > 0 and k == l-1:
+                            warning(warning_msg)
+                            break
             except AttributeError:
                 pass
 
