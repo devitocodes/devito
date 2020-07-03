@@ -113,9 +113,9 @@ jobs:
       run: |
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/finance
 
-    - name: GPU notebooks (only codegen)
+    - name: Performance notebooks
       run: |
-        $RUN_CMD py.test --nbval examples/gpu
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'tutos-docker-gcc-py36'
