@@ -254,15 +254,24 @@ ArmOpenMPOperator = CPU64OpenMPOperator
 class CustomOperator(CPU64Operator):
 
     _known_passes = ('blocking', 'denormals', 'optcomms', 'openmp', 'mpi',
-                     'simd', 'prodders', 'topofuse', 'fuse')
+                     'simd', 'prodders', 'topofuse', 'fuse', 'factorize',
+                     'cire-sops', 'cse', 'lift', 'opt-pows')
 
     @classmethod
     def _make_clusters_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
 
         return {
             'blocking': Blocking(options).process,
+            'factorize': factorize,
             'fuse': fuse,
+            'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
+                                                  options, platform)),
+            'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
+            'cse': lambda i: cse(i, sregistry),
+            'opt-pows': optimize_pows,
             'topofuse': lambda i: fuse(i, toposort=True)
         }
 
