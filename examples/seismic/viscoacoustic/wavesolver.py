@@ -31,10 +31,13 @@ class ViscoacousticWaveSolver(object):
         self.geometry = geometry
 
         self.space_order = space_order
-        self.dt = self.model.critical_dt
         self.kernel = kernel
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, save=None):

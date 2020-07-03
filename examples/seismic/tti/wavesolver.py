@@ -39,10 +39,13 @@ class AnisotropicWaveSolver(object):
                     "but got %s" % space_order)
 
         self.space_order = space_order
-        self.dt = self.model.critical_dt
 
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, kernel='centered', save=False):
