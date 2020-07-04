@@ -490,7 +490,7 @@ def process(cluster, chosen, aliases, sregistry, platform):
 
         # Finally, build a new Cluster for `alias`
         built = cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace)
-        clusters.append(built)
+        clusters.insert(0, built)
 
     return clusters, subs
 
@@ -768,8 +768,8 @@ class Aliases(OrderedDict):
 
     def iter(self, ispace):
         """
-        The aliases can be be scheduled in any order, but we privilege the one
-        that minimizes storage while maximizing fusion.
+        The aliases can legally be scheduled in many different orders, but we
+        privilege the one that minimizes storage while maximizing fusion.
         """
         items = []
         for alias, (intervals, aliaseds, distances) in self.items():

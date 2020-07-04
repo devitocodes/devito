@@ -7,6 +7,7 @@ from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, norm, grad, div,
                     switchconfig, configuration, centered, first_derivative, transpose)
+from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
@@ -575,6 +576,60 @@ class TestAliases(object):
         u.data_with_halo[:] = 1.5
         op1(time_M=1)
         assert np.all(u.data == exp)
+
+    def test_min_storage_in_isolation(self):
+        """
+        Test that if running with ``opt=(..., opt=('cire-sops', {'min-storage': True})``,
+        then, when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
+        rather than nD Arrays.
+        """
+        grid = Grid(shape=(8, 8, 8))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u1 = TimeFunction(name="u1", grid=grid, space_order=2)
+        u2 = TimeFunction(name="u1", grid=grid, space_order=2)
+
+        u.data_with_halo[:] = 1.42
+        u1.data_with_halo[:] = 1.42
+        u2.data_with_halo[:] = 1.42
+
+        eqn = Eq(u.forward, u.dy.dy + u.dx.dx)
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('cire-sops', {'openmp': True, 'min-storage': True}))
+        op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
+
+        # `min-storage` leads to one 2D and one 3D Arrays
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_shared]
+        assert len(arrays) == 2
+        assert len(arrays[0].dimensions) == 2
+        assert arrays[0].halo == ((1, 0), (0, 0))
+        assert Add(*arrays[0].symbolic_shape[0].args) == y.symbolic_size + 1
+        assert arrays[0].symbolic_shape[1] == z.symbolic_size
+        assert len(arrays[1].dimensions) == 3
+        assert arrays[1].halo == ((1, 0), (0, 0), (0, 0))
+        assert Add(*arrays[1].symbolic_shape[0].args) == x.symbolic_size + 1
+        assert arrays[1].symbolic_shape[1] == y.symbolic_size
+        assert arrays[1].symbolic_shape[2] == z.symbolic_size
+
+        try:
+            Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'min-storage': True}))
+        except InvalidOperator:
+            # Incompatible `advanced-fsg` + `min-storage`
+            assert True
+        except:
+            assert False
+
+        u1.data_with_halo[:] = 1.42
+
+        op0(time_M=1)
+        op1(time_M=1, u=u1)
+        op2(time_M=1, u=u2)
+
+        expected = norm(u)
+        assert np.isclose(expected, norm(u1), rtol=1e-5)
+        assert np.isclose(expected, norm(u2), rtol=1e-5)
 
     def test_mixed_shapes_v2_w_subdims(self):
         """
