@@ -207,6 +207,16 @@ class Intel64FSGOperator(Intel64Operator):
     """
 
     @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        kwargs = super(Intel64FSGOperator, cls)._normalize_kwargs(**kwargs)
+
+        if kwargs['options'].get('min-storage'):
+            raise InvalidOperator('You should not use `min-storage` with `advanced-fsg '
+                                  ' as they work in opposite directions')
+
+        return kwargs
+
+    @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         options = kwargs['options']
