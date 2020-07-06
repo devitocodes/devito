@@ -8,6 +8,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
                     Dimension, SubDimension, TimeDimension, Grid, Operator, norm, grad,
                     div, switchconfig, configuration, centered, first_derivative,
                     transpose)
+from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
