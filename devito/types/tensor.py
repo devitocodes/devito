@@ -43,8 +43,8 @@ class TensorFunction(AbstractTensor):
         else:
             grid = kwargs.get('grid')
             dimensions = kwargs.get('dimensions')
-        inds, _  = Function.__indices_setup__(grid=grid,
-                                              dimensions=dimensions)
+        inds, _ = Function.__indices_setup__(grid=grid,
+                                             dimensions=dimensions)
         self._space_dimensions = inds
 
     @classmethod
@@ -73,7 +73,7 @@ class TensorFunction(AbstractTensor):
         # Fill tensor, only upper diagonal if symmetric
         for i, d in enumerate(dims):
             funcs2 = [0 for _ in range(len(dims))]
-            start = i if symm else 0
+            start = i if (symm or diag) else 0
             stop = i + 1 if diag else len(dims)
             for j in range(start, stop):
                 kwargs["name"] = "%s_%s%s" % (name, d.name, dims[j].name)
@@ -97,7 +97,7 @@ class TensorFunction(AbstractTensor):
         This method acts as a fallback for __getattribute__
         """
         try:
-            return self.applyfunc(lambda x: getattr(x, name))
+            return self.applyfunc(lambda x: x if x == 0 else getattr(x, name))
         except:
             raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
@@ -125,7 +125,7 @@ class TensorFunction(AbstractTensor):
 
     @property
     def is_diagonal(self):
-        return np.all([self[i, j] == 0  for j in range(self.cols)
+        return np.all([self[i, j] == 0 for j in range(self.cols)
                        for i in range(self.rows) if i != j])
 
     @property
@@ -176,31 +176,13 @@ class TensorFunction(AbstractTensor):
         n, m = np.array(mat).shape
         return func._new(n, m, mat)
 
-
-class TensorTimeFunction(TensorFunction):
-    """
-    Time varying TensorFunction.
-    """
-    is_TimeDependent = True
-    is_TensorValued = True
-
-    _sub_type = TimeFunction
-
-    @property
-    def forward(self):
-        """Symbol for the time-forward state of the VectorTimeFunction."""
-        i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[self._time_position]
-
-        return self.subs({_t: _t + i * _t.spacing})
-
-    @property
-    def backward(self):
-        """Symbol for the time-forward state of the VectorTimeFunction."""
-        i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[self._time_position]
-
-        return self.subs({_t: _t - i * _t.spacing})
+    def classof_prod(self, other, mat):
+        try:
+            is_mat = len(mat[0]) > 1
+        except TypeError:
+            is_mat = False
+        is_time = self._is_TimeDependent or other._is_TimeDependent
+        return mat_time_dict[(is_time, is_mat)]
 
 
 class VectorFunction(TensorFunction):
@@ -324,6 +306,10 @@ class VectorTimeFunction(VectorFunction, TensorTimeFunction):
     _is_TimeDependent = True
     _sub_type = TimeFunction
     _time_position = 0
+
+
+mat_time_dict = {(True, True): TensorTimeFunction, (True, False): VectorTimeFunction,
+                 (False, True): TensorFunction, (False, False): VectorFunction}
 
 
 def vec_func(func1, func2):

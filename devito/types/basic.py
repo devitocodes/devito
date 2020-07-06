@@ -501,10 +501,10 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         else:
             # Initialize components and create new Matrix from standard
             # Devito inputs
-            comps = cls.__subfunc_setup__(*args, **kwargs)  
+            comps = cls.__subfunc_setup__(*args, **kwargs)
             newobj = super(AbstractTensor, cls)._new(comps)
             newobj.__init_finalize__(*args, **kwargs)
-    
+
         return newobj
 
     __hash__ = sympy.ImmutableDenseMatrix.__hash__
@@ -532,8 +532,12 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 col_indices = range(col, other_len, other.cols)
                 vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices)]
                 new_mat[i] = sum(vec)
-
-        return classof(self, other)._new(self.rows, other.cols, new_mat, copy=False)
+        # Return the expression for example in case of inner product
+        if new_len == 1:
+            return new_mat[0]
+        # Get new class and return product
+        newcls = self.classof_prod(other, new_mat)
+        return newcls._new(self.rows, other.cols, new_mat, copy=False)
 
     @classmethod
     def __subfunc_setup__(cls, *args, **kwargs):
