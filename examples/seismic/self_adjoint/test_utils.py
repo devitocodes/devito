@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from devito import Grid, Function
-from examples.seismic.skew_self_adjoint import setup_w_over_q
+from examples.seismic.self_adjoint import setup_w_over_q
 
 
 class TestUtils(object):
