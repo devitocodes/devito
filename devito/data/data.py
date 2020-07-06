@@ -147,6 +147,7 @@ class Data(np.ndarray):
         ret._is_distributed = any(i is not None for i in decomposition)
         return ret
 
+    # TODO: Potentially becoming more generic so change name?
     def _check_idx(func):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)
@@ -179,9 +180,9 @@ class Data(np.ndarray):
         return super(Data, self._local).__str__()
 
     @_check_idx
-    def __getitem__(self, glb_idx, comm_type):
+    def __getitem__(self, glb_idx, comm_type, _gather=None):
         loc_idx = self._index_glb_to_loc(glb_idx)
-        if comm_type is index_by_index:
+        if comm_type is index_by_index or isinstance(_gather, int):
             # Retrieve the pertinent local data prior to mpi send/receive operations
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
@@ -200,32 +201,63 @@ class Data(np.ndarray):
                           modulo=(False,)*len(local_val.shape))
             it = np.nditer(owners, flags=['refs_ok', 'multi_index'])
             # Iterate over each element of data
-            while not it.finished:
-                index = it.multi_index
-                if rank == owners[index] and rank == send[index]:
-                    # Current index and destination index are on the same rank
-                    loc_ind = local_si[index]
-                    send_ind = local_si[global_si[index]]
-                    retval.data[send_ind] = local_val.data[loc_ind]
-                elif rank == owners[index]:
-                    # Current index is on this rank and hence need to send
-                    # the data to the appropriate rank
-                    loc_ind = local_si[index]
-                    send_rank = send[index]
-                    send_ind = global_si[index]
-                    send_val = local_val.data[loc_ind]
-                    reqs = comm.isend([send_ind, send_val], dest=send_rank)
-                    reqs.wait()
-                elif rank == send[index]:
-                    # Current rank is required to receive data from this index
-                    recval = comm.irecv(source=owners[index])
-                    local_dat = recval.wait()
-                    loc_ind = local_si[local_dat[0]]
-                    retval.data[loc_ind] = local_dat[1]
+            # TODO: These statements can potentially be fused?
+            if not isinstance(_gather, int):
+                while not it.finished:
+                    index = it.multi_index
+                    if rank == owners[index] and rank == send[index]:
+                        # Current index and destination index are on the same rank
+                        loc_ind = local_si[index]
+                        send_ind = local_si[global_si[index]]
+                        retval.data[send_ind] = local_val.data[loc_ind]
+                    elif rank == owners[index]:
+                        # Current index is on this rank and hence need to send
+                        # the data to the appropriate rank
+                        loc_ind = local_si[index]
+                        send_rank = send[index]
+                        send_ind = global_si[index]
+                        send_val = local_val.data[loc_ind]
+                        reqs = comm.isend([send_ind, send_val], dest=send_rank)
+                        reqs.wait()
+                    elif rank == send[index]:
+                        # Current rank is required to receive data from this index
+                        recval = comm.irecv(source=owners[index])
+                        local_dat = recval.wait()
+                        loc_ind = local_si[local_dat[0]]
+                        retval.data[loc_ind] = local_dat[1]
+                    else:
+                        pass
+                    it.iternext()
+                return retval
+            else:
+                if rank == _gather:
+                    retval = np.zeros(it.shape)
                 else:
-                    pass
-                it.iternext()
-            return retval
+                    retval = np.empty((0, )*len(it.shape))
+                while not it.finished:
+                    index = it.multi_index
+                    if rank == owners[index] and rank == _gather:
+                        # Current index and destination index are on the same rank
+                        loc_ind = local_si[index]
+                        retval[index] = local_val.data[loc_ind]
+                    elif rank == owners[index]:
+                        # Current index is on this rank and hence need to send
+                        # the data to the appropriate rank
+                        loc_ind = local_si[index]
+                        send_rank = _gather
+                        send_ind = index
+                        send_val = local_val.data[loc_ind]
+                        reqs = comm.isend([send_ind, send_val], dest=send_rank)
+                        reqs.wait()
+                    elif rank == _gather:
+                        # Current rank is required to receive data from this index
+                        recval = comm.irecv(source=owners[index])
+                        local_dat = recval.wait()
+                        retval[local_dat[0]] = local_dat[1]
+                    else:
+                        pass
+                    it.iternext()
+                return retval
         elif loc_idx is NONLOCAL:
             # Caller expects a scalar. However, `glb_idx` doesn't belong to
             # self's data partition, so None is returned
@@ -470,6 +502,26 @@ class Data(np.ndarray):
             else:
                 mapped_idx.append(None)
         return as_tuple(mapped_idx)
+
+    def _gather(self, rank=0, step=1, start=None, stop=None):
+        """
+        TODO: Add docstring.
+        """
+        if isinstance(step, int) or step is None:
+            step = [step for _ in self.shape]
+        if isinstance(start, int) or start is None:
+            start = [start for _ in self.shape]
+        if isinstance(stop, int) or stop is None:
+            stop = [stop for _ in self.shape]
+        idx = []
+        for i, j, k in zip(start, stop, step):
+            idx.append(slice(i, j, k))
+        idx = tuple(idx)
+        if self._distributor.is_parallel and self._distributor.nprocs > 1:
+            gather = rank
+        else:
+            gather = None
+        return np.array(self.__getitem__(idx, _gather=gather))
 
     def reset(self):
         """Set all Data entries to 0."""

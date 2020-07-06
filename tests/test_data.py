@@ -1259,6 +1259,24 @@ class TestDataDistributed(object):
             assert(np.all(c.data[-1] == [4., 4., 6., 9., 8.]))
 
 
+class TestDataGather(object):
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('rank', [0, 1, 2, 3])
+    def test_simple_gather(self, rank):
+        """ Fill me in."""
+        grid = Grid(shape=(10, 10), extent=(9, 9))
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        res = np.arange(100).reshape(grid.shape)
+        f.data[:] = res
+        myrank = grid._distributor.comm.Get_rank()
+        ans = f.data_gather(rank=rank)
+        if myrank == rank:
+            assert np.all(ans == res)
+        else:
+            assert ans.shape == (0, )*len(grid.shape)
+
+
 def test_scalar_arg_substitution():
     """
     Tests the relaxed (compared to other devito sympy subclasses)
