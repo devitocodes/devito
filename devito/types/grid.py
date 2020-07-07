@@ -353,67 +353,86 @@ class SubDomain(object):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
-        access_map = {}
         counter = kwargs.get('counter', 0) - 1
         for k, v, s in zip(self.define(dimensions).keys(),
                            self.define(dimensions).values(), shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
-                access_map.update({v: v})
             else:
+                sd_name = 'i%d%s' % (counter, k.name)
                 try:
                     # Case ('middle', int, int)
                     side, thickness_left, thickness_right = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sd = SubDimension.middle('i%d%s' % (counter, k.name),
-                                             k, thickness_left, thickness_right)
-                    sub_dimensions.append(sd)
-                    thickness = s-thickness_left-thickness_right
-                    sdshape.append(thickness)
-                    access_map.update({sd: sd-thickness_left})
+                    sub_dimensions.append(SubDimension.middle(sd_name, k, thickness_left,
+                                                              thickness_right))
+                    sdshape.append(s-thickness_left-thickness_right)
                 except ValueError:
                     side, thickness = v
                     if side == 'left':
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.left('i%d%s' %
-                                                                (counter, k.name),
-                                                                k, thickness))
+                        sub_dimensions.append(SubDimension.left(sd_name, k,
+                                                                thickness))
                         sdshape.append(thickness)
-                        access_map.update({k: 0})
                     elif side == 'right':
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.right('i%d%s' %
-                                                                 (counter, k.name),
-                                                                 k, thickness))
+                        sub_dimensions.append(SubDimension.right(sd_name, k,
+                                                                 thickness))
                         sdshape.append(thickness)
-                        access_map.update({k: k-(s-thickness)})
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
         self._dimensions = tuple(sub_dimensions)
 
-        # Compute the SubDomain shape
+        # Set the SubDomain shape
         self._shape = tuple(sdshape)
 
-        # TODO: Tidy + generalize
-        # Local shape for distributed cases + access map for any
-        # Function defined on this `SubDomain`.
-        if distributor and distributor.is_parallel:
-            access_map = {}
-            shape_local = []
-            for dim, v, d in zip(sub_dimensions, self.define(dimensions).values(),
-                                 distributor.decomposition):
-                if isinstance(v, Dimension):
-                    shape_local.append(len(d.loc_abs_numb))
-                    access_map.update({v: v})
+        # Derive the local shape for `SubDomain`'s on distributed grids along with the
+        # memory access map for any `Function` defined on this `SubDomain`.
+        access_map = {}
+        shape_local = []
+        for dim, d, s in zip(sub_dimensions, distributor.decomposition, self._shape):
+            if dim.is_Sub:
+                if dim._local:
+                    if distributor and distributor.is_parallel:
+                        if dim.thickness.right[1] == 0:
+                            ls = len(d.loc_abs_numb)
+                            minc = d.glb_min
+                            maxc = d.glb_max - (ls-dim.thickness.left[1])
+                            l = d.index_glb_to_loc(0, LEFT)
+                            r = d.index_glb_to_loc(ls-dim.thickness.left[1], RIGHT)
+                        else:
+                            ls = len(d.loc_abs_numb)
+                            minc = d.glb_min + (ls-dim.thickness.right[1])
+                            maxc = d.glb_max
+                            l = d.index_glb_to_loc(ls-dim.thickness.right[1], LEFT)
+                            r = d.index_glb_to_loc(0, RIGHT)
+                        if d.loc_abs_min > maxc:
+                            shape_local.append(0)
+                        elif d.loc_abs_max < minc:
+                            shape_local.append(0)
+                        else:
+                            if l is None:
+                                l = 0
+                            if r is None:
+                                r = 0
+                            shape_local.append(ls-l-r)
+                        access_map.update({dim: dim-l if l else dim})
+                    else:
+                        if dim.thickness.left[1] == 0:
+                            access_map.update({dim: dim-(s-dim.thickness.right[1])})
+                        else:
+                            access_map.update({dim: dim})
+                        shape_local.append(s)
                 else:
-                    try:
-                        side, tl, tr = v
+                    if distributor and distributor.is_parallel:
+                        tl = dim.thickness.left[1]
+                        tr = dim.thickness.right[1]
                         ls = len(d.loc_abs_numb)
                         minc = d.glb_min + tl
                         maxc = d.glb_max - tr
@@ -429,13 +448,15 @@ class SubDomain(object):
                             if r is None:
                                 r = 0
                             shape_local.append(ls-l-r)
-                        access_map.update({dim: dim-l})
-                    except ValueError:
-                        raise NotImplementedError
-            self._shape_local = tuple(shape_local)
-        else:
-            self._shape_local = self._shape
+                        access_map.update({dim: dim-l if l else dim})
+                    else:
+                        access_map.update({dim: dim-dim.thickness.left[1]})
+                        shape_local.append(s)
+            else:
+                shape_local.append(len(d.loc_abs_numb))
+                access_map.update({dim: dim})
         self._access_map = access_map
+        self._shape_local = tuple(shape_local)
 
     def __eq__(self, other):
         if not isinstance(other, SubDomain):
