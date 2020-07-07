@@ -120,6 +120,19 @@ class Differentiable(sympy.Expr, Evaluable):
             return self
         return self.func(*[getattr(a, '_eval_at', lambda x: a)(func) for a in self.args])
 
+    def _subs(self, old, new, **hints):
+        if old is self:
+            return new
+        if old is new:
+            return self
+        args = list(self.args)
+        for i, arg in enumerate(args):
+            try:
+                args[i] = arg._subs(old, new, **hints)
+            except AttributeError:
+                continue
+        return self.func(*args, evaluate=False)
+
     @property
     def _eval_deriv(self):
         return self.func(*[getattr(a, '_eval_deriv', a) for a in self.args])
@@ -287,6 +300,8 @@ class DifferentiableOp(Differentiable):
     def subs(self, *args, **kwargs):
         return self.func(*[getattr(a, 'subs', lambda x: a)(*args, **kwargs)
                            for a in self.args], evaluate=False)
+
+    _subs = Differentiable._subs
 
     @property
     def _gather_for_diff(self):

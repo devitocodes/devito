@@ -219,7 +219,7 @@ def demo_model(preset, **kwargs):
                              dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
                              delta=delta, theta=theta, phi=phi, bcs="damp", **kwargs)
 
-        if kwargs.get('smooth', True):
+        if kwargs.get('smooth', False):
             if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
                 model.smooth(('epsilon', 'delta', 'theta', 'phi'))
             else:

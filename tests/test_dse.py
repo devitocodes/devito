@@ -7,6 +7,7 @@ from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, norm, grad, div,
                     switchconfig, configuration, centered, first_derivative, transpose)
+from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
@@ -339,7 +340,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -379,7 +380,7 @@ class TestAliases(object):
         z_size = op1.parameters[3]
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 2
@@ -420,7 +421,7 @@ class TestAliases(object):
         z_size = op1.parameters[4]
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -504,7 +505,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -557,7 +558,7 @@ class TestAliases(object):
         assert len(op1._func_table) == 1
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert len(arrays[0].dimensions) == 2
         assert arrays[0].halo == ((1, 1), (0, 0))
@@ -575,6 +576,60 @@ class TestAliases(object):
         u.data_with_halo[:] = 1.5
         op1(time_M=1)
         assert np.all(u.data == exp)
+
+    def test_min_storage_in_isolation(self):
+        """
+        Test that if running with ``opt=(..., opt=('cire-sops', {'min-storage': True})``,
+        then, when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
+        rather than nD Arrays.
+        """
+        grid = Grid(shape=(8, 8, 8))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u1 = TimeFunction(name="u1", grid=grid, space_order=2)
+        u2 = TimeFunction(name="u1", grid=grid, space_order=2)
+
+        u.data_with_halo[:] = 1.42
+        u1.data_with_halo[:] = 1.42
+        u2.data_with_halo[:] = 1.42
+
+        eqn = Eq(u.forward, u.dy.dy + u.dx.dx)
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('cire-sops', {'openmp': True, 'min-storage': True}))
+        op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
+
+        # `min-storage` leads to one 2D and one 3D Arrays
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_shared]
+        assert len(arrays) == 2
+        assert len(arrays[0].dimensions) == 2
+        assert arrays[0].halo == ((1, 0), (0, 0))
+        assert Add(*arrays[0].symbolic_shape[0].args) == y.symbolic_size + 1
+        assert arrays[0].symbolic_shape[1] == z.symbolic_size
+        assert len(arrays[1].dimensions) == 3
+        assert arrays[1].halo == ((1, 0), (0, 0), (0, 0))
+        assert Add(*arrays[1].symbolic_shape[0].args) == x.symbolic_size + 1
+        assert arrays[1].symbolic_shape[1] == y.symbolic_size
+        assert arrays[1].symbolic_shape[2] == z.symbolic_size
+
+        try:
+            Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'min-storage': True}))
+        except InvalidOperator:
+            # Incompatible `advanced-fsg` + `min-storage`
+            assert True
+        except:
+            assert False
+
+        u1.data_with_halo[:] = 1.42
+
+        op0(time_M=1)
+        op1(time_M=1, u=u1)
+        op2(time_M=1, u=u2)
+
+        expected = norm(u)
+        assert np.isclose(expected, norm(u1), rtol=1e-5)
+        assert np.isclose(expected, norm(u2), rtol=1e-5)
 
     def test_mixed_shapes_v2_w_subdims(self):
         """
@@ -614,7 +669,7 @@ class TestAliases(object):
         assert len(op1._func_table) == 1
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert len(arrays[0].dimensions) == 2
         assert arrays[0].halo == ((1, 1), (1, 0))
@@ -668,7 +723,7 @@ class TestAliases(object):
         assert len(op1._func_table) == 1
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         for a in arrays:
             assert len(a.dimensions) == 3
@@ -719,7 +774,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert all(len(a.dimensions) == 2 for a in arrays)
         assert arrays[0].halo == ((1, 0), (1, 0))
@@ -769,7 +824,7 @@ class TestAliases(object):
         # Expected one single loop nest
         assert len(op1._func_table) == 1
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 2
@@ -856,7 +911,7 @@ class TestAliases(object):
         op = Operator(Eq(u.forward, u + sin(cos(g)) + sin(cos(g[x+1, y+1]))))
 
         # We expect two temporary Arrays: `r1 = cos(g)` and `r2 = sqrt(r1)`
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
@@ -935,7 +990,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -1242,7 +1297,7 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
 
         # Check numerical output
@@ -1254,7 +1309,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 21
+        assert summary[('section0', None)].ops == 19
 
 
 # Acoustic
@@ -1364,7 +1419,7 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 103
-        assert np.isclose(summary[('section1', None)].oi, 1.692, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 1.625, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -1376,17 +1431,21 @@ class TestTTI(object):
         assert not x._defines & y._defines
 
         # Also, in this operator, we expect seven temporary Arrays:
-        # * five Arrays are allocated on the heap
-        # * two Arrays are allocated on the stack and only appear within an efunc
+        # * all of the seven Arrays are allocated on the heap
+        # * with OpenMP, five Arrays are defined globally, and two additional
+        #   Arrays are defined locally in bf0; otherwise, all of the seven
+        #   Arrays are defined globally and passed as arguments to bf0
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 5
+        extra_arrays = 0 if configuration['language'] == 'openmp' else 2
+        assert len(arrays) == 5 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root)
                   if i.is_Array]
-        assert len(arrays) == 7
         assert all(not i._mem_external for i in arrays)
-        assert len([i for i in arrays if i._mem_heap]) == 5
-        assert len([i for i in arrays if i._mem_stack]) == 2
+        assert len(arrays) == 7
+        assert len([i for i in arrays if i._mem_heap]) == 7
+        assert len([i for i in arrays if i._mem_shared]) == 5
+        assert len([i for i in arrays if i._mem_local]) == 2
 
     @skipif(['nompi'])
     @switchconfig(profiling='advanced')

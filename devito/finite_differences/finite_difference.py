@@ -1,3 +1,5 @@
+from sympy import sympify
+
 from devito.finite_differences.differentiable import Add
 from devito.finite_differences.tools import (numeric_weights, symbolic_weights, left,
                                              right, generate_indices, centered, direct,
@@ -270,13 +272,16 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     # Loop through weights
     terms = []
     for i, c in zip(inds, weights):
+        # Apply replacements to indices. Needs to be sympified in case
+        # the indices are pure numbers
         try:
             iloc = i.xreplace(mapper)
         except AttributeError:
-            iloc = i
-        subs = {expr.indices_ref[dim]: iloc}
-        terms.append(expr.subs(subs) * c)
+            iloc = sympify(i).xreplace(mapper)
+        # Enforce fixed precision FD coefficients to avoid variations in results
+        c = sympify(c).evalf(_PRECISION)
+        terms.append(expr._subs(expr.indices_ref[dim], iloc) * c)
 
     deriv = Add(*terms)
 
-    return deriv.evalf(_PRECISION)
+    return deriv

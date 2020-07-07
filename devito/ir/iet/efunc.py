@@ -1,8 +1,7 @@
 from cached_property import cached_property
 
-from devito.ir.iet.nodes import Call, Callable, Expression
+from devito.ir.iet.nodes import Call, Callable
 from devito.ir.iet.utils import derive_parameters
-from devito.ir.iet.visitors import FindNodes
 from devito.tools import as_tuple
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc']
@@ -77,15 +76,7 @@ class ElementalCall(Call):
 
 def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
     """
-    Create an ElementalFunction from (a sequence of) perfectly nested Iterations.
+    Shortcut to create an ElementalFunction.
     """
-    # Arrays are by definition (vector) temporaries, so if they are written-only
-    # within `iet`, they can also be declared and allocated within the `efunc`
-    exprs = FindNodes(Expression).visit(iet)
-    write_arrays = {i.write for i in exprs if i.write.is_Array}
-    rw_arrays = write_arrays.intersection(set().union(*[i.reads for i in exprs]))
-
-    # The Callable parameters
-    parameters = [i for i in derive_parameters(iet) if i not in rw_arrays]
-
-    return ElementalFunction(name, iet, retval, parameters, prefix, dynamic_parameters)
+    return ElementalFunction(name, iet, retval, derive_parameters(iet), prefix,
+                             dynamic_parameters)

@@ -47,10 +47,13 @@ class SsaIsoAcousticWaveSolver(object):
 
         # Time step is .6 time smaller due to Q
         self.model.dt_scale = .6
-        self.dt = self.model.critical_dt
 
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, save=None):

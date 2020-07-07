@@ -16,15 +16,16 @@ from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
 from devito.ir.stree import stree_build
 from devito.ir.equations.algorithms import lower_exprs
-from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
+from devito.operator.registry import operator_selector
+from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph
+from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine
 from devito.symbolics import estimate_cost, retrieve_functions
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import Dimension, Eq
+from devito.types import CustomDimension, Dimension, Eq
 
 __all__ = ['Operator']
 
@@ -151,6 +152,9 @@ class Operator(Callable):
         # Normalize input arguments for the selected Operator
         kwargs = cls._normalize_kwargs(**kwargs)
 
+        # Create a symbol registry
+        kwargs['sregistry'] = cls._symbol_registry()
+
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
@@ -164,6 +168,16 @@ class Operator(Callable):
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         return kwargs
+
+    @classmethod
+    def _symbol_registry(cls):
+        # Special symbols an Operator might use
+        nthreads = NThreads(aliases='nthreads0')
+        nthreads_nested = NThreadsNested(aliases='nthreads1')
+        nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
+        threadid = CustomDimension(name='tid', symbolic_size=nthreads)
+
+        return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
     @classmethod
     def _build(cls, expressions, **kwargs):

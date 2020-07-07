@@ -3,78 +3,94 @@ Collection of passes for the declaration, allocation, movement and deallocation
 of symbols and data.
 """
 
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
+from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (ArrayCast, Element, List, LocalExpression, FindSymbols,
+from devito.ir import (List, LocalExpression, PointerCast, FindSymbols,
                        MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.openmp import Ompizer
 from devito.symbolics import ccode
-from devito.tools import flatten
+from devito.tools import as_mapper, flatten
 
 __all__ = ['DataManager', 'Storage']
 
 
-class Storage(object):
+MetaSite = namedtuple('Definition', 'allocs frees pallocs pfrees')
 
-    def __init__(self):
-        # Storage with high bandwitdh
-        self._high_bw_mem = OrderedDict()
 
-        # Storage with low latency
-        self._low_lat_mem = OrderedDict()
+class Storage(OrderedDict):
 
-    @property
-    def _on_low_lat_mem(self):
-        ret = []
-        for k, v in self._low_lat_mem.items():
-            try:
-                ret.append((k, [i for i in v.values() if i is not None]))
-            except AttributeError:
-                ret.append((k, v))
-        return ret
+    def __init__(self, *args, **kwargs):
+        super(Storage, self).__init__(*args, **kwargs)
+        self.defined = set()
 
-    @property
-    def _on_high_bw_mem(self):
-        return self._high_bw_mem.values()
+    def update(self, key, site, **kwargs):
+        if key in self.defined:
+            return
+
+        try:
+            metasite = self[site]
+        except KeyError:
+            metasite = self.setdefault(site, MetaSite([], [], [], []))
+
+        for k, v in kwargs.items():
+            getattr(metasite, k).append(v)
+
+        self.defined.add(key)
+
+    def map(self, key, k, v):
+        if key in self.defined:
+            return
+
+        self[k] = v
+        self.defined.add(key)
 
 
 class DataManager(object):
 
-    def _alloc_object_on_low_lat_mem(self, scope, obj, storage):
-        """Allocate a LocalObject in the low latency memory."""
-        handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
-        handle[obj] = Element(c.Value(obj._C_typename, obj.name))
+    _Parallelizer = Ompizer
 
-    def _alloc_array_on_low_lat_mem(self, scope, obj, storage):
-        """Allocate an Array in the low latency memory."""
-        handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
+    def __init__(self, sregistry):
+        """
+        Parameters
+        ----------
+        sregistry : SymbolRegistry
+            The symbol registry, to quickly access the special symbols that may
+            appear in the IET (e.g., `sregistry.threadid`, that is the thread
+            Dimension, used by the DataManager for parallel memory allocation).
+        """
+        self.sregistry = sregistry
 
-        if obj in flatten(storage._low_lat_mem.values()):
-            return
+    def _alloc_object_on_low_lat_mem(self, site, obj, storage):
+        """
+        Allocate a LocalObject in the low latency memory.
+        """
+        storage.update(obj, site, allocs=c.Value(obj._C_typename, obj.name))
 
+    def _alloc_array_on_low_lat_mem(self, site, obj, storage):
+        """
+        Allocate an Array in the low latency memory.
+        """
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
         alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
         value = "%s%s %s" % (obj.name, shape, alignment)
-        handle[obj] = Element(c.POD(obj.dtype, value))
 
-    def _alloc_scalar_on_low_lat_mem(self, scope, expr, storage):
-        """Allocate a Scalar in the low latency memory."""
-        handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
+        storage.update(obj, site, allocs=c.POD(obj.dtype, value))
 
-        obj = expr.write
-        if obj in handle:
-            return
+    def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
+        """
+        Allocate a Scalar in the low latency memory.
+        """
+        key = (site, expr.write)  # Ensure a scalar isn't redeclared in the given site
+        storage.map(key, expr, LocalExpression(**expr.args))
 
-        handle[obj] = None  # Placeholder to avoid reallocation
-        storage._low_lat_mem[expr] = LocalExpression(**expr.args)
-
-    def _alloc_array_on_high_bw_mem(self, obj, storage):
-        """Allocate an Array in the high bandwidth memory."""
-        if obj in storage._high_bw_mem:
-            return
-
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Allocate an Array in the high bandwidth memory.
+        """
         decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
         decl = c.Value(obj._C_typedata, decl)
 
@@ -85,27 +101,78 @@ class DataManager(object):
 
         free = c.Statement('free(%s)' % obj.name)
 
-        storage._high_bw_mem[obj] = (decl, alloc, free)
+        storage.update(obj, site, allocs=(decl, alloc), frees=free)
+
+    def _alloc_pointed_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Allocate the following objects in the high bandwidth memory:
+
+            * The pointer array `obj`;
+            * The pointee Array `obj.array`
+
+        If the pointer array is defined over `sregistry.threadid`, that it a thread
+        Dimension, then each `obj.array` slice is allocated and freed individually
+        by the logically-owning thread.
+        """
+        # The pointer array
+        decl = "**%s" % obj.name
+        decl = c.Value(obj._C_typedata, decl)
+
+        alloc0 = "posix_memalign((void**)&%s, %d, sizeof(%s*)*%s)"
+        alloc0 = alloc0 % (obj.name, obj._data_alignment, obj._C_typedata,
+                           obj.dim.symbolic_size)
+        alloc0 = c.Statement(alloc0)
+
+        free0 = c.Statement('free(%s)' % obj.name)
+
+        # The pointee Array
+        shape = "".join("[%s]" % i for i in obj.array.symbolic_shape)
+        alloc1 = "posix_memalign((void**)&%s[%s], %d, sizeof(%s%s))"
+        alloc1 = alloc1 % (obj.name, obj.dim.name, obj._data_alignment, obj._C_typedata,
+                           shape)
+        alloc1 = c.Statement(alloc1)
+
+        free1 = c.Statement('free(%s[%s])' % (obj.name, obj.dim.name))
+
+        if obj.dim is self.sregistry.threadid:
+            storage.update(obj, site, allocs=(decl, alloc0), frees=free0,
+                           pallocs=(obj.dim, alloc1), pfrees=(obj.dim, free1))
+        else:
+            storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
 
     def _dump_storage(self, iet, storage):
-        # Introduce symbol definitions going in the low latency memory
-        mapper = dict(storage._on_low_lat_mem)
-        iet = Transformer(mapper, nested=True).visit(iet)
+        mapper = {}
+        for k, v in storage.items():
+            # Expr -> LocalExpr ?
+            if k.is_Expression:
+                mapper[k] = v
+                continue
 
-        # Introduce symbol definitions going in the high bandwidth memory
-        header = []
-        footer = []
-        for decl, alloc, free in storage._on_high_bw_mem:
-            if decl is None:
-                header.append(alloc)
-            else:
-                header.extend([decl, alloc])
-            footer.append(free)
-        if header or footer:
-            body = List(header=header, body=iet.body, footer=footer)
-            iet = iet._rebuild(body=body)
+            # allocs/pallocs
+            allocs = flatten(v.allocs)
+            for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
+                header = self._Parallelizer._Region._make_header(tid.symbolic_size)
+                init = self._Parallelizer._make_tid(tid)
+                allocs.append(c.Module((header, c.Block([init] + body))))
+            if allocs:
+                allocs.append(c.Line())
 
-        return iet
+            # frees/pfrees
+            frees = []
+            for tid, body in as_mapper(v.pfrees, itemgetter(0), itemgetter(1)).items():
+                header = self._Parallelizer._Region._make_header(tid.symbolic_size)
+                init = self._Parallelizer._make_tid(tid)
+                frees.append(c.Module((header, c.Block([init] + body))))
+            frees.extend(flatten(v.frees))
+            if frees:
+                frees.insert(0, c.Line())
+
+            mapper[k] = k._rebuild(body=List(header=allocs, body=k.body, footer=frees),
+                                   **k.args_frozen)
+
+        processed = Transformer(mapper, nested=True).visit(iet)
+
+        return processed
 
     @iet_pass
     def place_definitions(self, iet, **kwargs):
@@ -119,6 +186,8 @@ class DataManager(object):
         """
         storage = Storage()
 
+        already_defined = list(iet.parameters)
+
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression:
                 if k.is_definition:
@@ -126,22 +195,35 @@ class DataManager(object):
                     self._alloc_scalar_on_low_lat_mem(site, k, storage)
                     continue
                 objs = [k.write]
+            elif k.is_Dereference:
+                already_defined.extend(list(k.functions))
+                objs = []
             elif k.is_Call:
                 objs = k.arguments
 
             for i in objs:
+                if i in already_defined:
+                    continue
+
                 try:
                     if i.is_LocalObject:
                         site = v[-1] if v else iet
                         self._alloc_object_on_low_lat_mem(site, i, storage)
                     elif i.is_Array:
-                        if i in iet.parameters:
-                            # The Array is passed as a Callable argument
-                            continue
-                        elif i._mem_stack:
-                            self._alloc_array_on_low_lat_mem(iet, i, storage)
+                        site = iet
+                        if i._mem_local:
+                            # If inside a ParallelRegion, make sure we allocate
+                            # inside of it
+                            for n in v:
+                                if n.is_ParallelBlock:
+                                    site = n
+                                    break
+                        if i._mem_heap:
+                            self._alloc_array_on_high_bw_mem(site, i, storage)
                         else:
-                            self._alloc_array_on_high_bw_mem(i, storage)
+                            self._alloc_array_on_low_lat_mem(site, i, storage)
+                    elif i.is_PointerArray:
+                        self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
                 except AttributeError:
                     # E.g., a generic SymPy expression
                     pass
@@ -165,9 +247,12 @@ class DataManager(object):
 
         # Make the generated code less verbose by avoiding unnecessary casts
         indexed_names = {i.name for i in FindSymbols('indexeds').visit(iet)}
-        need_cast = {i for i in need_cast if i.name in indexed_names or i.is_Array}
+        need_cast = {i for i in need_cast if i.name in indexed_names or i.is_ArrayBasic}
 
-        casts = tuple(ArrayCast(i) for i in iet.parameters if i in need_cast)
+        casts = tuple(PointerCast(i) for i in iet.parameters if i in need_cast)
+        if casts:
+            casts = (List(body=casts, footer=c.Line()),)
+
         iet = iet._rebuild(body=casts + iet.body)
 
         return iet, {}

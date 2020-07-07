@@ -10,16 +10,16 @@ from devito.logger import warning
 from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
                                     factorize, fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Storage, Ompizer, ParallelIteration,
+from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.tools import as_tuple, filter_sorted, generator, timed_pass
+from devito.tools import as_tuple, filter_sorted, timed_pass
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
 
 
-class DeviceOpenMPIteration(ParallelIteration):
+class DeviceOpenMPIteration(OpenMPIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
@@ -141,24 +141,18 @@ class DeviceOpenMPDataManager(DataManager):
 
     _Parallelizer = DeviceOmpizer
 
-    def _alloc_array_on_high_bw_mem(self, obj, storage):
-        if obj in storage._high_bw_mem:
-            return
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+        _storage = Storage()
+        super()._alloc_array_on_high_bw_mem(site, obj, _storage)
 
-        super(DeviceOpenMPDataManager, self)._alloc_array_on_high_bw_mem(obj, storage)
+        allocs = _storage[site].allocs + [self._Parallelizer._map_alloc(obj)]
+        frees = [self._Parallelizer._map_delete(obj)] + _storage[site].frees
+        storage.update(obj, site, allocs=allocs, frees=frees)
 
-        decl, alloc, free = storage._high_bw_mem[obj]
-
-        alloc = c.Collection([alloc, self._Parallelizer._map_alloc(obj)])
-        free = c.Collection([self._Parallelizer._map_delete(obj), free])
-
-        storage._high_bw_mem[obj] = (decl, alloc, free)
-
-    def _map_function_on_high_bw_mem(self, obj, storage, read_only=False):
-        """Place a Function in the high bandwidth memory."""
-        if obj in storage._high_bw_mem:
-            return
-
+    def _map_function_on_high_bw_mem(self, site, obj, storage, read_only=False):
+        """
+        Place a Function in the high bandwidth memory.
+        """
         alloc = self._Parallelizer._map_to(obj)
 
         if read_only is False:
@@ -167,7 +161,7 @@ class DeviceOpenMPDataManager(DataManager):
         else:
             free = self._Parallelizer._map_delete(obj)
 
-        storage._high_bw_mem[obj] = (None, alloc, free)
+        storage.update(obj, site, allocs=alloc, frees=free)
 
     @iet_pass
     def place_ondevice(self, iet, **kwargs):
@@ -195,9 +189,9 @@ class DeviceOpenMPDataManager(DataManager):
             # Populate `storage`
             storage = Storage()
             for i in filter_sorted(writes):
-                self._map_function_on_high_bw_mem(i, storage)
+                self._map_function_on_high_bw_mem(iet, i, storage)
             for i in filter_sorted(reads):
-                self._map_function_on_high_bw_mem(i, storage, read_only=True)
+                self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
 
             iet = self._dump_storage(iet, storage)
 
@@ -268,31 +262,28 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     def _specialize_clusters(cls, clusters, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
-
-        # To create temporaries
-        counter = generator()
-        template = lambda: "r%d" % counter()
+        sregistry = kwargs['sregistry']
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, 'invariants', options, platform)
+        clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
-        clusters = extract_increments(clusters, template)
-        clusters = cire(clusters, template, 'sops', options, platform)
+        clusters = extract_increments(clusters, sregistry)
+        clusters = cire(clusters, 'sops', sregistry, options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
         # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, template)
+        clusters = cse(clusters, sregistry)
 
         # Lifting may create fusion opportunities, which in turn may enable
         # further optimizations
         clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
+        clusters = eliminate_arrays(clusters)
 
         return clusters
 
@@ -300,16 +291,17 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer().make_parallel(graph)
+        DeviceOmpizer(sregistry).make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager()
+        data_manager = DeviceOpenMPDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -323,6 +315,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         optimize_halospots(graph)
@@ -330,13 +323,13 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer().make_parallel(graph)
+        DeviceOmpizer(sregistry).make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager()
+        data_manager = DeviceOpenMPDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -353,8 +346,9 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
     @classmethod
     def _make_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
-        ompizer = DeviceOmpizer()
+        ompizer = DeviceOmpizer(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
@@ -381,6 +375,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
@@ -402,7 +397,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager()
+        data_manager = DeviceOpenMPDataManager(sregistry)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
