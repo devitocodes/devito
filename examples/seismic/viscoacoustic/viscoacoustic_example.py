@@ -53,8 +53,11 @@ def test_viscoacoustic_stability(ndim):
 
 if __name__ == "__main__":
     description = ("Example script for a set of viscoacoustic operators.")
-    args = seismic_args(description).parse_args()
-
+    parser = seismic_args(description)
+    parser.add_argument("-k", dest="kernel", default='blanch_symes',
+                        choices=['blanch_symes', 'ren', 'deng_mcmechan'],
+                        help="Choice of finite-difference kernel")
+    args = parser.parse_args()
     # Preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]

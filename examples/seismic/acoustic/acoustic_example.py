@@ -82,6 +82,9 @@ if __name__ == "__main__":
     parser = seismic_args(description)
     parser.add_argument('--fs', dest='fs', default=False, action='store_true',
                         help="Whether or not to use a freesurface")
+    parser.add_argument("-k", dest="kernel", default='OT2',
+                        choices=['OT2', 'OT4'],
+                        help="Choice of finite-difference kernel")
     args = parser.parse_args()
 
     # 3D preset parameters

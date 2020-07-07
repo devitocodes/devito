@@ -57,10 +57,12 @@ if __name__ == "__main__":
     parser = seismic_args(description)
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Whether or not to use an azimuth angle")
+    parser.add_argument("-k", dest="kernel", default='centered',
+                        choices=['centered', 'staggered'],
+                        help="Choice of finite-difference kernel")
     args = parser.parse_args()
 
     # Switch to TTI kernel if input is acoustic kernel
-    kernel = 'centered' if args.kernel in ['OT2', 'OT4'] else args.kernel
     preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
 
     # Preset parameters
@@ -71,4 +73,4 @@ if __name__ == "__main__":
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, autotune=args.autotune,
-        opt=args.opt, kernel=kernel, preset=preset, full_run=args.full)
+        opt=args.opt, kernel=args.kernel, preset=preset, full_run=args.full)
