@@ -5,6 +5,7 @@ import numpy as np
 
 from devito.data.allocators import ALLOC_FLAT
 from devito.data.utils import *
+from devito.logger import warning
 from devito.parameters import configuration
 from devito.tools import Tag, as_tuple, as_list, is_integer
 
@@ -77,7 +78,8 @@ class Data(np.ndarray):
         self._memfree_args = None
 
     def __reduce__(self):
-        raise NotImplementedError("Pickling of `Data` objects is not supported")
+        warning("Pickling of `Data` objects is not supported. Casting to `numpy.ndarray`")
+        return np.array(self).__reduce__()
 
     def __array_finalize__(self, obj):
         # `self` is the newly created object
