@@ -382,6 +382,13 @@ class IntervalGroup(PartialOrderTuple):
     def reset(self):
         return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
+    def index(self, key):
+        if isinstance(key, Interval):
+            return super(IntervalGroup, self).index(key)
+        elif isinstance(key, Dimension):
+            return super(IntervalGroup, self).index(self[key])
+        raise ValueError("Expected Interval or Dimension, got `%s`" % type(key))
+
     def __getitem__(self, key):
         if is_integer(key):
             return super(IntervalGroup, self).__getitem__(key)
