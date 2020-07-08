@@ -5,7 +5,7 @@ scipy
 pytest>=3.6
 pytest-runner
 flake8>=2.1.0
-nbval
+git+https://github.com/devitocodes/nbval
 cached-property
 psutil>=5.1.0
 py-cpuinfo
