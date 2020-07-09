@@ -326,20 +326,21 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     u = TimeFunction(name='u', grid=grid, space_order=2)
     u.data[:] = np.linspace(0, 1, reduce(mul, shape), dtype=np.float64).reshape(shape)
 
-    eq = Eq(u.forward, u.dy.dy)
+    eq = Eq(u.forward, 0.01*u.dy.dy)
 
     op0 = Operator(eq, opt='noop')
-    op1 = Operator(eq, opt=('advanced-fsg', {'blockinner': blockinner}))
+    op1 = Operator(eq, opt=('cire-sops', {'blockinner': blockinner}))
+    op2 = Operator(eq, opt=('advanced-fsg', {'blockinner': blockinner}))
 
     # First, check the generated code
-    trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+    trees = retrieve_iteration_tree(op2._func_table['bf0'].root)
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
     assert all(i is j for i, j in zip(trees[0][:2], trees[1][:2]))
     assert trees[0][2] is not trees[1][2]
     assert trees[0].root.dim.is_Incr
     assert trees[1].root.dim.is_Incr
-    assert op1.parameters[7] is trees[0].root.step
+    assert op2.parameters[7] is trees[0].root.step
 
     op0(time_M=0)
 
@@ -348,7 +349,13 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
 
     op1(time_M=0, u=u1)
 
+    u2 = TimeFunction(name='u2', grid=grid, space_order=2)
+    u2.data[:] = np.linspace(0, 1, reduce(mul, shape), dtype=np.float64).reshape(shape)
+
+    op2(time_M=0, u=u2)
+
     assert np.allclose(u.data, u1.data, rtol=1e-07)
+    assert np.allclose(u.data, u2.data, rtol=1e-07)
 
 
 class TestNodeParallelism(object):
