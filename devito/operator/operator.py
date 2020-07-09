@@ -956,6 +956,7 @@ def parse_kwargs(**kwargs):
     options.setdefault('cire-mincost-sops', opt_options.get('cire-mincost-sops', None))
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
+    options.setdefault('gpu-direct', False)
     kwargs['options'] = options
 
     # `opt`, mode
