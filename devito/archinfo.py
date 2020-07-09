@@ -1,6 +1,6 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, DEVNULL
 
 import numpy as np
 import cpuinfo
@@ -115,6 +115,96 @@ def get_cpu_info():
     cpu_info['physical'] = physical
 
     return cpu_info
+
+@memoized_func
+def get_gpu_info():
+    """Attempt GPU info autodetection."""
+
+    def lshw_single_gpu_info(text):
+        # Separate the output into lines for processing
+        lines = text.replace('\\n', '\n')
+        lines = lines.splitlines()
+
+        # Define the processing functions
+        if lines:
+            def extract_gpu_info(keyword):
+                for line in lines:
+                    if line.lstrip().startswith(keyword):
+                        return line.split(':')[1].lstrip()
+
+            def parse_product_arch():
+                for line in lines:
+                    if line.lstrip().startswith('product'):
+                        if '[' in line:
+                            return line.split('[')[1].split(']')[0]
+                        return 'unspecified'
+
+        # Populate the information
+        gpu_info = {}
+        gpu_info['product'] = extract_gpu_info('product')
+        gpu_info['architecture'] = parse_product_arch()
+        gpu_info['vendor'] = extract_gpu_info('vendor')
+        gpu_info['physicalid'] = extract_gpu_info('physical id')
+
+        return gpu_info
+
+    def lspci_gpu_info(text):
+        # Separate the output into lines for processing
+        lines = text.replace('\\n', '\n')
+        lines = lines.splitlines()
+
+
+        gpu_infos = []
+        for line in lines:
+            # Graphics cards are listed as VGA or 3D controllers in lspci
+            if 'VGA' in line or '3D' in line:
+                gpu_info = {}
+                # Add a 12 place offset to avoid left time column
+                gpu_info['product'] = line[12:].split(':')[1].lstrip()
+
+                if '[' in line:
+                    gpu_info['architecture'] = line.split('[')[1].split(']')[0]
+                else:
+                    gpu_info['architecture'] = 'unspecified'
+
+                gpu_infos.append(gpu_info)
+        return gpu_infos
+
+    # Obtain textual gpu info and delegate parsing to helper functions
+    try:
+        # First try is with detailed command lshw
+        info_cmd = ['lshw', '-C', 'video']
+        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+        raw_info = str(proc.stdout.read())
+
+        # Parse the information for all the devices listed with lshw
+        devices = raw_info.split('display')[1:]
+        gpu_infos = []
+        for device in devices:
+            single_info = lshw_single_gpu_info(device)
+            gpu_infos.append(single_info)
+        return gpu_infos
+
+    except OSError:
+        try:
+            # Second try is with lspci, which is more readable and less detailed than lshw
+            info_cmd = ['lspci']
+            proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+            raw_info = str(proc.stdout.read())
+
+            #Parse the information for all the devices listed with lspci
+            gpu_infos = lspci_gpu_info(raw_info)
+
+        except OSError:
+            return None
+
+    if gpu_infos == []:
+        warning('No graphics cards detected')
+    
+    if all(dev == gpu_infos[0] for dev in gpu_infos):
+        gpu_infos[0]['ncards'] = len(gpu_infos)
+        return gpu_infos[0]
+    warning('Different models of graphics cards detected, should be homogenous')
 
 
 @memoized_func
@@ -293,6 +383,10 @@ class Device(Platform):
 
     @classmethod
     def _detect_march(cls):
+        info = get_gpu_info()
+        architecture = info['architecture']
+        if 'tesla' in architecture.lower():
+            return 'tesla'
         return None
 
 
