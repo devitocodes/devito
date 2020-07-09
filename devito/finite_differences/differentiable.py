@@ -222,6 +222,13 @@ class Differentiable(sympy.Expr, Evaluable):
     def name(self):
         return "".join(f.name for f in self._functions)
 
+    def shift(self, dim, shift):
+        """
+        Shift  expression by `shift` along the Dimension `dim`.
+        For example u.shift(x, x.spacing) = u(x + h_x).
+        """
+        return self._subs(dim, dim + shift)
+
     @property
     def laplace(self):
         """
