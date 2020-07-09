@@ -5,10 +5,14 @@
 # BUILD: docker build --file docker/Dockerfile.pgi --tag devito:nvidia.pgi .
 # RUN: docker run --runtime=nvidia --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia.pgi
 ##############################################################
-#FROM nvcr.io/nvidia/cuda:10.1-devel
 FROM nvcr.io/hpc/pgi-compilers:ce
 
 ENV DEBIAN_FRONTEND noninteractive 
+
+# The NGC PGI container has the C, C++, and MPI set to compile using the PGI compilers and libraries. The 
+# libraries and tools needed during the install of Devito require the gcc libraries, compilers, and tools. 
+# Setting the environment for gcc here at the top of the dockerfile and resets the environment to 
+# PGI at the end of the dockerfile.
 ENV CC="/usr/bin/gcc"
 ENV CXX="/usr/bin/g++"
 RUN mv '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc' '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc.devito'
@@ -62,24 +66,22 @@ RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
 
 # Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
-# 
-#Options: [gcc, pgcc]
+# Options: [gcc, pgcc]
 ENV DEVITO_ARCH="pgcc" 
-#Options: [openmp, openacc]
+# Options: [openmp, openacc]
 ENV DEVITO_LANGUAGE="openacc"
-#Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
+# Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
 #ENV DEVITO_JIT_BACKDOOR=1 
-#Options: [unset, 1] Unset for openacc
-#ENV DEVITO_OPENMP=1
-#Options: [unset, 1] 1 to Enable
+# Options: [unset, 1] 1 to Enable
 #ENV DEVITO_MPI=1
-#Options: [unset, PERF, DEBUG]
+# Options: [unset, PERF, DEBUG]
 ENV DEVITO_LOGGING=DEBUG
-#Options: [unset, nvidiaX] Set for openacc
+# Options: [unset, nvidiaX] Set for openacc
 ENV DEVITO_PLATFORM=nvidiaX
-#Options: [unset, 1] Only for PGI; Debug Timing 
+# Options: [unset, 1] Only for PGI; Debug Timing 
 ENV PGI_ACC_TIME=1 
 
+# Resetting the environment to PGI after finishing the install of the requirements for Devito and tools.
 ENV CC="/opt/pgi/linux86-64-llvm/19.10/bin/pgcc"
 ENV CXX="/opt/pgi/linux86-64-llvm/19.10/bin/pgc++"
 RUN mv '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc.devito' '/opt/pgi/linux86-64/19.10/mpi/openmpi-3.1.3/bin/mpicc' 
@@ -88,4 +90,3 @@ WORKDIR /app
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/jupyter"]
-#CMD ["/bin/bash"]
