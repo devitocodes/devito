@@ -1,8 +1,8 @@
 from functools import partial, singledispatch
 
 import cgen as c
+from sympy import Function
 
-from copy import deepcopy
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
@@ -21,7 +21,6 @@ from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
 from devito.symbolics import Byref
 from devito.tools import as_tuple, filter_sorted, timed_pass
 from devito.types import Symbol
-from sympy import Function
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -226,11 +225,12 @@ def initialize(iet, **kwargs):
     """
     Initialize the OpenMP environment.
     """
+    devicenum = Symbol(name='devicenum')
 
     @singledispatch
     def _initialize(iet):
         comm = None
-        devicenum = Symbol(name='devicenum')
+
         for i in iet.parameters:
             if isinstance(i, MPICommObject):
                 comm = i
@@ -271,31 +271,29 @@ def initialize(iet, **kwargs):
 
     iet = _initialize(iet)
 
-    return iet, {}
+    return iet, {'args': devicenum}
 
 
 @iet_pass
-def mpi_ompizer(iet, **kwargs):
+def mpi_gpu_direct(iet, **kwargs):
     """
-    Modifies functions to enable multiple GPUs performing GPU-Direct communication
+    Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
     """
-    @singledispatch
-    def _mpi_ompizer(iet):
+    def _mpi_gpu_direct(iet):
         mapper = {}
         # Modify MPI_Isend and MPI_Irecv to perform GPU Direct communication
         for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
             header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' %
                               node._args['parameters'][0].name)
-            mapper[node] = Block(header=header, body=deepcopy(node))
+            mapper[node] = Block(header=header, body=node)
 
-        iet = Transformer(mapper, nested=True).visit(iet)
+        iet = Transformer(mapper).visit(iet)
 
         return iet
 
-    iet = _mpi_ompizer(iet)
-    devicenum = Symbol(name='devicenum')
+    iet = _mpi_gpu_direct(iet)
 
-    return iet, {'args': devicenum}
+    return iet, {}
 
 
 class DeviceOpenMPNoopOperator(OperatorCore):
@@ -394,7 +392,6 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # Initialize OpenMP environment
         initialize(graph)
-        mpi_ompizer(graph)
 
         return graph
 
@@ -426,7 +423,8 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
         # Initialize OpenMP environment
         initialize(graph)
-        mpi_ompizer(graph)
+        if options['gpu-direct']:
+            mpi_gpu_direct(graph)
 
         return graph
 
@@ -448,7 +446,8 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             'optcomms': partial(optimize_halospots),
             'openmp': partial(ompizer.make_parallel),
             'mpi': partial(mpiize, mode=options['mpi']),
-            'prodders': partial(hoist_prodders)
+            'prodders': partial(hoist_prodders),
+            'gpu-direct': partial(mpi_gpu_direct)
         }
 
     @classmethod
@@ -498,6 +497,5 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
         # Initialize OpenMP environment
         initialize(graph)
-        mpi_ompizer(graph)
 
         return graph

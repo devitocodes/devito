@@ -22,7 +22,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3)'
+            'omp target teams distribute parallel for device(devicenum) collapse(3)'
         assert op.body[1].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
@@ -47,7 +47,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3)'
+            'omp target teams distribute parallel for device(devicenum) collapse(3)'
         for i, f in enumerate([u, v]):
             assert op.body[1].header[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
@@ -82,11 +82,11 @@ class TestCodeGeneration(object):
 
         # All loop nests must have been parallelized
         assert trees[0][0].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3)'
+            'omp target teams distribute parallel for device(devicenum) collapse(3)'
         assert trees[1][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3)'
+            'omp target teams distribute parallel for device(devicenum) collapse(3)'
         assert trees[2][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3)'
+            'omp target teams distribute parallel for device(devicenum) collapse(3)'
 
         # Check `u` and `v`
         for i, f in enumerate([u, v], 1):
@@ -193,7 +193,8 @@ class TestCodeGeneration(object):
         assert not tree.root.pragmas
         assert len(tree[1].pragmas) == 1
         assert tree[1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3) reduction(+:f[0])'
+            'omp target teams distribute parallel for device(devicenum) collapse(3)\
+             reduction(+:f[0])'
 
 
 class TestOperator(object):
