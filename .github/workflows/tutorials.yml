@@ -93,6 +93,10 @@ jobs:
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml $SKIP examples/seismic/tutorials/
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:acc_coverage.xml $SKIP examples/seismic/acoustic/accuracy.ipynb
 
+    - name: Self-adjoint notebooks
+      run: |
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:sa_coverage.xml $SKIP examples/seismic/self_adjoint/
+
     - name: CFD notebooks
       run: |
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:cfd_coverage.xml examples/cfd

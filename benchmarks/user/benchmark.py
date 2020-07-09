@@ -17,8 +17,8 @@ from benchmarks.user.tools import Driver, Executor, RooflinePlotter
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
-from examples.seismic.skew_self_adjoint.example_iso import run as acoustic_ssa_run, \
-    acoustic_ssa_setup
+from examples.seismic.self_adjoint.example_iso import run as acoustic_sa_run, \
+    acoustic_sa_setup
 from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run, \
     viscoelastic_setup
 
@@ -44,9 +44,9 @@ model_type = {
         'setup': acoustic_setup,
         'default-section': 'global'
     },
-    'acoustic_ssa': {
-        'run': acoustic_ssa_run,
-        'setup': acoustic_ssa_setup,
+    'acoustic_sa': {
+        'run': acoustic_sa_run,
+        'setup': acoustic_sa_setup,
         'default-section': 'global'
     }
 }
@@ -104,7 +104,7 @@ def option_simulation(f):
     options = [
         click.option('-P', '--problem', help='Problem name',
                      type=click.Choice(['acoustic', 'tti',
-                                        'elastic', 'acoustic_ssa', 'viscoelastic'])),
+                                        'elastic', 'acoustic_sa', 'viscoelastic'])),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),

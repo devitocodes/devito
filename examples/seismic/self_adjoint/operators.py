@@ -4,12 +4,12 @@ from devito import Eq, Operator, Function, TimeFunction
 def iso_stencil(field, model, **kwargs):
     """
     Stencil for the scalar isotropic visco- acoustic variable density
-    skew self adjoint wave equation:
+    self adjoint wave equation:
 
         b/v^2 [ P.dt2 + w/Q P.dt ] = (b P.dx).dx + (b P.dy).dy + (b P.dz).dz + s
 
     Note derivative shifts are omitted for simplicity above.
-    See implementation notebook ssa_01_iso_implementation1.ipynb for more details.
+    See implementation notebook sa_01_iso_implementation1.ipynb for more details.
 
     Parameters
     ----------
@@ -68,7 +68,7 @@ def iso_stencil(field, model, **kwargs):
 def IsoFwdOperator(model, geometry, space_order=8, save=False, **kwargs):
     """
     Construct a forward modeling Operator in a variable density visco- acoustic media.
-    See implementation notebook ssa_01_iso_implementation1.ipynb for more details.
+    See implementation notebook sa_01_iso_implementation1.ipynb for more details.
 
     Parameters
     ----------
@@ -116,7 +116,7 @@ def IsoAdjOperator(model, geometry, space_order=8, save=False, **kwargs):
     """
     Construct an adjoint modeling Operator in a variable density visco- acoustic media.
     Note the FD evolution will be time reversed.
-    See implementation notebook ssa_01_iso_implementation1.ipynb for more details.
+    See implementation notebook sa_01_iso_implementation1.ipynb for more details.
 
     Parameters
     ----------
@@ -198,8 +198,8 @@ def IsoJacobianFwdOperator(model, geometry, space_order=8,
 
     # Time update equations
     # JKW: this is pretty cool, simultaneously solving for p0 and dp!
-    # The 1st equation is derived in ssa_01_iso_implementation1.ipynb
-    # The 2nd equation is derived in ssa_02_iso_implementation2.ipynb
+    # The 1st equation is derived in sa_01_iso_implementation1.ipynb
+    # The 2nd equation is derived in sa_02_iso_implementation2.ipynb
     t = u0.time_dim
     eqn1 = iso_stencil(u0, model, forward=True)
 
