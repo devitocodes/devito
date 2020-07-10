@@ -6,6 +6,7 @@ import numpy as np
 import cpuinfo
 import psutil
 
+from cached_property import cached_property
 from devito.logger import warning
 from devito.tools.memoization import memoized_func
 
@@ -191,13 +192,13 @@ def get_gpu_info():
     #   otherwise None
     def homogenise_gpus(gpus):
         if gpu_infos == []:
-            warning('No graphics cards detected')
+            # warning('No graphics cards detected')
             return None
 
         if all(dev == gpu_infos[0] for dev in gpu_infos):
             gpu_infos[0]['ncards'] = len(gpu_infos)
             return gpu_infos[0]
-        warning('Different models of graphics cards detected, should be homogenous')
+        # warning('Different models of graphics cards detected, should be homogenous')
         return None
 
     # Obtain textual gpu info and delegate parsing to helper functions
@@ -228,7 +229,7 @@ def get_gpu_info():
         pass
 
     # If all calls to supported tools fail
-    warning('No supported tool for GPU detection available')
+    # warning('No supported tool for GPU detection available')
     return None
 
 
@@ -393,8 +394,6 @@ class Device(Platform):
         self.cores_physical = cores_physical
         self.isa = isa
 
-        self.march = self._detect_march()
-
     @classmethod
     def _mro(cls):
         # Retain only the Device Platforms
@@ -406,8 +405,15 @@ class Device(Platform):
                 break
         return retval
 
-    @classmethod
-    def _detect_march(cls):
+    @cached_property
+    def march(self):
+        return None
+
+
+class NvidiaDevice(Device):
+
+    @cached_property
+    def march(self):
         info = get_gpu_info()
         if info:
             architecture = info['architecture']
@@ -416,14 +422,10 @@ class Device(Platform):
         return None
 
 
-class NvidiaDevice(Device):
-    pass
-
-
 class AmdDevice(Device):
 
-    @classmethod
-    def _detect_march(cls):
+    @cached_property
+    def march(cls):
         # TODO: this corresponds to Vega, which acts as the fallback `march`
         # in case we don't manage to detect the actual `march`. Can we improve this?
         fallback = 'gfx900'
