@@ -75,6 +75,10 @@ class Parallelism(Detector):
     """
 
     def _callback(self, clusters, d, prefix):
+        # Rule out if non-unitary increment Dimension (e.g., `t0=(time+1)%2`)
+        if any(c.sub_iterators.get(d) for c in clusters):
+            return SEQUENTIAL
+
         # All Dimensions up to and including `i-1`
         prev = flatten(i.dim._defines for i in prefix[:-1])
 

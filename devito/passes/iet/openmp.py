@@ -263,12 +263,7 @@ class Ompizer(object):
         if key is not None:
             self.key = key
         else:
-            def key(i):
-                if i.uindices:
-                    # Iteration must be in OpenMP canonical form
-                    return False
-                return i.is_ParallelRelaxed and not i.is_Vectorized
-            self.key = key
+            self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
         self.sregistry = sregistry
 
     @property
