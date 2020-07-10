@@ -43,7 +43,6 @@ Further:
 * `finance`: Jupyter notebooks with examples of applying Devito to partial differential equations with financial applications.
 * `misc`: Example operators outside the context of finite differences and
 * `performance`: Jupyter notebooks explaining the optimizations applied by Devito, the options available to steer the optimization process, how to run on GPUs, and much more.
-  partial differential equations.
 
 For developers:
 
