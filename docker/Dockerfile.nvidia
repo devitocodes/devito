@@ -66,19 +66,15 @@ RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
 
 # Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
-# Options: [gcc, pgcc]
+# Set arch to PGI (pgcc)
 ENV DEVITO_ARCH="pgcc" 
-# Options: [openmp, openacc]
 ENV DEVITO_LANGUAGE="openacc"
-# Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
-#ENV DEVITO_JIT_BACKDOOR=1 
-# Options: [unset, 1] 1 to Enable
-#ENV DEVITO_MPI=1
-# Options: [unset, PERF, DEBUG]
-ENV DEVITO_LOGGING=DEBUG
-# Options: [unset, nvidiaX] Set for openacc
 ENV DEVITO_PLATFORM=nvidiaX
-# Options: [unset, 1] Only for PGI; Debug Timing 
+# Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
+# ENV DEVITO_JIT_BACKDOOR=1 
+
+# Enable logging, Options: [unset, PERF, DEBUG]
+ENV DEVITO_LOGGING=DEBUG 
 ENV PGI_ACC_TIME=1 
 
 # Resetting the environment to PGI after finishing the install of the requirements for Devito and tools.
