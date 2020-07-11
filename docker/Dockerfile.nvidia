@@ -2,7 +2,7 @@
 # README with base system requirements
 # https://ngc.nvidia.com/catalog/containers/hpc:pgi-compilers
 #
-# BUILD: docker build --file docker/Dockerfile.pgi --tag devito:nvidia.pgi .
+# BUILD: docker build --file docker/Dockerfile.nvidia --tag devito:nvidia.pgi .
 # RUN: docker run --runtime=nvidia --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia.pgi
 ##############################################################
 FROM nvcr.io/hpc/pgi-compilers:ce
