@@ -7,12 +7,17 @@
 
 * Options (type, default)
   * Parallelism:
-    * `openmp` (boolean, False): disable/enable OpenMP parallelism
+    * `openmp` (boolean, False): enable/disable OpenMP parallelism
+    * `par-collapse-ncores` (int, 4): control loop collapsing
+    * `par-collapse-work` (int, 100): control loop collapsing
+    * `par-chunk-nonaffine` (int, 3): control chunk size in nonaffine loops
+    * `par-dynamic-work` (int, 10): switch between dynamic and static scheduling
+    * `par-nested` (int, 2): control nested parallelism
   * Blocking:
-    * `blockinner` (boolean, False): disable/enable loop blocking along innermost loop
+    * `blockinner` (boolean, False): enable/disable loop blocking along innermost loop
     * `blocklevels` (int, 1): 1 => classic loop blocking; 2 for two-level hierarchical blocking; etc.
   * CIRE:
-    * `min-storage` (boolean, False): disable/enable dimension contraction for working set size reduction
+    * `min-storage` (boolean, False): enable/disable dimension contraction for working set size reduction
     * `cire-repeats-sops` (int, 5): control detection of sum-of-products
     * `cire-mincost-sops` (int, 10): minimum cost of a sum-of-product candidate
     * `cire-repeats-inv` (int, 1): control detection of dimension-invariants
