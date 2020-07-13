@@ -35,6 +35,87 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     return s.indexify() if mode == 'indexed' else s
 
 
+class TestOperatorArguments(object):
+
+    def test_platform_compiler_language(self):
+        """
+        Test code generation when ``platform``, ``compiler`` and ``language``
+        are explicitly supplied to an Operator, thus bypassing the global values
+        stored in ``configuration``.
+        """
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        # Unrecognised platform name -> exception
+        try:
+            Operator(Eq(u, u + 1), platform='asga')
+            assert False
+        except InvalidOperator:
+            assert True
+
+        # Operator with auto-detected CPU platform (ie, `configuration['platform']`)
+        op1 = Operator(Eq(u, u + 1))
+        # Operator with preset platform
+        op2 = Operator(Eq(u, u + 1), platform='nvidiaX')
+
+        # Definitely should be
+        assert str(op1) != str(op2)
+
+        # `op2` should have OpenMP offloading code
+        assert '#pragma omp target' in str(op2)
+
+        # `op2` uses a user-supplied `platform`, so the Compiler gets rebuilt
+        # to make sure it can JIT for the target platform
+        assert op1._compiler is not op2._compiler
+
+        # The compiler itself can also be passed explicitly ...
+        Operator(Eq(u, u + 1), platform='nvidiaX', compiler='gcc')
+        # ... but it will raise an exception if an unknown one
+        try:
+            Operator(Eq(u, u + 1), platform='nvidiaX', compiler='asf')
+            assert False
+        except InvalidOperator:
+            assert True
+
+        # Now with explicit platform *and* language
+        op3 = Operator(Eq(u, u + 1), platform='nvidiaX', language='openacc')
+        assert '#pragma acc parallel' in str(op3)
+        assert op3._compiler is not configuration['compiler']
+        assert (op3._compiler.__class__.__name__ ==
+                configuration['compiler'].__class__.__name__)
+
+        # Unsupported combination of `platform` and `language` should throw an error
+        try:
+            Operator(Eq(u, u + 1), platform='bdw', language='openacc')
+            assert False
+        except InvalidOperator:
+            assert True
+
+        # Check that local config takes precedence over global config
+        op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
+        assert '#pragma omp for' not in str(op4)
+
+    def test_opt_options(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        # Unknown pass
+        try:
+            Operator(Eq(u, u + 1), opt=('aaa'))
+            assert False
+        except InvalidOperator:
+            assert True
+
+        # Unknown optimization option
+        try:
+            Operator(Eq(u, u + 1), opt=('advanced', {'aaa': 1}))
+            assert False
+        except InvalidOperator:
+            assert True
+
+
 class TestCodeGen(object):
 
     def test_parameters(self):
@@ -144,65 +225,6 @@ class TestCodeGen(object):
 
         assert isinstance(op.body[2].body[0], TimedList)
         assert op.body[2].body[0].body[0].is_Section
-
-    def test_arguments(self):
-        """
-        Test code generation when ``platform``, ``compiler`` and ``language``
-        are explicitly supplied to an Operator, thus bypassing the global values
-        stored in ``configuration``.
-        """
-        grid = Grid(shape=(3, 3, 3))
-
-        u = TimeFunction(name='u', grid=grid)
-
-        # Unrecognised platform name -> exception
-        try:
-            Operator(Eq(u, u + 1), platform='asga')
-            assert False
-        except InvalidOperator:
-            assert True
-
-        # Operator with auto-detected CPU platform (ie, `configuration['platform']`)
-        op1 = Operator(Eq(u, u + 1))
-        # Operator with preset platform
-        op2 = Operator(Eq(u, u + 1), platform='nvidiaX')
-
-        # Definitely should be
-        assert str(op1) != str(op2)
-
-        # `op2` should have OpenMP offloading code
-        assert '#pragma omp target' in str(op2)
-
-        # `op2` uses a user-supplied `platform`, so the Compiler gets rebuilt
-        # to make sure it can JIT for the target platform
-        assert op1._compiler is not op2._compiler
-
-        # The compiler itself can also be passed explicitly ...
-        Operator(Eq(u, u + 1), platform='nvidiaX', compiler='gcc')
-        # ... but it will raise an exception if an unknown one
-        try:
-            Operator(Eq(u, u + 1), platform='nvidiaX', compiler='asf')
-            assert False
-        except InvalidOperator:
-            assert True
-
-        # Now with explicit platform *and* language
-        op3 = Operator(Eq(u, u + 1), platform='nvidiaX', language='openacc')
-        assert '#pragma acc parallel' in str(op3)
-        assert op3._compiler is not configuration['compiler']
-        assert (op3._compiler.__class__.__name__ ==
-                configuration['compiler'].__class__.__name__)
-
-        # Unsupported combination of `platform` and `language` should throw an error
-        try:
-            Operator(Eq(u, u + 1), platform='bdw', language='openacc')
-            assert False
-        except InvalidOperator:
-            assert True
-
-        # Check that local config takes precedence over global config
-        op4 = switchconfig(language='openmp')(Operator)(Eq(u, u + 1), language='C')
-        assert '#pragma omp for' not in str(op4)
 
     def test_nested_lowering(self):
         """
@@ -584,7 +606,7 @@ class TestAllocation(object):
             assert f.data[index] == 2.
 
 
-class TestArguments(object):
+class TestApplyArguments(object):
 
     def verify_arguments(self, arguments, expected):
         """

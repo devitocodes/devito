@@ -187,7 +187,8 @@ class TestCodeGeneration(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         tree = trees[0]
-        assert all(i.is_ParallelRelaxed and not i.is_Parallel for i in tree)
+        assert tree.root.is_Sequential
+        assert all(i.is_ParallelRelaxed and not i.is_Parallel for i in tree[1:])
 
         # The time loop is not in OpenMP canonical form, so it won't be parallelized
         assert not tree.root.pragmas

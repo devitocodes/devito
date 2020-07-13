@@ -47,20 +47,71 @@ class CPU64NoopOperator(OperatorCore):
     Minimum operation count of a sum-of-product aliasing expression to be optimized away.
     """
 
+    PAR_COLLAPSE_NCORES = 4
+    """
+    Use a collapse clause if the number of available physical cores is greater
+    than this threshold.
+    """
+
+    PAR_COLLAPSE_WORK = 100
+    """
+    Use a collapse clause if the trip count of the collapsable loops is statically
+    known to exceed this threshold.
+    """
+
+    PAR_CHUNK_NONAFFINE = 3
+    """
+    Coefficient to adjust the chunk size in non-affine parallel loops.
+    """
+
+    PAR_DYNAMIC_WORK = 10
+    """
+    Use dynamic scheduling if the operation count per iteration exceeds this
+    threshold. Otherwise, use static scheduling.
+    """
+
+    PAR_NESTED = 2
+    """
+    Use nested parallelism if the number of hyperthreads per core is greater
+    than this threshold.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
-        options = kwargs['options']
+        o = {}
+        oo = kwargs['options']
 
-        options['blocklevels'] = options['blocklevels'] or cls.BLOCK_LEVELS
+        # Execution modes
+        o['openmp'] = oo.pop('openmp')
+        o['mpi'] = oo.pop('mpi')
 
-        options['cire-repeats'] = {
-            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
-            'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        # Blocking
+        o['blockinner'] = oo.pop('blockinner', False)
+        o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+
+        # CIRE
+        o['min-storage'] = oo.pop('min-storage', False)
+        o['cire-repeats'] = {
+            'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
+            'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
         }
-        options['cire-mincost'] = {
-            'invariants': options.pop('cire-mincost-inv') or cls.CIRE_MINCOST_INV,
-            'sops': options.pop('cire-mincost-sops') or cls.CIRE_MINCOST_SOPS
+        o['cire-mincost'] = {
+            'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
         }
+
+        # Shared-memory parallelism
+        o['par-collapse-ncores'] = oo.pop('par-collapse-ncores', cls.PAR_COLLAPSE_NCORES)
+        o['par-collapse-work'] = oo.pop('par-collapse-work', cls.PAR_COLLAPSE_WORK)
+        o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
+        o['par-dynamic-work'] = oo.pop('par-dynamic-work', cls.PAR_DYNAMIC_WORK)
+        o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
+
+        if oo:
+            raise InvalidOperator("Unrecognized optimization options: [%s]"
+                                  % ", ".join(list(oo)))
+
+        kwargs['options'].update(o)
 
         return kwargs
 
@@ -76,7 +127,7 @@ class CPU64NoopOperator(OperatorCore):
 
         # Shared-memory parallelism
         if options['openmp']:
-            ompizer = Ompizer(sregistry)
+            ompizer = Ompizer(sregistry, options)
             ompizer.make_parallel(graph)
 
         # Symbol definitions
@@ -144,7 +195,7 @@ class CPU64Operator(CPU64NoopOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer(sregistry)
+        ompizer = Ompizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Misc optimizations
@@ -179,7 +230,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer(sregistry)
+        ompizer = Ompizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Shared-memory parallelism
@@ -210,7 +261,7 @@ class Intel64FSGOperator(Intel64Operator):
     def _normalize_kwargs(cls, **kwargs):
         kwargs = super(Intel64FSGOperator, cls)._normalize_kwargs(**kwargs)
 
-        if kwargs['options'].get('min-storage'):
+        if kwargs['options']['min-storage']:
             raise InvalidOperator('You should not use `min-storage` with `advanced-fsg '
                                   ' as they work in opposite directions')
 
@@ -291,7 +342,7 @@ class CustomOperator(CPU64Operator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        ompizer = Ompizer(sregistry)
+        ompizer = Ompizer(sregistry, options)
 
         return {
             'denormals': avoid_denormals,

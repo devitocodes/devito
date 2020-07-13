@@ -39,3 +39,13 @@ def test_diffify():
     addition2 = diffify(sympy.Add(*[a, sympy.Mul(*[e, a.dx])]))
     assert isinstance(addition2, Add)
     assert all(isinstance(a, Differentiable) for a in addition2.args)
+
+
+def test_shift():
+    a = Function(name="a", grid=Grid((10, 10)))
+    x = a.dimensions[0]
+    assert a.shift(x, x.spacing) == a._subs(x, x + x.spacing)
+    assert a.shift(x, x.spacing).shift(x, -x.spacing) == a
+    assert a.shift(x, x.spacing).shift(x, x.spacing) == a.shift(x, 2*x.spacing)
+    assert a.dx.evaluate.shift(x, x.spacing) == a.shift(x, x.spacing).dx.evaluate
+    assert not a.shift(x, .5 * x.spacing)._is_on_grid
