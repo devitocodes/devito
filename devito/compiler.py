@@ -34,7 +34,7 @@ def sniff_compiler_version(cc):
         res = run([cc, "--version"], stdout=PIPE, stderr=DEVNULL)
         ver = res.stdout.decode("utf-8")
         if not ver:
-            return verson.LooseVersion("unknown")
+            return version.LooseVersion("unknown")
     except UnicodeDecodeError:
         return version.LooseVersion("unknown")
     except FileNotFoundError:
