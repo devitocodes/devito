@@ -196,8 +196,11 @@ class DataManager(object):
                     continue
                 objs = [k.write]
             elif k.is_Dereference:
-                already_defined.extend(list(k.functions))
-                objs = []
+                already_defined.append(k.array)
+                if k.parray in already_defined:
+                    objs = []
+                else:
+                    objs = [k.parray]
             elif k.is_Call:
                 objs = k.arguments
 

@@ -1,4 +1,3 @@
-from collections import OrderedDict
 import os
 
 import numpy as np
@@ -264,13 +263,24 @@ class Ompizer(object):
         if key is not None:
             self.key = key
         else:
-            def key(i):
-                if i.uindices:
-                    # Iteration must be in OpenMP canonical form
-                    return False
-                return i.is_ParallelRelaxed and not i.is_Vectorized
-            self.key = key
+            self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
         self.sregistry = sregistry
+
+    @property
+    def nthreads(self):
+        return self.sregistry.nthreads
+
+    @property
+    def nthreads_nested(self):
+        return self.sregistry.nthreads_nested
+
+    @property
+    def nthreads_nonaffine(self):
+        return self.sregistry.nthreads_nonaffine
+
+    @property
+    def threadid(self):
+        return self.sregistry.threadid
 
     def _find_collapsable(self, root, candidates):
         collapsable = []
@@ -358,7 +368,7 @@ class Ompizer(object):
                 schedule = 'static'
             if nthreads is None:
                 # pragma omp for ... schedule(..., 1)
-                nthreads = self.sregistry.nthreads
+                nthreads = self.nthreads
                 body = OpenMPIteration(schedule=schedule, ncollapse=ncollapse,
                                        **root.args)
             else:
@@ -370,7 +380,7 @@ class Ompizer(object):
         else:
             # pragma omp for ... schedule(..., expr)
             assert nthreads is None
-            nthreads = self.sregistry.nthreads_nonaffine
+            nthreads = self.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
             body = OpenMPIteration(ncollapse=ncollapse, chunk_size=chunk_size,
                                    **root.args)
@@ -386,7 +396,7 @@ class Ompizer(object):
 
         return root, partree, collapsed
 
-    def _make_parregion(self, partree):
+    def _make_parregion(self, partree, parrays):
         arrays = [i for i in FindSymbols().visit(partree) if i.is_Array]
 
         # Detect thread-private arrays on the stack
@@ -398,11 +408,15 @@ class Ompizer(object):
         heap_private = [i for i in arrays if i._mem_heap and i._mem_local]
         heap_globals = []
         for i in heap_private:
-            pi = PointerArray(name=self.sregistry.make_name(),
-                              dimensions=(self.sregistry.threadid,), array=i)
+            if i in parrays:
+                pi = parrays[i]
+            else:
+                pi = parrays.setdefault(i, PointerArray(name=self.sregistry.make_name(),
+                                                        dimensions=(self.threadid,),
+                                                        array=i))
             heap_globals.append(Dereference(i, pi))
         if heap_globals:
-            body = List(header=self._make_tid(self.sregistry.threadid),
+            body = List(header=self._make_tid(self.threadid),
                         body=heap_globals+[partree], footer=c.Line())
         else:
             body = partree
@@ -454,8 +468,7 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            subroot, subpartree, _ = self._make_partree(candidates,
-                                                        self.sregistry.nthreads_nested)
+            subroot, subpartree, _ = self._make_partree(candidates, self.nthreads_nested)
 
             mapper[subroot] = subpartree
 
@@ -464,7 +477,8 @@ class Ompizer(object):
         return partree
 
     def _make_parallel(self, iet):
-        mapper = OrderedDict()
+        mapper = {}
+        parrays = {}
         for tree in retrieve_iteration_tree(iet):
             # Get the omp-parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
@@ -473,6 +487,8 @@ class Ompizer(object):
 
             # Outer parallelism
             root, partree, collapsed = self._make_partree(candidates)
+            if root in mapper:
+                continue
 
             # Nested parallelism
             partree = self._make_nested_partree(partree)
@@ -484,7 +500,7 @@ class Ompizer(object):
             partree = self._make_threaded_prodders(partree)
 
             # Wrap within a parallel region, declaring private and shared variables
-            parregion = self._make_parregion(partree)
+            parregion = self._make_parregion(partree, parrays)
 
             # Protect the parallel region in case of 0-valued step increments
             parregion = self._make_guard(parregion, collapsed)

@@ -124,7 +124,7 @@ class DeviceOmpizer(Ompizer):
 
         return root, partree, collapsed
 
-    def _make_parregion(self, partree):
+    def _make_parregion(self, partree, *args):
         # no-op for now
         return partree
 

@@ -601,8 +601,10 @@ class TestAliases(object):
         op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
 
         # `min-storage` leads to one 2D and one 3D Arrays
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_shared]
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
+        assert len([i for i in arrays if i._mem_shared]) == 1
+        assert len([i for i in arrays if i._mem_local]) == 1
         assert len(arrays[0].dimensions) == 2
         assert arrays[0].halo == ((1, 0), (0, 0))
         assert Add(*arrays[0].symbolic_shape[0].args) == y.symbolic_size + 1
