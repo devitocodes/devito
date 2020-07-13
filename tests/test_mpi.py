@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from unittest.mock import patch
 from cached_property import cached_property
 
 from conftest import skipif
@@ -1000,7 +999,6 @@ class TestCodeGeneration(object):
         assert destinations == expected
 
     @pytest.mark.parallel(mode=[(1, 'full')])
-    @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
     def test_poke_progress(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -1009,7 +1007,7 @@ class TestCodeGeneration(object):
         f = TimeFunction(name='f', grid=grid)
 
         eqn = Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + f[t, x, y-1] + f[t, x, y+1])
-        op = Operator(eqn)
+        op = Operator(eqn, opt=('advanced', {'par-dynamic-work': 0}))
 
         trees = retrieve_iteration_tree(op._func_table['compute0'].root)
         assert len(trees) == 2
@@ -1031,7 +1029,7 @@ class TestCodeGeneration(object):
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
-        op = Operator(eqn, opt=('advanced', {'blockinner': True}))
+        op = Operator(eqn, opt=('advanced', {'blockinner': True, 'par-dynamic-work': 0}))
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
         tree = trees[1]

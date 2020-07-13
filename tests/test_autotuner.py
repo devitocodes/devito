@@ -1,6 +1,5 @@
 import pytest
 import numpy as np
-from unittest.mock import patch
 
 from conftest import skipif
 from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
@@ -133,12 +132,12 @@ def test_tti_aggressive():
 
 
 @switchconfig(develop_mode=False)
-@patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.), openmp=True)
+    op = Operator(Eq(f.forward, f + 1.),
+                  opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
     op.apply(time=100, nthreads=4, autotune='aggressive')
 
     assert op._state['autotuning'][0]['runs'] == 18
