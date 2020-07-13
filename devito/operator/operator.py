@@ -946,16 +946,11 @@ def parse_kwargs(**kwargs):
         openmp = kwopenmp
 
     # `opt`, options
-    opt_options = configuration['opt-options']
-    options.setdefault('blockinner', opt_options.get('blockinner', False))
-    options.setdefault('blocklevels', opt_options.get('blocklevels', None))
-    options.setdefault('min-storage', opt_options.get('min-storage', False))
-    options.setdefault('cire-repeats-inv', opt_options.get('cire-repeats-inv', None))
-    options.setdefault('cire-repeats-sops', opt_options.get('cire-repeats-sops', None))
-    options.setdefault('cire-mincost-inv', opt_options.get('cire-mincost-inv', None))
-    options.setdefault('cire-mincost-sops', opt_options.get('cire-mincost-sops', None))
+    options = dict(options)
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
+    for k, v in configuration['opt-options'].items():
+        options.setdefault(k, v)
     kwargs['options'] = options
 
     # `opt`, mode
