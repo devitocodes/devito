@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import norm
-from devito.logger import info
+from devito import info, norm
 
 from examples.seismic import demo_model, setup_geometry, seismic_args
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -28,9 +27,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     solver = tti_setup(shape=shape, spacing=spacing, tn=tn, space_order=space_order,
                        nbl=nbl, **kwargs)
     info("Applying Forward")
-    # Whether or not we save the whole time history. We only need the full wavefield
-    # with 'save=True' if we compute the gradient without checkpointing, if we use
-    # checkpointing, PyRevolve will take care of the time history
 
     rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
 
