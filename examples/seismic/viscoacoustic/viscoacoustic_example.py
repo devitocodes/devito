@@ -44,10 +44,11 @@ def test_viscoacoustic():
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
-def test_viscoacoustic_stability(ndim):
+@pytest.mark.parametrize('kernel', ['blanch_symes', 'ren', 'deng_mcmechan'])
+def test_viscoacoustic_stability(ndim, kernel):
     shape = tuple([11]*ndim)
     spacing = tuple([20]*ndim)
-    _, _, _, [rec] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
+    _, _, _, [rec] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0, kernel=kernel)
     assert np.isfinite(norm(rec))
 
 

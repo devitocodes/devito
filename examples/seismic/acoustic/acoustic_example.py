@@ -64,10 +64,11 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
-def test_isoacoustic_stability(ndim):
+@pytest.mark.parametrize('k', ['OT2', 'OT4'])
+def test_isoacoustic_stability(ndim, k):
     shape = tuple([11]*ndim)
     spacing = tuple([20]*ndim)
-    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
+    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0, kernel=k)
     assert np.isfinite(norm(rec))
 
 
