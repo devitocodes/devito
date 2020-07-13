@@ -2,13 +2,14 @@
 
 from subprocess import PIPE, Popen, DEVNULL
 
-import numpy as np
-import cpuinfo
-import psutil
-
 from cached_property import cached_property
+import cpuinfo
+import numpy as np
+import psutil
+import re
+
 from devito.logger import warning
-from devito.tools.memoization import memoized_func
+from devito.tools import all_equal, memoized_func
 
 __all__ = ['platform_registry',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',
@@ -122,8 +123,14 @@ def get_cpu_info():
 def get_gpu_info():
     """Attempt GPU info autodetection."""
 
+    # Filter out virtual GPUs from a list of GPU dictionaries
+    def filter_real_gpus(gpus):
+        def is_real_gpu(gpu):
+            return 'virtual' not in gpu['product'].lower()
+        return filter(is_real_gpu, gpus)
+
     # The following functions of the form cmd_gpu_info(...) attempt obtaining GPU
-    #   information using 'cmd'.
+    #   information using 'cmd'
     # The currently supported ways of obtaining GPU information (in order of attempt) are:
     #   - 'lshw' from the command line
     #   - 'lspci' from the command line
@@ -143,10 +150,11 @@ def get_gpu_info():
 
                 def parse_product_arch():
                     for line in lines:
-                        if line.lstrip().startswith('product'):
-                            if '[' in line:
-                                return line.split('[')[1].split(']')[0]
-                            return 'unspecified'
+                        if line.lstrip().startswith('product') and '[' in line:
+                            arch_match = re.search(r'\[([\w\s]+)\]', line)
+                            if arch_match:
+                                return arch_match.group(1)
+                    return 'unspecified'
 
                 # Populate the information
                 gpu_info = {}
@@ -159,11 +167,8 @@ def get_gpu_info():
 
         # Parse the information for all the devices listed with lshw
         devices = text.split('display')[1:]
-        gpu_infos = []
-        for device in devices:
-            single_info = lshw_single_gpu_info(device)
-            gpu_infos.append(single_info)
-        return gpu_infos
+        gpu_infos = [lshw_single_gpu_info(device) for device in devices]
+        return filter_real_gpus(gpu_infos)
 
     def lspci_gpu_info(text):
         # Note: due to the single line descriptive format of lspci, 'vendor'
@@ -178,27 +183,39 @@ def get_gpu_info():
             # Graphics cards are listed as VGA or 3D controllers in lspci
             if 'VGA' in line or '3D' in line:
                 gpu_info = {}
-                gpu_info['product'] = line.split(':')[1].split(':')[1].split(':').lstrip()
-
-                if '[' in line:
-                    gpu_info['architecture'] = line.split('[')[1].split(']')[0]
+                # Lines produced by lspci command are of the form:
+                #   xxxx:xx:xx.x Device Type: Name
+                #   eg:
+                #   0001:00:00.0 3D controller: NVIDIA Corp... [Tesla K80] (rev a1)
+                name_match = re.match(
+                    r'\d\d\d\d:\d\d:\d\d\.\d [\w\s]+: ([\w\s\(\)\[\]]*)', line
+                )
+                if name_match:
+                    gpu_info['product'] = name_match.group(1)
+                    arch_match = re.search(r'\[([\w\s]+)\]', line)
+                    if arch_match:
+                        gpu_info['architecture'] = arch_match.group(1)
+                    else:
+                        gpu_info['architecture'] = 'unspecified'
                 else:
-                    gpu_info['architecture'] = 'unspecified'
+                    continue
 
                 gpu_infos.append(gpu_info)
-        return gpu_infos
+        return filter_real_gpus(gpu_infos)
 
     # Run homogeneity checks on a list of GPU, return GPU with count if homogeneous,
     #   otherwise None
     def homogenise_gpus(gpus):
         if gpu_infos == []:
-            # warning('No graphics cards detected')
+            warning('No graphics cards detected')
             return None
 
-        if all(dev == gpu_infos[0] for dev in gpu_infos):
+        if all_equal(gpu_infos):
             gpu_infos[0]['ncards'] = len(gpu_infos)
             return gpu_infos[0]
-        # warning('Different models of graphics cards detected, should be homogenous')
+
+        warning('Different models of graphics cards detected')
+
         return None
 
     # Obtain textual gpu info and delegate parsing to helper functions
@@ -228,8 +245,6 @@ def get_gpu_info():
     except OSError:
         pass
 
-    # If all calls to supported tools fail
-    # warning('No supported tool for GPU detection available')
     return None
 
 
