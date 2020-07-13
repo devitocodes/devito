@@ -382,6 +382,13 @@ class IntervalGroup(PartialOrderTuple):
     def reset(self):
         return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
+    def index(self, key):
+        if isinstance(key, Interval):
+            return super(IntervalGroup, self).index(key)
+        elif isinstance(key, Dimension):
+            return super(IntervalGroup, self).index(self[key])
+        raise ValueError("Expected Interval or Dimension, got `%s`" % type(key))
+
     def __getitem__(self, key):
         if is_integer(key):
             return super(IntervalGroup, self).__getitem__(key)
@@ -441,9 +448,10 @@ class IterationInterval(object):
     An Interval associated with an IterationDirection.
     """
 
-    def __init__(self, interval, direction):
+    def __init__(self, interval, direction, sub_iterators):
         self.interval = interval
         self.direction = direction
+        self.sub_iterators = sub_iterators
 
     def __repr__(self):
         return "%s%s" % (self.interval, self.direction)
@@ -733,7 +741,9 @@ class IterationSpace(Space):
 
     @cached_property
     def itintervals(self):
-        return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
+        return tuple(IterationInterval(
+            i, self.directions[i.dim], self.sub_iterators.get(i.dim)
+        ) for i in self.intervals)
 
     @cached_property
     def dimensions(self):

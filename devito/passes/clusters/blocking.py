@@ -116,7 +116,7 @@ def decompose(ispace, d, block_dims):
         else:
             intervals.append(i)
 
-    # Create the new "decomposed" relations.
+    # Create the relations.
     # Example: consider the relation `(t, x, y)` and assume we decompose `x` over
     # `xbb, xb, xi`; then we decompose the relation as two relations, `(t, xbb, y)`
     # and `(xbb, xb, xi)`
@@ -124,16 +124,20 @@ def decompose(ispace, d, block_dims):
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
 
-    # Further, if there are other IncrDimensions, add relations such that
-    # IncrDimensions at the same level stick together, thus we obtain for
-    # example `(t, xbb, ybb, xb, yb, x, y)` instead of `(t, xbb, xb, x, ybb, ...)`
-    for i in intervals:
-        if not isinstance(i.dim, IncrDimension):
+    # Add more relations
+    for n, i in enumerate(ispace.intervals):
+        if i.dim is d:
             continue
-        for bd in block_dims:
-            if bd._defines & i.dim._defines:
-                break
-            if len(i.dim._defines) > len(bd._defines):
+        elif i.dim.is_Incr:
+            # Make sure IncrDimensions on the same level stick next to each other.
+            # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
+            # `(t, xbb, xb, x, ybb, ...)`
+            for bd in block_dims:
+                if len(i.dim._defines) > len(bd._defines):
+                    relations.append([bd, i.dim])
+        elif n > ispace.intervals.index(d):
+            # All other non-Incr, subsequent Dimensions must follow the block Dimensions
+            for bd in block_dims:
                 relations.append([bd, i.dim])
 
     intervals = IntervalGroup(intervals, relations=relations)

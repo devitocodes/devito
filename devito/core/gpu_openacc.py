@@ -175,7 +175,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenACC offloading
-        DeviceAccizer(sregistry).make_parallel(graph)
+        DeviceAccizer(sregistry, options).make_parallel(graph)
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager(sregistry)
@@ -204,7 +204,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenACC offloading
-        DeviceAccizer(sregistry).make_parallel(graph)
+        DeviceAccizer(sregistry, options).make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -233,7 +233,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
-        accizer = DeviceAccizer(sregistry)
+        accizer = DeviceAccizer(sregistry, options)
 
         return {
             'optcomms': partial(optimize_halospots),
