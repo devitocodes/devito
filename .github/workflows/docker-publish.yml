@@ -10,6 +10,7 @@ on:
 jobs:
   deploy-docker:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout devito
         uses: actions/checkout@v1
@@ -23,7 +24,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: mloubout/devito
+          repository: devitocodes/devito
           dockerfile: ./docker/Dockerfile
           tags: cpu-dev
 
@@ -33,6 +34,40 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: mloubout/devito
+          repository: devitocodes/devito
           dockerfile: ./docker/Dockerfile
-          tags: 'cpu-${{ github.event.release.tag_name }}'
+          tags: cpu-latest,'cpu-${{ github.event.release.tag_name }}'
+
+      - name: GPU image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: devitocodes/devito
+          dockerfile: ./docker/Dockerfile.nvidia
+          tags: gpu-dev
+
+      - name: GPU image release
+        if: github.event_name == 'release'
+        uses: docker/build-push-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: devitocodes/devito
+          dockerfile: ./docker/Dockerfile.nvidia
+          tags: gpu-latest,'gpu-${{ github.event.release.tag_name }}'
+
+  test-image:
+    needs: deploy-docker
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix: 
+        im-name: [cpu-dev, cpu-latest]
+
+    steps:
+        - name: Run simple test
+          run: |
+             docker run --rm --name testrun `devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
