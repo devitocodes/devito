@@ -5,7 +5,7 @@ from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, Grid, Operator, norm, grad, div,
+                    Dimension, SubDimension, Grid, Operator, norm, grad, div, dimensions,
                     switchconfig, configuration, centered, first_derivative, transpose)
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
@@ -237,6 +237,72 @@ def test_time_dependent_split(opt):
 
     assert np.allclose(u.data[2, :, :], 3.0)
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    # none (different distance)
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
+     [6., 0., 0.]),
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, 0], y, implicit_dims=(t, x, y))'],
+     [2., 0., 0.]),
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, y], 3 - y, implicit_dims=(t, x, y))'],
+     [3., 2., 1.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 2., 6.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y, implicit_dims=(t, x, y))'],
+     [3., 3., 2.]),
+    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+      'Inc(h1[0, y], x, implicit_dims=(t, x, y))'],
+     [3., 3., 3.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x, y))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 0., 0.])
+])
+def test_lifting(exprs, expected):
+    t, x, y = dimensions('t x y')
+
+    g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
+                     time_order=0, dtype=np.int32)
+    g.data[0, :] = [0, 1, 2]
+    h1 = TimeFunction(name='h1', shape=(1, 3), dimensions=(t, y), time_order=0)
+    h1.data[0, :] = 0
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = eval(e)
+
+    op = Operator(exprs)
+    op.apply()
+
+    assert np.all(h1.data == expected)
 
 
 class TestAliases(object):
