@@ -184,6 +184,10 @@ class Dimension(ArgProvider):
     def _defines(self):
         return frozenset({self})
 
+    @cached_property
+    def _defines_symbols(self):
+        return frozenset({self.symbolic_min, self.symbolic_max, self.symbolic_size})
+
     @property
     def _arg_names(self):
         """Tuple of argument names introduced by the Dimension."""
@@ -570,6 +574,10 @@ class SubDimension(DerivedDimension):
     @cached_property
     def _thickness_map(self):
         return dict(self.thickness)
+
+    @cached_property
+    def _defines_symbols(self):
+        return super()._defines_symbols | frozenset(self._thickness_map)
 
     @cached_property
     def _offset_left(self):
