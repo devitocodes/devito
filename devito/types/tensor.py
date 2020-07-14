@@ -1,6 +1,8 @@
 from collections import OrderedDict
 
 import numpy as np
+from sympy import Dummy
+from sympy.core.decorators import call_highest_priority
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
@@ -22,6 +24,41 @@ class TensorFunction(AbstractTensor):
 
     Parameters
     ----------
+    name : str
+        Name of the symbol.
+    grid : Grid, optional
+        Carries shape, dimensions, and dtype of the Function. When grid is not
+        provided, shape and dimensions must be given. For MPI execution, a
+        Grid is compulsory.
+    space_order : int or 3-tuple of ints, optional
+        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
+        impacts the number of points available around a generic point of interest.  By
+        default, ``space_order`` points are available on both sides of a generic point of
+        interest, including those nearby the grid boundary. Sometimes, fewer points
+        suffice; in other scenarios, more points are necessary. In such cases, instead of
+        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization
+        order (``o``) as well as the number of points on the left (``lp``) and right
+        (``rp``) sides of a generic point of interest.
+    shape : tuple of ints, optional
+        Shape of the domain region in grid points. Only necessary if ``grid`` isn't given.
+    dimensions : tuple of Dimension, optional
+        Dimensions associated with the object. Only necessary if ``grid`` isn't given.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
+    staggered : Dimension or tuple of Dimension or Stagger, optional
+        Define how the Function is staggered.
+    initializer : callable or any object exposing the buffer interface, optional
+        Data initializer. If a callable is provided, data is allocated lazily.
+    allocator : MemoryAllocator, optional
+        Controller for memory allocation. To be used, for example, when one wants
+        to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+        `default_allocator.__doc__` for more information.
+    padding : int or tuple of ints, optional
+        .. deprecated:: shouldn't be used; padding is now automatically inserted.
+
+        Allocate extra grid points to maximize data access alignment. When a tuple
+        of ints, one int per Dimension should be provided.
     symmetric : bool, optional
         Whether the tensor is symmetric or not. Defaults to True.
     diagonal : Bool, optional
@@ -88,6 +125,30 @@ class TensorFunction(AbstractTensor):
             funcs = funcs.tolist()
         return funcs
 
+    @call_highest_priority('__mul__')
+    def __rmul__(self, other):
+        """
+        Prevents Functions to be interpreted as matrices in 2D becaue of `.shape`
+        TODO: Remove after sympy 1.7
+        """
+        if getattr(other, 'is_DiscreteFunction', False):
+            tmp_func = Dummy(other.name)
+            simplemul = super(TensorFunction, self).__rmul__(tmp_func)
+            return simplemul.subs(tmp_func, other)
+        return super(TensorFunction, self).__rmul__(other)
+
+    @call_highest_priority('__rmul__')
+    def __mul__(self, other):
+        """
+        Prevents Functions to be interpreted as matrices in 2D becaue of `.shape`
+        TODO: Remove after sympy 1.7
+        """
+        if getattr(other, 'is_DiscreteFunction', False):
+            tmp_func = Dummy(other.name)
+            simplemul = super(TensorFunction, self).__mul__(tmp_func)
+            return simplemul.subs(tmp_func, other)
+        return super(TensorFunction, self).__mul__(other)
+
     def __getattr__(self, name):
         """
         Try calling a dynamically created FD shortcut.
@@ -108,7 +169,7 @@ class TensorFunction(AbstractTensor):
         def entries(i, j, func):
             return getattr(self[i, j], '_eval_at', lambda x: self[i, j])(func[i, j])
         entry = lambda i, j: entries(i, j, func)
-        return self.__new__(self.rows, self.cols, entry)
+        return self._new(self.rows, self.cols, entry)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -121,10 +182,22 @@ class TensorFunction(AbstractTensor):
 
     @property
     def space_dimensions(self):
+        """Spatial dimensions."""
         return self._space_dimensions
 
     @property
+    def space_order(self):
+        """The space order for all components."""
+        return ({a.space_order for a in self} - {None}).pop()
+
+    @property
+    def time_order(self):
+        """The time order for all components."""
+        return ({a.space_order for a in self} - {None}).pop()
+
+    @property
     def is_diagonal(self):
+        """Whether the tensor is diagonal."""
         return np.all([self[i, j] == 0 for j in range(self.cols)
                        for i in range(self.rows) if i != j])
 
@@ -151,8 +224,7 @@ class TensorFunction(AbstractTensor):
         for j, d in enumerate(self.space_dimensions):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
                               for i, d in enumerate(self.space_dimensions)]))
-        n = len(comps)
-        return func._new(n, 1, comps)
+        return func._new(comps)
 
     @property
     def laplace(self):
@@ -164,8 +236,7 @@ class TensorFunction(AbstractTensor):
         for j, d in enumerate(self.space_dimensions):
             comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
                               for i, d in enumerate(self.space_dimensions)]))
-        n = len(comps[0])
-        return func._new(n, n, comps)
+        return func._new(comps)
 
     @property
     def grad(self):
@@ -173,8 +244,7 @@ class TensorFunction(AbstractTensor):
 
     def new_from_mat(self, mat):
         func = tens_func(self, self)
-        n, m = np.array(mat).shape
-        return func._new(n, m, mat)
+        return func._new(self.rows, self.cols, mat)
 
     def classof_prod(self, other, mat):
         try:
@@ -278,14 +348,16 @@ class VectorFunction(TensorFunction):
         func = tens_func(self, self)
         comps = [[getattr(f, 'd%s' % d.name) for d in self.space_dimensions]
                  for f in self]
-        n = len(comps[0])
-        return func._new(n, n, comps)
+        return func._new(comps)
 
     def outer(self, other):
         comps = [[self[i] * other[j] for i in range(self.cols)] for j in range(self.cols)]
         func = tens_func(self, other)
-        n = len(comps[0])
-        return func._new(n, n, comps)
+        return func._new(comps)
+
+    def new_from_mat(self, mat):
+        func = vec_func(self, self)
+        return func._new(self.rows, 1, mat)
 
 
 class TensorTimeFunction(TensorFunction):

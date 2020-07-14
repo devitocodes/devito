@@ -123,12 +123,11 @@ def generate_fd_shortcuts(dims, so, to=0):
     # Add non-conventional, non-centered first-order FDs
     for d, o in zip(dims, orders):
         name = 't' if d.is_Time else d.root.name
-        if o == 2:
-            # Add centered first derivatives if staggered
-            deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=centered)
-            name_fd = 'd%sc' % name
-            desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
-            derivatives[name_fd] = (deriv, desciption)
+        # Add centered first derivatives
+        deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=centered)
+        name_fd = 'd%sc' % name
+        desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
+        derivatives[name_fd] = (deriv, desciption)
         # if not function.is_Staggered:
         # Left
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=left)
