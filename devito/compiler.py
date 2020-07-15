@@ -451,8 +451,8 @@ class PGICompiler(Compiler):
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
         self.cflags += ['-fast', '-acc']
-        # self.cflags += ['-Minfo=accel'] # Print informational messages for compliation
-        # self.cflags += ['-ta=tesla']    # Compile for a target GPU architecture
+        # Default PGI compile for a target is GPU and single threaded host.
+        # self.cflags += ['-ta=tesla,host']
 
     def __lookup_cmds__(self):
         # NOTE: using `pgc++` instead of `pgcc` because of issue #1219
