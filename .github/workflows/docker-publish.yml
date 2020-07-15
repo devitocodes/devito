@@ -58,7 +58,7 @@ jobs:
           dockerfile: ./docker/Dockerfile.nvidia
           tags: gpu-latest,'gpu-${{ github.event.release.tag_name }}'
 
-  test-image:
+  test-cpu-image:
     needs: deploy-docker
     runs-on: ubuntu-latest
 
@@ -71,3 +71,17 @@ jobs:
         - name: Run simple test
           run: |
              docker run --rm --name testrun `devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
+
+  test-gpu-image:
+    needs: deploy-docker
+    runs-on: [self-hosted, gpu]
+
+    strategy:
+      fail-fast: false
+      matrix: 
+        im-name: [gpu-dev, gpu-latest]
+
+    steps:
+        - name: Run simple test
+          run: |
+             docker run --rm --name testrun `devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_gpu_openacc.py
