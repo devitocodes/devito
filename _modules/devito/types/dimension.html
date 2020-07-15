@@ -342,6 +342,10 @@
     <span class="k">def</span> <span class="nf">_defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">frozenset</span><span class="p">({</span><span class="bp">self</span><span class="p">})</span>
 
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_defines_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">({</span><span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">})</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Tuple of argument names introduced by the Dimension.&quot;&quot;&quot;</span>
@@ -728,6 +732,10 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_thickness_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">thickness</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_defines_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_defines_symbols</span> <span class="o">|</span> <span class="nb">frozenset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_offset_left</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
