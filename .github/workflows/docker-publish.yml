@@ -70,7 +70,7 @@ jobs:
     steps:
         - name: Run simple test
           run: |
-             docker run --rm --name testrun `devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
+             docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
 
   test-gpu-image:
     needs: deploy-docker
@@ -84,4 +84,4 @@ jobs:
     steps:
         - name: Run simple test
           run: |
-             docker run --rm --name testrun `devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_gpu_openacc.py
+             docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_gpu_openacc.py
