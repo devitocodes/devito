@@ -22,3 +22,34 @@
     * `cire-mincost-sops` (int, 10): minimum cost of a sum-of-product candidate
     * `cire-repeats-inv` (int, 1): control detection of dimension-invariants
     * `cire-mincost-inv` (int, 50): minimum cost of a dimension-invariant candidate
+
+### Optimization parameters by platform
+
+* Parallelism
+
+|                     |        CPU          |         GPU        |
+|---------------------|---------------------|--------------------|
+| openmp              | :heavy_check_mark:  | :heavy_check_mark: |
+| par-collapse-ncores | :heavy_check_mark:  |         :x:        |
+| par-collapse-work   | :heavy_check_mark:  |         :x:        |
+| par-chunk-nonaffine | :heavy_check_mark:  | :heavy_check_mark: |
+| par-dynamic-work    | :heavy_check_mark:  |         :x:        |
+| par-nested          | :heavy_check_mark:  |         :x:        |
+
+* Blocking
+
+|                     |        CPU          |         GPU        |
+|---------------------|---------------------|--------------------|
+| blockinner          | :heavy_check_mark:  |         :x:        |
+| blocklevels         | :heavy_check_mark:  |         :x:        |
+
+* CIRE
+
+
+|                     |        CPU          |         GPU        |
+|---------------------|---------------------|--------------------|
+| minstorage          | :heavy_check_mark:  |         :x:        |
+| cire-repeats-sops   | :heavy_check_mark:  | :heavy_check_mark: |
+| cire-mincost-sops   | :heavy_check_mark:  | :heavy_check_mark: |
+| cire-repeats-inv    | :heavy_check_mark:  | :heavy_check_mark: |
+| cire-mincost-inv    | :heavy_check_mark:  | :heavy_check_mark: |
