@@ -354,10 +354,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         count = reduce(mul, bufs.shape, 1)
         rrecv = MPIRequestObject(name='rrecv')
         rsend = MPIRequestObject(name='rsend')
-        recv = IrecvCall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                                       fromrank, Integer(13), comm, rrecv])
-        send = IsendCall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                                       torank, Integer(13), comm, rsend])
+        recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                         fromrank, Integer(13), comm, rrecv])
+        send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                         torank, Integer(13), comm, rsend])
 
         waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
@@ -555,10 +555,10 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         count = reduce(mul, sizes, 1)
         rrecv = Byref(FieldFromPointer(msg._C_field_rrecv, msg))
         rsend = Byref(FieldFromPointer(msg._C_field_rsend, msg))
-        recv = IrecvCall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                                       fromrank, Integer(13), comm, rrecv])
-        send = IsendCall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                                       torank, Integer(13), comm, rsend])
+        recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                         fromrank, Integer(13), comm, rrecv])
+        send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                         torank, Integer(13), comm, rsend])
 
         iet = List(body=[recv, gather, send])
         parameters = ([f] + ofsg + [fromrank, torank, comm, msg])
@@ -726,10 +726,10 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         count = reduce(mul, sizes, 1)
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
         rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
-        recv = IrecvCall('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                                       fromrank, Integer(13), comm, rrecv])
-        send = IsendCall('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                                       torank, Integer(13), comm, rsend])
+        recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                          fromrank, Integer(13), comm, rrecv])
+        send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                         torank, Integer(13), comm, rsend])
 
         # The -1 below is because an Iteration, by default, generates <=
         ncomms = Symbol(name='ncomms')
@@ -889,14 +889,14 @@ class HaloUpdate(MPICallable):
 
 class IsendCall(Call):
 
-    def __init__(self, name, parameters):
-        super(IsendCall, self).__init__(name, parameters)
+    def __init__(self, parameters):
+        super(IsendCall, self).__init__('MPI_Isend', parameters)
 
 
 class IrecvCall(Call):
 
-    def __init__(self, name, parameters):
-        super(IrecvCall, self).__init__(name, parameters)
+    def __init__(self, parameters):
+        super(IrecvCall, self).__init__('MPI_Irecv', parameters)
 
 # Types sub-hierarchy
 

@@ -279,19 +279,13 @@ def mpi_gpu_direct(iet, **kwargs):
     """
     Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
     """
-    def _mpi_gpu_direct(iet):
-        mapper = {}
-        # Modify MPI_Isend and MPI_Irecv to perform GPU Direct communication
-        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
-            header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' %
-                              node._args['parameters'][0].name)
-            mapper[node] = Block(header=header, body=node)
+    mapper = {}
+    for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
+        header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' %
+                          node.arguments[0].name)
+        mapper[node] = Block(header=header, body=node)
 
-        iet = Transformer(mapper).visit(iet)
-
-        return iet
-
-    iet = _mpi_gpu_direct(iet)
+    iet = Transformer(mapper).visit(iet)
 
     return iet, {}
 

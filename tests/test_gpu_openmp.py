@@ -23,6 +23,7 @@ class TestCodeGeneration(object):
 
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for device(devicenum) collapse(3)'
+        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
         assert op.body[2].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) device(devicenum)')
@@ -48,6 +49,7 @@ class TestCodeGeneration(object):
 
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for device(devicenum) collapse(3)'
+        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
         for i, f in enumerate([u, v]):
             assert op.body[2].header[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
@@ -90,6 +92,7 @@ class TestCodeGeneration(object):
             'omp target teams distribute parallel for device(devicenum) collapse(3)'
         assert trees[2][1].pragmas[0].value ==\
             'omp target teams distribute parallel for device(devicenum) collapse(3)'
+        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
 
         # Check `u` and `v`
         for i, f in enumerate([u, v], 1):
@@ -140,6 +143,7 @@ class TestCodeGeneration(object):
 
         op = Operator(eqn)
 
+        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
         assert len(op.body[2].header) == 7
         assert str(op.body[2].header[0]) == 'float (*r1)[y_size][z_size];'
         assert op.body[2].header[1].text ==\
@@ -168,6 +172,7 @@ class TestCodeGeneration(object):
 
         op = Operator(eqns, opt='noop')
 
+        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
         assert len(op.body[2].header) == 2
         assert len(op.body[2].footer) == 2
         assert op.body[2].header[0].value ==\
