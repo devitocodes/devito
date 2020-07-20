@@ -2,7 +2,7 @@ import numpy as np
 
 from devito.logger import info
 from devito import Constant, Function, smooth
-from examples.seismic.acoustic import AcousticWaveSolver
+from examples.seismic.acoustic import AcousticWaveSolver, plot_shotrecord
 from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
