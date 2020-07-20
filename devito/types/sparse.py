@@ -5,11 +5,12 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
 from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
-from devito.tools import ReducerMap, flatten, prod, filter_ordered, memoized_meth
+from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
+                          memoized_meth)
 from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension
 from devito.types.basic import Symbol, Scalar
@@ -19,7 +20,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
 
 
-class AbstractSparseFunction(DiscreteFunction, Differentiable):
+class AbstractSparseFunction(DiscreteFunction):
 
     """
     An abstract class to define behaviours common to all sparse functions.
@@ -44,12 +45,10 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        dimensions = kwargs.get('dimensions')
-        if dimensions is not None:
-            return dimensions, dimensions
-        else:
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        if not dimensions:
             dimensions = (Dimension(name='p_%s' % kwargs["name"]),)
-            return dimensions, dimensions
+        return dimensions, dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -360,12 +359,11 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        dimensions = kwargs.get('dimensions')
-        if dimensions is not None:
-            return dimensions, dimensions
-        else:
-            dims = (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
-            return dims, dims
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        if not dimensions:
+            dimensions = (kwargs['grid'].time_dim,
+                          Dimension(name='p_%s' % kwargs["name"]))
+        return dimensions, dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

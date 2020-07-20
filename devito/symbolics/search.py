@@ -1,10 +1,9 @@
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
-                                      q_trigonometry, q_scalar)
+                                      q_scalar)
 from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_xops', 'retrieve_trigonometry', 'search',
-           'retrieve_scalars']
+           'retrieve_terminals', 'retrieve_xops', 'retrieve_scalars', 'search']
 
 
 class Search(object):
@@ -71,6 +70,22 @@ class Search(object):
             found.update(self.collection.wrap(expr))
         return found
 
+    def dfs_first_hit(self, expr):
+        """
+        Perform a DFS search, returning immediately when a node matches the query.
+
+        Parameters
+        ----------
+        expr : expr-like
+            The searched expression.
+        """
+        found = self.collection()
+        for a in self._next(expr):
+            found.update(self.dfs_first_hit(a))
+        if not found and self.query(expr):
+            found.update(self.collection.wrap(expr))
+        return found
+
     def bfs(self, expr):
         """
         Perform a BFS search.
@@ -109,7 +124,6 @@ def search(exprs, query, mode='unique', visit='dfs', deep=False):
     """Interface to Search."""
 
     assert mode in Search.modes, "Unknown mode"
-    assert visit in ['dfs', 'bfs', 'bfs_first_hit'], "Unknown visit type"
 
     searcher = Search(query, mode, deep)
 
@@ -117,10 +131,14 @@ def search(exprs, query, mode='unique', visit='dfs', deep=False):
     for e in as_tuple(exprs):
         if visit == 'dfs':
             found.update(searcher.dfs(e))
+        elif visit == 'dfs_first_hit':
+            found.update(searcher.dfs_first_hit(e))
         elif visit == 'bfs':
             found.update(searcher.bfs(e))
-        else:
+        elif visit == "bfs_first_hit":
             found.update(searcher.bfs_first_hit(e))
+        else:
+            raise ValueError("Unknown visit type `%s`" % visit)
 
     return found
 
@@ -165,11 +183,6 @@ def retrieve_function_carriers(exprs, mode='all'):
 def retrieve_terminals(exprs, mode='all', deep=False):
     """Shorthand to retrieve Indexeds and Symbols within ``exprs``."""
     return search(exprs, q_terminal, mode, 'dfs', deep)
-
-
-def retrieve_trigonometry(exprs):
-    """Shorthand to retrieve the trigonometric functions within ``exprs``."""
-    return search(exprs, q_trigonometry, 'unique', 'dfs')
 
 
 def retrieve_xops(exprs):

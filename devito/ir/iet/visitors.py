@@ -190,7 +190,7 @@ class CGen(Visitor):
                     ret.append(self.visit(i).text)
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
-                elif i.is_Array:
+                elif i.is_ArrayBasic:
                     ret.append("(%s)%s" % (i._C_typename, i.name))
                 else:
                     ret.append(i._C_name)
@@ -198,19 +198,30 @@ class CGen(Visitor):
                 ret.append(ccode(i))
         return ret
 
-    def visit_ArrayCast(self, o):
+    def visit_PointerCast(self, o):
         f = o.function
-        # rvalue
-        shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
-        if f.is_DiscreteFunction:
-            rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
-                                            f._C_field_data)
+        if f.is_PointerArray:
+            rvalue = '(%s**) %s' % (f._C_typedata, f._C_name)
+            lvalue = c.Value(f._C_typedata, '**%s' % f.name)
         else:
-            rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, f._C_name)
-        # lvalue
-        lvalue = c.AlignedAttribute(f._data_alignment,
-                                    c.Value(f._C_typedata,
-                                            '(*restrict %s)%s' % (f.name, shape)))
+            shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
+            if f.is_DiscreteFunction:
+                rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
+                                                f._C_field_data)
+            else:
+                rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, f._C_name)
+            lvalue = c.AlignedAttribute(f._data_alignment,
+                                        c.Value(f._C_typedata,
+                                                '(*restrict %s)%s' % (f.name, shape)))
+        return c.Initializer(lvalue, rvalue)
+
+    def visit_Dereference(self, o):
+        a0, a1 = o.functions
+        shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
+        rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name, a1.dim.name)
+        lvalue = c.AlignedAttribute(a0._data_alignment,
+                                    c.Value(a0._C_typedata,
+                                            '(*restrict %s)%s' % (a0.name, shape)))
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
@@ -577,7 +588,8 @@ class FindSymbols(Visitor):
         symbols.extend([f for f in self.rule(o)])
         return filter_sorted(symbols, key=attrgetter('name'))
 
-    visit_ArrayCast = visit_Expression
+    visit_PointerCast = visit_Expression
+    visit_Dereference = visit_Expression
 
 
 class FindNodes(Visitor):

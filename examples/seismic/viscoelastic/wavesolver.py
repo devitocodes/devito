@@ -29,9 +29,17 @@ class ViscoelasticWaveSolver(object):
         self.geometry = geometry
 
         self.space_order = space_order
-        self.dt = self.model.critical_dt
+
+        # The viscoelastic equation requires a smaller dt than the standard
+        # elastic equation due to instability introduced by the viscosity.
+        self.model.dt_scale = .9
+
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, save=None):

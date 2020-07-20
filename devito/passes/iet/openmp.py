@@ -1,22 +1,21 @@
-from collections import OrderedDict
 import os
 
 import numpy as np
 import cgen as c
 from sympy import Or, Max, Not
 
-from devito.ir import (DummyEq, Conditional, Block, Expression, ExpressionBundle, List,
-                       Prodder, Iteration, While, FindSymbols, FindNodes, Return,
-                       COLLAPSED, VECTORIZED, Transformer, IsPerfectIteration,
-                       retrieve_iteration_tree, filter_iterations)
+from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
+                       List, Prodder, ParallelIteration, ParallelBlock, While,
+                       FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
+                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
-from devito.types import Constant, Symbol
+from devito.types import Constant, PointerArray, Symbol
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer',
-           'ParallelIteration', 'ParallelTree']
+           'OpenMPIteration', 'ParallelTree']
 
 
 def ncores():
@@ -73,20 +72,20 @@ class NThreadsNonaffine(NThreads):
     name = 'nthreads_nonaffine'
 
 
-class ParallelRegion(Block):
+class OpenMPRegion(ParallelBlock):
 
     def __init__(self, body, nthreads, private=None):
-        header = ParallelRegion._make_header(nthreads, private)
-        super(ParallelRegion, self).__init__(header=header, body=body)
+        header = OpenMPRegion._make_header(nthreads, private)
+        super(OpenMPRegion, self).__init__(header=header, body=body)
         self.nthreads = nthreads
 
     @classmethod
-    def _make_header(cls, nthreads, private):
+    def _make_header(cls, nthreads, private=None):
         private = ('private(%s)' % ','.join(private)) if private else ''
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
-class ParallelIteration(Iteration):
+class OpenMPIteration(ParallelIteration):
 
     def __init__(self, *args, **kwargs):
         kwargs.pop('pragmas', None)
@@ -102,8 +101,8 @@ class ParallelIteration(Iteration):
         self.nthreads = kwargs.pop('nthreads', None)
         self.reduction = kwargs.pop('reduction', None)
 
-        super(ParallelIteration, self).__init__(*args, pragmas=[pragma],
-                                                properties=properties, **kwargs)
+        super(OpenMPIteration, self).__init__(*args, pragmas=[pragma],
+                                              properties=properties, **kwargs)
 
     @classmethod
     def _make_header(cls, **kwargs):
@@ -193,7 +192,7 @@ class ThreadedProdder(Conditional, Prodder):
 
     def __init__(self, prodder):
         # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(DefFunction('omp_get_thread_num'), 0)
+        condition = CondEq(Ompizer.lang['thread-num'], 0)
 
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
@@ -208,68 +207,74 @@ class ThreadedProdder(Conditional, Prodder):
 
 class Ompizer(object):
 
-    NESTED = 2
-    """
-    Use nested parallelism if the number of hyperthreads per core is greater
-    than this threshold.
-    """
-
-    COLLAPSE_NCORES = 4
-    """
-    Use a collapse clause if the number of available physical cores is greater
-    than this threshold.
-    """
-
-    COLLAPSE_WORK = 100
-    """
-    Use a collapse clause if the trip count of the collapsable Iterations
-    exceeds this threshold. Note however the trip count is rarely known at
-    compilation time (e.g., this may happen when DefaultDimensions are used).
-    """
-
-    CHUNKSIZE_NONAFFINE = 3
-    """
-    Coefficient to adjust the chunk size in parallelized non-affine Iterations.
-    """
-
-    DYNAMIC_WORK = 10
-    """
-    Use dynamic scheduling if the operation count per iteration exceeds this
-    threshold. Otherwise, use static scheduling.
-    """
-
     lang = {
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
-        'atomic': c.Pragma('omp atomic update')
+        'atomic': c.Pragma('omp atomic update'),
+        'thread-num': DefFunction('omp_get_thread_num')
     }
     """
     Shortcuts for the OpenMP language.
     """
 
-    def __init__(self, key=None):
+    _Region = OpenMPRegion
+    _Iteration = OpenMPIteration
+
+    def __init__(self, sregistry, options, key=None):
         """
         Parameters
         ----------
+        sregistry : SymbolRegistry
+            The symbol registry, to quickly access the special symbols that may
+            appear in the IET (e.g., `sregistry.threadid`, `sregistry.nthreads`).
+        options : dict
+             The optimization options. Accepted: ['par-collapse-ncores',
+             'par-collapse-work', 'par-chunk-nonaffine', 'par-dynamic-work', 'par-nested']
+             * 'par-collapse-ncores': use a collapse clause if the number of
+               available physical cores is greater than this threshold.
+             * 'par-collapse-work': use a collapse clause if the trip count of the
+               collapsable Iterations is statically known to exceed this threshold.
+             * 'par-chunk-nonaffine': coefficient to adjust the chunk size in
+               non-affine parallel Iterations.
+             * 'par-dynamic-work': use dynamic scheduling if the operation count per
+               iteration exceeds this threshold. Otherwise, use static scheduling.
+             * 'par-nested': nested parallelism if the number of hyperthreads per core
+               is greater than this threshold.
         key : callable, optional
             Return True if an Iteration can be parallelized, False otherwise.
         """
+        self.sregistry = sregistry
+
+        self.collapse_ncores = options['par-collapse-ncores']
+        self.collapse_work = options['par-collapse-work']
+        self.chunk_nonaffine = options['par-chunk-nonaffine']
+        self.dynamic_work = options['par-dynamic-work']
+        self.nested = options['par-nested']
+
         if key is not None:
             self.key = key
         else:
-            def key(i):
-                if i.uindices:
-                    # Iteration must be in OpenMP canonical form
-                    return False
-                return i.is_ParallelRelaxed and not i.is_Vectorized
-            self.key = key
-        self.nthreads = NThreads(aliases='nthreads0')
-        self.nthreads_nested = NThreadsNested(aliases='nthreads1')
-        self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
+            self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
+
+    @property
+    def nthreads(self):
+        return self.sregistry.nthreads
+
+    @property
+    def nthreads_nested(self):
+        return self.sregistry.nthreads_nested
+
+    @property
+    def nthreads_nonaffine(self):
+        return self.sregistry.nthreads_nonaffine
+
+    @property
+    def threadid(self):
+        return self.sregistry.threadid
 
     def _find_collapsable(self, root, candidates):
         collapsable = []
-        if ncores() >= self.COLLAPSE_NCORES:
+        if ncores() >= self.collapse_ncores:
             for n, i in enumerate(candidates[1:], 1):
                 # The Iteration nest [root, ..., i] must be perfect
                 if not IsPerfectIteration(depth=i).visit(root):
@@ -296,13 +301,17 @@ class Ompizer(object):
                 if nested:
                     try:
                         work = prod([int(j.dim.symbolic_size) for j in nested])
-                        if work < self.COLLAPSE_WORK:
+                        if work < self.collapse_work:
                             break
                     except TypeError:
                         pass
 
                 collapsable.append(i)
         return collapsable
+
+    @classmethod
+    def _make_tid(cls, tid):
+        return c.Initializer(c.Value(tid._C_typedata, tid.name), cls.lang['thread-num'])
 
     def _make_reductions(self, partree, collapsed):
         if not partree.is_ParallelAtomic:
@@ -343,31 +352,31 @@ class Ompizer(object):
         if all(i.is_Affine for i in candidates):
             bundles = FindNodes(ExpressionBundle).visit(root)
             sops = sum(i.ops for i in bundles)
-            if sops >= self.DYNAMIC_WORK:
+            if sops >= self.dynamic_work:
                 schedule = 'dynamic'
             else:
                 schedule = 'static'
             if nthreads is None:
                 # pragma omp for ... schedule(..., 1)
                 nthreads = self.nthreads
-                body = ParallelIteration(schedule=schedule, ncollapse=ncollapse,
-                                         **root.args)
+                body = OpenMPIteration(schedule=schedule, ncollapse=ncollapse,
+                                       **root.args)
             else:
                 # pragma omp parallel for ... schedule(..., 1)
-                body = ParallelIteration(schedule=schedule, parallel=True,
-                                         ncollapse=ncollapse, nthreads=nthreads,
-                                         **root.args)
+                body = OpenMPIteration(schedule=schedule, parallel=True,
+                                       ncollapse=ncollapse, nthreads=nthreads,
+                                       **root.args)
             prefix = []
         else:
             # pragma omp for ... schedule(..., expr)
             assert nthreads is None
             nthreads = self.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
-            body = ParallelIteration(ncollapse=ncollapse, chunk_size=chunk_size,
-                                     **root.args)
+            body = OpenMPIteration(ncollapse=ncollapse, chunk_size=chunk_size,
+                                   **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
-            value = INT(Max(niters / (nthreads*self.CHUNKSIZE_NONAFFINE), 1))
+            value = INT(Max(niters / (nthreads*self.chunk_nonaffine), 1))
             prefix = [Expression(DummyEq(chunk_size, value, dtype=np.int32))]
 
         # Create a ParallelTree
@@ -377,12 +386,32 @@ class Ompizer(object):
 
         return root, partree, collapsed
 
-    def _make_parregion(self, partree):
-        # Build the `omp-parallel` region
-        private = [i for i in FindSymbols().visit(partree)
-                   if i.is_Array and i._mem_stack]
-        private = sorted(set([i.name for i in private]))
-        return ParallelRegion(partree, partree.nthreads, private)
+    def _make_parregion(self, partree, parrays):
+        arrays = [i for i in FindSymbols().visit(partree) if i.is_Array]
+
+        # Detect thread-private arrays on the stack
+        stack_private = [i for i in arrays if i._mem_stack and i._mem_local]
+        stack_private = sorted(set([i.name for i in stack_private]))
+
+        # Detect thread-private arrays on the heap and "map" them to shared
+        # vector-expanded (one entry per thread) Arrays
+        heap_private = [i for i in arrays if i._mem_heap and i._mem_local]
+        heap_globals = []
+        for i in heap_private:
+            if i in parrays:
+                pi = parrays[i]
+            else:
+                pi = parrays.setdefault(i, PointerArray(name=self.sregistry.make_name(),
+                                                        dimensions=(self.threadid,),
+                                                        array=i))
+            heap_globals.append(Dereference(i, pi))
+        if heap_globals:
+            body = List(header=self._make_tid(self.threadid),
+                        body=heap_globals+[partree], footer=c.Line())
+        else:
+            body = partree
+
+        return OpenMPRegion(body, partree.nthreads, stack_private)
 
     def _make_guard(self, partree, collapsed):
         # Do not enter the parallel region if the step increment is 0; this
@@ -396,7 +425,7 @@ class Ompizer(object):
 
     def _make_nested_partree(self, partree):
         # Apply heuristic
-        if nhyperthreads() <= Ompizer.NESTED:
+        if nhyperthreads() <= self.nested:
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,
@@ -438,7 +467,8 @@ class Ompizer(object):
         return partree
 
     def _make_parallel(self, iet):
-        mapper = OrderedDict()
+        mapper = {}
+        parrays = {}
         for tree in retrieve_iteration_tree(iet):
             # Get the omp-parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
@@ -447,6 +477,8 @@ class Ompizer(object):
 
             # Outer parallelism
             root, partree, collapsed = self._make_partree(candidates)
+            if root in mapper:
+                continue
 
             # Nested parallelism
             partree = self._make_nested_partree(partree)
@@ -458,7 +490,7 @@ class Ompizer(object):
             partree = self._make_threaded_prodders(partree)
 
             # Wrap within a parallel region, declaring private and shared variables
-            parregion = self._make_parregion(partree)
+            parregion = self._make_parregion(partree, parrays)
 
             # Protect the parallel region in case of 0-valued step increments
             parregion = self._make_guard(parregion, collapsed)
@@ -467,8 +499,10 @@ class Ompizer(object):
 
         iet = Transformer(mapper).visit(iet)
 
-        # The used `nthreads` arguments
+        # The new arguments introduced by this pass
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
+        for n in FindNodes(Dereference).visit(iet):
+            args.extend([(n.array, True), n.parray])
 
         return iet, {'args': args, 'includes': ['omp.h']}
 

@@ -1,5 +1,3 @@
-import sympy
-
 from scipy import interpolate
 from cached_property import cached_property
 import numpy as np
@@ -8,7 +6,7 @@ try:
 except:
     plt = None
 
-from devito.types import Dimension, SparseTimeFunction
+from devito.types import SparseTimeFunction
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
            'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
@@ -104,48 +102,32 @@ class PointSource(SparseTimeFunction):
         Represents the number of points in this source.
     """
 
-    def __new__(cls, *args, **kwargs):
-        options = kwargs.get('options', {})
+    @classmethod
+    def __args_setup__(cls, *args, **kwargs):
+        kwargs['nt'] = kwargs['time_range'].num
 
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
-
-        if obj is not None:
-            newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(key)
-            return newobj
-
-        # Not in cache. Create a new PointSouce via devito.SparseTimeFunction
-
-        name = kwargs.pop('name')
-        grid = kwargs.pop('grid')
-        time_range = kwargs.pop('time_range')
-        time_order = kwargs.pop('time_order', 2)
-        p_dim = kwargs.pop('dimension', Dimension(name='p_%s' % name))
-
-        coordinates = kwargs.pop('coordinates', kwargs.pop('coordinates_data', None))
         # Either `npoint` or `coordinates` must be provided
-        npoint = kwargs.pop('npoint', None)
+        npoint = kwargs.get('npoint')
         if npoint is None:
+            coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
             if coordinates is None:
                 raise TypeError("Need either `npoint` or `coordinates`")
-            npoint = coordinates.shape[0]
+            kwargs['npoint'] = coordinates.shape[0]
 
-        # Create the underlying SparseTimeFunction object
-        obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
-                                         dimensions=(grid.time_dim, p_dim),
-                                         npoint=npoint, nt=time_range.num,
-                                         time_order=time_order,
-                                         coordinates=coordinates, **kwargs)
+        return args, kwargs
 
-        obj._time_range = time_range._rebuild()
+    def __init_finalize__(self, *args, **kwargs):
+        time_range = kwargs.pop('time_range')
+        data = kwargs.pop('data', None)
+
+        kwargs.setdefault('time_order', 2)
+        super(PointSource, self).__init_finalize__(*args, **kwargs)
+
+        self._time_range = time_range._rebuild()
 
         # If provided, copy initial data into the allocated buffer
-        data = kwargs.get('data')
         if data is not None:
-            obj.data[:] = data
-
-        return obj
+            self.data[:] = data
 
     @cached_property
     def time_values(self):
@@ -197,6 +179,7 @@ Shot = PointSource
 
 
 class WaveletSource(PointSource):
+
     """
     Abstract base class for symbolic objects that encapsulate a set of
     sources with a pre-defined source signal wavelet.
@@ -217,38 +200,25 @@ class WaveletSource(PointSource):
         Firing time (defaults to 1 / f0)
     """
 
-    def __new__(cls, *args, **kwargs):
-        options = kwargs.get('options', {})
+    @classmethod
+    def __args_setup__(cls, *args, **kwargs):
+        kwargs.setdefault('npoint', 1)
 
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
+        return super(WaveletSource, cls).__args_setup__(*args, **kwargs)
 
-        if obj is not None:
-            newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(key)
-            return newobj
+    def __init_finalize__(self, *args, **kwargs):
+        super(WaveletSource, self).__init_finalize__(*args, **kwargs)
 
-        # Not in cache. Create a new WaveletSouce via PointSource
-        npoint = kwargs.pop('npoint', 1)
-        obj = PointSource.__new__(cls, npoint=npoint, **kwargs)
-        obj.f0 = kwargs.get('f0')
-        obj.a = kwargs.get('a')
-        obj.t0 = kwargs.get('t0')
-        for p in range(npoint):
-            obj.data[:, p] = obj.wavelet
+        self.f0 = kwargs.get('f0')
+        self.a = kwargs.get('a')
+        self.t0 = kwargs.get('t0')
+        for p in range(kwargs['npoint']):
+            self.data[:, p] = self.wavelet
 
-        return obj
-
-    def wavelet(self, f0, t):
+    @property
+    def wavelet(self):
         """
-        Returns a wavelet with a peak frequency f0 at time t.
-
-        Parameters
-        ----------
-        f0 : float
-            Peak frequency in kHz.
-        t : TimeAxis
-            Discretized values of time in ms.
+        Return a wavelet with a peak frequency ``f0`` at time ``t0``.
         """
         raise NotImplementedError('Wavelet not defined')
 
@@ -262,8 +232,6 @@ class WaveletSource(PointSource):
             Index of the source point for which to plot wavelet.
         wavelet : ndarray or callable
             Prescribed wavelet instead of one from this symbol.
-        time : TimeAxis
-            Prescribed time instead of time from this symbol.
         """
         wavelet = wavelet or self.data[:, idx]
         plt.figure()
@@ -274,10 +242,11 @@ class WaveletSource(PointSource):
         plt.show()
 
     # Pickling support
-    _pickle_kwargs = PointSource._pickle_kwargs + ['f0']
+    _pickle_kwargs = PointSource._pickle_kwargs + ['f0', 'a', 'f0']
 
 
 class RickerSource(WaveletSource):
+
     """
     Symbolic object that encapsulate a set of sources with a
     pre-defined Ricker wavelet:
@@ -302,16 +271,6 @@ class RickerSource(WaveletSource):
 
     @property
     def wavelet(self):
-        """
-        Returns a Ricker wavelet with a peak frequency f0 at time t.
-
-        Parameters
-        ----------
-        f0 : float
-            Peak frequency in kHz.
-        t : TimeAxis
-            Discretized values of time in ms.
-        """
         t0 = self.t0 or 1 / self.f0
         a = self.a or 1
         r = (np.pi * self.f0 * (self.time_values - t0))
@@ -319,6 +278,7 @@ class RickerSource(WaveletSource):
 
 
 class GaborSource(WaveletSource):
+
     """
     Symbolic object that encapsulate a set of sources with a
     pre-defined Gabor wavelet:
@@ -343,16 +303,6 @@ class GaborSource(WaveletSource):
 
     @property
     def wavelet(self):
-        """
-        Returns a Gabor wavelet with a peak frequency f0 at time t.
-
-        Parameters
-        ----------
-        f0 : float
-            Peak frequency in kHz.
-        t : TimeAxis
-            Discretized values of time in ms.
-        """
         agauss = 0.5 * self.f0
         tcut = self.t0 or 1.5 / agauss
         s = (self.time_values - tcut) * agauss
@@ -361,9 +311,10 @@ class GaborSource(WaveletSource):
 
 
 class DGaussSource(WaveletSource):
+
     """
     Symbolic object that encapsulate a set of sources with a
-    pre-defined 1st derivative wavelet of a Gaussian Source:
+    pre-defined 1st derivative wavelet of a Gaussian Source.
 
     Notes
     -----
@@ -388,24 +339,12 @@ class DGaussSource(WaveletSource):
         Discretized values of time in ms.
 
     Returns
-    ----------
-    The 1st order derivative of the Gaussian wavelet
+    -------
+    The 1st order derivative of the Gaussian wavelet.
     """
 
     @property
     def wavelet(self):
-        """
-        Returns the 1st derivative of a Gaussian wavelet.
-
-        Parameters
-        ----------
-        f0 : float
-            Peak frequency in kHz.
-        t : TimeAxis
-            Discretized values of time in ms.
-        a : float
-            Maximum amplitude.
-        """
         t0 = self.t0 or 1 / self.f0
         a = self.a or 1
         time = (self.time_values - t0)

@@ -105,10 +105,10 @@ class TestAdjoint(object):
         # Compute initial born perturbation from m - m0
         dm = (solver.model.vp.data**(-2) - model0.vp.data**(-2))
 
-        du, _, _, _ = solver.born(dm, vp=model0.vp)
+        du, _, _, _ = solver.jacobian(dm, vp=model0.vp)
 
         # Compute gradientfrom initial perturbation
-        im, _ = solver.gradient(du, u0, vp=model0.vp)
+        im, _ = solver.jacobian_adjoint(du, u0, vp=model0.vp)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))

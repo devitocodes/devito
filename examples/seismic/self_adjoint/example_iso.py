@@ -4,13 +4,13 @@ from devito.logger import info
 from devito import smooth, Function
 
 from examples.seismic import setup_geometry, Model, seismic_args
-from examples.seismic.skew_self_adjoint import (setup_w_over_q,
-                                                SsaIsoAcousticWaveSolver)
+from examples.seismic.self_adjoint import (setup_w_over_q,
+                                           SaIsoAcousticWaveSolver)
 
 
-def acoustic_ssa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
-                       tn=500., space_order=8, nbl=10, **kwargs):
-    # SSA parameters
+def acoustic_sa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
+                      tn=500., space_order=8, nbl=10, **kwargs):
+    # SA parameters
     qmin = 0.1
     qmax = 1000.0
     tmax = 500.0
@@ -29,16 +29,16 @@ def acoustic_ssa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
     geometry = setup_geometry(model, tmax)
 
     # Create solver object to provide relevant operators
-    solver = SsaIsoAcousticWaveSolver(model, geometry,
-                                      space_order=space_order, **kwargs)
+    solver = SaIsoAcousticWaveSolver(model, geometry,
+                                     space_order=space_order, **kwargs)
     return solver
 
 
 def run(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0), tn=1000.0,
         space_order=4, nbl=40, full_run=False, autotune=False, **kwargs):
 
-    solver = acoustic_ssa_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
-                                space_order=space_order, **kwargs)
+    solver = acoustic_sa_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
+                               space_order=space_order, **kwargs)
 
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
@@ -55,21 +55,21 @@ def run(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0), tn=1000.0,
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, autotune=autotune)
+    solver.jacobian(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune)
+    solver.jacobian_adjoint(rec, u, autotune=autotune)
     return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
 if __name__ == "__main__":
-    description = ("Example script for a set of SSA isotropic-acoustic operators.")
-    args = seismic_args(description)
+    description = ("Example script for a set of SA isotropic-acoustic operators.")
+    args = seismic_args(description).parse_args()
 
     # 3D preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [15.0])
-    tn = 750. if ndim < 3 else 250.
+    tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, autotune=args.autotune,
         space_order=args.space_order, opt=args.opt, full_run=args.full)

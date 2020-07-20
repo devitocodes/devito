@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from unittest.mock import patch
 from cached_property import cached_property
 
 from conftest import skipif
@@ -811,8 +810,40 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
         # Also make sure the Call is at the right place in the IET
-        assert op.body[-1].body[0].body[0].body[0].is_Call
-        assert op.body[-1].body[0].body[0].body[1].is_Iteration
+        assert op.body[-1].body[0].body[0].body[0].body[0].is_Call
+        assert op.body[-1].body[0].body[0].body[0].body[1].is_Iteration
+
+    @pytest.mark.parallel(mode=2)
+    def test_unhoist_haloupdate_if_invariant(self):
+        """
+        Test an Operator that computes coupled equations in which the first
+        one *does require* a halo update on a Dimension-invariant Function.
+        """
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+
+        f.data_with_halo[:] = 2.
+        u.data_with_halo[:] = 1.
+
+        eqns = [Eq(u.forward, u + f[x-1] + f[x+1] + 1.),
+                Eq(f, u[t+1, x-1] + u[t+1, x+1] + 1.)]
+
+        op = Operator(eqns)
+        op.apply(time=1)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+        glb_pos_map = grid.distributor.glb_pos_map
+        R = 1e-07
+        if LEFT in glb_pos_map[x]:
+            assert np.allclose(f.data_ro_domain[:5], [30., 56., 62., 67., 67.], rtol=R)
+        else:
+            assert np.allclose(f.data_ro_domain[5:], [67., 67., 62., 56., 30.], rtol=R)
 
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
@@ -858,6 +889,91 @@ class TestCodeGeneration(object):
         op.apply()
         assert np.all(f.data[:] == 2.)
 
+    @pytest.mark.parallel(mode=2)
+    def test_avoid_haloudate_if_flowdep_along_other_dim(self):
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        xl = SubDimension.left(name='xl', parent=x, thickness=2)
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        f.data_with_halo[:] = 1.2
+        g.data_with_halo[:] = 2.
+
+        # Note: the subdomain is used to prevent the compiler from fusing the
+        # third Eq in the first Eq's loop
+        eqns = [Eq(f.forward, f[t, x-1] + f[t, x+1]),
+                Eq(f[t+1, xl], f[t+1, xl] + 1.),
+                Eq(g.forward, f[t, x-1] + f[t, x+1], subdomain=grid.interior)]
+
+        op = Operator(eqns)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+        op.apply(time_M=1)
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        R = 1e-07  # Can't use np.all due to rounding error at the tails
+        if LEFT in glb_pos_map[x]:
+            assert np.allclose(f.data_ro_domain[0, :5], [5.6, 6.8, 5.8, 4.8, 4.8], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, :5], [2., 5.8, 5.8, 4.8, 4.8], rtol=R)
+        else:
+            assert np.allclose(f.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 3.6], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.], rtol=R)
+
+    @pytest.mark.parallel(mode=2)
+    def test_unmerge_haloudate_if_diff_locindices(self):
+        """
+        In the Operator there are three Eqs:
+
+        * the first one does *not* require a halo update
+        * the second one requires a halo update for `f` at `t+1`
+        * the third one requires a halo update for `f` at `t`
+
+        Also:
+
+        * the second and third Eqs cannot be fused in the same loop
+
+        So in the IET we end up with two HaloSpots, one for the second and one
+        for the third Eqs. These will *not* be merged because they operate at
+        different `t`-indices (`t+1` and `t`).
+        """
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        g = TimeFunction(name='g', grid=grid)
+        h = TimeFunction(name='h', grid=grid)
+
+        f.data_with_halo[:] = 1.2
+        g.data_with_halo[:] = 2.
+        h.data_with_halo[:] = 3.1
+
+        # Note: the subdomain is used to prevent the compiler from fusing the
+        # third Eq in the second Eq's loop
+        eqns = [Eq(f.forward, f + 1.),
+                Eq(g.forward, f[t+1, x-1] + f[t+1, x+1]),
+                Eq(h.forward, f[t, x-2] + f[t, x+2], subdomain=grid.interior)]
+
+        op = Operator(eqns)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+        op.apply(time_M=1)
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        R = 1e-07  # Can't use np.all due to rounding error at the tails
+        if LEFT in glb_pos_map[x]:
+            assert np.allclose(g.data_ro_domain[0, :5], [4.4, 6.4, 6.4, 6.4, 6.4], rtol=R)
+            assert np.allclose(h.data_ro_domain[0, :5], [3.1, 3.4, 4.4, 4.4, 4.4], rtol=R)
+        else:
+            assert np.allclose(g.data_ro_domain[0, 5:], [6.4, 6.4, 6.4, 6.4, 4.4], rtol=R)
+            assert np.allclose(h.data_ro_domain[0, 5:], [4.4, 4.4, 4.4, 3.4, 3.1], rtol=R)
+
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
         ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
@@ -883,7 +999,6 @@ class TestCodeGeneration(object):
         assert destinations == expected
 
     @pytest.mark.parallel(mode=[(1, 'full')])
-    @patch("devito.passes.iet.openmp.Ompizer.DYNAMIC_WORK", 0)
     def test_poke_progress(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -892,7 +1007,7 @@ class TestCodeGeneration(object):
         f = TimeFunction(name='f', grid=grid)
 
         eqn = Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + f[t, x, y-1] + f[t, x, y+1])
-        op = Operator(eqn)
+        op = Operator(eqn, opt=('advanced', {'par-dynamic-work': 0}))
 
         trees = retrieve_iteration_tree(op._func_table['compute0'].root)
         assert len(trees) == 2
@@ -914,7 +1029,7 @@ class TestCodeGeneration(object):
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
-        op = Operator(eqn, opt=('advanced', {'blockinner': True}))
+        op = Operator(eqn, opt=('advanced', {'blockinner': True, 'par-dynamic-work': 0}))
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
         tree = trees[1]

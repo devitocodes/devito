@@ -35,7 +35,7 @@ class Executor(object):
         Reset the data dictionaries.
         """
         self.meta = {}
-        self.timings = defaultdict(lambda: defaultdict(float))
+        self.timings = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
 
     def run(self, **kwargs):
         """
@@ -43,7 +43,7 @@ class Executor(object):
         """
         raise NotImplementedError("No custom executor function specified")
 
-    def register(self, value, event='execute', measure='time'):
+    def register(self, value, event='execute', measure='time', rank=0):
         """
         Register a single timing value for a given event key.
 
@@ -56,7 +56,7 @@ class Executor(object):
         measure : str
             name of the value type, eg. 'time' or 'flops'
         """
-        self.timings[event][measure] += value
+        self.timings[rank][event][measure] += value
 
     def execute(self, warmups=1, repeats=3, **params):
         """
@@ -85,9 +85,10 @@ class Executor(object):
         info("")
 
         # Average timings across repeats
-        for event in self.timings.keys():
-            for measure in self.timings[event].keys():
-                self.timings[event][measure] /= repeats
+        for rank in self.timings.keys():
+            for event in self.timings[rank].keys():
+                for measure in self.timings[rank][event].keys():
+                    self.timings[rank][event][measure] /= repeats
 
         # Collect meta-information via post-processing methods
         self.postprocess(**params)

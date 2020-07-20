@@ -33,7 +33,7 @@ __all__ = ['Function', 'TimeFunction']
 RegionMeta = namedtuple('RegionMeta', 'offset size')
 
 
-class DiscreteFunction(AbstractFunction, ArgProvider):
+class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     """
     Tensor symbol representing a discrete function in symbolic equations.
@@ -101,6 +101,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         # The only possibility for two DiscreteFunctions to be considered equal
         # is that they are indeed the same exact object
         return self is other
+
+    _subs = Differentiable._subs
 
     __hash__ = AbstractFunction.__hash__  # Required since we're overriding __eq__
 
@@ -316,13 +318,22 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        if self._distributor.is_parallel and any(left) > 0 or any(right) > 0:
+        if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
             try:
+                warning_msg = """A space order of {0} and a halo size of {1} has been
+                                 set but the current rank ({2}) has a domain size of
+                                 only {3}""".format(self._space_order,
+                                                    max(self._size_inhalo),
+                                                    self._distributor.myrank,
+                                                    min(self.grid.shape_local))
                 if not self._distributor.is_boundary_rank:
-                    warning("A space order of %d  and a halo size of %d has been set "
-                            "but the current rank (%d) has a domain size of only %d" %
-                            (self._space_order, max(self._size_inhalo),
-                             self._distributor.myrank, min(self.grid.shape_local)))
+                    warning(warning_msg)
+                else:
+                    for i, j, k, l in zip(left, right, self._distributor.mycoords,
+                                          self._distributor.topology):
+                        if j > 0 and k == 0 or i > 0 and k == l-1:
+                            warning(warning_msg)
+                            break
             except AttributeError:
                 pass
 
@@ -640,6 +651,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+
+        # stash a reference to the array on _obj, so we don't let it get freed
+        # while we hold onto _obj
+        dataobj._obj.underlying_array = data
+
         return dataobj
 
     def _C_as_ndarray(self, dataobj):
@@ -827,7 +843,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         ['grid', 'staggered', 'initializer']
 
 
-class Function(DiscreteFunction, Differentiable):
+class Function(DiscreteFunction):
 
     """
     Tensor symbol representing a discrete function in symbolic equations.
@@ -988,9 +1004,9 @@ class Function(DiscreteFunction, Differentiable):
             for s in as_tuple(staggered):
                 c, s = s.as_coeff_Mul()
                 mapper.update({s: s + c * s.spacing/2})
+            staggered_indices = mapper.values()
 
-            staggered_indices = tuple(mapper.values())
-        return tuple(dimensions), staggered_indices
+        return tuple(dimensions), tuple(staggered_indices)
 
     @property
     def is_Staggered(self):
@@ -1322,7 +1338,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.dimensions[self._time_position]
 
-        return self.subs({_t: _t + i * _t.spacing})
+        return self._subs(_t, _t + i * _t.spacing)
 
     @property
     def backward(self):
@@ -1330,7 +1346,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.dimensions[self._time_position]
 
-        return self.subs({_t: _t - i * _t.spacing})
+        return self._subs(_t, _t - i * _t.spacing)
 
     @property
     def _time_size(self):

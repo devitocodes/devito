@@ -1,6 +1,6 @@
-from sympy import exp, Min
+from sympy import exp, Min, Abs
 import numpy as np
-from devito import Eq, Operator
+from devito import Eq, Operator, SubDimension
 
 __all__ = ['setup_w_over_q']
 
@@ -44,11 +44,20 @@ def setup_w_over_q(wOverQ, w, qmin, qmax, npad, sigma=0):
 
     # 1. Get distance to closest boundary in all dimensions
     # 2. Logarithmic variation between qmin, qmax across the absorbing boundary
-    pos = Min(1, Min(*[Min(d - d.symbolic_min, d.symbolic_max - d)
-                       for d in wOverQ.dimensions]) / npad)
-    val = exp(lqmin + pos * (lqmax - lqmin))
+    eqs = [Eq(wOverQ, 1)]
+    for d in wOverQ.dimensions:
+        # left
+        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                  thickness=npad)
+        pos = Abs(dim_l - d.symbolic_min) / float(npad)
+        eqs.append(Eq(wOverQ.subs({d: dim_l}), Min(wOverQ.subs({d: dim_l}), pos)))
+        # right
+        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+                                   thickness=npad)
+        pos = Abs(d.symbolic_max - dim_r) / float(npad)
+        eqs.append(Eq(wOverQ.subs({d: dim_r}), Min(wOverQ.subs({d: dim_r}), pos)))
 
+    eqs.append(Eq(wOverQ, w / exp(lqmin + wOverQ * (lqmax - lqmin))))
     # 2020.05.04 currently does not support spatial smoothing of the Q field
     # due to MPI weirdness in reassignment of the numpy array
-    eqn1 = Eq(wOverQ, w / val)
-    Operator([eqn1], name='WOverQ_Operator')()
+    Operator(eqs, name='WOverQ_Operator')()

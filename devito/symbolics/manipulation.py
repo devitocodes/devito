@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import namedtuple
 from collections.abc import Iterable
 from functools import singledispatch
 
@@ -8,152 +8,11 @@ from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.tools import as_tuple, flatten, split
+from devito.tools import as_tuple, flatten
 from devito.types.equation import Eq
 
-__all__ = ['yreplace', 'xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
+__all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
            'split_affine', 'subs_op_args', 'uxreplace', 'aligned_indices']
-
-
-def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eager=False):
-    """
-    Unlike SymPy's ``xreplace``, which performs structural replacement based on a mapper,
-    ``yreplace`` applies replacements using two callbacks:
-
-        * The "matching rule" -- a boolean function telling whether an expression
-          honors a certain property.
-        * The "cost model" -- a boolean function telling whether an expression exceeds
-          a certain (e.g., operation count) cost.
-
-    Parameters
-    ----------
-    exprs : expr-like or list of expr-like
-        One or more expressions searched for replacements.
-    make : dict or callable
-        Either a mapper of substitution rules (just like in ``xreplace``), or
-        or a callable returning unique symbols each time it is called.
-    rule : callable, optional
-        The matching rule (see above). Unnecessary if ``make`` is a dict.
-    costmodel : callable, optional
-        The cost model (see above).
-    repeat : bool, optional
-        If True, repeatedly apply ``xreplace`` until no more replacements are
-        possible. Defaults to False.
-    eager : bool, optional
-        If True, replaces an expression ``e`` as soon as the condition
-        ``rule(e) and costmodel(e)`` is True. Otherwise, the search continues
-        for larger, more expensive expressions. Defaults to False.
-
-    Notes
-    -----
-    In general, there is no relationship between the set of expressions for which
-    the matching rule gives True and the set of expressions passing the cost test.
-    For example, in the expression `a + b` all of `a`, `b` and `a+b` may satisfy
-    the matching rule, whereas only `a+b` satisfy the cost test. Likewise, an
-    expression may pass the cost test, but not satisfy the matching rule.
-    """
-    found = OrderedDict()
-    rebuilt = []
-
-    # Define `replace()` based on the user-provided `make`
-    if isinstance(make, dict):
-        rule = rule if rule is not None else (lambda i: i in make)
-        replace = lambda i: make[i]
-    else:
-        assert callable(make) and callable(rule)
-
-        def replace(expr):
-            temporary = found.get(expr)
-            if not temporary:
-                temporary = make()
-                found[expr] = temporary
-            return temporary
-
-    def run(expr):
-        if expr.is_Atom or expr.is_Indexed:
-            return expr, rule(expr)
-        elif expr.is_Pow:
-            base, flag = run(expr.base)
-            if flag:
-                if costmodel(base):
-                    return expr.func(replace(base), expr.exp, evaluate=False), False
-                elif costmodel(expr):
-                    return replace(expr), False
-                else:
-                    # If `rule(expr)`, keep searching for larger expressions
-                    return expr.func(base, expr.exp, evaluate=False), rule(expr)
-            else:
-                return expr.func(base, expr.exp, evaluate=False), False
-        else:
-            children = [run(a) for a in expr.args]
-            matching = [a for a, flag in children if flag]
-            other = [a for a, _ in children if a not in matching]
-
-            if not matching:
-                return expr.func(*other, evaluate=False), False
-
-            if eager is False:
-                matched = expr.func(*matching, evaluate=False)
-                if len(matching) == len(children) and rule(expr):
-                    # Keep searching for larger expressions
-                    return matched, True
-                elif rule(matched) and costmodel(matched):
-                    # E.g.: a*b*c*d -> a*r0
-                    rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
-                    return rebuilt, False
-                else:
-                    # E.g.: a*b*c*d -> a*r0*r1*r2
-                    replaced = [replace(e) for e in matching if costmodel(e)]
-                    unreplaced = [e for e in matching if not costmodel(e)]
-                    rebuilt = expr.func(*(other + replaced + unreplaced), evaluate=False)
-                    return rebuilt, False
-            else:
-                replaceable, unreplaced = split(matching, lambda e: costmodel(e))
-                if replaceable:
-                    # E.g.: a*b*c*d -> a*r0*r1*r2
-                    replaced = [replace(e) for e in replaceable]
-                    rebuilt = expr.func(*(other + replaced + unreplaced), evaluate=False)
-                    return rebuilt, False
-                matched = expr.func(*matching, evaluate=False)
-                if rule(matched) and costmodel(matched):
-                    if len(matching) == len(children):
-                        # E.g.: a*b*c*d -> r0
-                        return replace(matched), False
-                    else:
-                        # E.g.: a*b*c*d -> a*r0
-                        rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
-                        return rebuilt, False
-                elif len(matching) == len(children) and rule(expr):
-                    # Keep searching for larger expressions
-                    return matched, True
-                else:
-                    # E.g.: a*b*c*d; a,b,a*b replaceable but not satisfying the cost
-                    # model, hence giving up as c,d,c*d aren't replaceable
-                    return expr.func(*(matching + other), evaluate=False), False
-
-    # Process the provided expressions
-    built = []
-    for expr in as_tuple(exprs):
-        assert expr.is_Equality
-        root = expr.rhs
-
-        while True:
-            ret, flag = run(root)
-
-            # The whole RHS may need to be replaced
-            if flag and costmodel(ret):
-                ret = replace(root)
-
-            if repeat and ret != root:
-                root = ret
-            else:
-                rebuilt.append(expr.func(expr.lhs, ret, evaluate=False))
-                break
-
-        # Construct Eqs for temporaries
-        built.extend(expr.func(v, k) for k, v in list(found.items())[len(built):])
-
-    return built + rebuilt, built
 
 
 def uxreplace(expr, rule):

@@ -5,9 +5,8 @@ from devito.exceptions import InvalidOperator
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
-                               optimize_halospots, loop_wrapping, hoist_prodders,
-                               relax_incr_dimensions)
-from devito.tools import as_tuple, generator, timed_pass
+                               optimize_halospots, hoist_prodders, relax_incr_dimensions)
+from devito.tools import as_tuple, timed_pass
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'CPU64OpenMPOperator',
            'Intel64Operator', 'Intel64OpenMPOperator', 'Intel64FSGOperator',
@@ -30,7 +29,7 @@ class CPU64NoopOperator(OperatorCore):
     Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
     """
 
-    CIRE_REPEATS_SOPS = 2
+    CIRE_REPEATS_SOPS = 5
     """
     Number of CIRE passes to detect and optimize away redundant sum-of-products.
     """
@@ -48,20 +47,71 @@ class CPU64NoopOperator(OperatorCore):
     Minimum operation count of a sum-of-product aliasing expression to be optimized away.
     """
 
+    PAR_COLLAPSE_NCORES = 4
+    """
+    Use a collapse clause if the number of available physical cores is greater
+    than this threshold.
+    """
+
+    PAR_COLLAPSE_WORK = 100
+    """
+    Use a collapse clause if the trip count of the collapsable loops is statically
+    known to exceed this threshold.
+    """
+
+    PAR_CHUNK_NONAFFINE = 3
+    """
+    Coefficient to adjust the chunk size in non-affine parallel loops.
+    """
+
+    PAR_DYNAMIC_WORK = 10
+    """
+    Use dynamic scheduling if the operation count per iteration exceeds this
+    threshold. Otherwise, use static scheduling.
+    """
+
+    PAR_NESTED = 2
+    """
+    Use nested parallelism if the number of hyperthreads per core is greater
+    than this threshold.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
-        options = kwargs['options']
+        o = {}
+        oo = kwargs['options']
 
-        options['blocklevels'] = options['blocklevels'] or cls.BLOCK_LEVELS
+        # Execution modes
+        o['openmp'] = oo.pop('openmp')
+        o['mpi'] = oo.pop('mpi')
 
-        options['cire-repeats'] = {
-            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
-            'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        # Blocking
+        o['blockinner'] = oo.pop('blockinner', False)
+        o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+
+        # CIRE
+        o['min-storage'] = oo.pop('min-storage', False)
+        o['cire-repeats'] = {
+            'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
+            'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
         }
-        options['cire-mincost'] = {
-            'invariants': options.pop('cire-mincost-inv') or cls.CIRE_MINCOST_INV,
-            'sops': options.pop('cire-mincost-sops') or cls.CIRE_MINCOST_SOPS
+        o['cire-mincost'] = {
+            'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
         }
+
+        # Shared-memory parallelism
+        o['par-collapse-ncores'] = oo.pop('par-collapse-ncores', cls.PAR_COLLAPSE_NCORES)
+        o['par-collapse-work'] = oo.pop('par-collapse-work', cls.PAR_COLLAPSE_WORK)
+        o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
+        o['par-dynamic-work'] = oo.pop('par-dynamic-work', cls.PAR_DYNAMIC_WORK)
+        o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
+
+        if oo:
+            raise InvalidOperator("Unrecognized optimization options: [%s]"
+                                  % ", ".join(list(oo)))
+
+        kwargs['options'].update(o)
 
         return kwargs
 
@@ -69,6 +119,7 @@ class CPU64NoopOperator(OperatorCore):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
@@ -76,11 +127,11 @@ class CPU64NoopOperator(OperatorCore):
 
         # Shared-memory parallelism
         if options['openmp']:
-            ompizer = Ompizer()
+            ompizer = Ompizer(sregistry, options)
             ompizer.make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -97,34 +148,31 @@ class CPU64Operator(CPU64NoopOperator):
         """
         options = kwargs['options']
         platform = kwargs['platform']
-
-        # To create temporaries
-        counter = generator()
-        template = lambda: "r%d" % counter()
+        sregistry = kwargs['sregistry']
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, 'invariants', options, platform)
+        clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
         # Blocking to improve data locality
         clusters = Blocking(options).process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
-        clusters = extract_increments(clusters, template)
-        clusters = cire(clusters, template, 'sops', options, platform)
+        clusters = extract_increments(clusters, sregistry)
+        clusters = cire(clusters, 'sops', sregistry, options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
         # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, template)
+        clusters = cse(clusters, sregistry)
 
         # The previous passes may have created fusion opportunities, which in
         # turn may enable further optimizations
         clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
+        clusters = eliminate_arrays(clusters)
 
         return clusters
 
@@ -133,6 +181,7 @@ class CPU64Operator(CPU64NoopOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
 
         # Flush denormal numbers
         avoid_denormals(graph)
@@ -143,17 +192,17 @@ class CPU64Operator(CPU64NoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph, counter=generator())
+        relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer()
+        ompizer = Ompizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -167,6 +216,7 @@ class CPU64OpenMPOperator(CPU64Operator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
 
         # Flush denormal numbers
         avoid_denormals(graph)
@@ -177,10 +227,10 @@ class CPU64OpenMPOperator(CPU64Operator):
             mpiize(graph, mode=options['mpi'])
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph, counter=generator())
+        relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer()
+        ompizer = Ompizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Shared-memory parallelism
@@ -190,7 +240,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
@@ -208,35 +258,42 @@ class Intel64FSGOperator(Intel64Operator):
     """
 
     @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        kwargs = super(Intel64FSGOperator, cls)._normalize_kwargs(**kwargs)
+
+        if kwargs['options']['min-storage']:
+            raise InvalidOperator('You should not use `min-storage` with `advanced-fsg '
+                                  ' as they work in opposite directions')
+
+        return kwargs
+
+    @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
-
-        # To create temporaries
-        counter = generator()
-        template = lambda: "r%d" % counter()
+        sregistry = kwargs['sregistry']
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 
         # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, template, 'invariants', options, platform)
+        clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
-        clusters = extract_increments(clusters, template)
-        clusters = cire(clusters, template, 'sops', options, platform)
+        clusters = extract_increments(clusters, sregistry)
+        clusters = cire(clusters, 'sops', sregistry, options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
         # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, template)
+        clusters = cse(clusters, sregistry)
 
         # The previous passes may have created fusion opportunities, which in
         # turn may enable further optimizations
         clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters, template)
+        clusters = eliminate_arrays(clusters)
 
         # Blocking to improve data locality
         clusters = Blocking(options).process(clusters)
@@ -257,16 +314,25 @@ ArmOpenMPOperator = CPU64OpenMPOperator
 
 class CustomOperator(CPU64Operator):
 
-    _known_passes = ('blocking', 'denormals', 'optcomms', 'wrapping', 'openmp',
-                     'mpi', 'simd', 'prodders', 'topofuse', 'fuse')
+    _known_passes = ('blocking', 'denormals', 'optcomms', 'openmp', 'mpi',
+                     'simd', 'prodders', 'topofuse', 'fuse', 'factorize',
+                     'cire-sops', 'cse', 'lift', 'opt-pows')
 
     @classmethod
     def _make_clusters_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
 
         return {
             'blocking': Blocking(options).process,
+            'factorize': factorize,
             'fuse': fuse,
+            'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
+                                                  options, platform)),
+            'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
+            'cse': lambda i: cse(i, sregistry),
+            'opt-pows': optimize_pows,
             'topofuse': lambda i: fuse(i, toposort=True)
         }
 
@@ -274,14 +340,14 @@ class CustomOperator(CPU64Operator):
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
 
-        ompizer = Ompizer()
+        ompizer = Ompizer(sregistry, options)
 
         return {
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
-            'wrapping': loop_wrapping,
-            'blocking': partial(relax_incr_dimensions, counter=generator()),
+            'blocking': partial(relax_incr_dimensions, sregistry=sregistry),
             'openmp': ompizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
@@ -318,6 +384,7 @@ class CustomOperator(CPU64Operator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
@@ -339,7 +406,7 @@ class CustomOperator(CPU64Operator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DataManager()
+        data_manager = DataManager(sregistry)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 

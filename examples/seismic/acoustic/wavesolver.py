@@ -35,13 +35,15 @@ class AcousticWaveSolver(object):
         self.space_order = space_order
         self.kernel = kernel
 
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
-        self.dt = self.model.critical_dt
-        if self.kernel == 'OT4':
-            self.dt = model.dtype(self.dt*1.73)
-
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        # Time step can be \sqrt{3}=1.73 bigger with 4th order
+        if self.kernel == 'OT4':
+            return self.model.dtype(1.73 * self.model.critical_dt)
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, save=None):
@@ -150,7 +152,8 @@ class AcousticWaveSolver(object):
                                       dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, v, summary
 
-    def gradient(self, rec, u, v=None, grad=None, vp=None, checkpointing=False, **kwargs):
+    def jacobian_adjoint(self, rec, u, v=None, grad=None, vp=None,
+                         checkpointing=False, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
@@ -203,7 +206,7 @@ class AcousticWaveSolver(object):
                                            dt=dt, **kwargs)
         return grad, summary
 
-    def born(self, dmin, src=None, rec=None, u=None, U=None, vp=None, **kwargs):
+    def jacobian(self, dmin, src=None, rec=None, u=None, U=None, vp=None, **kwargs):
         """
         Linearized Born modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -239,3 +242,7 @@ class AcousticWaveSolver(object):
         summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec,
                                        vp=vp, dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, U, summary
+
+    # Backward compatibility
+    born = jacobian
+    gradient = jacobian_adjoint
