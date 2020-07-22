@@ -1,5 +1,5 @@
 pip>=9.0.1
-numpy>=1.14
+numpy>1.16
 sympy<1.6
 scipy
 pytest>=3.6
