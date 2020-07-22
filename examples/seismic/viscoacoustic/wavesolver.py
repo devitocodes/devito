@@ -1,7 +1,7 @@
 from devito import VectorTimeFunction, TimeFunction, NODE
 from devito.tools import memoized_meth
-from examples.seismic import Receiver
-from examples.seismic.viscoacoustic.operators import ForwardOperator
+from examples.seismic import Receiver, PointSource
+from examples.seismic.viscoacoustic.operators import (ForwardOperator, AdjointOperator)
 
 
 class ViscoacousticWaveSolver(object):
@@ -20,18 +20,22 @@ class ViscoacousticWaveSolver(object):
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
     kernel : selects a visco-acoustic equation from the options below:
-                'blanch_symes' - Blanch and Symes (1995) / Dutta and Schuster (2014)
+                'sls' (Standard Linear Solid) :
+                1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
                 viscoacoustic equation
+                2nd order - Bai et al. (2014) viscoacoustic equation
                 'ren' - Ren et al. (2014) viscoacoustic equation
                 'deng_mcmechan' - Deng and McMechan (2007) viscoacoustic equation
-                Defaults to 'blanch_symes'.
+                Defaults to 'sls' 2nd order.
     """
-    def __init__(self, model, geometry, space_order=4, kernel='blanch_symes', **kwargs):
+    def __init__(self, model, geometry, space_order=4, kernel='sls', time_order=2,
+                 **kwargs):
         self.model = model
         self.geometry = geometry
 
         self.space_order = space_order
         self.kernel = kernel
+        self.time_order = time_order
         # Cache compiler options
         self._kwargs = kwargs
 
@@ -44,7 +48,14 @@ class ViscoacousticWaveSolver(object):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, kernel=self.kernel,
-                               **self._kwargs)
+                               time_order=self.time_order, **self._kwargs)
+
+    @memoized_meth
+    def op_adj(self):
+        """Cached operator for adjoint runs"""
+        return AdjointOperator(self.model, save=None, geometry=self.geometry,
+                               space_order=self.space_order, kernel=self.kernel,
+                               time_order=self.time_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, v=None, r=None, p=None, qp=None, b=None,
                 vp=None, save=None, **kwargs):
@@ -87,16 +98,17 @@ class ViscoacousticWaveSolver(object):
         # Create all the fields v, p, r
         save_t = src.nt if save else None
         v = v or VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
-                                    time_order=1, space_order=self.space_order)
+                                    time_order=self.time_order,
+                                    space_order=self.space_order)
 
         # Create the forward wavefield if not provided
         p = p or TimeFunction(name="p", grid=self.model.grid, save=save_t,
-                              time_order=1, space_order=self.space_order,
+                              time_order=self.time_order, space_order=self.space_order,
                               staggered=NODE)
 
         # Memory variable:
         r = r or TimeFunction(name="r", grid=self.model.grid, save=save_t,
-                              time_order=1, space_order=self.space_order,
+                              time_order=self.time_order, space_order=self.space_order,
                               staggered=NODE)
 
         kwargs.update({k.name: k for k in v})
@@ -108,7 +120,7 @@ class ViscoacousticWaveSolver(object):
         # Pick vp from model unless explicitly provided
         vp = vp or self.model.vp
 
-        if self.kernel == 'blanch_symes':
+        if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
             summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, r=r,
@@ -121,3 +133,62 @@ class ViscoacousticWaveSolver(object):
                                               b=b, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, p, summary
+
+    def adjoint(self, rec, srca=None, u=None, q=None, vp=None, qp=None, b=None, r=None,
+                **kwargs):
+        """
+        Adjoint modelling function that creates the necessary
+        data objects for running an adjoint modelling operator.
+
+        Parameters
+        ----------
+        rec : SparseTimeFunction or array-like
+            The receiver data. Please note that
+            these act as the source term in the adjoint run.
+        srca : SparseTimeFunction or array-like
+            The resulting data for the interpolated at the
+            original source location.
+        v: TimeFunction, optional
+            The computed wavefield.
+        vp : Function or float, optional
+            The time-constant velocity.
+
+        Returns
+        -------
+        Adjoint source, wavefield and performance summary.
+        """
+        # Create a new adjoint source and receiver symbol
+        srca = srca or PointSource(name='srca', grid=self.model.grid,
+                                   time_range=self.geometry.time_axis,
+                                   coordinates=self.geometry.src_positions)
+
+        # Create the adjoint wavefield if not provided
+        u = u or VectorTimeFunction(name="u", grid=self.model.grid,
+                                    time_order=self.time_order,
+                                    space_order=self.space_order)
+
+        q = q or TimeFunction(name="q", grid=self.model.grid, time_order=self.time_order,
+                              space_order=self.space_order, staggered=NODE)
+
+        # Memory variable:
+        r = r or TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
+                              space_order=self.space_order, staggered=NODE)
+
+        kwargs.update({k.name: k for k in u})
+
+        b = b or self.model.b
+        qp = qp or self.model.qp
+
+        # Pick vp from model unless explicitly provided
+        vp = vp or self.model.vp
+
+        # Execute operator and return wavefield and receiver data
+        if self.kernel == 'sls':
+            # Execute operator and return wavefield and receiver data
+            # With Memory variable
+            summary = self.op_adj().apply(srca=srca, rec=rec, q=q, r=r, b=b, vp=vp,
+                                          qp=qp, dt=kwargs.pop('dt', self.dt), **kwargs)
+        else:
+            summary = self.op_adj().apply(srca=srca, rec=rec, q=q, vp=vp, b=b, qp=qp,
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
+        return srca, q, summary
