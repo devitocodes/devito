@@ -39,7 +39,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
 def test_viscoacoustic():
     _, _, _, [rec] = run()
-    assert np.isclose(norm(rec), 684.4527, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec), 684.4527, atol=1, rtol=0)
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
