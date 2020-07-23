@@ -62,10 +62,8 @@ class AcquisitionGeometry(Pickable):
         In practice would be __init__(segyfile) and all below parameters
         would come from a segy_read (at property call rather than at init)
         """
-        if src_positions.ndim == 1:
-            src_positions = np.reshape(src_positions, (-1, model.dim))
-        if rec_positions.ndim == 1:
-            rec_positions = np.reshape(rec_positions, (-1, model.dim))
+        src_positions = np.reshape(src_positions, (-1, model.dim))
+        rec_positions = np.reshape(rec_positions, (-1, model.dim))
         self.rec_positions = rec_positions
         self._nrec = rec_positions.shape[0]
         self.src_positions = src_positions
