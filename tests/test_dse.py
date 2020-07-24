@@ -146,6 +146,8 @@ def test_pow_to_mul(expr, expected):
 
 @pytest.mark.parametrize('expr,expected,estimate', [
     ('Eq(t0, t1)', 0, False),
+    ('Eq(t0, -t1)', 0, False),
+    ('Eq(t0, -t1)', 0, True),
     ('Eq(t0, fa[x] + fb[x])', 1, False),
     ('Eq(t0, fa[x + 1] + fb[x - 1])', 1, False),
     ('Eq(t0, fa[fb[x+1]] + fa[x])', 1, False),
@@ -159,17 +161,24 @@ def test_pow_to_mul(expr, expected):
     ('Eq(t0, 2.*t0*t1*t2 + t0*fa[x+1])', 5, False),
     ('Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0)', 7, False),
     ('[Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0), Eq(t0, cos(t1*t2))]', 9, False),
+    ('Eq(t0, cos(fa*fb))', 51, True),
+    ('Eq(t0, cos(fa[x]*fb[x]))', 51, True),
     ('Eq(t0, cos(t1*t2))', 51, True),
+    ('Eq(t0, cos(c*c))', 2, True),  # `cos(...constants...)` counts as 1
     ('Eq(t0, t1**3)', 2, True),
     ('Eq(t0, t1**4)', 3, True),
     ('Eq(t0, t2*t1**-1)', 26, True),
     ('Eq(t0, t1**t2)', 50, True),
+    ('Eq(t0, 3.2/h_x)', 2, True),  # seen as `3.2*(1/h_x)`, so counts as 2
+    ('Eq(t0, 3.2/h_x*fa + 2.4/h_x*fb)', 7, True),  # `pow(...constants...)` counts as 1
 ])
 def test_estimate_cost(expr, expected, estimate):
     # Note: integer arithmetic isn't counted
     grid = Grid(shape=(4, 4))
     x, y = grid.dimensions  # noqa
 
+    h_x = x.spacing  # noqa
+    c = Constant(name='c')  # noqa
     t0 = Scalar(name='t0')  # noqa
     t1 = Scalar(name='t1')  # noqa
     t2 = Scalar(name='t2')  # noqa
