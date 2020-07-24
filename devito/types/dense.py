@@ -331,7 +331,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 else:
                     for i, j, k, l in zip(left, right, self._distributor.mycoords,
                                           self._distributor.topology):
-                        if j > 0 and k == 0 or i > 0 and k == l-1:
+                        if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
                             warning(warning_msg)
                             break
             except AttributeError:
