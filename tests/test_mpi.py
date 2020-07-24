@@ -319,20 +319,22 @@ class TestFunction(object):
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(mode=4)
-    @pytest.mark.parametrize('coords', [
-        ((1., 1.), (1., 3.), (3., 1.), (3., 3.)),
+    @pytest.mark.parametrize('shape, coords, points', [
+        ((4, 4), ((1., 1.), (1., 3.), (3., 1.), (3., 3.)), 1),
+        ((8, ), ((1.,), (3.,), (5.,), (7.,)), 1),
+        ((8, ), ((1.,), (2.,), (3.,), (4.,), (5.,), (6.,), (7.,), (8.,)), 2)
     ])
-    def test_ownership(self, coords):
+    def test_ownership(self, shape, coords, points):
         """Given a sparse point ``p`` with known coordinates, this test checks
         that the MPI rank owning ``p`` is retrieved correctly."""
-        grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
+        grid = Grid(shape=shape, extent=shape)
 
-        sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coords)
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
 
         # The domain decomposition is so that the i-th MPI rank gets exactly one
         # sparse point `p` and, incidentally, `p` is logically owned by `i`
-        assert len(sf.gridpoints) == 1
-        assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
+        assert len(sf.gridpoints) == points
+        assert all(grid.distributor.glb_to_rank(i)[0] == grid.distributor.myrank
                    for i in sf.gridpoints)
 
     @pytest.mark.parallel(mode=4)
