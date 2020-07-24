@@ -17,4 +17,4 @@ pytest-cov
 multidict
 anytree>=2.4.3
 pyrevolve>=2.1.3
-distributed<2.20
+distributed<2.22
