@@ -168,6 +168,10 @@ class Dimension(ArgProvider):
         return "%s_M" % self.name
 
     @property
+    def is_const(self):
+        return False
+
+    @property
     def root(self):
         return self
 
