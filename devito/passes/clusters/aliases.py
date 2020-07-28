@@ -4,8 +4,9 @@ from functools import partial
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval, IntervalGroup,
-                       LabeledVector, Scope, detect_accesses, build_intervals)
+from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, IterationInstance, Interval,
+                       IntervalGroup, LabeledVector, Scope, detect_accesses,
+                       build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
@@ -439,8 +440,10 @@ def process(cluster, chosen, aliases, sregistry, platform):
         # The halo of the Array
         halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
-        # The data sharing mode of the Array
-        sharing = 'local' if any(d.is_Incr for d in writeto.dimensions) else 'shared'
+        # The data sharing mode of the Array. It can safely be `shared` only if
+        # all of the PARALLEL `cluster` Dimensions appear in `writeto`
+        parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
+        sharing = 'shared' if set(parallel) == set(writeto.dimensions) else 'local'
 
         # Finally create the temporary Array that will store `alias`
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
@@ -490,7 +493,7 @@ def process(cluster, chosen, aliases, sregistry, platform):
 
         # Finally, build a new Cluster for `alias`
         built = cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace)
-        clusters.append(built)
+        clusters.insert(0, built)
 
     return clusters, subs
 
@@ -768,8 +771,8 @@ class Aliases(OrderedDict):
 
     def iter(self, ispace):
         """
-        The aliases can be be scheduled in any order, but we privilege the one
-        that minimizes storage while maximizing fusion.
+        The aliases can legally be scheduled in many different orders, but we
+        privilege the one that minimizes storage while maximizing fusion.
         """
         items = []
         for alias, (intervals, aliaseds, distances) in self.items():

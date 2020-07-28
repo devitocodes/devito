@@ -26,10 +26,12 @@ class ElasticWaveSolver(object):
         self.geometry = geometry
 
         self.space_order = space_order
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
-        self.dt = self.model.critical_dt
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, save=None):

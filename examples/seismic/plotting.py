@@ -47,7 +47,7 @@ def plot_perturbation(model, model1, colorbar=True):
     plt.show()
 
 
-def plot_velocity(model, source=None, receiver=None, colorbar=True):
+def plot_velocity(model, source=None, receiver=None, colorbar=True, cmap="jet"):
     """
     Plot a two-dimensional velocity field from a seismic `Model`
     object. Optionally also includes point markers for sources and receivers.
@@ -69,7 +69,7 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
 
     slices = tuple(slice(model.nbl, -model.nbl) for _ in range(2))
     field = (getattr(model, 'vp', None) or getattr(model, 'lam')).data[slices]
-    plot = plt.imshow(np.transpose(field), animated=True, cmap=cm.jet,
+    plot = plt.imshow(np.transpose(field), animated=True, cmap=cmap,
                       vmin=np.min(field), vmax=np.max(field),
                       extent=extent)
     plt.xlabel('X position (km)')

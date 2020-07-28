@@ -2,7 +2,7 @@ from functools import partial
 from hashlib import sha1
 from os import environ, path
 from distutils import version
-from subprocess import DEVNULL, CalledProcessError, check_output, check_call
+from subprocess import DEVNULL, PIPE, CalledProcessError, check_output, check_call, run
 import platform
 import warnings
 import sys
@@ -31,8 +31,11 @@ def sniff_compiler_version(cc):
         https://github.com/OP2/PyOP2/
     """
     try:
-        ver = check_output([cc, "--version"]).decode("utf-8")
-    except (CalledProcessError, UnicodeDecodeError):
+        res = run([cc, "--version"], stdout=PIPE, stderr=DEVNULL)
+        ver = res.stdout.decode("utf-8")
+        if not ver:
+            return version.LooseVersion("unknown")
+    except UnicodeDecodeError:
         return version.LooseVersion("unknown")
     except FileNotFoundError:
         error("The `%s` compiler isn't available on this system" % cc)
@@ -55,16 +58,16 @@ def sniff_compiler_version(cc):
     if compiler in ["gcc", "icc"]:
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
-            ver = check_output([cc, "-dumpfullversion"], stderr=DEVNULL).decode("utf-8")
+            res = run([cc, "-dumpfullversion"], stdout=PIPE, stderr=DEVNULL)
+            ver = res.stdout.decode("utf-8")
             ver = '.'.join(ver.strip().split('.')[:3])
-            ver = version.StrictVersion(ver)
-        except CalledProcessError:
-            try:
-                ver = check_output([cc, "-dumpversion"], stderr=DEVNULL).decode("utf-8")
+            if not ver:
+                res = run([cc, "-dumpversion"], stdout=PIPE, stderr=DEVNULL)
+                ver = res.stdout.decode("utf-8")
                 ver = '.'.join(ver.strip().split('.')[:3])
-                ver = version.StrictVersion(ver)
-            except (CalledProcessError, UnicodeDecodeError):
-                pass
+                if not ver:
+                    return version.LooseVersion("unknown")
+            ver = version.StrictVersion(ver)
         except UnicodeDecodeError:
             pass
 
@@ -448,8 +451,8 @@ class PGICompiler(Compiler):
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
         self.cflags += ['-fast', '-acc']
-        # self.cflags += ['-Minfo=accel'] # Print informational messages for compliation
-        # self.cflags += ['-ta=tesla']    # Compile for a target GPU architecture
+        # Default PGI compile for a target is GPU and single threaded host.
+        # self.cflags += ['-ta=tesla,host']
 
     def __lookup_cmds__(self):
         # NOTE: using `pgc++` instead of `pgcc` because of issue #1219

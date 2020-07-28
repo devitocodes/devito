@@ -1,13 +1,13 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
 from examples.seismic import PointSource
-from examples.seismic.skew_self_adjoint.operators import IsoFwdOperator, IsoAdjOperator, \
+from examples.seismic.self_adjoint.operators import IsoFwdOperator, IsoAdjOperator, \
     IsoJacobianFwdOperator, IsoJacobianAdjOperator
 
 
-class SsaIsoAcousticWaveSolver(object):
+class SaIsoAcousticWaveSolver(object):
     """
-    Solver object for a scalar isotropic variable density visco- acoustic skew
+    Solver object for a scalar isotropic variable density visco- acoustic
     self adjoint wave equation that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem setup.
 
@@ -47,10 +47,13 @@ class SsaIsoAcousticWaveSolver(object):
 
         # Time step is .6 time smaller due to Q
         self.model.dt_scale = .6
-        self.dt = self.model.critical_dt
 
         # Cache compiler options
         self._kwargs = kwargs
+
+    @property
+    def dt(self):
+        return self.model.critical_dt
 
     @memoized_meth
     def op_fwd(self, save=None):

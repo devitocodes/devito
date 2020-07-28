@@ -40,10 +40,9 @@ A set of more advanced examples are available in `seismic`:
 Further:
 
 * `mpi`: Jupyter notebooks explaining how MPI works in Devito.
-* `gpu`: Jupyter notebooks explaining how to run on GPUs with Devito.
 * `finance`: Jupyter notebooks with examples of applying Devito to partial differential equations with financial applications.
 * `misc`: Example operators outside the context of finite differences and
-  partial differential equations.
+* `performance`: Jupyter notebooks explaining the optimizations applied by Devito, the options available to steer the optimization process, how to run on GPUs, and much more.
 
 For developers:
 

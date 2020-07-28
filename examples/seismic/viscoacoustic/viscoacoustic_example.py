@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+
 from devito.logger import info
 from devito import norm
 from examples.seismic.viscoacoustic import ViscoacousticWaveSolver
@@ -41,10 +43,22 @@ def test_viscoacoustic():
     assert np.isclose(norm(rec), 18.7749, atol=1e-3, rtol=0)
 
 
+@pytest.mark.parametrize('ndim', [1, 2, 3])
+@pytest.mark.parametrize('kernel', ['blanch_symes', 'ren', 'deng_mcmechan'])
+def test_viscoacoustic_stability(ndim, kernel):
+    shape = tuple([11]*ndim)
+    spacing = tuple([20]*ndim)
+    _, _, _, [rec] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0, kernel=kernel)
+    assert np.isfinite(norm(rec))
+
+
 if __name__ == "__main__":
     description = ("Example script for a set of viscoacoustic operators.")
-    args = seismic_args(description).parse_args()
-
+    parser = seismic_args(description)
+    parser.add_argument("-k", dest="kernel", default='blanch_symes',
+                        choices=['blanch_symes', 'ren', 'deng_mcmechan'],
+                        help="Choice of finite-difference kernel")
+    args = parser.parse_args()
     # Preset parameters
     ndim = args.ndim
     shape = args.shape[:args.ndim]

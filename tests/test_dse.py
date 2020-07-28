@@ -5,8 +5,9 @@ from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, Grid, Operator, norm, grad, div,
+                    Dimension, SubDimension, Grid, Operator, norm, grad, div, dimensions,
                     switchconfig, configuration, centered, first_derivative, transpose)
+from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
@@ -236,6 +237,72 @@ def test_time_dependent_split(opt):
 
     assert np.allclose(u.data[2, :, :], 3.0)
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    # none (different distance)
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
+     [6., 0., 0.]),
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, 0], y, implicit_dims=(t, x, y))'],
+     [2., 0., 0.]),
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, y], 3 - y, implicit_dims=(t, x, y))'],
+     [3., 2., 1.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 2., 6.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y, implicit_dims=(t, x, y))'],
+     [3., 3., 2.]),
+    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+      'Inc(h1[0, y], x, implicit_dims=(t, x, y))'],
+     [3., 3., 3.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x, y))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 0., 0.])
+])
+def test_lifting(exprs, expected):
+    t, x, y = dimensions('t x y')
+
+    g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
+                     time_order=0, dtype=np.int32)
+    g.data[0, :] = [0, 1, 2]
+    h1 = TimeFunction(name='h1', shape=(1, 3), dimensions=(t, y), time_order=0)
+    h1.data[0, :] = 0
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = eval(e)
+
+    op = Operator(exprs)
+    op.apply()
+
+    assert np.all(h1.data == expected)
 
 
 class TestAliases(object):
@@ -575,6 +642,62 @@ class TestAliases(object):
         u.data_with_halo[:] = 1.5
         op1(time_M=1)
         assert np.all(u.data == exp)
+
+    def test_min_storage_in_isolation(self):
+        """
+        Test that if running with ``opt=(..., opt=('cire-sops', {'min-storage': True})``,
+        then, when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
+        rather than nD Arrays.
+        """
+        grid = Grid(shape=(8, 8, 8))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u1 = TimeFunction(name="u1", grid=grid, space_order=2)
+        u2 = TimeFunction(name="u1", grid=grid, space_order=2)
+
+        u.data_with_halo[:] = 1.42
+        u1.data_with_halo[:] = 1.42
+        u2.data_with_halo[:] = 1.42
+
+        eqn = Eq(u.forward, u.dy.dy + u.dx.dx)
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('cire-sops', {'openmp': True, 'min-storage': True}))
+        op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
+
+        # `min-storage` leads to one 2D and one 3D Arrays
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        assert len(arrays) == 2
+        assert len([i for i in arrays if i._mem_shared]) == 1
+        assert len([i for i in arrays if i._mem_local]) == 1
+        assert len(arrays[0].dimensions) == 2
+        assert arrays[0].halo == ((1, 0), (0, 0))
+        assert Add(*arrays[0].symbolic_shape[0].args) == y.symbolic_size + 1
+        assert arrays[0].symbolic_shape[1] == z.symbolic_size
+        assert len(arrays[1].dimensions) == 3
+        assert arrays[1].halo == ((1, 0), (0, 0), (0, 0))
+        assert Add(*arrays[1].symbolic_shape[0].args) == x.symbolic_size + 1
+        assert arrays[1].symbolic_shape[1] == y.symbolic_size
+        assert arrays[1].symbolic_shape[2] == z.symbolic_size
+
+        try:
+            Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'min-storage': True}))
+        except InvalidOperator:
+            # Incompatible `advanced-fsg` + `min-storage`
+            assert True
+        except:
+            assert False
+
+        u1.data_with_halo[:] = 1.42
+
+        op0(time_M=1)
+        op1(time_M=1, u=u1)
+        op2(time_M=1, u=u2)
+
+        expected = norm(u)
+        assert np.isclose(expected, norm(u1), rtol=1e-5)
+        assert np.isclose(expected, norm(u2), rtol=1e-5)
 
     def test_mixed_shapes_v2_w_subdims(self):
         """
@@ -1254,7 +1377,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 21
+        assert summary[('section0', None)].ops == 19
 
 
 # Acoustic
@@ -1364,7 +1487,7 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 103
-        assert np.isclose(summary[('section1', None)].oi, 1.692, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 1.625, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')

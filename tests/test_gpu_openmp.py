@@ -1,14 +1,32 @@
 import numpy as np
+import pytest
 from sympy import cos
 
 from conftest import skipif
 from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
                     Operator, switchconfig, norm)
-from devito.ir.iet import retrieve_iteration_tree
+from devito.ir.iet import Block, FindNodes, retrieve_iteration_tree
+from devito.mpi.routines import IrecvCall, IsendCall
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
 
 class TestCodeGeneration(object):
+
+    @pytest.mark.parallel(mode=1)
+    @switchconfig(platform='nvidiaX')
+    def test_gpu_direct(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}))
+
+        for f in op._func_table.items():
+            for node in FindNodes(Block).visit(f[1].root):
+                if type(node.children[0][0]) in (IrecvCall, IsendCall):
+                    assert node.header[0].value ==\
+                        ('omp target data use_device_ptr(%s) device(devicenum)' %
+                         node.children[0][0].arguments[0].name)
 
     @switchconfig(platform='nvidiaX')
     def test_basic(self):
@@ -200,7 +218,8 @@ class TestCodeGeneration(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         tree = trees[0]
-        assert all(i.is_ParallelRelaxed and not i.is_Parallel for i in tree)
+        assert tree.root.is_Sequential
+        assert all(i.is_ParallelRelaxed and not i.is_Parallel for i in tree[1:])
 
         # The time loop is not in OpenMP canonical form, so it won't be parallelized
         assert not tree.root.pragmas

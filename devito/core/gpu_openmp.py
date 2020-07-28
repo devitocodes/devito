@@ -2,6 +2,7 @@ from functools import partial, singledispatch
 
 import cgen as c
 from sympy import Function
+import numpy as np
 
 from devito.core.operator import OperatorCore
 from devito.data import FULL
@@ -39,16 +40,6 @@ class DeviceOpenMPIteration(OpenMPIteration):
 
 
 class DeviceOmpizer(Ompizer):
-
-    COLLAPSE_NCORES = 1
-    """
-    Always collapse when possible.
-    """
-
-    COLLAPSE_WORK = 1
-    """
-    Always collapse when possible.
-    """
 
     lang = dict(Ompizer.lang)
     lang.update({
@@ -132,7 +123,7 @@ class DeviceOmpizer(Ompizer):
 
         return root, partree, collapsed
 
-    def _make_parregion(self, partree):
+    def _make_parregion(self, partree, *args):
         # no-op for now
         return partree
 
@@ -315,23 +306,48 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     Minimum operation count of a sum-of-product aliasing expression to be optimized away.
     """
 
+    PAR_CHUNK_NONAFFINE = 3
+    """
+    Coefficient to adjust the chunk size in non-affine parallel loops.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
-        options = kwargs['options']
+        o = {}
+        oo = kwargs['options']
+
+        # Execution modes
+        o['mpi'] = oo.pop('mpi')
 
         # Strictly unneccesary, but make it clear that this Operator *will*
         # generate OpenMP code, bypassing any `openmp=False` provided in
         # input to Operator
-        options.pop('openmp')
+        oo.pop('openmp')
 
-        options['cire-repeats'] = {
-            'invariants': options.pop('cire-repeats-inv') or cls.CIRE_REPEATS_INV,
-            'sops': options.pop('cire-repeats-sops') or cls.CIRE_REPEATS_SOPS
+        # CIRE
+        o['min-storage'] = False
+        o['cire-repeats'] = {
+            'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
+            'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
         }
-        options['cire-mincost'] = {
-            'invariants': options.pop('cire-mincost-inv') or cls.CIRE_MINCOST_INV,
-            'sops': options.pop('cire-mincost-sops') or cls.CIRE_MINCOST_SOPS
+        o['cire-mincost'] = {
+            'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
         }
+
+        # GPU parallelism
+        o['par-collapse-ncores'] = 1  # Always use a collapse clause
+        o['par-collapse-work'] = 1  # Always use a collapse clause
+        o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
+        o['par-dynamic-work'] = np.inf  # Always use static scheduling
+        o['par-nested'] = np.inf  # Never use nested parallelism
+        o['gpu-direct'] = oo.pop('gpu-direct')
+
+        if oo:
+            raise InvalidOperator("Unsupported optimization options: [%s]"
+                                  % ", ".join(list(oo)))
+
+        kwargs['options'].update(o)
 
         return kwargs
 
@@ -376,7 +392,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer(sregistry).make_parallel(graph)
+        DeviceOmpizer(sregistry, options).make_parallel(graph)
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager(sregistry)
@@ -404,7 +420,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer(sregistry).make_parallel(graph)
+        DeviceOmpizer(sregistry, options).make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -434,7 +450,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
-        ompizer = DeviceOmpizer(sregistry)
+        ompizer = DeviceOmpizer(sregistry, options)
 
         return {
             'optcomms': partial(optimize_halospots),
