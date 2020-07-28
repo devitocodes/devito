@@ -380,7 +380,7 @@ class TestSubdomainFunctions(object):
 
         grid = Grid(shape=(10, 10), extent=(9., 9.), subdomains=(mid, ))
         f = Function(name='f', grid=grid, subdomain=grid.subdomains['middle'])
-        eq = Eq(f, f+1).subs(f._domain._access_map)
+        eq = Eq(f, f+1)
 
         assert(f.shape == grid.subdomains['middle'].shape)
 
@@ -406,7 +406,7 @@ class TestSubdomainFunctions(object):
 
         grid = Grid(shape=(10, 10), extent=(9., 9.), subdomains=(mid, ))
         f = Function(name='f', grid=grid, subdomain=grid.subdomains['middle'])
-        eq = Eq(f, f+1).subs(f._domain._access_map)
+        eq = Eq(f, f+1)
 
         assert(f.shape == grid.subdomains['middle'].shape_local)
 

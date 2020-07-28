@@ -395,9 +395,12 @@ class SubDomain(object):
         # Derive the local shape for `SubDomain`'s on distributed grids along with the
         # memory access map for any `Function` defined on this `SubDomain`.
         access_map = {}
+        shift = {}
         shape_local = []
         for dim, d, s in zip(sub_dimensions, distributor.decomposition, self._shape):
             if dim.is_Sub:
+                c_name = 'c_%s' % dim.name
+                shift[c_name] = Constant(name=c_name, dtype=np.int32)
                 if dim._local:
                     if distributor and distributor.is_parallel:
                         if dim.thickness.right[1] == 0:
@@ -422,12 +425,14 @@ class SubDomain(object):
                             if r is None:
                                 r = 0
                             shape_local.append(ls-l-r)
-                        access_map.update({dim: dim-l if l else dim})
+                        shift[c_name].data = l
+                        access_map.update({dim: dim-shift[c_name]})
                     else:
                         if dim.thickness.left[1] == 0:
-                            access_map.update({dim: dim-(s-dim.thickness.right[1])})
+                            shift[c_name].data = (s-dim.thickness.right[1])
                         else:
-                            access_map.update({dim: dim})
+                            shift[c_name].data = 0
+                        access_map.update({dim: dim-shift[c_name]})
                         shape_local.append(s)
                 else:
                     if distributor and distributor.is_parallel:
@@ -448,10 +453,11 @@ class SubDomain(object):
                             if r is None:
                                 r = 0
                             shape_local.append(ls-l-r)
-                        access_map.update({dim: dim-l if l else dim})
+                        shift[c_name].data = l
                     else:
-                        access_map.update({dim: dim-dim.thickness.left[1]})
+                        shift[c_name].data = dim.thickness.left[1]
                         shape_local.append(s)
+                    access_map.update({dim: dim-shift[c_name]})
             else:
                 shape_local.append(len(d.loc_abs_numb))
                 access_map.update({dim: dim})

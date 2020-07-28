@@ -83,6 +83,10 @@ def lower_exprs(expressions, **kwargs):
 
     processed = []
     for expr in as_tuple(expressions):
+        # Update access maps for `Function`'s defined on a `SubDomain`
+        fosd = [f for f in retrieve_functions(expr, mode='unique')
+                if f.is_Function and f._subdomain]
+        expr = expr.subs({f: f.subs(f._subdomain._access_map) for f in fosd})
         try:
             dimension_map = expr.subdomain.dimension_map
         except AttributeError:

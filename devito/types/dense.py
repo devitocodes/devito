@@ -50,6 +50,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     # its key routines (e.g., solve)
     _iterable = False
 
+    is_Function = False
     is_Input = True
     is_DiscreteFunction = True
     is_Tensor = True
@@ -969,18 +970,6 @@ class Function(DiscreteFunction):
         # variable location (i.e. if the variable is staggered in x the
         # parameter has to be computed at x + hx/2)
         self._is_parameter = kwargs.get('parameter', False)
-
-    # TODO: Review/tidy new properties
-    @cached_property
-    def on_subdomain(self):
-        return bool(self._subdomain)
-
-    @cached_property
-    def _domain(self):
-        """ Shortcut to the computational domain on which the function
-            is defined """
-        # TODO: Add sanity check here
-        return self._subdomain if self._subdomain else self.grid
 
     @cached_property
     def _fd_priority(self):
