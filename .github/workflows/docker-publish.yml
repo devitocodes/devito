@@ -58,21 +58,22 @@ jobs:
           dockerfile: ./docker/Dockerfile.nvidia
           tags: gpu-latest,'gpu-${{ github.event.release.tag_name }}'
 
-  # Comment out until next release
-  #test-cpu-image:
-    #needs: deploy-docker
-    #runs-on: ubuntu-latest
+  # Comment out 'cpu-latest' until next release
+  test-cpu-image:
+    needs: deploy-docker
+    runs-on: ubuntu-latest
 
-    #strategy:
-      #fail-fast: false
-      #matrix:
+    strategy:
+      fail-fast: false
+      matrix:
         #im-name: [cpu-dev, cpu-latest]
+        im-name: cpu-dev
 
-    #steps:
-        #- name: Run simple test
-          #run: |
-             #docker pull 'devitocodes/devito:${{ matrix.im-name }}'
-             #docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
+    steps:
+        - name: Run simple test
+          run: |
+             docker pull 'devitocodes/devito:${{ matrix.im-name }}'
+             docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
 
   # Comment out until gpu docker image problem resolved
   #test-gpu-image:
