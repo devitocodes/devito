@@ -1388,6 +1388,36 @@ class TestAliases(object):
         # all redundancies have been detected correctly
         assert summary[('section0', None)].ops == 19
 
+    def test_maxpar_option(self):
+        """
+        Test the compiler option `cire-maxpar=True`.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+
+        f.data[:] = 0.0012
+        u.data[:] = 1.3
+
+        eq = Eq(u.forward, f*u.dy.dy)
+
+        op0 = Operator(eq, opt='noop')
+        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
+
+        # Check code generation
+        trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+        assert len(trees) == 2
+        assert trees[0][1] is trees[1][1]
+        assert trees[0][2] is not trees[1][2]
+
+        # Check numerical output
+        op0.apply(time_M=2)
+        u1 = TimeFunction(name="u", grid=grid, space_order=2)
+        u1.data[:] = 1.3
+        op1.apply(time_M=2, u=u1)
+        assert np.isclose(norm(u), norm(u1), rtol=1e-5)
+
 
 # Acoustic
 class TestIsoAcoustic(object):
