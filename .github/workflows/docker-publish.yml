@@ -67,7 +67,7 @@ jobs:
       fail-fast: false
       matrix:
         #im-name: [cpu-dev, cpu-latest]
-        im-name: cpu-dev
+        im-name: [cpu-dev]
 
     steps:
         - name: Run simple test
