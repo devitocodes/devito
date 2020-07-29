@@ -14,24 +14,13 @@ class TestGradient(object):
     @pytest.mark.parametrize('shape', [(70, 80)])
     def test_gradient_checkpointing(self, shape, kernel, space_order):
         r"""
-        This test ensures that the FWI gradient computed with devito
-        satisfies the Taylor expansion property:
-        .. math::
-            \Phi(m0 + h dm) = \Phi(m0) + \O(h) \\
-            \Phi(m0 + h dm) = \Phi(m0) + h \nabla \Phi(m0) + \O(h^2) \\
-            \Phi(m0) = .5* || F(m0 + h dm) - D ||_2^2
-
-        where
-        .. math::
-            \nabla \Phi(m0) = <J^T \delta d, dm> \\
-            \delta d = F(m0+ h dm) - D \\
-
-        with F the Forward modelling operator.
+        This test ensures that the FWI gradient computed with checkpointing matches
+        the one without checkpointing. Note that this test fails with dynamic openmp
+        scheduling enabled so this test disables it.
         """
         spacing = tuple(10. for _ in shape)
-        wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
-                     kernel=kernel, space_order=space_order,
-                     nbl=40)
+        wave = setup(shape=shape, spacing=spacing, dtype=np.float32,
+                     kernel=kernel, space_order=space_order, nbl=40)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)
