@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-
 from operator import attrgetter
 
 from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,

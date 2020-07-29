@@ -8,7 +8,8 @@ from cached_property import cached_property
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
-from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
+from devito.symbolics import (INT, FLOOR, cast_mapper, indexify,
+                              retrieve_function_carriers)
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           memoized_meth)
 from devito.types.dense import DiscreteFunction, Function, SubFunction
@@ -536,6 +537,14 @@ class SparseFunction(AbstractSparseFunction):
                      for d in self.grid.dimensions)
 
     @cached_property
+    def _position_map(self):
+        """Symbol for coordinate value in each dimension of the point."""
+        pos = tuple(Scalar(name='pos%s' % d, dtype=self.dtype)
+                    for d in self.grid.dimensions)
+        return {c - o: p for p, c, o in zip(pos, self._coordinate_symbols,
+                                            self.grid.origin)}
+
+    @cached_property
     def _point_increments(self):
         """Index increments in each dimension for each point symbol."""
         return tuple(product(range(2), repeat=self.grid.dim))
@@ -551,8 +560,9 @@ class SparseFunction(AbstractSparseFunction):
     def _coordinate_indices(self):
         """Symbol for each grid index according to the coordinates."""
         indices = self.grid.dimensions
-        return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
-                      for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
+        return tuple([INT(FLOOR((c - o) / i.spacing))
+                      for c, o, i in zip(self._coordinate_symbols,
+                                         self.grid.origin,
                                          indices[:self.grid.dim])])
 
     def _coordinate_bases(self, field_offset):
@@ -629,9 +639,12 @@ class SparseFunction(AbstractSparseFunction):
                          if f.is_SparseFunction}
             out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
 
-        # Temporaries for the indirection dimensions
+        # Temporaries for the position
         temps = [Eq(v, k, implicit_dims=self.dimensions)
-                 for k, v in points.items() if v in conditions]
+                 for k, v in self._position_map.items()]
+        # Temporaries for the indirection dimensions
+        temps.extend([Eq(v, k, implicit_dims=self.dimensions)
+                      for k, v in points.items() if v in conditions])
 
         return out, temps
 
