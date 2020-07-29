@@ -538,7 +538,15 @@ class SparseFunction(AbstractSparseFunction):
 
     @cached_property
     def _position_map(self):
-        """Symbol for coordinate value in each dimension of the point."""
+        """
+        Symbols map for the postition of the sparse point relative to the
+        origin of the grid.
+        When computing `(coord - origin)/spacing`, it may be expanded as
+        `coord/spacing - origin/spacing` and round up with a +-1 error as an
+        interger therefor these position are cmputed individally first.
+        This also reduce to 1 the number of time this position is computed
+        instead of 6 time in the different interpolation steps.
+        """
         pos = tuple(Scalar(name='pos%s' % d, dtype=self.dtype)
                     for d in self.grid.dimensions)
         return {c - o: p for p, c, o in zip(pos, self._coordinate_symbols,
@@ -643,7 +651,8 @@ class SparseFunction(AbstractSparseFunction):
         temps = [Eq(v, k, implicit_dims=self.dimensions)
                  for k, v in self._position_map.items()]
         # Temporaries for the indirection dimensions
-        temps.extend([Eq(v, k, implicit_dims=self.dimensions)
+        temps.extend([Eq(v, k.subs(self._position_map),
+                         implicit_dims=self.dimensions)
                       for k, v in points.items() if v in conditions])
 
         return out, temps
