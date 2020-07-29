@@ -29,7 +29,7 @@ class TestGradient(object):
         with F the Forward modelling operator.
         """
         spacing = tuple(10. for _ in shape)
-        wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
+        wave = setup(shape=shape, spacing=spacing, dtype=np.float32,
                      kernel=kernel, space_order=space_order,
                      nbl=40)
 
