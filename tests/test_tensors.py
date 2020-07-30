@@ -1,11 +1,11 @@
 import numpy as np
+import sympy
 
 import pytest
 
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
 from devito import Grid, Function, TimeFunction, Dimension, Eq
 from devito.types import NODE
-from devito.finite_differences.differentiable import Add
 
 
 def dimify(dimensions):
@@ -102,9 +102,7 @@ def test_tensor_matmul(func1, func2, out_type):
     (VectorFunction, TensorFunction, VectorFunction),
     (VectorTimeFunction, TensorFunction, VectorTimeFunction),
     (VectorFunction, TensorTimeFunction, VectorTimeFunction),
-    (VectorTimeFunction, TensorTimeFunction, VectorTimeFunction),
-    (VectorFunction, VectorFunction, Add),
-    (VectorTimeFunction, VectorTimeFunction, Add)])
+    (VectorTimeFunction, TensorTimeFunction, VectorTimeFunction)])
 def test_tensor_matmul_T(func1, func2, out_type):
     grid = Grid(tuple([5]*3))
     f1 = func1(name="f1", grid=grid)
@@ -184,3 +182,26 @@ def test_save(func1):
     assert all(ff.indices[0] == time + 2*time.spacing for ff in f1.forward.forward)
     assert all(ff.indices[0] == time - time.spacing for ff in f1.backward)
     assert all(ff.shape[0] == 10 for ff in f1)
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
+def test_sympy_matrix(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+
+    sympy_f1 = f1.as_mutable()
+    vec = sympy.Matrix(3, 1, np.random.rand(3))
+    mat = sympy.Matrix(3, 3, np.random.rand(3, 3).ravel())
+    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1))
+    assert all(sp - dp == 0 for sp, dp in zip(f1 * vec, sympy_f1 * vec))
+
+
+@pytest.mark.parametrize('func1', [VectorFunction, VectorTimeFunction])
+def test_sympy_vector(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+
+    sympy_f1 = f1.as_mutable()
+    mat = sympy.Matrix(3, 3, np.random.rand(3, 3).ravel())
+
+    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1))

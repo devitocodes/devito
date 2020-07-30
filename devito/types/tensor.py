@@ -135,6 +135,9 @@ class TensorFunction(AbstractTensor):
             tmp_func = Dummy(other.name)
             simplemul = super(TensorFunction, self).__rmul__(tmp_func)
             return simplemul.subs(tmp_func, other)
+        # honest sympy matrices defer to their class's routine
+        if getattr(other, 'is_Matrix', False):
+            return self._eval_matrix_rmul(other)
         return super(TensorFunction, self).__rmul__(other)
 
     @call_highest_priority('__rmul__')
@@ -251,7 +254,8 @@ class TensorFunction(AbstractTensor):
             is_mat = len(mat[0]) > 1
         except TypeError:
             is_mat = False
-        is_time = self._is_TimeDependent or other._is_TimeDependent
+        is_time = (getattr(self, '_is_TimeDependent', False) or
+                   getattr(other, '_is_TimeDependent', False))
         return mat_time_dict[(is_time, is_mat)]
 
 

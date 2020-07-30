@@ -532,9 +532,6 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 col_indices = range(col, other_len, other.cols)
                 vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices)]
                 new_mat[i] = sum(vec)
-        # Return the expression for example in case of inner product
-        if new_len == 1:
-            return new_mat[0]
         # Get new class and return product
         newcls = self.classof_prod(other, new_mat)
         return newcls._new(self.rows, other.cols, new_mat, copy=False)
