@@ -539,18 +539,23 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _position_map(self):
         """
-        Symbols map for the postition of the sparse point relative to the
-        origin of the grid.
-        When computing `(coord - origin)/spacing`, it may be expanded as
-        `coord/spacing - origin/spacing` and round up with a +-1 error as an
-        interger therefor these position are cmputed individally first.
-        This also reduce to 1 the number of time this position is computed
-        instead of 6 time in the different interpolation steps.
+        Symbols map for the position of the sparse points relative to the grid
+        origin.
+
+        Notes
+        -----
+        The expression `(coord - origin)/spacing` could also be computed in the
+        mathematically equivalent expanded form `coord/spacing -
+        origin/spacing`. This particular form is problematic when a sparse
+        point is in close proximity of the grid origin, since due to a larger
+        machine precision error it may cause a +-1 error in the computation of
+        the position. We mitigate this problem by computing the positions
+        individually (hence the need for a position map).
         """
-        pos = tuple(Scalar(name='pos%s' % d, dtype=self.dtype)
-                    for d in self.grid.dimensions)
-        return {c - o: p for p, c, o in zip(pos, self._coordinate_symbols,
-                                            self.grid.origin)}
+        symbols = [Scalar(name='pos%s' % d, dtype=self.dtype)
+                   for d in self.grid.dimensions]
+        return OrderedDict([(c - o, p) for p, c, o in
+                            zip(symbols, self._coordinate_symbols, self.grid.origin)])
 
     @cached_property
     def _point_increments(self):
@@ -567,20 +572,18 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _coordinate_indices(self):
         """Symbol for each grid index according to the coordinates."""
-        indices = self.grid.dimensions
         return tuple([INT(FLOOR((c - o) / i.spacing))
                       for c, o, i in zip(self._coordinate_symbols,
                                          self.grid.origin,
-                                         indices[:self.grid.dim])])
+                                         self.grid.dimensions[:self.grid.dim])])
 
     def _coordinate_bases(self, field_offset):
         """Symbol for the base coordinates of the reference grid point."""
-        indices = self.grid.dimensions
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
                       for c, o, idx, i, of in zip(self._coordinate_symbols,
                                                   self.grid.origin,
                                                   self._coordinate_indices,
-                                                  indices[:self.grid.dim],
+                                                  self.grid.dimensions[:self.grid.dim],
                                                   field_offset)])
 
     @memoized_meth

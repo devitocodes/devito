@@ -477,8 +477,8 @@ def test_position(shape):
 def test_edge_sparse():
     """
     Test that interpolation uses the correct point for the edge case
-    wehre the sparse point is at the origin with non rational grid spacing.
-    Due to round up error the unterpolatin would use the halo point instead of
+    where the sparse point is at the origin with non rational grid spacing.
+    Due to round up error the interpolation would use the halo point instead of
     the point (0, 0) without the factorizaion of the expressions.
     """
     grid = Grid(shape=(16, 16), extent=(225., 225.), origin=(25., 35.))
