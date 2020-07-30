@@ -5,6 +5,7 @@ from math import floor
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
 from devito.tools import timed_region
+from examples.seismic import TimeAxis, RickerSource, Receiver
 
 
 class TestSubdomains(object):
@@ -360,12 +361,12 @@ class TestSubdomains(object):
 
 class TestSubdomainFunctions(object):
     """
-    Class for testing `Function`'s defined on `SubDomain`'s
+    Class for testing `Function`'s defined on `SubDomain`'s without MPI.
     """
 
     def test_basic_function(self):
         """
-        Fill me in.
+        Test a single `Function`
         """
 
         class Middle(SubDomain):
@@ -388,10 +389,47 @@ class TestSubdomainFunctions(object):
 
         assert(np.all(f.data[:] == 1))
 
+    def test_mixed_functions(self):
+        """
+        Test with one Function on a `SubDomain` and one not.
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        mid = Middle()
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.), subdomains=(mid, ))
+        f = Function(name='f', grid=grid, subdomain=grid.subdomains['middle'])
+        g = Function(name='g', grid=grid)
+
+        assert(f.shape == grid.subdomains['middle'].shape)
+        assert(g.shape == grid.shape)
+
+        eq0 = Eq(f, g+f+1, subdomain=grid.subdomains['middle'])
+        eq1 = Eq(g, 2*f, subdomain=grid.subdomains['middle'])
+        eq2 = Eq(f, g+1, subdomain=grid.subdomains['middle'])
+
+        Operator([eq0, eq1, eq2])()
+
+        assert(np.all(f.data[:] == 3))
+        assert(np.all(g.data[2:-2, 3:-1] == 2))
+
+
+class TestSubdomainFunctionsParallel(object):
+    """
+    Class for testing `Function`'s defined on `SubDomain`'s with MPI.
+    """
+
     @pytest.mark.parallel(mode=4)
     def test_mpi_function(self):
         """
-        Fill me in.
+        Test a single `Function`
         """
 
         class Middle(SubDomain):
@@ -413,3 +451,97 @@ class TestSubdomainFunctions(object):
         Operator(eq)()
 
         assert(np.all(f.data[:] == 1))
+
+    @pytest.mark.parallel(mode=4)
+    def test_mixed_functions_mpi(self):
+        """
+        Test with one Function on a `SubDomain` and one not.
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        mid = Middle()
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.), subdomains=(mid, ))
+        f = Function(name='f', grid=grid, subdomain=grid.subdomains['middle'])
+        g = Function(name='g', grid=grid)
+
+        assert(f.shape == grid.subdomains['middle'].shape_local)
+        assert(g.shape == grid.shape_local)
+
+        eq0 = Eq(f, g+f+1, subdomain=grid.subdomains['middle'])
+        eq1 = Eq(g, 2*f, subdomain=grid.subdomains['middle'])
+        eq2 = Eq(f, g+1, subdomain=grid.subdomains['middle'])
+
+        Operator([eq0, eq1, eq2])()
+
+        assert(np.all(f.data[:] == 3))
+        assert(np.all(g.data[2:-2, 3:-1] == 2))
+
+    @pytest.mark.parallel(mode=4)
+    def test_acoustic_on_sd(self):
+
+        class CompDom(SubDomain):
+
+            name = 'comp_domain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 20, 10), y: ('middle', 20, 10)}
+
+        cdomain = CompDom()
+
+        shape = (131, 131)
+        extent = (1300, 1300)
+        origin = (200., 200.)
+
+        v = np.empty(shape, dtype=np.float32)
+        v[:, :71] = 1.5
+        v[:, 71:] = 2.5
+
+        grid = Grid(shape=shape, extent=extent, origin=origin, subdomains=(cdomain, ))
+
+        t0 = 0.
+        tn = 1000.
+        dt = 1.6
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        f0 = 0.010
+        src = RickerSource(name='src', grid=grid, f0=f0,
+                           npoint=1, time_range=time_range)
+
+        domain_size = np.array(extent)
+
+        src.coordinates.data[0, :] = domain_size*.5
+        src.coordinates.data[0, -1] = 20.
+
+        rec = Receiver(name='rec', grid=grid, npoint=101, time_range=time_range)
+        rec.coordinates.data[:, 0] = np.linspace(0, domain_size[0], num=101)
+        rec.coordinates.data[:, 1] = 20.
+
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2,
+                         subdomain=grid.subdomains['comp_domain'])
+        m = Function(name='m', grid=grid)
+        m.data[:] = 1./(v*v)
+
+        pde = m * u.dt2 - u.laplace
+        stencil = Eq(u.forward, solve(pde, u.forward),
+                     subdomain=grid.subdomains['comp_domain'])
+
+        src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
+        rec_term = rec.interpolate(expr=u.forward)
+
+        op = Operator([stencil] + src_term + rec_term)
+
+        # Make sure we've indeed generated OpenMP offloading code
+        assert 'omp target' in str(op)
+
+        op(time=time_range.num-1, dt=dt)
+
+        assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
