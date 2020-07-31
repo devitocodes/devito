@@ -738,6 +738,25 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
+    def test_do_haloupdate_with_constant_locindex(self):
+        """
+        Like `test_avoid_haloupdate_with_constant_index`, there is again
+        a constant index, but this time along a loc-index (`t` Dimension),
+        which needs to be handled by the `compute_loc_indices` function.
+        The actual halo update is induced by u.dx.
+        """
+        grid = Grid(shape=(4,))
+        x = grid.dimensions[0]
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eq = Eq(u.forward, u[0, x] + u.dx)
+        op = Operator(eq)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_if_no_flowdep(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
