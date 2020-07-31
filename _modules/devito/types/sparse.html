@@ -166,7 +166,8 @@
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">generate_fd_shortcuts</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
 <span class="kn">from</span> <span class="nn">devito.operations</span> <span class="kn">import</span> <span class="n">LinearInterpolator</span><span class="p">,</span> <span class="n">PrecomputedInterpolator</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="p">(</span><span class="n">INT</span><span class="p">,</span> <span class="n">FLOOR</span><span class="p">,</span> <span class="n">cast_mapper</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span>
+                              <span class="n">retrieve_function_carriers</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span>
                           <span class="n">memoized_meth</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SubFunction</span>
@@ -694,6 +695,27 @@
                      <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_position_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Symbols map for the position of the sparse points relative to the grid</span>
+<span class="sd">        origin.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        The expression `(coord - origin)/spacing` could also be computed in the</span>
+<span class="sd">        mathematically equivalent expanded form `coord/spacing -</span>
+<span class="sd">        origin/spacing`. This particular form is problematic when a sparse</span>
+<span class="sd">        point is in close proximity of the grid origin, since due to a larger</span>
+<span class="sd">        machine precision error it may cause a +-1 error in the computation of</span>
+<span class="sd">        the position. We mitigate this problem by computing the positions</span>
+<span class="sd">        individually (hence the need for a position map).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">symbols</span> <span class="o">=</span> <span class="p">[</span><span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;pos</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                   <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span>
+                            <span class="nb">zip</span><span class="p">(</span><span class="n">symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">)])</span>
+
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_point_increments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Index increments in each dimension for each point symbol.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">repeat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
@@ -708,19 +730,18 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_coordinate_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for each grid index according to the coordinates.&quot;&quot;&quot;</span>
-        <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">INT</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;floor&#39;</span><span class="p">)((</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="p">)</span> <span class="o">/</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
-                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
-                                         <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">])])</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">INT</span><span class="p">(</span><span class="n">FLOOR</span><span class="p">((</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="p">)</span> <span class="o">/</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
+                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span>
+                                         <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
+                                         <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">])])</span>
 
     <span class="k">def</span> <span class="nf">_coordinate_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_offset</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for the base coordinates of the reference grid point.&quot;&quot;&quot;</span>
-        <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">cast_mapper</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">](</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span> <span class="o">-</span> <span class="n">idx</span> <span class="o">*</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
                       <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">of</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span>
                                                   <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
                                                   <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_indices</span><span class="p">,</span>
-                                                  <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">],</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">],</span>
                                                   <span class="n">field_offset</span><span class="p">)])</span>
 
     <span class="nd">@memoized_meth</span>
@@ -787,9 +808,13 @@
                          <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_SparseFunction</span><span class="p">}</span>
             <span class="n">out</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">f</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">:</span> <span class="n">cd</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">})</span>
 
-        <span class="c1"># Temporaries for the indirection dimensions</span>
+        <span class="c1"># Temporaries for the position</span>
         <span class="n">temps</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
-                 <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">points</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">conditions</span><span class="p">]</span>
+                 <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_position_map</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="c1"># Temporaries for the indirection dimensions</span>
+        <span class="n">temps</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_position_map</span><span class="p">),</span>
+                         <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+                      <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">points</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">conditions</span><span class="p">])</span>
 
         <span class="k">return</span> <span class="n">out</span><span class="p">,</span> <span class="n">temps</span></div>
 
