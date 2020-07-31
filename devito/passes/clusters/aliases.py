@@ -4,8 +4,8 @@ from functools import partial
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, IterationInstance, Interval,
-                       IntervalGroup, LabeledVector, Scope, detect_accesses,
+from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, IterationInstance, IterationSpace,
+                       Interval, IntervalGroup, LabeledVector, Scope, detect_accesses,
                        build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
@@ -68,6 +68,7 @@ def cire(cluster, mode, sregistry, options, platform):
     """
     # Relevant options
     min_storage = options['min-storage']
+    max_par = options['cire-maxpar']
     min_cost = options['cire-mincost']
     repeats = options['cire-repeats']
 
@@ -105,7 +106,7 @@ def cire(cluster, mode, sregistry, options, platform):
             continue
 
         # Create Aliases and assign them to Clusters
-        clusters, subs = process(cluster, chosen, aliases, sregistry, platform)
+        clusters, subs = process(cluster, chosen, aliases, max_par, sregistry, platform)
 
         # Rebuild `cluster` so as to use the newly created Aliases
         rebuilt = rebuild(cluster, others, aliases, subs)
@@ -417,10 +418,10 @@ def choose(exprs, aliases, selector):
     return chosen, others
 
 
-def process(cluster, chosen, aliases, sregistry, platform):
+def process(cluster, chosen, aliases, max_par, sregistry, platform):
     clusters = []
     subs = {}
-    for alias, writeto, aliaseds, distances in aliases.iter(cluster.ispace):
+    for alias, writeto, ispace, aliaseds, distances in aliases.iter(cluster, max_par):
         if all(i not in chosen for i in aliaseds):
             continue
 
@@ -471,9 +472,6 @@ def process(cluster, chosen, aliases, sregistry, platform):
             else:
                 # Perhaps part of a composite alias ?
                 pass
-
-        # Construct the `alias` IterationSpace
-        ispace = cluster.ispace.add(writeto).augment(aliases.index_mapper)
 
         # Optimization: if possible, the innermost IterationInterval is
         # rounded up to a multiple of the vector length
@@ -769,7 +767,7 @@ class Aliases(OrderedDict):
                 return aliaseds
         return []
 
-    def iter(self, ispace):
+    def iter(self, cluster, max_par):
         """
         The aliases can legally be scheduled in many different orders, but we
         privilege the one that minimizes storage while maximizing fusion.
@@ -783,8 +781,9 @@ class Aliases(OrderedDict):
             # Becomes True as soon as a Dimension in `ispace` is found to
             # be independent of `intervals`
             flag = False
+            iteron = []
             writeto = []
-            for i in ispace.intervals:
+            for i in cluster.ispace.intervals:
                 try:
                     interval = mapper[i.dim]
                 except KeyError:
@@ -793,29 +792,43 @@ class Aliases(OrderedDict):
                         # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
                         # we would not enter here
                         flag = True
+
+                    iteron.append(i)
                     continue
 
-                # Try to optimize away unnecessary temporary Dimensions
-                if not flag and interval == interval.zero():
-                    continue
-
-                # Adjust the Interval's stamp
-                # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
-                # use `<1>` which is the actual stamp used in the Cluster
-                # from which the aliasing expressions were extracted
                 assert i.stamp >= interval.stamp
-                interval = interval.lift(i.stamp)
 
-                writeto.append(interval)
-                flag = True
+                # Does `i.dim` actually need to be a write-to Dimension ?
+                if flag or interval != interval.zero():
+                    # Yes, so we also have to adjust the Interval's stamp.
+                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                    # use `<1>` which is the actual stamp used in `cluster`
+                    interval = interval.lift(i.stamp)
+                    iteron.append(interval)
+                    writeto.append(interval)
+                    flag = True
+                elif max_par and PARALLEL in cluster.properties[i.dim]:
+                    # Not necessarily, but with `max_par` the user is
+                    # expressing the wish to trade-off storage for parallelism
+                    interval = interval.lift(i.stamp + 1)
+                    iteron.append(interval)
+                    writeto.append(interval)
+                    flag = True
+                else:
+                    iteron.append(i)
 
             if writeto:
-                writeto = IntervalGroup(writeto, relations=ispace.relations)
+                writeto = IntervalGroup(writeto, cluster.ispace.relations)
             else:
                 # E.g., an `alias` having 0-distance along all Dimensions
-                writeto = IntervalGroup(intervals, relations=ispace.relations)
+                writeto = IntervalGroup(intervals, cluster.ispace.relations)
 
-            items.append((alias, writeto, aliaseds, distances))
+            # Construct the IterationSpace within which the alias will be computed
+            ispace = IterationSpace(IntervalGroup(iteron, cluster.ispace.relations),
+                                    cluster.sub_iterators, cluster.directions)
+            ispace = ispace.augment(self.index_mapper)
+
+            items.append((alias, writeto, ispace, aliaseds, distances))
 
         queue = list(items)
         while queue:

@@ -111,6 +111,10 @@ class Cluster(object):
         return self.ispace.sub_iterators
 
     @property
+    def directions(self):
+        return self.ispace.directions
+
+    @property
     def dspace(self):
         return self._dspace
 

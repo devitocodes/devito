@@ -187,11 +187,16 @@ class LinearInterpolator(GenericInterpolator):
             # Track Indexed substitutions
             idx_subs.append(mapper)
 
-        # Temporaries for the indirection dimensions
+        # Temporaries for the position
         temps = [Eq(v, k, implicit_dims=self.sfunction.dimensions)
-                 for k, v in points.items()]
+                 for k, v in self.sfunction._position_map.items()]
+        # Temporaries for the indirection dimensions
+        temps.extend([Eq(v, k.subs(self.sfunction._position_map),
+                         implicit_dims=self.sfunction.dimensions)
+                      for k, v in points.items()])
         # Temporaries for the coefficients
-        temps.extend([Eq(p, c, implicit_dims=self.sfunction.dimensions)
+        temps.extend([Eq(p, c.subs(self.sfunction._position_map),
+                         implicit_dims=self.sfunction.dimensions)
                       for p, c in zip(self.sfunction._point_symbols,
                                       self.sfunction._coordinate_bases(field_offset))])
 

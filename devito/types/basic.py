@@ -865,10 +865,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     @property
     def is_const(self):
-        """
-        True if the carried data values cannot be modified within an Operator,
-        False otherwise.
-        """
         return False
 
     @property
