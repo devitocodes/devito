@@ -949,7 +949,6 @@ def parse_kwargs(**kwargs):
     options = dict(options)
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
-    options.setdefault('gpu-direct', False)
     for k, v in configuration['opt-options'].items():
         options.setdefault(k, v)
     kwargs['options'] = options

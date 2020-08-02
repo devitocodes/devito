@@ -12,22 +12,6 @@ from examples.seismic import TimeAxis, RickerSource, Receiver
 
 class TestCodeGeneration(object):
 
-    @pytest.mark.parallel(mode=1)
-    @switchconfig(platform='nvidiaX')
-    def test_gpu_direct(self):
-        grid = Grid(shape=(3, 3, 3))
-
-        u = TimeFunction(name='u', grid=grid)
-
-        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}))
-
-        for f in op._func_table.items():
-            for node in FindNodes(Block).visit(f[1].root):
-                if type(node.children[0][0]) in (IrecvCall, IsendCall):
-                    assert node.header[0].value ==\
-                        ('omp target data use_device_ptr(%s) device(devicenum)' %
-                         node.children[0][0].arguments[0].name)
-
     @switchconfig(platform='nvidiaX')
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
@@ -227,6 +211,27 @@ class TestCodeGeneration(object):
         assert tree[1].pragmas[0].value ==\
             ('omp target teams distribute parallel for device(devicenum) collapse(3)'
              ' reduction(+:f[0])')
+
+    @pytest.mark.parallel(mode=1)
+    @switchconfig(platform='nvidiaX')
+    def test_gpu_direct(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}))
+
+        assert str(op.body[0].body[0]) == 'int rank = 0;'
+        assert str(op.body[0].body[1]) == 'MPI_Comm_rank(comm,&rank);'
+        assert str(op.body[0].body[2]) == 'int ngpus = omp_get_num_devices();'
+        assert str(op.body[0].body[3]) == 'int devicenum = (rank)%(ngpus);'
+
+        for f in op._func_table.items():
+            for node in FindNodes(Block).visit(f[1].root):
+                if type(node.children[0][0]) in (IrecvCall, IsendCall):
+                    assert node.header[0].value ==\
+                        ('omp target data use_device_ptr(%s) device(devicenum)' %
+                         node.children[0][0].arguments[0].name)
 
 
 class TestOperator(object):

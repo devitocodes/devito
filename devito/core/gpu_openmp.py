@@ -8,8 +8,8 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, ElementalFunction, FindNodes,
-                           LocalExpression, List, MapExprStmts, Transformer)
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, List,
+                           FindNodes, LocalExpression, MapExprStmts, Transformer)
 from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
@@ -341,7 +341,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism
-        o['gpu-direct'] = oo.pop('gpu-direct')
+        o['gpu-direct'] = oo.pop('gpu-direct', False)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
