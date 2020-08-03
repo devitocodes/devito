@@ -440,15 +440,15 @@ def make_schedule(cluster, aliases, options):
 
     items = []
     index_mapper = {}
-    for alias, (intervals, aliaseds, distances) in aliases.items():
-        mapper = {i.dim: i for i in intervals}
-        mapper.update({i.dim.parent: i for i in intervals
+    for alias, v in aliases.items():
+        mapper = {i.dim: i for i in v.intervals}
+        mapper.update({i.dim.parent: i for i in v.intervals
                        if i.dim.is_NonlinearDerived})
 
         # Becomes True as soon as a Dimension in `ispace` is found to
         # be independent of `intervals`
         flag = False
-        iteron = []
+        intervals = []
         sub_iterators = dict(cluster.sub_iterators)
         writeto = []
         for i in cluster.ispace.intervals:
@@ -461,7 +461,7 @@ def make_schedule(cluster, aliases, options):
                     # we would not enter here
                     flag = True
 
-                iteron.append(i)
+                intervals.append(i)
                 continue
 
             assert i.stamp >= interval.stamp
@@ -482,7 +482,7 @@ def make_schedule(cluster, aliases, options):
             if interval:
                 flag = True
                 writeto.append(interval)
-                iteron.append(interval)
+                intervals.append(interval)
 
                 # IncrDimensions must be substituted with ShiftedDimensions
                 # to access the temporaries, otherwise we would go OOB
@@ -493,19 +493,19 @@ def make_schedule(cluster, aliases, options):
                     d = index_mapper.setdefault(i.dim, d)
                     sub_iterators[i.dim] = as_tuple(sub_iterators.get(i.dim)) + (d,)
             else:
-                iteron.append(i)
+                intervals.append(i)
 
         if writeto:
             writeto = IntervalGroup(writeto, cluster.ispace.relations)
         else:
             # E.g., an `alias` having 0-distance along all Dimensions
-            writeto = IntervalGroup(intervals, cluster.ispace.relations)
+            writeto = IntervalGroup(v.intervals, cluster.ispace.relations)
 
         # Construct the alias IterationSpace
-        ispace = IterationSpace(IntervalGroup(iteron, cluster.ispace.relations),
+        ispace = IterationSpace(IntervalGroup(intervals, cluster.ispace.relations),
                                 sub_iterators, cluster.directions)
 
-        items.append(ScheduledAlias(alias, writeto, ispace, aliaseds, distances))
+        items.append(ScheduledAlias(alias, writeto, ispace, v.aliaseds, v.distances))
 
     # As by contract (see docstring), smaller write-to regions go in first
     processed = sorted(items, key=lambda i: len(i.writeto))
@@ -823,7 +823,9 @@ class Group(tuple):
         return ret
 
 
-ScheduledAlias = namedtuple('Alias', 'alias writeto ispace aliaseds distances')
+AliasedGroup = namedtuple('AliasedGroup', 'intervals aliaseds distances')
+
+ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace aliaseds distances')
 ScheduledAlias.__new__.__defaults__ = (None,) * len(ScheduledAlias._fields)
 
 
@@ -838,16 +840,15 @@ class AliasMapper(OrderedDict):
 
     def add(self, alias, intervals, aliaseds, distances):
         assert len(aliaseds) == len(distances)
-        self[alias] = (intervals, aliaseds, distances)
+        self[alias] = AliasedGroup(intervals, aliaseds, distances)
 
     def get(self, key):
         ret = super(AliasMapper, self).get(key)
         if ret is not None:
-            _, aliaseds, _ = ret
-            return aliaseds
-        for _, aliaseds, _ in self.values():
-            if key in aliaseds:
-                return aliaseds
+            return ret.aliaseds
+        for i in self.values():
+            if key in i.aliaseds:
+                return i.aliaseds
         return []
 
 
