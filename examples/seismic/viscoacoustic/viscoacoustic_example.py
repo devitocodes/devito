@@ -38,8 +38,9 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     return (summary.gflopss, summary.oi, summary.timings, [rec])
 
 
-def test_viscoacoustic():
-    _, _, _, [rec] = run()
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+def test_viscoacoustic(dtype):
+    _, _, _, [rec] = run(dtype=dtype)
     assert np.isclose(norm(rec), 18.7749, atol=1e-3, rtol=0)
 
 
@@ -67,4 +68,4 @@ if __name__ == "__main__":
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, opt=args.opt,
         space_order=args.space_order, autotune=args.autotune, constant=args.constant,
-        kernel=args.kernel)
+        kernel='blanch_symes', dtype=args.dtype)
