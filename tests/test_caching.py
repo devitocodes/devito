@@ -523,8 +523,8 @@ class TestCaching(object):
         i = u.inject(expr=u, field=u)
 
         # created: ii_u_0*2 (Symbol and ConditionalDimension), ii_u_1*2, ii_u_2*2,
-        # ii_u_3*2, px, py, u_coords (as indexified),
-        ncreated = 2+2+2+2+1+1+1
+        # ii_u_3*2, px, py, posx, posy, u_coords (as indexified),
+        ncreated = 2+2+2+2+2+1+1+1
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
         i.evaluate

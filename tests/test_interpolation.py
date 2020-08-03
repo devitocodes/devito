@@ -472,3 +472,24 @@ def test_position(shape):
                                  o_x=ox_g, o_y=oy_g, o_z=oz_g)
 
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))
+
+
+def test_edge_sparse():
+    """
+    Test that interpolation uses the correct point for the edge case
+    where the sparse point is at the origin with non rational grid spacing.
+    Due to round up error the interpolation would use the halo point instead of
+    the point (0, 0) without the factorizaion of the expressions.
+    """
+    grid = Grid(shape=(16, 16), extent=(225., 225.), origin=(25., 35.))
+    u = unit_box(shape=(16, 16), grid=grid)
+    u._data_with_outhalo[:u.space_order, :] = -1
+    u._data_with_outhalo[:, :u.space_order] = -1
+    sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
+    sf1.coordinates.data[0, :] = (25.0, 35.0)
+
+    expr = sf1.interpolate(u)
+    subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing)}
+    op = Operator(expr, subs=subs)
+    op()
+    assert sf1.data[0] == 0
