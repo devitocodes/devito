@@ -1,4 +1,4 @@
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, namedtuple
 from functools import partial
 
 from cached_property import cached_property
@@ -10,7 +10,7 @@ from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, IterationInstance, Iterat
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
-from devito.tools import flatten, split
+from devito.tools import as_tuple, flatten, split
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
 __all__ = ['cire']
@@ -105,11 +105,14 @@ def cire(cluster, mode, sregistry, options, platform):
             # Do not waste time
             continue
 
-        # Create Aliases and assign them to Clusters
-        clusters, subs = process(cluster, chosen, aliases, max_par, sregistry, platform)
+        # Lower the chosen aliases into a Schedule
+        schedule = make_schedule(cluster, aliases, max_par)
 
-        # Rebuild `cluster` so as to use the newly created Aliases
-        rebuilt = rebuild(cluster, others, aliases, subs)
+        # Lower the Schedule into a sequence of Clusters
+        clusters, subs = process(cluster, schedule, chosen, sregistry, platform)
+
+        # Rebuild `cluster` so as to use the newly created aliases
+        rebuilt = rebuild(cluster, others, schedule, subs)
 
         # Prepare for the next round
         processed.extend(clusters)
@@ -344,7 +347,7 @@ def collect(exprs, min_storage, ignore_collected):
             k = group.dimensions
         mapper.setdefault(k, []).append(group)
 
-    aliases = Aliases()
+    aliases = AliasMapper()
     for _groups in list(mapper.values()):
         groups = list(_groups)
 
@@ -418,10 +421,92 @@ def choose(exprs, aliases, selector):
     return chosen, others
 
 
-def process(cluster, chosen, aliases, max_par, sregistry, platform):
+def make_schedule(cluster, aliases, max_par):
+    """
+    Create a Schedule from an AliasMapper.
+
+    The aliases can legally be scheduled in many different orders, but we
+    privilege the one that minimizes storage while maximizing fusion.
+    """
+    items = []
+    index_mapper = {}
+    for alias, (intervals, aliaseds, distances) in aliases.items():
+        mapper = {i.dim: i for i in intervals}
+        mapper.update({i.dim.parent: i for i in intervals
+                       if i.dim.is_NonlinearDerived})
+
+        # Becomes True as soon as a Dimension in `ispace` is found to
+        # be independent of `intervals`
+        flag = False
+        iteron = []
+        sub_iterators = dict(cluster.sub_iterators)
+        writeto = []
+        for i in cluster.ispace.intervals:
+            try:
+                interval = mapper[i.dim]
+            except KeyError:
+                if not any(i.dim in d._defines for d in mapper):
+                    # E.g., `t[0,0]<0>` in the case of t-invariant aliases,
+                    # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
+                    # we would not enter here
+                    flag = True
+
+                iteron.append(i)
+                continue
+
+            assert i.stamp >= interval.stamp
+
+            # Does `i.dim` actually need to be a write-to Dimension ?
+            if flag or interval != interval.zero():
+                # Yes, so we also have to adjust the Interval's stamp.
+                # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                # use `<1>` which is the actual stamp used in `cluster`
+                interval = interval.lift(i.stamp)
+            elif max_par and PARALLEL in cluster.properties[i.dim]:
+                # Not necessarily, but with `max_par` the user is
+                # expressing the wish to trade-off storage for parallelism
+                interval = interval.lift(i.stamp + 1)
+            else:
+                interval = None
+
+            if interval:
+                flag = True
+                writeto.append(interval)
+                iteron.append(interval)
+
+                # IncrDimensions must be substituted with ShiftedDimensions
+                # to access the temporaries, otherwise we would go OOB
+                # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
+                # not at `x0_blk0`
+                if i.dim.is_Incr:
+                    d = ShiftedDimension(i.dim, "%ss" % i.dim.name)
+                    d = index_mapper.setdefault(i.dim, d)
+                    sub_iterators[i.dim] = as_tuple(sub_iterators.get(i.dim)) + (d,)
+            else:
+                iteron.append(i)
+
+        if writeto:
+            writeto = IntervalGroup(writeto, cluster.ispace.relations)
+        else:
+            # E.g., an `alias` having 0-distance along all Dimensions
+            writeto = IntervalGroup(intervals, cluster.ispace.relations)
+
+        # Construct the alias IterationSpace
+        ispace = IterationSpace(IntervalGroup(iteron, cluster.ispace.relations),
+                                sub_iterators, cluster.directions)
+
+        items.append(ScheduledAlias(alias, writeto, ispace, aliaseds, distances))
+
+    # As by contract (see docstring), smaller write-to regions go in first
+    processed = sorted(items, key=lambda i: len(i.writeto))
+
+    return Schedule(index_mapper, *processed)
+
+
+def process(cluster, schedule, chosen, sregistry, platform):
     clusters = []
     subs = {}
-    for alias, writeto, ispace, aliaseds, distances in aliases.iter(cluster, max_par):
+    for alias, writeto, ispace, aliaseds, distances in schedule:
         if all(i not in chosen for i in aliaseds):
             continue
 
@@ -452,10 +537,10 @@ def process(cluster, chosen, aliases, max_par, sregistry, platform):
 
         # The access Dimensions may differ from `writeto.dimensions`. This may
         # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
-        adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]
+        adims = [schedule.index_mapper.get(d, d) for d in writeto.dimensions]
 
         # The expression computing `alias`
-        adims = [aliases.index_mapper.get(d, d) for d in writeto.dimensions]  # x -> xs
+        adims = [schedule.index_mapper.get(d, d) for d in writeto.dimensions]  # x -> xs
         indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
         expression = Eq(array[indices], uxreplace(alias, subs))
 
@@ -496,12 +581,12 @@ def process(cluster, chosen, aliases, max_par, sregistry, platform):
     return clusters, subs
 
 
-def rebuild(cluster, others, aliases, subs):
+def rebuild(cluster, others, schedule, subs):
     # Rebuild the non-aliasing expressions
     exprs = [uxreplace(e, subs) for e in others]
 
     # Add any new ShiftedDimension to the IterationSpace
-    ispace = cluster.ispace.augment(aliases.index_mapper)
+    ispace = cluster.ispace.augment(schedule.index_mapper)
 
     # Rebuild the DataSpace to include the new symbols
     accesses = detect_accesses(exprs)
@@ -728,114 +813,44 @@ class Group(tuple):
         return ret
 
 
-class Aliases(OrderedDict):
+ScheduledAlias = namedtuple('Alias', 'alias writeto ispace aliaseds distances')
+ScheduledAlias.__new__.__defaults__ = (None,) * len(ScheduledAlias._fields)
+
+
+class AliasMapper(OrderedDict):
 
     """
     A mapper between aliases and collections of aliased expressions.
     """
 
     def __init__(self):
-        super(Aliases, self).__init__()
-        self.index_mapper = {}
+        super(AliasMapper, self).__init__()
 
     def add(self, alias, intervals, aliaseds, distances):
         assert len(aliaseds) == len(distances)
-
         self[alias] = (intervals, aliaseds, distances)
 
-        # Update the index_mapper
-        for i in intervals:
-            d = i.dim
-            if d in self.index_mapper:
-                continue
-            elif d.is_Shifted:
-                self.index_mapper[d.parent] = d
-            elif d.is_Incr:
-                # IncrDimensions must be substituted with ShiftedDimensions
-                # to access the temporaries, otherwise we would go OOB
-                # E.g., r[xs][ys][z] => `xs/ys` must start at 0, not at `x0_blk0`
-                # as in the case of blocking
-                self.index_mapper[d] = ShiftedDimension(d, "%ss" % d.name)
-
     def get(self, key):
-        ret = super(Aliases, self).get(key)
+        ret = super(AliasMapper, self).get(key)
         if ret is not None:
-            assert len(ret) == 3
-            return ret[1]
+            _, aliaseds, _ = ret
+            return aliaseds
         for _, aliaseds, _ in self.values():
             if key in aliaseds:
                 return aliaseds
         return []
 
-    def iter(self, cluster, max_par):
-        """
-        The aliases can legally be scheduled in many different orders, but we
-        privilege the one that minimizes storage while maximizing fusion.
-        """
-        items = []
-        for alias, (intervals, aliaseds, distances) in self.items():
-            mapper = {i.dim: i for i in intervals}
-            mapper.update({i.dim.parent: i for i in intervals
-                           if i.dim.is_NonlinearDerived})
 
-            # Becomes True as soon as a Dimension in `ispace` is found to
-            # be independent of `intervals`
-            flag = False
-            iteron = []
-            writeto = []
-            for i in cluster.ispace.intervals:
-                try:
-                    interval = mapper[i.dim]
-                except KeyError:
-                    if not any(i.dim in d._defines for d in mapper):
-                        # E.g., `t[0,0]<0>` in the case of t-invariant aliases,
-                        # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
-                        # we would not enter here
-                        flag = True
+class Schedule(tuple):
 
-                    iteron.append(i)
-                    continue
+    """
+    A total ordering of aliases with some metadata attached.
+    """
 
-                assert i.stamp >= interval.stamp
-
-                # Does `i.dim` actually need to be a write-to Dimension ?
-                if flag or interval != interval.zero():
-                    # Yes, so we also have to adjust the Interval's stamp.
-                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
-                    # use `<1>` which is the actual stamp used in `cluster`
-                    interval = interval.lift(i.stamp)
-                    iteron.append(interval)
-                    writeto.append(interval)
-                    flag = True
-                elif max_par and PARALLEL in cluster.properties[i.dim]:
-                    # Not necessarily, but with `max_par` the user is
-                    # expressing the wish to trade-off storage for parallelism
-                    interval = interval.lift(i.stamp + 1)
-                    iteron.append(interval)
-                    writeto.append(interval)
-                    flag = True
-                else:
-                    iteron.append(i)
-
-            if writeto:
-                writeto = IntervalGroup(writeto, cluster.ispace.relations)
-            else:
-                # E.g., an `alias` having 0-distance along all Dimensions
-                writeto = IntervalGroup(intervals, cluster.ispace.relations)
-
-            # Construct the IterationSpace within which the alias will be computed
-            ispace = IterationSpace(IntervalGroup(iteron, cluster.ispace.relations),
-                                    cluster.sub_iterators, cluster.directions)
-            ispace = ispace.augment(self.index_mapper)
-
-            items.append((alias, writeto, ispace, aliaseds, distances))
-
-        queue = list(items)
-        while queue:
-            # Shortest write-to region first
-            item = min(queue, key=lambda i: len(i[1]))
-            queue.remove(item)
-            yield item
+    def __new__(cls, index_mapper, *items):
+        obj = super(Schedule, cls).__new__(cls, items)
+        obj.index_mapper = index_mapper
+        return obj
 
 
 def make_rotations_table(d, v):
