@@ -38,12 +38,9 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     return (summary.gflopss, summary.oi, summary.timings, [rec])
 
 
-@pytest.mark.parametrize("dtype", [("float32"), ("float64")])
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_viscoacoustic(dtype):
-
-    dtype = eval((''.join(['np.', dtype])))
-
-    _, _, _, [rec] = run()
+    _, _, _, [rec] = run(dtype=dtype)
     assert np.isclose(norm(rec), 18.7749, atol=1e-3, rtol=0)
 
 
@@ -68,8 +65,7 @@ if __name__ == "__main__":
     shape = args.shape[:args.ndim]
     spacing = tuple(ndim * [10.0])
     tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
-    dtype = eval((''.join(['np.', args.dtype])))
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, opt=args.opt,
         space_order=args.space_order, autotune=args.autotune, constant=args.constant,
-        kernel='blanch_symes', dtype=dtype)
+        kernel='blanch_symes', dtype=args.dtype)
