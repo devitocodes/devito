@@ -383,7 +383,7 @@ class TestAliases(object):
         for i, e in enumerate(list(expected)):
             expected[i] = eval(e)
 
-        aliases = collect(exprs, False, lambda i: False)
+        aliases = collect(exprs, lambda i: False, {'min-storage': False})
 
         assert len(aliases) == len(expected)
         assert all(i in expected for i in aliases)

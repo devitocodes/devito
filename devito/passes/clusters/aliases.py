@@ -39,6 +39,13 @@ def cire(cluster, mode, sregistry, options, platform):
           storage introduced for the tensor temporaries. This might also reduce
           the operation count. On the other hand, this might affect fusion and
           therefore data locality. Defaults to False (legacy).
+        * 'cire-maxpar': if True, privilege parallelism over working set size,
+           that is the pass will try to create as many parallel loops as possible,
+           even though this will require more space (Dimensions) for the temporaries.
+           Defaults to False.
+        * 'cire-rotate': if True, the pass will use modulo indexing for the
+           outermost Dimension iterated over by the temporaries. This will sacrifice
+           a parallel loop for a reduced working set size. Defaults to False (legacy).
     platform : Platform
         The underlying platform. Used to optimize the shape of the introduced
         tensor symbols.
@@ -67,8 +74,6 @@ def cire(cluster, mode, sregistry, options, platform):
     t1 = 3.0*t2[x,y,z+1]
     """
     # Relevant options
-    min_storage = options['min-storage']
-    max_par = options['cire-maxpar']
     min_cost = options['cire-mincost']
     repeats = options['cire-repeats']
 
@@ -97,7 +102,7 @@ def cire(cluster, mode, sregistry, options, platform):
             break
 
         # Search aliasing expressions
-        aliases = collect(extracted, min_storage, ignore_collected)
+        aliases = collect(extracted, ignore_collected, options)
 
         # Rule out aliasing expressions with a bad flops/memory trade-off
         chosen, others = choose(exprs, aliases, selector)
@@ -106,7 +111,7 @@ def cire(cluster, mode, sregistry, options, platform):
             continue
 
         # Lower the chosen aliases into a Schedule
-        schedule = make_schedule(cluster, aliases, max_par)
+        schedule = make_schedule(cluster, aliases, options)
 
         # Lower the Schedule into a sequence of Clusters
         clusters, subs = process(cluster, schedule, chosen, sregistry, platform)
@@ -247,7 +252,7 @@ callbacks_mapper = {
 }
 
 
-def collect(exprs, min_storage, ignore_collected):
+def collect(exprs, ignore_collected, options):
     """
     Find groups of aliasing expressions.
 
@@ -289,6 +294,8 @@ def collect(exprs, min_storage, ignore_collected):
         * a[i+2] - b[i+2] : because at least one operation differs
         * a[i+2] + b[i] : because the distances along ``i`` differ (+2 and +0)
     """
+    min_storage = options['min-storage']
+
     # Find the potential aliases
     found = []
     for expr in exprs:
@@ -421,13 +428,16 @@ def choose(exprs, aliases, selector):
     return chosen, others
 
 
-def make_schedule(cluster, aliases, max_par):
+def make_schedule(cluster, aliases, options):
     """
     Create a Schedule from an AliasMapper.
 
     The aliases can legally be scheduled in many different orders, but we
     privilege the one that minimizes storage while maximizing fusion.
     """
+    max_par = options['cire-maxpar']
+    rotate = options['cire-rotate']
+
     items = []
     index_mapper = {}
     for alias, (intervals, aliaseds, distances) in aliases.items():

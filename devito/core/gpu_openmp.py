@@ -248,6 +248,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # CIRE
         o['min-storage'] = False
+        o['cire-rotate'] = False
         o['cire-maxpar'] = oo.pop('cire-maxpar', True)
         o['cire-repeats'] = {
             'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
