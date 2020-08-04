@@ -6,7 +6,7 @@ from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Stencil, detect_accesses, detect_oobs, detect_io,
                                build_intervals, build_iterators)
-from devito.tools import Pickable, as_tuple
+from devito.tools import Pickable, frozendict
 from devito.types import Eq
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
@@ -53,9 +53,9 @@ class IREq(object):
     def implicit_dims(self):
         return self._implicit_dims
 
-    @property
+    @cached_property
     def conditionals(self):
-        return as_tuple(self._conditionals)
+        return self._conditionals or frozendict()
 
     @property
     def directions(self):
@@ -157,7 +157,7 @@ class LoweredEq(sympy.Eq, IREq):
 
         expr._dspace = dspace
         expr._ispace = ispace
-        expr._conditionals = tuple(conditionals)
+        expr._conditionals = frozendict([(d, ()) for d in conditionals])
         expr._reads, expr._writes = detect_io(expr)
 
         expr._is_Increment = input_expr.is_Increment
