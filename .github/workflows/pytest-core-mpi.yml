@@ -17,11 +17,11 @@ on:
 jobs:
   build:
     name: pytest-mpi
-    runs-on: self-hosted
+    runs-on: [self-hosted, mpi]
 
     env:
-      DEVITO_ARCH: "gcc-7"
       DEVITO_LANGUAGE: "openmp"
+      DEVITO_ARCH: "gcc-7"
       DEVITO_BACKEND: "core"
       CC: "gcc-7"
       CXX: "g++-7"
@@ -38,16 +38,6 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
-
-    - name: Test mpi notebook
-      run : |
-        # Currently not tested due to issue #859
-        # ipcluster start --profile=mpi -n 4 --daemon
-        # py.test --nbval examples/mpi
-        # ipcluster stop --profile=mpi
-
-    - name: Test mpi fwi
-      run: mpirun -n 4 python examples/seismic/inversion/fwi.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
