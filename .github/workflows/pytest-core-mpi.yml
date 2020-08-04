@@ -39,15 +39,23 @@ jobs:
       run: |
         pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
 
-    - name: Test mpi notebook
+    - name: Test notebooks
       run : |
         # Currently not tested due to issue #859
         # ipcluster start --profile=mpi -n 4 --daemon
         # py.test --nbval examples/mpi
         # ipcluster stop --profile=mpi
 
-    - name: Test mpi fwi
-      run: mpirun -n 4 python examples/seismic/inversion/fwi.py
+    - name: Test seismic examples
+      run: |
+        DEVITO_MPI=1 mpirun -n 4 py.test examples/seismic/tti/tti_example.py
+        DEVITO_MPI=1 mpirun -n 4 py.test examples/seismic/elastic/elastic_example.py
+        DEVITO_MPI=1 mpirun -n 4 py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
+        DEVITO_MPI=1 mpirun -n 4 py.test examples/seismic/viscoelastic/viscoelastic_example.py
+
+    - name: Test fwi examples
+      run: |
+        DEVITO_MPI=1 mpirun -n 4 python examples/seismic/inversion/fwi.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
