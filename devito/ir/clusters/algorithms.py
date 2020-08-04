@@ -166,8 +166,10 @@ def guard(clusters):
     for c in clusters:
         # Group together consecutive expressions with same ConditionalDimensions
         for cds, g in groupby(c.exprs, key=lambda e: e.conditionals):
+            exprs = list(g)
+
             if not cds:
-                processed.append(c.rebuild(exprs=list(g)))
+                processed.append(c.rebuild(exprs=exprs))
                 continue
 
             # Create a guarded Cluster
@@ -179,6 +181,7 @@ def guard(clusters):
                 else:
                     condition.append(lower_exprs(cd.condition))
             guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-            processed.append(c.rebuild(exprs=list(g), guards=guards))
+            exprs = [e.func(*e.args, conditionals=dict(guards)) for e in exprs]
+            processed.append(c.rebuild(exprs=exprs, guards=guards))
 
     return ClusterGroup(processed)
