@@ -74,7 +74,6 @@ def cire(cluster, mode, sregistry, options, platform):
     t1 = 3.0*t2[x,y,z+1]
     """
     # Relevant options
-    min_cost = options['cire-mincost']
     repeats = options['cire-repeats']
 
     # Sanity checks
@@ -86,7 +85,8 @@ def cire(cluster, mode, sregistry, options, platform):
     context = cluster.exprs
     for n in reversed(range(repeats[mode])):
         # Get the callbacks
-        extract, ignore_collected, selector = callbacks_mapper[mode](context, n, min_cost)
+        extract, ignore_collected, in_writeto, selector =\
+            callbacks_mapper[mode](context, n, options)
 
         # Extract potentially aliasing expressions
         exprs, extracted = extract(cluster, sregistry)
@@ -111,7 +111,7 @@ def cire(cluster, mode, sregistry, options, platform):
             continue
 
         # Lower the chosen aliases into a Schedule
-        schedule = make_schedule(cluster, aliases, options)
+        schedule = make_schedule(cluster, aliases, in_writeto, options)
 
         # Lower the Schedule into a sequence of Clusters
         clusters, subs = process(cluster, schedule, chosen, sregistry, platform)
@@ -138,13 +138,17 @@ class Callbacks(object):
 
     mode = None
 
-    def __new__(cls, context, n, min_cost):
+    def __new__(cls, context, n, options):
+        min_cost = options['cire-mincost']
+        max_par = options['cire-maxpar']
+
         min_cost = min_cost[cls.mode]
         if callable(min_cost):
             min_cost = min_cost(n)
 
         return (partial(cls.extract, n, context, min_cost),
                 cls.ignore_collected,
+                partial(cls.in_writeto, max_par),
                 partial(cls.selector, min_cost))
 
     @classmethod
@@ -154,6 +158,10 @@ class Callbacks(object):
     @classmethod
     def ignore_collected(cls, group):
         return False
+
+    @classmethod
+    def in_writeto(cls, max_par, dim, cluster):
+        raise NotImplementedError
 
     @classmethod
     def selector(cls, min_cost, cost, naliases):
@@ -186,6 +194,10 @@ class CallbacksInvariants(Callbacks):
         processed = [uxreplace(e, mapper) for e in cluster.exprs]
 
         return extracted + processed, extracted
+
+    @classmethod
+    def in_writeto(cls, max_par, dim, cluster):
+        return PARALLEL in cluster.properties[dim]
 
     @classmethod
     def selector(cls, min_cost, cost, naliases):
@@ -240,6 +252,10 @@ class CallbacksSOPS(Callbacks):
     @classmethod
     def ignore_collected(cls, group):
         return len(group) <= 1
+
+    @classmethod
+    def in_writeto(cls, max_par, dim, cluster):
+        return max_par and PARALLEL in cluster.properties[dim]
 
     @classmethod
     def selector(cls, min_cost, cost, naliases):
@@ -428,59 +444,46 @@ def choose(exprs, aliases, selector):
     return chosen, others
 
 
-def make_schedule(cluster, aliases, options):
+def make_schedule(cluster, aliases, in_writeto, options):
     """
     Create a Schedule from an AliasMapper.
 
     The aliases can legally be scheduled in many different orders, but we
     privilege the one that minimizes storage while maximizing fusion.
     """
-    max_par = options['cire-maxpar']
     rotate = options['cire-rotate']
+    max_par = options['cire-maxpar']
 
     items = []
-    index_mapper = {}
+    dmapper = {}
     for alias, v in aliases.items():
-        mapper = {i.dim: i for i in v.intervals}
-        mapper.update({i.dim.parent: i for i in v.intervals
-                       if i.dim.is_NonlinearDerived})
+        imapper = {**{i.dim: i for i in v.intervals},
+                   **{i.dim.parent: i for i in v.intervals if i.dim.is_NonlinearDerived}}
 
-        # Becomes True as soon as a Dimension in `ispace` is found to
-        # be independent of `intervals`
-        flag = False
         intervals = []
-        sub_iterators = dict(cluster.sub_iterators)
         writeto = []
+        sub_iterators = dict(cluster.sub_iterators)
         for i in cluster.ispace.intervals:
             try:
-                interval = mapper[i.dim]
+                interval = imapper[i.dim]
             except KeyError:
-                if not any(i.dim in d._defines for d in mapper):
-                    # E.g., `t[0,0]<0>` in the case of t-invariant aliases,
-                    # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
-                    # we would not enter here
-                    flag = True
-
+                # E.g., `x0_blk0` or (`a[y_m+1]` => `y not in imapper`)
                 intervals.append(i)
                 continue
 
             assert i.stamp >= interval.stamp
 
-            # Does `i.dim` actually need to be a write-to Dimension ?
-            if flag or interval != interval.zero():
-                # Yes, so we also have to adjust the Interval's stamp.
-                # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
-                # use `<1>` which is the actual stamp used in `cluster`
+            if writeto or interval != interval.zero() or in_writeto(i.dim, cluster):
+                # `i.dim` is necessarily part of the write-to region, so
+                # we have to adjust the Interval's stamp. For example, consider
+                # `i=x[0,0]<1>` and `interval=x[-4,4]<0>`; here we need to
+                # use `<1>` as stamp, which is what appears in `cluster`
                 interval = interval.lift(i.stamp)
-            elif max_par and PARALLEL in cluster.properties[i.dim]:
-                # Not necessarily, but with `max_par` the user is
-                # expressing the wish to trade-off storage for parallelism
-                interval = interval.lift(i.stamp + 1)
-            else:
-                interval = None
 
-            if interval:
-                flag = True
+                # We further bump the interval stamp if we were requested to trade
+                # fusion for more collapse-parallelism
+                interval = interval.lift(interval.stamp + int(max_par))
+
                 writeto.append(interval)
                 intervals.append(interval)
 
@@ -489,28 +492,25 @@ def make_schedule(cluster, aliases, options):
                 # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
                 # not at `x0_blk0`
                 if i.dim.is_Incr:
-                    d = ShiftedDimension(i.dim, "%ss" % i.dim.name)
-                    d = index_mapper.setdefault(i.dim, d)
+                    try:
+                        d = dmapper[i.dim]
+                    except KeyError:
+                        d = dmapper[i.dim] = ShiftedDimension(i.dim, "%ss" % i.dim.name)
                     sub_iterators[i.dim] = as_tuple(sub_iterators.get(i.dim)) + (d,)
             else:
                 intervals.append(i)
 
-        if writeto:
-            writeto = IntervalGroup(writeto, cluster.ispace.relations)
-        else:
-            # E.g., an `alias` having 0-distance along all Dimensions
-            writeto = IntervalGroup(v.intervals, cluster.ispace.relations)
+        intervals = IntervalGroup(intervals, cluster.ispace.relations)
+        writeto = IntervalGroup(writeto, cluster.ispace.relations)
 
-        # Construct the alias IterationSpace
-        ispace = IterationSpace(IntervalGroup(intervals, cluster.ispace.relations),
-                                sub_iterators, cluster.directions)
+        ispace = IterationSpace(intervals, sub_iterators, cluster.directions)
 
         items.append(ScheduledAlias(alias, writeto, ispace, v.aliaseds, v.distances))
 
     # As by contract (see docstring), smaller write-to regions go in first
     processed = sorted(items, key=lambda i: len(i.writeto))
 
-    return Schedule(index_mapper, *processed)
+    return Schedule(dmapper, *processed)
 
 
 def process(cluster, schedule, chosen, sregistry, platform):
@@ -547,10 +547,9 @@ def process(cluster, schedule, chosen, sregistry, platform):
 
         # The access Dimensions may differ from `writeto.dimensions`. This may
         # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
-        adims = [schedule.index_mapper.get(d, d) for d in writeto.dimensions]
+        adims = [schedule.dmapper.get(d, d) for d in writeto.dimensions]
 
         # The expression computing `alias`
-        adims = [schedule.index_mapper.get(d, d) for d in writeto.dimensions]  # x -> xs
         indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
         expression = Eq(array[indices], uxreplace(alias, subs))
 
@@ -596,7 +595,7 @@ def rebuild(cluster, others, schedule, subs):
     exprs = [uxreplace(e, subs) for e in others]
 
     # Add any new ShiftedDimension to the IterationSpace
-    ispace = cluster.ispace.augment(schedule.index_mapper)
+    ispace = cluster.ispace.augment(schedule.dmapper)
 
     # Rebuild the DataSpace to include the new symbols
     accesses = detect_accesses(exprs)
@@ -858,9 +857,9 @@ class Schedule(tuple):
     A total ordering of aliases with some metadata attached.
     """
 
-    def __new__(cls, index_mapper, *items):
+    def __new__(cls, dmapper, *items):
         obj = super(Schedule, cls).__new__(cls, items)
-        obj.index_mapper = index_mapper
+        obj.dmapper = dmapper
         return obj
 
 
