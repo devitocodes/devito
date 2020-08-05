@@ -951,6 +951,24 @@ class TestConditionalDimension(object):
         assert np.all(f.data[2:6, c1:c2] == 5.)
         assert np.all(f.data[:, c3:c4] < 5.)
 
+    def test_from_cond_to_param(self):
+        """
+        Test that Functions appearing in the condition of a ConditionalDimension
+        but not explicitly in an Eq are actually part of the Operator input
+        (stems from issue #1298).
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+        ci = ConditionalDimension(name='ci', parent=y, condition=Lt(g, 2 + h))
+        f = Function(name='f', shape=grid.shape, dimensions=(x, ci))
+
+        for _ in range(5):
+            # issue #1298 was non deterministic
+            Operator(Eq(f, 5)).apply()
+
     @skipif('device')
     def test_no_fusion_simple(self):
         """

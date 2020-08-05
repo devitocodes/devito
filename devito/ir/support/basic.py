@@ -697,9 +697,8 @@ class Scope(object):
                 self.initialized.add(e.lhs.function)
 
             # Look up ConditionalDimensions
-            for d, v in e.conditionals.items():
-                symbols = d.free_symbols | set(retrieve_terminals(v))
-                for j in symbols:
+            for v in e.conditionals.values():
+                for j in retrieve_terminals(v):
                     v = self.reads.setdefault(j.function, [])
                     v.append(TimedAccess(j, 'R', -1, e.ispace))
 
