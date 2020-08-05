@@ -57,6 +57,18 @@ class IREq(object):
     def conditionals(self):
         return self._conditionals or frozendict()
 
+    @cached_property
+    def conditions(self):
+        ret = []
+        for d, v in self.conditionals.items():
+            if d.is_Conditional:
+                if d.condition is not None:
+                    ret.append(d.condition)
+            else:
+                # Already lowered
+                ret.append(v)
+        return tuple(ret)
+
     @property
     def directions(self):
         return self.ispace.directions
