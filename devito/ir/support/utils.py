@@ -129,7 +129,7 @@ def detect_io(exprs, relax=False):
         try:
             roots.append(i.rhs)
             roots.extend(list(i.lhs.indices))
-            roots.extend(list(i.conditions))
+            roots.extend(list(i.conditionals.values()))
         except AttributeError:
             # E.g., FunctionFromPointer
             roots.append(i)
