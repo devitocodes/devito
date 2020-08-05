@@ -53,16 +53,28 @@ class Lift(Queue):
                 processed.append(c)
                 continue
 
-            # Scalars prevent lifting if they are read by another Cluster
-            swrites = {f for f in c.scope.writes if f.is_Symbol}
-            if any(swrites & set(i.scope.reads) for i in impacted):
-                processed.append(c)
-                continue
-
-            # Contract iteration and data spaces for the lifted Cluster
+            # The contracted iteration and data spaces
             key = lambda d: d not in hope_invariant
             ispace = c.ispace.project(key).reset()
             dspace = c.dspace.project(key).reset()
+
+            # All of the inner Dimensions must appear in the write-to region
+            # otherwise we would violate data dependencies. Consider
+            #
+            # 1)                 2)                          3)
+            # for i              for i                       for i
+            #   for x              for x                       for x
+            #     r = f(a[x])        for y                       for y
+            #                          r[x] = f(a[x, y])           r[x, y] = f(a[x, y])
+            #
+            # In 1) and 2) lifting is infeasible; in 3) the statement can be lifted
+            # outside the `i` loop as `r`'s write-to region contains both `x` and `y`
+            writes = set(c.scope.writes)
+            reads = set().union(*[i.scope.reads for i in impacted])
+            if any(set(i.dimensions) != set(ispace.intervals.dimensions)
+                   for i in writes & reads):
+                processed.append(c)
+                continue
 
             # Some properties need to be dropped
             properties = {d: v for d, v in c.properties.items() if key(d)}

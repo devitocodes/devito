@@ -9,7 +9,8 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
                     switchconfig, configuration, centered, first_derivative, transpose)
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
-from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
+from devito.ir import (DummyEq, Expression, Iteration, FindNodes, FindSymbols,
+                       retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
 from devito.symbolics import estimate_cost, pow_to_mul, indexify
@@ -248,70 +249,111 @@ def test_time_dependent_split(opt):
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
 
 
-@pytest.mark.parametrize('exprs,expected', [
-    # none (different distance)
-    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
-     'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
-     [6., 0., 0.]),
-    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
-     'Eq(h1[0, 0], y, implicit_dims=(t, x, y))'],
-     [2., 0., 0.]),
-    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
-     'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-     [0., 1., 2.]),
-    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
-     'Eq(h1[0, y], 3 - y, implicit_dims=(t, x, y))'],
-     [3., 2., 1.]),
-    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
-      'Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
-      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-     [0., 1., 2.]),
-    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
-      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
-      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-     [0., 1., 2.]),
-    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
-      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
-      'Inc(h1[0, y], y, implicit_dims=(t, x, y))'],
-     [0., 2., 6.]),
-    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
-      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
-      'Inc(h1[0, x], y, implicit_dims=(t, x, y))'],
-     [3., 3., 2.]),
-    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
-      'Inc(h1[0, y], x, implicit_dims=(t, x, y))'],
-     [3., 3., 3.]),
-    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
-      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
-     [2., 2., 2.]),
-    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
-      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x, y))'],
-     [2., 2., 2.]),
-    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
-      'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
-     [2., 2., 2.]),
-    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
-      'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(t, x))',
-      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-     [0., 0., 0.])
-])
-def test_lifting(exprs, expected):
-    t, x, y = dimensions('t x y')
+class TestLifting(object):
 
-    g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
-                     time_order=0, dtype=np.int32)
-    g.data[0, :] = [0, 1, 2]
-    h1 = TimeFunction(name='h1', shape=(1, 3), dimensions=(t, y), time_order=0)
-    h1.data[0, :] = 0
+    @pytest.mark.parametrize('exprs,expected', [
+        # none (different distance)
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+         'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
+         [6., 0., 0.]),
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+         'Eq(h1[0, 0], y, implicit_dims=(t, x, y))'],
+         [2., 0., 0.]),
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+         'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+         [0., 1., 2.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+         'Eq(h1[0, y], 3 - y, implicit_dims=(t, x, y))'],
+         [3., 2., 1.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+         [0., 1., 2.]),
+        (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+         [0., 1., 2.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, y], y, implicit_dims=(t, x, y))'],
+         [0., 2., 6.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, x], y, implicit_dims=(t, x, y))'],
+         [3., 3., 2.]),
+        (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+          'Inc(h1[0, y], x, implicit_dims=(t, x, y))'],
+         [3., 3., 3.]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+         [2., 2., 2.]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x, y))'],
+         [2., 2., 2.]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+         [2., 2., 2.]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(t, x))',
+          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+         [0., 0., 0.])
+    ])
+    def test_edge_cases(self, exprs, expected):
+        t, x, y = dimensions('t x y')
 
-    # List comprehension would need explicit locals/globals mappings to eval
-    for i, e in enumerate(list(exprs)):
-        exprs[i] = eval(e)
+        g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
+                         time_order=0, dtype=np.int32)
+        g.data[0, :] = [0, 1, 2]
+        h1 = TimeFunction(name='h1', shape=(1, 3), dimensions=(t, y), time_order=0)
+        h1.data[0, :] = 0
 
-    op = Operator(exprs)
-    op.apply()
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
 
-    assert np.all(h1.data == expected)
+        op = Operator(exprs)
+        op.apply()
+
+        assert np.all(h1.data == expected)
+
+    @pytest.mark.parametrize('exprs,expected,visit', [
+        (['Eq(f, f + g*2, implicit_dims=(time, x, y))',
+          'Eq(u, (f + f[y+1])*g)'],
+         ['txy', 'txy'], 'txyy'),
+    ])
+    def test_contracted(self, exprs, expected, visit):
+        """
+        Test that in situations such as
+
+            for i
+              for x
+                r = f(a[x])
+
+        the `r` statement isn't lifted outside of `i`, since we're not recording
+        each of the computed `x` value (IOW, we're writing to `r` rather than `r[x]`).
+        """
+        grid = Grid(shape=(3, 3), dtype=np.int32)
+        x, y = grid.dimensions
+        time = grid.time_dim  # noqa
+
+        f = Function(name='f', grid=grid, shape=(3,), dimensions=(y,))  # noqa
+        g = Function(name='g', grid=grid)  # noqa
+        u = TimeFunction(name='u', grid=grid, time_order=0)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        op = Operator(exprs)
+
+        trees = retrieve_iteration_tree(op)
+        iters = FindNodes(Iteration).visit(op)
+        assert len(trees) == len(expected)
+        # mapper just makes it quicker to write out the test parametrization
+        mapper = {'time': 't'}
+        assert ["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
+                for j in trees] == expected
+        assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
 
 
 class TestAliases(object):
