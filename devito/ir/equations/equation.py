@@ -1,11 +1,12 @@
 from cached_property import cached_property
 import sympy
 
-from devito.ir.equations.algorithms import dimension_sort
+from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Stencil, detect_accesses, detect_oobs, detect_io,
                                build_intervals, build_iterators)
+from devito.symbolics import CondEq
 from devito.tools import Pickable, frozendict
 from devito.types import Eq
 
@@ -122,7 +123,7 @@ class LoweredEq(sympy.Eq, IREq):
         # Analyze the expression
         mapper = detect_accesses(expr)
         oobs = detect_oobs(mapper)
-        conditionals = [i for i in ordering if i.is_Conditional]
+        conditional_dimensions = [i for i in ordering if i.is_Conditional]
 
         # Construct Intervals for IterationSpace and DataSpace
         intervals = build_intervals(Stencil.union(*mapper.values()))
@@ -144,10 +145,19 @@ class LoweredEq(sympy.Eq, IREq):
 
         # Construct the DataSpace
         dintervals.extend([Interval(i, 0, 0) for i in ordering
-                           if i not in ispace.dimensions + conditionals])
+                           if i not in ispace.dimensions + conditional_dimensions])
         parts = {k: IntervalGroup(build_intervals(v)).add(iintervals)
                  for k, v in mapper.items() if k}
         dspace = DataSpace(dintervals, parts)
+
+        # Construct the conditionals
+        conditionals = {}
+        for d in conditional_dimensions:
+            if d.condition is None:
+                conditionals[d] = CondEq(d.parent % d.factor, 0)
+            else:
+                conditionals[d] = lower_exprs(d.condition)
+        conditionals = frozendict(conditionals)
 
         # Lower all Differentiable operations into SymPy operations
         rhs = diff2sympy(expr.rhs)
@@ -157,7 +167,7 @@ class LoweredEq(sympy.Eq, IREq):
 
         expr._dspace = dspace
         expr._ispace = ispace
-        expr._conditionals = frozendict([(d, ()) for d in conditionals])
+        expr._conditionals = conditionals
         expr._reads, expr._writes = detect_io(expr)
 
         expr._is_Increment = input_expr.is_Increment
