@@ -386,6 +386,10 @@ class IntervalGroup(PartialOrderTuple):
     def reset(self):
         return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
+    def switch(self, d0, d1):
+        return IntervalGroup([i.switch(d1) if i.dim is d0 else i for i in self],
+                             relations=self.relations)
+
     def index(self, key):
         if isinstance(key, Interval):
             return super(IntervalGroup, self).index(key)
