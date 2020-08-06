@@ -10,7 +10,7 @@ from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, IterationInstance, Iterat
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
-from devito.tools import as_tuple, flatten, split
+from devito.tools import EnrichedTuple, as_tuple, flatten, split
 from devito.types import Array, Eq, ShiftedDimension, Scalar
 
 __all__ = ['cire']
@@ -518,7 +518,7 @@ def make_schedule(cluster, aliases, in_writeto, options):
     # As by contract (see docstring), smaller write-to regions go in first
     processed = sorted(items, key=lambda i: len(i.writeto))
 
-    return Schedule(dmapper, *processed)
+    return Schedule(*processed, dmapper=dmapper)
 
 
 def process(cluster, schedule, chosen, sregistry, platform):
@@ -549,7 +549,7 @@ def process(cluster, schedule, chosen, sregistry, platform):
         parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
         sharing = 'shared' if set(parallel) == set(writeto.dimensions) else 'local'
 
-        # Finally create the temporary Array that will store `alias`
+        # The temporary Array that will store `alias`
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
                       dtype=cluster.dtype, sharing=sharing)
 
@@ -717,13 +717,6 @@ class Group(tuple):
                         raise ValueError
                 ret[d] = max(ret[d], distance)
 
-        # Drop ShiftedDimensions
-        for d, v in list(ret.items()):
-            if d.is_Shifted:
-                if v != ret.get(d.parent, v):
-                    raise ValueError
-                ret.pop(d)
-
         return ret
 
     @property
@@ -803,11 +796,7 @@ class Group(tuple):
                 hsize = sum(f._size_halo[l])
 
                 # Any `ofs`'s shift due to non-[0,0] iteration space
-                try:
-                    lower, upper = c.shifts[l].offsets
-                except AttributeError:
-                    assert l.is_Shifted
-                    lower, upper = (0, 0)
+                lower, upper = c.shifts[l].offsets
 
                 try:
                     # Assume `ofs[d]` is a number (typical case)
@@ -827,15 +816,13 @@ AliasedGroup = namedtuple('AliasedGroup', 'intervals aliaseds distances')
 ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace amapper')
 ScheduledAlias.__new__.__defaults__ = (None,) * len(ScheduledAlias._fields)
 
+Schedule = EnrichedTuple
 
 class AliasMapper(OrderedDict):
 
     """
     A mapper between aliases and collections of aliased expressions.
     """
-
-    def __init__(self):
-        super(AliasMapper, self).__init__()
 
     def add(self, alias, intervals, aliaseds, distances):
         assert len(aliaseds) == len(distances)
@@ -849,18 +836,6 @@ class AliasMapper(OrderedDict):
             if key in i.aliaseds:
                 return i.aliaseds
         return []
-
-
-class Schedule(tuple):
-
-    """
-    A total ordering of aliases with some metadata attached.
-    """
-
-    def __new__(cls, dmapper, *items):
-        obj = super(Schedule, cls).__new__(cls, items)
-        obj.dmapper = dmapper
-        return obj
 
 
 def make_rotations_table(d, v):
