@@ -849,16 +849,22 @@ class ModuloDimension(DerivedDimension):
     ``parent`` Dimension, which cyclically produces a finite range of values,
     such as ``0, 1, 2, 0, 1, 2, 0, ...``.
 
+    When ``modulo=None``, the ModuloDimension degenerates and keeps generating
+    the same number such as ``2, 2, 2, 2, 2, ...`` (the actual value depends
+    on ``incr``).
+
     Parameters
     ----------
     parent : Dimension
         The Dimension from which the ModuloDimension is derived.
-    offset : int
-        The offset from the parent dimension
-    modulo : int
+    offset : int, optional
+        The offset from the parent dimension. Defaults to 0.
+    modulo : int, optional
         The divisor value.
+    incr : expr-like, optional
+        The distance between two consecutive points. Defaults to ``root + offset``.
     name : str, optional
-        To force a different Dimension name.
+        To override the default name.
 
     Notes
     -----
@@ -868,15 +874,19 @@ class ModuloDimension(DerivedDimension):
 
     is_Modulo = True
 
-    def __new__(cls, parent, offset, modulo, name=None):
+    def __new__(cls, parent, offset=None, modulo=None, incr=None, name=None):
         if name is None:
+            assert modulo is not None
+            assert offset is not None
             name = cls._genname(parent.name, (offset, modulo))
-        return super().__new__(cls, parent, offset, modulo, name=name)
+        return super().__new__(cls, parent, offset=offset, modulo=modulo,
+                               incr=incr, name=name)
 
-    def __init_finalize__(self, parent, offset, modulo, name=None):
+    def __init_finalize__(self, parent, offset=None, modulo=None, incr=None, name=None):
         super().__init_finalize__(name, parent)
-        self._offset = offset
+        self._offset = offset or 0
         self._modulo = modulo
+        self._incr = incr
 
     @property
     def offset(self):
@@ -887,14 +897,36 @@ class ModuloDimension(DerivedDimension):
         return self._modulo
 
     @property
+    def incr(self):
+        return self._incr
+
+    @property
     def origin(self):
+        #TODO: replace with self.root + self.offset ??
+        #TODO: then use it throughout the class
         return self.parent + self.offset
 
     @cached_property
     def symbolic_min(self):
-        return (self.root + self.offset) % self.modulo
+        if self.modulo is not None:
+            return (self.root + self.offset) % self.modulo
+        else:
+            return self.root + self.offset
 
-    symbolic_incr = symbolic_min
+    @cached_property
+    def symbolic_incr(self):
+        if self._incr is not None:
+            incr = self._incr
+        else:
+            incr = self.root + self.offset
+        if self.modulo is not None:
+            incr = incr % self.modulo
+        # Make sure we return a symbolic object as this point `incr` may well
+        # be a pure Python number
+        try:
+            return sympy.Number(incr)
+        except (TypeError, ValueError):
+            return incr
 
     def _arg_defaults(self, **kwargs):
         """
@@ -910,8 +942,8 @@ class ModuloDimension(DerivedDimension):
         return {}
 
     # Pickling support
-    _pickle_args = ['parent', 'offset', 'modulo']
-    _pickle_kwargs = ['name']
+    _pickle_args = ['parent']
+    _pickle_kwargs = ['offset', 'modulo', 'incr', 'name']
 
 
 class IncrDimension(DerivedDimension):
@@ -930,11 +962,11 @@ class IncrDimension(DerivedDimension):
         The minimum point of the Dimension.
     _max : expr-like
         The maximum point of the Dimension.
-    step : int, optional
+    step : expr-like, optional
         The distance between two consecutive points. Defaults to the
         symbolic size.
     name : str, optional
-        To override the default Dimension name.
+        To override the default name.
 
     Notes
     -----
