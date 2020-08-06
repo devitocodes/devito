@@ -6,10 +6,10 @@ from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, NODE,
 from examples.seismic import PointSource, Receiver
 
 
-def sls_1st_stencil(model, geometry, v, p, **kwargs):
+def sls_1st_order(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Blanch and Symes (1995) / Dutta and Schuster (2014)
-    viscoacoustic wave equation.
+    Implementation of the 1st order viscoacoustic wave-equation
+    from Blanch and Symes (1995) / Dutta and Schuster (2014).
 
     https://library.seg.org/doi/pdf/10.1190/1.1822695
     https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
@@ -62,9 +62,9 @@ def sls_1st_stencil(model, geometry, v, p, **kwargs):
     return [u_v, u_r, u_p]
 
 
-def sls_2nd_stencil(model, geometry, v, p, **kwargs):
+def sls_2nd_order(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Bai (2014) viscoacoustic wave equation.
+    Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
 
     https://library.seg.org/doi/10.1190/geo2013-0030.1
 
@@ -75,7 +75,7 @@ def sls_2nd_stencil(model, geometry, v, p, **kwargs):
     p : TimeFunction
         Pressure field.
     """
-    forward = kwargs.get('forward')
+    forward = kwargs.get('forward', True)
     space_order = p.space_order
     s = model.grid.stepping_dim.spacing
     b = model.b
@@ -140,9 +140,9 @@ def sls_2nd_stencil(model, geometry, v, p, **kwargs):
         return [u_r, u_h, u_v, u_g, u_w, u_p]
 
 
-def ren_1st_stencil(model, geometry, v, p, **kwargs):
+def ren_1st_order(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Ren et al. (2014) viscoacoustic wave equation.
+    Implementation of the 1st order viscoacoustic wave-equation from Ren et al. (2014).
 
     https://academic.oup.com/gji/article/197/2/948/616510
 
@@ -177,9 +177,9 @@ def ren_1st_stencil(model, geometry, v, p, **kwargs):
     return [u_v, u_p]
 
 
-def ren_2nd_stencil(model, geometry, v, p, **kwargs):
+def ren_2nd_order(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Ren et al. (2014) viscoacoustic wave equation.
+    Implementation of the 2nd order viscoacoustic wave-equation from Ren et al. (2014).
 
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
@@ -190,7 +190,7 @@ def ren_2nd_stencil(model, geometry, v, p, **kwargs):
     p : TimeFunction
         Pressure field.
     """
-    forward = kwargs.get('forward')
+    forward = kwargs.get('forward', True)
     space_order = p.space_order
 
     s = model.grid.stepping_dim.spacing
@@ -256,9 +256,10 @@ def ren_2nd_stencil(model, geometry, v, p, **kwargs):
         return [u_h, u_w, u_g, u_v, u_p]
 
 
-def deng_1st_stencil(model, geometry, v, p, **kwargs):
+def deng_1st_order(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Deng and McMechan (2007) viscoacoustic wave equation.
+    Implementation of the 1st order viscoacoustic wave-equation
+    from Deng and McMechan (2007).
 
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
@@ -292,9 +293,10 @@ def deng_1st_stencil(model, geometry, v, p, **kwargs):
     return [u_v, u_p]
 
 
-def deng_2nd_stencil(model, geometry, v, p, **kwargs):
+def deng_2nd_order(model, geometry, v, p, **kwargs):
     """
-    Stencil created from Deng and McMechan (2007) viscoacoustic wave equation.
+    Implementation of the 2nd order viscoacoustic wave-equation
+    from Deng and McMechan (2007).
 
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
@@ -305,7 +307,7 @@ def deng_2nd_stencil(model, geometry, v, p, **kwargs):
     p : TimeFunction
         Pressure field.
     """
-    forward = kwargs.get('forward')
+    forward = kwargs.get('forward', True)
     space_order = p.space_order
 
     s = model.grid.stepping_dim.spacing
@@ -366,11 +368,13 @@ def deng_2nd_stencil(model, geometry, v, p, **kwargs):
 
 def sls(model, geometry, v, p, forward=True, **kwargs):
     """
-    Stencil created from Blanch and Symes (1995) / Dutta and Schuster (2014)
-    viscoacoustic wave equation.
+    Implementation of the 1st order viscoacoustic wave-equation
+    from Blanch and Symes (1995) / Dutta and Schuster (2014) and
+    Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
 
     https://library.seg.org/doi/pdf/10.1190/1.1822695
     https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
+    https://library.seg.org/doi/10.1190/geo2013-0030.1
 
     Parameters
     ----------
@@ -389,9 +393,11 @@ def sls(model, geometry, v, p, forward=True, **kwargs):
 
 def ren(model, geometry, v, p, forward=True, **kwargs):
     """
-    Stencil created from Ren et al. (2014) viscoacoustic wave equation.
+    Implementation of the 1st order viscoacoustic wave-equation and 2nd order
+    viscoacoustic wave-equation from Ren et al. (2014).
 
     https://academic.oup.com/gji/article/197/2/948/616510
+    https://library.seg.org/doi/pdf/10.1190/1.2714334
 
     Parameters
     ----------
@@ -410,7 +416,8 @@ def ren(model, geometry, v, p, forward=True, **kwargs):
 
 def deng_mcmechan(model, geometry, v, p, forward=True, **kwargs):
     """
-    Stencil created from Deng and McMechan (2007) viscoacoustic wave equation.
+    Implementation of the 1st order viscoacoustic wave-equation and 2nd order
+    viscoacoustic wave-equation from Deng and McMechan (2007).
 
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
@@ -539,7 +546,7 @@ def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, 
 
 
 kernels = {'sls': sls, 'ren': ren, 'deng_mcmechan': deng_mcmechan}
-stencils = {('sls', 1): sls_1st_stencil, ('sls', 2): sls_2nd_stencil,
-            ('deng_mcmechan', 1): deng_1st_stencil,
-            ('deng_mcmechan', 2): deng_2nd_stencil,
-            ('ren', 1): ren_1st_stencil, ('ren', 2): ren_2nd_stencil}
+stencils = {('sls', 1): sls_1st_order, ('sls', 2): sls_2nd_order,
+            ('deng_mcmechan', 1): deng_1st_order,
+            ('deng_mcmechan', 2): deng_2nd_order,
+            ('ren', 1): ren_1st_order, ('ren', 2): ren_2nd_order}
