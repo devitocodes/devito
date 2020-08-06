@@ -3,7 +3,7 @@ import numpy as np
 from math import floor
 
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
-                    SubDomainSet, Dimension)
+                    SubDomainSet, Dimension, norm)
 from devito.tools import timed_region
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
@@ -484,7 +484,7 @@ class TestSubdomainFunctionsParallel(object):
         assert(np.all(f.data[:] == 3))
         assert(np.all(g.data[2:-2, 3:-1] == 2))
 
-    @pytest.mark.parallel(mode=4)
+    #@pytest.mark.parallel(mode=4)
     def test_acoustic_on_sd(self):
 
         class CompDom(SubDomain):
@@ -530,7 +530,8 @@ class TestSubdomainFunctionsParallel(object):
         m = Function(name='m', grid=grid)
         m.data[:] = 1./(v*v)
 
-        pde = m * u.dt2 - u.laplace
+        #pde = m * u.dt2 - u.laplace
+        pde = m * u.dt2 - (u.dx2 + u.dy2)
         stencil = Eq(u.forward, solve(pde, u.forward),
                      subdomain=grid.subdomains['comp_domain'])
 
@@ -539,9 +540,14 @@ class TestSubdomainFunctionsParallel(object):
 
         op = Operator([stencil] + src_term + rec_term)
 
-        # Make sure we've indeed generated OpenMP offloading code
-        assert 'omp target' in str(op)
-
         op(time=time_range.num-1, dt=dt)
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
+
+    def test_w_mixed_sparse(self):
+        """
+        Write a test when injecting onto a Function on a Sub and one not
+        on a Sub.
+        """
+        # FIXME: Write this test
+        assert(1 == 1)

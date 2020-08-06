@@ -98,7 +98,6 @@ def lower_exprs(expressions, **kwargs):
                      for f in set(retrieve_functions(expr)).difference(fosd)},
                   **{f: f.indexify(lshift=True, subs=f._subdomain._access_map)
                      for f in fosd}}
-        from IPython import embed; embed()
 
         # Handle Indexeds (from index notation)
         for i in retrieve_indexed(expr):
