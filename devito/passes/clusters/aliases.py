@@ -1,17 +1,19 @@
 from collections import OrderedDict, defaultdict, namedtuple
 from functools import partial
+from itertools import groupby
 
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, IterationInstance, IterationSpace,
-                       Interval, IntervalGroup, LabeledVector, Scope, detect_accesses,
-                       build_intervals)
+from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, Forward, IterationInstance,
+                       IterationSpace, Interval, IntervalGroup, LabeledVector, Scope,
+                       detect_accesses, build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
-from devito.tools import EnrichedTuple, as_tuple, flatten, split
-from devito.types import Array, Eq, ShiftedDimension, Scalar
+from devito.tools import EnrichedTuple, as_list, flatten, split
+from devito.types import (Array, Eq, Scalar, ModuloDimension, ShiftedDimension,
+                          CustomDimension)
 
 __all__ = ['cire']
 
@@ -110,11 +112,10 @@ def cire(cluster, mode, sregistry, options, platform):
             # Do not waste time
             continue
 
-        # Lower the chosen aliases into a Schedule
+        # AliasMapper -> Schedule -> [Clusters]
         schedule = make_schedule(cluster, aliases, in_writeto, options)
-
-        # Lower the Schedule into a sequence of Clusters
-        clusters, subs = process(cluster, schedule, chosen, sregistry, platform)
+        schedule = optimize_schedule(schedule, options)
+        clusters, subs = lower_schedule(cluster, schedule, chosen, sregistry, platform)
 
         # Rebuild `cluster` so as to use the newly created aliases
         rebuilt = rebuild(cluster, others, schedule, subs)
@@ -454,7 +455,6 @@ def make_schedule(cluster, aliases, in_writeto, options):
     The aliases can legally be scheduled in many different orders, but we
     privilege the one that minimizes storage while maximizing fusion.
     """
-    rotate = options['cire-rotate']
     max_par = options['cire-maxpar']
 
     items = []
@@ -498,7 +498,7 @@ def make_schedule(cluster, aliases, in_writeto, options):
             intervals.append(interval)
 
             if i.dim.is_Incr:
-                # Suitable IncrDimensions must be used to avoid OOB accesses.
+                # Suitable ShiftedDimensions must be used to avoid OOB accesses.
                 # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
                 # not at `x0_blk0`
                 try:
@@ -529,7 +529,82 @@ def make_schedule(cluster, aliases, in_writeto, options):
     return Schedule(*processed, dmapper=dmapper)
 
 
-def process(cluster, schedule, chosen, sregistry, platform):
+def optimize_schedule(schedule, options):
+    """
+    Rewrite the schedule for performance optimization.
+    """
+    rotate = options['cire-rotate']
+
+    if not rotate:
+        return schedule
+
+    # Rotations, if any, occur along the outermost Dimension
+    ridx = 0
+
+    dmapper = {d: as_list(v) for d, v in schedule.dmapper.items()}
+
+    processed = []
+    for k, g in groupby(schedule, key=lambda i: i.writeto):
+        if len(k) < 2:
+            processed.extend(list(g))
+            continue
+
+        candidate = k[ridx]
+        d = candidate.dim
+        try:
+            ds = schedule.dmapper[d]
+        except KeyError:
+            # Can't do anything if `d` isn't an IncrDimension over a block
+            processed.extend(list(g))
+            continue
+
+        n = candidate.min_size
+        assert n > 0
+
+        iis = candidate.lower
+        iib = candidate.upper
+
+        ii = ModuloDimension(ds, iis, incr=iib, name='ii')
+        cd = CustomDimension(name='i', symbolic_min=ii, symbolic_max=iib, symbolic_size=n)
+
+        dsi = ModuloDimension(cd, cd + ds - iis, n, name='%si' % ds)
+        for i in g:
+            # Update `indicess` to use `xs0`, `xs1`, ...
+            mds = []
+            for indices in i.indicess:
+                name = '%s%d' % (ds.name, indices[ridx] - ds)
+                mds.append(ModuloDimension(ds, indices[ridx], n, name=name))
+            indicess = [[md] + indices[ridx + 1:] for md, indices in zip(mds, i.indicess)]
+
+            # Update `writeto` by switching `d` to `dsi`
+            intervals = k.intervals.switch(d, dsi).zero(dsi)
+            sub_iterators = dict(k.sub_iterators)
+            sub_iterators[d] = dsi
+            writeto = IterationSpace(intervals, sub_iterators)
+
+            # Transform `alias` by adding `i`
+            alias = i.alias.xreplace({d: d + cd})
+
+            # Extend `ispace` to iterate over rotations
+            d1 = writeto[ridx+1].dim  # Note: we're by construction in-bounds here
+            intervals = IntervalGroup(Interval(cd, 0, 0), relations={(d, cd, d1)})
+            rispace = IterationSpace(intervals, {cd: dsi}, {cd: Forward})
+            aispace = i.ispace.zero(d)
+            aispace = aispace.augment({d: mds + [ii]})
+            ispace = IterationSpace.union(rispace, aispace)
+
+            # Update the new `dmapper`
+            dmapper[d].extend(mds)
+
+            processed.append(ScheduledAlias(alias, writeto, ispace, i.aliaseds, indicess))
+
+    return Schedule(*processed, dmapper=dmapper)
+
+
+def lower_schedule(cluster, schedule, chosen, sregistry, platform):
+    """
+    Turn a Schedule into a sequence of Clusters.
+    """
     clusters = []
     subs = {}
     for alias, writeto, ispace, aliaseds, indicess in schedule:
@@ -547,7 +622,7 @@ def process(cluster, schedule, chosen, sregistry, platform):
         # Aside from ugly generated code, the reason we do not rather shift the
         # indices is that it prevents future passes to transform the loop bounds
         # (e.g., MPI's comp/comm overlap does that)
-        dimensions = [d.parent if d.is_Sub else d for d in writeto.dimensions]
+        dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
 
         # The halo of the Array
         halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
@@ -555,7 +630,7 @@ def process(cluster, schedule, chosen, sregistry, platform):
         # The data sharing mode of the Array. It can safely be `shared` only if
         # all of the PARALLEL `cluster` Dimensions appear in `writeto`
         parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
-        sharing = 'shared' if set(parallel) == set(writeto.dimensions) else 'local'
+        sharing = 'shared' if set(parallel) == set(writeto.itdimensions) else 'local'
 
         # The temporary Array that will store `alias`
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
@@ -588,6 +663,7 @@ def process(cluster, schedule, chosen, sregistry, platform):
 
         # Optimization: if possible, the innermost IterationInterval is
         # rounded up to a multiple of the vector length
+        #TODO: MOVE THIS TO OPTIMIZE_SCHEDULE
         try:
             it = ispace.itintervals[-1]
             if ROUNDABLE in cluster.properties[it.dim]:
@@ -837,6 +913,7 @@ ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace aliaseds ind
 ScheduledAlias.__new__.__defaults__ = (None,) * len(ScheduledAlias._fields)
 
 Schedule = EnrichedTuple
+
 
 class AliasMapper(OrderedDict):
 
