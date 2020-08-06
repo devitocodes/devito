@@ -484,28 +484,36 @@ def make_schedule(cluster, aliases, in_writeto, options):
                 # fusion for more collapse-parallelism
                 interval = interval.lift(interval.stamp + int(max_par))
 
-                writeto.append(interval)
                 intervals.append(interval)
 
-                # IncrDimensions must be substituted with ShiftedDimensions
-                # to access the temporaries, otherwise we would go OOB
-                # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
-                # not at `x0_blk0`
                 if i.dim.is_Incr:
+                    # IncrDimensions must be substituted with ShiftedDimensions
+                    # to access the temporaries, otherwise we would go OOB
+                    # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
+                    # not at `x0_blk0`
                     try:
                         d = dmapper[i.dim]
                     except KeyError:
                         d = dmapper[i.dim] = ShiftedDimension(i.dim, "%ss" % i.dim.name)
                     sub_iterators[i.dim] = as_tuple(sub_iterators.get(i.dim)) + (d,)
+
+                    writeto.append(interval.switch(d))
+                else:
+                    writeto.append(interval)
             else:
                 intervals.append(i)
 
+        writeto = IntervalGroup(writeto)
         intervals = IntervalGroup(intervals, cluster.ispace.relations)
-        writeto = IntervalGroup(writeto, cluster.ispace.relations)
 
         ispace = IterationSpace(intervals, sub_iterators, cluster.directions)
 
-        items.append(ScheduledAlias(alias, writeto, ispace, v.aliaseds, v.distances))
+        # Lower aliaseds+distances
+        indices = [[i.dim - i.lower + ds[dmapper.get(i.dim, i.dim)] for i in writeto]
+                   for ds in v.distances]
+        amapper = OrderedDict(zip(v.aliaseds, indices))
+
+        items.append(ScheduledAlias(alias, writeto, ispace, amapper))
 
     # As by contract (see docstring), smaller write-to regions go in first
     processed = sorted(items, key=lambda i: len(i.writeto))
@@ -516,8 +524,8 @@ def make_schedule(cluster, aliases, in_writeto, options):
 def process(cluster, schedule, chosen, sregistry, platform):
     clusters = []
     subs = {}
-    for alias, writeto, ispace, aliaseds, distances in schedule:
-        if all(i not in chosen for i in aliaseds):
+    for alias, writeto, ispace, amapper in schedule:
+        if all(i not in chosen for i in amapper):
             continue
 
         # The Dimensions defining the shape of Array
@@ -545,22 +553,14 @@ def process(cluster, schedule, chosen, sregistry, platform):
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
                       dtype=cluster.dtype, sharing=sharing)
 
-        # The access Dimensions may differ from `writeto.dimensions`. This may
-        # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
-        adims = [schedule.dmapper.get(d, d) for d in writeto.dimensions]
-
         # The expression computing `alias`
-        indices = [d - (0 if writeto[d].is_Null else writeto[d].lower) for d in adims]
+        indices = [i.dim - (0 if i.dim.is_Shifted else i.lower) for i in writeto]
         expression = Eq(array[indices], uxreplace(alias, subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
-        for aliased, distance in zip(aliaseds, distances):
-            assert all(i.dim in distance.labels for i in writeto)
-
-            indices = [d - i.lower + distance[i.dim] for d, i in zip(adims, writeto)]
+        for aliased, indices in amapper.items():
             subs[aliased] = array[indices]
-
             if aliased in chosen:
                 subs[chosen[aliased]] = array[indices]
             else:
@@ -824,7 +824,7 @@ class Group(tuple):
 
 AliasedGroup = namedtuple('AliasedGroup', 'intervals aliaseds distances')
 
-ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace aliaseds distances')
+ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace amapper')
 ScheduledAlias.__new__.__defaults__ = (None,) * len(ScheduledAlias._fields)
 
 
