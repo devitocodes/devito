@@ -152,6 +152,10 @@ class Interval(AbstractInterval):
         lower_extreme = self.dim.symbolic_min + self.lower
         return (upper_extreme - lower_extreme + 1) / self.dim.symbolic_incr
 
+    @cached_property
+    def min_size(self):
+        return self.upper - self.lower + 1
+
     @property
     def relaxed(self):
         return Interval(self.dim.root, self.lower, self.upper, self.stamp)
