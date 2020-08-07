@@ -506,6 +506,13 @@ class Space(object):
     def __hash__(self):
         return hash(self.intervals)
 
+    def __len__(self):
+        return len(self.intervals)
+
+    def __iter__(self):
+        for i in self.intervals:
+            yield i
+
     @property
     def intervals(self):
         return self._intervals
@@ -635,7 +642,13 @@ class IterationSpace(Space):
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
         super(IterationSpace, self).__init__(intervals)
-        self._sub_iterators = frozendict(sub_iterators or {})
+
+        # Normalize sub-iterators
+        sub_iterators = sub_iterators or {}
+        self._sub_iterators = frozendict([(k, tuple(filter_ordered(as_tuple(v))))
+                                          for k, v in sub_iterators.items()])
+
+        # Normalize directions
         if directions is None:
             self._directions = frozendict([(i.dim, Any) for i in self.intervals])
         else:
