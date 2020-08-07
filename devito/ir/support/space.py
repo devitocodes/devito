@@ -671,6 +671,9 @@ class IterationSpace(Space):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
                      self.directions))
 
+    def __getitem__(self, key):
+        return self.intervals[key]
+
     @classmethod
     def union(cls, *others):
         if not others:
