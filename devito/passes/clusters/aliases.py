@@ -462,7 +462,8 @@ def make_schedule(cluster, aliases, in_writeto, options):
 
         intervals = []
         writeto = []
-        sub_iterators = dict(cluster.sub_iterators)
+        sub_iterators = {}
+        indicess = [[] for _ in v.distances]
         for i in cluster.ispace.intervals:
             try:
                 interval = imapper[i.dim]
@@ -473,47 +474,51 @@ def make_schedule(cluster, aliases, in_writeto, options):
 
             assert i.stamp >= interval.stamp
 
-            if writeto or interval != interval.zero() or in_writeto(i.dim, cluster):
-                # `i.dim` is necessarily part of the write-to region, so
-                # we have to adjust the Interval's stamp. For example, consider
-                # `i=x[0,0]<1>` and `interval=x[-4,4]<0>`; here we need to
-                # use `<1>` as stamp, which is what appears in `cluster`
-                interval = interval.lift(i.stamp)
-
-                # We further bump the interval stamp if we were requested to trade
-                # fusion for more collapse-parallelism
-                interval = interval.lift(interval.stamp + int(max_par))
-
-                intervals.append(interval)
-
-                if i.dim.is_Incr:
-                    # IncrDimensions must be substituted with ShiftedDimensions
-                    # to access the temporaries, otherwise we would go OOB
-                    # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
-                    # not at `x0_blk0`
-                    try:
-                        d = dmapper[i.dim]
-                    except KeyError:
-                        d = dmapper[i.dim] = ShiftedDimension(i.dim, "%ss" % i.dim.name)
-                    sub_iterators[i.dim] = as_tuple(sub_iterators.get(i.dim)) + (d,)
-
-                    writeto.append(interval.switch(d))
-                else:
-                    writeto.append(interval)
-            else:
+            if not (writeto or interval != interval.zero() or in_writeto(i.dim, cluster)):
+                # The alias doesn't require a temporary Dimension along i.dim
                 intervals.append(i)
+                continue
 
-        writeto = IntervalGroup(writeto)
+            assert not i.dim.is_NonlinearDerived
+
+            # `i.dim` is necessarily part of the write-to region, so
+            # we have to adjust the Interval's stamp. For example, consider
+            # `i=x[0,0]<1>` and `interval=x[-4,4]<0>`; here we need to
+            # use `<1>` as stamp, which is what appears in `cluster`
+            interval = interval.lift(i.stamp)
+
+            # We further bump the interval stamp if we were requested to trade
+            # fusion for more collapse-parallelism
+            interval = interval.lift(interval.stamp + int(max_par))
+
+            writeto.append(interval)
+            intervals.append(interval)
+
+            if i.dim.is_Incr:
+                # Suitable IncrDimensions must be used to avoid OOB accesses.
+                # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
+                # not at `x0_blk0`
+                try:
+                    d = dmapper[i.dim]
+                except KeyError:
+                    d = dmapper[i.dim] = ShiftedDimension(i.dim, name="%ss" % i.dim.name)
+                sub_iterators[i.dim] = d
+            else:
+                d = i.dim
+
+            # Given the iteration `interval`, lower distances to indices
+            for distance, indices in zip(v.distances, indicess):
+                indices.append(d - interval.lower + distance[interval.dim])
+
+        # The alias write-to space
+        writeto = IterationSpace(IntervalGroup(writeto), sub_iterators)
+
+        # The alias iteration space
         intervals = IntervalGroup(intervals, cluster.ispace.relations)
+        ispace = IterationSpace(intervals, cluster.sub_iterators, cluster.directions)
+        ispace = ispace.augment(sub_iterators)
 
-        ispace = IterationSpace(intervals, sub_iterators, cluster.directions)
-
-        # Lower aliaseds+distances
-        indices = [[i.dim - i.lower + ds[dmapper.get(i.dim, i.dim)] for i in writeto]
-                   for ds in v.distances]
-        amapper = OrderedDict(zip(v.aliaseds, indices))
-
-        items.append(ScheduledAlias(alias, writeto, ispace, amapper))
+        items.append(ScheduledAlias(alias, writeto, ispace, v.aliaseds, indicess))
 
     # As by contract (see docstring), smaller write-to regions go in first
     processed = sorted(items, key=lambda i: len(i.writeto))
@@ -524,8 +529,8 @@ def make_schedule(cluster, aliases, in_writeto, options):
 def process(cluster, schedule, chosen, sregistry, platform):
     clusters = []
     subs = {}
-    for alias, writeto, ispace, amapper in schedule:
-        if all(i not in chosen for i in amapper):
+    for alias, writeto, ispace, aliaseds, indicess in schedule:
+        if all(i not in chosen for i in aliaseds):
             continue
 
         # The Dimensions defining the shape of Array
@@ -553,13 +558,24 @@ def process(cluster, schedule, chosen, sregistry, platform):
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
                       dtype=cluster.dtype, sharing=sharing)
 
+        # The Array write-to indices
+        indices = []
+        for i in writeto:
+            try:
+                # E.g., `xs`
+                sub_iterators = writeto.sub_iterators[i.dim]
+                assert len(sub_iterators) == 1
+                indices.append(sub_iterators[0])
+            except KeyError:
+                # E.g., `z` -- a non-shifted Dimension
+                indices.append(i.dim - i.lower)
+
         # The expression computing `alias`
-        indices = [i.dim - (0 if i.dim.is_Shifted else i.lower) for i in writeto]
         expression = Eq(array[indices], uxreplace(alias, subs))
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
-        for aliased, indices in amapper.items():
+        for aliased, indices in zip(aliaseds, indicess):
             subs[aliased] = array[indices]
             if aliased in chosen:
                 subs[chosen[aliased]] = array[indices]
@@ -813,7 +829,7 @@ class Group(tuple):
 
 AliasedGroup = namedtuple('AliasedGroup', 'intervals aliaseds distances')
 
-ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace amapper')
+ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace aliaseds indicess')
 ScheduledAlias.__new__.__defaults__ = (None,) * len(ScheduledAlias._fields)
 
 Schedule = EnrichedTuple
