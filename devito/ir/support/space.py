@@ -123,11 +123,18 @@ class Interval(AbstractInterval):
     is_Defined = True
 
     def __init__(self, dim, lower, upper, stamp=0):
-        assert is_integer(lower) or isinstance(lower, Expr)
-        assert is_integer(upper) or isinstance(upper, Expr)
         super(Interval, self).__init__(dim, stamp)
-        self.lower = lower
-        self.upper = upper
+
+        try:
+            self.lower = int(lower)
+        except TypeError:
+            assert isinstance(lower, Expr)
+            self.lower = lower
+        try:
+            self.upper = int(upper)
+        except TypeError:
+            assert isinstance(upper, Expr)
+            self.upper = upper
 
     def __repr__(self):
         return "%s[%s,%s]<%d>" % (self.dim, self.lower, self.upper, self.stamp)
