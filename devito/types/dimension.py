@@ -190,7 +190,9 @@ class Dimension(ArgProvider):
 
     @cached_property
     def _defines_symbols(self):
-        return frozenset({self.symbolic_min, self.symbolic_max, self.symbolic_size})
+        candidates = [self.symbolic_min, self.symbolic_max, self.symbolic_size,
+                      self.symbolic_incr]
+        return frozenset(i for i in candidates if not i.is_Number)
 
     @property
     def _arg_names(self):
@@ -875,10 +877,13 @@ class ModuloDimension(DerivedDimension):
     is_Modulo = True
 
     def __new__(cls, parent, offset=None, modulo=None, incr=None, name=None):
+        # Sanity check
+        assert modulo is not None or incr is not None
+        assert name is not None or (modulo is not None and offset is not None)
+
         if name is None:
-            assert modulo is not None
-            assert offset is not None
             name = cls._genname(parent.name, (offset, modulo))
+
         return super().__new__(cls, parent, offset=offset, modulo=modulo,
                                incr=incr, name=name)
 
@@ -905,6 +910,17 @@ class ModuloDimension(DerivedDimension):
         #TODO: replace with self.root + self.offset ??
         #TODO: then use it throughout the class
         return self.parent + self.offset
+
+    @cached_property
+    def symbolic_size(self):
+        try:
+            return sympy.Number(self.modulo)
+        except (TypeError, ValueError):
+            pass
+        try:
+            return sympy.Number(self.incr)
+        except (TypeError, ValueError):
+            return self.incr
 
     @cached_property
     def symbolic_min(self):
@@ -1125,7 +1141,10 @@ class CustomDimension(BasicDimension):
 
     @property
     def symbolic_size(self):
-        return self._symbolic_size
+        try:
+            return sympy.Number(self._symbolic_size)
+        except (TypeError, ValueError):
+            return self._symbolic_size
 
     def _arg_defaults(self):
         return {}
