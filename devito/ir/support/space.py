@@ -692,11 +692,18 @@ class IterationSpace(Space):
 
     def augment(self, sub_iterators):
         """
-        Create a new IterationSpace with additional sub iterators.
+        Create a new IterationSpace with additional sub-iterators.
         """
-        v = {k: as_list(v) for k, v in sub_iterators.items() if k in self.intervals}
-        sub_iterators = {**self.sub_iterators, **v}
-        return IterationSpace(self.intervals, sub_iterators, self.directions)
+        items = dict(self.sub_iterators)
+        for k, v in sub_iterators.items():
+            if k not in self.intervals:
+                continue
+            items[k] = as_list(items.get(k))
+            for i in as_list(v):
+                if i not in items[k]:
+                    items[k].append(i)
+
+        return IterationSpace(self.intervals, items, self.directions)
 
     def reset(self):
         return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)
