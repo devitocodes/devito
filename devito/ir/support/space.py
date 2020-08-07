@@ -759,6 +759,10 @@ class IterationSpace(Space):
         return self.directions[dim] is Forward
 
     @property
+    def itdimensions(self):
+        return self.intervals.dimensions
+
+    @property
     def relations(self):
         return self.intervals.relations
 
