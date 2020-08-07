@@ -1130,20 +1130,48 @@ class CustomDimension(BasicDimension):
 
     Notes
     -----
-    This could be extended in the future for more customization (e.g., min point,
-    max point, etc.).
+    This could be extended in the future for more customization (e.g., incr.).
     """
 
     is_Custom = True
 
-    def __init_finalize__(self, name, symbolic_size=None):
+    def __init_finalize__(self, name, symbolic_min=None, symbolic_max=None,
+                          symbolic_size=None):
+        self._symbolic_min = symbolic_min
+        self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
+
+    @property
+    def symbolic_min(self):
+        try:
+            return sympy.Number(self._symbolic_min)
+        except (TypeError, ValueError):
+            pass
+        if self._symbolic_min is None:
+            return super().symbolic_min
+        else:
+            return self._symbolic_min
+
+    @property
+    def symbolic_max(self):
+        try:
+            return sympy.Number(self._symbolic_max)
+        except (TypeError, ValueError):
+            pass
+        if self._symbolic_max is None:
+            return super().symbolic_max
+        else:
+            return self._symbolic_max
 
     @property
     def symbolic_size(self):
         try:
             return sympy.Number(self._symbolic_size)
         except (TypeError, ValueError):
+            pass
+        if self._symbolic_size is None:
+            return super().symbolic_size
+        else:
             return self._symbolic_size
 
     def _arg_defaults(self):
@@ -1153,7 +1181,7 @@ class CustomDimension(BasicDimension):
         return {}
 
     # Pickling support
-    _pickle_kwargs = ['symbolic_size']
+    _pickle_kwargs = ['symbolic_min', 'symbolic_max', 'symbolic_size']
 
 
 def dimensions(names):
