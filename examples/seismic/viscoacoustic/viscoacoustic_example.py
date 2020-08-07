@@ -31,10 +31,9 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
                                  kernel=kernel, time_order=time_order, **kwargs)
     info("Applying Forward")
 
-    # Define receiver geometry (spread across x, just below surface)
     rec, p, summary = solver.forward(autotune=autotune)
 
-    return (summary.gflopss, summary.oi, summary.timings, [rec])
+    return (summary.gflopss, summary.oi, summary.timings, [rec, p.data])
 
 
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [

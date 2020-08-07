@@ -393,8 +393,8 @@ def sls(model, geometry, v, p, forward=True, **kwargs):
 
 def ren(model, geometry, v, p, forward=True, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation and 2nd order
-    viscoacoustic wave-equation from Ren et al. (2014).
+    Implementation of the 1st and 2nd order viscoacoustic wave-equation from
+    Ren et al. (2014).
 
     https://academic.oup.com/gji/article/197/2/948/616510
     https://library.seg.org/doi/pdf/10.1190/1.2714334
@@ -439,7 +439,7 @@ def deng_mcmechan(model, geometry, v, p, forward=True, **kwargs):
 def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
                     save=False, **kwargs):
     """
-    Construct method for the forward modelling operator in a viscoacoustic media.
+    Construct method for the forward modelling operator in a viscoacoustic medium.
 
     Parameters
     ----------
@@ -450,7 +450,8 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
-    kernel : selects a visco-acoustic equation from the options below:
+    kernel : string, optional
+        selects a viscoacoustic equation from the options below:
         sls (Standard Linear Solid) :
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
@@ -498,7 +499,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
 
 def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **kwargs):
     """
-    Construct an adjoint modelling operator in an viscoacoustic media.
+    Construct an adjoint modelling operator in a viscoacoustic medium.
 
     Parameters
     ----------

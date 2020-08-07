@@ -36,7 +36,6 @@ class ViscoacousticWaveSolver(object):
         self.space_order = space_order
         self.kernel = kernel
         self.time_order = time_order
-        # Cache compiler options
         self._kwargs = kwargs
 
     @property
