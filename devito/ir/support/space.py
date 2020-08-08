@@ -750,8 +750,14 @@ class IterationSpace(Space):
         directions = {k: v for k, v in self.directions.items() if func(k)}
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def zero(self, d=None):
+        intervals = self.intervals.zero(d)
+
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
+
     def lift(self, d=None, v=None):
         intervals = self.intervals.lift(d, v)
+
         return IterationSpace(intervals, self.sub_iterators, self.directions)
 
     def is_compatible(self, other):
