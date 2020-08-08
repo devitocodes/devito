@@ -431,6 +431,9 @@ def collect(exprs, ignore_collected, options):
 
 
 def choose(exprs, aliases, selector):
+    """
+    Use a cost model to select the aliases that are worth optimizing.
+    """
     others = []
     chosen = OrderedDict()
     for e in exprs:
@@ -607,13 +610,14 @@ def process(cluster, schedule, chosen, sregistry, platform):
 
 
 def rebuild(cluster, others, schedule, subs):
-    # Rebuild the non-aliasing expressions
+    """
+    Plug the optimized aliases into the input Cluster. This leads to creating
+    a new Cluster with suitable IterationSpace and DataSpace.
+    """
     exprs = [uxreplace(e, subs) for e in others]
 
-    # Add any new ShiftedDimension to the IterationSpace
     ispace = cluster.ispace.augment(schedule.dmapper)
 
-    # Rebuild the DataSpace to include the new symbols
     accesses = detect_accesses(exprs)
     parts = {k: IntervalGroup(build_intervals(v)).relaxed
              for k, v in accesses.items() if k}
