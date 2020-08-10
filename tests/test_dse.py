@@ -430,48 +430,75 @@ class TestAliases(object):
         assert len(aliases) == len(expected)
         assert all(i in expected for i in aliases)
 
-    def test_full_shape(self):
+    def get_params(self, op, *names):
+        ret = []
+        for i in names:
+            for p in op.parameters:
+                if i == p.name:
+                    ret.append(p)
+        return tuple(ret)
+
+    def check_array(self, array, exp_halo, exp_shape, rotate):
+        assert len(array.dimensions) == len(exp_halo)
+
+        shape = []
+        for i in array.symbolic_shape:
+            if i.is_Number:
+                shape.append(i)
+            else:
+                try:
+                    shape.append(Add(*i.args))
+                except:
+                    from IPython import embed; embed()
+
+        if rotate:
+            exp_shape = (sum(exp_halo[0]) + 1,) + tuple(exp_shape[1:])
+            exp_halo = ((0, 0),) + tuple(exp_halo[1:])
+
+        assert tuple(array.halo) == exp_halo
+        assert tuple(shape) == tuple(exp_shape)
+
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_full_shape(self, rotate):
         """
         Check the shape of the Array used to store an aliasing expression.
         The shape is impacted by loop blocking, which reduces the required
         write-to space.
         """
         grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
         t = grid.stepping_dim
 
         f = Function(name='f', grid=grid)
-        f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name="u1", grid=grid, space_order=3)
+
+        f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 0.5
+        u1.data_with_halo[:] = 0.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True,
+                                              'cire-mincost-sops': 1,
+                                              'cire-rotate': rotate}))
 
-        x0_blk_size = op1.parameters[2]
-        y0_blk_size = op1.parameters[3]
-        z_size = op1.parameters[4]
+        xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
 
-        # Check Array shape
+        # Check code generation
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
         assert len(arrays) == 1
-        a = arrays[0]
-        assert len(a.dimensions) == 3
-        assert a.halo == ((1, 1), (1, 1), (1, 1))
-        assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
-        assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
-        assert Add(*a.symbolic_shape[2].args) == z_size + 2
+        self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.5
-        op1(time_M=1)
-        assert np.all(u.data == exp)
+        op1(time_M=1, u=u1)
+
+        assert np.all(u.data == u1.data)
 
     def test_contracted_shape(self):
         """
@@ -705,7 +732,7 @@ class TestAliases(object):
 
         u = TimeFunction(name='u', grid=grid, space_order=2)
         u1 = TimeFunction(name="u1", grid=grid, space_order=2)
-        u2 = TimeFunction(name="u1", grid=grid, space_order=2)
+        u2 = TimeFunction(name="u2", grid=grid, space_order=2)
 
         u.data_with_halo[:] = 1.42
         u1.data_with_halo[:] = 1.42
