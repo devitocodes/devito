@@ -155,9 +155,45 @@ class Interval(AbstractInterval):
 
     @cached_property
     def size(self):
-        upper_extreme = self.dim.symbolic_max + self.upper
-        lower_extreme = self.dim.symbolic_min + self.lower
-        return (upper_extreme - lower_extreme + 1) / self.dim.symbolic_incr
+        # The Interval size is typically a function of several symbols (e.g.,
+        # `self.dim.symbolic_max`), and all such symbols must be mappable
+        # to actual numbers at `op.apply` time (i.e., the runtime values).
+        # When `self.dim` is an "unstructured Dimension", such as ModuloDimension,
+        # things can get nasty since the symbolic min/max/incr can literally be
+        # anything (any expression involving any Dimension/symbol/...), which makes
+        # it extremely complicated to numerically compute the size. However,
+        # the compiler only uses such unstructured Dimensions in well defined
+        # circumstances, which we explicitly handle here. Ultimately, therefore,
+        # we return a `size` that is made up of known symbols.
+
+        if self.dim.is_Custom:
+            # Special case 1)
+            # May be caused by the performance option `cire-rotate=True`
+            d = self.dim.symbolic_min
+            assert d.is_Modulo
+            n = d.parent.symbolic_size
+
+            # Iteration 0:
+            assert is_integer(d.symbolic_min)
+            assert is_integer(d.symbolic_incr)
+            assert is_integer(self.dim.symbolic_max)
+            assert self.lower == self.upper == 0
+            npoints = self.dim.symbolic_max - d.symbolic_min + 1
+            # Iterations [1, ..., n-1]:
+            assert d.symbolic_incr == self.dim.symbolic_max
+            npoints += 1 * (n-1)
+            npoints /= n
+        else:
+            # Typicall we end up here (Dimension, SubDimension, IncrDimension)
+            assert not self.dim.is_Modulo
+            assert not self.dim.is_Conditional
+
+            upper_extreme = self.dim.symbolic_max + self.upper
+            lower_extreme = self.dim.symbolic_min + self.lower
+
+            npoints = (upper_extreme - lower_extreme + 1)
+
+        return npoints / self.dim.symbolic_incr
 
     @cached_property
     def min_size(self):
