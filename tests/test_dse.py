@@ -755,23 +755,26 @@ class TestAliases(object):
         assert np.isclose(expected, norm(u1), rtol=1e-5)
         assert np.isclose(expected, norm(u2), rtol=1e-5)
 
-    def test_mixed_shapes_v2_w_subdims(self):
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_mixed_shapes_v2_w_subdims(self, rotate):
         """
         Analogous `test_mixed_shapes`, but with different sets of aliasing expressions.
         Also, uses SubDimensions.
         """
         grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
         t = grid.stepping_dim
         d = Dimension(name='d')
 
         c = Function(name='c', grid=grid, shape=(2, 3), dimensions=(d, z))
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=3)
 
         c.data_with_halo[:] = 1.
         f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 1.5
+        u1.data_with_halo[:] = 1.5
 
         # Leads to 2D and 3D aliases
         eqn = Eq(u.forward,
@@ -782,12 +785,11 @@ class TestAliases(object):
                  subdomain=grid.interior)
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'min-storage': True,
-                                              'cire-mincost-sops': 1}))
+        op1 = Operator(eqn, opt=('advanced',
+                                 {'openmp': True, 'min-storage': True,
+                                  'cire-mincost-sops': 1, 'cire-rotate': rotate}))
 
-        i0x0_blk_size = op1.parameters[2]
-        i0y0_blk_size = op1.parameters[3]
-        z_size = op1.parameters[5]
+        xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
 
         # Expected one single loop nest
         assert len(op1._func_table) == 1
@@ -795,40 +797,34 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
         assert len(arrays) == 2
-        assert len(arrays[0].dimensions) == 2
-        assert arrays[0].halo == ((1, 1), (1, 0))
-        assert Add(*arrays[0].symbolic_shape[0].args) == i0y0_blk_size + 2
-        assert Add(*arrays[0].symbolic_shape[1].args) == z_size + 1
-        assert len(arrays[1].dimensions) == 3
-        assert arrays[1].halo == ((1, 0), (1, 0), (0, 0))
-        assert Add(*arrays[1].symbolic_shape[0].args) == i0x0_blk_size + 1
-        assert Add(*arrays[1].symbolic_shape[1].args) == i0y0_blk_size + 1
-        assert arrays[1].symbolic_shape[2] == z_size
+        self.check_array(arrays[0], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
+        self.check_array(arrays[1], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 1.5
-        op1(time_M=1)
-        assert np.all(u.data == exp)
+        op1(time_M=1, u=u1)
+        assert np.all(u.data == u1.data)
 
-    def test_in_bounds_w_shift(self):
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_in_bounds_w_shift(self, rotate):
         """
         Make sure the iteration space and indexing of the aliasing expressions
         are shifted such that no out-of-bounds accesses are generated.
         """
         grid = Grid(shape=(5, 5, 5))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
         t = grid.stepping_dim
         d = Dimension(name='d')
 
         c = Function(name='c', grid=grid, shape=(2, 5), dimensions=(d, z))
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=4)
 
         c.data_with_halo[:] = 1.
         f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 1.5
+        u1.data_with_halo[:] = 1.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward,
@@ -836,12 +832,12 @@ class TestAliases(object):
                   (c[0, z]*u[t, x+2, y+2, z] + c[1, z+1]*u[t, x+2, y+2, z+1])*f +
                   (u[t, x, y-4, z+1] + u[t, x+1, y-4, z+1])*3*f +
                   (u[t, x-1, y-3, z+1] + u[t, x, y-3, z+1])*3*f))
-        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
-        x0_blk_size = op1.parameters[3]
-        y0_blk_size = op1.parameters[4]
-        z_size = op1.parameters[5]
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
+                                              'cire-rotate': rotate}))
+
+        xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
 
         # Expected one single loop nest
         assert len(op1._func_table) == 1
@@ -849,21 +845,16 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
         assert len(arrays) == 2
-        for a in arrays:
-            assert len(a.dimensions) == 3
-            assert a.halo == ((1, 0), (1, 1), (0, 0))
-            assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 1
-            assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
-            assert a.symbolic_shape[2] is z_size
+        self.check_array(arrays[0], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
+        self.check_array(arrays[1], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 1.5
-        op1(time_M=1)
-        assert np.all(u.data == exp)
+        op1(time_M=1, u=u1)
+        assert np.all(u.data == u1.data)
 
-    def test_constant_symbolic_distance(self):
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_constant_symbolic_distance(self, rotate):
         """
         Test the detection of aliasing expressions in the case of a
         constant symbolic distance, such as `a[t, x_m+2, y, z]` when the
@@ -871,15 +862,18 @@ class TestAliases(object):
         symbolic access.
         """
         grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
         x_m = x.symbolic_min
         y_m = y.symbolic_min
         t = grid.stepping_dim
 
         f = Function(name='f', grid=grid)
-        f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=3)
+
+        f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 0.5
+        u1.data_with_halo[:] = 0.5
 
         # Leads to 2D aliases
         eqn = Eq(u.forward,
@@ -889,31 +883,23 @@ class TestAliases(object):
                   (u[t, x_m+1, y+2, z+2] + u[t, x_m+1, y+3, z+3])*3*f +  # Not an alias
                   (u[t, x+2, y_m+3, z+2] + u[t, x+3, y_m+3, z+3])*3*f +
                   (u[t, x+1, y_m+3, z+1] + u[t, x+2, y_m+3, z+2])*3*f))
-        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
-        x0_blk_size = op1.parameters[2]
-        y0_blk_size = op1.parameters[4]
-        z_size = op1.parameters[6]
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
+                                              'cire-rotate': rotate}))
 
         # Check Array shape
+        xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
         assert len(arrays) == 2
-        assert all(len(a.dimensions) == 2 for a in arrays)
-        assert arrays[0].halo == ((1, 0), (1, 0))
-        assert Add(*arrays[0].symbolic_shape[0].args) == x0_blk_size + 1
-        assert Add(*arrays[0].symbolic_shape[1].args) == z_size + 1
-        assert arrays[1].halo == ((1, 1), (1, 1))
-        assert Add(*arrays[1].symbolic_shape[0].args) == y0_blk_size + 2
-        assert Add(*arrays[1].symbolic_shape[1].args) == z_size + 2
+        self.check_array(arrays[0], ((1, 0), (1, 0)), (xs+1, zs+1), rotate)
+        self.check_array(arrays[1], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.5
-        op1(time_M=1)
-        assert np.all(u.data == exp)
+        op1(time_M=1, u=u1)
+        assert np.all(u.data == u1.data)
 
     def test_outlier_with_long_diameter(self):
         """
