@@ -46,7 +46,6 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 ])
 def test_viscoacoustic(kernel, time_order, normrec, atol):
     _, _, _, [rec, _] = run(kernel=kernel, time_order=time_order)
-    print(norm(rec))
     assert np.isclose(norm(rec), normrec, atol=atol, rtol=0)
 
 
@@ -56,8 +55,8 @@ def test_viscoacoustic(kernel, time_order, normrec, atol):
 def test_viscoacoustic_stability(ndim, kernel, time_order):
     shape = tuple([11]*ndim)
     spacing = tuple([20]*ndim)
-    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0, kernel=kernel,
-                         time_order=time_order)
+    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0,
+                            kernel=kernel, time_order=time_order)
     assert np.isfinite(norm(rec))
 
 
