@@ -1,0 +1,56 @@
+# Runner informaiton:
+# Standard F4s_v2 (4 vcpus, 8 GiB memory)
+# Intel Xeon® Platinum 8168 (SkyLake)
+
+name: Examples-mpi
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Examples with mpi
+    runs-on: [self-hosted, mpi]
+
+    env:
+      DEVITO_MPI: "1"
+      DEVITO_LANGUAGE: "openmp"
+      OMP_NUM_THREADS: "2"
+      DEVITO_ARCH: "gcc-7"
+      DEVITO_BACKEND: "core"
+      CC: "gcc-7"
+      CXX: "g++-7"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Install dependencies
+      run: |
+        pip3 install --upgrade pip
+        pip3 install -e .[extras]
+
+    - name: Test mpi notebooks
+      run : |
+        # Currently not tested due to issue #859
+        # ipcluster start --profile=mpi -n 4 --daemon
+        # py.test --nbval examples/mpi
+        # ipcluster stop --profile=mpi
+
+    - name: Test seismic examples
+      run: |
+        mpirun -n 4 py.test examples/seismic/tti/tti_example.py
+        mpirun -n 4 py.test examples/seismic/elastic/elastic_example.py
+        mpirun -n 4 py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
+        mpirun -n 4 py.test examples/seismic/viscoelastic/viscoelastic_example.py
+
+    - name: Test fwi examples with mpi
+      run: |
+        mpirun -n 4 python examples/seismic/inversion/fwi.py

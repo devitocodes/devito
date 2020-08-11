@@ -68,5 +68,5 @@ if __name__ == "__main__":
     tn = args.tn if args.tn > 0 else (750. if ndim < 3 else 1250.)
 
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
-        space_order=args.space_order, autotune=args.autotune,
+        space_order=args.space_order, autotune=args.autotune, dtype=args.dtype,
         opt=args.opt, kernel=args.kernel, preset=preset, full_run=args.full)
