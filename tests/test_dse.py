@@ -438,18 +438,16 @@ class TestAliases(object):
                     ret.append(p)
         return tuple(ret)
 
-    def check_array(self, array, exp_halo, exp_shape, rotate):
+    def check_array(self, array, exp_halo, exp_shape, rotate=False):
         assert len(array.dimensions) == len(exp_halo)
 
         shape = []
         for i in array.symbolic_shape:
-            if i.is_Number:
+            if i.is_Number or i.is_Symbol:
                 shape.append(i)
             else:
-                try:
-                    shape.append(Add(*i.args))
-                except:
-                    from IPython import embed; embed()
+                assert i.is_Add
+                shape.append(Add(*i.args))
 
         if rotate:
             exp_shape = (sum(exp_halo[0]) + 1,) + tuple(exp_shape[1:])
@@ -482,8 +480,7 @@ class TestAliases(object):
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True,
-                                              'cire-mincost-sops': 1,
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
                                               'cire-rotate': rotate}))
 
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
@@ -497,89 +494,85 @@ class TestAliases(object):
         # Check numerical output
         op0(time_M=1)
         op1(time_M=1, u=u1)
-
         assert np.all(u.data == u1.data)
 
-    def test_contracted_shape(self):
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_contracted_shape(self, rotate):
         """
         Conceptually like `test_full_shape`, but the Operator used in this
         test leads to contracted Arrays (2D instead of 3D).
         """
         grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
         t = grid.stepping_dim
 
         f = Function(name='f', grid=grid)
-        f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=3)
+
+        f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 0.5
+        u1.data_with_halo[:] = 0.5
 
         # Leads to 2D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
                              (u[t, x, y+2, z+2] + u[t, x, y+3, z+3])*3*f + 1))
-        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
-        y0_blk_size = op1.parameters[2]
-        z_size = op1.parameters[3]
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
+                                              'cire-rotate': rotate}))
+
+        ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
         assert len(arrays) == 1
-        a = arrays[0]
-        assert len(a.dimensions) == 2
-        assert a.halo == ((1, 1), (1, 1))
-        assert Add(*a.symbolic_shape[0].args) == y0_blk_size + 2
-        assert Add(*a.symbolic_shape[1].args) == z_size + 2
+        self.check_array(arrays[0], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.5
-        op1(time_M=1)
-        assert np.all(u.data == exp)
+        op1(time_M=1, u=u1)
+        assert np.all(u.data == u1.data)
 
-    def test_uncontracted_shape(self):
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_uncontracted_shape(self, rotate):
         """
         Like `test_contracted_shape`, but the potential contraction is
         now along the innermost Dimension, which causes falling back to
         3D Arrays.
         """
         grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
         t = grid.stepping_dim
 
         f = Function(name='f', grid=grid)
-        f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=3)
+
+        f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 0.5
+        u1.data_with_halo[:] = 0.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z])*3*f +
                              (u[t, x+2, y+2, z] + u[t, x+3, y+3, z])*3*f + 1))
-        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
-        x0_blk_size = op1.parameters[2]
-        y0_blk_size = op1.parameters[3]
-        z_size = op1.parameters[4]
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
+                                              'cire-rotate': rotate}))
+
+        xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
-        assert len(a.dimensions) == 3
-        assert a.halo == ((1, 1), (1, 1), (0, 0))
-        assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
-        assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
-        assert a.symbolic_shape[2] == z_size
+        self.check_array(arrays[0], ((1, 1), (1, 1), (0, 0)), (xs+2, ys+2, zs), rotate)
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.5
-        op1(time_M=1)
-        assert np.all(u.data == exp)
+        op1(time_M=1, u=u1)
+        assert np.all(u.data == u1.data)
 
     def test_uncontracted_shape_invariants(self):
         """
@@ -587,83 +580,75 @@ class TestAliases(object):
         aliasing expressions.
         """
         grid = Grid(shape=(6, 6, 6))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
 
         f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=3)
+
         f.data_with_halo[:] =\
             np.linspace(-1, 1, f.data_with_halo.size).reshape(*f.shape_with_halo)
-        u = TimeFunction(name='u', grid=grid, space_order=3)
         u.data_with_halo[:] = 0.5
+        u1.data_with_halo[:] = 0.5
 
         def func(f):
             return sqrt(f**2 + 1.)
 
         # Leads to 3D aliases despite the potential contraction along x and y
         eqn = Eq(u.forward, u*(func(f) + func(f[x, y, z-1])))
+
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
-        x_size = op1.parameters[2]
-        y_size = op1.parameters[3]
-        z_size = op1.parameters[4]
+        xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
 
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
-        a = arrays[0]
-        assert len(a.dimensions) == 3
-        assert a.halo == ((0, 0), (0, 0), (1, 0))
-        assert a.symbolic_shape[0] == x_size
-        assert a.symbolic_shape[1] == y_size
-        assert Add(*a.symbolic_shape[2].args) == z_size + 1
+        self.check_array(arrays[0], ((0, 0), (0, 0), (1, 0)), (xs, ys, zs+1))
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.5
-        op1(time_M=1)
-        assert np.allclose(u.data, exp, rtol=10e-7)
+        op1(time_M=1, u=u1)
+        assert np.allclose(u.data, u1.data, rtol=10e-7)
 
-    def test_full_shape_w_subdims(self):
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_full_shape_w_subdims(self, rotate):
         """
         Like `test_full_shape`, but SubDomains (and therefore SubDimensions) are used.
         """
         grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions  # noqa
+        x, y, z = grid.dimensions
         t = grid.stepping_dim
 
         f = Function(name='f', grid=grid)
-        f.data_with_halo[:] = 1.
         u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=3)
+
+        f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 0.5
+        u1.data_with_halo[:] = 0.5
 
         # Leads to 3D aliases
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1),
                  subdomain=grid.interior)
-        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1}))
 
-        i0x0_blk_size = op1.parameters[1]
-        i0y0_blk_size = op1.parameters[2]
-        z_size = op1.parameters[4]
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
+                                              'cire-rotate': rotate}))
+
+        xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
         assert len(arrays) == 1
-        a = arrays[0]
-        assert len(a.dimensions) == 3
-        assert a.halo == ((1, 1), (1, 1), (1, 1))
-        assert Add(*a.symbolic_shape[0].args) == i0x0_blk_size + 2
-        assert Add(*a.symbolic_shape[1].args) == i0y0_blk_size + 2
-        assert Add(*a.symbolic_shape[2].args) == z_size + 2
+        self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
         op0(time_M=1)
-        exp = np.copy(u.data[:])
-        u.data_with_halo[:] = 0.5
-        op1(time_M=1)
-        assert np.all(u.data == exp)
+        op1(time_M=1, u=u1)
+        assert np.all(u.data == u1.data)
 
     def test_mixed_shapes(self):
         """
