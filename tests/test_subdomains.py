@@ -452,6 +452,66 @@ class TestSubdomainFunctionsParallel(object):
 
         assert(np.all(f.data[:] == 1))
 
+    def test_acoustic_on_sd(self):
+
+        class CompDom(SubDomain):
+
+            name = 'comp_domain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 20, 10), y: ('middle', 20, 10)}
+
+        cdomain = CompDom()
+
+        shape = (131, 131)
+        extent = (1300, 1300)
+        origin = (-200., -200.)
+
+        v = np.empty(shape, dtype=np.float32)
+        v[:, :71] = 1.5
+        v[:, 71:] = 2.5
+
+        grid = Grid(shape=shape, extent=extent, origin=origin, subdomains=(cdomain, ))
+
+        t0 = 0.
+        tn = 1000.
+        dt = 1.6
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        f0 = 0.010
+        src = RickerSource(name='src', grid=grid, f0=f0,
+                           npoint=1, time_range=time_range)
+
+        domain_size = np.array(extent)
+
+        src.coordinates.data[0, :] = domain_size*.5
+        src.coordinates.data[0, -1] = 20.
+
+        rec = Receiver(name='rec', grid=grid, npoint=101, time_range=time_range)
+        rec.coordinates.data[:, 0] = np.linspace(0, domain_size[0], num=101)
+        rec.coordinates.data[:, 1] = 20.
+
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2,
+                         subdomain=grid.subdomains['comp_domain'])
+        m = Function(name='m', grid=grid)
+        m.data[:] = 1./(v*v)
+
+        # FIXME: should be pde = m * u.dt2 - u.laplace
+        # but laplace not currently working
+        pde = m * u.dt2 - (u.dx2 + u.dy2)
+        stencil = Eq(u.forward, solve(pde, u.forward),
+                     subdomain=grid.subdomains['comp_domain'])
+
+        src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
+        rec_term = rec.interpolate(expr=u.forward)
+
+        op = Operator([stencil] + src_term + rec_term)
+
+        op(time=time_range.num-1, dt=dt)
+
+        assert np.isclose(norm(rec), 436.39, atol=1e-2, rtol=0)
+
     @pytest.mark.parallel(mode=4)
     def test_mixed_functions_mpi(self):
         """
@@ -483,66 +543,6 @@ class TestSubdomainFunctionsParallel(object):
 
         assert(np.all(f.data[:] == 3))
         assert(np.all(g.data[2:-2, 3:-1] == 2))
-
-    #@pytest.mark.parallel(mode=4)
-    def test_acoustic_on_sd(self):
-
-        class CompDom(SubDomain):
-
-            name = 'comp_domain'
-
-            def define(self, dimensions):
-                x, y = dimensions
-                return {x: ('middle', 20, 10), y: ('middle', 20, 10)}
-
-        cdomain = CompDom()
-
-        shape = (131, 131)
-        extent = (1300, 1300)
-        origin = (200., 200.)
-
-        v = np.empty(shape, dtype=np.float32)
-        v[:, :71] = 1.5
-        v[:, 71:] = 2.5
-
-        grid = Grid(shape=shape, extent=extent, origin=origin, subdomains=(cdomain, ))
-
-        t0 = 0.
-        tn = 1000.
-        dt = 1.6
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        f0 = 0.010
-        src = RickerSource(name='src', grid=grid, f0=f0,
-                           npoint=1, time_range=time_range)
-
-        domain_size = np.array(extent)
-
-        src.coordinates.data[0, :] = domain_size*.5
-        src.coordinates.data[0, -1] = 20.
-
-        rec = Receiver(name='rec', grid=grid, npoint=101, time_range=time_range)
-        rec.coordinates.data[:, 0] = np.linspace(0, domain_size[0], num=101)
-        rec.coordinates.data[:, 1] = 20.
-
-        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2,
-                         subdomain=grid.subdomains['comp_domain'])
-        m = Function(name='m', grid=grid)
-        m.data[:] = 1./(v*v)
-
-        #pde = m * u.dt2 - u.laplace
-        pde = m * u.dt2 - (u.dx2 + u.dy2)
-        stencil = Eq(u.forward, solve(pde, u.forward),
-                     subdomain=grid.subdomains['comp_domain'])
-
-        src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
-        rec_term = rec.interpolate(expr=u.forward)
-
-        op = Operator([stencil] + src_term + rec_term)
-
-        op(time=time_range.num-1, dt=dt)
-
-        assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
 
     def test_w_mixed_sparse(self):
         """

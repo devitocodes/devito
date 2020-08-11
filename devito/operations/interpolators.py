@@ -237,15 +237,14 @@ class LinearInterpolator(GenericInterpolator):
             # Add idx_subs for `Function`'s on `SubDomain`'s
             add_subs = []
             fosd = set([f for f in retrieve_functions(expr, mode='unique')
-                    if f.is_Function and f._subdomain])
+                        if f.is_Function and f._subdomain])
             if len(fosd) > 1:
                 raise NotImplementedError
             for f in fosd:
                 dims = f._subdomain.dimensions
                 for i in idx_subs:
-                    #add_subs.append({d: v ford, v in zip(dims, i.values())})
-                    add_subs.append({k:v.subs({d: v for
-                                               d, v in zip(dims, i.values())}) for k, v in f._subdomain._access_map.items()})
+                    add_subs.append({k: v.subs({d: v for d, v in zip(dims, i.values())})
+                                     for k, v in f._subdomain._access_map.items()})
                 idx_subs = add_subs
 
             # Substitute coordinate base symbols into the interpolation coefficients
@@ -262,7 +261,6 @@ class LinearInterpolator(GenericInterpolator):
             lhs = self.sfunction.subs(self_subs)
             last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
 
-            #from IPython import embed; embed()
             return temps + summands + last
 
         return Interpolation(expr, offset, increment, self_subs, self, callback)
@@ -302,20 +300,19 @@ class LinearInterpolator(GenericInterpolator):
             for f in fosd:
                 dims = f._subdomain.dimensions
                 for i in idx_subs:
-                    #add_subs.append({d: v ford, v in zip(dims, i.values())})
-                    add_subs.append({k:v.subs({d: v for
-                                               d, v in zip(dims, i.values())}) for k, v in f._subdomain._access_map.items()})
-                #idx_subs.extend(add_subs)
+                    add_subs.append({k: v.subs({d: v for d, v in zip(dims, i.values())})
+                                     for k, v in f._subdomain._access_map.items()})
 
             # Substitute coordinate base symbols into the interpolation coefficients
             if add_subs:
                 eqns = [Inc(field.xreplace(asub), _expr.xreplace(vsub) * b,
                             implicit_dims=self.sfunction.dimensions)
-                        for b, asub, vsub in zip(self._interpolation_coeffs, add_subs, idx_subs)]
+                        for b, asub, vsub in zip(self._interpolation_coeffs,
+                                                 add_subs, idx_subs)]
             else:
                 eqns = [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b,
                             implicit_dims=self.sfunction.dimensions)
-                        for b, vsub in zip(self._interpolation_coeffs, idx_subs)]                
+                        for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
 
             return temps + eqns
 
