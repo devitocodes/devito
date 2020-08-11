@@ -5,9 +5,10 @@ from itertools import groupby
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, Forward, IterationInstance,
-                       IterationSpace, Interval, IntervalGroup, LabeledVector, Scope,
-                       detect_accesses, build_intervals)
+from devito.ir import (SEQUENTIAL, PARALLEL, ROUNDABLE, DataSpace, Forward,
+                       IterationInstance, IterationSpace, Interval, IntervalGroup,
+                       LabeledVector, Scope, detect_accesses, build_intervals,
+                       normalize_properties)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
@@ -42,12 +43,12 @@ def cire(cluster, mode, sregistry, options, platform):
           the operation count. On the other hand, this might affect fusion and
           therefore data locality. Defaults to False (legacy).
         * 'cire-maxpar': if True, privilege parallelism over working set size,
-           that is the pass will try to create as many parallel loops as possible,
-           even though this will require more space (Dimensions) for the temporaries.
-           Defaults to False.
+          that is the pass will try to create as many parallel loops as possible,
+          even though this will require more space (Dimensions) for the temporaries.
+          Defaults to False.
         * 'cire-rotate': if True, the pass will use modulo indexing for the
-           outermost Dimension iterated over by the temporaries. This will sacrifice
-           a parallel loop for a reduced working set size. Defaults to False (legacy).
+          outermost Dimension iterated over by the temporaries. This will sacrifice
+          a parallel loop for a reduced working set size. Defaults to False (legacy).
     platform : Platform
         The underlying platform. Used to optimize the shape of the introduced
         tensor symbols.
@@ -656,7 +657,6 @@ def lower_schedule(cluster, schedule, chosen, sregistry):
         # (e.g., MPI's comp/comm overlap does that)
         dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
 
-        # The halo of the Array
         halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
         # The data sharing mode of the Array. It can safely be `shared` only if
@@ -664,11 +664,9 @@ def lower_schedule(cluster, schedule, chosen, sregistry):
         parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
         sharing = 'shared' if set(parallel) == set(writeto.itdimensions) else 'local'
 
-        # The temporary Array that will store `alias`
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
                       dtype=cluster.dtype, sharing=sharing)
 
-        # The Array write-to indices
         indices = []
         for i in writeto:
             try:
@@ -680,7 +678,6 @@ def lower_schedule(cluster, schedule, chosen, sregistry):
                 # E.g., `z` -- a non-shifted Dimension
                 indices.append(i.dim - i.lower)
 
-        # The expression computing `alias`
         expression = Eq(array[indices], uxreplace(alias, subs))
 
         # Create the substitution rules so that we can use the newly created
@@ -699,9 +696,15 @@ def lower_schedule(cluster, schedule, chosen, sregistry):
                  for k, v in accesses.items() if k}
         dspace = DataSpace(cluster.dspace.intervals, parts)
 
-        # Finally, build a new Cluster for `alias`
-        built = cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace)
-        clusters.insert(0, built)
+        # Drop parallelism if using ModuloDimensions (due to rotations)
+        properties = dict(cluster.properties)
+        for d, v in cluster.properties.items():
+            if any(i.is_Modulo for i in ispace.sub_iterators[d]):
+                properties[d] = normalize_properties(v, {SEQUENTIAL})
+
+        # Finally, build the `alias` Cluster
+        clusters.insert(0, cluster.rebuild(exprs=expression, ispace=ispace,
+                                           dspace=dspace, properties=properties))
 
     return clusters, subs
 
