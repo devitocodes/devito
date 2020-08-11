@@ -178,13 +178,13 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the cross derivative is produced.</p></li>
-<li><p><strong>dims</strong> (<em>tuple of Dimension</em>) – Dimensions w.r.t. which to differentiate.</p></li>
-<li><p><strong>fd_order</strong> (<em>tuple of ints</em>) – Coefficient discretization order. Note: this impacts the width of
+<li><p><strong>expr</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – Expression for which the cross derivative is produced.</p></li>
+<li><p><strong>dims</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>) – Dimensions w.r.t. which to differentiate.</p></li>
+<li><p><strong>fd_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">ints</span></code>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil.</p></li>
-<li><p><strong>deriv_order</strong> (<em>tuple of ints</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
-<li><p><strong>stagger</strong> (<em>tuple of Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</p></li>
-<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
+<li><p><strong>deriv_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">ints</span></code>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
+<li><p><strong>stagger</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Side</span></code>, <em>optional</em>) – Shift of the finite-difference approximation.</p></li>
+<li><p><strong>x0</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>, <em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -229,15 +229,15 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the first-order derivative is produced.</p></li>
-<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</p></li>
-<li><p><strong>fd_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Coefficient discretization order. Note: this impacts the width of
+<li><p><strong>expr</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – Expression for which the first-order derivative is produced.</p></li>
+<li><p><strong>dim</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>) – The Dimension w.r.t. which to differentiate.</p></li>
+<li><p><strong>fd_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil. Defaults to <code class="docutils literal notranslate"><span class="pre">expr.space_order</span></code></p></li>
-<li><p><strong>side</strong> (<em>Side</em><em>, </em><em>optional</em>) – Side of the finite difference location, centered (at x), left (at x - 1)
+<li><p><strong>side</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Side</span></code>, <em>optional</em>) – Side of the finite difference location, centered (at x), left (at x - 1)
 or right (at x +1). Defaults to <code class="docutils literal notranslate"><span class="pre">centered</span></code>.</p></li>
-<li><p><strong>matvec</strong> (<em>Transpose</em><em>, </em><em>optional</em>) – Forward (matvec=direct) or transpose (matvec=transpose) mode of the
+<li><p><strong>matvec</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Transpose</span></code>, <em>optional</em>) – Forward (matvec=direct) or transpose (matvec=transpose) mode of the
 finite difference. Defaults to <code class="docutils literal notranslate"><span class="pre">direct</span></code>.</p></li>
-<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
+<li><p><strong>x0</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>, <em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -293,11 +293,11 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>func</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Function that is differentiated</p></li>
-<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – Dimensions w.r.t which the derivative is taken</p></li>
-<li><p><strong>order</strong> (<em>Int</em>) – Order of the finite-difference scheme</p></li>
-<li><p><strong>side</strong> (<em>Side</em>) – Side of the scheme, (centered, left, right)</p></li>
-<li><p><strong>x0</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>Expr</em><em> or </em><em>Number</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
+<li><p><strong>func</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – Function that is differentiated</p></li>
+<li><p><strong>dim</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>) – Dimensions w.r.t which the derivative is taken</p></li>
+<li><p><strong>order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Int</span></code>) – Order of the finite-difference scheme</p></li>
+<li><p><strong>side</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Side</span></code>) – Side of the scheme, (centered, left, right)</p></li>
+<li><p><strong>x0</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Expr</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Number</span></code>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -316,13 +316,13 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the derivative is produced.</p></li>
-<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</p></li>
-<li><p><strong>fd_order</strong> (<em>int</em>) – Coefficient discretization order. Note: this impacts the width of
+<li><p><strong>expr</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – Expression for which the derivative is produced.</p></li>
+<li><p><strong>dim</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>) – The Dimension w.r.t. which to differentiate.</p></li>
+<li><p><strong>fd_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil.</p></li>
-<li><p><strong>deriv_order</strong> (<em>int</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
-<li><p><strong>stagger</strong> (<em>Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</p></li>
-<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
+<li><p><strong>deriv_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
+<li><p><strong>stagger</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Side</span></code>, <em>optional</em>) – Shift of the finite-difference approximation.</p></li>
+<li><p><strong>x0</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>, <em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -341,12 +341,12 @@ the resulting stencil.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the derivative is produced.</p></li>
-<li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</p></li>
-<li><p><strong>fd_order</strong> (<em>int</em>) – Coefficient discretization order. Note: this impacts the width of
+<li><p><strong>expr</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – Expression for which the derivative is produced.</p></li>
+<li><p><strong>dim</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>) – The Dimension w.r.t. which to differentiate.</p></li>
+<li><p><strong>fd_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil.</p></li>
-<li><p><strong>stagger</strong> (<em>Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</p></li>
-<li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
+<li><p><strong>stagger</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Side</span></code>, <em>optional</em>) – Shift of the finite-difference approximation.</p></li>
+<li><p><strong>x0</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>, <em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>

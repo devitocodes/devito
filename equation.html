@@ -184,13 +184,13 @@ Functions and SparseFunctions as operands.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>lhs</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a><em> or </em><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction" title="devito.types.SparseFunction"><em>SparseFunction</em></a>) – The left-hand side.</p></li>
-<li><p><strong>rhs</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The right-hand side. Defaults to 0.</p></li>
-<li><p><strong>subdomain</strong> (<a class="reference internal" href="subdomain.html#devito.types.SubDomain" title="devito.types.SubDomain"><em>SubDomain</em></a><em>, </em><em>optional</em>) – To restrict the computation of the Eq to a particular sub-region in the
+<li><p><strong>lhs</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code>) – The left-hand side.</p></li>
+<li><p><strong>rhs</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>, <em>optional</em>) – The right-hand side. Defaults to 0.</p></li>
+<li><p><strong>subdomain</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">SubDomain</span></code>, <em>optional</em>) – To restrict the computation of the Eq to a particular sub-region in the
 computational domain.</p></li>
-<li><p><strong>coefficients</strong> (<em>Substitutions</em><em>, </em><em>optional</em>) – Can be used to replace symbolic finite difference weights with user
+<li><p><strong>coefficients</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Substitutions</span></code>, <em>optional</em>) – Can be used to replace symbolic finite difference weights with user
 defined weights.</p></li>
-<li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimension</em><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
+<li><p><strong>implicit_dims</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, <em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
 left-hand side or in the right-hand side, but that should be honored when
 constructing an Operator.</p></li>
 </ul>
@@ -232,13 +232,13 @@ constructing an Operator.</p></li>
 <dd><p>Replace occurrences of objects within the expression.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>rule</strong> (<em>dict-like</em>) – Expresses a replacement rule</p>
+<dd class="field-odd"><p><strong>rule</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">dict-like</span></code>) – Expresses a replacement rule</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p><strong>xreplace</strong></p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>the result of the replacement</p>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">the</span> <span class="pre">result</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">the</span> <span class="pre">replacement</span></code></p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -301,13 +301,13 @@ right-hand side.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>lhs</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a><em> or </em><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction" title="devito.types.SparseFunction"><em>SparseFunction</em></a>) – The left-hand side.</p></li>
-<li><p><strong>rhs</strong> (<em>expr-like</em>) – The right-hand side.</p></li>
-<li><p><strong>subdomain</strong> (<a class="reference internal" href="subdomain.html#devito.types.SubDomain" title="devito.types.SubDomain"><em>SubDomain</em></a><em>, </em><em>optional</em>) – To restrict the computation of the Eq to a particular sub-region in the
+<li><p><strong>lhs</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code>) – The left-hand side.</p></li>
+<li><p><strong>rhs</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – The right-hand side.</p></li>
+<li><p><strong>subdomain</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">SubDomain</span></code>, <em>optional</em>) – To restrict the computation of the Eq to a particular sub-region in the
 computational domain.</p></li>
-<li><p><strong>coefficients</strong> (<em>Substitutions</em><em>, </em><em>optional</em>) – Can be used to replace symbolic finite difference weights with user
+<li><p><strong>coefficients</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Substitutions</span></code>, <em>optional</em>) – Can be used to replace symbolic finite difference weights with user
 defined weights.</p></li>
-<li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimension</em><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
+<li><p><strong>implicit_dims</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, <em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
 left-hand side or in the right-hand side, but that should be honored when
 constructing an Operator.</p></li>
 </ul>
@@ -339,8 +339,8 @@ programming language (e.g., <code class="docutils literal notranslate"><span cla
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>eq</strong> (<em>expr-like</em>) – The equation to be rearranged.</p></li>
-<li><p><strong>target</strong> (<em>symbol</em>) – The symbol w.r.t. which the equation is rearranged. May be a <cite>Function</cite>
+<li><p><strong>eq</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – The equation to be rearranged.</p></li>
+<li><p><strong>target</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">symbol</span></code>) – The symbol w.r.t. which the equation is rearranged. May be a <cite>Function</cite>
 or any other symbolic object.</p></li>
 <li><p><strong>**kwargs</strong> – Symbolic optimizations applied while rearranging the equation. For more
 information. refer to <code class="docutils literal notranslate"><span class="pre">sympy.solve.__doc__</span></code>.</p></li>

@@ -198,11 +198,11 @@ finite-differences approximations, in both space and time.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
-<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a><em>, </em><em>optional</em>) – Carries shape, dimensions, and dtype of the Function. When grid is not
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the symbol.</p></li>
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>, <em>optional</em>) – Carries shape, dimensions, and dtype of the Function. When grid is not
 provided, shape and dimensions must be given. For MPI execution, a
 Grid is compulsory.</p></li>
-<li><p><strong>space_order</strong> (<em>int</em><em> or </em><em>3-tuple of ints</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 1. <code class="docutils literal notranslate"><span class="pre">space_order</span></code> also
+<li><p><strong>space_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">3-tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">ints</span></code>, <em>optional</em>) – Discretisation order for space derivatives. Defaults to 1. <code class="docutils literal notranslate"><span class="pre">space_order</span></code> also
 impacts the number of points available around a generic point of interest.  By
 default, <code class="docutils literal notranslate"><span class="pre">space_order</span></code> points are available on both sides of a generic point of
 interest, including those nearby the grid boundary. Sometimes, fewer points
@@ -210,12 +210,12 @@ suffice; in other scenarios, more points are necessary. In such cases, instead o
 an integer, one can pass a 3-tuple <code class="docutils literal notranslate"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code> indicating the discretization
 order (<code class="docutils literal notranslate"><span class="pre">o</span></code>) as well as the number of points on the left (<code class="docutils literal notranslate"><span class="pre">lp</span></code>) and right
 (<code class="docutils literal notranslate"><span class="pre">rp</span></code>) sides of a generic point of interest.</p></li>
-<li><p><strong>time_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretization order for time derivatives. Defaults to 1.</p></li>
-<li><p><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the domain region in grid points. Only necessary if <cite>grid</cite> isn’t given.</p></li>
-<li><p><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if <cite>grid</cite> isn’t given.</p></li>
-<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
+<li><p><strong>time_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – Discretization order for time derivatives. Defaults to 1.</p></li>
+<li><p><strong>shape</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">ints</span></code>, <em>optional</em>) – Shape of the domain region in grid points. Only necessary if <cite>grid</cite> isn’t given.</p></li>
+<li><p><strong>dimensions</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, <em>optional</em>) – Dimensions associated with the object. Only necessary if <cite>grid</cite> isn’t given.</p></li>
+<li><p><strong>dtype</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">data-type</span></code>, <em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
 to <cite>np.float32</cite>.</p></li>
-<li><p><strong>save</strong> (<em>int</em><em> or </em><em>Buffer</em><em>, </em><em>optional</em>) – By default, <code class="docutils literal notranslate"><span class="pre">save=None</span></code>, which indicates the use of alternating buffers. This
+<li><p><strong>save</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Buffer</span></code>, <em>optional</em>) – By default, <code class="docutils literal notranslate"><span class="pre">save=None</span></code>, which indicates the use of alternating buffers. This
 enables cyclic writes to the TimeFunction. For example, if the TimeFunction
 <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x)</span></code> has shape (3, 100), then, in an Operator, <code class="docutils literal notranslate"><span class="pre">t</span></code> will assume the
 values <code class="docutils literal notranslate"><span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">...</span></code> (note that the very first value depends
@@ -225,13 +225,13 @@ the time buffer, one should use the syntax <code class="docutils literal notrans
 Alternatively, if all of the intermediate results are required (or, simply, to
 avoid using an alternating buffer), an explicit value for <code class="docutils literal notranslate"><span class="pre">save</span></code> ( an integer)
 must be provided.</p></li>
-<li><p><strong>time_dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – TimeDimension to be used in the TimeFunction. Defaults to <code class="docutils literal notranslate"><span class="pre">grid.time_dim</span></code>.</p></li>
-<li><p><strong>staggered</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>tuple of Dimension</em><em> or </em><em>Stagger</em><em>, </em><em>optional</em>) – Define how the Function is staggered.</p></li>
-<li><p><strong>initializer</strong> (<em>callable</em><em> or </em><em>any object exposing the buffer interface</em><em>, </em><em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</p></li>
-<li><p><strong>allocator</strong> (<em>MemoryAllocator</em><em>, </em><em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
+<li><p><strong>time_dim</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, <em>optional</em>) – TimeDimension to be used in the TimeFunction. Defaults to <code class="docutils literal notranslate"><span class="pre">grid.time_dim</span></code>.</p></li>
+<li><p><strong>staggered</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Stagger</span></code>, <em>optional</em>) – Define how the Function is staggered.</p></li>
+<li><p><strong>initializer</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">callable</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">any</span> <span class="pre">object</span> <span class="pre">exposing</span> <span class="pre">the</span> <span class="pre">buffer</span> <span class="pre">interface</span></code>, <em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</p></li>
+<li><p><strong>allocator</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code>, <em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
 to take advantage of the memory hierarchy in a NUMA architecture. Refer to
 <cite>default_allocator.__doc__</cite> for more information.</p></li>
-<li><p><strong>padding</strong> (<em>int</em><em> or </em><em>tuple of ints</em><em>, </em><em>optional</em>) – <div class="deprecated">
+<li><p><strong>padding</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">ints</span></code>, <em>optional</em>) – <div class="deprecated">
 <p><span class="versionmodified deprecated">Deprecated since version shouldn’t: </span>be used; padding is now automatically inserted.</p>
 </div>
 <p>Allocate extra grid points to maximize data access alignment. When a tuple
@@ -292,8 +292,8 @@ along the spatial dimensions <code class="docutils literal notranslate"><span cl
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>p</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of summands. Defaults to the halo size.</p></li>
-<li><p><strong>dims</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – The Dimensions along which the average is computed. Defaults to
+<li><p><strong>p</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – The number of summands. Defaults to the halo size.</p></li>
+<li><p><strong>dims</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, <em>optional</em>) – The Dimensions along which the average is computed. Defaults to
 <code class="docutils literal notranslate"><span class="pre">self</span></code>’s spatial dimensions.</p></li>
 </ul>
 </dd>
@@ -442,8 +442,8 @@ along the spatial dimensions <code class="docutils literal notranslate"><span cl
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>p</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of summands. Defaults to the halo size.</p></li>
-<li><p><strong>dims</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – The Dimensions along which the sum is computed. Defaults to
+<li><p><strong>p</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – The number of summands. Defaults to the halo size.</p></li>
+<li><p><strong>dims</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, <em>optional</em>) – The Dimensions along which the sum is computed. Defaults to
 <code class="docutils literal notranslate"><span class="pre">self</span></code>’s spatial dimensions.</p></li>
 </ul>
 </dd>

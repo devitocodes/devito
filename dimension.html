@@ -197,14 +197,14 @@ within the parent Dimension’s iteration space.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
-<li><p><strong>factor</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of iterations between two executions of the if-branch. If None
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code></a>) – The parent Dimension.</p></li>
+<li><p><strong>factor</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – The number of iterations between two executions of the if-branch. If None
 (default), <code class="docutils literal notranslate"><span class="pre">condition</span></code> must be provided.</p></li>
-<li><p><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
+<li><p><strong>condition</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>, <em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension. When it evaluates to True, the if-branch is executed. If None
 (default), <code class="docutils literal notranslate"><span class="pre">factor</span></code> must be provided.</p></li>
-<li><p><strong>indirect</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, use <code class="docutils literal notranslate"><span class="pre">condition</span></code>, rather than the parent Dimension, to
+<li><p><strong>indirect</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code>, <em>optional</em>) – If True, use <code class="docutils literal notranslate"><span class="pre">condition</span></code>, rather than the parent Dimension, to
 index into arrays. A typical use case is when arrays are accessed
 indirectly via the <code class="docutils literal notranslate"><span class="pre">condition</span></code> expression. Defaults to False.</p></li>
 </ul>
@@ -303,9 +303,9 @@ max point, etc.).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>spacing</strong> (<em>Symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
-<li><p><strong>default_value</strong> (<em>float</em><em>, </em><em>optional</em>) – Default value associated with the Dimension.</p></li>
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Symbol</span></code>, <em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
+<li><p><strong>default_value</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code>, <em>optional</em>) – Default value associated with the Dimension.</p></li>
 </ul>
 </dd>
 </dl>
@@ -340,8 +340,8 @@ the classes exposed to the level of the user API are shown):</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">symbol</span></code>, <em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
 </ul>
 </dd>
 </dl>
@@ -425,12 +425,12 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</p></li>
-<li><p><strong>_min</strong> (<em>expr-like</em>) – The minimum point of the Dimension.</p></li>
-<li><p><strong>_max</strong> (<em>expr-like</em>) – The maximum point of the Dimension.</p></li>
-<li><p><strong>step</strong> (<em>int</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code></a>) – The Dimension from which the IncrDimension is derived.</p></li>
+<li><p><strong>_min</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – The minimum point of the Dimension.</p></li>
+<li><p><strong>_max</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – The maximum point of the Dimension.</p></li>
+<li><p><strong>step</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – The distance between two consecutive points. Defaults to the
 symbolic size.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default Dimension name.</p></li>
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <em>optional</em>) – To override the default Dimension name.</p></li>
 </ul>
 </dd>
 </dl>
@@ -448,10 +448,10 @@ such as <code class="docutils literal notranslate"><span class="pre">0,</span> <
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</p></li>
-<li><p><strong>offset</strong> (<em>int</em>) – The offset from the parent dimension</p></li>
-<li><p><strong>modulo</strong> (<em>int</em>) – The divisor value.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code></a>) – The Dimension from which the ModuloDimension is derived.</p></li>
+<li><p><strong>offset</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – The offset from the parent dimension</p></li>
+<li><p><strong>modulo</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – The divisor value.</p></li>
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <em>optional</em>) – To force a different Dimension name.</p></li>
 </ul>
 </dd>
 </dl>
@@ -479,8 +479,8 @@ derivatives on Functions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">symbol</span></code>, <em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
 </ul>
 </dd>
 </dl>
@@ -498,8 +498,8 @@ iteration”).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code></a>) – The parent Dimension.</p></li>
 </ul>
 </dd>
 </dl>
@@ -526,14 +526,14 @@ Dimension.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
-<li><p><strong>left</strong> (<em>expr-like</em>) – Symbolic expression providing the left (lower) bound of the
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code></a>) – The parent Dimension.</p></li>
+<li><p><strong>left</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – Symbolic expression providing the left (lower) bound of the
 SubDimension.</p></li>
-<li><p><strong>right</strong> (<em>expr-like</em>) – Symbolic expression providing the right (upper) bound of the
+<li><p><strong>right</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – Symbolic expression providing the right (upper) bound of the
 SubDimension.</p></li>
-<li><p><strong>thickness</strong> (<em>2-tuple of 2-tuples</em>) – The thickness of the left and right regions, respectively.</p></li>
-<li><p><strong>local</strong> (<em>bool</em>) – True if, in case of domain decomposition, the SubDimension is
+<li><p><strong>thickness</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">2-tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">2-tuples</span></code>) – The thickness of the left and right regions, respectively.</p></li>
+<li><p><strong>local</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code>) – True if, in case of domain decomposition, the SubDimension is
 guaranteed not to span more than one domains, False otherwise.</p></li>
 </ul>
 </dd>
@@ -571,8 +571,8 @@ on Functions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
+<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">symbol</span></code>, <em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
 </ul>
 </dd>
 </dl>
