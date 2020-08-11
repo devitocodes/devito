@@ -114,8 +114,8 @@ def cire(cluster, mode, sregistry, options, platform):
 
         # AliasMapper -> Schedule -> [Clusters]
         schedule = make_schedule(cluster, aliases, in_writeto, options)
-        schedule = optimize_schedule(schedule, options)
-        clusters, subs = lower_schedule(cluster, schedule, chosen, sregistry, platform)
+        schedule = optimize_schedule(cluster, schedule, platform, options)
+        clusters, subs = lower_schedule(cluster, schedule, chosen, sregistry)
 
         # Rebuild `cluster` so as to use the newly created aliases
         rebuilt = rebuild(cluster, others, schedule, subs)
@@ -529,16 +529,25 @@ def make_schedule(cluster, aliases, in_writeto, options):
     return Schedule(*processed, dmapper=dmapper)
 
 
-def optimize_schedule(schedule, options):
+def optimize_schedule(cluster, schedule, platform, options):
     """
     Rewrite the schedule for performance optimization.
     """
-    rotate = options['cire-rotate']
+    if options['cire-rotate']:
+        schedule = _optimize_schedule_rotations(schedule)
 
-    if not rotate:
-        return schedule
+    schedule = _optimize_schedule_padding(cluster, schedule, platform)
 
-    # Rotations, if any, occur along the outermost Dimension
+    return schedule
+
+
+def _optimize_schedule_rotations(schedule):
+    """
+    Transform the schedule such that the tensor temporaries "rotate" along
+    the outermost Dimension. This trades a parallel Dimension for a smaller
+    working set size.
+    """
+    # The rotations Dimension is the outermost
     ridx = 0
 
     dmapper = {d: as_list(v) for d, v in schedule.dmapper.items()}
@@ -601,7 +610,30 @@ def optimize_schedule(schedule, options):
     return Schedule(*processed, dmapper=dmapper)
 
 
-def lower_schedule(cluster, schedule, chosen, sregistry, platform):
+def _optimize_schedule_padding(cluster, schedule, platform):
+    """
+    Round up the innermost IterationInterval of the tensor temporaries IterationSpace
+    to a multiple of the SIMD vector length. This is not always possible though (it
+    depends on how much halo is safely accessible in all read Functions).
+    """
+    processed = []
+    for i in schedule:
+        try:
+            it = i.ispace.itintervals[-1]
+            if ROUNDABLE in cluster.properties[it.dim]:
+                vl = platform.simd_items_per_reg(cluster.dtype)
+                ispace = i.ispace.add(Interval(it.dim, 0, it.interval.size % vl))
+            else:
+                ispace = i.ispace
+            processed.append(ScheduledAlias(i.alias, i.writeto, ispace, i.aliaseds,
+                                            i.indicess))
+        except (TypeError, KeyError):
+            processed.append(i)
+
+    return Schedule(*processed, dmapper=schedule.dmapper)
+
+
+def lower_schedule(cluster, schedule, chosen, sregistry):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -660,17 +692,6 @@ def lower_schedule(cluster, schedule, chosen, sregistry, platform):
             else:
                 # Perhaps part of a composite alias ?
                 pass
-
-        # Optimization: if possible, the innermost IterationInterval is
-        # rounded up to a multiple of the vector length
-        #TODO: MOVE THIS TO OPTIMIZE_SCHEDULE
-        try:
-            it = ispace.itintervals[-1]
-            if ROUNDABLE in cluster.properties[it.dim]:
-                vl = platform.simd_items_per_reg(cluster.dtype)
-                ispace = ispace.add(Interval(it.dim, 0, it.interval.size % vl))
-        except (TypeError, KeyError):
-            pass
 
         # Construct the `alias` DataSpace
         accesses = detect_accesses(expression)
