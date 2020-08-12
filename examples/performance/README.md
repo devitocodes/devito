@@ -17,8 +17,9 @@
     * `blockinner` (boolean, False): enable/disable loop blocking along innermost loop
     * `blocklevels` (int, 1): 1 => classic loop blocking; 2 for two-level hierarchical blocking; etc.
   * CIRE:
-    * `min-storage` (boolean, False): enable/disable dimension contraction for working set size reduction
-    * `cire-maxpar` (boolean, False): trade storage for parallelism
+    * `min-storage` (boolean, False): smaller working set size, but less loop fusion
+    * `cire-rotate` (boolean, False): smaller working set size, but fewer parallel dimensions
+    * `cire-maxpar` (boolean, False): bigger working set size, but more parallelism
     * `cire-repeats-sops` (int, 5): control detection of sum-of-products
     * `cire-mincost-sops` (int, 10): minimum cost of a sum-of-product candidate
     * `cire-repeats-inv` (int, 1): control detection of dimension-invariants
@@ -46,10 +47,10 @@
 
 * CIRE
 
-
 |                     |        CPU          |         GPU        |
 |---------------------|---------------------|--------------------|
 | minstorage          | :heavy_check_mark:  |         :x:        |
+| cire-rotate         | :heavy_check_mark:  |         :x:        |
 | cire-maxpar         | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-repeats-sops   | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-mincost-sops   | :heavy_check_mark:  | :heavy_check_mark: |
