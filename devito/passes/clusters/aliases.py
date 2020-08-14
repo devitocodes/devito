@@ -116,7 +116,7 @@ def cire(cluster, mode, sregistry, options, platform):
         # AliasMapper -> Schedule -> [Clusters]
         schedule = make_schedule(cluster, aliases, in_writeto, options)
         schedule = optimize_schedule(cluster, schedule, platform, options)
-        clusters, subs = lower_schedule(cluster, schedule, chosen, sregistry)
+        clusters, subs = lower_schedule(cluster, schedule, chosen, sregistry, options)
 
         # Rebuild `cluster` so as to use the newly created aliases
         rebuilt = rebuild(cluster, others, schedule, subs)
@@ -634,10 +634,12 @@ def _optimize_schedule_padding(cluster, schedule, platform):
     return Schedule(*processed, dmapper=schedule.dmapper)
 
 
-def lower_schedule(cluster, schedule, chosen, sregistry):
+def lower_schedule(cluster, schedule, chosen, sregistry, options):
     """
     Turn a Schedule into a sequence of Clusters.
     """
+    onstack = options['cire-onstack']
+
     clusters = []
     subs = {}
     for alias, writeto, ispace, aliaseds, indicess in schedule:
@@ -664,8 +666,12 @@ def lower_schedule(cluster, schedule, chosen, sregistry):
         parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
         sharing = 'shared' if set(parallel) == set(writeto.itdimensions) else 'local'
 
+        # The memory region of the Array. On the heap, unless the user has
+        # explicitly requested allocation on the stack
+        scope = 'stack' if onstack else 'heap'
+
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
-                      dtype=cluster.dtype, sharing=sharing)
+                      dtype=cluster.dtype, scope=scope, sharing=sharing)
 
         indices = []
         for i in writeto:

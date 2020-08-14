@@ -10,7 +10,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (DummyEq, Expression, Iteration, FindNodes, FindSymbols,
-                       retrieve_iteration_tree)
+                       ParallelBlock, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
 from devito.symbolics import estimate_cost, pow_to_mul, indexify
@@ -1452,6 +1452,44 @@ class TestAliases(object):
         op0.apply(time_M=2)
         op1.apply(time_M=2, u=u1)
         assert np.isclose(norm(u), norm(u1), rtol=1e-5)
+
+    @pytest.mark.parametrize('rotate', [True])  #TODO: ADD BACK FALSE
+    def test_arrays_enforced_on_stack(self, rotate):
+        """
+        Test enforcement of tensor temporaries on the stack.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=(2, 4, 4))
+        u1 = TimeFunction(name="u", grid=grid, space_order=(2, 4, 4))
+
+        f.data[:] = 0.0012
+        u.data[:] = 1.3
+        u1.data[:] = 1.3
+
+        eq = Eq(u.forward, f*u.dx.dx + u.dy.dy)
+
+        op0 = Operator(eq, opt=('noop', {'openmp': True}))
+        op1 = Operator(eq, opt=('advanced', {'openmp': True, 'cire-rotate': rotate,
+                                             'cire-onstack': True}))
+
+        # Check code generation
+        pbs = FindNodes(ParallelBlock).visit(op1._func_table['bf0'].root)
+        assert len(pbs) == 1
+        pb = pbs[0]
+        if rotate:
+            assert 'r3[2][z_size]' in str(pb.body[0].header[0])
+            assert 'r6[2][y0_blk0_size][z_size]' in str(pb.body[0].header[1])
+        else:
+            assert 'r3[y0_blk0_size + 1][z_size]' in str(pb.body[0].header[0])
+            assert 'r6[x0_blk0_size + 1][y0_blk0_size][z_size]'\
+                in str(pb.body[0].header[1])
+
+        # Check numerical output
+        op0.apply(time_M=2)
+        op1.apply(time_M=2, u=u1)
+        assert np.isclose(norm(u), norm(u1), rtol=1e-3)
 
 
 # Acoustic

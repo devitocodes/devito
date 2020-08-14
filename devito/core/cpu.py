@@ -92,6 +92,7 @@ class CPU64NoopOperator(OperatorCore):
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
         o['cire-rotate'] = oo.pop('cire-rotate', False)
+        o['cire-onstack'] = oo.pop('cire-onstack', False)
         o['cire-maxpar'] = oo.pop('cire-maxpar', False)
         o['cire-repeats'] = {
             'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),

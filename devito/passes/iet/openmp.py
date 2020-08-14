@@ -389,10 +389,6 @@ class Ompizer(object):
     def _make_parregion(self, partree, parrays):
         arrays = [i for i in FindSymbols().visit(partree) if i.is_Array]
 
-        # Detect thread-private arrays on the stack
-        stack_private = [i for i in arrays if i._mem_stack and i._mem_local]
-        stack_private = sorted(set([i.name for i in stack_private]))
-
         # Detect thread-private arrays on the heap and "map" them to shared
         # vector-expanded (one entry per thread) Arrays
         heap_private = [i for i in arrays if i._mem_heap and i._mem_local]
@@ -411,7 +407,7 @@ class Ompizer(object):
         else:
             body = partree
 
-        return OpenMPRegion(body, partree.nthreads, stack_private)
+        return OpenMPRegion(body, partree.nthreads)
 
     def _make_guard(self, partree, collapsed):
         # Do not enter the parallel region if the step increment is 0; this

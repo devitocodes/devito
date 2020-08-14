@@ -112,7 +112,11 @@ def derive_parameters(iet, drop_locals=False):
     # Drop globally-visible objects
     parameters = [p for p in parameters if not isinstance(p, (Literal, Macro))]
 
-    # Filter out locally-allocated Arrays and Objects
+    # Drop all local Arrays residing on the stack
+    parameters = [p for p in parameters
+                  if not (isinstance(p, Array) and p._mem_stack and p._mem_local)]
+
+    # Maybe filter out all other compiler-generated objects
     if drop_locals:
         parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
 
