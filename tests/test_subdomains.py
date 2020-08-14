@@ -452,6 +452,8 @@ class TestSubdomainFunctionsParallel(object):
 
         assert(np.all(f.data[:] == 1))
 
+    # FIXME: Fix this for MPI
+    # @pytest.mark.parallel(mode=4)
     def test_acoustic_on_sd(self):
 
         class CompDom(SubDomain):
@@ -510,7 +512,7 @@ class TestSubdomainFunctionsParallel(object):
 
         op(time=time_range.num-1, dt=dt)
 
-        assert np.isclose(norm(rec), 436.39, atol=1e-2, rtol=0)
+        assert np.isclose(norm(rec), 436.3915, rtol=1.e-5)
 
     @pytest.mark.parallel(mode=4)
     def test_mixed_functions_mpi(self):
