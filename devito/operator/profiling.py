@@ -4,6 +4,8 @@ from ctypes import c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
+from subprocess import DEVNULL, PIPE, run
+# import sys
 from time import time as seq_time
 import os
 
@@ -12,7 +14,7 @@ from cached_property import cached_property
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
                            FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
-from devito.logger import warning
+from devito.logger import warning, error
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
@@ -391,9 +393,41 @@ class PerformanceSummary(OrderedDict):
         return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
+def sniff_advisor_location():
+    """
+    Detect if Intel Advisor is installed on the machine and return
+    its location if it is.
+
+    """
+    try:
+        res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
+        ver = res.stdout.decode("utf-8")
+        if not ver:
+            return None
+    except (UnicodeDecodeError, FileNotFoundError):
+        error("Intel Advisor cannot be found on your system, consider if you have sourced"
+              " its environment variables correctly.")
+        return None
+
+    env_path = os.environ["PATH"]
+    env_path_dirs = env_path.split(":")
+
+    for env_path_dir in env_path_dirs:
+        if "intel/advisor" in env_path_dir:
+            path = Path(env_path_dir)
+            # Little hack: the directory in path should be the binaries (to remove)
+            if path.name.startswith('bin'):
+                return path.parent
+            return path
+    error("Intel Advisor cannot be found on your system, consider if you have sourced"
+          " its environment variables correctly.")
+    return None
+
+
 def create_profile(name):
     """Create a new Profiler."""
-    if configuration['log-level'] in ['DEBUG', 'PERF']:
+    if configuration['log-level'] in ['DEBUG', 'PERF'] and \
+       configuration['profiling'] == 'basic':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'
     else:
@@ -419,14 +453,13 @@ profiler_registry = {
 
 
 def locate_intel_advisor():
-    try:
-        path = Path(os.environ['ADVISOR_HOME'])
-        # Little hack: assuming a 64bit system
-        if path.joinpath('bin64').joinpath('advixe-cl').is_file():
-            return path
-        else:
-            warning("Requested `advisor` profiler, but couldn't locate executable")
-            return None
-    except KeyError:
-        warning("Requested `advisor` profiler, but ADVISOR_HOME isn't set")
+    path = sniff_advisor_location()
+    if not path:
+        return None
+    # Little hack: assuming a 64bit system
+    elif path.joinpath('bin64').joinpath('advixe-cl').is_file():
+        return path
+    else:
+        warning("Requested `advisor` profiler, but couldn't locate executable"
+                "in advisor directory")
         return None
