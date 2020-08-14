@@ -92,21 +92,21 @@ def compose_nodes(nodes, retrieve=False):
         return body
 
 
-def derive_parameters(nodes, drop_locals=False):
+def derive_parameters(iet, drop_locals=False):
     """
     Derive all input parameters (function call arguments) from an IET
     by collecting all symbols not defined in the tree itself.
     """
     # Pick all free symbols and symbolic functions from the kernel
-    functions = FindSymbols('symbolics').visit(nodes)
-    free_symbols = FindSymbols('free-symbols').visit(nodes)
+    functions = FindSymbols('symbolics').visit(iet)
+    free_symbols = FindSymbols('free-symbols').visit(iet)
 
     # Filter out function base symbols and use real function objects
     function_names = [s.name for s in functions]
     symbols = [s for s in free_symbols if s.name not in function_names]
     symbols = functions + symbols
 
-    defines = [s.name for s in FindSymbols('defines').visit(nodes)]
+    defines = [s.name for s in FindSymbols('defines').visit(iet)]
     parameters = tuple(s for s in symbols if s.name not in defines)
 
     # Drop globally-visible objects
@@ -114,9 +114,7 @@ def derive_parameters(nodes, drop_locals=False):
 
     # Filter out locally-allocated Arrays and Objects
     if drop_locals:
-        parameters = [p for p in parameters
-                      if not (isinstance(p, Array) and (p._mem_heap or p._mem_stack))]
-        parameters = [p for p in parameters if not isinstance(p, LocalObject)]
+        parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
 
     return parameters
 
