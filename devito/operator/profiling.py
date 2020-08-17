@@ -1,3 +1,4 @@
+import cgen as c
 from collections import OrderedDict, namedtuple
 from contextlib import contextmanager
 from ctypes import c_double
@@ -5,7 +6,6 @@ from functools import reduce
 from operator import mul
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, run
-# import sys
 from time import time as seq_time
 import os
 
@@ -262,15 +262,9 @@ class AdvisorProfiler(AdvancedProfiler):
             compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
 
     def instrument(self, iet):
-        sections = FindNodes(Section).visit(iet)
-
-        # Transform the Iteration/Expression tree introducing Advisor calls that
-        # resume and stop data collection
-        mapper = {i: List(body=[Call(self._api_resume), i, Call(self._api_pause)])
-                  for i in sections}
-        iet = Transformer(mapper).visit(iet)
-
-        return iet
+        return List(header=c.Statement('%s()' % self._api_resume),
+                 body=iet,
+                 footer=c.Statement('%s()' % self._api_pause))
 
 
 class Timer(CompositeObject):

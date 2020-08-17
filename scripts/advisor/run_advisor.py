@@ -44,22 +44,15 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
         output = Path(output)
     output = Path(mkdtemp(dir=str(output), prefix="%s-" % name))
 
-    # Devito must be told where to find Advisor, because it uses its C API
     if advisor_home:
-        os.environ['ADVISOR_HOME'] = advisor_home
-    else:
-        os.environ['ADVISOR_HOME'] = '/opt/intel/advisor'
+        log('Custom Intel Advisor location is not currently supported. '
+            'The advixe-cl executable will be searched in the environment PATH variable.')
 
     # Intel Advisor 2018 must be available
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
     except FileNotFoundError:
         check(False, "Couldn't detect `advixe-cl` to run Intel Advisor.")
-    # The 2018.3 release is the only one for which support is guaranteed
-    if not any(ret.startswith(i) for i in supported_releases):
-        log('Intel Advisor is available, but version `%s` does not appear '
-            'among the supported ones `%s`, hence the behaviour is now undefined.'
-            % (ret, supported_releases))
 
     # If Advisor is available, so is the Intel compiler
     os.environ['DEVITO_ARCH'] = 'intel'
@@ -118,9 +111,11 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
     ]
     advisor_flops = [
         '-collect tripcounts',
+        '-start-paused',
         '-flop',
+        '-enable-cache-simulation',
     ]
-    py_cmd = ['python', str(path)] + exec_args.split()
+    py_cmd = ['python3', str(path)] + exec_args.split()
 
     # To build a roofline with Advisor, we need to run two analyses back to
     # back, `survey` and `tripcounts`. These are preceded by a "pure" python
@@ -142,23 +137,16 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
     log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
 
     # Finally, generate a roofline
-    # TODO: Intel Advisor 2018 doesn't cope well with Python 3.5, so we rather use
-    # the embedded advixe-python
     if plot:
         with progress('Generating roofline char for `%s`' % name):
             cmd = [
-                'python2.7',
+                'python3',
                 'roofline.py',
                 '--name %s' % name,
                 '--project %s' % output,
                 '--scale %f' % n_sockets
             ]
             check(check_call(cmd) == 0, 'Failed!')
-
-
-supported_releases = [
-    'Intel(R) Advisor 2018 Update 3'
-]
 
 
 def check(cond, msg):
