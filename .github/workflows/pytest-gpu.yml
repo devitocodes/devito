@@ -51,6 +51,7 @@ jobs:
         DEVITO_ARCH: ${{ matrix.arch }}
         DEVITO_PLATFORM: ${{ matrix.platform }}
         DEVITO_LANGUAGE: ${{ matrix.language }}
+        OMPI_CC: ${{ matrix.arch }}
 
     - name: Install dependencies
       run: |
