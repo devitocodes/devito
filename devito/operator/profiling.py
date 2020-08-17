@@ -236,7 +236,7 @@ class AdvancedProfiler(Profiler):
 
 class AdvisorProfiler(AdvancedProfiler):
 
-    """Rely on Intel Advisor ``v >= 2018`` for performance profiling."""
+    """Rely on Intel Advisor ``v >= 2020`` for performance profiling."""
 
     _api_resume = '__itt_resume'
     _api_pause = '__itt_pause'
@@ -262,9 +262,20 @@ class AdvisorProfiler(AdvancedProfiler):
             compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
 
     def instrument(self, iet):
-        return List(header=c.Statement('%s()' % self._api_resume),
-                 body=iet,
-                 footer=c.Statement('%s()' % self._api_pause))
+        # Look for the presence of a time loop within the IET of the Operator
+        found = False
+        for node in FindNodes(Iteration).visit(iet):
+            if node.dim.is_Time:
+                found = True
+                break
+
+        if found:
+            # The calls to Advisor's Collection Control API are only for Operators with
+            # a time loop
+            return List(header=c.Statement('%s()' % self._api_resume),
+                         body=iet,
+                         footer=c.Statement('%s()' % self._api_pause))
+        return iet
 
 
 class Timer(CompositeObject):
