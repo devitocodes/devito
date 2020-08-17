@@ -64,9 +64,10 @@ class ViscoacousticWaveSolver(object):
 
         Parameters
         ----------
-        geometry : AcquisitionGeometry
-            Geometry object that contains the source (SparseTimeFunction) and
-            receivers (SparseTimeFunction) and their position.
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec : SparseTimeFunction or array_like, optional
+            The interpolated receiver data.
         v : VectorTimeFunction, optional
             The computed particle velocity.
         r : TimeFunction, optional
@@ -131,9 +132,9 @@ class ViscoacousticWaveSolver(object):
             summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, p=p,
                                               b=b, vp=vp,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
-        return rec, p, summary
+        return rec, p, v, summary
 
-    def adjoint(self, rec, srca=None, u=None, q=None, vp=None, qp=None, b=None, r=None,
+    def adjoint(self, rec, srca=None, va=None, pa=None, vp=None, qp=None, b=None, r=None,
                 **kwargs):
         """
         Adjoint modelling function that creates the necessary
@@ -147,10 +148,18 @@ class ViscoacousticWaveSolver(object):
         srca : SparseTimeFunction or array-like
             The resulting data for the interpolated at the
             original source location.
-        v: TimeFunction, optional
-            The computed wavefield.
+        va : VectorTimeFunction, optional
+            The computed particle velocity.
+        pa : TimeFunction, optional
+            Stores the computed wavefield.
         vp : Function or float, optional
             The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+        r : TimeFunction, optional
+            The computed memory variable.
 
         Returns
         -------
@@ -162,18 +171,19 @@ class ViscoacousticWaveSolver(object):
                                    coordinates=self.geometry.src_positions)
 
         # Create the adjoint wavefield if not provided
-        u = u or VectorTimeFunction(name="u", grid=self.model.grid,
-                                    time_order=self.time_order,
-                                    space_order=self.space_order)
+        va = va or VectorTimeFunction(name="va", grid=self.model.grid,
+                                      time_order=self.time_order,
+                                      space_order=self.space_order)
 
-        q = q or TimeFunction(name="q", grid=self.model.grid, time_order=self.time_order,
-                              space_order=self.space_order, staggered=NODE)
+        pa = pa or TimeFunction(name="pa", grid=self.model.grid,
+                                time_order=self.time_order, space_order=self.space_order,
+                                staggered=NODE)
 
         # Memory variable:
         r = r or TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
                               space_order=self.space_order, staggered=NODE)
 
-        kwargs.update({k.name: k for k in u})
+        kwargs.update({k.name: k for k in va})
 
         b = b or self.model.b
         qp = qp or self.model.qp
@@ -185,9 +195,9 @@ class ViscoacousticWaveSolver(object):
         if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
-            summary = self.op_adj().apply(srca=srca, rec=rec, q=q, r=r, b=b, vp=vp,
+            summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, r=r, b=b, vp=vp,
                                           qp=qp, dt=kwargs.pop('dt', self.dt), **kwargs)
         else:
-            summary = self.op_adj().apply(srca=srca, rec=rec, q=q, vp=vp, b=b, qp=qp,
+            summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, vp=vp, b=b, qp=qp,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
-        return srca, q, summary
+        return srca, pa, va, summary

@@ -31,21 +31,21 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
                                  kernel=kernel, time_order=time_order, **kwargs)
     info("Applying Forward")
 
-    rec, p, summary = solver.forward(autotune=autotune)
+    rec, p, v, summary = solver.forward(autotune=autotune)
 
-    return (summary.gflopss, summary.oi, summary.timings, [rec, p.data])
+    return (summary.gflopss, summary.oi, summary.timings, [rec, p, v])
 
 
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [
     ('sls', 2, 684.4526, 1e-1),
-    ('sls', 1, 133.8698, 1e-1),
+    ('sls', 1, 18.7749, 1e-1),
     ('ren', 2, 677.7254, 1e-1),
-    ('ren', 1, 129.3433, 1e-1),
+    ('ren', 1, 18.1400, 1e-1),
     ('deng_mcmechan', 2, 673.0799, 1e-1),
-    ('deng_mcmechan', 1, 131.8282, 1e-1),
+    ('deng_mcmechan', 1, 18.4885, 1e-1),
 ])
 def test_viscoacoustic(kernel, time_order, normrec, atol):
-    _, _, _, [rec, _] = run(kernel=kernel, time_order=time_order)
+    _, _, _, [rec, _, _] = run(kernel=kernel, time_order=time_order)
     assert np.isclose(norm(rec), normrec, atol=atol, rtol=0)
 
 
@@ -55,8 +55,8 @@ def test_viscoacoustic(kernel, time_order, normrec, atol):
 def test_viscoacoustic_stability(ndim, kernel, time_order):
     shape = tuple([11]*ndim)
     spacing = tuple([20]*ndim)
-    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0,
-                            kernel=kernel, time_order=time_order)
+    _, _, _, [rec, _, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0,
+                               kernel=kernel, time_order=time_order)
     assert np.isfinite(norm(rec))
 
 

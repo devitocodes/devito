@@ -6,6 +6,42 @@ from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, NODE,
 from examples.seismic import PointSource, Receiver
 
 
+def src_rec(p, model, geometry, **kwargs):
+    """
+    Forward case: Source injection and receiver interpolation
+    Adjoint case: Receiver injection and source interpolation
+    """
+    dt = model.grid.time_dim.spacing
+    m = model.m
+    # Source symbol with input wavelet
+    src = PointSource(name="src", grid=model.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nsrc)
+    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
+                   npoint=geometry.nrec)
+
+    forward = kwargs.get('forward', True)
+    time_order = p.time_order
+
+    if forward:
+        # The source injection term
+        if(time_order == 1):
+            src_term = src.inject(field=p.forward, expr=src * dt)
+        else:
+            src_term = src.inject(field=p.forward, expr=src * dt**2 / m)
+        # Create interpolation expression for receivers
+        rec_term = rec.interpolate(expr=p)
+    else:
+        # Construct expression to inject receiver values
+        if(time_order == 1):
+            rec_term = rec.inject(field=p.backward, expr=rec * dt)
+        else:
+            rec_term = rec.inject(field=p.backward, expr=rec * dt**2 / m)
+        # Create interpolation expression for the adjoint-source
+        src_term = src.interpolate(expr=p)
+
+    return src_term + rec_term
+
+
 def sls_1st_order(model, geometry, v, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
@@ -463,9 +499,6 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         Saving flag, True saves all time steps, False saves three buffered
         indices (last three time steps). Defaults to False.
     """
-    dt = model.grid.time_dim.spacing
-    m = model.m
-
     # Create symbols for forward wavefield, particle velocity, source and receivers
     # Velocity:
     v = VectorTimeFunction(name="v", grid=model.grid,
@@ -476,24 +509,14 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
                      save=geometry.nt if save else None,
                      time_order=time_order, space_order=space_order)
 
-    src = PointSource(name="src", grid=model.grid, time_range=geometry.time_axis,
-                      npoint=geometry.nsrc)
-
-    rec = Receiver(name="rec", grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
-
     # Equations kernels
     eq_kernel = kernels[kernel]
     eqn = eq_kernel(model, geometry, v, p, save=save)
 
-    # The source injection term
-    src_term = src.inject(field=p.forward, expr=src * dt**2 / m)
-
-    # Create interpolation expression for receivers
-    rec_term = rec.interpolate(expr=p)
+    srcrec = src_rec(p, model, geometry)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
+    return Operator(eqn + srcrec, subs=model.spacing_map,
                     name='Forward', **kwargs)
 
 
@@ -519,31 +542,19 @@ def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, 
         deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
-    dt = model.grid.time_dim.spacing
-    m = model.m
-
-    u = VectorTimeFunction(name="u", grid=model.grid, time_order=time_order,
-                           space_order=space_order)
-    q = TimeFunction(name="q", grid=model.grid, save=None, time_order=time_order,
-                     space_order=space_order, staggered=NODE)
-    srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
-                       npoint=geometry.nsrc)
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    va = VectorTimeFunction(name="va", grid=model.grid, time_order=time_order,
+                            space_order=space_order)
+    pa = TimeFunction(name="pa", grid=model.grid, save=None, time_order=time_order,
+                      space_order=space_order, staggered=NODE)
 
     # Equations kernels
     eq_kernel = kernels[kernel]
-    eqn = eq_kernel(model, geometry, u, q, forward=False)
+    eqn = eq_kernel(model, geometry, va, pa, forward=False)
 
-    # Construct expression to inject receiver values
-    receivers = rec.inject(field=q.backward, expr=rec * dt**2 / m)
-
-    # Create interpolation expression for the adjoint-source
-    source_a = srca.interpolate(expr=q)
+    srcrec = src_rec(pa, model, geometry, forward=False)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + receivers + source_a, subs=model.spacing_map,
-                    name='Adjoint', **kwargs)
+    return Operator(eqn + srcrec, subs=model.spacing_map, name='Adjoint', **kwargs)
 
 
 kernels = {'sls': sls, 'ren': ren, 'deng_mcmechan': deng_mcmechan}
