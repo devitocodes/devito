@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
-                    Eq, Operator)
+                    Eq, Operator, Inc, info)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
 from devito.passes import NThreads, NThreadsNonaffine
@@ -522,6 +522,33 @@ class TestNodeParallelism(object):
         assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value
         assert not iterations[3].is_Affine
         assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
+
+    @pytest.mark.parametrize('so', [0, 1, 2])
+    @pytest.mark.parametrize('dim', [1, 2])
+    def test_array_reduction(self, so, dim):
+        grid = Grid(shape=(3, 3, 3))
+        d = grid.dimensions[dim]
+
+        f = Function(name='f', shape=(3,), dimensions=(d,), grid=grid, space_order=so)
+        u = TimeFunction(name='u', grid=grid)
+        op = Operator(Inc(f, u + 1), opt=('openmp', {'par-collapse-ncores': 1}))
+
+        iterations = FindNodes(Iteration).visit(op)
+        if so > 0:
+            assert ("reduction(+:f[%s + %s:%s + %s])" % (d.symbolic_min, so,
+                                                         d.symbolic_max, so+1)
+                    in iterations[1].pragmas[0].value)
+        else:
+            assert ("reduction(+:f[%s:%s + 1])" % (d.symbolic_min, d.symbolic_max)
+                    in iterations[1].pragmas[0].value)
+
+        try:
+            op(time_M=1)
+            assert np.allclose(f.data, 18)
+        except:
+            # Older gcc <6.1 don't support reductions on array
+            info("Un-supported older gcc version for array reduction")
+            assert True
 
 
 class TestNestedParallelism(object):

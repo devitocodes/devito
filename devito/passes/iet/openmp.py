@@ -137,12 +137,14 @@ class OpenMPIteration(ParallelIteration):
         if reduction:
             reds = []
             for i in reduction:
-                # OMP expect size not index as input of reduction, such as
+                # OMP expects a size not an index as input of reduction, such as
                 # reduction(+:f[1:3])
-                # TODO: add halo offset
                 if i.is_Indexed:
-                    bounds = [(k.symbolic_min, k.symbolic_max+1) for k in i.indices]
-                    bounds = ','.join(':'.join(str(vv) for vv in v) for v in bounds)
+                    bounds = [(k,) if k.is_Number else
+                              (k.subs(d, d.symbolic_min), k.subs(d, d.symbolic_max + 1))
+                              for k, d in zip(i.indices, i.function.dimensions)]
+                    bounds = ','.join(('%s:%s' % v if len(v) > 1 else str(v[0]))
+                                      for v in bounds)
                     reds.append('%s[%s]' % (i.name, bounds))
                 else:
                     reds.append(str(i))
