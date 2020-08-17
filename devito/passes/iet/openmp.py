@@ -135,7 +135,18 @@ class OpenMPIteration(ParallelIteration):
             clauses.append('num_threads(%s)' % nthreads)
 
         if reduction:
-            args = ','.join(str(i) for i in reduction)
+            reds = []
+            for i in reduction:
+                # OMP expect size not index as input of reduction, such as
+                # reduction(+:f[1:3])
+                # TODO: add halo offset
+                if i.is_Indexed:
+                    bounds = [(k.symbolic_min, k.symbolic_max+1) for k in i.indices]
+                    bounds = ','.join(':'.join(str(vv) for vv in v) for v in bounds)
+                    reds.append('%s[%s]' % (i.name, bounds))
+                else:
+                    reds.append(str(i))
+            args = ','.join(reds)
             clauses.append('reduction(+:%s)' % args)
 
         return clauses
