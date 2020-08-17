@@ -246,7 +246,6 @@ class AdvisorProfiler(AdvancedProfiler):
     _ext_calls = [_api_resume, _api_pause]
 
     def __init__(self, name):
-
         self.path = locate_intel_advisor()
         if self.path is None:
             self.initialized = False
@@ -458,7 +457,13 @@ profiler_registry = {
 
 
 def locate_intel_advisor():
-    path = sniff_advisor_location()
+    try:
+        # Check if the directory to Intel Advisor is specified
+        path = Path(os.environ['DEVITO_ADVISOR_DIR'])
+    except KeyError:
+        # Otherwise, automatically 'sniff' the location of Advisor's directory
+        path = sniff_advisor_location()
+
     if not path:
         return None
     # Little hack: assuming a 64bit system
