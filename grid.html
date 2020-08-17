@@ -186,20 +186,20 @@ to discretize a Function.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>shape</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">ints</span></code>) – Shape of the computational domain in grid points.</p></li>
-<li><p><strong>extent</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">floats</span></code>, <em>optional</em>) – Physical extent of the domain in m; defaults to a unit box of extent 1m
+<li><p><strong>shape</strong> (<em>tuple of ints</em>) – Shape of the computational domain in grid points.</p></li>
+<li><p><strong>extent</strong> (<em>tuple of floats</em><em>, </em><em>optional</em>) – Physical extent of the domain in m; defaults to a unit box of extent 1m
 in all dimensions.</p></li>
-<li><p><strong>origin</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">floats</span></code>, <em>optional</em>) – Physical coordinate of the origin of the domain; defaults to 0.0 in all
+<li><p><strong>origin</strong> (<em>tuple of floats</em><em>, </em><em>optional</em>) – Physical coordinate of the origin of the domain; defaults to 0.0 in all
 dimensions.</p></li>
-<li><p><strong>dimensions</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code>, <em>optional</em>) – The dimensions of the computational domain encapsulated by this Grid.</p></li>
-<li><p><strong>time_dimension</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDimension</span></code>, <em>optional</em>) – The dimension used to define time in a <cite>TimeFunction</cite> created from
+<li><p><strong>dimensions</strong> (<em>tuple of SpaceDimension</em><em>, </em><em>optional</em>) – The dimensions of the computational domain encapsulated by this Grid.</p></li>
+<li><p><strong>time_dimension</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.TimeDimension" title="devito.types.dimension.TimeDimension"><em>TimeDimension</em></a><em>, </em><em>optional</em>) – The dimension used to define time in a <cite>TimeFunction</cite> created from
 this Grid.</p></li>
-<li><p><strong>dtype</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">data-type</span></code>, <em>optional</em>) – Any object that can be interpreted as a numpy data type, used as default
+<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type, used as default
 data type to be inherited by all Functions created from this Grid.
 Defaults to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
-<li><p><strong>subdomains</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <a class="reference internal" href="subdomain.html#devito.types.SubDomain" title="devito.types.SubDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubDomain</span></code></a>, <em>optional</em>) – If no subdomains are specified, the Grid only defines the two default
+<li><p><strong>subdomains</strong> (<em>tuple of SubDomain</em><em>, </em><em>optional</em>) – If no subdomains are specified, the Grid only defines the two default
 subdomains <code class="docutils literal notranslate"><span class="pre">interior</span></code> and <code class="docutils literal notranslate"><span class="pre">domain</span></code>.</p></li>
-<li><p><strong>comm</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">MPI</span> <span class="pre">communicator</span></code>, <em>optional</em>) – The set of processes over which the grid is distributed. Only relevant in
+<li><p><strong>comm</strong> (<em>MPI communicator</em><em>, </em><em>optional</em>) – The set of processes over which the grid is distributed. Only relevant in
 case of MPI execution.</p></li>
 </ul>
 </dd>

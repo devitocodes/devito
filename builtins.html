@@ -181,11 +181,11 @@ in user code to facilitate development. These are exposed as free functions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Functions</span></code>) – The left-hand side of the assignment.</p></li>
-<li><p><strong>rhs</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>, <em>optional</em>) – The right-hand side of the assignment.</p></li>
-<li><p><strong>options</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>, <em>optional</em>) – Dictionary or list (of len(f)) of dictionaries containing optional arguments to
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a><em> or </em><em>list of Functions</em>) – The left-hand side of the assignment.</p></li>
+<li><p><strong>rhs</strong> (<em>expr-like</em><em> or </em><em>list of expr-like</em><em>, </em><em>optional</em>) – The right-hand side of the assignment.</p></li>
+<li><p><strong>options</strong> (<em>dict</em><em> or </em><em>list of dict</em><em>, </em><em>optional</em>) – Dictionary or list (of len(f)) of dictionaries containing optional arguments to
 be passed to Eq.</p></li>
-<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <em>optional</em>) – Name of the operator.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the operator.</p></li>
 </ul>
 </dd>
 </dl>
@@ -224,10 +224,10 @@ be passed to Eq.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</p></li>
-<li><p><strong>sigma</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code>, <em>optional</em>) – Standard deviation. Default is 1.</p></li>
-<li><p><strong>truncate</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code>, <em>optional</em>) – Truncate the filter at this many standard deviations. Default is 4.0.</p></li>
-<li><p><strong>mode</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <em>optional</em>) – The function initialisation mode. ‘constant’ and ‘reflect’ are
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</p></li>
+<li><p><strong>sigma</strong> (<em>float</em><em>, </em><em>optional</em>) – Standard deviation. Default is 1.</p></li>
+<li><p><strong>truncate</strong> (<em>float</em><em>, </em><em>optional</em>) – Truncate the filter at this many standard deviations. Default is 4.0.</p></li>
+<li><p><strong>mode</strong> (<em>str</em><em>, </em><em>optional</em>) – The function initialisation mode. ‘constant’ and ‘reflect’ are
 accepted. Default mode is ‘reflect’.</p></li>
 </ul>
 </dd>
@@ -243,18 +243,18 @@ by this function.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>function</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – The initialised object.</p></li>
-<li><p><strong>data</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – The data used for initialisation.</p></li>
-<li><p><strong>nbl</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – Number of outer layers (such as absorbing layers for boundary damping).</p></li>
-<li><p><strong>mapper</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>, <em>optional</em>) – Dictionary containing, for each dimension of <cite>function</cite>, a sub-dictionary
+<li><p><strong>function</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The initialised object.</p></li>
+<li><p><strong>data</strong> (<em>ndarray</em><em> or </em><a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The data used for initialisation.</p></li>
+<li><p><strong>nbl</strong> (<em>int</em><em> or </em><em>tuple of int</em><em> or </em><em>tuple of tuple of int</em>) – Number of outer layers (such as absorbing layers for boundary damping).</p></li>
+<li><p><strong>mapper</strong> (<em>dict</em><em>, </em><em>optional</em>) – Dictionary containing, for each dimension of <cite>function</cite>, a sub-dictionary
 containing the following keys:
 1) ‘lhs’: List of additional expressions to be added to the LHS expressions list.
 2) ‘rhs’: List of additional expressions to be added to the RHS expressions list.
 3) ‘options’: Options pertaining to the additional equations that will be
 constructed.</p></li>
-<li><p><strong>mode</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <em>optional</em>) – The function initialisation mode. ‘constant’ and ‘reflect’ are
+<li><p><strong>mode</strong> (<em>str</em><em>, </em><em>optional</em>) – The function initialisation mode. ‘constant’ and ‘reflect’ are
 accepted.</p></li>
-<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <em>optional</em>) – The name assigned to the operator.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – The name assigned to the operator.</p></li>
 </ul>
 </dd>
 </dl>
@@ -306,8 +306,8 @@ executed after padding is complete.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – First input operand</p></li>
-<li><p><strong>g</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – Second input operand</p></li>
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – First input operand</p></li>
+<li><p><strong>g</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Second input operand</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises</dt>
@@ -328,7 +328,7 @@ the inner product corresponds to the dot product.</p>
 <dd><p>Retrieve the maximum.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">array_like</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – Input operand.</p>
+<dd class="field-odd"><p><strong>f</strong> (<em>array_like</em><em> or </em><a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input operand.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -339,7 +339,7 @@ the inner product corresponds to the dot product.</p>
 <dd><p>Retrieve the minimum.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">array_like</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – Input operand.</p>
+<dd class="field-odd"><p><strong>f</strong> (<em>array_like</em><em> or </em><a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input operand.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -351,8 +351,8 @@ the inner product corresponds to the dot product.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – Input Function.</p></li>
-<li><p><strong>order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – The order of the norm. Defaults to 2.</p></li>
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input Function.</p></li>
+<li><p><strong>order</strong> (<em>int</em><em>, </em><em>optional</em>) – The order of the norm. Defaults to 2.</p></li>
 </ul>
 </dd>
 </dl>
@@ -365,9 +365,9 @@ the inner product corresponds to the dot product.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</p></li>
-<li><p><strong>g</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – The right-hand side of the smoothing kernel, that is the Function being smoothed.</p></li>
-<li><p><strong>axis</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimensions</span></code>, <em>optional</em>) – The Dimension along which the smoothing operation is performed. Defaults
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</p></li>
+<li><p><strong>g</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The right-hand side of the smoothing kernel, that is the Function being smoothed.</p></li>
+<li><p><strong>axis</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimensions</em><em>, </em><em>optional</em>) – The Dimension along which the smoothing operation is performed. Defaults
 to <code class="docutils literal notranslate"><span class="pre">f</span></code>’s innermost Dimension.</p></li>
 </ul>
 </dd>
@@ -385,7 +385,7 @@ to <code class="docutils literal notranslate"><span class="pre">f</span></code>�
 <dd><p>Compute the sum of all Function data.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>f</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>) – Input Function.</p>
+<dd class="field-odd"><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input Function.</p>
 </dd>
 </dl>
 </dd></dl>

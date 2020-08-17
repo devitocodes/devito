@@ -197,32 +197,32 @@ externally-defined data for interpolation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>name</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>) – Name of the symbol.</p></li>
-<li><p><strong>npoint</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – Number of sparse points.</p></li>
-<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>) – The computational domain from which the sparse points are sampled.</p></li>
-<li><p><strong>r</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – Number of gridpoints in each dimension to interpolate a single sparse
+<li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
+<li><p><strong>npoint</strong> (<em>int</em>) – Number of sparse points.</p></li>
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a>) – The computational domain from which the sparse points are sampled.</p></li>
+<li><p><strong>r</strong> (<em>int</em>) – Number of gridpoints in each dimension to interpolate a single sparse
 point to. E.g. <code class="docutils literal notranslate"><span class="pre">r=2</span></code> for linear interpolation.</p></li>
-<li><p><strong>gridpoints</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">np.ndarray</span></code>, <em>optional</em>) – An array carrying the <em>reference</em> grid point corresponding to each sparse point.
+<li><p><strong>gridpoints</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – An array carrying the <em>reference</em> grid point corresponding to each sparse point.
 Of all the gridpoints that one sparse point would be interpolated to, this is the
 grid point closest to the origin, i.e. the one with the lowest value of each
 coordinate dimension. Must be a two-dimensional array of shape
 <code class="docutils literal notranslate"><span class="pre">(npoint,</span> <span class="pre">grid.ndim)</span></code>.</p></li>
-<li><p><strong>interpolation_coeffs</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">np.ndarray</span></code>, <em>optional</em>) – An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
+<li><p><strong>interpolation_coeffs</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
 gridpoints that each sparse point will be interpolated to. The coefficient is
 split across the n dimensions such that the contribution of the point (i, j, k)
 will be multiplied by <code class="docutils literal notranslate"><span class="pre">interpolation_coeffs[...,</span> <span class="pre">i]*interpolation_coeffs[...,</span>
 <span class="pre">j]*interpolation_coeffs[...,k]</span></code>. So for <code class="docutils literal notranslate"><span class="pre">r=6</span></code>, we will store 18 coefficients
 per sparse point (instead of potentially 216). Must be a three-dimensional array
 of shape <code class="docutils literal notranslate"><span class="pre">(npoint,</span> <span class="pre">grid.ndim,</span> <span class="pre">r)</span></code>.</p></li>
-<li><p><strong>space_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – Discretisation order for space derivatives. Defaults to 0.</p></li>
-<li><p><strong>time_order</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – Discretisation order for time derivatives. Default to 1.</p></li>
-<li><p><strong>shape</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">ints</span></code>, <em>optional</em>) – Shape of the object. Defaults to <code class="docutils literal notranslate"><span class="pre">(npoint,)</span></code>.</p></li>
-<li><p><strong>dimensions</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, <em>optional</em>) – Dimensions associated with the object. Only necessary if the SparseFunction
+<li><p><strong>space_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 0.</p></li>
+<li><p><strong>time_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for time derivatives. Default to 1.</p></li>
+<li><p><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the object. Defaults to <code class="docutils literal notranslate"><span class="pre">(npoint,)</span></code>.</p></li>
+<li><p><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if the SparseFunction
 defines a multi-dimensional tensor.</p></li>
-<li><p><strong>dtype</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">data-type</span></code>, <em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
+<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
 to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
-<li><p><strong>initializer</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">callable</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">any</span> <span class="pre">object</span> <span class="pre">exposing</span> <span class="pre">the</span> <span class="pre">buffer</span> <span class="pre">interface</span></code>, <em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</p></li>
-<li><p><strong>allocator</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code>, <em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
+<li><p><strong>initializer</strong> (<em>callable</em><em> or </em><em>any object exposing the buffer interface</em><em>, </em><em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</p></li>
+<li><p><strong>allocator</strong> (<em>MemoryAllocator</em><em>, </em><em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
 to take advantage of the memory hierarchy in a NUMA architecture. Refer to
 <cite>default_allocator.__doc__</cite> for more information.</p></li>
 </ul>
@@ -317,11 +317,11 @@ sparse points.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>) – Input expression to interpolate.</p></li>
-<li><p><strong>offset</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <em>optional</em>) – Additional offset from the boundary.</p></li>
-<li><p><strong>u_t</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>, <em>optional</em>) – Time index at which the interpolation is performed.</p></li>
-<li><p><strong>p_t</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">expr-like</span></code>, <em>optional</em>) – Time index at which the result of the interpolation is stored.</p></li>
-<li><p><strong>increment</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code>, <em>optional</em>) – If True, generate increments (Inc) rather than assignments (Eq).</p></li>
+<li><p><strong>expr</strong> (<em>expr-like</em>) – Input expression to interpolate.</p></li>
+<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
+<li><p><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</p></li>
+<li><p><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</p></li>
+<li><p><strong>increment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, generate increments (Inc) rather than assignments (Eq).</p></li>
 </ul>
 </dd>
 </dl>
