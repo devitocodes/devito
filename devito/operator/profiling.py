@@ -12,7 +12,7 @@ import os
 from cached_property import cached_property
 
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
-                           FindNodes, Transformer)
+                           Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning, error
 from devito.mpi import MPI

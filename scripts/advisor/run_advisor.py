@@ -26,7 +26,7 @@ import click
 @click.option('--advisor-home', help='Path to Intel Advisor. Defaults to /opt/intel'
                                      '/advisor, the directory in which the Intel '
                                      'Compiler suite is installed by default.')
-@click.option('--plot/--no-plot', default=True, help='Generate a roofline.')
+@click.option('--plot/--no-plot', default=False, help='Generate a roofline.')
 def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
     path = Path(path)
     check(path.is_file(), '%s not found' % path)
@@ -48,7 +48,7 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
         log('Custom Intel Advisor location is not currently supported. '
             'The advixe-cl executable will be searched in the environment PATH variable.')
 
-    # Intel Advisor 2018 must be available
+    # Intel Advisor 2020 must be available
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
     except FileNotFoundError:
@@ -111,9 +111,9 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
     ]
     advisor_flops = [
         '-collect tripcounts',
-        '-start-paused',
-        '-flop',
         '-enable-cache-simulation',
+        '-flop',
+        '-start-paused',
     ]
     py_cmd = ['python3', str(path)] + exec_args.split()
 
