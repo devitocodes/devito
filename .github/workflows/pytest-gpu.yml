@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu, multi-gpu]
 
     strategy:
       # Prevent all build to stop if a single one fails
