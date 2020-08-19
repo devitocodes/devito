@@ -34,13 +34,6 @@ VECTORIZED = Property('vector-dim')
 TILABLE = Property('tilable')
 """A fully parallel Dimension that would benefit from tiling (or "blocking")."""
 
-WRAPPABLE = Property('wrappable')
-"""
-A modulo-N Dimension (i.e., cycling over i, i+1, i+2, ..., i+N-1) that could
-safely be turned into a modulo-K Dimension, with K < N. For example:
-u[t+1, ...] = f(u[t, ...]) + u[t-1, ...] --> u[t+1, ...] = f(u[t, ...]) + u[t+1, ...].
-"""
-
 ROUNDABLE = Property('roundable')
 """
 A Dimension whose upper limit may be rounded up to a multiple of the SIMD

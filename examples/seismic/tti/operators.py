@@ -1,32 +1,26 @@
 from sympy import cos, sin, sqrt
 
-from devito import Eq, Operator, TimeFunction, NODE
+from devito import Eq, Operator, TimeFunction, NODE, solve
 from examples.seismic import PointSource, Receiver
-from devito.finite_differences import centered, first_derivative, transpose
 
 
 def second_order_stencil(model, u, v, H0, Hz, forward=True):
     """
     Creates the stencil corresponding to the second order TTI wave equation
-    u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
-    v.dt2 =  (delta * H0 + Hz) - damp * v.dt
+    m * u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
+    m * v.dt2 =  (delta * H0 + Hz) - damp * v.dt
     """
-
     m, damp = model.m, model.damp
-    s = model.grid.stepping_dim.spacing
 
     unext = u.forward if forward else u.backward
     vnext = v.forward if forward else v.backward
-    uprev = u.backward if forward else u.forward
-    vprev = v.backward if forward else v.forward
+    udt = u.dt if forward else u.dt.T
+    vdt = v.dt if forward else v.dt.T
 
     # Stencils
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
-         uprev + 2.0 * s ** 2 * (H0))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
-         vprev + 2.0 * s ** 2 * (Hz))
+    stencilp = solve(m * u.dt2 - H0 + damp * udt, unext)
+    stencilr = solve(m * v.dt2 - Hz + damp * vdt, vnext)
+
     first_stencil = Eq(unext, stencilp)
     second_stencil = Eq(vnext, stencilr)
 
@@ -79,23 +73,18 @@ def Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
     Rotated second order derivative w.r.t. z.
     """
     order1 = space_order // 2
-    x, y, z = model.space_dimensions
-    Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
-                                                side=centered, fd_order=order1) +
-           sintheta * sinphi * first_derivative(field, dim=y,
-                                                side=centered, fd_order=order1) +
-           costheta * first_derivative(field, dim=z,
-                                       side=centered, fd_order=order1))
+    Gz = -(sintheta * cosphi * field.dx(fd_order=order1) +
+           sintheta * sinphi * field.dy(fd_order=order1) +
+           costheta * field.dz(fd_order=order1))
 
-    Gzz = (first_derivative(Gz * sintheta * cosphi,
-                            dim=x, side=centered, fd_order=order1,
-                            matvec=transpose) +
-           first_derivative(Gz * sintheta * sinphi,
-                            dim=y, side=centered, fd_order=order1,
-                            matvec=transpose) +
-           first_derivative(Gz * costheta,
-                            dim=z, side=centered, fd_order=order1,
-                            matvec=transpose))
+    Gzz = (Gz * costheta).dz(fd_order=order1).T
+    # Add rotated derivative if angles are not zero. If angles are
+    # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
+    if sintheta != 0:
+        Gzz += (Gz * sintheta * cosphi).dx(fd_order=order1).T
+    if sinphi != 0:
+        Gzz += (Gz * sintheta * sinphi).dy(fd_order=order1).T
+
     return Gzz
 
 
@@ -117,15 +106,10 @@ def Gzz_centered_2d(model, field, costheta, sintheta, space_order):
     Rotated second order derivative w.r.t. z.
     """
     order1 = space_order // 2
-    x, y = model.space_dimensions[:2]
-    Gz = -(sintheta * first_derivative(field, dim=x, side=centered, fd_order=order1) +
-           costheta * first_derivative(field, dim=y, side=centered, fd_order=order1))
-    Gzz = (first_derivative(Gz * sintheta, dim=x,
-                            side=centered, fd_order=order1,
-                            matvec=transpose) +
-           first_derivative(Gz * costheta, dim=y,
-                            side=centered, fd_order=order1,
-                            matvec=transpose))
+    Gz = -(sintheta * field.dx(fd_order=order1) +
+           costheta * field.dy(fd_order=order1))
+    Gzz = ((Gz * sintheta).dx(fd_order=order1).T +
+           (Gz * costheta).dy(fd_order=order1).T)
     return Gzz
 
 

@@ -4,8 +4,9 @@ from functools import partial
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, Interval, IntervalGroup,
-                       LabeledVector, Scope, detect_accesses, build_intervals)
+from devito.ir import (PARALLEL, ROUNDABLE, DataSpace, IterationInstance, IterationSpace,
+                       Interval, IntervalGroup, LabeledVector, Scope, detect_accesses,
+                       build_intervals)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
@@ -16,7 +17,7 @@ __all__ = ['cire']
 
 
 @cluster_pass
-def cire(cluster, template, mode, options, platform):
+def cire(cluster, mode, sregistry, options, platform):
     """
     Cross-iteration redundancies elimination.
 
@@ -24,16 +25,16 @@ def cire(cluster, template, mode, options, platform):
     ----------
     cluster : Cluster
         Input Cluster, subject of the optimization pass.
-    template : callable
-        To build the symbols (temporaries) storing the redundant expressions.
     mode : str
         The transformation mode. Accepted: ['invariants', 'sops'].
         * 'invariants' is for sub-expressions that are invariant w.r.t. one or
           more Dimensions.
         * 'sops' stands for sums-of-products, that is redundancies are searched
           across all expressions in sum-of-product form.
+    sregistry : SymbolRegistry
+        The symbol registry, to create unique temporary names.
     options : dict
-        The optimization mode. Accepted: ['min-storage'].
+        The optimization options. Accepted: ['min-storage'].
         * 'min-storage': if True, the pass will try to minimize the amount of
           storage introduced for the tensor temporaries. This might also reduce
           the operation count. On the other hand, this might affect fusion and
@@ -67,15 +68,13 @@ def cire(cluster, template, mode, options, platform):
     """
     # Relevant options
     min_storage = options['min-storage']
+    max_par = options['cire-maxpar']
     min_cost = options['cire-mincost']
     repeats = options['cire-repeats']
 
     # Sanity checks
     assert mode in list(callbacks_mapper)
     assert all(i >= 0 for i in repeats.values())
-
-    # To create unique (temporary) symbols
-    make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
 
     # The main CIRE loop
     processed = []
@@ -85,7 +84,7 @@ def cire(cluster, template, mode, options, platform):
         extract, ignore_collected, selector = callbacks_mapper[mode](context, n, min_cost)
 
         # Extract potentially aliasing expressions
-        exprs, extracted = extract(cluster, make)
+        exprs, extracted = extract(cluster, sregistry)
         if not extracted:
             # Do not waste time
             continue
@@ -107,7 +106,7 @@ def cire(cluster, template, mode, options, platform):
             continue
 
         # Create Aliases and assign them to Clusters
-        clusters, subs = process(cluster, chosen, aliases, template, platform)
+        clusters, subs = process(cluster, chosen, aliases, max_par, sregistry, platform)
 
         # Rebuild `cluster` so as to use the newly created Aliases
         rebuilt = rebuild(cluster, others, aliases, subs)
@@ -141,7 +140,7 @@ class Callbacks(object):
                 partial(cls.selector, min_cost))
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, make):
+    def extract(cls, n, context, min_cost, cluster, sregistry):
         raise NotImplementedError
 
     @classmethod
@@ -158,7 +157,9 @@ class CallbacksInvariants(Callbacks):
     mode = 'invariants'
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, make):
+    def extract(cls, n, context, min_cost, cluster, sregistry):
+        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+
         exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
         rule0 = lambda e: not e.free_symbols & exclude
         rule1 = make_is_time_invariant(context)
@@ -188,7 +189,9 @@ class CallbacksSOPS(Callbacks):
     mode = 'sops'
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, make):
+    def extract(cls, n, context, min_cost, cluster, sregistry):
+        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+
         # The `depth` determines "how big" the extracted sum-of-products will be.
         # We observe that in typical FD codes:
         #   add(mul, mul, ...) -> stems from first order derivative
@@ -415,10 +418,10 @@ def choose(exprs, aliases, selector):
     return chosen, others
 
 
-def process(cluster, chosen, aliases, template, platform):
+def process(cluster, chosen, aliases, max_par, sregistry, platform):
     clusters = []
     subs = {}
-    for alias, writeto, aliaseds, distances in aliases.iter(cluster.ispace):
+    for alias, writeto, ispace, aliaseds, distances in aliases.iter(cluster, max_par):
         if all(i not in chosen for i in aliaseds):
             continue
 
@@ -438,12 +441,14 @@ def process(cluster, chosen, aliases, template, platform):
         # The halo of the Array
         halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
-        # The memory scope of the Array
-        scope = 'stack' if any(d.is_Incr for d in writeto.dimensions) else 'heap'
+        # The data sharing mode of the Array. It can safely be `shared` only if
+        # all of the PARALLEL `cluster` Dimensions appear in `writeto`
+        parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
+        sharing = 'shared' if set(parallel) == set(writeto.dimensions) else 'local'
 
         # Finally create the temporary Array that will store `alias`
-        array = Array(name=template(), dimensions=dimensions, halo=halo,
-                      dtype=cluster.dtype, scope=scope)
+        array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
+                      dtype=cluster.dtype, sharing=sharing)
 
         # The access Dimensions may differ from `writeto.dimensions`. This may
         # happen e.g. if ShiftedDimensions are introduced (`a[x,y]` -> `a[xs,y]`)
@@ -468,9 +473,6 @@ def process(cluster, chosen, aliases, template, platform):
                 # Perhaps part of a composite alias ?
                 pass
 
-        # Construct the `alias` IterationSpace
-        ispace = cluster.ispace.add(writeto).augment(aliases.index_mapper)
-
         # Optimization: if possible, the innermost IterationInterval is
         # rounded up to a multiple of the vector length
         try:
@@ -489,7 +491,7 @@ def process(cluster, chosen, aliases, template, platform):
 
         # Finally, build a new Cluster for `alias`
         built = cluster.rebuild(exprs=expression, ispace=ispace, dspace=dspace)
-        clusters.append(built)
+        clusters.insert(0, built)
 
     return clusters, subs
 
@@ -765,10 +767,10 @@ class Aliases(OrderedDict):
                 return aliaseds
         return []
 
-    def iter(self, ispace):
+    def iter(self, cluster, max_par):
         """
-        The aliases can be be scheduled in any order, but we privilege the one
-        that minimizes storage while maximizing fusion.
+        The aliases can legally be scheduled in many different orders, but we
+        privilege the one that minimizes storage while maximizing fusion.
         """
         items = []
         for alias, (intervals, aliaseds, distances) in self.items():
@@ -779,8 +781,9 @@ class Aliases(OrderedDict):
             # Becomes True as soon as a Dimension in `ispace` is found to
             # be independent of `intervals`
             flag = False
+            iteron = []
             writeto = []
-            for i in ispace.intervals:
+            for i in cluster.ispace.intervals:
                 try:
                     interval = mapper[i.dim]
                 except KeyError:
@@ -789,29 +792,43 @@ class Aliases(OrderedDict):
                         # whereas if `i.dim` is `x0_blk0` in `x0_blk0[0,0]<0>` then
                         # we would not enter here
                         flag = True
+
+                    iteron.append(i)
                     continue
 
-                # Try to optimize away unnecessary temporary Dimensions
-                if not flag and interval == interval.zero():
-                    continue
-
-                # Adjust the Interval's stamp
-                # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
-                # use `<1>` which is the actual stamp used in the Cluster
-                # from which the aliasing expressions were extracted
                 assert i.stamp >= interval.stamp
-                interval = interval.lift(i.stamp)
 
-                writeto.append(interval)
-                flag = True
+                # Does `i.dim` actually need to be a write-to Dimension ?
+                if flag or interval != interval.zero():
+                    # Yes, so we also have to adjust the Interval's stamp.
+                    # E.g., `i=x[0,0]<1>` and `interval=x[-4,4]<0>`. We need to
+                    # use `<1>` which is the actual stamp used in `cluster`
+                    interval = interval.lift(i.stamp)
+                    iteron.append(interval)
+                    writeto.append(interval)
+                    flag = True
+                elif max_par and PARALLEL in cluster.properties[i.dim]:
+                    # Not necessarily, but with `max_par` the user is
+                    # expressing the wish to trade-off storage for parallelism
+                    interval = interval.lift(i.stamp + 1)
+                    iteron.append(interval)
+                    writeto.append(interval)
+                    flag = True
+                else:
+                    iteron.append(i)
 
             if writeto:
-                writeto = IntervalGroup(writeto, relations=ispace.relations)
+                writeto = IntervalGroup(writeto, cluster.ispace.relations)
             else:
                 # E.g., an `alias` having 0-distance along all Dimensions
-                writeto = IntervalGroup(intervals, relations=ispace.relations)
+                writeto = IntervalGroup(intervals, cluster.ispace.relations)
 
-            items.append((alias, writeto, aliaseds, distances))
+            # Construct the IterationSpace within which the alias will be computed
+            ispace = IterationSpace(IntervalGroup(iteron, cluster.ispace.relations),
+                                    cluster.sub_iterators, cluster.directions)
+            ispace = ispace.augment(self.index_mapper)
+
+            items.append((alias, writeto, ispace, aliaseds, distances))
 
         queue = list(items)
         while queue:

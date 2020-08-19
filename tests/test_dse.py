@@ -5,8 +5,9 @@ from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, Grid, Operator, norm, grad, div,
+                    Dimension, SubDimension, Grid, Operator, norm, grad, div, dimensions,
                     switchconfig, configuration, centered, first_derivative, transpose)
+from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, Expression, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.clusters.aliases import collect
@@ -145,6 +146,8 @@ def test_pow_to_mul(expr, expected):
 
 @pytest.mark.parametrize('expr,expected,estimate', [
     ('Eq(t0, t1)', 0, False),
+    ('Eq(t0, -t1)', 0, False),
+    ('Eq(t0, -t1)', 0, True),
     ('Eq(t0, fa[x] + fb[x])', 1, False),
     ('Eq(t0, fa[x + 1] + fb[x - 1])', 1, False),
     ('Eq(t0, fa[fb[x+1]] + fa[x])', 1, False),
@@ -158,17 +161,24 @@ def test_pow_to_mul(expr, expected):
     ('Eq(t0, 2.*t0*t1*t2 + t0*fa[x+1])', 5, False),
     ('Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0)', 7, False),
     ('[Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0), Eq(t0, cos(t1*t2))]', 9, False),
+    ('Eq(t0, cos(fa*fb))', 51, True),
+    ('Eq(t0, cos(fa[x]*fb[x]))', 51, True),
     ('Eq(t0, cos(t1*t2))', 51, True),
+    ('Eq(t0, cos(c*c))', 2, True),  # `cos(...constants...)` counts as 1
     ('Eq(t0, t1**3)', 2, True),
     ('Eq(t0, t1**4)', 3, True),
     ('Eq(t0, t2*t1**-1)', 26, True),
     ('Eq(t0, t1**t2)', 50, True),
+    ('Eq(t0, 3.2/h_x)', 2, True),  # seen as `3.2*(1/h_x)`, so counts as 2
+    ('Eq(t0, 3.2/h_x*fa + 2.4/h_x*fb)', 7, True),  # `pow(...constants...)` counts as 1
 ])
 def test_estimate_cost(expr, expected, estimate):
     # Note: integer arithmetic isn't counted
     grid = Grid(shape=(4, 4))
     x, y = grid.dimensions  # noqa
 
+    h_x = x.spacing  # noqa
+    c = Constant(name='c')  # noqa
     t0 = Scalar(name='t0')  # noqa
     t1 = Scalar(name='t1')  # noqa
     t2 = Scalar(name='t2')  # noqa
@@ -236,6 +246,72 @@ def test_time_dependent_split(opt):
 
     assert np.allclose(u.data[2, :, :], 3.0)
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    # none (different distance)
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
+     [6., 0., 0.]),
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, 0], y, implicit_dims=(t, x, y))'],
+     [2., 0., 0.]),
+    (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+     'Eq(h1[0, y], 3 - y, implicit_dims=(t, x, y))'],
+     [3., 2., 1.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 1., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 2., 6.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y, implicit_dims=(t, x, y))'],
+     [3., 3., 2.]),
+    (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+      'Inc(h1[0, y], x, implicit_dims=(t, x, y))'],
+     [3., 3., 3.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x, y))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+      'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+     [2., 2., 2.]),
+    (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+      'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(t, x))',
+      'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+     [0., 0., 0.])
+])
+def test_lifting(exprs, expected):
+    t, x, y = dimensions('t x y')
+
+    g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
+                     time_order=0, dtype=np.int32)
+    g.data[0, :] = [0, 1, 2]
+    h1 = TimeFunction(name='h1', shape=(1, 3), dimensions=(t, y), time_order=0)
+    h1.data[0, :] = 0
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = eval(e)
+
+    op = Operator(exprs)
+    op.apply()
+
+    assert np.all(h1.data == expected)
 
 
 class TestAliases(object):
@@ -339,7 +415,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -379,7 +455,7 @@ class TestAliases(object):
         z_size = op1.parameters[3]
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 2
@@ -420,7 +496,7 @@ class TestAliases(object):
         z_size = op1.parameters[4]
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -504,7 +580,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -557,7 +633,7 @@ class TestAliases(object):
         assert len(op1._func_table) == 1
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert len(arrays[0].dimensions) == 2
         assert arrays[0].halo == ((1, 1), (0, 0))
@@ -575,6 +651,62 @@ class TestAliases(object):
         u.data_with_halo[:] = 1.5
         op1(time_M=1)
         assert np.all(u.data == exp)
+
+    def test_min_storage_in_isolation(self):
+        """
+        Test that if running with ``opt=(..., opt=('cire-sops', {'min-storage': True})``,
+        then, when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
+        rather than nD Arrays.
+        """
+        grid = Grid(shape=(8, 8, 8))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u1 = TimeFunction(name="u1", grid=grid, space_order=2)
+        u2 = TimeFunction(name="u1", grid=grid, space_order=2)
+
+        u.data_with_halo[:] = 1.42
+        u1.data_with_halo[:] = 1.42
+        u2.data_with_halo[:] = 1.42
+
+        eqn = Eq(u.forward, u.dy.dy + u.dx.dx)
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('cire-sops', {'openmp': True, 'min-storage': True}))
+        op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
+
+        # `min-storage` leads to one 2D and one 3D Arrays
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        assert len(arrays) == 2
+        assert len([i for i in arrays if i._mem_shared]) == 1
+        assert len([i for i in arrays if i._mem_local]) == 1
+        assert len(arrays[0].dimensions) == 2
+        assert arrays[0].halo == ((1, 0), (0, 0))
+        assert Add(*arrays[0].symbolic_shape[0].args) == y.symbolic_size + 1
+        assert arrays[0].symbolic_shape[1] == z.symbolic_size
+        assert len(arrays[1].dimensions) == 3
+        assert arrays[1].halo == ((1, 0), (0, 0), (0, 0))
+        assert Add(*arrays[1].symbolic_shape[0].args) == x.symbolic_size + 1
+        assert arrays[1].symbolic_shape[1] == y.symbolic_size
+        assert arrays[1].symbolic_shape[2] == z.symbolic_size
+
+        try:
+            Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'min-storage': True}))
+        except InvalidOperator:
+            # Incompatible `advanced-fsg` + `min-storage`
+            assert True
+        except:
+            assert False
+
+        u1.data_with_halo[:] = 1.42
+
+        op0(time_M=1)
+        op1(time_M=1, u=u1)
+        op2(time_M=1, u=u2)
+
+        expected = norm(u)
+        assert np.isclose(expected, norm(u1), rtol=1e-5)
+        assert np.isclose(expected, norm(u2), rtol=1e-5)
 
     def test_mixed_shapes_v2_w_subdims(self):
         """
@@ -614,7 +746,7 @@ class TestAliases(object):
         assert len(op1._func_table) == 1
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert len(arrays[0].dimensions) == 2
         assert arrays[0].halo == ((1, 1), (1, 0))
@@ -668,7 +800,7 @@ class TestAliases(object):
         assert len(op1._func_table) == 1
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         for a in arrays:
             assert len(a.dimensions) == 3
@@ -719,7 +851,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert all(len(a.dimensions) == 2 for a in arrays)
         assert arrays[0].halo == ((1, 0), (1, 0))
@@ -769,7 +901,7 @@ class TestAliases(object):
         # Expected one single loop nest
         assert len(op1._func_table) == 1
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 2
@@ -856,7 +988,7 @@ class TestAliases(object):
         op = Operator(Eq(u.forward, u + sin(cos(g)) + sin(cos(g[x+1, y+1]))))
 
         # We expect two temporary Arrays: `r1 = cos(g)` and `r2 = sqrt(r1)`
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array and i._mem_local]
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
@@ -935,7 +1067,7 @@ class TestAliases(object):
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
         a = arrays[0]
         assert len(a.dimensions) == 3
@@ -1242,7 +1374,7 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
-                  if i.is_Array]
+                  if i.is_Array and i._mem_local]
         assert len(arrays) == 1
 
         # Check numerical output
@@ -1254,7 +1386,37 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 21
+        assert summary[('section0', None)].ops == 19
+
+    def test_maxpar_option(self):
+        """
+        Test the compiler option `cire-maxpar=True`.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+
+        f.data[:] = 0.0012
+        u.data[:] = 1.3
+
+        eq = Eq(u.forward, f*u.dy.dy)
+
+        op0 = Operator(eq, opt='noop')
+        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
+
+        # Check code generation
+        trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+        assert len(trees) == 2
+        assert trees[0][1] is trees[1][1]
+        assert trees[0][2] is not trees[1][2]
+
+        # Check numerical output
+        op0.apply(time_M=2)
+        u1 = TimeFunction(name="u", grid=grid, space_order=2)
+        u1.data[:] = 1.3
+        op1.apply(time_M=2, u=u1)
+        assert np.isclose(norm(u), norm(u1), rtol=1e-5)
 
 
 # Acoustic
@@ -1299,11 +1461,11 @@ class TestIsoAcoustic(object):
         assert len(op0._func_table) == 0
         assert len(op1._func_table) == 1  # due to loop blocking
 
-        assert summary0[('section0', None)].ops == 39
-        assert np.isclose(summary0[('section0', None)].oi, 2.224, atol=0.001)
+        assert summary0[('section0', None)].ops == 46
+        assert np.isclose(summary0[('section0', None)].oi, 2.623, atol=0.001)
 
-        assert summary1[('section0', None)].ops == 29
-        assert np.isclose(summary1[('section0', None)].oi, 1.654, atol=0.001)
+        assert summary1[('section0', None)].ops == 33
+        assert np.isclose(summary1[('section0', None)].oi, 1.882, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
         assert np.allclose(rec0.data, rec1.data, atol=10e-5)
@@ -1350,7 +1512,7 @@ class TestTTI(object):
         # Make sure no opts were applied
         op = wavesolver.op_fwd('centered', False)
         assert len(op._func_table) == 0
-        assert summary[('section0', None)].ops == 727
+        assert summary[('section0', None)].ops == 729
 
         return v, rec
 
@@ -1364,7 +1526,7 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 103
-        assert np.isclose(summary[('section1', None)].oi, 1.692, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 1.625, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -1376,17 +1538,21 @@ class TestTTI(object):
         assert not x._defines & y._defines
 
         # Also, in this operator, we expect seven temporary Arrays:
-        # * five Arrays are allocated on the heap
-        # * two Arrays are allocated on the stack and only appear within an efunc
+        # * all of the seven Arrays are allocated on the heap
+        # * with OpenMP, five Arrays are defined globally, and two additional
+        #   Arrays are defined locally in bf0; otherwise, all of the seven
+        #   Arrays are defined globally and passed as arguments to bf0
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 5
+        extra_arrays = 0 if configuration['language'] == 'openmp' else 2
+        assert len(arrays) == 5 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root)
                   if i.is_Array]
-        assert len(arrays) == 7
         assert all(not i._mem_external for i in arrays)
-        assert len([i for i in arrays if i._mem_heap]) == 5
-        assert len([i for i in arrays if i._mem_stack]) == 2
+        assert len(arrays) == 7
+        assert len([i for i in arrays if i._mem_heap]) == 7
+        assert len([i for i in arrays if i._mem_shared]) == 5
+        assert len([i for i in arrays if i._mem_local]) == 2
 
     @skipif(['nompi'])
     @switchconfig(profiling='advanced')
@@ -1407,7 +1573,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 175), (16, 311)
+        (8, 173), (16, 307)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)

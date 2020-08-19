@@ -1,5 +1,5 @@
 import numpy as np
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Action
 
 from devito import error, configuration, warning
 from devito.tools import Pickable
@@ -62,6 +62,8 @@ class AcquisitionGeometry(Pickable):
         In practice would be __init__(segyfile) and all below parameters
         would come from a segy_read (at property call rather than at init)
         """
+        src_positions = np.reshape(src_positions, (-1, model.dim))
+        rec_positions = np.reshape(rec_positions, (-1, model.dim))
         self.rec_positions = rec_positions
         self._nrec = rec_positions.shape[0]
         self.src_positions = src_positions
@@ -180,6 +182,12 @@ def seismic_args(description):
     """
     Command line options for the seismic examples
     """
+
+    class _dtype_store(Action):
+        def __call__(self, parser, args, values, option_string=None):
+            values = {'float32': np.float32, 'float64': np.float64}[values]
+            setattr(args, self.dest, values)
+
     parser = ArgumentParser(description=description)
     parser.add_argument("-nd", dest="ndim", default=3, type=int,
                         help="Number of dimensions")
@@ -191,9 +199,6 @@ def seismic_args(description):
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
                         type=int, help="Number of boundary layers around the domain")
-    parser.add_argument("-k", dest="kernel", default='OT2',
-                        choices=['OT2', 'OT4', 'centered', 'staggered'],
-                        help="Choice of finite-difference kernel")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     parser.add_argument("--checkpointing", default=False, action='store_true',
@@ -204,6 +209,8 @@ def seismic_args(description):
     parser.add_argument('-a', '--autotune', default='off',
                         choices=(configuration._accepted['autotuning']),
                         help="Operator auto-tuning mode")
-    parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
-                        help="Whether or not to use an azimuth angle")
-    return parser.parse_args()
+    parser.add_argument("-tn", "--tn", default=0,
+                        type=float, help="Simulation time in millisecond")
+    parser.add_argument("-dtype", action=_dtype_store, dest="dtype", default=np.float32,
+                        choices=['float32', 'float64'])
+    return parser

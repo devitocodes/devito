@@ -205,7 +205,7 @@ def fuse(clusters, toposort=False):
 
 
 @timed_pass()
-def eliminate_arrays(clusters, template):
+def eliminate_arrays(clusters):
     """
     Eliminate redundant expressions stored in Arrays.
     """
@@ -260,7 +260,7 @@ def optimize_pows(cluster, *args):
 
 
 @cluster_pass(mode='sparse')
-def extract_increments(cluster, template, *args):
+def extract_increments(cluster, sregistry, *args):
     """
     Extract the RHSs of non-local tensor expressions performing an associative
     and commutative increment, and assign them to temporaries.
@@ -268,7 +268,7 @@ def extract_increments(cluster, template, *args):
     processed = []
     for e in cluster.exprs:
         if e.is_Increment and e.lhs.function.is_Input:
-            handle = Scalar(name=template(), dtype=e.dtype).indexify()
+            handle = Scalar(name=sregistry.make_name(), dtype=e.dtype).indexify()
             if e.rhs.is_Number or e.rhs.is_Symbol:
                 extracted = e.rhs
             else:

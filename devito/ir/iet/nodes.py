@@ -12,7 +12,7 @@ import cgen as c
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
-                               WRAPPABLE, AFFINE, Property, Forward, detect_io)
+                               AFFINE, Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
@@ -21,8 +21,9 @@ from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
-           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While']
+           'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
+           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
+           'ParallelIteration', 'ParallelBlock', 'Dereference']
 
 # First-class IET nodes
 
@@ -43,11 +44,14 @@ class Node(Signer):
     is_ElementalFunction = False
     is_Call = False
     is_List = False
-    is_ArrayCast = False
+    is_PointerCast = False
+    is_Dereference = False
     is_Element = False
     is_Section = False
     is_HaloSpot = False
     is_ExpressionBundle = False
+    is_ParallelIteration = False
+    is_ParallelBlock = False
 
     _traversable = []
     """
@@ -161,11 +165,17 @@ class List(Node):
 
     def __init__(self, header=None, body=None, footer=None):
         body = as_tuple(body)
-        if len(body) == 1 and type(body[0]) == List:
+        if len(body) == 1 and all(type(i) == List for i in [self, body[0]]):
             # De-nest Lists
-            self.header = as_tuple(header) + body[0].header
-            self.body = body[0].body
-            self.footer = as_tuple(footer) + body[0].footer
+            #
+            # Note: to avoid disgusting metaclass voodoo (due to
+            # https://stackoverflow.com/questions/56514586/\
+            #     arguments-of-new-and-init-for-metaclasses)
+            # we change the internal state here in __init__
+            # rather than in __new__
+            self._args['header'] = self.header = as_tuple(header) + body[0].header
+            self._args['body'] = self.body = body[0].body
+            self._args['footer'] = self.footer = as_tuple(footer) + body[0].footer
         else:
             self.header = as_tuple(header)
             self.body = as_tuple(body)
@@ -193,6 +203,11 @@ class Block(List):
     """A sequence of Nodes, wrapped in a block {...}."""
 
     is_Block = True
+
+    def __init__(self, header=None, body=None, footer=None):
+        self.header = as_tuple(header)
+        self.body = as_tuple(body)
+        self.footer = as_tuple(footer)
 
 
 class Element(Node):
@@ -442,10 +457,6 @@ class Iteration(Node):
         return VECTORIZED in self.properties
 
     @property
-    def is_Wrappable(self):
-        return WRAPPABLE in self.properties
-
-    @property
     def ncollapsed(self):
         for i in self.properties:
             if i.name == 'collapsed':
@@ -689,24 +700,26 @@ class TimedList(List):
         return (self.timer,)
 
 
-class ArrayCast(Node):
+class PointerCast(Node):
 
     """
     A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
     """
 
-    is_ArrayCast = True
+    is_PointerCast = True
 
     def __init__(self, function):
         self.function = function
 
     def __repr__(self):
-        return "<ArrayCast(%s)>" % self.function
+        return "<PointerCast(%s)>" % self.function
 
     @property
     def castshape(self):
-        """The shape used in the left-hand side and right-hand side of the ArrayCast."""
-        if self.function.is_Array:
+        """
+        The shape used in the left-hand side and right-hand side of the PointerCast.
+        """
+        if self.function.is_ArrayBasic:
             return self.function.symbolic_shape[1:]
         else:
             return tuple(self.function._C_get_field(FULL, d).size
@@ -719,11 +732,11 @@ class ArrayCast(Node):
     @property
     def free_symbols(self):
         """
-        The symbols required by the ArrayCast.
+        The symbols required by the PointerCast.
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        if self.function.is_Array:
+        if self.function.is_ArrayBasic:
             sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
             return (self.function, ) + as_tuple(sizes)
         else:
@@ -732,6 +745,41 @@ class ArrayCast(Node):
     @property
     def defines(self):
         return ()
+
+
+class Dereference(ExprStmt, Node):
+
+    """
+    A node encapsulating a dereference from a PointerArray to an Array.
+    """
+
+    is_Dereference = True
+
+    def __init__(self, array, parray):
+        self.array = array
+        self.parray = parray
+
+    def __repr__(self):
+        return "<Dereference(%s,%s)>" % (self.array, self.parray)
+
+    @property
+    def functions(self):
+        return (self.array, self.parray)
+
+    @property
+    def free_symbols(self):
+        """
+        The symbols required by the PointerCast.
+
+        This may include DiscreteFunctions as well as Dimensions.
+        """
+        return ((self.array, self.parray) +
+                tuple(flatten(i.free_symbols for i in self.array.symbolic_shape[1:])) +
+                tuple(self.parray.free_symbols))
+
+    @property
+    def defines(self):
+        return (self.array,)
 
 
 class LocalExpression(Expression):
@@ -864,6 +912,24 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class ParallelIteration(Iteration):
+
+    """
+    Implement a parallel for-loop.
+    """
+
+    is_ParallelIteration = True
+
+
+class ParallelBlock(Block):
+
+    """
+    A sequence of Nodes, wrapped in a parallel block {...}.
+    """
+
+    is_ParallelBlock = True
 
 
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))

@@ -2,13 +2,12 @@ from itertools import product
 
 import cgen
 
-from devito.ir.iet import (Iteration, List, Prodder, FindNodes, Transformer, make_efunc,
+from devito.ir.iet import (List, Prodder, FindNodes, Transformer, make_efunc,
                            compose_nodes, filter_iterations, retrieve_iteration_tree)
-from devito.logger import perf_adv
 from devito.passes.iet.engine import iet_pass
 from devito.tools import flatten, is_integer, split
 
-__all__ = ['avoid_denormals', 'loop_wrapping', 'hoist_prodders', 'relax_incr_dimensions']
+__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
 
 
 @iet_pass
@@ -27,20 +26,6 @@ def avoid_denormals(iet):
               cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'))
     iet = iet._rebuild(body=(List(header=header),) + iet.body)
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
-
-
-@iet_pass
-def loop_wrapping(iet):
-    """
-    Emit a performance message if WRAPPABLE Iterations are found,
-    as these are a symptom that unnecessary memory is being allocated.
-    """
-    for i in FindNodes(Iteration).visit(iet):
-        if not i.is_Wrappable:
-            continue
-        perf_adv("Functions using modulo iteration along Dimension `%s` "
-                 "may safely allocate a one slot smaller buffer" % i.dim)
-    return iet, {}
 
 
 @iet_pass
@@ -74,7 +59,7 @@ def relax_incr_dimensions(iet, **kwargs):
     ElementalCalls to iterate over the "main" and "remainder" regions induced
     by the IncrDimensions.
     """
-    counter = kwargs['counter']
+    sregistry = kwargs['sregistry']
 
     efuncs = []
     mapper = {}
@@ -103,7 +88,7 @@ def relax_incr_dimensions(iet, **kwargs):
                  for i in outer]
 
         # Create the ElementalFunction
-        name = "bf%d" % counter()
+        name = sregistry.make_name(prefix="bf")
         body = compose_nodes(outer)
         dynamic_parameters = flatten((i.symbolic_bounds, i.step) for i in outer)
         dynamic_parameters.extend([i.step for i in inner if not is_integer(i.step)])

@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
-from sympy import simplify, diff, cos, sin
+from sympy import simplify, diff, cos, sin, Float
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE,
                     ConditionalDimension, left, right, centered)
 from devito.finite_differences import Derivative, Differentiable
+from devito.symbolics import indexify, retrieve_indexed
 
 _PRECISION = 9
 
@@ -41,6 +42,19 @@ class TestFD(object):
         u = Function(name='u', grid=self.grid)
         du = u.diff(x(self.grid))
         assert isinstance(du, Derivative)
+
+    @pytest.mark.parametrize('so', [2, 3, 4, 5])
+    def test_fd_indices(self, so):
+        """
+        Test that shifted derivative have Integer offset after indexification.
+        """
+        grid = Grid((10,))
+        x = grid.dimensions[0]
+        x0 = x + .5 * x.spacing
+        u = Function(name="u", grid=grid, space_order=so)
+        dx = indexify(u.dx(x0=x0).evaluate)
+        for f in retrieve_indexed(dx):
+            assert len(f.indices[0].atoms(Float)) == 0
 
     @pytest.mark.parametrize('SymbolType, dim', [
         (Function, x), (Function, y),

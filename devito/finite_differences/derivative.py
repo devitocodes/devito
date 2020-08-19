@@ -206,7 +206,11 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         Bypass sympy.Subs as Devito has its own lazy evaluation mechanism.
         """
-        return self.xreplace(dict(*args), **kwargs)
+        try:
+            rules = dict(*args)
+        except TypeError:
+            rules = dict((args,))
+        return self.xreplace(rules, **kwargs)
 
     def _xreplace(self, subs):
         """

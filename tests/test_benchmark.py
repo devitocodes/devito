@@ -11,9 +11,9 @@ from subprocess import check_call
     ('bench', 'acoustic', 'forward'), ('run', 'acoustic', 'adjoint'),
     ('run', 'acoustic', 'jacobian'), ('bench', 'acoustic', 'jacobian_adjoint'),
     ('bench', 'tti', 'forward'), ('bench', 'elastic', 'forward'),
-    ('bench', 'viscoelastic', 'forward'), ('run', 'acoustic_ssa', 'forward'),
-    ('run', 'acoustic_ssa', 'adjoint'), ('run', 'acoustic_ssa', 'jacobian'),
-    ('run', 'acoustic_ssa', 'jacobian_adjoint')
+    ('bench', 'viscoelastic', 'forward'), ('run', 'acoustic_sa', 'forward'),
+    ('run', 'acoustic_sa', 'adjoint'), ('run', 'acoustic_sa', 'jacobian'),
+    ('run', 'acoustic_sa', 'jacobian_adjoint')
 ])
 def test_bench(mode, problem, op):
     """

@@ -12,8 +12,8 @@ from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
-           'ModuloDimension', 'IncrDimension', 'ShiftedDimension']
+           'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
+           'dimensions', 'ModuloDimension', 'IncrDimension', 'ShiftedDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -95,6 +95,7 @@ class Dimension(ArgProvider):
     is_Time = False
 
     is_Default = False
+    is_Custom = False
     is_Derived = False
     is_NonlinearDerived = False
     is_Sub = False
@@ -167,6 +168,10 @@ class Dimension(ArgProvider):
         return "%s_M" % self.name
 
     @property
+    def is_const(self):
+        return False
+
+    @property
     def root(self):
         return self
 
@@ -182,6 +187,10 @@ class Dimension(ArgProvider):
     @cached_property
     def _defines(self):
         return frozenset({self})
+
+    @cached_property
+    def _defines_symbols(self):
+        return frozenset({self.symbolic_min, self.symbolic_max, self.symbolic_size})
 
     @property
     def _arg_names(self):
@@ -571,6 +580,10 @@ class SubDimension(DerivedDimension):
         return dict(self.thickness)
 
     @cached_property
+    def _defines_symbols(self):
+        return super()._defines_symbols | frozenset(self._thickness_map)
+
+    @cached_property
     def _offset_left(self):
         # The left extreme of the SubDimension can be related to either the
         # min or max of the parent dimension
@@ -790,7 +803,7 @@ class SteppingDimension(DerivedDimension):
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
-    def _arg_defaults(self, _min=None, size=None, **kwargs):
+    def _arg_defaults(self, _min=None, **kwargs):
         """
         A map of default argument values defined by this dimension.
 
@@ -798,14 +811,13 @@ class SteppingDimension(DerivedDimension):
         ----------
         _min : int, optional
             Minimum point as provided by data-carrying objects.
-        size : int, optional
-            Size as provided by data-carrying symbols.
 
         Notes
         -----
-        A SteppingDimension does not know its max point.
+        A SteppingDimension does not know its max point and therefore
+        does not have a size argument.
         """
-        return {self.parent.min_name: _min, self.size_name: size}
+        return {self.parent.min_name: _min}
 
     def _arg_values(self, *args, **kwargs):
         """
@@ -825,6 +837,9 @@ class SteppingDimension(DerivedDimension):
             values[self.parent.max_name] = kwargs.pop(self.name)
 
         return values
+
+
+# The Dimensions below are for internal use only
 
 
 class ModuloDimension(DerivedDimension):
@@ -1058,6 +1073,36 @@ class ShiftedDimension(IncrDimension):
 
     _pickle_args = ['parent', 'name']
     _pickle_kwargs = []
+
+
+class CustomDimension(BasicDimension):
+
+    """
+    Dimension defining an iteration space with custom (known) size.
+
+    Notes
+    -----
+    This could be extended in the future for more customization (e.g., min point,
+    max point, etc.).
+    """
+
+    is_Custom = True
+
+    def __init_finalize__(self, name, symbolic_size=None):
+        self._symbolic_size = symbolic_size
+
+    @property
+    def symbolic_size(self):
+        return self._symbolic_size
+
+    def _arg_defaults(self):
+        return {}
+
+    def _arg_values(self, *args, **kwargs):
+        return {}
+
+    # Pickling support
+    _pickle_kwargs = ['symbolic_size']
 
 
 def dimensions(names):
