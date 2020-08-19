@@ -46,7 +46,7 @@ def roofline(name, project, scale, precision, mode):
     full_df = pd.DataFrame(rows).replace('', np.nan)
 
     # Narrow down the columns to those of interest
-    df = full_df[analysis_columns]
+    df = full_df[analysis_columns].copy()
 
     df.self_ai = df.self_ai.astype(float)
     df.self_gflops = df.self_gflops.astype(float)
@@ -80,9 +80,9 @@ def roofline(name, project, scale, precision, mode):
             if 'bandwidth' in roof.name.lower():
                 bandwidth = roof.bandwidth / math.pow(10, 9)  # as GByte/s
                 bandwidth /= scale  # scale down as requested by the user
-                # y = banwidth * x
+                # y = bandwidth * x
                 x1, x2 = 0, min(width, max_compute_bandwidth / bandwidth)
-                y1, y2 = 0, x2 * bandwidth
+                y1, y2 = 0, x2*bandwidth
                 label = '{} {:.0f} GB/s'.format(roof.name, bandwidth)
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
 
@@ -96,9 +96,9 @@ def roofline(name, project, scale, precision, mode):
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
 
     # drawing points using the same ax
-    ax.set_xscale('log', basex=2)
+    ax.set_xscale('log', base=2)
     ax.xaxis.set_major_formatter(ScalarFormatter())
-    ax.set_yscale('log', basey=2)
+    ax.set_yscale('log', base=2)
     ax.yaxis.set_major_formatter(ScalarFormatter())
 
     if mode == 'overview':
