@@ -33,7 +33,9 @@ plt.style.use('seaborn-darkgrid')
                                           'socket).')
 @click.option('--precision', type=click.Choice(['SP', 'DP', 'all']),
               help='Arithmetic precision.', default='SP')
-def roofline(name, project, scale, precision):
+@click.option('--overview', 'mode', flag_value='overview', default=True)
+@click.option('--top-loops', 'mode', flag_value='top-loops')
+def roofline(name, project, scale, precision, mode):
     pd.options.display.max_rows = 20
 
     project = advisor.open_project(str(project))
@@ -41,10 +43,18 @@ def roofline(name, project, scale, precision):
     rows = [{col: row[col] for col in row} for row in data.bottomup]
     roofs = data.get_roofs()
 
-    df = pd.DataFrame(rows).replace('', np.nan)
+    full_df = pd.DataFrame(rows).replace('', np.nan)
+
+    # Narrow down the columns to those of interest
+    df = full_df[analysis_columns]
 
     df.self_ai = df.self_ai.astype(float)
     df.self_gflops = df.self_gflops.astype(float)
+    df.self_time = df.self_time.astype(float)
+
+    # Add time weight column
+    loop_total_time = df.self_time.sum()
+    df['percent_weight'] = df.self_time / loop_total_time * 100
 
     fig, ax = plt.subplots()
     key = lambda roof: roof.bandwidth if 'bandwidth' not in roof.name.lower() else 0
@@ -90,7 +100,15 @@ def roofline(name, project, scale, precision):
     ax.xaxis.set_major_formatter(ScalarFormatter())
     ax.set_yscale('log', basey=2)
     ax.yaxis.set_major_formatter(ScalarFormatter())
-    ax.plot(df.self_ai, df.self_gflops, 'o', color='black')
+
+    if mode == 'overview':
+        # Only display the overall GFLOPS and arithmetic intensity of the program
+        ax.plot(data.metrics.total_ai, data.metrics.total_gflops, 'o', color='black')
+    elif mode == 'top-loops':
+        # Display the most costly loop followed by loops with same order of magnitude
+        max_self_time = df.self_time.max()
+        top_df = df[(max_self_time / df.self_time < 10) & (max_self_time / df.self_time >= 1)]
+        ax.plot(top_df.self_ai, top_df.self_gflops, 'o', color='black')
 
     # make sure axes start at 1
     ax.set_ylim(ymin=gflops_min)
@@ -104,6 +122,13 @@ def roofline(name, project, scale, precision):
     # saving the chart in PDF format
     plt.savefig('%s.pdf' % name)
 
+
+analysis_columns = [
+        'loop_name',
+        'self_ai',
+        'self_gflops',
+        'self_time',
+        ]
 
 if __name__ == '__main__':
     roofline()
