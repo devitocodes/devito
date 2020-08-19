@@ -97,7 +97,6 @@ def run_with_advisor(path, output, name, exec_args, plot):
     ]
     advisor_survey = [
         '-collect survey',
-        '-start-paused',
         '-run-pass-thru=--no-altstack',  # Avoids `https://software.intel.com/en-us/vtune-amplifier-help-error-message-stack-size-is-too-small`  # noqa
         '-strategy ldconfig:notrace:notrace',  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
         '-start-paused',  # The generated code will enable/disable Advisor on a loop basis

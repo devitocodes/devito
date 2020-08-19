@@ -27,15 +27,22 @@ plt.style.use('seaborn-darkgrid')
               help='The directory of the Intel Advisor project containing '
                    'a roofline analysis.')
 # Optional arguments
-@click.option('--scale', type=float, help='Specify by how much should the roofs be '
-                                          'scaled down due to using fewer cores than '
-                                          'available (e.g., when running on a single '
-                                          'socket).')
+@click.option('--scale', type=float, default=1.0,
+              help='Specify by how much should the roofs be '
+                   'scaled down due to using fewer cores than '
+                   'available (e.g., when running on a single '
+                   'socket).')
 @click.option('--precision', type=click.Choice(['SP', 'DP', 'all']),
               help='Arithmetic precision.', default='SP')
-@click.option('--overview', 'mode', flag_value='overview', default=True)
-@click.option('--top-loops', 'mode', flag_value='top-loops')
-def roofline(name, project, scale, precision, mode):
+@click.option('--mode', '-m', type=click.Choice(['overview', 'top-loops']), default='overview',
+    required=True, help='overview: Display a single point with the total GFLOPS and '
+                        'arithmetic intensity of the program.\n top-loops: Display all the '
+                        'top time consuming loops within one order of magnitude (x10) from '
+                        'the most time consuming loop.')
+@click.option('--th', default=0, help='Percentage threshold (e.g. 95) such that loops '
+                                      'under this value in execution time consumed will '
+                                      'not be displayed. Only valid for --top-loops.')
+def roofline(name, project, scale, precision, mode, th):
     pd.options.display.max_rows = 20
 
     project = advisor.open_project(str(project))
@@ -107,7 +114,7 @@ def roofline(name, project, scale, precision, mode):
     elif mode == 'top-loops':
         # Display the most costly loop followed by loops with same order of magnitude
         max_self_time = df.self_time.max()
-        top_df = df[(max_self_time / df.self_time < 10) & (max_self_time / df.self_time >= 1)]
+        top_df = df[(max_self_time / df.self_time < 10) & (max_self_time / df.self_time >= 1) & (df.percent_weight >= th)]
         ax.plot(top_df.self_ai, top_df.self_gflops, 'o', color='black')
 
     # make sure axes start at 1
