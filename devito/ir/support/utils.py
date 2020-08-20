@@ -81,7 +81,7 @@ def build_iterators(mapper):
         for d, offs in v.items():
             if d.is_Stepping:
                 values = iterators.setdefault(d.parent, [])
-                for i in sorted(offs):
+                for i in sorted(offs, key=lambda x: -float("inf") if x == 0 else x):
                     md = ModuloDimension(d, d.root + i, k._time_size, origin=d + i)
                     if md not in values:
                         values.append(md)

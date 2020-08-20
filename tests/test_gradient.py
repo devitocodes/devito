@@ -9,20 +9,20 @@ from examples.seismic import Receiver
 
 class TestGradient(object):
 
-    @pytest.mark.parametrize('space_order', [4])
-    @pytest.mark.parametrize('kernel', ['OT2'])
-    @pytest.mark.parametrize('shape', [(70, 80)])
-    def test_gradient_checkpointing(self, shape, kernel, space_order):
+    @pytest.mark.parametrize('dtype, opt', [
+        (np.float32, ('noop', {'openmp': True, 'par-dynamic-work': 1000})),
+        (np.float64, 'advanced')
+    ])
+    def test_gradient_checkpointing(self, dtype, opt):
         r"""
         This test ensures that the FWI gradient computed with checkpointing matches
         the one without checkpointing. Note that this test fails with dynamic openmp
         scheduling enabled so this test disables it.
         """
-        spacing = tuple(10. for _ in shape)
-        wave = setup(shape=shape, spacing=spacing, dtype=np.float32,
-                     kernel=kernel, space_order=space_order, nbl=40)
+        wave = setup(shape=(70, 80), spacing=(10., 10.), dtype=dtype,
+                     kernel='OT2', space_order=4, nbl=40, opt=opt)
 
-        v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
+        v0 = Function(name='v0', grid=wave.model.grid, space_order=4)
         smooth(v0, wave.model.vp)
 
         # Compute receiver data for the true velocity
@@ -38,7 +38,7 @@ class TestGradient(object):
 
         gradient, _ = wave.jacobian_adjoint(residual, u0, vp=v0, checkpointing=True)
         gradient2, _ = wave.jacobian_adjoint(residual, u0, vp=v0, checkpointing=False)
-        assert np.allclose(gradient.data, gradient2.data)
+        assert np.allclose(gradient.data, gradient2.data, atol=0, rtol=0)
 
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
