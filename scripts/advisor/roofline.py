@@ -3,9 +3,6 @@ Generate a roofline for the Intel Advisor ``project``.
 
 This module has been partly extracted from the examples directory of Intel Advisor 2018.
 """
-
-import advisor
-
 import click
 
 import math
@@ -13,9 +10,19 @@ import pandas as pd
 import numpy as np
 import matplotlib
 from matplotlib.ticker import ScalarFormatter
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa
+import sys
 
+
+try:
+    import advisor
+except ImportError:
+    print('Error: Intel Advisor could not be found on the system, make sure to source '
+          'environment variables properly.')
+    sys.exit(1)
+
+
+matplotlib.use('Agg')
 # Use fancy plot colors
 plt.style.use('seaborn-darkgrid')
 
@@ -34,18 +41,26 @@ plt.style.use('seaborn-darkgrid')
                    'socket).')
 @click.option('--precision', type=click.Choice(['SP', 'DP', 'all']),
               help='Arithmetic precision.', default='SP')
-@click.option('--mode', '-m', type=click.Choice(['overview', 'top-loops']), default='overview',
-    required=True, help='overview: Display a single point with the total GFLOPS and '
-                        'arithmetic intensity of the program.\n top-loops: Display all the '
-                        'top time consuming loops within one order of magnitude (x10) from '
-                        'the most time consuming loop.')
+@click.option('--mode', '-m', type=click.Choice(['overview', 'top-loops']),
+              default='overview', required=True,
+              help='overview: Display a single point with the total GFLOPS and '
+                   'arithmetic intensity of the program.\n top-loops: Display all the '
+                   'top time consuming loops within one order of magnitude (x10) from '
+                   'the most time consuming loop.')
 @click.option('--th', default=0, help='Percentage threshold (e.g. 95) such that loops '
                                       'under this value in execution time consumed will '
                                       'not be displayed. Only valid for --top-loops.')
 def roofline(name, project, scale, precision, mode, th):
     pd.options.display.max_rows = 20
 
+    print('Opening project...')
     project = advisor.open_project(str(project))
+
+    if not project:
+        print('Could not open project %s.' % project)
+        sys.exit(1)
+    print('Loading data...')
+
     data = project.load(advisor.SURVEY)
     rows = [{col: row[col] for col in row} for row in data.bottomup]
     roofs = data.get_roofs()
@@ -114,8 +129,16 @@ def roofline(name, project, scale, precision, mode, th):
     elif mode == 'top-loops':
         # Display the most costly loop followed by loops with same order of magnitude
         max_self_time = df.self_time.max()
-        top_df = df[(max_self_time / df.self_time < 10) & (max_self_time / df.self_time >= 1) & (df.percent_weight >= th)]
-        ax.plot(top_df.self_ai, top_df.self_gflops, 'o', color='black')
+        top_df = df[(max_self_time / df.self_time < 10) &
+                    (max_self_time / df.self_time >= 1) & (df.percent_weight >= th)]
+        for _, row in top_df.iterrows():
+            ax.plot(row.self_ai, row.self_gflops, 'o', color='black')
+            label_x = row.self_ai + (row.self_ai + ai_max - 2 * ai_min) * (2**0.005 - 1)
+            label_y = row.self_gflops
+            ax.text(label_x, label_y,
+                    'Time: %.2fs\nIncidence: %.0f%%' % (row.self_time, row.percent_weight),
+                    bbox={'boxstyle': 'round', 'facecolor': 'white'}, fontsize=8)
+
 
     # make sure axes start at 1
     ax.set_ylim(ymin=gflops_min)
@@ -124,18 +147,15 @@ def roofline(name, project, scale, precision, mode, th):
     ax.set_xlabel('Arithmetic intensity (FLOP/Byte)')
     ax.set_ylabel('Performance (GFLOPS)')
 
-    plt.legend(loc='lower right', fancybox=True, prop={'size': 7})
+    legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), prop={'size': 7}, title='Rooflines')
 
     # saving the chart in PDF format
-    plt.savefig('%s.pdf' % name)
+    plt.savefig('%s.pdf' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
+
+    print('Figure saved as %s.pdf.' % name)
 
 
-analysis_columns = [
-        'loop_name',
-        'self_ai',
-        'self_gflops',
-        'self_time',
-        ]
+analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']
 
 if __name__ == '__main__':
     roofline()

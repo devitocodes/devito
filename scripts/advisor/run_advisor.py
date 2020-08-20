@@ -23,8 +23,7 @@ import click
                                    'If unspecified, a name is generated joining '
                                    'the executable name with the options specified '
                                    'in --exec-args (if any).')
-@click.option('--plot/--no-plot', default=False, help='Generate a roofline.')
-def run_with_advisor(path, output, name, exec_args, plot):
+def run_with_advisor(path, output, name, exec_args):
     path = Path(path)
     check(path.is_file(), '%s not found' % path)
     check(path.suffix == '.py', '%s not a regular Python file' % path)
@@ -127,18 +126,9 @@ def run_with_advisor(path, output, name, exec_args, plot):
         check(check_call(cmd) == 0, 'Failed!')
 
     log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
-
-    # Finally, generate a roofline
-    if plot:
-        with progress('Generating roofline char for `%s`' % name):
-            cmd = [
-                'python3',
-                'roofline.py',
-                '--name %s' % name,
-                '--project %s' % output,
-                '--scale %f' % n_sockets
-            ]
-            check(check_call(cmd) == 0, 'Failed!')
+    log('To plot a roofline type: ')
+    print('python3', 'roofline.py', '--name %s' % name, '--project %s' % str(output),
+          '--scale %f' % n_sockets)
 
 
 def check(cond, msg):
