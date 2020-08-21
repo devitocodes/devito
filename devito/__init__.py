@@ -73,6 +73,11 @@ configuration.add('log-level', 'INFO', list(logger_registry),
 # and will instead use the custom kernel
 configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=False)
 
+# By default unsafe math is allowed as most applications are insensitive to
+# floating-point roundoff errors. Enabling this disables unsafe math
+# optimisations.
+configuration.add('safe-math', 0, [0, 1], preprocessor=bool, impacts_jit=False)
+
 # Enable/disable automatic padding for allocated data
 configuration.add('autopadding', False, [False, True])
 

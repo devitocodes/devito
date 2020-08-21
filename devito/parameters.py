@@ -160,7 +160,8 @@ env_vars_mapper = {
     'DEVITO_LOGGING': 'log-level',
     'DEVITO_FIRST_TOUCH': 'first-touch',
     'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
-    'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
+    'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns',
+    'DEVITO_SAFE_MATH': 'safe-math'
 }
 
 env_vars_deprecated = {

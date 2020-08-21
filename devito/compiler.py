@@ -356,7 +356,11 @@ class GNUCompiler(Compiler):
         super(GNUCompiler, self).__init__(*args, **kwargs)
 
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
-                        '-Wno-unused-but-set-variable', '-ffast-math']
+                        '-Wno-unused-but-set-variable']
+        if configuration['safe-math']:
+            self.cflags.append('-fno-unsafe-math-optimizations')
+        else:
+            self.cflags.append('-ffast-math')
 
         language = kwargs.pop('language', configuration['language'])
         try:
@@ -382,6 +386,8 @@ class ClangCompiler(Compiler):
         super(ClangCompiler, self).__init__(*args, **kwargs)
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
+        if not configuration['safe-math']:
+            self.cflags.append('-ffast-math')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -425,7 +431,9 @@ class AOMPCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(AOMPCompiler, self).__init__(*args, **kwargs)
 
-        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+        if not configuration['safe-math']:
+            self.cflags.append('-ffast-math')
 
         platform = kwargs.pop('platform', configuration['platform'])
 
@@ -452,7 +460,9 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-std=c++11', '-fast', '-acc', '-mp']
+        self.cflags += ['-std=c++11', '-acc', '-mp']
+        if not configuration['safe-math']:
+            self.cflags.append('-fast')
         # Default PGI compile for a target is GPU and single threaded host.
         # self.cflags += ['-ta=tesla,host']
 
