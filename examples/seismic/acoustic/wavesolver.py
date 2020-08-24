@@ -88,8 +88,8 @@ class AcousticWaveSolver(object):
             Stores the computed wavefield.
         vp : Function or float, optional
             The time-constant velocity.
-        save : int or Buffer, optional
-            The entire (unrolled) wavefield.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
 
         Returns
         -------
