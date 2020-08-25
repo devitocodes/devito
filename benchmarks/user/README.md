@@ -304,4 +304,4 @@ More details in this [paper](https://arxiv.org/pdf/1807.03032.pdf).
 ## Do not hesitate to contact us
 
 Should you encounter any issues, do not hesitate to
-[get in touch with the development team](https://opesci-slackin.now.sh/)
+[get in touch with the development team](https://join.slack.com/t/devitocodes/shared_invite/zt-gtd2yxj9-Y31YKk_7lr9AwfXeL2iMFg)
