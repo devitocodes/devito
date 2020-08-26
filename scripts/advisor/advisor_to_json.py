@@ -83,9 +83,7 @@ def advisor_to_json(name, project, scale, precision, mode, th):
     max_memory_bandwidth /= scale  # scale down as requested by the user
 
     # Parameters
-    ai_min = 2**-5
     ai_max = 2**5
-    gflops_min = 2**0
     width = ai_max
 
     # Declare the dictionary that will hold the JSON information
@@ -119,14 +117,19 @@ def advisor_to_json(name, project, scale, precision, mode, th):
 
     if mode == 'overview' or mode == 'all':
         # Save the single point as the total ai and total gflops metric
-        roofline_data['overview'] = {'total_ai': data.metrics.total_ai, 'total_gflops': data.metrics.total_gflops}
-        
+        roofline_data['overview'] = {'total_ai': data.metrics.total_ai,
+                                     'total_gflops': data.metrics.total_gflops}
+
     if mode == 'top-loops' or mode == 'all':
         # Save the most costly loop followed by loops with same order of magnitude
         max_self_time = df.self_time.max()
         top_df = df[(max_self_time / df.self_time < 10) &
                     (max_self_time / df.self_time >= 1) & (df.percent_weight >= th)]
-        top_loops_data = [{'ai': row.self_ai, 'gflops': row.self_gflops, 'time': row.self_time, 'incidence': row.percent_weight} for _, row in top_df.iterrows()]
+        top_loops_data = [{'ai': row.self_ai,
+                           'gflops': row.self_gflops,
+                           'time': row.self_time,
+                           'incidence': row.percent_weight}
+                          for _, row in top_df.iterrows()]
         roofline_data['top-loops'] = top_loops_data
 
     # Save the JSON file

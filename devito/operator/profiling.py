@@ -1,4 +1,3 @@
-import cgen as c
 from collections import OrderedDict, namedtuple
 from contextlib import contextmanager
 from ctypes import c_double
@@ -9,9 +8,10 @@ from subprocess import DEVNULL, PIPE, run
 from time import time as seq_time
 import os
 
+import cgen as c
 from cached_property import cached_property
 
-from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
+from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
                            Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning, error
@@ -272,8 +272,9 @@ class AdvisorProfiler(AdvancedProfiler):
             # The calls to Advisor's Collection Control API are only for Operators with
             # a time loop
             return List(header=c.Statement('%s()' % self._api_resume),
-                         body=iet,
-                         footer=c.Statement('%s()' % self._api_pause))
+                        body=iet,
+                        footer=c.Statement('%s()' % self._api_pause))
+
         return iet
 
 
@@ -403,14 +404,15 @@ def sniff_advisor_location():
     its location if it is.
 
     """
+    error_msg = "Intel Advisor cannot be found on your system, consider if you"\
+                "have sourced its environment variables correctly."
     try:
         res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
         ver = res.stdout.decode("utf-8")
         if not ver:
             return None
     except (UnicodeDecodeError, FileNotFoundError):
-        error("Intel Advisor cannot be found on your system, consider if you have sourced"
-              " its environment variables correctly.")
+        error(error_msg)
         return None
 
     env_path = os.environ["PATH"]
@@ -423,8 +425,8 @@ def sniff_advisor_location():
             if path.name.startswith('bin'):
                 return path.parent
             return path
-    error("Intel Advisor cannot be found on your system, consider if you have sourced"
-          " its environment variables correctly.")
+
+    error(error_msg)
     return None
 
 
@@ -457,17 +459,44 @@ profiler_registry = {
 
 
 def locate_intel_advisor():
+    """
+    Detect if Intel Advisor is installed on the machine and return
+    its location if it is.
+
+    """
     try:
         # Check if the directory to Intel Advisor is specified
         path = Path(os.environ['DEVITO_ADVISOR_DIR'])
     except KeyError:
-        # Otherwise, automatically 'sniff' the location of Advisor's directory
-        path = sniff_advisor_location()
+        # Otherwise, 'sniff' the location of Advisor's directory
+        error_msg = "Intel Advisor cannot be found on your system, consider if you"\
+                    "have sourced its environment variables correctly."
+        try:
+            res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
+            ver = res.stdout.decode("utf-8")
+            if not ver:
+                error(error_msg)
+                return None
+        except (UnicodeDecodeError, FileNotFoundError):
+            error(error_msg)
+            return None
 
-    if not path:
-        return None
+        env_path = os.environ["PATH"]
+        env_path_dirs = env_path.split(":")
+
+        for env_path_dir in env_path_dirs:
+            if "intel/advisor" in env_path_dir:
+                path = Path(env_path_dir)
+                # Little hack: the directory in path should be the binaries (to remove)
+                if path.name.startswith('bin'):
+                    path = path.parent
+
+        if not path:
+            error(error_msg)
+            return None
+
     # Little hack: assuming a 64bit system
-    elif path.joinpath('bin64').joinpath('advixe-cl').is_file():
+    if path.joinpath('bin64').joinpath('advixe-cl').is_file():
         return path
     else:
         warning("Requested `advisor` profiler, but couldn't locate executable"

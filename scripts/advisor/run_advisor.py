@@ -106,7 +106,7 @@ def run_with_advisor(path, output, name, exec_args):
         '-flop',
         '-start-paused',
     ]
-    py_cmd = ['python3', str(path)] + exec_args.split()
+    py_cmd = [sys.executable, str(path)] + exec_args.split()
 
     # To build a roofline with Advisor, we need to run two analyses back to
     # back, `survey` and `tripcounts`. These are preceded by a "pure" python
@@ -127,8 +127,8 @@ def run_with_advisor(path, output, name, exec_args):
 
     log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
     log('To plot a roofline type: ')
-    print('python3', 'roofline.py', '--name %s' % name, '--project %s' % str(output),
-          '--scale %f' % n_sockets)
+    log('python3', 'roofline.py', '--name %s' % name, '--project %s' % str(output),
+        '--scale %f' % n_sockets)
 
 
 def check(cond, msg):

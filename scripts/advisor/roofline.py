@@ -13,6 +13,8 @@ from matplotlib.ticker import ScalarFormatter
 import matplotlib.pyplot as plt  # noqa
 import sys
 
+from run_advisor import log
+
 
 try:
     import advisor
@@ -57,9 +59,9 @@ def roofline(name, project, scale, precision, mode, th):
     project = advisor.open_project(str(project))
 
     if not project:
-        print('Could not open project %s.' % project)
+        log('Could not open project %s.' % project)
         sys.exit(1)
-    print('Loading data...')
+    log('Loading data...')
 
     data = project.load(advisor.SURVEY)
     rows = [{col: row[col] for col in row} for row in data.bottomup]
@@ -136,9 +138,9 @@ def roofline(name, project, scale, precision, mode, th):
             label_x = row.self_ai + (row.self_ai + ai_max - 2 * ai_min) * (2**0.005 - 1)
             label_y = row.self_gflops
             ax.text(label_x, label_y,
-                    'Time: %.2fs\nIncidence: %.0f%%' % (row.self_time, row.percent_weight),
+                    'Time: %.2fs\n'
+                    'Incidence: %.0f%%' % (row.self_time, row.percent_weight),
                     bbox={'boxstyle': 'round', 'facecolor': 'white'}, fontsize=8)
-
 
     # make sure axes start at 1
     ax.set_ylim(ymin=gflops_min)
@@ -147,12 +149,13 @@ def roofline(name, project, scale, precision, mode, th):
     ax.set_xlabel('Arithmetic intensity (FLOP/Byte)')
     ax.set_ylabel('Performance (GFLOPS)')
 
-    legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), prop={'size': 7}, title='Rooflines')
+    legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5),
+                        prop={'size': 7}, title='Rooflines')
 
     # saving the chart in PDF format
     plt.savefig('%s.pdf' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
 
-    print('Figure saved as %s.pdf.' % name)
+    log('Figure saved as %s.pdf.' % name)
 
 
 analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']
