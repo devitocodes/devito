@@ -120,11 +120,16 @@ def cire(cluster, mode, sregistry, options, platform):
         schedule = optimize_schedule(cluster, schedule, platform, options)
         clusters, subs = lower_schedule(cluster, schedule, chosen, sregistry, options)
 
+        # The [Clusters] must be ordered so as to reuse as many of the `cluster`'s
+        # IterationIntervals as possible, to honor the write-to region. This also
+        # guarantees that fusion is maximum
+        processed.extend(clusters)
+        processed.sort(key=partial(cit, cluster))
+
         # Rebuild `cluster` so as to use the newly created aliases
         rebuilt = rebuild(cluster, others, schedule, subs)
 
         # Prepare for the next round
-        processed.extend(clusters)
         cluster = rebuilt
         context = flatten(c.exprs for c in processed) + list(cluster.exprs)
 
@@ -454,14 +459,11 @@ def choose(exprs, aliases, selector):
 def make_schedule(cluster, aliases, in_writeto, options):
     """
     Create a Schedule from an AliasMapper.
-
-    The aliases can legally be scheduled in many different orders, but we
-    privilege the one that minimizes storage while maximizing fusion.
     """
     max_par = options['cire-maxpar']
 
-    items = []
     dmapper = {}
+    processed = []
     for alias, v in aliases.items():
         imapper = {**{i.dim: i for i in v.intervals},
                    **{i.dim.parent: i for i in v.intervals if i.dim.is_NonlinearDerived}}
@@ -524,10 +526,7 @@ def make_schedule(cluster, aliases, in_writeto, options):
         ispace = IterationSpace(intervals, cluster.sub_iterators, cluster.directions)
         ispace = ispace.augment(sub_iterators)
 
-        items.append(ScheduledAlias(alias, writeto, ispace, v.aliaseds, indicess))
-
-    # As by contract (see docstring), smaller write-to regions go in first
-    processed = sorted(items, key=lambda i: len(i.writeto))
+        processed.append(ScheduledAlias(alias, writeto, ispace, v.aliaseds, indicess))
 
     return Schedule(*processed, dmapper=dmapper)
 
@@ -712,8 +711,8 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
                 properties[d] = normalize_properties(v, {SEQUENTIAL})
 
         # Finally, build the `alias` Cluster
-        clusters.insert(0, cluster.rebuild(exprs=expression, ispace=ispace,
-                                           dspace=dspace, properties=properties))
+        clusters.append(cluster.rebuild(exprs=expression, ispace=ispace,
+                                        dspace=dspace, properties=properties))
 
     return clusters, subs
 
@@ -982,3 +981,16 @@ def make_rotations_table(d, v):
     m = [Interval(d, min(i), max(i)) for i in m]
 
     return m
+
+
+def cit(c0, c1):
+    """
+    The Common IterationIntervals of two given Clusters.
+    """
+    found = []
+    for it0, it1 in zip(c0.itintervals, c1.itintervals):
+        if it0 == it1:
+            found.append(it0)
+        else:
+            break
+    return tuple(found)
