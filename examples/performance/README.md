@@ -24,6 +24,7 @@
     * `cire-mincost-sops` (int, 10): minimum cost of a sum-of-product candidate
     * `cire-repeats-inv` (int, 1): control detection of dimension-invariants
     * `cire-mincost-inv` (int, 50): minimum cost of a dimension-invariant candidate
+    * `cire-onstack` (boolean, False): control scope of temporary arrays (on the heap by default)
 
 ### Optimization parameters by platform
 
@@ -56,3 +57,4 @@
 | cire-mincost-sops   | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-repeats-inv    | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-mincost-inv    | :heavy_check_mark:  | :heavy_check_mark: |
+| cire-onstack        | :heavy_check_mark:  |         :x:        |
