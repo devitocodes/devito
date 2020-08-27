@@ -86,8 +86,8 @@ class AnisotropicWaveSolver(object):
             The time-constant Dip angle (radians).
         phi : Function or float, optional
             The time-constant Azimuth angle (radians).
-        save : int or Buffer
-            Option to store the entire (unrolled) wavefield.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
         kernel : str, optional
             Type of discretization, centered or shifted.
 

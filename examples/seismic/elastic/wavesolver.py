@@ -63,8 +63,8 @@ class ElasticWaveSolver(object):
             The Shear modulus `(rho * vs*2)`.
         b : Function, optional
             The time-constant inverse density (b=1 for water).
-        save : int or Buffer, optional
-            Option to store the entire (unrolled) wavefield.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
 
         Returns
         -------
