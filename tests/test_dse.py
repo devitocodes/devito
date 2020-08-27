@@ -725,8 +725,8 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert len([i for i in arrays if i._mem_shared]) == 1
         assert len([i for i in arrays if i._mem_local]) == 1
-        self.check_array(arrays[0], ((1, 0), (0, 0)), (ys+1, zs))
-        self.check_array(arrays[1], ((1, 0), (0, 0), (0, 0)), (xs+1, ys, zs))
+        self.check_array(arrays[0], ((1, 0), (0, 0), (0, 0)), (xs+1, ys, zs))
+        self.check_array(arrays[1], ((1, 0), (0, 0)), (ys+1, zs))
 
         # Check that `advanced-fsg` + `min-storage` is incompatible
         try:
@@ -1453,7 +1453,7 @@ class TestAliases(object):
         op1.apply(time_M=2, u=u1)
         assert np.isclose(norm(u), norm(u1), rtol=1e-5)
 
-    @pytest.mark.parametrize('rotate', [True])  #TODO: ADD BACK FALSE
+    @pytest.mark.parametrize('rotate', [False, True])
     def test_arrays_enforced_on_stack(self, rotate):
         """
         Test enforcement of tensor temporaries on the stack.
@@ -1471,25 +1471,25 @@ class TestAliases(object):
         eq = Eq(u.forward, f*u.dx.dx + u.dy.dy)
 
         op0 = Operator(eq, opt=('noop', {'openmp': True}))
-        op1 = Operator(eq, opt=('advanced', {'openmp': True, 'cire-rotate': rotate,
-                                             'cire-onstack': True}))
+        op1 = Operator(eq, opt=('advanced', {'openmp': True, 'cire-onstack': True,
+                                             'cire-rotate': rotate}))
 
         # Check code generation
         pbs = FindNodes(ParallelBlock).visit(op1._func_table['bf0'].root)
         assert len(pbs) == 1
         pb = pbs[0]
         if rotate:
-            assert 'r3[2][z_size]' in str(pb.body[0].header[0])
-            assert 'r6[2][y0_blk0_size][z_size]' in str(pb.body[0].header[1])
+            assert 'r6[2][y0_blk0_size][z_size]' in str(pb.body[0].header[0])
+            assert 'r3[2][z_size]' in str(pb.body[0].header[1])
         else:
-            assert 'r3[y0_blk0_size + 1][z_size]' in str(pb.body[0].header[0])
             assert 'r6[x0_blk0_size + 1][y0_blk0_size][z_size]'\
-                in str(pb.body[0].header[1])
+                in str(pb.body[0].header[0])
+            assert 'r3[y0_blk0_size + 1][z_size]' in str(pb.body[0].header[1])
 
         # Check numerical output
         op0.apply(time_M=2)
         op1.apply(time_M=2, u=u1)
-        assert np.isclose(norm(u), norm(u1), rtol=1e-3)
+        assert np.isclose(norm(u), norm(u1), rtol=1e-7)
 
 
 # Acoustic
