@@ -37,7 +37,8 @@ def cire(cluster, mode, sregistry, options, platform):
     sregistry : SymbolRegistry
         The symbol registry, to create unique temporary names.
     options : dict
-        The optimization options. Accepted: ['min-storage'].
+        The optimization options.
+        Accepted: ['min-storage', 'cire-maxpar', 'cire-rotate'].
         * 'min-storage': if True, the pass will try to minimize the amount of
           storage introduced for the tensor temporaries. This might also reduce
           the operation count. On the other hand, this might affect fusion and
@@ -55,22 +56,23 @@ def cire(cluster, mode, sregistry, options, platform):
 
     Examples
     --------
-    1) 'invariants'. Below is an expensive sub-expression invariant w.r.t. `t`
+    1) 'invariants'. Here's an expensive expression invariant w.r.t. `t`
 
     t0 = (cos(a[x,y,z])*sin(b[x,y,z]))*c[t,x,y,z]
 
-    becomes
+    which after CIRE becomes
 
     t1[x,y,z] = cos(a[x,y,z])*sin(b[x,y,z])
     t0 = t1[x,y,z]*c[t,x,y,z]
 
-    2) 'sops'. Below are redundant sub-expressions in sum-of-product form (in this
+    2) 'sops'. Below we see two expressions in sum-of-product form (in this
     case, the sum degenerates to a single product).
 
     t0 = 2.0*a[x,y,z]*b[x,y,z]
     t1 = 3.0*a[x,y,z+1]*b[x,y,z+1]
 
-    becomes
+    CIRE detects that these two expressions are actually redundant and rewrites
+    them as:
 
     t2[x,y,z] = a[x,y,z]*b[x,y,z]
     t0 = 2.0*t2[x,y,z]
