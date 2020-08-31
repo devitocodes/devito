@@ -544,11 +544,12 @@ class TestNodeParallelism(object):
 
         try:
             op(time_M=1)
-            assert np.allclose(f.data, 18)
         except:
             # Older gcc <6.1 don't support reductions on array
             info("Un-supported older gcc version for array reduction")
             assert True
+            return
+        assert np.allclose(f.data, 18)
 
 
 class TestNestedParallelism(object):
