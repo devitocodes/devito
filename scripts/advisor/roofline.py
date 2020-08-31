@@ -13,14 +13,14 @@ from matplotlib.ticker import ScalarFormatter
 import matplotlib.pyplot as plt  # noqa
 import sys
 
-from run_advisor import log
+from run_advisor import log, check
 
 
 try:
     import advisor
 except ImportError:
-    print('Error: Intel Advisor could not be found on the system, make sure to source '
-          'environment variables properly.')
+    check(False, 'Error: Intel Advisor could not be found on the system,'
+          ' make sure to source environment variables properly.')
     sys.exit(1)
 
 
@@ -31,7 +31,8 @@ plt.style.use('seaborn-darkgrid')
 
 @click.command()
 # Required arguments
-@click.option('--name', '-n', required=True, help='The name of the generated roofline.')
+@click.option('--name', '-n', required=True, help='The name of the generated'
+              'roofline png.')
 @click.option('--project', '-o', required=True,
               help='The directory of the Intel Advisor project containing '
                    'a roofline analysis.')
@@ -152,10 +153,10 @@ def roofline(name, project, scale, precision, mode, th):
     legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5),
                         prop={'size': 7}, title='Rooflines')
 
-    # saving the chart in PDF format
-    plt.savefig('%s.pdf' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
+    # saving the chart in PNG format
+    plt.savefig('%s.png' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
 
-    log('Figure saved as %s.pdf.' % name)
+    log('Figure saved as %s.png.' % name)
 
 
 analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']

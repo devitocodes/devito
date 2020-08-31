@@ -38,13 +38,17 @@ def run_with_advisor(path, output, name, exec_args):
         output.mkdir(parents=True, exist_ok=True)
     else:
         output = Path(output)
-    output = Path(mkdtemp(dir=str(output), prefix="%s-" % name))
+    if name is None:
+        output = Path(mkdtemp(dir=str(output), prefix="%s-" % name))
+    else:
+        output = Path(output).joinpath(name)
+        output.mkdir(parents=True, exist_ok=True)
 
     # Intel Advisor 2020 must be available
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
     except FileNotFoundError:
-        check(False, "Couldn't detect `advixe-cl` to run Intel Advisor.")
+        check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor.")
 
     # If Advisor is available, so is the Intel compiler
     os.environ['DEVITO_ARCH'] = 'intel'
@@ -127,8 +131,8 @@ def run_with_advisor(path, output, name, exec_args):
 
     log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
     log('To plot a roofline type: ')
-    log('python3', 'roofline.py', '--name %s' % name, '--project %s' % str(output),
-        '--scale %f' % n_sockets)
+    log('python3 roofline.py --name %s --project %s --scale %f'
+        % (name, str(output), n_sockets))
 
 
 def check(cond, msg):

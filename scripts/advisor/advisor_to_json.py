@@ -12,12 +12,14 @@ import pandas as pd
 import numpy as np
 import sys
 
+from run_advisor import check
+
 
 try:
     import advisor
 except ImportError:
-    print('Error: Intel Advisor could not be found on the system, make sure to source '
-          'environment variables properly.')
+    check(False, 'Error: Intel Advisor could not be found on the system,'
+          ' make sure to source environment variables properly.')
     sys.exit(1)
 
 
