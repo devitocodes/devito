@@ -30,11 +30,8 @@ def iet_build(stree):
             body = Conditional(i.guard, queues.pop(i))
 
         elif i.is_Iteration:
-            # Order to ensure deterministic code generation
-            uindices = sorted(i.sub_iterators, key=lambda d: d.name)
-            # Generate Iteration
             body = Iteration(queues.pop(i), i.dim, i.limits, direction=i.direction,
-                             properties=i.properties, uindices=uindices)
+                             properties=i.properties, uindices=i.sub_iterators)
 
         elif i.is_Section:
             body = Section('section%d' % nsections, body=queues.pop(i))

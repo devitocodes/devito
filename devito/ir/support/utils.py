@@ -80,14 +80,16 @@ def build_iterators(mapper):
     for k, v in mapper.items():
         for d, offs in v.items():
             if d.is_Stepping:
-                mds = [ModuloDimension(d, d.root + i, k._time_size, origin=d + i)
-                       for i in offs]
-                iterators.setdefault(d.parent, set()).update(set(mds))
+                values = iterators.setdefault(d.parent, [])
+                for i in sorted(offs):
+                    md = ModuloDimension(d, d.root + i, k._time_size, origin=d + i)
+                    if md not in values:
+                        values.append(md)
             elif d.is_Conditional:
                 # There are no iterators associated to a ConditionalDimension
                 continue
             else:
-                iterators.setdefault(d, set())
+                iterators.setdefault(d, [])
     return {k: tuple(v) for k, v in iterators.items()}
 
 

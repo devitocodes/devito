@@ -12,7 +12,7 @@ from devito.ir import (SEQUENTIAL, PARALLEL, ROUNDABLE, DataSpace, Forward,
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
-from devito.tools import EnrichedTuple, as_list, flatten, split
+from devito.tools import flatten, split
 from devito.types import (Array, Eq, Scalar, ModuloDimension, ShiftedDimension,
                           CustomDimension)
 
@@ -117,12 +117,12 @@ def cire(cluster, mode, sregistry, options, platform):
 
         # AliasMapper -> Schedule -> [Clusters]
         schedule = make_schedule(cluster, aliases, in_writeto, options)
-        schedule = optimize_schedule(cluster, schedule, platform, options)
+        schedule = optimize_schedule(cluster, schedule, platform, sregistry, options)
         clusters, subs = lower_schedule(cluster, schedule, chosen, sregistry, options)
 
         # The [Clusters] must be ordered so as to reuse as many of the `cluster`'s
-        # IterationIntervals as possible, to honor the write-to region. This also
-        # guarantees that fusion is maximum
+        # IterationIntervals as possible in order to honor the write-to region. This
+        # also guarantees that fusion is maximum
         processed.extend(clusters)
         processed.sort(key=partial(cit, cluster))
 
@@ -531,19 +531,19 @@ def make_schedule(cluster, aliases, in_writeto, options):
     return Schedule(*processed, dmapper=dmapper)
 
 
-def optimize_schedule(cluster, schedule, platform, options):
+def optimize_schedule(cluster, schedule, platform, sregistry, options):
     """
     Rewrite the schedule for performance optimization.
     """
     if options['cire-rotate']:
-        schedule = _optimize_schedule_rotations(schedule)
+        schedule = _optimize_schedule_rotations(schedule, sregistry)
 
     schedule = _optimize_schedule_padding(cluster, schedule, platform)
 
     return schedule
 
 
-def _optimize_schedule_rotations(schedule):
+def _optimize_schedule_rotations(schedule, sregistry):
     """
     Transform the schedule such that the tensor temporaries "rotate" along
     the outermost Dimension. This trades a parallel Dimension for a smaller
@@ -552,13 +552,10 @@ def _optimize_schedule_rotations(schedule):
     # The rotations Dimension is the outermost
     ridx = 0
 
-    dmapper = {d: as_list(v) for d, v in schedule.dmapper.items()}
-
+    rmapper = defaultdict(list)
     processed = []
-    for k, g in groupby(schedule, key=lambda i: i.writeto):
-        if len(k) < 2:
-            processed.extend(list(g))
-            continue
+    for k, group in groupby(schedule, key=lambda i: i.writeto):
+        g = list(group)
 
         candidate = k[ridx]
         d = candidate.dim
@@ -566,7 +563,7 @@ def _optimize_schedule_rotations(schedule):
             ds = schedule.dmapper[d]
         except KeyError:
             # Can't do anything if `d` isn't an IncrDimension over a block
-            processed.extend(list(g))
+            processed.extend(g)
             continue
 
         n = candidate.min_size
@@ -578,15 +575,22 @@ def _optimize_schedule_rotations(schedule):
         ii = ModuloDimension(ds, iis, incr=iib, name='%sii' % d)
         cd = CustomDimension(name='%s%s' % (d, d), symbolic_min=ii, symbolic_max=iib,
                              symbolic_size=n)
-
         dsi = ModuloDimension(cd, cd + ds - iis, n, name='%si' % ds)
+
+        mapper = OrderedDict()
         for i in g:
             # Update `indicess` to use `xs0`, `xs1`, ...
             mds = []
             for indices in i.indicess:
-                name = '%s%d' % (ds.name, indices[ridx] - ds)
-                mds.append(ModuloDimension(ds, indices[ridx], n, name=name))
-            indicess = [[md] + indices[ridx + 1:] for md, indices in zip(mds, i.indicess)]
+                v = indices[ridx]
+                try:
+                    md = mapper[v]
+                except KeyError:
+                    name = sregistry.make_name(prefix='%sr' % d.name)
+                    md = mapper.setdefault(v, ModuloDimension(ds, v, n, name=name))
+                mds.append(md)
+            indicess = [indices[:ridx] + [md] + indices[ridx + 1:]
+                        for md, indices in zip(mds, i.indicess)]
 
             # Update `writeto` by switching `d` to `dsi`
             intervals = k.intervals.switch(d, dsi).zero(dsi)
@@ -605,12 +609,12 @@ def _optimize_schedule_rotations(schedule):
             aispace = aispace.augment({d: mds + [ii]})
             ispace = IterationSpace.union(rispace, aispace)
 
-            # Update the new `dmapper`
-            dmapper[d].extend(mds)
-
             processed.append(ScheduledAlias(alias, writeto, ispace, i.aliaseds, indicess))
 
-    return Schedule(*processed, dmapper=dmapper)
+        # Update the rotations mapper
+        rmapper[d].extend(list(mapper.values()))
+
+    return Schedule(*processed, dmapper=schedule.dmapper, rmapper=rmapper)
 
 
 def _optimize_schedule_padding(cluster, schedule, platform):
@@ -633,7 +637,7 @@ def _optimize_schedule_padding(cluster, schedule, platform):
         except (TypeError, KeyError):
             processed.append(i)
 
-    return Schedule(*processed, dmapper=schedule.dmapper)
+    return Schedule(*processed, dmapper=schedule.dmapper, rmapper=schedule.rmapper)
 
 
 def lower_schedule(cluster, schedule, chosen, sregistry, options):
@@ -725,6 +729,7 @@ def rebuild(cluster, others, schedule, subs):
     exprs = [uxreplace(e, subs) for e in others]
 
     ispace = cluster.ispace.augment(schedule.dmapper)
+    ispace = ispace.augment(schedule.rmapper)
 
     accesses = detect_accesses(exprs)
     parts = {k: IntervalGroup(build_intervals(v)).relaxed
@@ -944,7 +949,14 @@ AliasedGroup = namedtuple('AliasedGroup', 'intervals aliaseds distances')
 ScheduledAlias = namedtuple('ScheduledAlias', 'alias writeto ispace aliaseds indicess')
 ScheduledAlias.__new__.__defaults__ = (None,) * len(ScheduledAlias._fields)
 
-Schedule = EnrichedTuple
+
+class Schedule(tuple):
+
+    def __new__(cls, *items, dmapper=None, rmapper=None):
+        obj = super(Schedule, cls).__new__(cls, items)
+        obj.dmapper = dmapper or {}
+        obj.rmapper = rmapper or {}
+        return obj
 
 
 class AliasMapper(OrderedDict):
