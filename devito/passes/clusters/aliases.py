@@ -110,7 +110,7 @@ def cire(cluster, mode, sregistry, options, platform):
         aliases = collect(extracted, ignore_collected, options)
 
         # Rule out aliasing expressions with a bad flops/memory trade-off
-        chosen, others = choose(exprs, aliases, selector)
+        aliases, chosen, others = choose(exprs, aliases, selector)
         if not chosen:
             # Do not waste time
             continue
@@ -443,17 +443,20 @@ def choose(exprs, aliases, selector):
     """
     Use a cost model to select the aliases that are worth optimizing.
     """
+    retained = AliasMapper(aliases)
     others = []
     chosen = OrderedDict()
     for e in exprs:
-        naliases = len(aliases.get(e.rhs))
+        aliaseds = aliases.get(e.rhs)
+        naliases = len(aliaseds)
         cost = estimate_cost(e, True)*naliases
         if selector(cost, naliases):
             chosen[e.rhs] = e.lhs
         else:
             others.append(e)
+            retained.remove(e.rhs)
 
-    return chosen, others
+    return retained, chosen, others
 
 
 def make_schedule(cluster, aliases, in_writeto, options):
@@ -527,6 +530,9 @@ def make_schedule(cluster, aliases, in_writeto, options):
         ispace = ispace.augment(sub_iterators)
 
         processed.append(ScheduledAlias(alias, writeto, ispace, v.aliaseds, indicess))
+
+    # Sort by write-to region for deterministic code generation
+    processed = sorted(processed, key=lambda i: i.writeto)
 
     return Schedule(*processed, dmapper=dmapper)
 
@@ -977,6 +983,12 @@ class AliasMapper(OrderedDict):
             if key in i.aliaseds:
                 return i.aliaseds
         return []
+
+    def remove(self, key):
+        for k, v in list(self.items()):
+            if key in v.aliaseds:
+                self.pop(k)
+                return
 
 
 def make_rotations_table(d, v):

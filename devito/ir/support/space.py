@@ -710,6 +710,12 @@ class IterationSpace(Space):
                 self.intervals == other.intervals and
                 self.directions == other.directions)
 
+    def __lt__(self, other):
+        """
+        A rudimentary less-then comparison between two IterationSpaces.
+        """
+        return len(self.itintervals) < len(other.itintervals)
+
     def __hash__(self):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
                      self.directions))

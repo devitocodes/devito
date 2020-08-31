@@ -10,7 +10,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (DummyEq, Expression, Iteration, FindNodes, FindSymbols,
-                       ParallelBlock, retrieve_iteration_tree)
+                       ParallelBlock, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
 from devito.symbolics import estimate_cost, pow_to_mul, indexify
@@ -725,8 +725,8 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert len([i for i in arrays if i._mem_shared]) == 1
         assert len([i for i in arrays if i._mem_local]) == 1
-        self.check_array(arrays[0], ((1, 0), (0, 0), (0, 0)), (xs+1, ys, zs))
-        self.check_array(arrays[1], ((1, 0), (0, 0)), (ys+1, zs))
+        self.check_array(arrays[1], ((1, 0), (0, 0), (0, 0)), (xs+1, ys, zs))
+        self.check_array(arrays[0], ((1, 0), (0, 0)), (ys+1, zs))
 
         # Check that `advanced-fsg` + `min-storage` is incompatible
         try:
@@ -1454,32 +1454,44 @@ class TestAliases(object):
         assert np.isclose(norm(u), norm(u1), rtol=1e-5)
 
     @pytest.mark.parametrize('rotate', [False, True])
-    def test_blocklevels_option(self, rotate):
+    def test_blocking_options(self, rotate):
         """
-        Test the compiler option `blocklevels=2` (hierarchical blocking).
+        Test CIRE with all compiler options impacting loop blocking, which in turn
+        impact the shape of the created temporaries as well as the surrounding loop
+        nests.
         """
         grid = Grid(shape=(10, 10, 10))
 
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid, space_order=2)
         u1 = TimeFunction(name="u", grid=grid, space_order=2)
+        u2 = TimeFunction(name="u", grid=grid, space_order=2)
 
         f.data[:] = 0.0012
         u.data[:] = 1.3
         u1.data[:] = 1.3
+        u2.data[:] = 1.3
 
-        eq = Eq(u.forward, u.dx.dx + f*u.dy.dy)
+        eq = Eq(u.forward, u.dx.dx.dx + f*u.dy.dy)
 
         op0 = Operator(eq, opt='noop')
         op1 = Operator(eq, opt=('advanced', {'blocklevels': 2, 'cire-rotate': rotate}))
+        op2 = Operator(eq, opt=('advanced', {'blocklevels': 2, 'par-nested': 0,
+                                             'cire-rotate': rotate}))
 
         # Check code generation
         assert len([i for i in op1.dimensions if i.is_Incr]) == 6 + (2 if rotate else 0)
+        if configuration['language'] == 'openmp':
+            pariters = FindNodes(ParallelIteration).visit(op2._func_table['bf0'].root)
+            assert len(pariters) == 2
 
         # Check numerical output
         op0.apply(time_M=2)
         op1.apply(time_M=2, u=u1)
-        assert np.isclose(norm(u), norm(u1), rtol=1e-7)
+        op2.apply(time_M=2, u=u2)
+        expected = norm(u)
+        assert np.isclose(expected, norm(u1), rtol=1e-6)
+        assert np.isclose(expected, norm(u2), rtol=1e-6)
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_arrays_enforced_on_stack(self, rotate):
