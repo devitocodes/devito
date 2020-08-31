@@ -1454,6 +1454,34 @@ class TestAliases(object):
         assert np.isclose(norm(u), norm(u1), rtol=1e-5)
 
     @pytest.mark.parametrize('rotate', [False, True])
+    def test_blocklevels_option(self, rotate):
+        """
+        Test the compiler option `blocklevels=2` (hierarchical blocking).
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u1 = TimeFunction(name="u", grid=grid, space_order=2)
+
+        f.data[:] = 0.0012
+        u.data[:] = 1.3
+        u1.data[:] = 1.3
+
+        eq = Eq(u.forward, u.dx.dx + f*u.dy.dy)
+
+        op0 = Operator(eq, opt='noop')
+        op1 = Operator(eq, opt=('advanced', {'blocklevels': 2, 'cire-rotate': rotate}))
+
+        # Check code generation
+        assert len([i for i in op1.dimensions if i.is_Incr]) == 6 + (2 if rotate else 0)
+
+        # Check numerical output
+        op0.apply(time_M=2)
+        op1.apply(time_M=2, u=u1)
+        assert np.isclose(norm(u), norm(u1), rtol=1e-7)
+
+    @pytest.mark.parametrize('rotate', [False, True])
     def test_arrays_enforced_on_stack(self, rotate):
         """
         Test enforcement of tensor temporaries on the stack.
