@@ -112,12 +112,7 @@ class Interval(AbstractInterval):
 
     An Interval defines the compact region
 
-        ``[dim.symbolic_min + lower, dim.symbolic_max + upper]``
-
-    The size of the Interval is defined as the number of points iterated over
-    through ``dim``, namely
-
-        ``(dim.symbolic_max + upper - dim.symbolic_min - lower + 1) / dim.symbolic_incr``
+        [dim.symbolic_min + lower, dim.symbolic_max + upper]
     """
 
     is_Defined = True
@@ -155,17 +150,25 @@ class Interval(AbstractInterval):
 
     @cached_property
     def size(self):
-        # The Interval size is typically a function of several symbols (e.g.,
-        # `self.dim.symbolic_max`), and all such symbols must be mappable
-        # to actual numbers at `op.apply` time (i.e., the runtime values).
-        # When `self.dim` is an "unstructured Dimension", such as ModuloDimension,
-        # things can get nasty since the symbolic min/max/incr can literally be
-        # anything (any expression involving any Dimension/symbol/...), which makes
-        # it extremely complicated to numerically compute the size. However,
-        # the compiler only uses such unstructured Dimensions in well defined
-        # circumstances, which we explicitly handle here. Ultimately, therefore,
-        # we return a `size` that is made up of known symbols.
+        """
+        The Interval size, defined as the number of points iterated over through
+        ``self.dim``, namely
 
+            (dim.symbolic_max + upper - dim.symbolic_min - lower + 1) / dim.symbolic_incr
+
+        Notes
+        -----
+        The Interval size is typically a function of several symbols (e.g.,
+        `self.dim.symbolic_max`), and all such symbols must be mappable
+        to actual numbers at `op.apply` time (i.e., the runtime values).
+        When `self.dim` is an "unstructured Dimension", such as ModuloDimension,
+        things can get nasty since the symbolic min/max/incr can literally be
+        anything (any expression involving any Dimension/symbol/...), which makes
+        it extremely complicated to numerically compute the size. However,
+        the compiler only uses such unstructured Dimensions in well defined
+        circumstances, which we explicitly handle here. Ultimately, therefore,
+        we return a `size` that is made up of known symbols.
+        """
         if self.dim.is_Custom:
             # Special case 1)
             # May be caused by the performance option `cire-rotate=True`
@@ -184,7 +187,7 @@ class Interval(AbstractInterval):
             npoints += 1 * (n-1)
             npoints /= n
         else:
-            # Typicall we end up here (Dimension, SubDimension, IncrDimension)
+            # Typically we end up here (Dimension, SubDimension, IncrDimension)
             assert not self.dim.is_Modulo
             assert not self.dim.is_Conditional
 
