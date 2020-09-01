@@ -59,7 +59,6 @@ class Differentiable(sympy.Expr, Evaluable):
             return grids.pop()
         except KeyError:
             return None
-            # raise ValueError("No grid found")
 
     @cached_property
     def indices(self):
@@ -91,7 +90,7 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def is_TimeDependent(self):
-        return any([i.is_Time for i in self.dimensions])
+        return any(i.is_Time for i in self.dimensions)
 
     @cached_property
     def _fd(self):
@@ -160,11 +159,11 @@ class Differentiable(sympy.Expr, Evaluable):
     def __radd__(self, other):
         return Add(other, self)
 
-    @call_highest_priority('__sub__')
+    @call_highest_priority('__rsub__')
     def __sub__(self, other):
         return Add(self, -other)
 
-    @call_highest_priority('__rsub__')
+    @call_highest_priority('__sub__')
     def __isub__(self, other):
         return Add(self, -other)
 

@@ -507,13 +507,13 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
         return newobj
 
+    def __init_finalize__(self, *args, **kwargs):
+        pass
+
     __hash__ = sympy.ImmutableDenseMatrix.__hash__
 
     def doit(self, **hint):
         return self
-
-    def __init_finalize__(self, *args, **kwargs):
-        pass
 
     def _eval_matrix_mul(self, other):
         other_len = other.rows*other.cols
