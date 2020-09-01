@@ -7,7 +7,7 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, IterationSpace, DataSpace, Scope,
                                detect_io, normalize_properties)
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, filter_ordered, flatten, frozendict
+from devito.tools import as_tuple, flatten, frozendict
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -199,7 +199,7 @@ class Cluster(object):
         """
         The Grid's over which the Cluster is defined.
         """
-        return tuple(filter_ordered(i.grid for i in self.exprs if i.grid is not None))
+        return tuple(set(i.grid for i in self.exprs if i.grid is not None))
 
     @cached_property
     def dtype(self):
