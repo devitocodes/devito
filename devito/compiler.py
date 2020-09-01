@@ -397,7 +397,7 @@ class ClangCompiler(Compiler):
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
                 self.ldflags += ['-fopenmp',
-                                 '-fopenmp-targets=amdgcn-amd-amdhs',
+                                 '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += ['-march=%s' % platform.march]
         else:

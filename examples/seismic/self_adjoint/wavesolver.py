@@ -100,8 +100,8 @@ class SaIsoAcousticWaveSolver(object):
             The time-constant dissipation only attenuation w/Q field.
         u : Function or float
             Stores the computed wavefield.
-        save : int or Buffer
-            Whether (int nt) or not (None) to save the wavefield time history.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
 
         Returns
         ----------
@@ -146,8 +146,6 @@ class SaIsoAcousticWaveSolver(object):
             The time-constant dissipation only attenuation w/Q field.
         ua : Function or float
             Stores the computed adjoint wavefield.
-        save : int or Buffer, optional
-            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------
@@ -195,8 +193,8 @@ class SaIsoAcousticWaveSolver(object):
             Stores the computed background wavefield.
         du : Function or float
             Stores the computed perturbed wavefield.
-        save : int or Buffer
-            Whether (int nt) or not (None) to save the wavefield time history.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
 
         Returns
         ----------
@@ -246,8 +244,6 @@ class SaIsoAcousticWaveSolver(object):
             The perturbation to the velocity model.
         du : Function or float
             Stores the computed perturbed wavefield.
-        save : int or Buffer
-            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------

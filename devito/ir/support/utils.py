@@ -121,7 +121,7 @@ def detect_io(exprs, relax=False):
     else:
         rule = lambda i: i.is_Scalar or i.is_Tensor
 
-    # Don't forget this nasty case, with indirections on the LHS:
+    # Don't forget the nasty case with indirections on the LHS:
     # >>> u[t, a[x]] = f[x]  -> (reads={a, f}, writes={u})
 
     roots = []
@@ -129,6 +129,7 @@ def detect_io(exprs, relax=False):
         try:
             roots.append(i.rhs)
             roots.extend(list(i.lhs.indices))
+            roots.extend(list(i.conditionals.values()))
         except AttributeError:
             # E.g., FunctionFromPointer
             roots.append(i)
