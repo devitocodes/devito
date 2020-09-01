@@ -221,6 +221,12 @@ class Derivative(sympy.Derivative, Differentiable):
         return self._new_from_self(subs=subs), True
 
     @property
+    def _metadata(self):
+        state = list(self._state)
+        state.remove('expr')
+        return tuple(getattr(self, i) for i in state)
+
+    @property
     def dims(self):
         return self._dims
 

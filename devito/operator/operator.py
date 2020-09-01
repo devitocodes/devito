@@ -22,7 +22,7 @@ from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (Graph, NThreads, NThreadsNested, NThreadsNonaffine,
-                           add_eqns_from_subdomains)
+                           add_eqns_from_subdomains, rewrite_exprs)
 from devito.symbolics import estimate_cost, retrieve_functions
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
@@ -264,6 +264,7 @@ class Operator(Callable):
         Expression lowering:
 
             * Form and gather any required implicit expressions;
+            * Apply rewrite rules;
             * Evaluate derivatives;
             * Flatten vectorial equations;
             * Indexify Functions;
@@ -272,6 +273,9 @@ class Operator(Callable):
         """
         # Add in implicit expressions
         expressions = add_eqns_from_subdomains(expressions)
+
+        # Apply rewrite rules to maximize impact of later passes
+        expressions = rewrite_exprs(expressions)
 
         # Unfold lazyiness
         expressions = flatten([i.evaluate for i in expressions])

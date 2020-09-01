@@ -1503,6 +1503,49 @@ class TestAliases(object):
         assert summary2[('section0', None)].ops == 15
 
     @pytest.mark.parametrize('rotate', [False, True])
+    @switchconfig(profiling='advanced')
+    def test_sum_of_nested_derivatives(self, rotate):
+        """
+        Test that aliasing sub-expressions from sums of nested derivatives
+        along `x` and `y` are scheduled to *two* different temporaries, not
+        three (one per unique derivative argument), thanks to FD linearity.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+        v1 = TimeFunction(name="v1", grid=grid, space_order=4)
+        v2 = TimeFunction(name="v2", grid=grid, space_order=4)
+
+        f.data_with_halo[:] = 0.5
+        v.data_with_halo[:] = 1.2
+        v1.data_with_halo[:] = 1.2
+        v2.data_with_halo[:] = 1.2
+
+        eqn = Eq(v.forward, (v.dx + v.dy).dx - (v.dx + v.dy).dy +
+                             2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1))
+
+        #op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
+        #op2 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate,
+        #                                      'cire-maxalias': True}))
+        from IPython import embed; embed()
+
+        # Check code generation
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array and i._mem_local]
+        assert len(arrays) == 2
+
+        # Check numerical output
+        op0(time_M=1)
+        summary = op1(time_M=1, v=v1)
+        assert np.isclose(norm(v), norm(v1), rtol=1e-5)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        #assert summary[('section0', None)].ops == 19
+
+    @pytest.mark.parametrize('rotate', [False, True])
     def test_maxpar_option(self, rotate):
         """
         Test the compiler option `cire-maxpar=True`.
