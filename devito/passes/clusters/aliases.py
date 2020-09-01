@@ -127,10 +127,9 @@ def cire(cluster, mode, sregistry, options, platform):
         processed.sort(key=partial(cit, cluster))
 
         # Rebuild `cluster` so as to use the newly created aliases
-        rebuilt = rebuild(cluster, others, schedule, subs)
+        cluster = rebuild(cluster, others, schedule, subs)
 
         # Prepare for the next round
-        cluster = rebuilt
         context = flatten(c.exprs for c in processed) + list(cluster.exprs)
 
     processed.append(cluster)
