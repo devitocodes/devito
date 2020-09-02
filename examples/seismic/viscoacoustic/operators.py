@@ -135,20 +135,20 @@ def sls_2nd_order(model, geometry, p, **kwargs):
                      staggered=NODE)
 
     # Auxiliary function
-    v = VectorFunction(name="v", grid=model.grid, space_order=space_order)
+    l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
 
     if forward:
 
-        u_v = Eq(v, b * grad(p))
+        u_l = Eq(l, b * grad(p))
 
-        pde_r = r + s * (tt / t_s) * rho * div(v) - s * (1. / t_s) * r
+        pde_r = r + s * (tt / t_s) * rho * div(l) - s * (1. / t_s) * r
         u_r = Eq(r.forward, damp * pde_r)
 
         pde_p = 2. * p - damp * p.backward + s * s * vp * vp * (1. + tt) * rho * \
-            div(v) - s * s * vp * vp * r.forward
+            div(l) - s * s * vp * vp * r.forward
         u_p = Eq(p.forward, damp * pde_p)
 
-        return [u_v, u_r, u_p]
+        return [u_l, u_r, u_p]
 
     else:
 
@@ -165,17 +165,17 @@ def sls_2nd_order(model, geometry, p, **kwargs):
 
         u_h = Eq(h, (1. + tt) * rho * p)
 
-        u_v = Eq(v, b * grad(h))
+        u_l = Eq(l, b * grad(h))
 
         u_g = Eq(g, rho * r.backward)
 
         u_w = Eq(w, b * grad(g))
 
-        pde_p = 2. * p - damp * p.forward + s * s * vp * vp * div(v) - \
+        pde_p = 2. * p - damp * p.forward + s * s * vp * vp * div(l) - \
             s * s * vp * vp * div(w)
         u_p = Eq(p.backward, damp * pde_p)
 
-        return [u_r, u_h, u_v, u_g, u_w, u_p]
+        return [u_r, u_h, u_l, u_g, u_w, u_p]
 
 
 def ren_1st_order(model, geometry, p, **kwargs):
@@ -249,7 +249,7 @@ def ren_2nd_order(model, geometry, p, **kwargs):
     bm = rho * (vp * vp)
 
     # Auxiliary funciton
-    v = VectorFunction(name="v", grid=model.grid, space_order=space_order)
+    l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
 
     if forward:
 
@@ -261,16 +261,16 @@ def ren_2nd_order(model, geometry, p, **kwargs):
 
         u_h = Eq(h, (p - p.backward) / s)
 
-        u_v = Eq(v, b * grad(p))
+        u_l = Eq(l, b * grad(p))
 
         u_w = Eq(w, b * grad(h))
 
-        pde_p = 2. * p - damp * p.backward + s * s * bm * div(v) + \
+        pde_p = 2. * p - damp * p.backward + s * s * bm * div(l) + \
             s * s * eta * rho * div(w)
 
         u_p = Eq(p.forward, damp * pde_p)
 
-        return [u_h, u_v, u_w, u_p]
+        return [u_h, u_l, u_w, u_p]
 
     else:
 
@@ -288,12 +288,12 @@ def ren_2nd_order(model, geometry, p, **kwargs):
 
         u_g = Eq(g, ((p.forward - p) / s) * rho * eta)
 
-        u_v = Eq(v, b * grad(g))
+        u_l = Eq(l, b * grad(g))
 
-        pde_p = 2. * p - damp * p.forward + s * s * div(w) - s * s * div(v)
+        pde_p = 2. * p - damp * p.forward + s * s * div(w) - s * s * div(l)
         u_p = Eq(p.backward, damp * pde_p)
 
-        return [u_h, u_w, u_g, u_v, u_p]
+        return [u_h, u_w, u_g, u_l, u_p]
 
 
 def deng_1st_order(model, geometry, p, **kwargs):
@@ -365,7 +365,7 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     bm = rho * (vp * vp)
 
     # Auxiliary Function
-    v = VectorFunction(name="v", grid=model.grid, space_order=space_order)
+    l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
 
     if forward:
 
@@ -377,15 +377,15 @@ def deng_2nd_order(model, geometry, p, **kwargs):
 
         u_h = Eq(h, (p - p.backward) / s)
 
-        u_v = Eq(v, b * grad(p))
+        u_l = Eq(l, b * grad(p))
 
         u_w = Eq(w, b * grad(h))
 
-        pde_p = 2. * p - damp * p.backward + s * s * bm * div(v) - \
+        pde_p = 2. * p - damp * p.backward + s * s * bm * div(l) - \
             s * s * (w0 / qp) * h
         u_p = Eq(p.forward, damp * pde_p)
 
-        return [u_h, u_v, u_w, u_p]
+        return [u_h, u_l, u_w, u_p]
 
     else:
 
@@ -397,15 +397,15 @@ def deng_2nd_order(model, geometry, p, **kwargs):
 
         u_h = Eq(h, bm * p)
 
-        u_v = Eq(v, b * grad(h))
+        u_l = Eq(l, b * grad(h))
 
         u_g = Eq(g, (p.forward - p) / s)
 
-        pde_p = 2. * p - damp * p.forward + s * s * div(v) + \
+        pde_p = 2. * p - damp * p.forward + s * s * div(l) + \
             s * s * (w0 / qp) * g
         u_p = Eq(p.backward, damp * pde_p)
 
-        return [u_h, u_v, u_g, u_p]
+        return [u_h, u_l, u_g, u_p]
 
 
 def sls(model, geometry, p, forward=True, **kwargs):
