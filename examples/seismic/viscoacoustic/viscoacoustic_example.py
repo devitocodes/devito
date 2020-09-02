@@ -37,7 +37,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
 
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [
-    ('sls', 2, 684.447, 1e-3),
+    ('sls', 2, 684.447, 1e-2),
     ('sls', 1, 18.774, 1e-3),
     ('ren', 2, 677.720, 1e-3),
     ('ren', 1, 18.140, 1e-3),
