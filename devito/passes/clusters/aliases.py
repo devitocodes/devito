@@ -695,7 +695,7 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
                 # E.g., `z` -- a non-shifted Dimension
                 indices.append(i.dim - i.lower)
 
-        expression = Eq(array[indices], uxreplace(alias, subs))
+        expression = Eq(array[indices], alias)
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions

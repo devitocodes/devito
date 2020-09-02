@@ -1017,6 +1017,64 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
+    def test_twin_sops(self):
+        """
+        Check that identical sum-of-product aliases are caught via CSE thus
+        reducing the operation count (but not the working set size).
+        """
+        grid = Grid(shape=(10, 10, 10), dtype=np.float64)
+        x, y, z = grid.dimensions
+
+        space_order = 2
+        u = TimeFunction(name='u', grid=grid, space_order=space_order)
+        v = TimeFunction(name='v', grid=grid, space_order=space_order)
+        u1 = TimeFunction(name='u', grid=grid, space_order=space_order)
+        v1 = TimeFunction(name='v', grid=grid, space_order=space_order)
+        f = Function(name='f', grid=grid, space_order=space_order)
+        e = Function(name='e', grid=grid, space_order=space_order)
+        p0 = Function(name='p0', grid=grid, space_order=space_order)
+        p1 = Function(name='p1', grid=grid, space_order=space_order)
+
+        f.data[:] = 1.2
+        e.data[:] = 0.3
+        p0.data[:] = 0.4
+        p1.data[:] = 0.7
+
+        def d0(field):
+            return (sin(p0) * cos(p1) * field.dx(x0=x+x.spacing/2) +
+                    sin(p0) * sin(p1) * field.dy(x0=y+y.spacing/2) +
+                    cos(p0) * field.dz(x0=z+z.spacing/2))
+
+        def d1(field):
+            return ((sin(p0) * cos(p1) * field).dx(x0=x-x.spacing/2) +
+                    (sin(p0) * sin(p1) * field).dy(x0=y-y.spacing/2) +
+                    (cos(p0) * field).dz(x0=z-z.spacing/2))
+
+        eqns = [Eq(u.forward, d1((1 - f * e**2) + f * e * sqrt(1 - e**2) * d0(v))),
+                Eq(v.forward, d1((1 - f + f * e**2) * d0(v) + f * e * sqrt(1 - e**2)))]
+
+        op0 = Operator(eqns, opt='noop')
+        op1 = Operator(eqns, opt='advanced')
+
+        # Check code generation
+        # We expect two temporary Arrays which have in common a sub-expression
+        # stemming from `d0(v, p0, p1)`
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array and i._mem_local]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+        trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+        assert len(trees) == 2
+        exprs = FindNodes(Expression).visit(trees[0][2])
+        assert exprs[-1].write is arrays[-1]
+        assert arrays[0] not in exprs[-1].reads
+
+        # Check numerical output
+        op0(time_M=2)
+        op1(time_M=2, u=u1, v=v1)
+        assert np.isclose(norm(u), norm(u1), rtol=10e-16)
+        assert np.isclose(norm(v), norm(v1), rtol=10e-16)
+
     @pytest.mark.parametrize('rotate', [False, True])
     def test_from_different_nests(self, rotate):
         """
