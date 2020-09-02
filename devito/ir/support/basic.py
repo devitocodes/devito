@@ -75,7 +75,7 @@ class IterationInstance(LabeledVector):
     def index_mode(self):
         retval = []
         for i, fi in zip(self, self.findices):
-            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 0 and q_constant(i):
                 retval.append(AFFINE)
             elif len(dims) == 1:
@@ -92,7 +92,7 @@ class IterationInstance(LabeledVector):
     def aindices(self):
         retval = []
         for i, fi in zip(self, self.findices):
-            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 1:
                 retval.append(dims.pop())
             elif isinstance(i, Dimension):
