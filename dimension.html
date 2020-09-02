@@ -285,8 +285,19 @@ free_symbols method.</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.BasicDimension</span></code></p>
 <p>Dimension defining an iteration space with custom (known) size.</p>
 <p class="rubric">Notes</p>
-<p>This could be extended in the future for more customization (e.g., min point,
-max point, etc.).</p>
+<p>This could be extended in the future for more customization (e.g., incr.).</p>
+<dl class="py method">
+<dt id="devito.types.dimension.CustomDimension.symbolic_max">
+<em class="property">property </em><code class="sig-name descname">symbolic_max</code><a class="headerlink" href="#devito.types.dimension.CustomDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol defining the maximum point of the Dimension.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="devito.types.dimension.CustomDimension.symbolic_min">
+<em class="property">property </em><code class="sig-name descname">symbolic_min</code><a class="headerlink" href="#devito.types.dimension.CustomDimension.symbolic_min" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol defining the minimum point of the Dimension.</p>
+</dd></dl>
+
 <dl class="py method">
 <dt id="devito.types.dimension.CustomDimension.symbolic_size">
 <em class="property">property </em><code class="sig-name descname">symbolic_size</code><a class="headerlink" href="#devito.types.dimension.CustomDimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
@@ -428,9 +439,9 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 <li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</p></li>
 <li><p><strong>_min</strong> (<em>expr-like</em>) – The minimum point of the Dimension.</p></li>
 <li><p><strong>_max</strong> (<em>expr-like</em>) – The maximum point of the Dimension.</p></li>
-<li><p><strong>step</strong> (<em>int</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
+<li><p><strong>step</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
 symbolic size.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default Dimension name.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default name.</p></li>
 </ul>
 </dd>
 </dl>
@@ -440,24 +451,34 @@ symbolic size.</p></li>
 
 <dl class="py class">
 <dt id="devito.types.dimension.ModuloDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ModuloDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parent</span></em>, <em class="sig-param"><span class="n">offset</span></em>, <em class="sig-param"><span class="n">modulo</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ModuloDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ModuloDimension" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ModuloDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parent</span></em>, <em class="sig-param"><span class="n">offset</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">modulo</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">incr</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">origin</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ModuloDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ModuloDimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
 <p>Dimension symbol representing a non-contiguous sub-region of a given
 <code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, which cyclically produces a finite range of values,
 such as <code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">...</span></code>.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">modulo=None</span></code>, the ModuloDimension degenerates and keeps generating
+the same number such as <code class="docutils literal notranslate"><span class="pre">2,</span> <span class="pre">2,</span> <span class="pre">2,</span> <span class="pre">2,</span> <span class="pre">2,</span> <span class="pre">...</span></code> (the actual value depends
+on <code class="docutils literal notranslate"><span class="pre">incr</span></code>).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</p></li>
-<li><p><strong>offset</strong> (<em>int</em>) – The offset from the parent dimension</p></li>
-<li><p><strong>modulo</strong> (<em>int</em>) – The divisor value.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</p></li>
+<li><p><strong>offset</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Min value offset. Defaults to 0.</p></li>
+<li><p><strong>modulo</strong> (<em>int</em><em>, </em><em>optional</em>) – The divisor value.</p></li>
+<li><p><strong>incr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The iterator increment value. Defaults to <code class="docutils literal notranslate"><span class="pre">offset</span> <span class="pre">%</span> <span class="pre">modulo</span></code>.</p></li>
+<li><p><strong>origin</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The expression – typically a function of the parent Dimension – the
+ModuloDimension represents.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default name.</p></li>
 </ul>
 </dd>
 </dl>
 <p class="rubric">Notes</p>
 <p>This type should not be instantiated directly in user code; if in need for
 modulo buffered iteration, use SteppingDimension instead.</p>
+<p>About <cite>origin</cite> – the ModuloDimensions <cite>t0, t1, t2, …</cite> are generated by the
+compiler to implement modulo iteration along a TimeDimension. For example,
+<cite>t0</cite>’s <cite>origin</cite> may be <cite>t + 0</cite> (where <cite>t</cite> is a SteppingDimension), <cite>t1</cite>’s
+<cite>origin</cite> will then be <cite>t + 1</cite> and so on.</p>
 </dd></dl>
 
 <dl class="py class">
