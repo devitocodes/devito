@@ -1,7 +1,7 @@
 import sympy as sp
 import numpy as np
 
-from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, NODE,
+from devito import (Eq, Operator, VectorFunction, VectorTimeFunction, TimeFunction, NODE,
                     div, grad)
 from examples.seismic import PointSource, Receiver
 
@@ -42,7 +42,7 @@ def src_rec(p, model, geometry, **kwargs):
     return src_term + rec_term
 
 
-def sls_1st_order(model, geometry, v, p, **kwargs):
+def sls_1st_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
     from Blanch and Symes (1995) / Dutta and Schuster (2014).
@@ -52,8 +52,6 @@ def sls_1st_order(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
@@ -64,6 +62,9 @@ def sls_1st_order(model, geometry, v, p, **kwargs):
     damp = model.damp
     qp = model.qp
     f0 = geometry._f0
+
+    # Particle Velocity
+    v = kwargs.pop('v')
 
     # The stress relaxation parameter
     t_s = (sp.sqrt(1.+1./qp**2)-1./qp)/f0
@@ -98,7 +99,7 @@ def sls_1st_order(model, geometry, v, p, **kwargs):
     return [u_v, u_r, u_p]
 
 
-def sls_2nd_order(model, geometry, v, p, **kwargs):
+def sls_2nd_order(model, geometry, p, **kwargs):
     """
     Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
 
@@ -106,8 +107,6 @@ def sls_2nd_order(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
@@ -134,6 +133,9 @@ def sls_2nd_order(model, geometry, v, p, **kwargs):
 
     r = TimeFunction(name="r", grid=model.grid, time_order=2, space_order=space_order,
                      staggered=NODE)
+
+    # Auxiliary function
+    v = VectorFunction(name="v", grid=model.grid, space_order=space_order)
 
     if forward:
 
@@ -176,7 +178,7 @@ def sls_2nd_order(model, geometry, v, p, **kwargs):
         return [u_r, u_h, u_v, u_g, u_w, u_p]
 
 
-def ren_1st_order(model, geometry, v, p, **kwargs):
+def ren_1st_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation from Ren et al. (2014).
 
@@ -184,8 +186,6 @@ def ren_1st_order(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
@@ -195,6 +195,9 @@ def ren_1st_order(model, geometry, v, p, **kwargs):
     b = model.b
     qp = model.qp
     damp = model.damp
+
+    # Particle velocity
+    v = kwargs.pop('v')
 
     # Angular frequency
     w0 = 2. * np.pi * f0
@@ -213,7 +216,7 @@ def ren_1st_order(model, geometry, v, p, **kwargs):
     return [u_v, u_p]
 
 
-def ren_2nd_order(model, geometry, v, p, **kwargs):
+def ren_2nd_order(model, geometry, p, **kwargs):
     """
     Implementation of the 2nd order viscoacoustic wave-equation from Ren et al. (2014).
 
@@ -221,8 +224,6 @@ def ren_2nd_order(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
@@ -246,6 +247,9 @@ def ren_2nd_order(model, geometry, v, p, **kwargs):
 
     # Bulk modulus
     bm = rho * (vp * vp)
+
+    # Auxiliary funciton
+    v = VectorFunction(name="v", grid=model.grid, space_order=space_order)
 
     if forward:
 
@@ -292,7 +296,7 @@ def ren_2nd_order(model, geometry, v, p, **kwargs):
         return [u_h, u_w, u_g, u_v, u_p]
 
 
-def deng_1st_order(model, geometry, v, p, **kwargs):
+def deng_1st_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
     from Deng and McMechan (2007).
@@ -301,8 +305,6 @@ def deng_1st_order(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
@@ -312,6 +314,9 @@ def deng_1st_order(model, geometry, v, p, **kwargs):
     b = model.b
     qp = model.qp
     damp = model.damp
+
+    # Particle velocity
+    v = kwargs.pop('v')
 
     # Angular frequency
     w0 = 2. * np.pi * f0
@@ -329,7 +334,7 @@ def deng_1st_order(model, geometry, v, p, **kwargs):
     return [u_v, u_p]
 
 
-def deng_2nd_order(model, geometry, v, p, **kwargs):
+def deng_2nd_order(model, geometry, p, **kwargs):
     """
     Implementation of the 2nd order viscoacoustic wave-equation
     from Deng and McMechan (2007).
@@ -338,8 +343,6 @@ def deng_2nd_order(model, geometry, v, p, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
@@ -360,6 +363,9 @@ def deng_2nd_order(model, geometry, v, p, **kwargs):
     rho = 1. / b
 
     bm = rho * (vp * vp)
+
+    # Auxiliary Function
+    v = VectorFunction(name="v", grid=model.grid, space_order=space_order)
 
     if forward:
 
@@ -402,7 +408,7 @@ def deng_2nd_order(model, geometry, v, p, **kwargs):
         return [u_h, u_v, u_g, u_p]
 
 
-def sls(model, geometry, v, p, forward=True, **kwargs):
+def sls(model, geometry, p, forward=True, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
     from Blanch and Symes (1995) / Dutta and Schuster (2014) and
@@ -414,20 +420,18 @@ def sls(model, geometry, v, p, forward=True, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
     time_order = p.time_order
 
     eq_stencil = stencils[('sls', time_order)]
-    eqn = eq_stencil(model, geometry, v, p, forward=forward, save=kwargs.get('save'))
+    eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
 
-def ren(model, geometry, v, p, forward=True, **kwargs):
+def ren(model, geometry, p, forward=True, **kwargs):
     """
     Implementation of the 1st and 2nd order viscoacoustic wave-equation from
     Ren et al. (2014).
@@ -437,20 +441,18 @@ def ren(model, geometry, v, p, forward=True, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
     time_order = p.time_order
 
     eq_stencil = stencils[('ren', time_order)]
-    eqn = eq_stencil(model, geometry, v, p, forward=forward, save=kwargs.get('save'))
+    eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
 
-def deng_mcmechan(model, geometry, v, p, forward=True, **kwargs):
+def deng_mcmechan(model, geometry, p, forward=True, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation and 2nd order
     viscoacoustic wave-equation from Deng and McMechan (2007).
@@ -459,15 +461,13 @@ def deng_mcmechan(model, geometry, v, p, forward=True, **kwargs):
 
     Parameters
     ----------
-    v : VectorTimeFunction
-        Particle velocity.
     p : TimeFunction
         Pressure field.
     """
     time_order = p.time_order
 
     eq_stencil = stencils[('deng_mcmechan', time_order)]
-    eqn = eq_stencil(model, geometry, v, p, forward=forward, save=kwargs.get('save'))
+    eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
@@ -500,10 +500,12 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         indices (last three time steps). Defaults to False.
     """
     # Create symbols for forward wavefield, particle velocity, source and receivers
-    # Velocity:
-    v = VectorTimeFunction(name="v", grid=model.grid,
-                           save=geometry.nt if save else None,
-                           time_order=time_order, space_order=space_order)
+
+    if time_order == 1:
+        v = VectorTimeFunction(name="v", grid=model.grid,
+                               save=geometry.nt if save else None,
+                               time_order=time_order, space_order=space_order)
+        kwargs.update({v.name: v})
 
     p = TimeFunction(name="p", grid=model.grid, staggered=NODE,
                      save=geometry.nt if save else None,
@@ -511,7 +513,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
 
     # Equations kernels
     eq_kernel = kernels[kernel]
-    eqn = eq_kernel(model, geometry, v, p, save=save)
+    eqn = eq_kernel(model, geometry, p, save=save, **kwargs)
 
     srcrec = src_rec(p, model, geometry)
 
@@ -542,14 +544,12 @@ def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, 
         deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
-    va = VectorTimeFunction(name="va", grid=model.grid, time_order=time_order,
-                            space_order=space_order)
     pa = TimeFunction(name="pa", grid=model.grid, save=None, time_order=time_order,
                       space_order=space_order, staggered=NODE)
 
     # Equations kernels
     eq_kernel = kernels[kernel]
-    eqn = eq_kernel(model, geometry, va, pa, forward=False)
+    eqn = eq_kernel(model, geometry, pa, forward=False)
 
     srcrec = src_rec(pa, model, geometry, forward=False)
 

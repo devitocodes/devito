@@ -97,9 +97,12 @@ class ViscoacousticWaveSolver(object):
 
         # Create all the fields v, p, r
         save_t = src.nt if save else None
-        v = v or VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
-                                    time_order=self.time_order,
-                                    space_order=self.space_order)
+
+        if self.time_order == 1:
+            v = v or VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
+                                        time_order=self.time_order,
+                                        space_order=self.space_order)
+            kwargs.update({k.name: k for k in v})
 
         # Create the forward wavefield if not provided
         p = p or TimeFunction(name="p", grid=self.model.grid, save=save_t,
@@ -110,8 +113,6 @@ class ViscoacousticWaveSolver(object):
         r = r or TimeFunction(name="r", grid=self.model.grid, save=save_t,
                               time_order=self.time_order, space_order=self.space_order,
                               staggered=NODE)
-
-        kwargs.update({k.name: k for k in v})
 
         # Pick physical parameters from model unless explicitly provided
         b = b or self.model.b
@@ -175,6 +176,12 @@ class ViscoacousticWaveSolver(object):
                                       time_order=self.time_order,
                                       space_order=self.space_order)
 
+        if self.time_order == 1:
+            va = va or VectorTimeFunction(name="va", grid=self.model.grid,
+                                          time_order=self.time_order,
+                                          space_order=self.space_order)
+            kwargs.update({k.name: k for k in va})
+
         pa = pa or TimeFunction(name="pa", grid=self.model.grid,
                                 time_order=self.time_order, space_order=self.space_order,
                                 staggered=NODE)
@@ -182,8 +189,6 @@ class ViscoacousticWaveSolver(object):
         # Memory variable:
         r = r or TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
                               space_order=self.space_order, staggered=NODE)
-
-        kwargs.update({k.name: k for k in va})
 
         b = b or self.model.b
         qp = qp or self.model.qp
