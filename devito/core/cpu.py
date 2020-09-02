@@ -171,13 +171,13 @@ class CPU64Operator(CPU64NoopOperator):
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
-        # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, sregistry)
-
         # The previous passes may have created fusion opportunities, which in
         # turn may enable further optimizations
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, sregistry)
 
         return clusters
 
@@ -292,13 +292,13 @@ class Intel64FSGOperator(Intel64Operator):
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
-        # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, sregistry)
-
         # The previous passes may have created fusion opportunities, which in
         # turn may enable further optimizations
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, sregistry)
 
         # Blocking to improve data locality
         clusters = Blocking(options).process(clusters)

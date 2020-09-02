@@ -1017,6 +1017,7 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
+    @switchconfig(profiling='advanced')
     def test_twin_sops(self):
         """
         Check that identical sum-of-product aliases are caught via CSE thus
@@ -1071,9 +1072,13 @@ class TestAliases(object):
 
         # Check numerical output
         op0(time_M=2)
-        op1(time_M=2, u=u1, v=v1)
+        summary = op1(time_M=2, u=u1, v=v1)
         assert np.isclose(norm(u), norm(u1), rtol=10e-16)
         assert np.isclose(norm(v), norm(v1), rtol=10e-16)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert sum(i.ops for i in summary.values()) == 101
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_from_different_nests(self, rotate):
@@ -1756,7 +1761,7 @@ class TestTTIv2(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 205), (12, 397)
+        (4, 203), (12, 395)
     ])
     def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
