@@ -1,5 +1,5 @@
 # Runner information:
-# Standard NC6_Promo (6 vcpus, 56 GiB memory)
+# Standard NC24_Promo (24 vcpus, 224 GiB memory)
 # NVIDIA Tesla K80, Intel Xeon E5-2690 v3 (Haswell)
 
 name: CI-gpu
@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: [self-hosted, gpu, multi-gpu]
+    runs-on: ${{ matrix.tags }}
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -34,12 +34,14 @@ jobs:
           arch: "clang"
           platform: "nvidiaX"
           language: "openmp"
+          tags: ["self-hosted", "gpu", "openmp"]
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
           arch: "pgcc"
           platform: "nvidiaX"
           language: "openacc"
+          tags: ["self-hosted", "gpu", "openacc"]
 
     steps:
     - name: Checkout devito
