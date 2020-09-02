@@ -171,11 +171,6 @@ class ViscoacousticWaveSolver(object):
                                    time_range=self.geometry.time_axis,
                                    coordinates=self.geometry.src_positions)
 
-        # Create the adjoint wavefield if not provided
-        va = va or VectorTimeFunction(name="va", grid=self.model.grid,
-                                      time_order=self.time_order,
-                                      space_order=self.space_order)
-
         if self.time_order == 1:
             va = va or VectorTimeFunction(name="va", grid=self.model.grid,
                                           time_order=self.time_order,
