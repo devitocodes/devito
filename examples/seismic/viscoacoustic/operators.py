@@ -251,13 +251,13 @@ def ren_2nd_order(model, geometry, p, **kwargs):
     # Auxiliary funciton
     l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
 
-    if forward:
+    h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
+                     staggered=NODE)
 
-        # Auxiliary functions
-        h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
-        w = VectorTimeFunction(name="w", grid=model.grid, time_order=2,
-                               space_order=space_order)
+    w = VectorTimeFunction(name="w", grid=model.grid, time_order=2,
+                           space_order=space_order)
+
+    if forward:
 
         u_h = Eq(h, (p - p.backward) / s)
 
@@ -274,11 +274,7 @@ def ren_2nd_order(model, geometry, p, **kwargs):
 
     else:
 
-        # Auxiliary functions
-        w = VectorTimeFunction(name="w", grid=model.grid, time_order=2,
-                               space_order=space_order)
-        h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
+        # Auxiliary funciton
         g = TimeFunction(name="g", grid=model.grid, time_order=2, space_order=space_order,
                          staggered=NODE)
 
@@ -367,13 +363,14 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     # Auxiliary Function
     l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
 
+    h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
+                         staggered=NODE)
+
     if forward:
 
         # Auxiliary functions
         w = VectorTimeFunction(name="w", grid=model.grid, time_order=2,
                                space_order=space_order)
-        h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
 
         u_h = Eq(h, (p - p.backward) / s)
 
@@ -390,8 +387,6 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     else:
 
         # Auxiliary functions
-        h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
         g = TimeFunction(name="g", grid=model.grid, time_order=2, space_order=space_order,
                          staggered=NODE)
 
