@@ -34,7 +34,8 @@ jobs:
           arch: "clang"
           platform: "nvidiaX"
           language: "openmp"
-          tags: ["self-hosted", "gpu", "openmp"]
+          # FIXME: Re-add and "gpu" and amend tags before merge.
+          tags: ["self-hosted", "openmp"]
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
