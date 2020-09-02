@@ -62,7 +62,9 @@ jobs:
 
     - name: Test with pytest
       run: |
-        pgaccelinfo
+        if [ "${{ matrix.name }}" == 'pytest-gpu-acc' ]; then
+          pgaccelinfo
+        fi
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
         pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/elastic/elastic_example.py
         if [ "${{ matrix.name }}" == 'pytest-gpu-omp' ]; then
