@@ -364,7 +364,7 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
 
     h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
+                     staggered=NODE)
 
     if forward:
 

@@ -37,12 +37,12 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
 
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [
-    ('sls', 2, 684.4477, 1e-1),
-    ('sls', 1, 18.7749, 1e-1),
-    ('ren', 2, 677.7254, 1e-1),
-    ('ren', 1, 18.1400, 1e-1),
-    ('deng_mcmechan', 2, 673.0799, 1e-1),
-    ('deng_mcmechan', 1, 18.4885, 1e-1),
+    ('sls', 2, 684.447, 1e-3),
+    ('sls', 1, 18.774, 1e-3),
+    ('ren', 2, 677.720, 1e-3),
+    ('ren', 1, 18.140, 1e-3),
+    ('deng_mcmechan', 2, 673.074, 1e-3),
+    ('deng_mcmechan', 1, 18.488, 1e-3),
 ])
 def test_viscoacoustic(kernel, time_order, normrec, atol):
     _, _, _, [rec, _, _] = run(kernel=kernel, time_order=time_order)
