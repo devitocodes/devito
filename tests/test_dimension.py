@@ -1040,7 +1040,7 @@ class TestConditionalDimension(object):
         assert exprs[2].expr.rhs is exprs[0].output
 
         exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
-        assert len(exprs) == 2
+        assert len(exprs) == 3
 
         exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
         assert len(exprs) == 3

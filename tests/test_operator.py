@@ -190,6 +190,7 @@ class TestCodeGen(object):
         """Tests generation of multiple, mixed time stepping indices."""
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
+        time = grid.time_dim
 
         u = TimeFunction(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid, time_order=4)  # noqa
@@ -204,6 +205,7 @@ class TestCodeGen(object):
         # Check uindices in Iteration header
         signatures = [(i._offset, i._modulo) for i in time_iter.uindices]
         assert len(signatures) == len(exp_uindices)
+        exp_uindices = [(time + i, j) for i, j in exp_uindices]
         assert all(i in signatures for i in exp_uindices)
 
         # Check uindices within each TimeFunction
