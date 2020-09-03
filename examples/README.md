@@ -23,7 +23,7 @@ A set of more advanced examples are available in `seismic`:
 * `seismic/tutorials`: A series of Jupyter notebooks of incremental complexity,
   showing a variety of Devito features in the context of seismic inversion
   operators. Among the discussed features are custom stencils, staggered
-  grids, and tensor notation.
+  grids, tensor notation, and time blocking.
 * `seismic/acoustic`: Example implementations of isotropic acoustic forward,
   adjoint, gradient and born operators, suitable for full-waveform inversion
   methods (FWI).
@@ -36,6 +36,10 @@ A set of more advanced examples are available in `seismic`:
   forward operator. Like `elastic`, `viscoelastic` exploits tensor functions
   for a neat and compact representation of the discretized partial differential
   equations.
+* `seismic/self-adjoint`: Self-adjoint energy conserving pseudo-acoustic
+  operators, including notebooks for implementation of the nonlinear forward,
+  the forward and adjoint linearized Jacobian, and tests proving accuracy and 
+  correctness.
 
 Further:
 

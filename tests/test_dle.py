@@ -581,7 +581,7 @@ class TestNestedParallelism(object):
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
-    def test_multiple_subnests(self):
+    def test_multiple_subnests_v0(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
@@ -591,12 +591,11 @@ class TestNestedParallelism(object):
 
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-        op = Operator(eqn,
-                      opt=('advanced', {'openmp': True,
-                                        'cire-mincost-sops': 1,
-                                        'par-nested': 0,
-                                        'par-collapse-ncores': 1,
-                                        'par-dynamic-work': 0}))
+        op = Operator(eqn, opt=('advanced', {'openmp': True,
+                                             'cire-mincost-sops': 1,
+                                             'par-nested': 0,
+                                             'par-collapse-ncores': 1,
+                                             'par-dynamic-work': 0}))
 
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
@@ -608,5 +607,42 @@ class TestNestedParallelism(object):
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
         assert trees[1][2].pragmas[0].value == ('omp parallel for collapse(2) '
+                                                'schedule(dynamic,1) '
+                                                'num_threads(nthreads_nested)')
+
+    def test_multiple_subnests_v1(self):
+        """
+        Unlike ``test_multiple_subnestes_v0``, now we use the ``cire-rotate=True``
+        option, which trades some of the inner parallelism for a smaller working set.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+        op = Operator(eqn, opt=('advanced', {'openmp': True,
+                                             'cire-mincost-sops': 1,
+                                             'cire-rotate': True,
+                                             'par-nested': 0,
+                                             'par-collapse-ncores': 1,
+                                             'par-dynamic-work': 0}))
+
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 2
+
+        assert trees[0][0] is trees[1][0]
+        assert trees[0][0].pragmas[0].value ==\
+            'omp for collapse(2) schedule(dynamic,1)'
+        assert not trees[0][2].pragmas
+        assert not trees[0][3].pragmas
+        assert trees[0][4].pragmas[0].value == ('omp parallel for collapse(1) '
+                                                'schedule(dynamic,1) '
+                                                'num_threads(nthreads_nested)')
+        assert not trees[1][2].pragmas
+        assert trees[1][3].pragmas[0].value == ('omp parallel for collapse(1) '
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')

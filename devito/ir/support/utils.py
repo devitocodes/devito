@@ -80,14 +80,16 @@ def build_iterators(mapper):
     for k, v in mapper.items():
         for d, offs in v.items():
             if d.is_Stepping:
-                sub_iterators = iterators.setdefault(d.parent, set())
-                sub_iterators.update({ModuloDimension(d, i, k._time_size)
-                                      for i in offs})
+                values = iterators.setdefault(d.parent, [])
+                for i in sorted(offs):
+                    md = ModuloDimension(d, d.root + i, k._time_size, origin=d + i)
+                    if md not in values:
+                        values.append(md)
             elif d.is_Conditional:
                 # There are no iterators associated to a ConditionalDimension
                 continue
             else:
-                iterators.setdefault(d, set())
+                iterators.setdefault(d, [])
     return {k: tuple(v) for k, v in iterators.items()}
 
 
@@ -121,7 +123,7 @@ def detect_io(exprs, relax=False):
     else:
         rule = lambda i: i.is_Scalar or i.is_Tensor
 
-    # Don't forget this nasty case, with indirections on the LHS:
+    # Don't forget the nasty case with indirections on the LHS:
     # >>> u[t, a[x]] = f[x]  -> (reads={a, f}, writes={u})
 
     roots = []
@@ -129,6 +131,7 @@ def detect_io(exprs, relax=False):
         try:
             roots.append(i.rhs)
             roots.extend(list(i.lhs.indices))
+            roots.extend(list(i.conditionals.values()))
         except AttributeError:
             # E.g., FunctionFromPointer
             roots.append(i)

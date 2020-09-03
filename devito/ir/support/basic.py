@@ -75,7 +75,7 @@ class IterationInstance(LabeledVector):
     def index_mode(self):
         retval = []
         for i, fi in zip(self, self.findices):
-            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 0 and q_constant(i):
                 retval.append(AFFINE)
             elif len(dims) == 1:
@@ -92,7 +92,7 @@ class IterationInstance(LabeledVector):
     def aindices(self):
         retval = []
         for i, fi in zip(self, self.findices):
-            dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+            dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 1:
                 retval.append(dims.pop())
             elif isinstance(i, Dimension):
@@ -696,6 +696,12 @@ class Scope(object):
             if not e.is_Increment and e.is_scalar:
                 self.initialized.add(e.lhs.function)
 
+            # Look up ConditionalDimensions
+            for v in e.conditionals.values():
+                for j in retrieve_terminals(v):
+                    v = self.reads.setdefault(j.function, [])
+                    v.append(TimedAccess(j, 'R', -1, e.ispace))
+
         # The iteration symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
         for d in dimensions:
@@ -703,13 +709,6 @@ class Scope(object):
                 for j in i.free_symbols:
                     v = self.reads.setdefault(j.function, [])
                     v.append(TimedAccess(j, 'R', -1))
-
-        # Factor in conditionals
-        conditionals = set().union(*[e.conditionals for e in exprs])
-        for d in conditionals:
-            for j in d.free_symbols:
-                v = self.reads.setdefault(j.function, [])
-                v.append(TimedAccess(j, 'R', -1))
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)

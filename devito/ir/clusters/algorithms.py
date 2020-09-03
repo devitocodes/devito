@@ -6,8 +6,6 @@ from devito.ir.support import Any, Backward, Forward, IterationSpace
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import QueueStateful
-from devito.ir.equations.algorithms import lower_exprs
-from devito.symbolics import CondEq
 from devito.tools import timed_pass
 
 __all__ = ['clusterize']
@@ -165,20 +163,26 @@ def guard(clusters):
     processed = []
     for c in clusters:
         # Group together consecutive expressions with same ConditionalDimensions
-        for cds, g in groupby(c.exprs, key=lambda e: e.conditionals):
+        for cds, g in groupby(c.exprs, key=lambda e: tuple(e.conditionals)):
+            exprs = list(g)
+
             if not cds:
-                processed.append(c.rebuild(exprs=list(g)))
+                processed.append(c.rebuild(exprs=exprs))
                 continue
 
-            # Create a guarded Cluster
+            # Chain together all conditions from all expressions in `c`
             guards = {}
             for cd in cds:
                 condition = guards.setdefault(cd.parent, [])
-                if cd.condition is None:
-                    condition.append(CondEq(cd.parent % cd.factor, 0))
-                else:
-                    condition.append(lower_exprs(cd.condition))
-            guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-            processed.append(c.rebuild(exprs=list(g), guards=guards))
+                for e in exprs:
+                    try:
+                        condition.append(e.conditionals[cd])
+                        break
+                    except KeyError:
+                        pass
+            guards = {d: sympy.And(*v, evaluate=False) for d, v in guards.items()}
+
+            # Construct a guarded Cluster
+            processed.append(c.rebuild(exprs=exprs, guards=guards))
 
     return ClusterGroup(processed)
