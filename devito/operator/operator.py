@@ -21,7 +21,8 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine
+from devito.passes import (Graph, NThreads, NThreadsNested, NThreadsNonaffine,
+                           add_eqns_from_subdomains)
 from devito.symbolics import estimate_cost, retrieve_functions
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
@@ -246,35 +247,6 @@ class Operator(Callable):
     # Compilation -- Expression level
 
     @classmethod
-    def _add_implicit(cls, expressions):
-        """
-        Create and add any associated implicit expressions.
-
-        Implicit expressions are those not explicitly defined by the user
-        but instead are requisites of some specified functionality.
-        """
-        processed = []
-        for e in expressions:
-            if e.subdomain:
-                try:
-                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
-                    sub_dims = [d.root for d in e.subdomain.dimensions]
-                    sub_dims.append(e.subdomain.implicit_dimension)
-                    dims = [d for d in dims if d not in frozenset(sub_dims)]
-                    dims.append(e.subdomain.implicit_dimension)
-                    grid = list(retrieve_functions(e, mode='unique'))[0].grid
-                    processed.extend([i.func(*i.args, implicit_dims=dims) for i in
-                                      e.subdomain._create_implicit_exprs(grid)])
-                    dims.extend(e.subdomain.dimensions)
-                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
-                    processed.append(new_e)
-                except AttributeError:
-                    processed.append(e)
-            else:
-                processed.append(e)
-        return processed
-
-    @classmethod
     def _initialize_state(cls, **kwargs):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
@@ -298,8 +270,8 @@ class Operator(Callable):
             * Apply substitution rules;
             * Specialize (e.g., index shifting)
         """
-        # Add in implicit expressions, e.g., induced by SubDomains
-        expressions = cls._add_implicit(expressions)
+        # Add in implicit expressions
+        expressions = add_eqns_from_subdomains(expressions)
 
         # Unfold lazyiness
         expressions = flatten([i.evaluate for i in expressions])
