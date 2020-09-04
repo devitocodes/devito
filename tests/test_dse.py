@@ -1031,6 +1031,8 @@ class TestAliases(object):
         v = TimeFunction(name='v', grid=grid, space_order=space_order)
         u1 = TimeFunction(name='u', grid=grid, space_order=space_order)
         v1 = TimeFunction(name='v', grid=grid, space_order=space_order)
+        u2 = TimeFunction(name='u', grid=grid, space_order=space_order)
+        v2 = TimeFunction(name='v', grid=grid, space_order=space_order)
         f = Function(name='f', grid=grid, space_order=space_order)
         e = Function(name='e', grid=grid, space_order=space_order)
         p0 = Function(name='p0', grid=grid, space_order=space_order)
@@ -1056,6 +1058,7 @@ class TestAliases(object):
 
         op0 = Operator(eqns, opt='noop')
         op1 = Operator(eqns, opt='advanced')
+        op2 = Operator(eqns, opt=('advanced', {'cire-maxalias': True}))
 
         # Check code generation
         # We expect two temporary Arrays which have in common a sub-expression
@@ -1072,13 +1075,19 @@ class TestAliases(object):
 
         # Check numerical output
         op0(time_M=2)
-        summary = op1(time_M=2, u=u1, v=v1)
-        assert np.isclose(norm(u), norm(u1), rtol=10e-16)
-        assert np.isclose(norm(v), norm(v1), rtol=10e-16)
+        summary1 = op1(time_M=2, u=u1, v=v1)
+        expected_u = norm(u)
+        expected_v = norm(v)
+        assert np.isclose(expected_u, norm(u1), rtol=10e-16)
+        assert np.isclose(expected_v, norm(v1), rtol=10e-16)
+        summary2 = op2(time_M=2, u=u2, v=v2)
+        assert np.isclose(expected_u, norm(u2), rtol=10e-16)
+        assert np.isclose(expected_v, norm(v2), rtol=10e-16)
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert sum(i.ops for i in summary.values()) == 101
+        assert sum(i.ops for i in summary1.values()) == 101
+        assert sum(i.ops for i in summary2.values()) == 92
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_from_different_nests(self, rotate):
@@ -1461,15 +1470,19 @@ class TestAliases(object):
         f = Function(name='f', grid=grid, space_order=4)
         v = TimeFunction(name="v", grid=grid, space_order=4)
         v1 = TimeFunction(name="v1", grid=grid, space_order=4)
+        v2 = TimeFunction(name="v2", grid=grid, space_order=4)
 
         f.data_with_halo[:] = 0.5
         v.data_with_halo[:] = 1.
         v1.data_with_halo[:] = 1.
+        v2.data_with_halo[:] = 1.
 
         eqn = Eq(v.forward, (v.dx * (1 + 2*f) * f).dx)
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
+        op2 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate,
+                                              'cire-maxalias': True}))
 
         # Check code generation
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -1478,12 +1491,16 @@ class TestAliases(object):
 
         # Check numerical output
         op0(time_M=1)
-        summary = op1(time_M=1, v=v1)
-        assert np.isclose(norm(v), norm(v1), rtol=1e-5)
+        summary1 = op1(time_M=1, v=v1)
+        expected_v = norm(v)
+        assert np.isclose(expected_v, norm(v1), rtol=1e-5)
+        summary2 = op2(time_M=1, v=v2)
+        assert np.isclose(expected_v, norm(v2), rtol=1e-5)
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section0', None)].ops == 19
+        assert summary1[('section0', None)].ops == 19
+        assert summary2[('section0', None)].ops == 15
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_maxpar_option(self, rotate):
