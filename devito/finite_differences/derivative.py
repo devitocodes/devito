@@ -8,7 +8,7 @@ from devito.finite_differences.finite_difference import (generic_derivative,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
 from devito.finite_differences.tools import direct, transpose
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import as_tuple, filter_ordered, frozendict
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Derivative']
@@ -106,7 +106,7 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
         obj._subs = as_tuple(kwargs.get("subs"))
-        obj._x0 = kwargs.get('x0', None)
+        obj._x0 = frozendict(kwargs.get('x0', {}))
         return obj
 
     @classmethod
@@ -182,7 +182,7 @@ class Derivative(sympy.Derivative, Differentiable):
             raise TypeError("Side only supported for first order single"
                             "Dimension derivative such as `.dxl` or .dx(side=left)")
         # Cross derivative
-        _x0 = self._x0 or {}
+        _x0 = dict(self._x0)
         _fd_order = dict(self.fd_order._getters)
         try:
             _fd_order.update(**(fd_order or {}))
