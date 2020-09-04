@@ -214,7 +214,7 @@ class DeviceOpenMPDataManager(DataManager):
 @iet_pass
 def initialize(iet, **kwargs):
     """
-    Initialize the OpenMP environment.
+    Initialize the OpenMP 5.0 environment.
     """
     devicenum = Symbol(name='devicenum')
 

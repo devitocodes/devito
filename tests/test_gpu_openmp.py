@@ -310,7 +310,7 @@ class TestOperator(object):
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
 
-    @pytest.mark.parallel(mode=1)
+    @pytest.mark.parallel(mode=[2, 4])
     @skipif('nodevice')
     def test_op_apply_gpu_direct(self):
         grid = Grid(shape=(3, 3, 3))
@@ -327,7 +327,7 @@ class TestOperator(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
-    @pytest.mark.parallel(mode=1)
+    @pytest.mark.parallel(mode=[2, 4])
     @skipif('nodevice')
     def test_iso_ac_gpu_direct(self):
         shape = (101, 101)
