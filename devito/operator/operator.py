@@ -21,12 +21,11 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import (Graph, NThreads, NThreadsNested, NThreadsNonaffine,
-                           rewrite_exprs)
-from devito.symbolics import estimate_cost, retrieve_functions
+from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine
+from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import CustomDimension, Dimension, Eq
+from devito.types import CustomDimension
 
 __all__ = ['Operator']
 

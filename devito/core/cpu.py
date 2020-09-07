@@ -2,7 +2,7 @@ from functools import partial
 
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
-from devito.passes.equations import rewrite_exprs
+from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
@@ -150,7 +150,7 @@ class CPU64Operator(CPU64NoopOperator):
     @classmethod
     @timed_pass(name='specializing.Expressions')
     def _specialize_exprs(cls, expressions, **kwargs):
-        expressions = rewrite_exprs(expressions)
+        expressions = collect_derivatives(expressions)
 
         return expressions
 

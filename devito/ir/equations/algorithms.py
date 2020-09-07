@@ -4,7 +4,7 @@ from operator import attrgetter
 from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
                               uxreplace)
 from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
-from devito.types import Dimension
+from devito.types import Dimension, Eq
 
 __all__ = ['dimension_sort', 'generate_implicit_exprs', 'lower_exprs']
 
