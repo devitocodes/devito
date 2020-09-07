@@ -251,11 +251,11 @@ class Operator(Callable):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
-    def _specialize_exprs(cls, expressions):
+    def _specialize_exprs(cls, expressions, **kwargs):
         """
         Backend hook for specialization at the Expression level.
         """
-        return [LoweredEq(i) for i in expressions]
+        return expressions
 
     @classmethod
     @timed_pass(name='lowering.Expressions')
@@ -269,23 +269,22 @@ class Operator(Callable):
             * Flatten vectorial equations;
             * Indexify Functions;
             * Apply substitution rules;
-            * Specialize (e.g., index shifting)
+            * Shift indices for domain alignment.
         """
         # Add in implicit expressions
         expressions = generate_implicit_exprs(expressions)
 
-        # Apply rewrite rules to maximize impact of later passes
-        expressions = rewrite_exprs(expressions)
+        # Specialization is performed on unevaluated expressions
+        expressions = cls._specialize_exprs(expressions, **kwargs)
 
-        # Unfold lazyiness
+        # Lower finite-difference DSL
         expressions = flatten([i.evaluate for i in expressions])
-
-        # Scalarize tensor expressions
         expressions = [j for i in expressions for j in i._flatten]
 
+        # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
 
-        processed = cls._specialize_exprs(expressions)
+        processed = [LoweredEq(i) for i in expressions]
 
         return processed
 
