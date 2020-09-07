@@ -1447,7 +1447,8 @@ class TestAliases(object):
         op0 = Operator(eqn, subs=grid.spacing_map, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, subs=grid.spacing_map,
                        opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
-                                         'cire-rotate': rotate}))
+                                         'cire-rotate': rotate,
+                                         'cire-repeats-sops': 7}))  #TODO: FIX ME
 
         # Check numerical output
         op0(time_M=1)
@@ -1502,48 +1503,60 @@ class TestAliases(object):
         assert summary1[('section0', None)].ops == 19
         assert summary2[('section0', None)].ops == 15
 
-    @pytest.mark.parametrize('rotate', [False, True])
     @switchconfig(profiling='advanced')
-    def test_sum_of_nested_derivatives(self, rotate):
+    @pytest.mark.parametrize('expr,exp_arrays,exp_ops', [
+        ('f.dx.dx + g.dx.dx', (1, 2, 1), 18),
+        ('v.dx.dx + p.dx.dx', (1, 1, 1), 22),  #TODO: check why staggered derivative only has 1 term
+        ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
+         (3, 4, 3), 92),
+        ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx', (1, 2, 1), 20),
+    ])
+    def test_sum_of_nested_derivatives(self, expr, exp_arrays, exp_ops):
         """
         Test that aliasing sub-expressions from sums of nested derivatives
         along `x` and `y` are scheduled to *two* different temporaries, not
         three (one per unique derivative argument), thanks to FD linearity.
         """
-        grid = Grid(shape=(10, 10, 10))
+        grid = Grid(shape=(10, 10, 10), dtype=np.float64)
+        x, y, z = grid.dimensions  # noqa
 
         f = Function(name='f', grid=grid, space_order=4)
+        g = Function(name='g', grid=grid, space_order=4)
         v = TimeFunction(name="v", grid=grid, space_order=4)
+        p = TimeFunction(name="p", grid=grid, space_order=4, staggered=x)
         v1 = TimeFunction(name="v1", grid=grid, space_order=4)
-        v2 = TimeFunction(name="v2", grid=grid, space_order=4)
 
         f.data_with_halo[:] = 0.5
+        g.data_with_halo[:] = 0.83
         v.data_with_halo[:] = 1.2
+        p.data_with_halo[:] = 0.7
         v1.data_with_halo[:] = 1.2
-        v2.data_with_halo[:] = 1.2
 
-        eqn = Eq(v.forward, (v.dx + v.dy).dx - (v.dx + v.dy).dy +
-                             2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1))
+        eqn = Eq(v.forward, eval(expr))
 
-        #op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
-        #op2 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate,
-        #                                      'cire-maxalias': True}))
-        from IPython import embed; embed()
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        op2 = Operator(eqn, opt=('cire-sops', {'openmp': True, 'cire-maxalias': True}))
+        op3 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-maxalias': True}))
 
         # Check code generation
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array and i._mem_local]
-        assert len(arrays) == 2
+        assert len(arrays) == exp_arrays[0]
+        arrays = [i for i in FindSymbols().visit(op2) if i.is_Array]
+        assert len(arrays) == exp_arrays[1]
+        arrays = [i for i in FindSymbols().visit(op3._func_table['bf0'].root)
+                  if i.is_Array and i._mem_local]
+        assert len(arrays) == exp_arrays[2]
 
         # Check numerical output
         op0(time_M=1)
         summary = op1(time_M=1, v=v1)
-        assert np.isclose(norm(v), norm(v1), rtol=1e-5)
+        assert np.isclose(norm(v), norm(v1), atol=1e-5, rtol=0)  #TODO: relax tolerances, use rtol
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        #assert summary[('section0', None)].ops == 19
+        assert summary[('section0', None)].ops == exp_ops
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_maxpar_option(self, rotate):
@@ -1697,8 +1710,9 @@ class TestIsoAcoustic(object):
         assert len(op0._func_table) == 0
         assert len(op1._func_table) == 1  # due to loop blocking
 
-        assert summary0[('section0', None)].ops == 46
-        assert np.isclose(summary0[('section0', None)].oi, 2.623, atol=0.001)
+        assert summary0[('section0', None)].ops == 50
+        assert summary0[('section1', None)].ops == 151
+        assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 33
         assert np.isclose(summary1[('section0', None)].oi, 1.882, atol=0.001)
@@ -1748,7 +1762,7 @@ class TestTTI(object):
         # Make sure no opts were applied
         op = wavesolver.op_fwd('centered', False)
         assert len(op._func_table) == 0
-        assert summary[('section0', None)].ops == 729
+        assert summary[('section0', None)].ops == 737
 
         return v, rec
 

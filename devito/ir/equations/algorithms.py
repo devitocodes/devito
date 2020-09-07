@@ -1,6 +1,8 @@
 from collections.abc import Iterable
 from operator import attrgetter
 
+from sympy import sympify
+
 from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
                               uxreplace)
 from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
@@ -113,6 +115,8 @@ def lower_exprs(expressions, **kwargs):
     --------
     f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
     """
+    # Normalize subs
+    subs = {k: sympify(v) for k, v in kwargs.get('subs', {}).items()}
 
     processed = []
     for expr in as_tuple(expressions):
@@ -140,16 +144,12 @@ def lower_exprs(expressions, **kwargs):
 
             mapper[i] = f.indexed[indices]
 
-        subs = kwargs.get('subs')
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
         mapper.update(dimension_map)
-        if subs:
-            # Include the user-supplied substitutions, and use
-            # `xreplace` for constant folding
-            processed.append(expr.xreplace({**mapper, **subs}))
-        else:
-            processed.append(uxreplace(expr, mapper))
+        # Add the user-supplied substitutions
+        mapper.update(subs)
+        processed.append(uxreplace(expr, mapper))
 
     if isinstance(expressions, Iterable):
         return processed

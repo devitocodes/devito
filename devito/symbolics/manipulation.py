@@ -8,7 +8,7 @@ from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple, flatten, split
 from devito.types.equation import Eq
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
@@ -61,7 +61,8 @@ def _uxreplace_handle(expr, args):
 @_uxreplace_handle.register(sympy.Add)
 def _(expr, args):
     if all(i.is_commutative for i in args):
-        _addsort(args)  # In-place sorting
+        _addsort(args)
+        _eval_numbers(expr, args)
         return expr.func(*args, evaluate=False)
     else:
         return expr._new_rawargs(*args)
@@ -70,7 +71,8 @@ def _(expr, args):
 @_uxreplace_handle.register(sympy.Mul)
 def _(expr, args):
     if all(i.is_commutative for i in args):
-        _mulsort(args)  # In-place sorting
+        _mulsort(args)
+        _eval_numbers(expr, args)
         return expr.func(*args, evaluate=False)
     else:
         return expr._new_rawargs(*args)
@@ -81,6 +83,15 @@ def _(expr, args):
     # Preserve properties such as `implicit_dims`
     return expr.func(*args, subdomain=expr.subdomain, coefficients=expr.substitutions,
                      implicit_dims=expr.implicit_dims)
+
+
+def _eval_numbers(expr, args):
+    """
+    Helper function for in-place reduction of the expr arguments.
+    """
+    numbers, others = split(args, lambda i: i.is_Number)
+    if len(numbers) > 1:
+        args[:] = [expr.func(*numbers)] + others
 
 
 def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
