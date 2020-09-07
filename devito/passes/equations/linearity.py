@@ -56,7 +56,7 @@ def _(c, deriv):
 
 @_is_const_coeff.register(sympy.Expr)
 def _(c, deriv):
-    return all(_is_const_coeff(a) for a in c.args)
+    return all(_is_const_coeff(a, deriv) for a in c.args)
 
 
 def _doit(expr):
