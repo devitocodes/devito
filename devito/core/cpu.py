@@ -327,7 +327,13 @@ class CustomOperator(CPU64Operator):
 
     _known_passes = ('blocking', 'denormals', 'optcomms', 'openmp', 'mpi',
                      'simd', 'prodders', 'topofuse', 'fuse', 'factorize',
-                     'cire-sops', 'cse', 'lift', 'opt-pows')
+                     'cire-sops', 'cse', 'lift', 'opt-pows', 'collect-derivs')
+
+    @classmethod
+    def _make_exprs_passes_mapper(cls, **kwargs):
+        return {
+            'collect-derivs': collect_derivatives,
+        }
 
     @classmethod
     def _make_clusters_passes_mapper(cls, **kwargs):
@@ -373,6 +379,23 @@ class CustomOperator(CPU64Operator):
             raise InvalidOperator("Unknown passes `%s`" % str(passes))
 
         return super(CustomOperator, cls)._build(expressions, **kwargs)
+
+    @classmethod
+    @timed_pass(name='specializing.Expressions')
+    def _specialize_exprs(cls, expressions, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_exprs_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                expressions = passes_mapper[i](expressions)
+            except KeyError:
+                pass
+
+        return expressions
 
     @classmethod
     @timed_pass(name='specializing.Clusters')
