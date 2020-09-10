@@ -314,7 +314,7 @@ class Ompizer(object):
         return c.Initializer(c.Value(tid._C_typedata, tid.name), cls.lang['thread-num'])
 
     def _make_reductions(self, partree, collapsed):
-        if not partree.is_ParallelAtomic:
+        if not any(i.is_ParallelAtomic for i in collapsed):
             return partree
 
         # Collect expressions inducing reductions
