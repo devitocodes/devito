@@ -12,7 +12,7 @@ Prerequisites:
   work; other 2020 versions, as well as later years, may or may not work.
 * `numactl` must be available on the system. If not available, install with:
 	`sudo apt-get install numactl`
-* Install `pandas`. `pandas` is not included in the core Devito installation.
+* Install `pandas` and `matplotlib`. They are not included in the core Devito installation.
 
 Limitations:
 
@@ -22,6 +22,8 @@ Limitations:
   mode. This analysis, together with the `survey` analysis, is necessary to
   generate a roofline. Both are run by `run_advisor.py`.
 * Requires python3, untested in earlier versions of python
+* Currently requires download of repository and running `pip3 install .`, the scripts
+  are currently not included as a package with the user installation of Devito
 
 TODO:
 

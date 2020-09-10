@@ -20,7 +20,10 @@ try:
     import advisor
 except ImportError:
     check(False, 'Error: Intel Advisor could not be found on the system,'
-          ' make sure to source environment variables properly.')
+          ' make sure to source environment variables properly. Information can be'
+          ' found at https://software.intel.com/content/www/us/en/develop/'
+          'documentation/advisor-user-guide/top/launch-the-intel-advisor/'
+          'intel-advisor-cli/setting-and-using-intel-advisor-environment-variables.html')
     sys.exit(1)
 
 
