@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
-                    Eq, Inc, Operator)
+                    Eq, Inc, Operator, info)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
 from devito.passes import NThreads, NThreadsNonaffine
@@ -380,12 +380,10 @@ class TestNodeParallelism(object):
         # outermost sequential, innermost parallel
         (['Eq(fc[x,y], fc[x+1,y+1] + fc[x-1,y])'],
          (False, True)),
-        # outermost parallel w/ repeated dimensions, but the compiler is conservative
-        # and makes it sequential, as it doesn't like what happens in the inner dims,
-        # where `x`, rather than `y`, is used. The innermost one is instead parallel,
-        # as there are no deps along `y`.
-        (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x], t0 + 1)'],
-         (False, True)),
+        # outermost parallel w/ repeated dimensions (hence irregular dependencies)
+        # both `x` and `y` are parallel-if-atomic loops
+        (['Inc(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x], t0 + 1)'],
+         (True, False)),
         # outermost sequential, innermost sequential (classic skewing example)
         (['Eq(fc[x,y], fc[x,y+1] + fc[x-1,y])'],
          (False, False)),
@@ -522,6 +520,33 @@ class TestNodeParallelism(object):
         assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value
         assert not iterations[3].is_Affine
         assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
+
+    @pytest.mark.parametrize('so', [0, 1, 2])
+    @pytest.mark.parametrize('dim', [1, 2])
+    def test_array_reduction(self, so, dim):
+        """
+        Test generation of OpenMP reduction clauses involving Function's.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        d = grid.dimensions[dim]
+
+        f = Function(name='f', shape=(3,), dimensions=(d,), grid=grid, space_order=so)
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Inc(f, u + 1), opt=('openmp', {'par-collapse-ncores': 1}))
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert "reduction(+:f[0:f_vec->size[0]])" in iterations[1].pragmas[0].value
+
+        try:
+            op(time_M=1)
+        except:
+            # Older gcc <6.1 don't support reductions on array
+            info("Un-supported older gcc version for array reduction")
+            assert True
+            return
+
+        assert np.allclose(f.data, 18)
 
     def test_incs_no_atomic(self):
         """

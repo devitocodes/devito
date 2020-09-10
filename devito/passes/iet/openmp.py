@@ -4,6 +4,7 @@ import numpy as np
 import cgen as c
 from sympy import Or, Max, Not
 
+from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
                        List, Prodder, ParallelIteration, ParallelBlock, While,
                        FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
@@ -135,8 +136,22 @@ class OpenMPIteration(ParallelIteration):
             clauses.append('num_threads(%s)' % nthreads)
 
         if reduction:
-            args = ','.join(str(i) for i in reduction)
-            clauses.append('reduction(+:%s)' % args)
+            args = []
+            for i in reduction:
+                if i.is_Indexed:
+                    # OpenMP expects a size not an index as input of reduction,
+                    # such as reduction(+:f[d_m:d_M+1])
+                    f = i.function
+                    bounds = []
+                    for k, d in zip(i.indices, f.dimensions):
+                        if k.is_Number:
+                            bounds.append('[%s:%s]' % (str(k), str(k + 1)))
+                        else:
+                            bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
+                    args.append('%s%s' % (i.name, ''.join(bounds)))
+                else:
+                    args.append(str(i))
+            clauses.append('reduction(+:%s)' % ','.join(args))
 
         return clauses
 
