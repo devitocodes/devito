@@ -202,6 +202,10 @@ class Derivative(sympy.Derivative, Differentiable):
         _kwargs.update(**kwargs)
         return Derivative(expr, *self.dims, **_kwargs)
 
+    @property
+    def func(self):
+        return lambda *a, **kw: self._new_from_self(expr=a[0])
+
     def subs(self, *args, **kwargs):
         """
         Bypass sympy.Subs as Devito has its own lazy evaluation mechanism.
