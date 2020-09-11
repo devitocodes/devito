@@ -109,7 +109,7 @@ def decompose(ispace, d, block_dims):
     """
     # Create the new Intervals
     intervals = []
-    for i in ispace.intervals:
+    for i in ispace:
         if i.dim is d:
             intervals.append(i.switch(block_dims[0]))
             intervals.extend([i.switch(bd).zero() for bd in block_dims[1:]])
@@ -124,8 +124,11 @@ def decompose(ispace, d, block_dims):
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
 
+    # The level of a given Dimension in the hierarchy of block Dimensions
+    level = lambda dim: len([i for i in dim._defines if i.is_Incr])
+
     # Add more relations
-    for n, i in enumerate(ispace.intervals):
+    for n, i in enumerate(ispace):
         if i.dim is d:
             continue
         elif i.dim.is_Incr:
@@ -133,8 +136,10 @@ def decompose(ispace, d, block_dims):
             # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
             # `(t, xbb, xb, x, ybb, ...)`
             for bd in block_dims:
-                if len(i.dim._defines) > len(bd._defines):
+                if level(i.dim) >= level(bd):
                     relations.append([bd, i.dim])
+                else:
+                    relations.append([i.dim, bd])
         elif n > ispace.intervals.index(d):
             # All other non-Incr, subsequent Dimensions must follow the block Dimensions
             for bd in block_dims:

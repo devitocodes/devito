@@ -69,8 +69,8 @@ class ViscoacousticWaveSolver(object):
             The time-constant inverse density.
         vp : Function or float, optional
             The time-constant velocity.
-        save : int or Buffer, optional
-            Option to store the entire (unrolled) wavefield.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
 
         Returns
         -------
