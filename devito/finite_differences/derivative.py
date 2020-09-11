@@ -6,7 +6,7 @@ import sympy
 from devito.finite_differences.finite_difference import (generic_derivative,
                                                          first_derivative,
                                                          cross_derivative)
-from devito.finite_differences.differentiable import Differentiable
+from devito.finite_differences.differentiable import Differentiable, EvalDiffDerivative
 from devito.finite_differences.tools import direct, transpose
 from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
 from devito.types.utils import DimensionTuple
@@ -318,13 +318,16 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         Evaluate finite difference approximation of the Derivative.
         Evaluation is carried out via the following four steps:
+
         - 1: Evaluate derivatives within the expression. For example given
-        `f.dx * g`, `f.dx` will be evaluated first.
+            `f.dx * g`, `f.dx` will be evaluated first.
         - 2: Evaluate the finite difference for the (new) expression.
         - 3: Evaluate remaining terms (as `g` may need to be evaluated
         at a different point).
         - 4: Apply substitutions.
-
+        - 5: Cast to an object of type `EvalDiffDerivative` so that we know
+             the argument stems from a `Derivative. This may be useful for
+             later compilation passes.
         """
         # Step 1: Evaluate derivatives within expression
         expr = getattr(expr, '_eval_deriv', expr)
@@ -347,4 +350,9 @@ class Derivative(sympy.Derivative, Differentiable):
         # Step 4: Apply substitution
         for e in self._subs:
             res = res.xreplace(e)
+
+        # Step 5: Cast to EvaluatedDerivative
+        assert res.is_Add
+        res = EvalDiffDerivative(*res.args, evaluate=False)
+
         return res
