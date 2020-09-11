@@ -3,6 +3,7 @@ from functools import singledispatch
 
 import sympy
 
+from devito.symbolics import q_leaf, q_function
 from devito.tools import as_mapper, split, timed_pass
 
 __all__ = ['collect_derivatives']
@@ -60,27 +61,31 @@ def _(c, deriv):
 
 
 def _doit(expr):
+    try:
+        if q_function(expr) or q_leaf(expr):
+            # Do not waste time
+            return _doit_handle(expr, [])
+    except AttributeError:
+        # E.g., `Injection`
+        return _doit_handle(expr, [])
     args = []
     terms = []
-    changed = False
     for a in expr.args:
-        ax, term, flag = _doit(a)
+        ax, term = _doit(a)
         args.append(ax)
         terms.append(term)
-        changed |= flag
-    if changed:
-        expr = expr.func(*args)
+    expr = expr.func(*args, evaluate=False)
     return _doit_handle(expr, terms)
 
 
 @singledispatch
 def _doit_handle(expr, terms):
-    return expr, Term(expr), False
+    return expr, Term(expr)
 
 
 @_doit_handle.register(sympy.Derivative)
 def _(expr, terms):
-    return expr, Term(sympy.S.One, expr), False
+    return expr, Term(sympy.S.One, expr)
 
 
 @_doit_handle.register(sympy.Mul)
@@ -90,21 +95,21 @@ def _(expr, terms):
         # Linear => propagate found Derivative upstream
         deriv = derivs[0].deriv
         other = expr.func(*[i.other for i in others])  # De-nest terms
-        return expr, Term(other, deriv, expr.func), False
+        return expr, Term(other, deriv, expr.func)
     else:
-        return expr, Term(expr), False
+        return expr, Term(expr)
 
 
 @_doit_handle.register(sympy.Add)
 def _(expr, terms):
     derivs, others = split(terms, lambda i: i.deriv is not None)
     if not derivs:
-        return expr, Term(expr), False
+        return expr, Term(expr)
 
     # Map by type of derivative
     mapper = as_mapper(derivs, lambda i: key(i.deriv))
     if len(mapper) == len(derivs):
-        return expr, Term(expr), False
+        return expr, Term(expr)
 
     processed = []
     for v in mapper.values():
@@ -130,4 +135,4 @@ def _(expr, terms):
     others = [i.other for i in others]
     expr = expr.func(*(processed + others))
 
-    return expr, Term(expr), True
+    return expr, Term(expr)

@@ -1510,6 +1510,7 @@ class TestAliases(object):
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
          (3, 4, 3), 92),
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx', (1, 2, 1), 20),
+        ('g*(f.dx.dx + g.dx.dx)', (1, 2, 1), 19),  #TODO: check computed values... 0.000x vs 0
     ])
     def test_sum_of_nested_derivatives(self, expr, exp_arrays, exp_ops):
         """
