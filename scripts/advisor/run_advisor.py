@@ -44,7 +44,9 @@ def run_with_advisor(path, output, name, exec_args):
         output = Path(output).joinpath(name)
         output.mkdir(parents=True, exist_ok=True)
 
-    # Intel Advisor 2020 must be available
+    # Intel Advisor must be available through either Intel Parallel Studio
+    # or Intel oneAPI (currently tested versions include IPS 2020 Update 2 and
+    # oneAPI 2021 beta08)
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
     except FileNotFoundError:

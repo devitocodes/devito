@@ -236,7 +236,12 @@ class AdvancedProfiler(Profiler):
 
 class AdvisorProfiler(AdvancedProfiler):
 
-    """Rely on Intel Advisor ``v >= 2020`` for performance profiling."""
+    """
+    Rely on Intel Advisor ``v >= 2020`` for performance profiling.
+    Tested versions of Intel Advisor:
+    - As contained in Intel Parallel Studio 2020 v 2020 Update 2
+    - As contained in Intel oneAPI 2021 beta08
+    """
 
     _api_resume = '__itt_resume'
     _api_pause = '__itt_pause'
@@ -404,8 +409,12 @@ def sniff_advisor_location():
     its location if it is.
 
     """
-    error_msg = "Intel Advisor cannot be found on your system, consider if you"\
-                "have sourced its environment variables correctly."
+    error_msg = 'Intel Advisor cannot be found on your system, consider if you'\
+                ' have sourced its environment variables correctly. Information can be'\
+                ' found at https://software.intel.com/content/www/us/en/develop/'\
+                'documentation/advisor-user-guide/top/launch-the-intel-advisor/'\
+                'intel-advisor-cli/setting-and-using-intel-advisor-environment'\
+                '-variables.html'
     try:
         res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
         ver = res.stdout.decode("utf-8")
@@ -464,6 +473,8 @@ def locate_intel_advisor():
     its location if it is.
 
     """
+    path = None
+
     try:
         # Check if the directory to Intel Advisor is specified
         path = Path(os.environ['DEVITO_ADVISOR_DIR'])
@@ -485,9 +496,10 @@ def locate_intel_advisor():
         env_path_dirs = env_path.split(":")
 
         for env_path_dir in env_path_dirs:
-            if "intel/advisor" in env_path_dir:
+            # intel/advisor is the advisor directory for Intel Parallel Studio,
+            # intel/oneapi/advisor is the directory for Intel oneAPI
+            if "intel/advisor" in env_path_dir or "intel/oneapi/advisor" in env_path_dir:
                 path = Path(env_path_dir)
-                # Little hack: the directory in path should be the binaries (to remove)
                 if path.name.startswith('bin'):
                     path = path.parent
 
