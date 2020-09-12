@@ -982,7 +982,7 @@ class Function(DiscreteFunction):
         else:
             raise TypeError("`space_order` must be int or 3-tuple of ints")
 
-        self.__fd_setup__()
+        self._fd = self.__fd_setup__()
         # Flag whether it is a parameter or a variable.
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
@@ -991,7 +991,7 @@ class Function(DiscreteFunction):
 
     def __fd_setup__(self):
         # Dynamically add derivative short-cuts
-        self._fd = generate_fd_shortcuts(self.dimensions, self.space_order)
+        return generate_fd_shortcuts(self.dimensions, self.space_order)
 
     @cached_property
     def _fd_priority(self):
@@ -1309,8 +1309,8 @@ class TimeFunction(Function):
 
     def __fd_setup__(self):
         # Dynamically add derivative short-cuts
-        self._fd = generate_fd_shortcuts(self.dimensions, self.space_order,
-                                         to=self.time_order)
+        return generate_fd_shortcuts(self.dimensions, self.space_order,
+                                     to=self.time_order)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

@@ -27,7 +27,7 @@ class TensorFunction(AbstractTensor):
     name : str
         Name of the symbol.
     grid : Grid, optional
-        Carries shape, dimensions, and dtype of the Function. When grid is not
+        Carries shape, dimensions, and dtype of the TensorFunction. When grid is not
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
     space_order : int or 3-tuple of ints, optional
@@ -47,7 +47,7 @@ class TensorFunction(AbstractTensor):
         Any object that can be interpreted as a numpy data type. Defaults
         to ``np.float32``.
     staggered : Dimension or tuple of Dimension or Stagger, optional
-        Define how the Function is staggered.
+        Define how the TensorFunction is staggered.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
@@ -56,7 +56,6 @@ class TensorFunction(AbstractTensor):
         `default_allocator.__doc__` for more information.
     padding : int or tuple of ints, optional
         .. deprecated:: shouldn't be used; padding is now automatically inserted.
-
         Allocate extra grid points to maximize data access alignment. When a tuple
         of ints, one int per Dimension should be provided.
     symmetric : bool, optional

@@ -516,11 +516,15 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         return self
 
     def _eval_matrix_mul(self, other):
+        """
+        Copy paste from sympy to avoid explicit call to sympy.Add
+        TODO: fix inside sympy
+        """
         other_len = other.rows*other.cols
         new_len = self.rows*other.cols
         new_mat = [self.zero]*new_len
 
-        # if we multiply an n x 0 with a 0 x m, the
+        # If we multiply an n x 0 with a 0 x m, the
         # expected behavior is to produce an n x m matrix of zeros
         if self.cols != 0 and other.rows != 0:
             self_cols = self.cols
@@ -532,6 +536,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 col_indices = range(col, other_len, other.cols)
                 vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices)]
                 new_mat[i] = sum(vec)
+
         # Get new class and return product
         newcls = self.classof_prod(other, new_mat)
         return newcls._new(self.rows, other.cols, new_mat, copy=False)
@@ -584,6 +589,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         * PrecomputedSparseTimeFunction: A SparseTimeFunction that uses a custom
                                          interpolation scheme, instead of linear
                                          interpolators.
+
     """
     # Sympy attributes, explicitly say these are not Matrices
     is_MatrixLike = False
