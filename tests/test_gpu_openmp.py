@@ -194,7 +194,7 @@ class TestCodeGeneration(object):
         assert not tree.root.pragmas
         assert len(tree[1].pragmas) == 1
         assert tree[1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3) reduction(+:f[0:1])'
+            'omp target teams distribute parallel for collapse(3) reduction(+:f[0])'
 
 
 class TestOperator(object):
