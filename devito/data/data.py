@@ -179,9 +179,10 @@ class Data(np.ndarray):
         return super(Data, self._local).__str__()
 
     @_check_idx
-    def __getitem__(self, glb_idx, comm_type, gather=None):
+    def __getitem__(self, glb_idx, comm_type, gather_rank=None):
         loc_idx = self._index_glb_to_loc(glb_idx)
-        if comm_type is index_by_index or isinstance(gather, int):
+        gather = True if isinstance(gather_rank, int) else False
+        if comm_type is index_by_index or gather:
             # Retrieve the pertinent local data prior to mpi send/receive operations
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
@@ -196,22 +197,22 @@ class Data(np.ndarray):
                                self._distributor.all_coords, comm)
 
             it = np.nditer(owners, flags=['refs_ok', 'multi_index'])
-            if not isinstance(gather, int):
+            if not gather:
                 retval = Data(local_val.shape, local_val.dtype.type,
                               decomposition=local_val._decomposition,
                               modulo=(False,)*len(local_val.shape))
-            elif rank == gather:
+            elif rank == gather_rank:
                 retval = np.zeros(it.shape)
             else:
                 retval = np.empty((0, )*len(it.shape))
             # Iterate over each element of data
             while not it.finished:
                 index = it.multi_index
-                send_rank = gather if isinstance(gather, int) else send[index]
+                send_rank = gather_rank if gather else send[index]
                 if rank == owners[index] and rank == send_rank:
                     # Current index and destination index are on the same rank
                     loc_ind = local_si[index]
-                    if isinstance(gather, int):
+                    if gather:
                         loc_ind = local_si[index]
                         retval[global_si[index]] = local_val.data[loc_ind]
                     else:
@@ -221,7 +222,7 @@ class Data(np.ndarray):
                     # Current index is on this rank and hence need to send
                     # the data to the appropriate rank
                     loc_ind = local_si[index]
-                    send_rank = gather if isinstance(gather, int) else send[index]
+                    send_rank = gather_rank if gather else send[index]
                     send_ind = global_si[index]
                     send_val = local_val.data[loc_ind]
                     reqs = comm.isend([send_ind, send_val], dest=send_rank)
@@ -230,7 +231,7 @@ class Data(np.ndarray):
                     # Current rank is required to receive data from this index
                     recval = comm.irecv(source=owners[index])
                     local_dat = recval.wait()
-                    if isinstance(gather, int):
+                    if gather:
                         retval[local_dat[0]] = local_dat[1]
                     else:
                         loc_ind = local_si[local_dat[0]]
@@ -504,10 +505,10 @@ class Data(np.ndarray):
             idx.append(slice(i, j, k))
         idx = tuple(idx)
         if self._distributor.is_parallel and self._distributor.nprocs > 1:
-            gather = rank
+            gather_rank = rank
         else:
-            gather = None
-        return np.array(self.__getitem__(idx, gather=gather))
+            gather_rank = None
+        return np.array(self.__getitem__(idx, gather_rank=gather_rank))
 
     def reset(self):
         """Set all Data entries to 0."""

@@ -1264,7 +1264,7 @@ class TestDataGather(object):
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('rank', [0, 1, 2, 3])
     def test_simple_gather(self, rank):
-        """ Fill me in."""
+        """ Test a simple gather on various ranks."""
         grid = Grid(shape=(10, 10), extent=(9, 9))
         f = Function(name='f', grid=grid, dtype=np.int32)
         res = np.arange(100).reshape(grid.shape)
@@ -1285,7 +1285,7 @@ class TestDataGather(object):
         (1, 8, 3),
         ((0, 4), None, (2, 1))])
     def test_sliced_gather_2D(self, start, stop, step):
-        """ Fill me in."""
+        """ Test gather for various 2D slices."""
         grid = Grid(shape=(10, 10), extent=(9, 9))
         f = Function(name='f', grid=grid, dtype=np.int32)
         dat = np.arange(100).reshape(grid.shape)
@@ -1319,7 +1319,7 @@ class TestDataGather(object):
         (1, 8, 3),
         ((0, 4, 4), None, (2, 1, 1))])
     def test_sliced_gather_3D(self, start, stop, step):
-        """ Fill me in."""
+        """ Test gather for various 2D slices."""
         grid = Grid(shape=(10, 10, 10), extent=(9, 9, 9))
         f = Function(name='f', grid=grid, dtype=np.int32)
         dat = np.arange(1000).reshape(grid.shape)
