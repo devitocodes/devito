@@ -990,7 +990,9 @@ class Function(DiscreteFunction):
         self._is_parameter = kwargs.get('parameter', False)
 
     def __fd_setup__(self):
-        # Dynamically add derivative short-cuts
+        """
+        Dynamically add derivative short-cuts.
+        """
         return generate_fd_shortcuts(self.dimensions, self.space_order)
 
     @cached_property
@@ -1308,7 +1310,9 @@ class TimeFunction(Function):
         self.save = kwargs.get('save')
 
     def __fd_setup__(self):
-        # Dynamically add derivative short-cuts
+        """
+        Dynamically add derivative short-cuts.
+        """
         return generate_fd_shortcuts(self.dimensions, self.space_order,
                                      to=self.time_order)
 

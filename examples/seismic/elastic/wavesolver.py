@@ -79,10 +79,10 @@ class ElasticWaveSolver(object):
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
         save_t = src.nt if save else None
-        v = VectorTimeFunction(name='v', grid=self.model.grid, save=save_t,
-                               space_order=self.space_order, time_order=1)
-        tau = TensorTimeFunction(name='tau', grid=self.model.grid, save=save_t,
-                                 space_order=self.space_order, time_order=1)
+        v = v or VectorTimeFunction(name='v', grid=self.model.grid, save=save_t,
+                                    space_order=self.space_order, time_order=1)
+        tau = tau or TensorTimeFunction(name='tau', grid=self.model.grid, save=save_t,
+                                        space_order=self.space_order, time_order=1)
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})
         # Pick Lame parameters from model unless explicitly provided

@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from cached_property import cached_property
 
 import numpy as np
 from sympy import Dummy
@@ -66,8 +67,11 @@ class TensorFunction(AbstractTensor):
         Staggering of each component, needs to have the size of the tensor. Defaults
         to the Dimensions.
     """
+
     _is_TimeDependent = False
+
     _sub_type = Function
+
     _class_priority = 10
     _op_priority = Differentiable._op_priority + 1.
 
@@ -187,14 +191,9 @@ class TensorFunction(AbstractTensor):
         """Spatial dimensions."""
         return self._space_dimensions
 
-    @property
+    @cached_property
     def space_order(self):
         """The space order for all components."""
-        return ({a.space_order for a in self} - {None}).pop()
-
-    @property
-    def time_order(self):
-        """The time order for all components."""
         return ({a.space_order for a in self} - {None}).pop()
 
     @property
@@ -265,8 +264,10 @@ class VectorFunction(TensorFunction):
 
     is_VectorValued = True
     is_TensorValued = False
-    _is_TimeDependent = False
+
     _sub_type = Function
+
+    _is_TimeDependent = False
 
     @property
     def is_transposed(self):
@@ -367,19 +368,30 @@ class TensorTimeFunction(TensorFunction):
     """
     Time varying TensorFunction.
     """
+
     is_TensorValued = True
-    _is_TimeDependent = True
+
     _sub_type = TimeFunction
+
+    _is_TimeDependent = True
+
+    @cached_property
+    def time_order(self):
+        """The time order for all components."""
+        return ({a.time_order for a in self} - {None}).pop()
 
 
 class VectorTimeFunction(VectorFunction, TensorTimeFunction):
     """
     Time varying VectorFunction.
     """
+
     is_VectorValued = True
     is_TensorValued = False
-    _is_TimeDependent = True
+
     _sub_type = TimeFunction
+
+    _is_TimeDependent = True
     _time_position = 0
 
 

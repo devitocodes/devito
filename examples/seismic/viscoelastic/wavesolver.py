@@ -91,14 +91,14 @@ class ViscoelasticWaveSolver(object):
 
         # Create all the fields v, tau, r
         save_t = src.nt if save else None
-        v = VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
-                               time_order=1, space_order=self.space_order)
+        v = v or VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
+                                    time_order=1, space_order=self.space_order)
         # Stress:
-        tau = TensorTimeFunction(name='t', grid=self.model.grid, save=save_t,
-                                 space_order=self.space_order, time_order=1)
+        tau = tau or TensorTimeFunction(name='t', grid=self.model.grid, save=save_t,
+                                        space_order=self.space_order, time_order=1)
         # Memory variable:
-        r = TensorTimeFunction(name='r', grid=self.model.grid, save=save_t,
-                               space_order=self.space_order, time_order=1)
+        r = r or TensorTimeFunction(name='r', grid=self.model.grid, save=save_t,
+                                    space_order=self.space_order, time_order=1)
 
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})

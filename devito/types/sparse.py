@@ -45,7 +45,9 @@ class AbstractSparseFunction(DiscreteFunction):
         self._fd = self.__fd_setup__()
 
     def __fd_setup__(self):
-        # Dynamically add derivative short-cuts
+        """
+        Dynamically add derivative short-cuts.
+        """
         return generate_fd_shortcuts(self.dimensions, self.space_order)
 
     @classmethod
@@ -358,7 +360,9 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
         super(AbstractSparseTimeFunction, self).__init_finalize__(*args, **kwargs)
 
     def __fd_setup__(self):
-        # Dynamically add derivative short-cuts
+        """
+        Dynamically add derivative short-cuts.
+        """
         return generate_fd_shortcuts(self.dimensions, self.space_order,
                                      to=self.time_order)
 
