@@ -4,15 +4,17 @@ from ctypes import c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
+from subprocess import DEVNULL, PIPE, run
 from time import time as seq_time
 import os
 
+import cgen as c
 from cached_property import cached_property
 
-from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
-                           FindNodes, Transformer)
+from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
+                           Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
-from devito.logger import warning
+from devito.logger import warning, error
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
@@ -234,7 +236,12 @@ class AdvancedProfiler(Profiler):
 
 class AdvisorProfiler(AdvancedProfiler):
 
-    """Rely on Intel Advisor ``v >= 2018`` for performance profiling."""
+    """
+    Rely on Intel Advisor ``v >= 2020`` for performance profiling.
+    Tested versions of Intel Advisor:
+    - As contained in Intel Parallel Studio 2020 v 2020 Update 2
+    - As contained in Intel oneAPI 2021 beta08
+    """
 
     _api_resume = '__itt_resume'
     _api_pause = '__itt_pause'
@@ -244,7 +251,6 @@ class AdvisorProfiler(AdvancedProfiler):
     _ext_calls = [_api_resume, _api_pause]
 
     def __init__(self, name):
-
         self.path = locate_intel_advisor()
         if self.path is None:
             self.initialized = False
@@ -260,13 +266,19 @@ class AdvisorProfiler(AdvancedProfiler):
             compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
 
     def instrument(self, iet):
-        sections = FindNodes(Section).visit(iet)
+        # Look for the presence of a time loop within the IET of the Operator
+        found = False
+        for node in FindNodes(Iteration).visit(iet):
+            if node.dim.is_Time:
+                found = True
+                break
 
-        # Transform the Iteration/Expression tree introducing Advisor calls that
-        # resume and stop data collection
-        mapper = {i: List(body=[Call(self._api_resume), i, Call(self._api_pause)])
-                  for i in sections}
-        iet = Transformer(mapper).visit(iet)
+        if found:
+            # The calls to Advisor's Collection Control API are only for Operators with
+            # a time loop
+            return List(header=c.Statement('%s()' % self._api_resume),
+                        body=iet,
+                        footer=c.Statement('%s()' % self._api_pause))
 
         return iet
 
@@ -393,7 +405,8 @@ class PerformanceSummary(OrderedDict):
 
 def create_profile(name):
     """Create a new Profiler."""
-    if configuration['log-level'] in ['DEBUG', 'PERF']:
+    if configuration['log-level'] in ['DEBUG', 'PERF'] and \
+       configuration['profiling'] == 'basic':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'
     else:
@@ -419,14 +432,52 @@ profiler_registry = {
 
 
 def locate_intel_advisor():
+    """
+    Detect if Intel Advisor is installed on the machine and return
+    its location if it is.
+
+    """
+    path = None
+
     try:
-        path = Path(os.environ['ADVISOR_HOME'])
-        # Little hack: assuming a 64bit system
-        if path.joinpath('bin64').joinpath('advixe-cl').is_file():
-            return path
-        else:
-            warning("Requested `advisor` profiler, but couldn't locate executable")
-            return None
+        # Check if the directory to Intel Advisor is specified
+        path = Path(os.environ['DEVITO_ADVISOR_DIR'])
     except KeyError:
-        warning("Requested `advisor` profiler, but ADVISOR_HOME isn't set")
+        # Otherwise, 'sniff' the location of Advisor's directory
+        error_msg = 'Intel Advisor cannot be found on your system, consider if you'\
+                    ' have sourced its environment variables correctly. Information can'\
+                    ' be found at https://software.intel.com/content/www/us/en/develop/'\
+                    'documentation/advisor-user-guide/top/launch-the-intel-advisor/'\
+                    'intel-advisor-cli/setting-and-using-intel-advisor-environment'\
+                    '-variables.html'
+        try:
+            res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
+            ver = res.stdout.decode("utf-8")
+            if not ver:
+                error(error_msg)
+                return None
+        except (UnicodeDecodeError, FileNotFoundError):
+            error(error_msg)
+            return None
+
+        env_path = os.environ["PATH"]
+        env_path_dirs = env_path.split(":")
+
+        for env_path_dir in env_path_dirs:
+            # intel/advisor is the advisor directory for Intel Parallel Studio,
+            # intel/oneapi/advisor is the directory for Intel oneAPI
+            if "intel/advisor" in env_path_dir or "intel/oneapi/advisor" in env_path_dir:
+                path = Path(env_path_dir)
+                if path.name.startswith('bin'):
+                    path = path.parent
+
+        if not path:
+            error(error_msg)
+            return None
+
+    if path.joinpath('bin64').joinpath('advixe-cl').is_file():
+        return path
+    else:
+        warning("Requested `advisor` profiler, but couldn't locate executable"
+                "in advisor directory")
         return None
