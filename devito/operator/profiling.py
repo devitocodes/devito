@@ -403,42 +403,6 @@ class PerformanceSummary(OrderedDict):
         return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
-def sniff_advisor_location():
-    """
-    Detect if Intel Advisor is installed on the machine and return
-    its location if it is.
-
-    """
-    error_msg = 'Intel Advisor cannot be found on your system, consider if you'\
-                ' have sourced its environment variables correctly. Information can be'\
-                ' found at https://software.intel.com/content/www/us/en/develop/'\
-                'documentation/advisor-user-guide/top/launch-the-intel-advisor/'\
-                'intel-advisor-cli/setting-and-using-intel-advisor-environment'\
-                '-variables.html'
-    try:
-        res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
-        ver = res.stdout.decode("utf-8")
-        if not ver:
-            return None
-    except (UnicodeDecodeError, FileNotFoundError):
-        error(error_msg)
-        return None
-
-    env_path = os.environ["PATH"]
-    env_path_dirs = env_path.split(":")
-
-    for env_path_dir in env_path_dirs:
-        if "intel/advisor" in env_path_dir:
-            path = Path(env_path_dir)
-            # Little hack: the directory in path should be the binaries (to remove)
-            if path.name.startswith('bin'):
-                return path.parent
-            return path
-
-    error(error_msg)
-    return None
-
-
 def create_profile(name):
     """Create a new Profiler."""
     if configuration['log-level'] in ['DEBUG', 'PERF'] and \
@@ -480,8 +444,12 @@ def locate_intel_advisor():
         path = Path(os.environ['DEVITO_ADVISOR_DIR'])
     except KeyError:
         # Otherwise, 'sniff' the location of Advisor's directory
-        error_msg = "Intel Advisor cannot be found on your system, consider if you"\
-                    "have sourced its environment variables correctly."
+        error_msg = 'Intel Advisor cannot be found on your system, consider if you'\
+                    ' have sourced its environment variables correctly. Information can'\
+                    ' be found at https://software.intel.com/content/www/us/en/develop/'\
+                    'documentation/advisor-user-guide/top/launch-the-intel-advisor/'\
+                    'intel-advisor-cli/setting-and-using-intel-advisor-environment'\
+                    '-variables.html'
         try:
             res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
             ver = res.stdout.decode("utf-8")
@@ -507,7 +475,6 @@ def locate_intel_advisor():
             error(error_msg)
             return None
 
-    # Little hack: assuming a 64bit system
     if path.joinpath('bin64').joinpath('advixe-cl').is_file():
         return path
     else:
