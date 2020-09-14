@@ -408,7 +408,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         return self.data_domain
 
-    def data_gather(self, rank=0, step=1, start=None, stop=None):
+    def data_gather(self, start=None, stop=None, step=1, rank=0):
         """
         Gather distributed `Data` attached to a `Function` onto a single rank.
 
@@ -422,11 +422,15 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             The `slice` start in each dimension.
         stop : int or tuple of ints
             The final point of the `slice` to include.
+
         Notes
         -----
-        Notes will go here.
+        Alias to ``self.data._gather``.
+
+        Note that gathering data from large simulations onto a single rank may
+        result in memory blow-up and hence should use this method judiciously.
         """
-        return self.data._gather(rank=rank, step=step, start=start, stop=stop)
+        return self.data._gather(start=start, stop=stop, step=step, rank=rank)
 
     @property
     @_allocate_memory

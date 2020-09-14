@@ -1276,6 +1276,74 @@ class TestDataGather(object):
         else:
             assert ans.shape == (0, )*len(grid.shape)
 
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('start, stop, step', [
+        (None, None, None),
+        (None, None, 2),
+        (None, None, -1),
+        (None, None, -2),
+        (1, 8, 3),
+        ((0, 4), None, (2, 1))])
+    def test_sliced_gather_2D(self, start, stop, step):
+        """ Fill me in."""
+        grid = Grid(shape=(10, 10), extent=(9, 9))
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        dat = np.arange(100).reshape(grid.shape)
+
+        if isinstance(step, int) or step is None:
+            step = [step for _ in grid.shape]
+        if isinstance(start, int) or start is None:
+            start = [start for _ in grid.shape]
+        if isinstance(stop, int) or stop is None:
+            stop = [stop for _ in grid.shape]
+        idx = []
+        for i, j, k in zip(start, stop, step):
+            idx.append(slice(i, j, k))
+        idx = tuple(idx)
+
+        res = dat[idx]
+        f.data[:] = dat
+        myrank = grid._distributor.comm.Get_rank()
+        ans = f.data_gather(start=start, stop=stop, step=step)
+        if myrank == 0:
+            assert np.all(ans == res)
+        else:
+            assert ans.shape == (0, )*len(grid.shape)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('start, stop, step', [
+        (None, None, None),
+        (None, None, 2),
+        (None, None, -1),
+        (None, None, -2),
+        (1, 8, 3),
+        ((0, 4, 4), None, (2, 1, 1))])
+    def test_sliced_gather_3D(self, start, stop, step):
+        """ Fill me in."""
+        grid = Grid(shape=(10, 10, 10), extent=(9, 9, 9))
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        dat = np.arange(1000).reshape(grid.shape)
+
+        if isinstance(step, int) or step is None:
+            step = [step for _ in grid.shape]
+        if isinstance(start, int) or start is None:
+            start = [start for _ in grid.shape]
+        if isinstance(stop, int) or stop is None:
+            stop = [stop for _ in grid.shape]
+        idx = []
+        for i, j, k in zip(start, stop, step):
+            idx.append(slice(i, j, k))
+        idx = tuple(idx)
+
+        res = dat[idx]
+        f.data[:] = dat
+        myrank = grid._distributor.comm.Get_rank()
+        ans = f.data_gather(start=start, stop=stop, step=step)
+        if myrank == 0:
+            assert np.all(ans == res)
+        else:
+            assert ans.shape == (0, )*len(grid.shape)
+
 
 def test_scalar_arg_substitution():
     """
