@@ -27,7 +27,7 @@ from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
-__all__ = ['Function', 'TimeFunction']
+__all__ = ['Function', 'TimeFunction', 'SubFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')

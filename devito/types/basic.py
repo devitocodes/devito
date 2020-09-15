@@ -11,12 +11,12 @@ from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.data import default_allocator
-from devito.finite_differences import Evaluable
 from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
                           frozendict, memoized_meth)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
+from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject', 'CompositeObject']
