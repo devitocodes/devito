@@ -13,7 +13,7 @@ from matplotlib.ticker import ScalarFormatter
 import matplotlib.pyplot as plt  # noqa
 import sys
 
-from benchmarks.user.advisor.run_advisor import log, check
+from benchmarks.user.advisor.advisor_logging import log, check
 
 
 try:
