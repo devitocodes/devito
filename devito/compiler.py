@@ -90,6 +90,8 @@ def sniff_mpi_distro(mpiexec):
             return 'OpenMPI'
         elif "HYDRA" in ver:
             return 'MPICH'
+        elif "Intel(R) MPI" in ver:
+            return 'IntelMPI'
     except (CalledProcessError, UnicodeDecodeError):
         pass
     return 'unknown'
