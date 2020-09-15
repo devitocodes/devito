@@ -11,8 +11,8 @@ from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
-           'DefFunction', 'Macro', 'Literal', 'INT', 'FLOAT', 'DOUBLE', 'FLOOR',
-           'cast_mapper']
+           'DefFunction', 'InlineIf', 'Macro', 'Literal', 'INT', 'FLOAT', 'DOUBLE',
+           'FLOOR', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -102,7 +102,7 @@ class FunctionFromPointer(sympy.Expr, Pickable):
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
         args.append(pointer)
-        if isinstance(function, FunctionFromPointer):
+        if isinstance(function, (DefFunction, FunctionFromPointer)):
             args.append(function)
         elif not isinstance(function, str):
             raise ValueError("`function` must be FunctionFromPointer or str")
@@ -325,6 +325,47 @@ class DefFunction(Function, Pickable):
     # Pickling support
     _pickle_args = ['name']
     _pickle_kwargs = ['arguments']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class InlineIf(sympy.Expr, Pickable):
+
+    """
+    Symbolic representation of the C notation ``(C) ? a : b``.
+    """
+
+    def __new__(cls, cond, true_expr, false_expr):
+        if not isinstance(cond, sympy.relational.Relational):
+            raise ValueError("`cond` must be of type sympy.relational.Relational")
+        if not isinstance(true_expr, sympy.Expr):
+            raise ValueError("`true_expr` must be of type sympy.Expr")
+        if not isinstance(false_expr, sympy.Expr):
+            raise ValueError("`false_expr` must be of type sympy.Expr")
+        obj = sympy.Expr.__new__(cls, cond, true_expr, false_expr)
+        obj._cond = cond
+        obj._true_expr = true_expr
+        obj._false_expr = false_expr
+        return obj
+
+    @property
+    def cond(self):
+        return self._cond
+
+    @property
+    def true_expr(self):
+        return self._true_expr
+
+    @property
+    def false_expr(self):
+        return self._false_expr
+
+    def __str__(self):
+        return "(%s) ? %s : %s" % (self.cond, self.true_expr, self.false_expr)
+
+    __repr__ = __str__
+
+    # Pickling support
+    _pickle_args = ['cond', 'true_expr', 'false_expr']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
