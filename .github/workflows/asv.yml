@@ -89,7 +89,7 @@ jobs:
         asv run -v --strict --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine F8s_v2
 
     - name: Checkout asv-results branch
-      uses: actions/checkoutv2.3.2
+      uses: actions/checkout@v2.3.2
       with:
         ref: asv-results
         clean: false
