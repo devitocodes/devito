@@ -522,7 +522,7 @@ class TestNodeParallelism(object):
         assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
 
     @pytest.mark.parametrize('so', [0, 1, 2])
-    @pytest.mark.parametrize('dim', [1, 2])
+    @pytest.mark.parametrize('dim', [0, 1, 2])
     def test_array_reduction(self, so, dim):
         """
         Test generation of OpenMP reduction clauses involving Function's.
