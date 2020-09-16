@@ -1319,7 +1319,7 @@ class TestDataGather(object):
         (1, 8, 3),
         ((0, 4, 4), None, (2, 1, 1))])
     def test_sliced_gather_3D(self, start, stop, step):
-        """ Test gather for various 2D slices."""
+        """ Test gather for various 3D slices."""
         grid = Grid(shape=(10, 10, 10), extent=(9, 9, 9))
         f = Function(name='f', grid=grid, dtype=np.int32)
         dat = np.arange(1000).reshape(grid.shape)
