@@ -1,7 +1,6 @@
 from devito.tools import memoized_meth
 from devito import VectorTimeFunction, TensorTimeFunction
 
-from examples.seismic import Receiver
 from examples.seismic.elastic.operators import ForwardOperator
 
 
@@ -23,6 +22,7 @@ class ElasticWaveSolver(object):
     """
     def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
+        self.model._initialize_bcs(bcs="mask")
         self.geometry = geometry
 
         self.space_order = space_order
@@ -74,12 +74,8 @@ class ElasticWaveSolver(object):
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
         # Create a new receiver object to store the result
-        rec1 = rec1 or Receiver(name='rec1', grid=self.model.grid,
-                                time_range=self.geometry.time_axis,
-                                coordinates=self.geometry.rec_positions)
-        rec2 = rec2 or Receiver(name='rec2', grid=self.model.grid,
-                                time_range=self.geometry.time_axis,
-                                coordinates=self.geometry.rec_positions)
+        rec1 = rec1 or self.geometry.new_rec(name='rec1')
+        rec2 = rec2 or self.geometry.new_rec(name='rec2')
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
         save_t = src.nt if save else None

@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import sys
 
-from run_advisor import check
+from benchmarks.user.advisor.advisor_logging import check
 
 
 try:

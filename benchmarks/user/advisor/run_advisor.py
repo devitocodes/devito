@@ -1,11 +1,16 @@
+import datetime
+import logging
 import os
-import sys
 from pathlib import Path
-from subprocess import check_call, check_output
+from subprocess import check_output, PIPE, Popen
+import sys
 from tempfile import gettempdir, mkdtemp
-from contextlib import contextmanager
 
 import click
+
+
+from benchmarks.user.advisor.advisor_logging import (check, log, progress,
+                                                     log_process)
 
 
 @click.command()
@@ -59,8 +64,8 @@ def run_with_advisor(path, output, name, exec_args):
     os.environ['DEVITO_PROFILING'] = 'advisor'
 
     # Devito Logging is disabled unless the user asks explicitly to see it
-    logging = os.environ.get('DEVITO_LOGGING')
-    if logging is None:
+    devito_logging = os.environ.get('DEVITO_LOGGING')
+    if devito_logging is None:
         os.environ['DEVITO_LOGGING'] = 'WARNING'
 
     with progress('Set up multi-threading environment'):
@@ -119,43 +124,46 @@ def run_with_advisor(path, output, name, exec_args):
     # run to warmup the jit cache
 
     log('Starting Intel Advisor\'s `roofline` analysis for `%s`' % name)
+    dt = datetime.datetime.now()
+
+    # Set up a file logger that will track the output of the advisor profiling
+    advixe_logger = logging.getLogger('run_advisor_logger')
+    advixe_logger.setLevel(logging.INFO)
+
+    advixe_formatter = logging.Formatter('%(asctime)s: %(message)s')
+    logger_datetime = '%d.%d.%d.%d.%d.%d' % (dt.year, dt.month,
+                                             dt.day, dt.hour, dt.minute, dt.second)
+    advixe_handler = logging.FileHandler('%s/%s_%s.log' % (output, name, logger_datetime))
+    advixe_handler.setFormatter(advixe_formatter)
+    advixe_logger.addHandler(advixe_handler)
 
     with progress('Performing `cache warm-up` run'):
-        check(check_call(py_cmd) == 0, 'Failed!')
+        try:
+            p_warm_up = Popen(py_cmd, stdout=PIPE, stderr=PIPE)
+            log_process(p_warm_up, advixe_logger)
+        except OSError:
+            check(False, 'Failed!')
 
     with progress('Performing `survey` analysis'):
         cmd = numactl_cmd + ['--'] + advisor_cmd + advisor_survey + ['--'] + py_cmd
-        check(check_call(cmd) == 0, 'Failed!')
+        try:
+            p_survey = Popen(cmd, stdout=PIPE, stderr=PIPE)
+            log_process(p_survey, advixe_logger)
+        except OSError:
+            check(False, 'Failed!')
 
     with progress('Performing `tripcounts` analysis'):
         cmd = numactl_cmd + ['--'] + advisor_cmd + advisor_flops + ['--'] + py_cmd
-        check(check_call(cmd) == 0, 'Failed!')
+        try:
+            p_tripcounts = Popen(cmd, stdout=PIPE, stderr=PIPE)
+            log_process(p_tripcounts, advixe_logger)
+        except OSError:
+            check(False, 'Failed!')
 
     log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
     log('To plot a roofline type: ')
     log('python3 roofline.py --name %s --project %s --scale %f'
         % (name, str(output), n_sockets))
-
-
-def check(cond, msg):
-    if not cond:
-        err(msg)
-        sys.exit(1)
-
-
-def err(msg):
-    print('\033[1;37;31m%s\033[0m' % msg)  # print in RED
-
-
-def log(msg):
-    print('\033[1;37;32m%s\033[0m' % msg)  # print in GREEN
-
-
-@contextmanager
-def progress(msg):
-    print('\033[1;37;32m%s ... \033[0m' % msg, end='', flush=True)  # print in GREEN
-    yield
-    print('\033[1;37;32m%s\033[0m' % 'Done!')
 
 
 if __name__ == '__main__':

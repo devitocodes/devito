@@ -472,10 +472,10 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
 
     There are four relevant AbstractTensor sub-types: ::
 
-        * TensorFunction: A space-varying tensor valued function
-        * VectorFunction: A space-varying vector valued function
-        * TensorTimeFunction: A time-space-varying tensor valued function
-        * VectorTimeFunction: A time-space-varying vector valued function
+        * TensorFunction: A space-varying tensor valued function.
+        * VectorFunction: A space-varying vector valued function.
+        * TensorTimeFunction: A time-space-varying tensor valued function.
+        * VectorTimeFunction: A time-space-varying vector valued function.
     """
     # Sympy attributes
     is_MatrixLike = True

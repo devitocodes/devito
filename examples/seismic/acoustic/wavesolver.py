@@ -1,6 +1,5 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
-from examples.seismic import PointSource
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
@@ -28,9 +27,10 @@ class AcousticWaveSolver(object):
     """
     def __init__(self, model, geometry, kernel='OT2', space_order=4, **kwargs):
         self.model = model
+        self.model._initialize_bcs(bcs="damp")
         self.geometry = geometry
 
-        assert self.model == geometry.model
+        assert self.model.grid == geometry.grid
 
         self.space_order = space_order
         self.kernel = kernel
@@ -136,9 +136,7 @@ class AcousticWaveSolver(object):
         Adjoint source, wavefield and performance summary.
         """
         # Create a new adjoint source and receiver symbol
-        srca = srca or PointSource(name='srca', grid=self.model.grid,
-                                   time_range=self.geometry.time_axis,
-                                   coordinates=self.geometry.src_positions)
+        srca = srca or self.geometry.new_src(name='srca', src_type=None)
 
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
