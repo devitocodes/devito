@@ -5,9 +5,12 @@ from pathlib import Path
 from subprocess import check_output, PIPE, Popen
 import sys
 from tempfile import gettempdir, mkdtemp
-from contextlib import contextmanager
 
 import click
+
+
+from benchmarks.user.advisor.advisor_logging import (check, log, progress,
+                                                     log_process)
 
 
 @click.command()
@@ -161,38 +164,6 @@ def run_with_advisor(path, output, name, exec_args):
     log('To plot a roofline type: ')
     log('python3 roofline.py --name %s --project %s --scale %f'
         % (name, str(output), n_sockets))
-
-
-def check(cond, msg):
-    if not cond:
-        err(msg)
-        sys.exit(1)
-
-
-def err(msg):
-    print('\033[1;37;31m%s\033[0m' % msg)  # print in RED
-
-
-def log(msg):
-    print('\033[1;37;32m%s\033[0m' % msg)  # print in GREEN
-
-
-@contextmanager
-def progress(msg):
-    print('\033[1;37;32m%s ... \033[0m' % msg, end='', flush=True)  # print in GREEN
-    yield
-    print('\033[1;37;32m%s\033[0m' % 'Done!')
-
-
-def log_process(process, logger):
-    output, errors = process.communicate()
-    for output_line in output.splitlines():
-        logger.info(output_line.decode('utf-8'))
-    for error_line in errors.splitlines():
-        logger.error(error_line.decode('utf-8'))
-
-    if process.returncode != 0:
-        check(False, 'Failed!')
 
 
 if __name__ == '__main__':
