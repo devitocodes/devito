@@ -139,7 +139,7 @@ class GenericModel(object):
             re_init = ((bcs == "mask" and mmin(self.damp) == 0) or
                        (bcs == "damp" and mmax(self.damp) == 1))
             if init or re_init:
-                if re_init:
+                if re_init and not init:
                     bcs_o = "damp" if bcs == "mask" else "mask"
                     warning("Re-initializing damp profile from %s to %s" % (bcs_o, bcs))
                     warning("Model has to be created with `bcs=\"%s\"`"
