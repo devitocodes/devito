@@ -101,13 +101,15 @@ jobs:
     - name: Compiler notebooks
       run: |
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/compiler
-        
     - name: Finance notebooks
       run: |
         $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/finance
     - name: Performance notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance    
+    - name: ABC Notebooks
+      run: |
+        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/seismic/abc_methods
     - name: Upload coverage to Codecov
       if: matrix.name != 'tutos-docker-gcc-py36'
       uses: codecov/codecov-action@v1.0.6
@@ -115,6 +117,3 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
         file: ./*_coverage.xml
-     - name: ABC Notebooks
-      run: |
-      $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/seismic/abc_methods
