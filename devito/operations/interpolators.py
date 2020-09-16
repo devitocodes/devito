@@ -232,20 +232,20 @@ class LinearInterpolator(GenericInterpolator):
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
 
-            # FIXME: Maybe needs a re-think wrt placement?
-            # NOTE: Probably other better approaches available
-            # Add idx_subs for `Function`'s on `SubDomain`'s
-            add_subs = []
-            fosd = set([f for f in retrieve_functions(expr, mode='unique')
-                        if f.is_Function and f._subdomain])
-            if len(fosd) > 1:
-                raise NotImplementedError
-            for f in fosd:
-                dims = f._subdomain.dimensions
-                for i in idx_subs:
-                    add_subs.append({k: v.subs({d: v for d, v in zip(dims, i.values())})
-                                     for k, v in f._subdomain._access_map.items()})
-                idx_subs = add_subs
+            ## FIXME: Maybe needs a re-think wrt placement?
+            ## NOTE: Probably other better approaches available
+            ## Add idx_subs for `Function`'s on `SubDomain`'s
+            #add_subs = []
+            #fosd = set([f for f in retrieve_functions(expr, mode='unique')
+                        #if f.is_Function and f._subdomain])
+            #if len(fosd) > 1:
+                #raise NotImplementedError
+            #for f in fosd:
+                #dims = f._subdomain.dimensions
+                #for i in idx_subs:
+                    #add_subs.append({k: v.subs({d: v for d, v in zip(dims, i.values())})
+                                     #for k, v in f._subdomain._access_map.items()})
+                #idx_subs = add_subs
 
             # Substitute coordinate base symbols into the interpolation coefficients
             args = [_expr.xreplace(v_sub) * b.xreplace(v_sub)
@@ -294,14 +294,14 @@ class LinearInterpolator(GenericInterpolator):
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
             add_subs = []
-            fosd = set([f for f in as_list(field) if f.is_Function and f._subdomain])
-            if len(fosd) > 1:
-                raise NotImplementedError
-            for f in fosd:
-                dims = f._subdomain.dimensions
-                for i in idx_subs:
-                    add_subs.append({k: v.subs({d: v for d, v in zip(dims, i.values())})
-                                     for k, v in f._subdomain._access_map.items()})
+            #fosd = set([f for f in as_list(field) if f.is_Function and f._subdomain])
+            #if len(fosd) > 1:
+                #raise NotImplementedError
+            #for f in fosd:
+                #dims = f._subdomain.dimensions
+                #for i in idx_subs:
+                    #add_subs.append({k: v.subs({d: v for d, v in zip(dims, i.values())})
+                                     #for k, v in f._subdomain._access_map.items()})
 
             # Substitute coordinate base symbols into the interpolation coefficients
             if add_subs:

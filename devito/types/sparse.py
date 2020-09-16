@@ -116,6 +116,7 @@ class AbstractSparseFunction(DiscreteFunction):
             support = [range(max(0, j - self._radius + 1), min(M, j + self._radius + 1))
                        for j, M in zip(i, self.grid.shape)]
             ret.append(tuple(product(*support)))
+        #from IPython import embed; embed()
         return tuple(ret)
 
     @property

@@ -453,7 +453,7 @@ class TestSubdomainFunctionsParallel(object):
         assert(np.all(f.data[:] == 1))
 
     # FIXME: Fix this for MPI
-    # @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=4)
     def test_acoustic_on_sd(self):
 
         class CompDom(SubDomain):
