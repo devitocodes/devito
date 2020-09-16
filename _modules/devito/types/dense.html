@@ -566,6 +566,30 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_domain</span>
 
+    <span class="k">def</span> <span class="nf">data_gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rank</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Gather distributed `Data` attached to a `Function` onto a single rank.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rank : int</span>
+<span class="sd">            The rank onto which the data will be gathered.</span>
+<span class="sd">        step : int or tuple of ints</span>
+<span class="sd">            The `slice` step in each dimension.</span>
+<span class="sd">        start : int or tuple of ints</span>
+<span class="sd">            The `slice` start in each dimension.</span>
+<span class="sd">        stop : int or tuple of ints</span>
+<span class="sd">            The final point of the `slice` to include.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Alias to ``self.data._gather``.</span>
+
+<span class="sd">        Note that gathering data from large simulations onto a single rank may</span>
+<span class="sd">        result in memory blow-up and hence should use this method judiciously.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_gather</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="n">stop</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">rank</span><span class="o">=</span><span class="n">rank</span><span class="p">)</span>
+
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
     <span class="k">def</span> <span class="nf">data_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
