@@ -86,7 +86,7 @@ class IterationInstance(LabeledVector):
                     retval.append(IRREGULAR)
             else:
                 retval.append(IRREGULAR)
-        return tuple(retval)
+        return EnrichedTuple(*retval, getters=self.findices)
 
     @cached_property
     def aindices(self):
@@ -108,35 +108,42 @@ class IterationInstance(LabeledVector):
         return self.labels
 
     @cached_property
-    def findices_affine(self):
-        return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im is AFFINE)
+    def defined_findices_affine(self):
+        ret = set()
+        for fi, im in zip(self.findices, self.index_mode):
+            if im is AFFINE:
+                ret.update(fi._defines)
+        return ret
 
     @cached_property
-    def findices_irregular(self):
-        return tuple(fi for fi, im in zip(self.findices, self.index_mode)
-                     if im is IRREGULAR)
+    def defined_findices_irregular(self):
+        ret = set()
+        for fi, im in zip(self.findices, self.index_mode):
+            if im is IRREGULAR:
+                ret.update(fi._defines)
+        return ret
 
     def affine(self, findices):
         """
         Return True if all of the provided findices appear in self and are
         affine, False otherwise.
         """
-        return set(as_tuple(findices)).issubset(set(self.findices_affine))
+        return set(as_tuple(findices)).issubset(self.defined_findices_affine)
 
     def affine_if_present(self, findices):
         """
         Return False if any of the provided findices appears in self and
         is not affine, True otherwise.
         """
-        findices = as_tuple(findices)
-        return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
+        present_findices = set(as_tuple(findices)) & set(self.findices)
+        return present_findices.issubset(self.defined_findices_affine)
 
     def irregular(self, findices):
         """
         Return True if all of the provided findices appear in self and are
         irregular, False otherwise.
         """
-        return set(as_tuple(findices)).issubset(set(self.findices_irregular))
+        return set(as_tuple(findices)).issubset(self.defined_findices_irregular)
 
     @cached_property
     def is_regular(self):
@@ -580,8 +587,18 @@ class Dependence(object):
                 # Note: we cannot just return `self.distance == 0` as an irregular
                 # source/sink might mean that an array is actually accessed indirectly
                 # (e.g., A[B[i]]), thus there would be no guarantee on independence
-                return False
-            elif dim is None:
+                # The only hope at this point is that the irregularity is not along
+                # `dim` *and* that the distance along `dim` is 0 (e.g., dim=x and
+                # f[x, g[x, y]] -> f[x, h[x, y]])
+                try:
+                    test0 = self.source.affine(dim)
+                    test1 = self.sink.affine(dim)
+                    test2 = self.distance_mapper[dim] == 0
+                    return test0 and test1 and test2
+                except KeyError:
+                    # `dim is None` or anything not in `self._defined_findices`
+                    return False
+            if dim is None:
                 return self.distance == 0
             else:
                 # Note: below, `i in self._defined_findices` is to check whether `i`
