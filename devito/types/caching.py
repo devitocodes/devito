@@ -149,7 +149,8 @@ class CacheManager(object):
         sympy.polys.fields._field_cache.clear()
         sympy.polys.domains.modularinteger._modular_integer_cache.clear()
 
-        items = list(_SymbolCache.items())
+        # Use .copy() for thread-safety
+        items = _SymbolCache.copy().items()
 
         # Maybe trigger garbage collection
         if force is False:
