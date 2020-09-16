@@ -11,7 +11,7 @@ from operator import attrgetter
 import cgen as c
 
 from devito.exceptions import VisitorException
-from devito.ir.iet.nodes import Node, Iteration, Expression, Call
+from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
@@ -187,7 +187,9 @@ class CGen(Visitor):
         for i in args:
             try:
                 if isinstance(i, Call):
-                    ret.append(self.visit(i).text)
+                    ret.append(self.visit(i, nested_call=True))
+                elif isinstance(i, Lambda):
+                    ret.append(self.visit(i))
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
                 elif i.is_ArrayBasic:
@@ -267,10 +269,9 @@ class CGen(Visitor):
     def visit_ForeignExpression(self, o):
         return c.Statement(ccode(o.expr))
 
-    def visit_Call(self, o):
+    def visit_Call(self, o, nested_call=False):
         arguments = self._args_call(o.arguments)
-        code = '%s(%s)' % (o.name, ','.join(arguments))
-        return c.Statement(code)
+        return MultilineCall(o.name, arguments, nested_call)
 
     def visit_Conditional(self, o):
         then_body = c.Block(self._visit(o.then_body))
@@ -330,6 +331,13 @@ class CGen(Visitor):
         decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
+
+    def visit_Lambda(self, o):
+        body = flatten(self._visit(i) for i in o.children)
+        captures = [str(i) for i in o.captures]
+        decls = [i.inline() for i in self._args_decl(o.parameters)]
+        top = c.Line('[%s](%s)' % (', '.join(captures), ', '.join(decls)))
+        return LambdaCollection([top, c.Block(body)])
 
     def visit_HaloSpot(self, o):
         body = flatten(self._visit(i) for i in o.children)
@@ -765,5 +773,41 @@ class XSubs(Transformer):
         return o._rebuild(expr=self.replacer(o.expr))
 
 
+# Utils
+
 def printAST(node, verbose=True):
     return PrintAST(verbose=verbose)._visit(node)
+
+
+class LambdaCollection(c.Collection):
+    pass
+
+
+class MultilineCall(c.Generable):
+
+    def __init__(self, name, arguments, nested_call):
+        self.name = name
+        self.arguments = as_tuple(arguments)
+        self.nested_call = nested_call
+
+    def generate(self):
+        tip = "%s(" % self.name
+        processed = []
+        for i in self.arguments:
+            if isinstance(i, (MultilineCall, LambdaCollection)):
+                lines = list(i.generate())
+                if len(lines) > 1:
+                    yield tip + ",".join(processed + [lines[0]])
+                    for line in lines[1:-1]:
+                        yield line
+                    tip = ""
+                    processed = [lines[-1]]
+                else:
+                    assert len(lines) == 1
+                    processed.append(lines[0])
+            else:
+                processed.append(str(i))
+        tip = tip + ",".join(processed) + ")"
+        if not self.nested_call:
+            tip += ";"
+        yield tip
