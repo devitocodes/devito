@@ -149,13 +149,15 @@ class CacheManager(object):
         sympy.polys.fields._field_cache.clear()
         sympy.polys.domains.modularinteger._modular_integer_cache.clear()
 
+        items = list(_SymbolCache.items())
+
         # Maybe trigger garbage collection
         if force is False:
             if cls.ncalls_w_force_false + 1 == cls.force_ths:
                 # Case 1: too long since we called gc.collect, let's do it now
                 gc.collect()
                 cls.ncalls_w_force_false = 0
-            elif any(i.nbytes > cls.gc_ths for i in _SymbolCache.values()):
+            elif any(v.nbytes > cls.gc_ths for _, v in items):
                 # Case 2: we got big objects in cache, we try to reclaim memory
                 gc.collect()
                 cls.ncalls_w_force_false = 0
@@ -165,6 +167,6 @@ class CacheManager(object):
         else:
             gc.collect()
 
-        for key, obj in list(_SymbolCache.items()):
+        for key, obj in items:
             if obj() is None:
                 del _SymbolCache[key]
