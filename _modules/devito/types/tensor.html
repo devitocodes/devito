@@ -157,21 +157,23 @@
             
   <h1>Source code for devito.types.tensor</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
-<span class="kn">import</span> <span class="nn">sympy</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">converter</span> <span class="k">as</span> <span class="n">sympify_converter</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Dummy</span>
 <span class="kn">from</span> <span class="nn">sympy.core.decorators</span> <span class="kn">import</span> <span class="n">call_highest_priority</span>
+<span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">converter</span> <span class="k">as</span> <span class="n">sympify_converter</span>
 
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span>
-<span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">AbstractTensor</span><span class="p">,</span> <span class="n">Basic</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">AbstractTensor</span>
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TimeFunction</span>
 <span class="kn">from</span> <span class="nn">devito.types.utils</span> <span class="kn">import</span> <span class="n">NODE</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TensorFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;TensorTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;VectorFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;VectorTimeFunction&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="TensorFunction"><a class="viewcode-back" href="../../../tensorfunction.html#devito.types.TensorFunction">[docs]</a><span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractTensor</span><span class="p">,</span> <span class="n">Differentiable</span><span class="p">):</span>
+<div class="viewcode-block" id="TensorFunction"><a class="viewcode-back" href="../../../tensorfunction.html#devito.types.TensorFunction">[docs]</a><span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractTensor</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor valued Function represented as a Matrix.</span>
 <span class="sd">    Each component is a Function or TimeFunction.</span>
@@ -181,6 +183,40 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Name of the symbol.</span>
+<span class="sd">    grid : Grid, optional</span>
+<span class="sd">        Carries shape, dimensions, and dtype of the TensorFunction. When grid is not</span>
+<span class="sd">        provided, shape and dimensions must be given. For MPI execution, a</span>
+<span class="sd">        Grid is compulsory.</span>
+<span class="sd">    space_order : int or 3-tuple of ints, optional</span>
+<span class="sd">        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also</span>
+<span class="sd">        impacts the number of points available around a generic point of interest.  By</span>
+<span class="sd">        default, ``space_order`` points are available on both sides of a generic point of</span>
+<span class="sd">        interest, including those nearby the grid boundary. Sometimes, fewer points</span>
+<span class="sd">        suffice; in other scenarios, more points are necessary. In such cases, instead of</span>
+<span class="sd">        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization</span>
+<span class="sd">        order (``o``) as well as the number of points on the left (``lp``) and right</span>
+<span class="sd">        (``rp``) sides of a generic point of interest.</span>
+<span class="sd">    shape : tuple of ints, optional</span>
+<span class="sd">        Shape of the domain region in grid points. Only necessary if ``grid`` isn&#39;t given.</span>
+<span class="sd">    dimensions : tuple of Dimension, optional</span>
+<span class="sd">        Dimensions associated with the object. Only necessary if ``grid`` isn&#39;t given.</span>
+<span class="sd">    dtype : data-type, optional</span>
+<span class="sd">        Any object that can be interpreted as a numpy data type. Defaults</span>
+<span class="sd">        to ``np.float32``.</span>
+<span class="sd">    staggered : Dimension or tuple of Dimension or Stagger, optional</span>
+<span class="sd">        Define how the TensorFunction is staggered.</span>
+<span class="sd">    initializer : callable or any object exposing the buffer interface, optional</span>
+<span class="sd">        Data initializer. If a callable is provided, data is allocated lazily.</span>
+<span class="sd">    allocator : MemoryAllocator, optional</span>
+<span class="sd">        Controller for memory allocation. To be used, for example, when one wants</span>
+<span class="sd">        to take advantage of the memory hierarchy in a NUMA architecture. Refer to</span>
+<span class="sd">        `default_allocator.__doc__` for more information.</span>
+<span class="sd">    padding : int or tuple of ints, optional</span>
+<span class="sd">        .. deprecated:: shouldn&#39;t be used; padding is now automatically inserted.</span>
+<span class="sd">        Allocate extra grid points to maximize data access alignment. When a tuple</span>
+<span class="sd">        of ints, one int per Dimension should be provided.</span>
 <span class="sd">    symmetric : bool, optional</span>
 <span class="sd">        Whether the tensor is symmetric or not. Defaults to True.</span>
 <span class="sd">    diagonal : Bool, optional</span>
@@ -189,16 +225,25 @@
 <span class="sd">        Staggering of each component, needs to have the size of the tensor. Defaults</span>
 <span class="sd">        to the Dimensions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_is_TimeDependent</span> <span class="o">=</span> <span class="kc">False</span>
+
     <span class="n">_sub_type</span> <span class="o">=</span> <span class="n">Function</span>
-    <span class="n">_op_priority</span> <span class="o">=</span> <span class="n">Differentiable</span><span class="o">.</span><span class="n">_op_priority</span> <span class="o">+</span> <span class="mf">2.</span>
+
     <span class="n">_class_priority</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">_op_priority</span> <span class="o">=</span> <span class="n">Differentiable</span><span class="o">.</span><span class="n">_op_priority</span> <span class="o">+</span> <span class="mf">1.</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_is_symmetric</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;symmetric&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_is_diagonal</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diagonal&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_staggered</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">args</span><span class="p">:</span>
+            <span class="n">comps</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="n">grid</span> <span class="o">=</span> <span class="n">comps</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">grid</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">grid</span> <span class="k">else</span> <span class="n">comps</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dimensions</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
+        <span class="n">inds</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span><span class="p">(</span><span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span>
+                                             <span class="n">dimensions</span><span class="o">=</span><span class="n">dimensions</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_space_dimensions</span> <span class="o">=</span> <span class="n">inds</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__subfunc_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -209,7 +254,7 @@
         <span class="n">comps</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;components&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">comps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">comps</span>
-        <span class="n">funcs</span> <span class="o">=</span> <span class="p">[]</span>
+
         <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;grid&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">dims</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
@@ -220,15 +265,19 @@
         <span class="n">stagg</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;staggered&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">)</span>
         <span class="n">symm</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;symmetric&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">diag</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diagonal&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">funcs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="c1"># Fill tensor, only upper diagonal if symmetric</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dims</span><span class="p">):</span>
-            <span class="n">funcs2</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span> <span class="k">if</span> <span class="n">symm</span> <span class="k">else</span> <span class="p">[]</span>
-            <span class="n">start</span> <span class="o">=</span> <span class="n">i</span> <span class="k">if</span> <span class="n">symm</span> <span class="k">else</span> <span class="mi">0</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">dims</span><span class="p">)):</span>
+            <span class="n">funcs2</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dims</span><span class="p">))]</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">i</span> <span class="k">if</span> <span class="p">(</span><span class="n">symm</span> <span class="ow">or</span> <span class="n">diag</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">diag</span> <span class="k">else</span> <span class="nb">len</span><span class="p">(</span><span class="n">dims</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">):</span>
                 <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dims</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
                 <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;staggered&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">stagg</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="k">if</span> <span class="n">stagg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
                                        <span class="k">else</span> <span class="p">(</span><span class="n">NODE</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">j</span> <span class="k">else</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">dims</span><span class="p">[</span><span class="n">j</span><span class="p">])))</span>
-                <span class="n">funcs2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_sub_type</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+                <span class="n">funcs2</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_sub_type</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="n">funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">funcs2</span><span class="p">)</span>
 
         <span class="c1"># Symmetrize and fill diagonal if symmetric</span>
@@ -236,6 +285,33 @@
             <span class="n">funcs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">funcs</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">funcs</span><span class="p">),</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
             <span class="n">funcs</span> <span class="o">=</span> <span class="n">funcs</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">funcs</span>
+
+    <span class="nd">@call_highest_priority</span><span class="p">(</span><span class="s1">&#39;__mul__&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__rmul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Prevents Functions to be interpreted as matrices in 2D becaue of `.shape`</span>
+<span class="sd">        TODO: Remove after sympy 1.7</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;is_DiscreteFunction&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">tmp_func</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">simplemul</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__rmul__</span><span class="p">(</span><span class="n">tmp_func</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">simplemul</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">tmp_func</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="c1"># honest sympy matrices defer to their class&#39;s routine</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;is_Matrix&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_matrix_rmul</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__rmul__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="nd">@call_highest_priority</span><span class="p">(</span><span class="s1">&#39;__rmul__&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__mul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Prevents Functions to be interpreted as matrices in 2D becaue of `.shape`</span>
+<span class="sd">        TODO: Remove after sympy 1.7</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;is_DiscreteFunction&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">tmp_func</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">simplemul</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__mul__</span><span class="p">(</span><span class="n">tmp_func</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">simplemul</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">tmp_func</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__mul__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="fm">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -245,115 +321,19 @@
 <span class="sd">        -----</span>
 <span class="sd">        This method acts as a fallback for __getattribute__</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">_fd</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
-        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%r</span><span class="s2"> object has no attribute </span><span class="si">%r</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
-
-    <span class="nd">@call_highest_priority</span><span class="p">(</span><span class="s1">&#39;__rmul__&#39;</span><span class="p">)</span>
-    <span class="k">def</span> <span class="fm">__mul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Multiplication of a TensorFunction T with u (T*u) where u can be a TensorFunction,</span>
-<span class="sd">        a VectorFunction or a Function/scalar.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">other</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">sympify</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="c1"># If multiply by a non Devito type defaults to sympy MatVec</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__mul__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="c1"># Scalar Mul</span>
-        <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">is_Function</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_scalar_rmul</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="c1"># Product of two vector</span>
-        <span class="k">elif</span> <span class="n">other</span><span class="o">.</span><span class="n">is_VectorValued</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_VectorValued</span><span class="p">:</span>
-            <span class="c1"># Incorrect size</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_transposed</span> <span class="ow">is</span> <span class="n">other</span><span class="o">.</span><span class="n">is_transposed</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Incompatible sizes&quot;</span><span class="p">)</span>
-            <span class="c1"># Inner product</span>
-            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_transposed</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">other</span><span class="o">.</span><span class="n">is_transposed</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">s1</span><span class="o">*</span><span class="n">s2</span> <span class="k">for</span> <span class="n">s1</span><span class="p">,</span> <span class="n">s2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">))</span>
-            <span class="c1"># Outer product</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># Only option left but double check</span>
-                <span class="k">assert</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_transposed</span> <span class="ow">and</span> <span class="n">other</span><span class="o">.</span><span class="n">is_transposed</span>
-
-                <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
-                    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">other</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">))</span>
-                <span class="n">comps</span> <span class="o">=</span> <span class="p">[[</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span>
-                         <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
-                <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-                <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-                <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-                <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                            <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                            <span class="n">diagonal</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="c1"># MatVec product</span>
-        <span class="k">elif</span> <span class="n">other</span><span class="o">.</span><span class="n">is_VectorValued</span><span class="p">:</span>
-            <span class="k">assert</span> <span class="n">other</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-
-            <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
-                <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="n">other</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">))</span>
-            <span class="n">comps</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
-            <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-            <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-            <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                        <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">)</span>
-        <span class="c1"># MatMat product</span>
-        <span class="k">elif</span> <span class="n">other</span><span class="o">.</span><span class="n">is_TensorValued</span><span class="p">:</span>
-            <span class="k">assert</span> <span class="n">other</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-
-            <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
-                <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="n">other</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">))</span>
-            <span class="n">comps</span> <span class="o">=</span> <span class="p">[[</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span>
-                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
-
-            <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-            <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-            <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="n">is_diag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span> <span class="ow">and</span> <span class="n">other</span><span class="o">.</span><span class="n">is_diagonal</span>
-            <span class="n">is_symm</span> <span class="o">=</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span> <span class="ow">and</span> <span class="n">other</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">)</span> <span class="ow">or</span>
-                       <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span> <span class="ow">and</span> <span class="n">other</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">)</span> <span class="ow">or</span>
-                       <span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">is_symmetric</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">))</span>
-            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                        <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="n">is_symm</span><span class="p">,</span>
-                        <span class="n">diagonal</span><span class="o">=</span><span class="n">is_diag</span><span class="p">)</span>
-        <span class="c1"># All cases should be covered but defaults to sympy if in another case</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__mul__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="fm">__rmul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Right multiplication of a TensorFunction T with u (u*T)</span>
-<span class="sd">        where u can be a TensorFunction, a VectorFunction or a Function/scalar.</span>
-<span class="sd">        Computes it via __mul__ with its transpose (T^T*u^T)^T.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">other</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">sympify</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">is_Function</span><span class="p">:</span>
-                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_scalar_mul</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="n">other</span><span class="o">.</span><span class="n">is_VectorValued</span> <span class="ow">or</span> <span class="n">other</span><span class="o">.</span><span class="n">is_TensorValued</span><span class="p">:</span>
-                <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="fm">__mul__</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">T</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__rmul__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__mul__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%r</span><span class="s2"> object has no attribute </span><span class="si">%r</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_eval_at</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Evaluate tensor at func location</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">entries</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
             <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="s1">&#39;_eval_at&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])(</span><span class="n">func</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span>
-        <span class="n">comps</span> <span class="o">=</span> <span class="p">[[</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">func</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
-                    <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">,</span>
-                    <span class="n">diagonal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">)</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">__dtype_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Function</span><span class="o">.</span><span class="n">__dtype_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">entries</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -361,86 +341,28 @@
                                           <span class="n">dimensions</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">))</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_diagonal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_diagonal</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_symmetric</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_symmetric</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">staggered</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_staggered</span>
+    <span class="k">def</span> <span class="nf">is_TimeDependent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_TimeDependent</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span>
+        <span class="sd">&quot;&quot;&quot;Spatial dimensions.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_dimensions</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">grid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
-
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">space_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_order</span>
+        <span class="sd">&quot;&quot;&quot;The space order for all components.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">({</span><span class="n">a</span><span class="o">.</span><span class="n">space_order</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">}</span> <span class="o">-</span> <span class="p">{</span><span class="kc">None</span><span class="p">})</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_diagonal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Whether the tensor is diagonal.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span>
+                       <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">j</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span>
-
-    <span class="c1"># Custom repr and str</span>
-    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;SymmetricTensor&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_symmetric</span> <span class="k">else</span> <span class="s2">&quot;Tensor&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_diagonal</span><span class="p">:</span>
-            <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;DiagonalTensor&quot;</span>
-        <span class="n">st</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39; </span><span class="si">%-2s</span><span class="s1">,&#39;</span> <span class="o">%</span> <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">st</span><span class="p">)</span>
-
-    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
-
-    <span class="k">def</span> <span class="nf">_sympy_</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_sympify</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">arg</span>
-
-    <span class="k">def</span> <span class="nf">_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
-        <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">=</span> <span class="n">args</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">j</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
-            <span class="k">return</span> <span class="mf">0.0</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="n">i</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_eval_transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span>
-        <span class="n">mat</span> <span class="o">=</span> <span class="p">[[</span><span class="bp">self</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_T&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">,</span>
-                    <span class="n">diagonal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">values</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">:</span>
@@ -451,41 +373,17 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">_eval_add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="n">mat</span> <span class="o">=</span> <span class="p">[[</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">other</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span>
-               <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">)))</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">,</span>
-                    <span class="n">diagonal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_eval_scalar_mul</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="n">mat</span> <span class="o">=</span> <span class="p">[[</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span><span class="o">*</span><span class="n">other</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">)))</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">,</span>
-                    <span class="n">diagonal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_eval_scalar_rmul</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_scalar_mul</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">div</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Divergence of the TensorFunction (is a VectorFunction).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">comps</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">):</span>
             <span class="n">comps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">sum</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="s1">&#39;d</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
                               <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">)]))</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;div_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                    <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">comps</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">laplace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -493,13 +391,11 @@
 <span class="sd">        Laplacian of the TensorFunction.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">comps</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">):</span>
             <span class="n">comps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">sum</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="s1">&#39;d</span><span class="si">%s</span><span class="s1">2&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
                               <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">)]))</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;lap_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                    <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">comps</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -507,84 +403,33 @@
 
     <span class="k">def</span> <span class="nf">new_from_mat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mat</span><span class="p">):</span>
         <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">,</span>
-                    <span class="n">diagonal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span> <span class="n">mat</span><span class="p">)</span>
 
-
-<div class="viewcode-block" id="TensorTimeFunction"><a class="viewcode-back" href="../../../tensortimefunction.html#devito.types.TensorTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TensorTimeFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Time varying TensorFunction.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">is_TimeDependent</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">is_TensorValued</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="n">_sub_type</span> <span class="o">=</span> <span class="n">TimeFunction</span>
-    <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span>
-
-    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">TensorTimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">TimeFunction</span><span class="o">.</span><span class="n">__indices_setup__</span><span class="p">(</span><span class="n">grid</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">),</span>
-                                              <span class="n">save</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">),</span>
-                                              <span class="n">dimensions</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">))</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">time_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_order</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for the time-forward state of the VectorTimeFunction.&quot;&quot;&quot;</span>
-        <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">1</span>
-        <span class="n">_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
-
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">_t</span><span class="p">:</span> <span class="n">_t</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">})</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for the time-forward state of the VectorTimeFunction.&quot;&quot;&quot;</span>
-        <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">1</span>
-        <span class="n">_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
-
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">_t</span><span class="p">:</span> <span class="n">_t</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">})</span></div>
+    <span class="k">def</span> <span class="nf">classof_prod</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">mat</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">is_mat</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mat</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">is_mat</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">is_time</span> <span class="o">=</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_is_TimeDependent&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span>
+                   <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;_is_TimeDependent&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">mat_time_dict</span><span class="p">[(</span><span class="n">is_time</span><span class="p">,</span> <span class="n">is_mat</span><span class="p">)]</span></div>
 
 
 <div class="viewcode-block" id="VectorFunction"><a class="viewcode-back" href="../../../vectorfunction.html#devito.types.VectorFunction">[docs]</a><span class="k">class</span> <span class="nc">VectorFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Vector valued space varying Function as a rank 1 tensor of Function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">is_VectorValued</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_TensorValued</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="n">_sub_type</span> <span class="o">=</span> <span class="n">Function</span>
-    <span class="n">_is_symmetric</span> <span class="o">=</span> <span class="kc">False</span>
 
-    <span class="n">_op_priority</span> <span class="o">=</span> <span class="n">Differentiable</span><span class="o">.</span><span class="n">_op_priority</span> <span class="o">+</span> <span class="mf">1.</span>
-
-    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">VectorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_is_transposed</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;transpose&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="n">_is_TimeDependent</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_transposed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_transposed</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_transposed</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">VectorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">VectorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__subfunc_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -618,45 +463,6 @@
         <span class="k">return</span> <span class="s2">&quot;Vector(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="n">st</span>
 
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
-
-    <span class="c1"># Eval matrices functions for add/mull/evaluate</span>
-    <span class="k">def</span> <span class="nf">_eval_at</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
-
-        <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">_eval_at</span><span class="p">(</span><span class="n">func</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
-
-        <span class="n">comps</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))]</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">func</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
-                    <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_eval_add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="n">mat</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">+</span><span class="n">o</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)]</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">)))</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_eval_scalar_mul</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="n">mat</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">*</span><span class="n">other</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mat</span><span class="p">]</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">)))</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_eval_scalar_rmul</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_scalar_mul</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_eval_transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_T&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">transpose</span><span class="o">=</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_transposed</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">div</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -694,48 +500,61 @@
         <span class="n">comp3</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">derivs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">derivs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 
         <span class="n">vec_func</span> <span class="o">=</span> <span class="n">VectorTimeFunction</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_TimeDependent</span> <span class="k">else</span> <span class="n">VectorFunction</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">vec_func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;curl_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                        <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span>
-                        <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="n">comp1</span><span class="p">,</span> <span class="n">comp2</span><span class="p">,</span> <span class="n">comp3</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">vec_func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="n">comp1</span><span class="p">,</span> <span class="n">comp2</span><span class="p">,</span> <span class="n">comp3</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Gradient of the VectorFunction, creates the gradient TensorFunction.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="n">comps</span> <span class="o">=</span> <span class="p">[[</span><span class="nb">getattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;d</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">]</span>
                  <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;grad_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span>
-                    <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">comps</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">outer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="n">comps</span> <span class="o">=</span> <span class="p">[[</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">other</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span>
+        <span class="n">func</span> <span class="o">=</span> <span class="n">tens_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">comps</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">new_from_mat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mat</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        New VectorFunction with the same property as self and new values</span>
-<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
-                    <span class="n">components</span><span class="o">=</span><span class="n">mat</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">,</span> <span class="n">symmetric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">,</span>
-                    <span class="n">diagonal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_diagonal</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mat</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TensorTimeFunction"><a class="viewcode-back" href="../../../tensortimefunction.html#devito.types.TensorTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TensorTimeFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Time varying TensorFunction.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_TensorValued</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">_sub_type</span> <span class="o">=</span> <span class="n">TimeFunction</span>
+
+    <span class="n">_is_TimeDependent</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">time_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The time order for all components.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">({</span><span class="n">a</span><span class="o">.</span><span class="n">time_order</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">}</span> <span class="o">-</span> <span class="p">{</span><span class="kc">None</span><span class="p">})</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="VectorTimeFunction"><a class="viewcode-back" href="../../../vectortimefunction.html#devito.types.VectorTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">VectorTimeFunction</span><span class="p">(</span><span class="n">VectorFunction</span><span class="p">,</span> <span class="n">TensorTimeFunction</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Time varying VectorFunction.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">is_VectorValued</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_TensorValued</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_TimeDependent</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">_sub_type</span> <span class="o">=</span> <span class="n">TimeFunction</span>
-    <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">VectorTimeFunction</span></div>
+    <span class="n">_is_TimeDependent</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+
+<span class="n">mat_time_dict</span> <span class="o">=</span> <span class="p">{(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span> <span class="n">TensorTimeFunction</span><span class="p">,</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span> <span class="n">VectorTimeFunction</span><span class="p">,</span>
+                 <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span> <span class="n">TensorFunction</span><span class="p">,</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span> <span class="n">VectorFunction</span><span class="p">}</span>
 
 
 <span class="k">def</span> <span class="nf">vec_func</span><span class="p">(</span><span class="n">func1</span><span class="p">,</span> <span class="n">func2</span><span class="p">):</span>

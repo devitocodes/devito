@@ -190,7 +190,7 @@
 <dl class="py class">
 <dt id="devito.types.TensorFunction">
 <em class="property">class </em><code class="sig-prename descclassname">devito.types.</code><code class="sig-name descname">TensorFunction</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/tensor.html#TensorFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.TensorFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.AbstractTensor</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.finite_differences.differentiable.Differentiable</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.AbstractTensor</span></code></p>
 <p>Tensor valued Function represented as a Matrix.
 Each component is a Function or TimeFunction.</p>
 <p>A TensorFunction and the classes that inherit from it takes the same parameters as
@@ -198,28 +198,115 @@ a DiscreteFunction and additionally:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a><em>, </em><em>optional</em>) – Carries shape, dimensions, and dtype of the TensorFunction. When grid is not
+provided, shape and dimensions must be given. For MPI execution, a
+Grid is compulsory.</p></li>
+<li><p><strong>space_order</strong> (<em>int</em><em> or </em><em>3-tuple of ints</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 1. <code class="docutils literal notranslate"><span class="pre">space_order</span></code> also
+impacts the number of points available around a generic point of interest.  By
+default, <code class="docutils literal notranslate"><span class="pre">space_order</span></code> points are available on both sides of a generic point of
+interest, including those nearby the grid boundary. Sometimes, fewer points
+suffice; in other scenarios, more points are necessary. In such cases, instead of
+an integer, one can pass a 3-tuple <code class="docutils literal notranslate"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code> indicating the discretization
+order (<code class="docutils literal notranslate"><span class="pre">o</span></code>) as well as the number of points on the left (<code class="docutils literal notranslate"><span class="pre">lp</span></code>) and right
+(<code class="docutils literal notranslate"><span class="pre">rp</span></code>) sides of a generic point of interest.</p></li>
+<li><p><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the domain region in grid points. Only necessary if <code class="docutils literal notranslate"><span class="pre">grid</span></code> isn’t given.</p></li>
+<li><p><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if <code class="docutils literal notranslate"><span class="pre">grid</span></code> isn’t given.</p></li>
+<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
+to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
+<li><p><strong>staggered</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Define how the TensorFunction is staggered.</p></li>
+<li><p><strong>initializer</strong> (<em>callable</em><em> or </em><em>any object exposing the buffer interface</em><em>, </em><em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</p></li>
+<li><p><strong>allocator</strong> (<em>MemoryAllocator</em><em>, </em><em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
+to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+<cite>default_allocator.__doc__</cite> for more information.</p></li>
+<li><p><strong>padding</strong> (<em>int</em><em> or </em><em>tuple of ints</em><em>, </em><em>optional</em>) – <div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version shouldn’t: </span>be used; padding is now automatically inserted.</p>
+</div>
+<p>Allocate extra grid points to maximize data access alignment. When a tuple
+of ints, one int per Dimension should be provided.</p>
+</p></li>
 <li><p><strong>symmetric</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether the tensor is symmetric or not. Defaults to True.</p></li>
 <li><p><strong>diagonal</strong> (<em>Bool</em><em>, </em><em>optional</em>) – Whether the tensor is diagonal or not. Defaults to False.</p></li>
-<li><p><strong>staggered</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Staggering of each component, needs to have the size of the tensor. Defaults
+<li><p><strong>staggered</strong> – Staggering of each component, needs to have the size of the tensor. Defaults
 to the Dimensions.</p></li>
 </ul>
 </dd>
 </dl>
 <dl class="py method">
-<dt id="devito.types.TensorFunction.shape">
-<em class="property">property </em><code class="sig-name descname">shape</code><a class="headerlink" href="#devito.types.TensorFunction.shape" title="Permalink to this definition">¶</a></dt>
-<dd><p>The shape (dimensions) of the matrix as the 2-tuple (rows, cols).</p>
+<dt id="devito.types.TensorFunction.is_diagonal">
+<em class="property">property </em><code class="sig-name descname">is_diagonal</code><a class="headerlink" href="#devito.types.TensorFunction.is_diagonal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Whether the tensor is diagonal.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="devito.types.TensorFunction.is_symmetric">
+<code class="sig-name descname">is_symmetric</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">simplify</span><span class="o">=</span><span class="default_value">True</span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.TensorFunction.is_symmetric" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if matrix is symmetric matrix,
+that is square matrix and is equal to its transpose.</p>
+<p>By default, simplifications occur before testing symmetry.
+They can be skipped using ‘simplify=False’; while speeding things a bit,
+this may however induce false negatives.</p>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">zeros</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">shape</span>
-<span class="go">(2, 3)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">rows</span>
-<span class="go">2</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">cols</span>
-<span class="go">3</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Matrix</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span>
+<span class="go">Matrix([</span>
+<span class="go">[0, 1],</span>
+<span class="go">[1, 2]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">()</span>
+<span class="go">True</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span>
+<span class="go">Matrix([</span>
+<span class="go">[0, 1],</span>
+<span class="go">[2, 0]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">()</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span>
+<span class="go">Matrix([</span>
+<span class="go">[0, 0, 0],</span>
+<span class="go">[0, 0, 0]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">()</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span>
+<span class="go">Matrix([</span>
+<span class="go">[         1, x**2 + 2*x + 1, y],</span>
+<span class="go">[(x + 1)**2,              2, 0],</span>
+<span class="go">[         y,              0, 3]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">()</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<p>If the matrix is already simplified, you may speed-up is_symmetric()
+test by using ‘simplify=False’.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nb">bool</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">(</span><span class="n">simplify</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+<span class="go">False</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m1</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m1</span><span class="o">.</span><span class="n">is_symmetric</span><span class="p">(</span><span class="n">simplify</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt id="devito.types.TensorFunction.space_dimensions">
+<em class="property">property </em><code class="sig-name descname">space_dimensions</code><a class="headerlink" href="#devito.types.TensorFunction.space_dimensions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Spatial dimensions.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="devito.types.TensorFunction.space_order">
+<code class="sig-name descname">space_order</code><a class="headerlink" href="#devito.types.TensorFunction.space_order" title="Permalink to this definition">¶</a></dt>
+<dd><p>The space order for all components.</p>
 </dd></dl>
 
 </dd></dl>

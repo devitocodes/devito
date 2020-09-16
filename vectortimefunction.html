@@ -193,32 +193,15 @@
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.tensor.VectorFunction</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.tensor.TensorTimeFunction</span></code></p>
 <p>Time varying VectorFunction.</p>
 <dl class="py method">
-<dt id="devito.types.VectorTimeFunction.backward">
-<em class="property">property </em><code class="sig-name descname">backward</code><a class="headerlink" href="#devito.types.VectorTimeFunction.backward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the time-forward state of the VectorTimeFunction.</p>
+<dt id="devito.types.VectorTimeFunction.space_dimensions">
+<em class="property">property </em><code class="sig-name descname">space_dimensions</code><a class="headerlink" href="#devito.types.VectorTimeFunction.space_dimensions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Spatial dimensions.</p>
 </dd></dl>
 
-<dl class="py method">
-<dt id="devito.types.VectorTimeFunction.forward">
-<em class="property">property </em><code class="sig-name descname">forward</code><a class="headerlink" href="#devito.types.VectorTimeFunction.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the time-forward state of the VectorTimeFunction.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt id="devito.types.VectorTimeFunction.shape">
-<em class="property">property </em><code class="sig-name descname">shape</code><a class="headerlink" href="#devito.types.VectorTimeFunction.shape" title="Permalink to this definition">¶</a></dt>
-<dd><p>The shape (dimensions) of the matrix as the 2-tuple (rows, cols).</p>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">zeros</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">shape</span>
-<span class="go">(2, 3)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">rows</span>
-<span class="go">2</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">cols</span>
-<span class="go">3</span>
-</pre></div>
-</div>
+<dl class="py attribute">
+<dt id="devito.types.VectorTimeFunction.space_order">
+<code class="sig-name descname">space_order</code><a class="headerlink" href="#devito.types.VectorTimeFunction.space_order" title="Permalink to this definition">¶</a></dt>
+<dd><p>The space order for all components.</p>
 </dd></dl>
 
 </dd></dl>
