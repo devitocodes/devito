@@ -13,7 +13,7 @@ from matplotlib.ticker import ScalarFormatter
 import matplotlib.pyplot as plt  # noqa
 import sys
 
-from benchmarks.user.advisor.advisor_logging import log, check
+from benchmarks.user.advisor.advisor_logging import check, err, log
 
 
 try:
@@ -59,12 +59,11 @@ plt.style.use('seaborn-darkgrid')
 def roofline(name, project, scale, precision, mode, th):
     pd.options.display.max_rows = 20
 
-    print('Opening project...')
+    log('Opening project...')
     project = advisor.open_project(str(project))
 
     if not project:
-        log('Could not open project %s.' % project)
-        sys.exit(1)
+        err('Could not open project %s.' % project)
     log('Loading data...')
 
     data = project.load(advisor.SURVEY)

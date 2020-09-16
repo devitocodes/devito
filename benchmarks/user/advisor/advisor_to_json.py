@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import sys
 
-from benchmarks.user.advisor.advisor_logging import check
+from benchmarks.user.advisor.advisor_logging import check, err, log
 
 
 try:
@@ -52,13 +52,12 @@ except ImportError:
 def advisor_to_json(name, project, scale, precision, mode, th):
     pd.options.display.max_rows = 20
 
-    print('Opening project...')
+    log('Opening project...')
     project = advisor.open_project(str(project))
 
     if not project:
-        print('Could not open project %s.' % project)
-        sys.exit(1)
-    print('Loading data...')
+        err('Could not open project %s.' % project)
+    log('Loading data...')
 
     data = project.load(advisor.SURVEY)
     rows = [{col: row[col] for col in row} for row in data.bottomup]
@@ -141,7 +140,7 @@ def advisor_to_json(name, project, scale, precision, mode, th):
     with open('%s.json' % name, 'w') as f:
         f.write(json.dumps(roofline_data))
 
-    print('Figure saved as %s.json.' % name)
+    log('Figure saved as %s.json.' % name)
 
 
 analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']
