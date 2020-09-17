@@ -9,9 +9,9 @@ from examples.seismic import Receiver
 
 class TestGradient(object):
 
-    @pytest.mark.parametrize('dtype, opt',
-                             [(np.float32, 'advanced'),
-                              (np.float64, 'advanced')])
+    @pytest.mark.parametrize('dtype, opt', [
+        (np.float32, ('noop', {'openmp': True, 'par-dynamic-work': 1000})),
+        (np.float64, 'advanced')])
     def test_gradient_checkpointing(self, dtype, opt):
         r"""
         This test ensures that the FWI gradient computed with checkpointing matches
@@ -35,11 +35,11 @@ class TestGradient(object):
                             time_range=wave.geometry.time_axis,
                             coordinates=wave.geometry.rec_positions)
 
-        grad = Function(name='grad', grid=wave.model.grid, dtype=np.float64)
+        grad = Function(name='grad', grid=wave.model.grid)
         gradient, _ = wave.jacobian_adjoint(residual, u0, vp=v0, checkpointing=True,
                                             grad=grad)
 
-        grad = Function(name='grad', grid=wave.model.grid, dtype=np.float64)
+        grad = Function(name='grad', grid=wave.model.grid)
         gradient2, _ = wave.jacobian_adjoint(residual, u0, vp=v0, checkpointing=False,
                                              grad=grad)
 

@@ -76,7 +76,7 @@ configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=Fals
 # By default unsafe math is allowed as most applications are insensitive to
 # floating-point roundoff errors. Enabling this disables unsafe math
 # optimisations.
-configuration.add('safe-math', 0, [0, 1], preprocessor=bool, impacts_jit=False)
+configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_compiler)
 
 # Enable/disable automatic padding for allocated data
 configuration.add('autopadding', False, [False, True])

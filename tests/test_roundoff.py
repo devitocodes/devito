@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from devito import Grid, Constant, TimeFunction, Eq, Operator
+from devito import Grid, Constant, TimeFunction, Eq, Operator, switchconfig
 
 
 class TestRoundoff(object):
@@ -11,6 +11,7 @@ class TestRoundoff(object):
     """
     @pytest.mark.parametrize('dat', [0.5, 0.624, 1.0, 1.5, 2.0, 3.0, 3.6767, 4.0])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+    @switchconfig(log_level='DEBUG', safe_math=True)
     def test_lm_forward(self, dat, dtype):
         """
         Test logistic map with forward term that should cancel.
@@ -46,20 +47,22 @@ class TestRoundoff(object):
 
     @pytest.mark.parametrize('dat', [0.5, 0.624, 1.0, 1.5, 2.0, 3.0, 3.6767, 4.0])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+    @switchconfig(log_level='DEBUG', safe_math=True)
     def test_lm_backward(self, dat, dtype):
         """
         Test logistic map with backward term that should cancel.
         """
         iterations = 10000
-        r = Constant(name='r')
+        r = Constant(name='r', dtype=dtype)
         r.data = dtype(dat)
         s = dtype(0.1)
 
-        grid = Grid(shape=(2, 2), extent=(1, 1))
+        grid = Grid(shape=(2, 2), extent=(1, 1), dtype=dtype)
         dt = grid.stepping_dim.spacing
 
-        f0 = TimeFunction(name='f0', grid=grid, time_order=2)
-        f1 = TimeFunction(name='f1', grid=grid, time_order=2, save=iterations+2)
+        f0 = TimeFunction(name='f0', grid=grid, time_order=2, dtype=dtype)
+        f1 = TimeFunction(name='f1', grid=grid, time_order=2, save=iterations+2,
+                          dtype=dtype)
 
         lmap0 = Eq(f0.forward, r*f0*(1.0-f0+(1.0/s)*dt*f0.backward-f0.backward))
         lmap1 = Eq(f1.forward, r*f1*(1.0-f1+(1.0/s)*dt*f1.backward-f1.backward))
@@ -80,6 +83,7 @@ class TestRoundoff(object):
 
     @pytest.mark.parametrize('dat', [0.5, 0.624, 1.0, 1.5, 2.0, 3.0, 3.6767, 4.0])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+    @switchconfig(log_level='DEBUG', safe_math=True)
     def test_lm_fb(self, dat, dtype):
         """
         Test logistic map with forward and backward terms that should cancel.
@@ -118,6 +122,7 @@ class TestRoundoff(object):
 
     @pytest.mark.parametrize('dat', [0.5, 0.624, 1.0, 1.5, 2.0, 3.0, 3.6767, 4.0])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+    @switchconfig(log_level='DEBUG', safe_math=True)
     def test_lm_ds(self, dat, dtype):
         """
         Test logistic map with 2nd derivative term that should cancel.
