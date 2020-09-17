@@ -364,7 +364,8 @@ class CGen(Visitor):
 
         # Header files, extra definitions, ...
         header = [c.Line(i) for i in o._headers]
-        includes = [c.Include(i, system=False) for i in o._includes]
+        includes = [c.Include(i, system=(False if i.endswith('.h') else True))
+                    for i in o._includes]
         includes += [blankline]
         cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
         cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
