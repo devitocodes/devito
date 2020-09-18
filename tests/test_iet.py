@@ -1,23 +1,30 @@
 import pytest
-import cgen
 
-from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,
+from ctypes import c_void_p
+import cgen
+import sympy
+
+from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
                     switchconfig)
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Conditional, Expression, List, CGen, FindSymbols,
+from devito.ir.iet import (Call, Conditional, Expression, Iteration, List, Lambda,
+                           LocalExpression, ElementalFunction, CGen, FindSymbols,
                            filter_iterations, make_efunc, retrieve_iteration_tree)
+from devito.symbolics import Byref, FieldFromComposite, InlineIf
 from devito.tools import as_tuple
-from devito.types import Array, Symbol
+from devito.types import Array, LocalObject, Symbol
 
 
 @pytest.fixture
 def grid():
     return Grid((3, 3, 3))
 
+
 @pytest.fixture
 def fc(grid):
     return Array(name='fc', dimensions=(grid.dimensions[0], grid.dimensions[1]),
                  shape=(3, 5)).indexed
+
 
 def test_conditional(fc, grid):
     x, y, _ = grid.dimensions
@@ -130,3 +137,104 @@ def test_list_denesting():
     l3 = l2._rebuild(l2.body, **l2.args_frozen)
     assert len(l3.body) == 0
     assert str(l3) == str(l2)
+
+
+def test_make_cpp_parfor():
+    """
+    Test construction of a CPP parallel for. This excites the IET construction
+    machinery in several ways, in particular by using Lambda nodes (to generate
+    C++ lambda functions) and nested Calls.
+    """
+
+    class STDVectorThreads(LocalObject):
+        dtype = type('std::vector<std::thread>', (c_void_p,), {})
+
+        def __init__(self):
+            self.name = 'threads'
+
+    class STDThread(LocalObject):
+        dtype = type('std::thread&', (c_void_p,), {})
+
+        def __init__(self, name):
+            self.name = name
+
+    class FunctionType(LocalObject):
+        dtype = type('FuncType&&', (c_void_p,), {})
+
+        def __init__(self, name):
+            self.name = name
+
+    # Basic symbols
+    nthreads = Symbol(name='nthreads', is_const=True)
+    threshold = Symbol(name='threshold', is_const=True)
+    last = Symbol(name='last', is_const=True)
+    first = Symbol(name='first', is_const=True)
+    portion = Symbol(name='portion', is_const=True)
+
+    # Composite symbols
+    threads = STDVectorThreads()
+
+    # Iteration helper symbols
+    begin = Symbol(name='begin')
+    l = Symbol(name='l')
+    end = Symbol(name='end')
+
+    # Functions
+    stdmax = sympy.Function('std::max')
+
+    # Construct the parallel-for body
+    func = FunctionType('func')
+    i = Dimension(name='i')
+    threadobj = Call('std::thread', Lambda(
+        Iteration(Call(func.name, i), i, (begin, end-1, 1)),
+        ['=', Byref(func.name)],
+    ))
+    threadpush = Call(FieldFromComposite('push_back', threads), threadobj)
+    it = Dimension(name='it')
+    iteration = Iteration([
+        LocalExpression(DummyEq(begin, it)),
+        LocalExpression(DummyEq(l, it + portion)),
+        LocalExpression(DummyEq(end, InlineIf(l > last, last, l))),
+        threadpush
+    ], it, (first, last, portion))
+    thread = STDThread('x')
+    waitcall = Call('std::for_each', [
+        Call(FieldFromComposite('begin', threads)),
+        Call(FieldFromComposite('end', threads)),
+        Lambda(Call(FieldFromComposite('join', thread.name)), [], [thread])
+    ])
+    body = [
+        LocalExpression(DummyEq(threshold, 1)),
+        LocalExpression(DummyEq(portion, stdmax(threshold, (last - first) / nthreads))),
+        Call(FieldFromComposite('reserve', threads), nthreads),
+        iteration,
+        waitcall
+    ]
+
+    parfor = ElementalFunction('parallel_for', body, 'void',
+                               [first, last, func, nthreads])
+
+    assert str(parfor) == """\
+void parallel_for(const int first, const int last, FuncType&& func, const int nthreads)
+{
+  int threshold = 1;
+  int portion = std::max(threshold, (-first + last)/nthreads);
+  threads.reserve(nthreads);
+  for (int it = first; it <= last; it += portion)
+  {
+    int begin = it;
+    int l = it + portion;
+    int end = (l > last) ? last : l;
+    threads.push_back(std::thread([=, &func]()
+    {
+      for (int i = begin; i <= end - 1; i += 1)
+      {
+        func(i);
+      }
+    }));
+  }
+  std::for_each(threads.begin(),threads.end(),[](std::thread& x)
+  {
+    x.join();
+  });
+}"""
