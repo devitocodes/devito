@@ -168,8 +168,7 @@ class Grid(ArgProvider):
     @property
     def origin_map(self):
         """Map between origin symbols and their values"""
-        origin_pos = [i.data for i in self.origin]
-        return dict(zip(self.origin, origin_pos))
+        return {o: o.data for o in self.origin}
 
     @property
     def dimensions(self):
