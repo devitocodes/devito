@@ -160,9 +160,10 @@
 
 <span class="n">__author__</span> <span class="o">=</span> <span class="s2">&quot;Daniel Greenfeld&quot;</span>
 <span class="n">__email__</span> <span class="o">=</span> <span class="s2">&quot;pydanny@gmail.com&quot;</span>
-<span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;1.5.1&quot;</span>
+<span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;1.5.2&quot;</span>
 <span class="n">__license__</span> <span class="o">=</span> <span class="s2">&quot;BSD&quot;</span>
 
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
 <span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">time</span>
 <span class="kn">import</span> <span class="nn">threading</span>
 
@@ -194,7 +195,7 @@
         <span class="k">return</span> <span class="n">value</span>
 
     <span class="k">def</span> <span class="nf">_wrap_in_coroutine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
-
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
         <span class="nd">@asyncio</span><span class="o">.</span><span class="n">coroutine</span>
         <span class="k">def</span> <span class="nf">wrapper</span><span class="p">():</span>
             <span class="n">future</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">ensure_future</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>

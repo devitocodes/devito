@@ -324,6 +324,11 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_origin</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">origin_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Map between origin symbols and their values&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">o</span><span class="p">:</span> <span class="n">o</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">origin</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Spatial dimensions of the computational domain.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span>
