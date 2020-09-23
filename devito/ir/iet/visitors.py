@@ -14,7 +14,7 @@ from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
-from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
+from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction
 
 
@@ -572,14 +572,14 @@ class FindSymbols(Visitor):
 
     def visit_tuple(self, o):
         symbols = flatten([self._visit(i) for i in o])
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return filter_ordered(symbols)
 
     visit_list = visit_tuple
 
     def visit_Iteration(self, o):
         symbols = flatten([self._visit(i) for i in o.children])
         symbols += self.rule(o)
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return filter_ordered(symbols)
 
     visit_List = visit_Iteration
 
@@ -587,15 +587,15 @@ class FindSymbols(Visitor):
         symbols = flatten([self._visit(i) for i in o.children])
         symbols += self.rule(o)
         symbols += self.rule(o.condition)
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return filter_ordered(symbols)
 
     def visit_Expression(self, o):
-        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
+        return filter_ordered([f for f in self.rule(o)], key=attrgetter('name'))
 
     def visit_Call(self, o):
         symbols = self._visit(o.children)
         symbols.extend([f for f in self.rule(o)])
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return filter_ordered(symbols)
 
     visit_PointerCast = visit_Expression
     visit_Dereference = visit_Expression
