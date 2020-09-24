@@ -66,7 +66,11 @@ def advisor_to_json(name, project, scale, precision, mode, th):
     full_df = pd.DataFrame(rows).replace('', np.nan)
 
     # Narrow down the columns to those of interest
-    df = full_df[analysis_columns].copy()
+    try:
+        df = full_df[analysis_columns].copy()
+    except KeyError:
+        err('Could not read data columns from profiling. Not enough data has been '
+            'generated for the specified problem.')
 
     df.self_ai = df.self_ai.astype(float)
     df.self_gflops = df.self_gflops.astype(float)
