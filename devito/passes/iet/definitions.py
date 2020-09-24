@@ -13,7 +13,7 @@ from devito.ir import (List, LocalExpression, PointerCast, FindSymbols,
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.openmp import Ompizer
 from devito.symbolics import ccode
-from devito.tools import as_mapper, flatten
+from devito.tools import as_mapper, as_tuple, flatten
 
 __all__ = ['DataManager', 'Storage']
 
@@ -189,7 +189,10 @@ class DataManager(object):
         already_defined = list(iet.parameters)
 
         for k, v in MapExprStmts().visit(iet).items():
-            if k.is_Expression:
+            if k.is_LocalExpression:
+                already_defined.append(k.write)
+                objs = []
+            elif k.is_Expression:
                 if k.is_definition:
                     site = v[-1] if v else iet
                     self._alloc_scalar_on_low_lat_mem(site, k, storage)
@@ -202,7 +205,7 @@ class DataManager(object):
                 else:
                     objs = [k.parray]
             elif k.is_Call:
-                objs = k.arguments
+                objs = k.arguments + as_tuple(k.retobj)
 
             for i in objs:
                 if i in already_defined:
@@ -211,6 +214,7 @@ class DataManager(object):
                 try:
                     if i.is_LocalObject:
                         site = v[-1] if v else iet
+                        from IPython import embed; embed()
                         self._alloc_object_on_low_lat_mem(site, i, storage)
                     elif i.is_Array:
                         site = iet
