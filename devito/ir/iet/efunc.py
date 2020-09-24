@@ -35,15 +35,15 @@ class ElementalFunction(Callable):
     def dynamic_defaults(self):
         return {k: tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
 
-    def make_call(self, dynamic_args_mapper=None, incr=False):
+    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None):
         return ElementalCall(self.name, list(self.parameters), dict(self._mapper),
-                             dynamic_args_mapper, incr)
+                             dynamic_args_mapper, incr, retobj)
 
 
 class ElementalCall(Call):
 
     def __init__(self, name, arguments=None, mapper=None, dynamic_args_mapper=None,
-                 incr=False):
+                 incr=False, retobj=None):
         self._mapper = mapper or {}
 
         arguments = list(as_tuple(arguments))
@@ -61,12 +61,14 @@ class ElementalCall(Call):
             for i, j in zip(self._mapper[k], tv):
                 arguments[i] = j if incr is False else (arguments[i] + j)
 
-        super(ElementalCall, self).__init__(name, arguments)
+        super(ElementalCall, self).__init__(name, arguments, retobj)
 
-    def _rebuild(self, *args, dynamic_args_mapper=None, incr=False, **kwargs):
+    def _rebuild(self, *args, dynamic_args_mapper=None, incr=False,
+                 retobj=None, **kwargs):
         # This guarantees that `ec._rebuild(arguments=ec.arguments) == ec`
         return super(ElementalCall, self)._rebuild(
-            *args, dynamic_args_mapper=dynamic_args_mapper, incr=incr, **kwargs
+            *args, dynamic_args_mapper=dynamic_args_mapper, incr=incr,
+            retobj=retobj, **kwargs
         )
 
     @cached_property

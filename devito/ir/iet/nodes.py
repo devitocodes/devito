@@ -236,24 +236,37 @@ class Call(ExprStmt, Node):
 
     Parameters
     ----------
-    name : str or FieldFromComposite
+    name : str or FunctionFromPointer
         The called function.
     arguments : list of Basic, optional
         The objects in input to the function call.
+    retobj : Symbol or Indexed, optional
+        The object the return value of the Call is assigned to.
     """
 
     is_Call = True
 
-    def __init__(self, name, arguments=None):
+    def __init__(self, name, arguments=None, retobj=None):
+        if isinstance(name, FunctionFromPointer):
+            self.base = name.base
+        else:
+            self.base = None
         self.name = str(name)
         self.arguments = as_tuple(arguments)
+        self.retobj = retobj
 
     def __repr__(self):
-        return "Call::\n\t%s(...)" % self.name
+        ret = "" if self.retobj is None else "%s = " % self.retobj
+        return "%sCall::\n\t%s(...)" % (ret, self.name)
 
     @property
     def functions(self):
-        return tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+        retval = tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+        if self.base is not None:
+            retval += (self.base,)
+        if self.retobj is not None:
+            retval += (self.retobj.function,)
+        return retval
 
     @property
     def children(self):
@@ -269,11 +282,20 @@ class Call(ExprStmt, Node):
                 free.add(i)
             else:
                 free.update(i.free_symbols)
+        if self.base is not None:
+            free.add(self.base)
+        if self.retobj is not None:
+            free.update(self.retobj.free_symbols)
         return free
 
     @property
     def defines(self):
-        return ()
+        ret = ()
+        if self.base is not None:
+            ret += (self.base,)
+        if self.retobj is not None:
+            ret += (self.retobj,)
+        return ret
 
 
 class Expression(ExprStmt, Node):
@@ -616,6 +638,18 @@ class Callable(Node):
                                for i in self.parameters])
         return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
                                    parameters)
+
+    @property
+    def functions(self):
+        return tuple(i for i in self.parameters if isinstance(i, AbstractFunction))
+
+    @property
+    def free_symbols(self):
+        return tuple(self.parameters)
+
+    @property
+    def defines(self):
+        return ()
 
 
 class Conditional(Node):
