@@ -485,16 +485,16 @@ class TestSubdomainFunctionsParallel(object):
         src = RickerSource(name='src', grid=grid, f0=f0,
                            npoint=1, time_range=time_range)
 
-        domain_size = np.array(extent)
+        domain_size = np.array([1000., 1000.])
 
         src.coordinates.data[0, :] = domain_size*.5
         src.coordinates.data[0, -1] = 20.
 
         rec = Receiver(name='rec', grid=grid, npoint=101, time_range=time_range)
-        rec.coordinates.data[:, 0] = np.linspace(0, domain_size[0], num=101)
+        rec.coordinates.data[:, 0] = np.linspace(0., 1000., num=101)
         rec.coordinates.data[:, 1] = 20.
 
-        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2,
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2,
                          subdomain=grid.subdomains['comp_domain'])
         m = Function(name='m', grid=grid)
         m.data[:] = 1./(v*v)
@@ -505,15 +505,15 @@ class TestSubdomainFunctionsParallel(object):
         stencil = Eq(u.forward, solve(pde, u.forward),
                      subdomain=grid.subdomains['comp_domain'])
 
-        src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
+        src_term = src.inject(field=u.forward, expr=src*dt**2/m)
         rec_term = rec.interpolate(expr=u.forward)
 
         op = Operator([stencil] + src_term + rec_term)
-
         op(time=time_range.num-1, dt=dt)
 
         # FIXME: Check why 1.e-5 fails on certain builds
-        assert np.isclose(norm(rec), 436.3915, rtol=1.e-4)
+        #assert np.isclose(norm(rec), 490.545, rtol=1.e-4)
+        assert np.isclose(norm(u), 330.2915, rtol=1.e-4)
 
     @pytest.mark.parallel(mode=4)
     def test_mixed_functions_mpi(self):

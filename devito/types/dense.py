@@ -1315,8 +1315,9 @@ class TimeFunction(Function):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
+        subdomain = kwargs.get('subdomain')
         save = kwargs.get('save') or None  # Force to None if 0/False/None/...
-        shape = kwargs.get('shape')
+        shape = kwargs.get('shape', kwargs.get('shape_global'))
         time_order = kwargs.get('time_order', 1)
 
         if grid is None:
@@ -1326,7 +1327,10 @@ class TimeFunction(Function):
                 raise TypeError("Ambiguity detected: provide either `grid` and `save` "
                                 "or just `shape` ")
         elif shape is None:
-            shape = list(grid.shape_local)
+            if subdomain:
+                shape = list(subdomain.shape_local)
+            else:
+                shape = list(grid.shape_local)
             if save is None:
                 shape.insert(cls._time_position, time_order + 1)
             elif isinstance(save, Buffer):
