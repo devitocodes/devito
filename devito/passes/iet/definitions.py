@@ -186,11 +186,12 @@ class DataManager(object):
         """
         storage = Storage()
 
-        already_defined = list(iet.parameters)
+        refmap = FindSymbols().visit(iet).mapper
+        placed = list(iet.parameters)
 
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_LocalExpression:
-                already_defined.append(k.write)
+                placed.append(k.write)
                 objs = []
             elif k.is_Expression:
                 if k.is_definition:
@@ -199,8 +200,8 @@ class DataManager(object):
                     continue
                 objs = [k.write]
             elif k.is_Dereference:
-                already_defined.append(k.array)
-                if k.parray in already_defined:
+                placed.append(k.array)
+                if k.parray in placed:
                     objs = []
                 else:
                     objs = [k.parray]
@@ -208,15 +209,22 @@ class DataManager(object):
                 objs = k.arguments + as_tuple(k.retobj)
 
             for i in objs:
-                if i in already_defined:
+                if i in placed:
                     continue
 
                 try:
                     if i.is_LocalObject:
-                        site = v[-1] if v else iet
-                        from IPython import embed; embed()
+                        # LocalObject's get placed as close as possible to
+                        # their first appearence
+                        site = iet
+                        for n in v:
+                            if i in refmap[n]:
+                                break
+                            site = n
                         self._alloc_object_on_low_lat_mem(site, i, storage)
                     elif i.is_Array:
+                        # Array's get placed as far as possible from their
+                        # first appearence
                         site = iet
                         if i._mem_local:
                             # If inside a ParallelRegion, make sure we allocate
@@ -230,6 +238,7 @@ class DataManager(object):
                         else:
                             self._alloc_array_on_low_lat_mem(site, i, storage)
                     elif i.is_PointerArray:
+                        # PointerArray's get placed at the top of the IET
                         self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
                 except AttributeError:
                     # E.g., a generic SymPy expression
