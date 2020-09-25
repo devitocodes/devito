@@ -532,9 +532,24 @@ class MapNodes(Visitor):
 
 class FindSymbols(Visitor):
 
+    class Retval(list):
+        def __init__(self, *retvals, key=None, node=None):
+            elements = []
+            self.mapper = {}
+            for i in retvals:
+                try:
+                    self.mapper.update(i.mapper)
+                except AttributeError:
+                    pass
+                elements.extend(i)
+            elements = filter_ordered(elements, key=key)
+            if node is not None:
+                self.mapper[node] = tuple(elements)
+            super().__init__(elements)
+
     @classmethod
     def default_retval(cls):
-        return []
+        return cls.Retval()
 
     """
     Find symbols in an Iteration/Expression tree.
@@ -574,34 +589,30 @@ class FindSymbols(Visitor):
         self.rule = self.rules[mode]
 
     def visit_tuple(self, o):
-        symbols = flatten([self._visit(i) for i in o])
-        return filter_ordered(symbols)
+        return self.Retval(*[self._visit(i) for i in o])
 
     visit_list = visit_tuple
 
     def visit_Iteration(self, o):
-        symbols = flatten([self._visit(i) for i in o.children])
-        symbols += self.rule(o)
-        return filter_ordered(symbols)
+        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o), node=o)
 
-    visit_List = visit_Iteration
+    visit_Callable = visit_Iteration
+
+    def visit_List(self, o):
+        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o))
 
     def visit_Conditional(self, o):
-        symbols = flatten([self._visit(i) for i in o.children])
-        symbols += self.rule(o)
-        symbols += self.rule(o.condition)
-        return filter_ordered(symbols)
+        return self.Retval(*[self._visit(i) for i in o.children],
+                           self.rule(o), self.rule(o.condition), node=o)
 
     def visit_Expression(self, o):
-        return filter_ordered([f for f in self.rule(o)], key=attrgetter('name'))
-
-    def visit_Call(self, o):
-        symbols = self._visit(o.children)
-        symbols.extend([f for f in self.rule(o)])
-        return filter_ordered(symbols)
+        return self.Retval([f for f in self.rule(o)], key=attrgetter('name'))
 
     visit_PointerCast = visit_Expression
     visit_Dereference = visit_Expression
+
+    def visit_Call(self, o):
+        return self.Retval(self._visit(o.children), [f for f in self.rule(o)])
 
 
 class FindNodes(Visitor):
