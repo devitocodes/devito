@@ -452,7 +452,7 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-fast', '-acc']
+        self.cflags += ['-fast', '-acc', '-mp']
         # Default PGI compile for a target is GPU and single threaded host.
         # self.cflags += ['-ta=tesla,host']
 
