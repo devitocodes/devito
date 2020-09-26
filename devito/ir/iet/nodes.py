@@ -243,11 +243,15 @@ class Call(ExprStmt, Node):
         The objects in input to the function call.
     retobj : Symbol or Indexed, optional
         The object the return value of the Call is assigned to.
+    is_indirect : bool, optional
+        If True, the object represents an indirect function call. The emitted
+        code will be `name, arg1, ..., argN` rather than `name(arg1, ..., argN)`.
+        Defaults to False.
     """
 
     is_Call = True
 
-    def __init__(self, name, arguments=None, retobj=None):
+    def __init__(self, name, arguments=None, retobj=None, is_indirect=False):
         if isinstance(name, FunctionFromPointer):
             self.base = name.base
         else:
@@ -255,6 +259,7 @@ class Call(ExprStmt, Node):
         self.name = str(name)
         self.arguments = as_tuple(arguments)
         self.retobj = retobj
+        self.is_indirect = is_indirect
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj

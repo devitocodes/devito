@@ -35,15 +35,16 @@ class ElementalFunction(Callable):
     def dynamic_defaults(self):
         return {k: tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
 
-    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None):
+    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None,
+                  is_indirect=False):
         return ElementalCall(self.name, list(self.parameters), dict(self._mapper),
-                             dynamic_args_mapper, incr, retobj)
+                             dynamic_args_mapper, incr, retobj, is_indirect)
 
 
 class ElementalCall(Call):
 
     def __init__(self, name, arguments=None, mapper=None, dynamic_args_mapper=None,
-                 incr=False, retobj=None):
+                 incr=False, retobj=None, is_indirect=False):
         self._mapper = mapper or {}
 
         arguments = list(as_tuple(arguments))
@@ -61,7 +62,7 @@ class ElementalCall(Call):
             for i, j in zip(self._mapper[k], tv):
                 arguments[i] = j if incr is False else (arguments[i] + j)
 
-        super(ElementalCall, self).__init__(name, arguments, retobj)
+        super(ElementalCall, self).__init__(name, arguments, retobj, is_indirect)
 
     def _rebuild(self, *args, dynamic_args_mapper=None, incr=False,
                  retobj=None, **kwargs):

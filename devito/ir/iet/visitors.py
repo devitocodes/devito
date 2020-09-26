@@ -276,9 +276,10 @@ class CGen(Visitor):
     def visit_Call(self, o, nested_call=False):
         arguments = self._args_call(o.arguments)
         if o.retobj is not None:
-            return c.Assign(ccode(o.retobj), MultilineCall(o.name, arguments, True))
+            return c.Assign(ccode(o.retobj), MultilineCall(o.name, arguments,
+                                                           True, o.is_indirect))
         else:
-            return MultilineCall(o.name, arguments, nested_call)
+            return MultilineCall(o.name, arguments, nested_call, o.is_indirect)
 
     def visit_Conditional(self, o):
         then_body = c.Block(self._visit(o.then_body))
@@ -804,13 +805,17 @@ class LambdaCollection(c.Collection):
 
 class MultilineCall(c.Generable):
 
-    def __init__(self, name, arguments, is_expr):
+    def __init__(self, name, arguments, is_expr, is_indirect):
         self.name = name
         self.arguments = as_tuple(arguments)
         self.is_expr = is_expr
+        self.is_indirect = is_indirect
 
     def generate(self):
-        tip = "%s(" % self.name
+        if not self.is_indirect:
+            tip = "%s(" % self.name
+        else:
+            tip = "%s," % self.name
         processed = []
         for i in self.arguments:
             if isinstance(i, (MultilineCall, LambdaCollection)):
@@ -826,7 +831,9 @@ class MultilineCall(c.Generable):
                     processed.append(lines[0])
             else:
                 processed.append(str(i))
-        tip = tip + ",".join(processed) + ")"
+        tip = tip + ",".join(processed)
+        if not self.is_indirect:
+            tip += ")"
         if not self.is_expr:
             tip += ";"
         yield tip
