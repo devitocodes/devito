@@ -146,7 +146,9 @@ class TestCodeGeneration(object):
              '[0:g_vec->size[1]][0:g_vec->size[2]]) device(devicenum)')
         assert op.body[2].footer[4].value ==\
             ('omp target exit data map(delete: g[0:g_vec->size[0]]'
-             '[0:g_vec->size[1]][0:g_vec->size[2]]) device(devicenum)')
+             '[0:g_vec->size[1]][0:g_vec->size[2]]) device(devicenum)'
+             ' if(1 && (g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
+             ' && (g_vec->size[2] != 0))')
 
     @switchconfig(platform='nvidiaX')
     def test_array_rw(self):
@@ -172,7 +174,8 @@ class TestCodeGeneration(object):
         assert str(op.body[2].footer[0]) == ''
         assert op.body[2].footer[1].value ==\
             ('omp target exit data map(delete: r1[0:x_size][0:y_size][0:z_size])'
-             ' device(devicenum)')
+             ' device(devicenum) if(1 && (x_size != 0) && (y_size != 0)'
+             ' && (z_size != 0))')
         assert op.body[2].footer[2].text == 'free(r1)'
 
     @switchconfig(platform='nvidiaX')

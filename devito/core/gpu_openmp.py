@@ -52,8 +52,9 @@ class DeviceOmpizer(Ompizer):
         'map-release': lambda i, j:
             c.Pragma('omp target exit data map(release: %s%s) device(devicenum)'
                      % (i, j)),
-        'map-exit-delete': lambda i, j:
-            c.Pragma('omp target exit data map(delete: %s%s) device(devicenum)' % (i, j)),
+        'map-exit-delete': lambda i, j, k:
+            c.Pragma('omp target exit data map(delete: %s%s) device(devicenum)%s'
+                     % (i, j, k)),
     })
 
     _Iteration = DeviceOpenMPIteration
@@ -92,7 +93,10 @@ class DeviceOmpizer(Ompizer):
     @classmethod
     def _map_delete(cls, f):
         return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
-                                                           for i in cls._map_data(f)))
+                                                           for i in cls._map_data(f)),
+                                           ' if(1%s)' %
+                                           ''.join(' && (%s != 0)' % i
+                                                   for i in cls._map_data(f)))
 
     @classmethod
     def _map_pointers(cls, f):
