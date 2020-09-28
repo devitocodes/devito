@@ -207,7 +207,7 @@ def seismic_args(description):
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     parser.add_argument("--checkpointing", default=False, action='store_true',
-                        help="Constant velocity model, default is a two layer model")
+                        help="Use checkpointing, default is false")
     parser.add_argument("-opt", default="advanced",
                         choices=configuration._accepted['opt'],
                         help="Performance optimization level")
