@@ -75,6 +75,11 @@ class DeviceAccizer(DeviceOmpizer):
                                                        for i in cls._map_data(f)))
 
     @classmethod
+    def _map_delete(cls, f):
+        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
+                                                           for i in cls._map_data(f)))
+
+    @classmethod
     def _map_pointers(cls, functions):
         return cls.lang['map-pointers'](','.join(f.name for f in functions))
 
