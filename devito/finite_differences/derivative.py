@@ -105,7 +105,7 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
-        obj._subs = as_tuple(kwargs.get("subs"))
+        obj._subs = as_tuple(frozendict(i) for i in kwargs.get("subs", []))
         obj._x0 = frozendict(kwargs.get('x0', {}))
         return obj
 
