@@ -5,6 +5,7 @@ from sympy import simplify, diff, cos, sin, Float
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE,
                     ConditionalDimension, left, right, centered)
 from devito.finite_differences import Derivative, Differentiable
+from devito.finite_differences.differentiable import EvalDiffDerivative
 from devito.symbolics import indexify, retrieve_indexed
 
 _PRECISION = 9
@@ -194,7 +195,9 @@ class TestFD(object):
 
         s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-        assert(expr == s_expr)  # Exact equailty
+        assert type(expr) == EvalDiffDerivative
+        expr1 = s_expr.func(*expr.args)
+        assert(expr1 == s_expr)  # Exact equality
 
     @pytest.mark.parametrize('derivative, dim', [
         ('dx2', x), ('dy2', y), ('dz2', z)
@@ -212,7 +215,9 @@ class TestFD(object):
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
         s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-        assert(expr == s_expr)  # Exact equailty
+        assert type(expr) == EvalDiffDerivative
+        expr1 = s_expr.func(*expr.args)
+        assert(expr1 == s_expr)  # Exact equality
 
     @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
     # Only test x and t as y and z are the same as x
