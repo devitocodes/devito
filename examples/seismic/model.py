@@ -1,7 +1,7 @@
 import numpy as np
 from sympy import sin, Abs, finite_diff_weights as fd_w
 
-from devito import (Grid, SubDomain, Function, Constant,
+from devito import (Grid, SubDomain, Function, Constant, warning,
                     SubDimension, Eq, Inc, Operator, div)
 from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
 from devito.tools import as_tuple
@@ -10,7 +10,7 @@ __all__ = ['SeismicModel', 'Model', 'ModelElastic',
            'ModelViscoelastic', 'ModelViscoacoustic']
 
 
-def initialize_damp(damp, nbl, spacing, abc_type="damp", fs=False):
+def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):
     """
     Initialize damping field with an absorbing boundary layer.
 
@@ -27,11 +27,11 @@ def initialize_damp(damp, nbl, spacing, abc_type="damp", fs=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
 
-    eqs = [Eq(damp, 1.0)] if abc_type == "mask" else []
-    for d in damp.dimensions:
+    eqs = [Eq(damp, 1.0 if abc_type == "mask" else 0.0)]
+    for (nbl, nbr), d in zip(padsizes, damp.dimensions):
         if not fs or d is not damp.dimensions[-1]:
+            dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
             # left
             dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
                                       thickness=nbl)
@@ -40,9 +40,10 @@ def initialize_damp(damp, nbl, spacing, abc_type="damp", fs=False):
             val = -val if abc_type == "mask" else val
             eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
         # right
+        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbr)
         dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                   thickness=nbl)
-        pos = Abs((nbl - (d.symbolic_max - dim_r) + 1) / float(nbl))
+                                   thickness=nbr)
+        pos = Abs((nbr - (d.symbolic_max - dim_r) + 1) / float(nbr))
         val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
         val = -val if abc_type == "mask" else val
         eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
@@ -118,17 +119,34 @@ class GenericModel(object):
         else:
             self.grid = grid
 
+        self._physical_parameters = set()
+        self.damp = None
+        self._initialize_bcs(bcs=bcs)
+
+    def _initialize_bcs(self, bcs="damp"):
         # Create dampening field as symbol `damp`
-        if self.nbl != 0:
-            self.damp = Function(name="damp", grid=self.grid)
-            if callable(bcs):
-                bcs(self.damp, self.nbl)
-            else:
-                initialize_damp(self.damp, self.nbl, self.spacing, abc_type=bcs, fs=fs)
-            self._physical_parameters = ['damp']
-        else:
+        if self.nbl == 0:
             self.damp = 1 if bcs == "mask" else 0
-            self._physical_parameters = []
+            return
+
+        # First initialization
+        init = self.damp is None
+        # Get current Function if alread yinitialized
+        self.damp = self.damp or Function(name="damp", grid=self.grid)
+        if callable(bcs):
+            bcs(self.damp, self.nbl)
+        else:
+            re_init = ((bcs == "mask" and mmin(self.damp) == 0) or
+                       (bcs == "damp" and mmax(self.damp) == 1))
+            if init or re_init:
+                if re_init and not init:
+                    bcs_o = "damp" if bcs == "mask" else "mask"
+                    warning("Re-initializing damp profile from %s to %s" % (bcs_o, bcs))
+                    warning("Model has to be created with `bcs=\"%s\"`"
+                            "for this WaveSolver" % bcs)
+                initialize_damp(self.damp, self.padsizes, self.spacing,
+                                abc_type=bcs, fs=self.fs)
+        self._physical_parameters.update(['damp'])
 
     @property
     def padsizes(self):
@@ -156,7 +174,7 @@ class GenericModel(object):
             initialize_function(function, field, self.padsizes)
         else:
             function = Constant(name=name, value=field, dtype=self.grid.dtype)
-        self._physical_parameters.append(name)
+        self._physical_parameters.update([name])
         return function
 
     @property
@@ -344,11 +362,11 @@ class SeismicModel(GenericModel):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         dt = self._cfl_coeff * np.min(self.spacing) / (self._thomsen_scale*self._max_vp)
-        dt = self.dt_scale * dt
+        dt = self.dtype("%.3e" % (self.dt_scale * dt))
         if self._dt:
-            assert self._dt < dt
+            assert self._dt <= dt
             return self._dt
-        return self.dtype("%.3e" % dt)
+        return dt
 
     def update(self, name, value):
         """

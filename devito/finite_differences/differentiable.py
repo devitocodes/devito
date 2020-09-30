@@ -3,6 +3,7 @@ from functools import singledispatch
 
 import sympy
 from sympy.functions.elementary.integers import floor
+from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
@@ -50,21 +51,6 @@ class Differentiable(sympy.Expr, Evaluable):
                    default=100)
 
     @cached_property
-    def is_TimeDependent(self):
-        # Default False, True if anything is time dependent in the expression
-        return any(getattr(i, 'is_TimeDependent', False) for i in self._args_diff)
-
-    @cached_property
-    def is_VectorValued(self):
-        # Default False, True if is a vector valued expression
-        return any(getattr(i, 'is_VectorValued', False) for i in self._args_diff)
-
-    @cached_property
-    def is_TensorValued(self):
-        # Default False, True if is a tensor valued expression
-        return any(getattr(i, 'is_TensorValued', False) for i in self._args_diff)
-
-    @cached_property
     def grid(self):
         grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
         if len(grids) > 1:
@@ -72,7 +58,7 @@ class Differentiable(sympy.Expr, Evaluable):
         try:
             return grids.pop()
         except KeyError:
-            raise ValueError("No grid found")
+            return None
 
     @cached_property
     def indices(self):
@@ -101,6 +87,10 @@ class Differentiable(sympy.Expr, Evaluable):
     @cached_property
     def is_Staggered(self):
         return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
+
+    @cached_property
+    def is_TimeDependent(self):
+        return any(i.is_Time for i in self.dimensions)
 
     @cached_property
     def _fd(self):
@@ -157,30 +147,39 @@ class Differentiable(sympy.Expr, Evaluable):
         raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     # Override SymPy arithmetic operators
+    @call_highest_priority('__radd__')
     def __add__(self, other):
         return Add(self, other)
 
+    @call_highest_priority('__add__')
     def __iadd__(self, other):
         return Add(self, other)
 
+    @call_highest_priority('__add__')
     def __radd__(self, other):
         return Add(other, self)
 
+    @call_highest_priority('__rsub__')
     def __sub__(self, other):
         return Add(self, -other)
 
+    @call_highest_priority('__sub__')
     def __isub__(self, other):
         return Add(self, -other)
 
+    @call_highest_priority('__sub__')
     def __rsub__(self, other):
         return Add(other, -self)
 
+    @call_highest_priority('__rmul__')
     def __mul__(self, other):
         return Mul(self, other)
 
+    @call_highest_priority('__mul__')
     def __imul__(self, other):
         return Mul(self, other)
 
+    @call_highest_priority('__mul__')
     def __rmul__(self, other):
         return Mul(other, self)
 
@@ -190,9 +189,11 @@ class Differentiable(sympy.Expr, Evaluable):
     def __rpow__(self, other):
         return Pow(other, self)
 
+    @call_highest_priority('__rdiv__')
     def __div__(self, other):
         return Mul(self, Pow(other, sympy.S.NegativeOne))
 
+    @call_highest_priority('__div__')
     def __rdiv__(self, other):
         return Mul(other, Pow(self, sympy.S.NegativeOne))
 

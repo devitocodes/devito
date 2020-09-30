@@ -1,6 +1,5 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
-from examples.seismic import PointSource
 from examples.seismic.self_adjoint.operators import IsoFwdOperator, IsoAdjOperator, \
     IsoJacobianFwdOperator, IsoJacobianAdjOperator
 
@@ -41,7 +40,7 @@ class SaIsoAcousticWaveSolver(object):
         self.model = model
         self.geometry = geometry
 
-        assert self.model == geometry.model
+        assert self.model.grid == geometry.grid
 
         self.space_order = space_order
 
@@ -153,9 +152,8 @@ class SaIsoAcousticWaveSolver(object):
         and performance summary
         """
         # Create a new adjoint source and receiver symbol
-        srca = src or PointSource(name='srca', grid=self.model.grid,
-                                  time_range=self.geometry.time_axis,
-                                  coordinates=self.geometry.src_positions)
+        srca = src or self.geometry.new_src(name='srca', src_type=None)
+
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)

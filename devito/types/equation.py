@@ -233,7 +233,7 @@ def solve(eq, target, **kwargs):
     for e, t in zip(as_tuple(eq), as_tuple(target)):
         # Try first linear solver
         try:
-            cc = linear_coeffs(e.evaluate, t)
+            cc = linear_coeffs(e._eval_at(t).evaluate, t)
             sols.append(-cc[1]/cc[0])
         except ValueError:
             warning("Equation is not affine w.r.t the target, falling back to standard"

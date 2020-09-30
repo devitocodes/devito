@@ -31,6 +31,7 @@ class ViscoacousticWaveSolver(object):
     def __init__(self, model, geometry, space_order=4, kernel='sls', time_order=2,
                  **kwargs):
         self.model = model
+        self.model._initialize_bcs(bcs="mask")
         self.geometry = geometry
 
         self.space_order = space_order
@@ -91,9 +92,7 @@ class ViscoacousticWaveSolver(object):
         src = src or self.geometry.src
 
         # Create a new receiver object to store the result
-        rec = rec or Receiver(name="rec", grid=self.model.grid,
-                              time_range=self.geometry.time_axis,
-                              coordinates=self.geometry.rec_positions)
+        rec = rec or self.geometry.rec
 
         # Create all the fields v, p, r
         save_t = src.nt if save else None
