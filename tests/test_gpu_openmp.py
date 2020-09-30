@@ -238,8 +238,8 @@ class TestCodeGeneration(object):
 
         op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}))
 
-        for f in op._func_table.items():
-            for node in FindNodes(Block).visit(f[1].root):
+        for f, v in op._func_table.items():
+            for node in FindNodes(Block).visit(v.root):
                 if type(node.children[0][0]) in (IrecvCall, IsendCall):
                     assert node.header[0].value ==\
                         ('omp target data use_device_ptr(%s) device(devicenum)' %
@@ -264,8 +264,7 @@ class TestOperator(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
-    @skipif('nodevice')
-    def test_iso_ac(self):
+    def iso_acoustic(self, **opt_options):
         shape = (101, 101)
         extent = (1000, 1000)
         origin = (0., 0.)
@@ -304,7 +303,7 @@ class TestOperator(object):
         src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
         rec_term = rec.interpolate(expr=u.forward)
 
-        op = Operator([stencil] + src_term + rec_term)
+        op = Operator([stencil] + src_term + rec_term, opt=('advanced', opt_options))
 
         # Make sure we've indeed generated OpenMP offloading code
         assert 'omp target' in str(op)
@@ -313,9 +312,13 @@ class TestOperator(object):
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
 
+    @skipif('nodevice')
+    def test_iso_acoustic(self):
+        TestOperator().iso_acoustic()
+
     @pytest.mark.parallel(mode=[2, 4])
     @skipif('nodevice')
-    def test_op_apply_gpu_direct(self):
+    def test_gpu_direct(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid, dtype=np.int32)
@@ -331,52 +334,8 @@ class TestOperator(object):
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
     @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('gpu_direct', [False, True])
     @skipif('nodevice')
-    def test_iso_ac_gpu_direct(self):
-        shape = (101, 101)
-        extent = (1000, 1000)
-        origin = (0., 0.)
-
-        v = np.empty(shape, dtype=np.float32)
-        v[:, :51] = 1.5
-        v[:, 51:] = 2.5
-
-        grid = Grid(shape=shape, extent=extent, origin=origin)
-
-        t0 = 0.
-        tn = 1000.
-        dt = 1.6
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        f0 = 0.010
-        src = RickerSource(name='src', grid=grid, f0=f0,
-                           npoint=1, time_range=time_range)
-
-        domain_size = np.array(extent)
-
-        src.coordinates.data[0, :] = domain_size*.5
-        src.coordinates.data[0, -1] = 20.
-
-        rec = Receiver(name='rec', grid=grid, npoint=101, time_range=time_range)
-        rec.coordinates.data[:, 0] = np.linspace(0, domain_size[0], num=101)
-        rec.coordinates.data[:, 1] = 20.
-
-        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
-        m = Function(name='m', grid=grid)
-        m.data[:] = 1./(v*v)
-
-        pde = m * u.dt2 - u.laplace
-        stencil = Eq(u.forward, solve(pde, u.forward))
-
-        src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
-        rec_term = rec.interpolate(expr=u.forward)
-
-        op = Operator([stencil] + src_term + rec_term,
-                      opt=('advanced', {'gpu-direct': True}))
-
-        # Make sure we've indeed generated OpenMP offloading code
-        assert 'omp target' in str(op)
-
-        op(time=time_range.num-1, dt=dt)
-
-        assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
+    def test_mpi_iso_acoustic(self, gpu_direct):
+        opt_options = {'gpu-direct': gpu_direct}
+        TestOperator().iso_acoustic(**opt_options)

@@ -92,11 +92,10 @@ class DeviceOmpizer(Ompizer):
 
     @classmethod
     def _map_delete(cls, f):
-        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
-                                                           for i in cls._map_data(f)),
-                                           ' if(1%s)' %
-                                           ''.join(' && (%s != 0)' % i
-                                                   for i in cls._map_data(f)))
+        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i for i in
+                                                           cls._map_data(f)), ' if(1%s)' %
+                                           ''.join(' && (%s != 0)' % i for i in
+                                                   cls._map_data(f)))
 
     @classmethod
     def _map_pointers(cls, f):
@@ -218,7 +217,7 @@ class DeviceOpenMPDataManager(DataManager):
 @iet_pass
 def initialize(iet, **kwargs):
     """
-    Initialize the OpenMP 5.0 environment.
+    Initialize the OpenMP environment.
     """
     devicenum = Symbol(name='devicenum')
 
@@ -244,16 +243,16 @@ def initialize(iet, **kwargs):
 
             body = [rank_decl, rank_init, ngpus_init, devicenum_init]
 
-            init = List(header=c.Comment('Begin of OpenMP5.0+MPI setup'),
+            init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
                         body=body,
-                        footer=(c.Comment('End of OpenMP5.0+MPI setup'), c.Line()))
+                        footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
         else:
             devicenum_init = LocalExpression(DummyEq(devicenum, 0))
             body = [devicenum_init]
 
-            init = List(header=c.Comment('Begin of OpenMP5.0 setup'),
+            init = List(header=c.Comment('Begin of OpenMP setup'),
                         body=body,
-                        footer=(c.Comment('End of OpenMP5.0 setup'), c.Line()))
+                        footer=(c.Comment('End of OpenMP setup'), c.Line()))
 
         iet = iet._rebuild(body=(init,) + iet.body)
 
@@ -437,6 +436,10 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
         # Initialize OpenMP environment
         initialize(graph)
+        # TODO: This should be moved right below the `mpiize` pass, but currently calling
+        # `mpi_gpu_direct` before Symbol definitions` block would create Blocks before
+        # creating C variables. That would lead to MPI_Request variables being local to
+        # their blocks. This way, it would generate incorrect C code.
         if options['gpu-direct']:
             mpi_gpu_direct(graph)
 
@@ -445,7 +448,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
 class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
-    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders')
+    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct')
     _known_passes_disabled = ('blocking', 'denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
