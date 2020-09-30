@@ -334,8 +334,7 @@ class TestOperator(object):
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
     @pytest.mark.parallel(mode=[2, 4])
-    @pytest.mark.parametrize('gpu_direct', [False, True])
     @skipif('nodevice')
-    def test_mpi_iso_acoustic(self, gpu_direct):
-        opt_options = {'gpu-direct': gpu_direct}
+    def test_mpi_iso_acoustic(self):
+        opt_options = {'gpu-direct': True}
         TestOperator().iso_acoustic(**opt_options)
