@@ -452,7 +452,7 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-fast', '-acc', '-mp']
+        self.cflags += ['-std=c++11', '-fast', '-acc', '-mp']
         # Default PGI compile for a target is GPU and single threaded host.
         # self.cflags += ['-ta=tesla,host']
 
@@ -460,6 +460,15 @@ class PGICompiler(Compiler):
         # NOTE: using `pgc++` instead of `pgcc` because of issue #1219
         self.CC = 'pgc++'
         self.CXX = 'pgc++'
+        self.MPICC = 'mpic++'
+        self.MPICXX = 'mpicxx'
+
+
+class NvidiaCompiler(PGICompiler):
+
+    def __lookup_cmds__(self):
+        self.CC = 'nvc++'
+        self.CXX = 'nvc++'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
 
@@ -578,6 +587,9 @@ compiler_registry = {
     'aomp': AOMPCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
+    'nvc': NvidiaCompiler,
+    'nvcc': NvidiaCompiler,
+    'nvidia': NvidiaCompiler,
     'osx': ClangCompiler,
     'intel': IntelCompiler,
     'icpc': IntelCompiler,
