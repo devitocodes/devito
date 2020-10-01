@@ -1,20 +1,27 @@
 from functools import partial, singledispatch
 
 import cgen as c
+from sympy import Function
 import numpy as np
 
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import Callable, ElementalFunction, MapExprStmts
+from devito.ir.equations import DummyEq
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, List,
+                           FindNodes, LocalExpression, MapExprStmts, Transformer)
 from devito.logger import warning
-from devito.mpi.routines import CopyBuffer, SendRecv, HaloUpdate
+from devito.mpi.distributed import MPICommObject
+from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
+                                 MPICallable)
 from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
                                     factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
+from devito.symbolics import Byref
 from devito.tools import as_tuple, filter_sorted, timed_pass
+from devito.types import Symbol
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -24,7 +31,7 @@ class DeviceOpenMPIteration(OpenMPIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
-        return 'omp target teams distribute parallel for'
+        return 'omp target teams distribute parallel for device(devicenum)'
 
     @classmethod
     def _make_clauses(cls, **kwargs):
@@ -37,15 +44,17 @@ class DeviceOmpizer(Ompizer):
     lang = dict(Ompizer.lang)
     lang.update({
         'map-enter-to': lambda i, j:
-            c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
+            c.Pragma('omp target enter data map(to: %s%s) device(devicenum)' % (i, j)),
         'map-enter-alloc': lambda i, j:
-            c.Pragma('omp target enter data map(alloc: %s%s)' % (i, j)),
+            c.Pragma('omp target enter data map(alloc: %s%s) device(devicenum)' % (i, j)),
         'map-update': lambda i, j:
-            c.Pragma('omp target update from(%s%s)' % (i, j)),
+            c.Pragma('omp target update from(%s%s) device(devicenum)' % (i, j)),
         'map-release': lambda i, j:
-            c.Pragma('omp target exit data map(release: %s%s)' % (i, j)),
-        'map-exit-delete': lambda i, j:
-            c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
+            c.Pragma('omp target exit data map(release: %s%s) device(devicenum)'
+                     % (i, j)),
+        'map-exit-delete': lambda i, j, k:
+            c.Pragma('omp target exit data map(delete: %s%s) device(devicenum)%s'
+                     % (i, j, k)),
     })
 
     _Iteration = DeviceOpenMPIteration
@@ -83,8 +92,10 @@ class DeviceOmpizer(Ompizer):
 
     @classmethod
     def _map_delete(cls, f):
-        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
-                                                           for i in cls._map_data(f)))
+        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i for i in
+                                                           cls._map_data(f)), ' if(1%s)' %
+                                           ''.join(' && (%s != 0)' % i for i in
+                                                   cls._map_data(f)))
 
     @classmethod
     def _map_pointers(cls, f):
@@ -203,6 +214,76 @@ class DeviceOpenMPDataManager(DataManager):
         return iet, {}
 
 
+@iet_pass
+def initialize(iet, **kwargs):
+    """
+    Initialize the OpenMP environment.
+    """
+    devicenum = Symbol(name='devicenum')
+
+    @singledispatch
+    def _initialize(iet):
+        comm = None
+
+        for i in iet.parameters:
+            if isinstance(i, MPICommObject):
+                comm = i
+                break
+
+        if comm is not None:
+            rank = Symbol(name='rank')
+            rank_decl = LocalExpression(DummyEq(rank, 0))
+            rank_init = Call('MPI_Comm_rank', [comm, Byref(rank)])
+
+            ngpus = Symbol(name='ngpus')
+            call = Function('omp_get_num_devices')()
+            ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+            devicenum_init = LocalExpression(DummyEq(devicenum, rank % ngpus))
+
+            body = [rank_decl, rank_init, ngpus_init, devicenum_init]
+
+            init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
+                        body=body,
+                        footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
+        else:
+            devicenum_init = LocalExpression(DummyEq(devicenum, 0))
+            body = [devicenum_init]
+
+            init = List(header=c.Comment('Begin of OpenMP setup'),
+                        body=body,
+                        footer=(c.Comment('End of OpenMP setup'), c.Line()))
+
+        iet = iet._rebuild(body=(init,) + iet.body)
+
+        return iet
+
+    @_initialize.register(ElementalFunction)
+    @_initialize.register(MPICallable)
+    def _(iet):
+        return iet
+
+    iet = _initialize(iet)
+
+    return iet, {'args': devicenum}
+
+
+@iet_pass
+def mpi_gpu_direct(iet, **kwargs):
+    """
+    Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
+    """
+    mapper = {}
+    for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
+        header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' %
+                          node.arguments[0].name)
+        mapper[node] = Block(header=header, body=node)
+
+    iet = Transformer(mapper).visit(iet)
+
+    return iet, {}
+
+
 class DeviceOpenMPNoopOperator(OperatorCore):
 
     CIRE_REPEATS_INV = 2
@@ -266,6 +347,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism
+        o['gpu-direct'] = oo.pop('gpu-direct', False)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -324,6 +406,9 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
+        # Initialize OpenMP environment
+        initialize(graph)
+
         return graph
 
 
@@ -352,12 +437,21 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
+        # Initialize OpenMP environment
+        initialize(graph)
+        # TODO: This should be moved right below the `mpiize` pass, but currently calling
+        # `mpi_gpu_direct` before Symbol definitions` block would create Blocks before
+        # creating C variables. That would lead to MPI_Request variables being local to
+        # their blocks. This way, it would generate incorrect C code.
+        if options['gpu-direct']:
+            mpi_gpu_direct(graph)
+
         return graph
 
 
 class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
-    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders')
+    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct')
     _known_passes_disabled = ('blocking', 'denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
@@ -372,7 +466,8 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             'optcomms': partial(optimize_halospots),
             'openmp': partial(ompizer.make_parallel),
             'mpi': partial(mpiize, mode=options['mpi']),
-            'prodders': partial(hoist_prodders)
+            'prodders': partial(hoist_prodders),
+            'gpu-direct': partial(mpi_gpu_direct)
         }
 
     @classmethod
@@ -419,5 +514,8 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
+
+        # Initialize OpenMP environment
+        initialize(graph)
 
         return graph

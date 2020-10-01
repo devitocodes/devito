@@ -1,5 +1,5 @@
-# Runner informaiton:
-# Standard NC6_Promo (6 vcpus, 56 GiB memory)
+# Runner information:
+# Standard NC24_Promo (24 vcpus, 224 GiB memory)
 # NVIDIA Tesla K80, Intel Xeon E5-2690 v3 (Haswell)
 
 name: CI-gpu
@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: [self-hosted, gpu]
+    runs-on: ${{ matrix.tags }}
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -34,12 +34,15 @@ jobs:
           arch: "clang"
           platform: "nvidiaX"
           language: "openmp"
+          # FIXME: Re-add and "gpu" and amend tags before merge.
+          tags: ["self-hosted", "openmp"]
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
           arch: "pgcc"
           platform: "nvidiaX"
           language: "openacc"
+          tags: ["self-hosted", "gpu", "openacc"]
 
     steps:
     - name: Checkout devito
@@ -51,6 +54,7 @@ jobs:
         DEVITO_ARCH: ${{ matrix.arch }}
         DEVITO_PLATFORM: ${{ matrix.platform }}
         DEVITO_LANGUAGE: ${{ matrix.language }}
+        OMPI_CC: ${{ matrix.arch }}
 
     - name: Install dependencies
       run: |
@@ -59,7 +63,9 @@ jobs:
 
     - name: Test with pytest
       run: |
-        pgaccelinfo
+        if [ "${{ matrix.name }}" == 'pytest-gpu-acc' ]; then
+          pgaccelinfo
+        fi
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
         pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/elastic/elastic_example.py
         pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/acoustic/acoustic_example.py

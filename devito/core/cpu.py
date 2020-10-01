@@ -110,6 +110,8 @@ class CPU64NoopOperator(OperatorCore):
         o['par-dynamic-work'] = oo.pop('par-dynamic-work', cls.PAR_DYNAMIC_WORK)
         o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
 
+        o['gpu-direct'] = oo.pop('gpu-direct', False)
+
         if oo:
             raise InvalidOperator("Unrecognized optimization options: [%s]"
                                   % ", ".join(list(oo)))
