@@ -80,14 +80,14 @@ def test_scheduling_after_rewrite():
     (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
       'Eq(tw.forward, tv.dt.dx2.dy2 + 1)', 'Eq(tz.forward, tv.dt.dy2.dx2 + 2)'],
      ['h_x**(-2)', 'h_y**(-2)', '1/h_x', '1/dt', '-r9*tv[t, x, y, z]',
-      '-r9*tv[t, x - 1, y, z] + r9*tv[t + 1, x - 1, y, z]',
       '-r9*tv[t, x + 1, y, z] + r9*tv[t + 1, x + 1, y, z]',
-      '-r9*tv[t, x, y - 1, z] + r9*tv[t + 1, x, y - 1, z]',
-      '-r9*tv[t, x - 1, y - 1, z] + r9*tv[t + 1, x - 1, y - 1, z]',
-      '-r9*tv[t, x + 1, y - 1, z] + r9*tv[t + 1, x + 1, y - 1, z]',
+      '-r9*tv[t, x - 1, y, z] + r9*tv[t + 1, x - 1, y, z]',
       '-r9*tv[t, x, y + 1, z] + r9*tv[t + 1, x, y + 1, z]',
-      '-r9*tv[t, x - 1, y + 1, z] + r9*tv[t + 1, x - 1, y + 1, z]',
       '-r9*tv[t, x + 1, y + 1, z] + r9*tv[t + 1, x + 1, y + 1, z]',
+      '-r9*tv[t, x - 1, y + 1, z] + r9*tv[t + 1, x - 1, y + 1, z]',
+      '-r9*tv[t, x, y - 1, z] + r9*tv[t + 1, x, y - 1, z]',
+      '-r9*tv[t, x + 1, y - 1, z] + r9*tv[t + 1, x + 1, y - 1, z]',
+      '-r9*tv[t, x - 1, y - 1, z] + r9*tv[t + 1, x - 1, y - 1, z]',
       '-r10*tu[t, x, y, z] + r10*tu[t, x + 1, y, z] + 1',
       '-r10*tv[t, x, y, z] + r10*tv[t, x + 1, y, z] + 1',
       'r11*(r0*r12 + r1*r12 - 2.0*r12*r2) + r11*(r12*r3 + r12*r4 - 2.0*r12*r5) - '
@@ -1086,8 +1086,8 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert sum(i.ops for i in summary1.values()) == 101
-        assert sum(i.ops for i in summary2.values()) == 92
+        assert sum(i.ops for i in summary1.values()) == 73
+        assert sum(i.ops for i in summary2.values()) == 60
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_from_different_nests(self, rotate):
@@ -1784,8 +1784,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 103
-        assert np.isclose(summary[('section1', None)].oi, 1.625, atol=0.001)
+        assert summary[('section1', None)].ops == 102
+        assert np.isclose(summary[('section1', None)].oi, 1.610, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
