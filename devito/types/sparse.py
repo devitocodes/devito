@@ -8,7 +8,8 @@ from cached_property import cached_property
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
-from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
+from devito.symbolics import (INT, FLOOR, cast_mapper, indexify,
+                              retrieve_function_carriers)
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           memoized_meth)
 from devito.types.dense import DiscreteFunction, Function, SubFunction
@@ -41,7 +42,13 @@ class AbstractSparseFunction(DiscreteFunction):
         self._space_order = kwargs.get('space_order', 0)
 
         # Dynamically add derivative short-cuts
-        self._fd = generate_fd_shortcuts(self)
+        self._fd = self.__fd_setup__()
+
+    def __fd_setup__(self):
+        """
+        Dynamically add derivative short-cuts.
+        """
+        return generate_fd_shortcuts(self.dimensions, self.space_order)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -352,6 +359,13 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
         super(AbstractSparseTimeFunction, self).__init_finalize__(*args, **kwargs)
 
+    def __fd_setup__(self):
+        """
+        Dynamically add derivative short-cuts.
+        """
+        return generate_fd_shortcuts(self.dimensions, self.space_order,
+                                     to=self.time_order)
+
     @property
     def time_dim(self):
         """The time dimension."""
@@ -536,6 +550,27 @@ class SparseFunction(AbstractSparseFunction):
                      for d in self.grid.dimensions)
 
     @cached_property
+    def _position_map(self):
+        """
+        Symbols map for the position of the sparse points relative to the grid
+        origin.
+
+        Notes
+        -----
+        The expression `(coord - origin)/spacing` could also be computed in the
+        mathematically equivalent expanded form `coord/spacing -
+        origin/spacing`. This particular form is problematic when a sparse
+        point is in close proximity of the grid origin, since due to a larger
+        machine precision error it may cause a +-1 error in the computation of
+        the position. We mitigate this problem by computing the positions
+        individually (hence the need for a position map).
+        """
+        symbols = [Scalar(name='pos%s' % d, dtype=self.dtype)
+                   for d in self.grid.dimensions]
+        return OrderedDict([(c - o, p) for p, c, o in
+                            zip(symbols, self._coordinate_symbols, self.grid.origin)])
+
+    @cached_property
     def _point_increments(self):
         """Index increments in each dimension for each point symbol."""
         return tuple(product(range(2), repeat=self.grid.dim))
@@ -550,19 +585,18 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _coordinate_indices(self):
         """Symbol for each grid index according to the coordinates."""
-        indices = self.grid.dimensions
-        return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
-                      for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
-                                         indices[:self.grid.dim])])
+        return tuple([INT(FLOOR((c - o) / i.spacing))
+                      for c, o, i in zip(self._coordinate_symbols,
+                                         self.grid.origin,
+                                         self.grid.dimensions[:self.grid.dim])])
 
     def _coordinate_bases(self, field_offset):
         """Symbol for the base coordinates of the reference grid point."""
-        indices = self.grid.dimensions
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
                       for c, o, idx, i, of in zip(self._coordinate_symbols,
                                                   self.grid.origin,
                                                   self._coordinate_indices,
-                                                  indices[:self.grid.dim],
+                                                  self.grid.dimensions[:self.grid.dim],
                                                   field_offset)])
 
     @memoized_meth
@@ -629,9 +663,13 @@ class SparseFunction(AbstractSparseFunction):
                          if f.is_SparseFunction}
             out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
 
-        # Temporaries for the indirection dimensions
+        # Temporaries for the position
         temps = [Eq(v, k, implicit_dims=self.dimensions)
-                 for k, v in points.items() if v in conditions]
+                 for k, v in self._position_map.items()]
+        # Temporaries for the indirection dimensions
+        temps.extend([Eq(v, k.subs(self._position_map),
+                         implicit_dims=self.dimensions)
+                      for k, v in points.items() if v in conditions])
 
         return out, temps
 

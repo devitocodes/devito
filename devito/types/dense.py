@@ -331,7 +331,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 else:
                     for i, j, k, l in zip(left, right, self._distributor.mycoords,
                                           self._distributor.topology):
-                        if j > 0 and k == 0 or i > 0 and k == l-1:
+                        if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
                             warning(warning_msg)
                             break
             except AttributeError:
@@ -407,6 +407,30 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         instead.
         """
         return self.data_domain
+
+    def data_gather(self, start=None, stop=None, step=1, rank=0):
+        """
+        Gather distributed `Data` attached to a `Function` onto a single rank.
+
+        Parameters
+        ----------
+        rank : int
+            The rank onto which the data will be gathered.
+        step : int or tuple of ints
+            The `slice` step in each dimension.
+        start : int or tuple of ints
+            The `slice` start in each dimension.
+        stop : int or tuple of ints
+            The final point of the `slice` to include.
+
+        Notes
+        -----
+        Alias to ``self.data._gather``.
+
+        Note that gathering data from large simulations onto a single rank may
+        result in memory blow-up and hence should use this method judiciously.
+        """
+        return self.data._gather(start=start, stop=stop, step=step, rank=rank)
 
     @property
     @_allocate_memory
@@ -958,14 +982,18 @@ class Function(DiscreteFunction):
         else:
             raise TypeError("`space_order` must be int or 3-tuple of ints")
 
-        # Dynamically add derivative short-cuts
-        self._fd = generate_fd_shortcuts(self)
-
+        self._fd = self.__fd_setup__()
         # Flag whether it is a parameter or a variable.
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
         # parameter has to be computed at x + hx/2)
         self._is_parameter = kwargs.get('parameter', False)
+
+    def __fd_setup__(self):
+        """
+        Dynamically add derivative short-cuts.
+        """
+        return generate_fd_shortcuts(self.dimensions, self.space_order)
 
     @cached_property
     def _fd_priority(self):
@@ -1281,6 +1309,13 @@ class TimeFunction(Function):
 
         self.save = kwargs.get('save')
 
+    def __fd_setup__(self):
+        """
+        Dynamically add derivative short-cuts.
+        """
+        return generate_fd_shortcuts(self.dimensions, self.space_order,
+                                     to=self.time_order)
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
@@ -1325,7 +1360,7 @@ class TimeFunction(Function):
 
     @cached_property
     def _fd_priority(self):
-        return super(TimeFunction, self)._fd_priority + .1
+        return 2.1 if self.staggered in [NODE, None] else 2.2
 
     @property
     def time_order(self):

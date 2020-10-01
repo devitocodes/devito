@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
-                    Eq, Operator)
+                    Eq, Inc, Operator, info)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
 from devito.passes import NThreads, NThreadsNonaffine
@@ -380,12 +380,10 @@ class TestNodeParallelism(object):
         # outermost sequential, innermost parallel
         (['Eq(fc[x,y], fc[x+1,y+1] + fc[x-1,y])'],
          (False, True)),
-        # outermost parallel w/ repeated dimensions, but the compiler is conservative
-        # and makes it sequential, as it doesn't like what happens in the inner dims,
-        # where `x`, rather than `y`, is used. The innermost one is instead parallel,
-        # as there are no deps along `y`.
-        (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x], t0 + 1)'],
-         (False, True)),
+        # outermost parallel w/ repeated dimensions (hence irregular dependencies)
+        # both `x` and `y` are parallel-if-atomic loops
+        (['Inc(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x], t0 + 1)'],
+         (True, False)),
         # outermost sequential, innermost sequential (classic skewing example)
         (['Eq(fc[x,y], fc[x,y+1] + fc[x-1,y])'],
          (False, False)),
@@ -523,6 +521,62 @@ class TestNodeParallelism(object):
         assert not iterations[3].is_Affine
         assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
 
+    @pytest.mark.parametrize('so', [0, 1, 2])
+    @pytest.mark.parametrize('dim', [0, 1, 2])
+    def test_array_reduction(self, so, dim):
+        """
+        Test generation of OpenMP reduction clauses involving Function's.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        d = grid.dimensions[dim]
+
+        f = Function(name='f', shape=(3,), dimensions=(d,), grid=grid, space_order=so)
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Inc(f, u + 1), opt=('openmp', {'par-collapse-ncores': 1}))
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert "reduction(+:f[0:f_vec->size[0]])" in iterations[1].pragmas[0].value
+
+        try:
+            op(time_M=1)
+        except:
+            # Older gcc <6.1 don't support reductions on array
+            info("Un-supported older gcc version for array reduction")
+            assert True
+            return
+
+        assert np.allclose(f.data, 18)
+
+    def test_incs_no_atomic(self):
+        """
+        Test that `Inc`'s don't get a `#pragma omp atomic` if performing
+        an increment along a fully parallel loop.
+        """
+        grid = Grid(shape=(8, 8, 8))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+
+        # Format: u(t, x, nastyness) += 1
+        uf = u[t, x, f, z]
+
+        # All loops get collapsed, but the `y` and `z` loops are PARALLEL_IF_ATOMIC,
+        # hence an atomic pragma is expected
+        op0 = Operator(Inc(uf, 1), opt=('advanced', {'openmp': True,
+                                                     'par-collapse-ncores': 1}))
+        assert 'collapse(3)' in str(op0)
+        assert 'atomic' in str(op0)
+
+        # Now only `x` is parallelized
+        op1 = Operator([Eq(v[t, x, 0, 0], v[t, x, 0, 0] + 1), Inc(uf, 1)],
+                       opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
+        assert 'collapse(1)' in str(op1)
+        assert 'atomic' not in str(op1)
+
 
 class TestNestedParallelism(object):
 
@@ -581,7 +635,7 @@ class TestNestedParallelism(object):
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
-    def test_multiple_subnests(self):
+    def test_multiple_subnests_v0(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
@@ -591,12 +645,11 @@ class TestNestedParallelism(object):
 
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-        op = Operator(eqn,
-                      opt=('advanced', {'openmp': True,
-                                        'cire-mincost-sops': 1,
-                                        'par-nested': 0,
-                                        'par-collapse-ncores': 1,
-                                        'par-dynamic-work': 0}))
+        op = Operator(eqn, opt=('advanced', {'openmp': True,
+                                             'cire-mincost-sops': 1,
+                                             'par-nested': 0,
+                                             'par-collapse-ncores': 1,
+                                             'par-dynamic-work': 0}))
 
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
@@ -608,5 +661,42 @@ class TestNestedParallelism(object):
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
         assert trees[1][2].pragmas[0].value == ('omp parallel for collapse(2) '
+                                                'schedule(dynamic,1) '
+                                                'num_threads(nthreads_nested)')
+
+    def test_multiple_subnests_v1(self):
+        """
+        Unlike ``test_multiple_subnestes_v0``, now we use the ``cire-rotate=True``
+        option, which trades some of the inner parallelism for a smaller working set.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+        op = Operator(eqn, opt=('advanced', {'openmp': True,
+                                             'cire-mincost-sops': 1,
+                                             'cire-rotate': True,
+                                             'par-nested': 0,
+                                             'par-collapse-ncores': 1,
+                                             'par-dynamic-work': 0}))
+
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 2
+
+        assert trees[0][0] is trees[1][0]
+        assert trees[0][0].pragmas[0].value ==\
+            'omp for collapse(2) schedule(dynamic,1)'
+        assert not trees[0][2].pragmas
+        assert not trees[0][3].pragmas
+        assert trees[0][4].pragmas[0].value == ('omp parallel for collapse(1) '
+                                                'schedule(dynamic,1) '
+                                                'num_threads(nthreads_nested)')
+        assert not trees[1][2].pragmas
+        assert trees[1][3].pragmas[0].value == ('omp parallel for collapse(1) '
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')

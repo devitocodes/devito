@@ -1,6 +1,5 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
-from examples.seismic import PointSource
 from examples.seismic.self_adjoint.operators import IsoFwdOperator, IsoAdjOperator, \
     IsoJacobianFwdOperator, IsoJacobianAdjOperator
 
@@ -41,7 +40,7 @@ class SaIsoAcousticWaveSolver(object):
         self.model = model
         self.geometry = geometry
 
-        assert self.model == geometry.model
+        assert self.model.grid == geometry.grid
 
         self.space_order = space_order
 
@@ -100,8 +99,8 @@ class SaIsoAcousticWaveSolver(object):
             The time-constant dissipation only attenuation w/Q field.
         u : Function or float
             Stores the computed wavefield.
-        save : int or Buffer
-            Whether (int nt) or not (None) to save the wavefield time history.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
 
         Returns
         ----------
@@ -146,8 +145,6 @@ class SaIsoAcousticWaveSolver(object):
             The time-constant dissipation only attenuation w/Q field.
         ua : Function or float
             Stores the computed adjoint wavefield.
-        save : int or Buffer, optional
-            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------
@@ -155,9 +152,8 @@ class SaIsoAcousticWaveSolver(object):
         and performance summary
         """
         # Create a new adjoint source and receiver symbol
-        srca = src or PointSource(name='srca', grid=self.model.grid,
-                                  time_range=self.geometry.time_axis,
-                                  coordinates=self.geometry.src_positions)
+        srca = src or self.geometry.new_src(name='srca', src_type=None)
+
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
@@ -195,8 +191,8 @@ class SaIsoAcousticWaveSolver(object):
             Stores the computed background wavefield.
         du : Function or float
             Stores the computed perturbed wavefield.
-        save : int or Buffer
-            Whether (int nt) or not (None) to save the wavefield time history.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
 
         Returns
         ----------
@@ -246,8 +242,6 @@ class SaIsoAcousticWaveSolver(object):
             The perturbation to the velocity model.
         du : Function or float
             Stores the computed perturbed wavefield.
-        save : int or Buffer
-            Whether (int nt) or not (None) to save the wavefield time history.
 
         Returns
         ----------

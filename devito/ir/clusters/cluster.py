@@ -4,8 +4,8 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import (IterationSpace, DataSpace, Scope, detect_io,
-                               normalize_properties)
+from devito.ir.support import (PARALLEL, IterationSpace, DataSpace, Scope,
+                               detect_io, normalize_properties)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
 
@@ -111,6 +111,10 @@ class Cluster(object):
         return self.ispace.sub_iterators
 
     @property
+    def directions(self):
+        return self.ispace.directions
+
+    @property
     def dspace(self):
         return self._dspace
 
@@ -159,13 +163,43 @@ class Cluster(object):
     @cached_property
     def is_dense(self):
         """
-        True if the Cluster unconditionally writes into DiscreteFunctions
-        through affine access functions, False otherwise.
+        A Cluster is dense if at least one of the following conditions is True:
+
+            * It is defined over a unique Grid and all of the Grid Dimensions
+              are PARALLEL.
+            * Only DiscreteFunctions are written and only affine index functions
+              are used (e.g., `a[x+1, y-2]` is OK, while `a[b[x], y-2]` is not)
         """
+        # Hopefully it's got a unique Grid and all Dimensions are PARALLEL.
+        # This is a quick and easy check so we try it first
+        try:
+            grid = self.grid
+            for d in grid.dimensions:
+                if not any(PARALLEL in v for k, v in self.properties.items()
+                           if d in k._defines):
+                    raise ValueError
+            return True
+        except ValueError:
+            pass
+
+        # Fallback to legacy is_dense checks
         return (not any(e.conditionals for e in self.exprs) and
                 not any(f.is_SparseFunction for f in self.functions) and
                 not self.is_scalar and
                 all(a.is_regular for a in self.scope.accesses))
+
+    @cached_property
+    def grid(self):
+        if len(self.grids) == 1:
+            return self.grids[0]
+        raise ValueError("Cluster has no unique Grid")
+
+    @cached_property
+    def grids(self):
+        """
+        The Grid's over which the Cluster is defined.
+        """
+        return tuple(set(i.grid for i in self.exprs if i.grid is not None))
 
     @cached_property
     def dtype(self):

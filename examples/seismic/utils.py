@@ -1,5 +1,5 @@
 import numpy as np
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Action
 
 from devito import error, configuration, warning
 from devito.tools import Pickable
@@ -9,7 +9,7 @@ from .source import *
 __all__ = ['AcquisitionGeometry', 'setup_geometry', 'seismic_args']
 
 
-def setup_geometry(model, tn):
+def setup_geometry(model, tn, f0=0.010):
     # Source and receiver geometries
     src_coordinates = np.empty((1, model.dim))
     src_coordinates[0, :] = np.array(model.domain_size) * .5
@@ -19,7 +19,7 @@ def setup_geometry(model, tn):
     rec_coordinates = setup_rec_coords(model)
 
     geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=f0)
 
     return geometry
 
@@ -62,12 +62,14 @@ class AcquisitionGeometry(Pickable):
         In practice would be __init__(segyfile) and all below parameters
         would come from a segy_read (at property call rather than at init)
         """
+        src_positions = np.reshape(src_positions, (-1, model.dim))
+        rec_positions = np.reshape(rec_positions, (-1, model.dim))
         self.rec_positions = rec_positions
         self._nrec = rec_positions.shape[0]
         self.src_positions = src_positions
         self._nsrc = src_positions.shape[0]
         self._src_type = kwargs.get('src_type')
-        assert self.src_type in sources
+        assert (self.src_type in sources or self.src_type is None)
         self._f0 = kwargs.get('f0')
         self._a = kwargs.get('a', None)
         self._t0w = kwargs.get('t0w', None)
@@ -75,6 +77,7 @@ class AcquisitionGeometry(Pickable):
             error("Peak frequency must be provided in KH" +
                   " for source of type %s" % self._src_type)
 
+        self._grid = model.grid
         self._model = model
         self._dt = model.critical_dt
         self._t0 = t0
@@ -89,20 +92,18 @@ class AcquisitionGeometry(Pickable):
         return TimeAxis(start=self.t0, stop=self.tn, step=self.dt)
 
     @property
-    def model(self):
-        return self._model
-
-    @model.setter
-    def model(self, model):
-        self._model = model
-
-    @property
     def src_type(self):
         return self._src_type
 
     @property
     def grid(self):
-        return self.model.grid
+        return self._grid
+
+    @property
+    def model(self):
+        warning("Model is kept for backward compatibility but should not be"
+                "obtained from the geometry")
+        return self._model
 
     @property
     def f0(self):
@@ -138,15 +139,18 @@ class AcquisitionGeometry(Pickable):
 
     @property
     def rec(self):
-        return Receiver(name='rec', grid=self.grid,
+        return self.new_rec()
+
+    def new_rec(self, name='rec'):
+        return Receiver(name=name, grid=self.grid,
                         time_range=self.time_axis, npoint=self.nrec,
                         coordinates=self.rec_positions)
 
     @property
     def adj_src(self):
         if self.src_type is None:
-            warning("No surce type defined, returning uninitiallized (zero) shot record")
-            return self.rec
+            warning("No source type defined, returning uninitiallized (zero) shot record")
+            return self.new_rec()
         adj_src = sources[self.src_type](name='rec', grid=self.grid, f0=self.f0,
                                          time_range=self.time_axis, npoint=self.nrec,
                                          coordinates=self.rec_positions,
@@ -158,18 +162,21 @@ class AcquisitionGeometry(Pickable):
 
     @property
     def src(self):
-        if self.src_type is None:
+        return self.new_src()
+
+    def new_src(self, name='src', src_type='self'):
+        if self.src_type is None or src_type is None:
             warning("No surce type defined, returning uninistiallized (zero) source")
-            return PointSource(name='src', grid=self.grid,
+            return PointSource(name=name, grid=self.grid,
                                time_range=self.time_axis, npoint=self.nsrc,
                                coordinates=self.src_positions)
         else:
-            return sources[self.src_type](name='src', grid=self.grid, f0=self.f0,
+            return sources[self.src_type](name=name, grid=self.grid, f0=self.f0,
                                           time_range=self.time_axis, npoint=self.nsrc,
                                           coordinates=self.src_positions,
                                           t0=self._t0w, a=self._a)
 
-    _pickle_args = ['model', 'rec_positions', 'src_positions', 't0', 'tn']
+    _pickle_args = ['grid', 'rec_positions', 'src_positions', 't0', 'tn']
     _pickle_kwargs = ['f0', 'src_type']
 
 
@@ -180,6 +187,12 @@ def seismic_args(description):
     """
     Command line options for the seismic examples
     """
+
+    class _dtype_store(Action):
+        def __call__(self, parser, args, values, option_string=None):
+            values = {'float32': np.float32, 'float64': np.float64}[values]
+            setattr(args, self.dest, values)
+
     parser = ArgumentParser(description=description)
     parser.add_argument("-nd", dest="ndim", default=3, type=int,
                         help="Number of dimensions")
@@ -203,5 +216,6 @@ def seismic_args(description):
                         help="Operator auto-tuning mode")
     parser.add_argument("-tn", "--tn", default=0,
                         type=float, help="Simulation time in millisecond")
-
+    parser.add_argument("-dtype", action=_dtype_store, dest="dtype", default=np.float32,
+                        choices=['float32', 'float64'])
     return parser

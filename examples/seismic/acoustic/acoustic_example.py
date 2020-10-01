@@ -72,9 +72,10 @@ def test_isoacoustic_stability(ndim, k):
     assert np.isfinite(norm(rec))
 
 
-@pytest.mark.parametrize('fs, normrec', [(True, 369.955), (False, 459.1678)])
-def test_isoacoustic(fs, normrec):
-    _, _, _, [rec, _] = run(fs=fs)
+@pytest.mark.parametrize('fs, normrec, dtype', [(True, 369.955, np.float32),
+                                                (False, 459.1678, np.float64)])
+def test_isoacoustic(fs, normrec, dtype):
+    _, _, _, [rec, _] = run(fs=fs, dtype=dtype)
     assert np.isclose(norm(rec), normrec, rtol=1e-3, atol=0)
 
 
@@ -98,4 +99,4 @@ if __name__ == "__main__":
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, fs=args.fs,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
         autotune=args.autotune, opt=args.opt, full_run=args.full,
-        checkpointing=args.checkpointing)
+        checkpointing=args.checkpointing, dtype=args.dtype)

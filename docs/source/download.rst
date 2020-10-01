@@ -104,7 +104,7 @@ installation issues_.
 
 .. _issues: https://github.com/devitocodes/devito/wiki/Installation-Issues  
 
-.. _Slack: https://opesci-slackin.now.sh
+.. _Slack: https://join.slack.com/t/devitocodes/shared_invite/zt-gtd2yxj9-Y31YKk_7lr9AwfXeL2iMFg
 
 .. _Anaconda: https://www.continuum.io/downloads
 

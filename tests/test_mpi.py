@@ -5,7 +5,7 @@ from cached_property import cached_property
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
-                    SubDomain, Eq, Inc, NODE, Operator, norm, inner, configuration,
+                    SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
                     switchconfig, generic_derivative)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
@@ -319,20 +319,22 @@ class TestFunction(object):
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(mode=4)
-    @pytest.mark.parametrize('coords', [
-        ((1., 1.), (1., 3.), (3., 1.), (3., 3.)),
+    @pytest.mark.parametrize('shape, coords, points', [
+        ((4, 4), ((1., 1.), (1., 3.), (3., 1.), (3., 3.)), 1),
+        ((8, ), ((1.,), (3.,), (5.,), (7.,)), 1),
+        ((8, ), ((1.,), (2.,), (3.,), (4.,), (5.,), (6.,), (7.,), (8.,)), 2)
     ])
-    def test_ownership(self, coords):
+    def test_ownership(self, shape, coords, points):
         """Given a sparse point ``p`` with known coordinates, this test checks
         that the MPI rank owning ``p`` is retrieved correctly."""
-        grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
+        grid = Grid(shape=shape, extent=shape)
 
-        sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coords)
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
 
         # The domain decomposition is so that the i-th MPI rank gets exactly one
         # sparse point `p` and, incidentally, `p` is logically owned by `i`
-        assert len(sf.gridpoints) == 1
-        assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
+        assert len(sf.gridpoints) == points
+        assert all(grid.distributor.glb_to_rank(i)[0] == grid.distributor.myrank
                    for i in sf.gridpoints)
 
     @pytest.mark.parallel(mode=4)
@@ -736,6 +738,25 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
+    def test_do_haloupdate_with_constant_locindex(self):
+        """
+        Like `test_avoid_haloupdate_with_constant_index`, there is again
+        a constant index, but this time along a loc-index (`t` Dimension),
+        which needs to be handled by the `compute_loc_indices` function.
+        The actual halo update is induced by u.dx.
+        """
+        grid = Grid(shape=(4,))
+        x = grid.dimensions[0]
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eq = Eq(u.forward, u[0, x] + u.dx)
+        op = Operator(eq)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_if_no_flowdep(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -973,6 +994,30 @@ class TestCodeGeneration(object):
         else:
             assert np.allclose(g.data_ro_domain[0, 5:], [6.4, 6.4, 6.4, 6.4, 4.4], rtol=R)
             assert np.allclose(h.data_ro_domain[0, 5:], [4.4, 4.4, 4.4, 3.4, 3.1], rtol=R)
+
+    @pytest.mark.parallel(mode=1)
+    def test_conditional_dimension(self):
+        """
+        Test the case of Functions in the condition of a ConditionalDimension.
+        """
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = TimeFunction(name='h', grid=grid, space_order=2)
+
+        cd = ConditionalDimension(name='cd', parent=x, condition=~Ne(g, h[t, x+1, y]))
+
+        eqns = [Eq(f.forward, f + 1, implicit_dims=cd),
+                Eq(g, h + 1)]
+
+        op = Operator(eqns)
+
+        # No halo update here because the `x` Iteration is SEQUENTIAL
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
 
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
