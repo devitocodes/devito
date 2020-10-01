@@ -398,8 +398,9 @@ def collect(exprs, ignore_collected, options):
         mapper.setdefault(k, []).append(group)
 
     aliases = AliasMapper()
-    for _groups in list(mapper.values()):
-        groups = list(_groups)
+    queue = list(mapper.values())
+    while queue:
+        groups = queue.pop(0)
 
         while groups:
             # For each Dimension, determine the Minimum Intervals (MI) spanning
@@ -428,8 +429,16 @@ def collect(exprs, ignore_collected, options):
                 break
 
             # Try again with fewer groups
+            # Heuristic: first try retaining the larger ones
             smallest = len(min(groups, key=len))
-            groups = [g for g in groups if len(g) > smallest]
+            groups, remainder = split(groups, lambda g: len(g) > smallest)
+            if groups:
+                queue.append(remainder)
+            else:
+                # No luck with the heuristic, e.g. there are two groups
+                # and both have same `len`
+                queue.append(groups[1:])
+                groups = [groups.pop(0)]
 
         for g in groups:
             c = g.pivot
