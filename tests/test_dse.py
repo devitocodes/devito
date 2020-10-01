@@ -1398,13 +1398,14 @@ class TestAliases(object):
         # all redundancies have been detected correctly
         assert summary[('section0', None)].ops == 115
 
+    @pytest.mark.parametrize('so_ops', [(4, 39), (8, 79)])
     @pytest.mark.parametrize('rotate', [False, True])
     @switchconfig(profiling='advanced')
-    def test_tti_adjoint_akin(self, rotate):
+    def test_tti_adjoint_akin(self, so_ops, rotate):
         """
         Extrapolated from TTI adjoint.
         """
-        so = 4
+        so, exp_ops = so_ops
         to = 2
         soh = so // 2
         T = transpose
@@ -1447,8 +1448,7 @@ class TestAliases(object):
         op0 = Operator(eqn, subs=grid.spacing_map, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, subs=grid.spacing_map,
                        opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
-                                         'cire-rotate': rotate,
-                                         'cire-repeats-sops': 7}))  #TODO: FIX ME
+                                         'cire-rotate': rotate}))
 
         # Check numerical output
         op0(time_M=1)
@@ -1457,7 +1457,61 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section1', None)].ops == 39
+        assert summary[('section1', None)].ops == exp_ops
+
+    @switchconfig(profiling='advanced')
+    def test_tti_adjoint_akin_v2(self):
+        """
+        Yet another extrapolation from TTI adjoint which has caused headaches
+        in the past.
+        """
+        so = 12
+        to = 2
+        fd_order = so // 2
+
+        grid = Grid(shape=(10, 10, 10), dtype=np.float64)
+        x, y, z = grid.dimensions
+
+        p = TimeFunction(name='p', grid=grid, space_order=so, time_order=to)
+        p1 = TimeFunction(name='p', grid=grid, space_order=so, time_order=to)
+        r = TimeFunction(name='r', grid=grid, space_order=so, time_order=to)
+        delta = Function(name='delta', grid=grid, space_order=so)
+        theta = Function(name='theta', grid=grid, space_order=so)
+        phi = Function(name='phi', grid=grid, space_order=so)
+
+        p.data_with_halo[:] = 1.1
+        p1.data_with_halo[:] = 1.1
+        r.data_with_halo[:] = 0.5
+        delta.data_with_halo[:] = 0.2
+        theta.data_with_halo[:] = 0.8
+        phi.data_with_halo[:] = 0.2
+
+        field = sqrt(1 + 2*delta)*p + r
+        Gz = sin(theta) * cos(phi) * field.dx(fd_order=fd_order)
+        Gzz = (Gz * cos(theta)).dz(fd_order=fd_order).T
+        H0 = field.laplace - Gzz
+
+        eqn = Eq(p.backward, H0)
+
+        op0 = Operator(eqn, subs=grid.spacing_map, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
+
+        # Check code generation
+        xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array and i._mem_local]
+        assert len(arrays) == 2
+        self.check_array(arrays[0], ((3, 3),), (zs+6,))
+        self.check_array(arrays[1], ((6, 6), (6, 6), (6, 6)), (xs+12, ys+12, zs+12))
+
+        # Check numerical output
+        op0(time_M=1)
+        summary = op1(time_M=1, p=p1)
+        assert np.isclose(norm(p), norm(p1), atol=1e-15)
+
+        # Also check against expected operation count to make sure
+        # all redundancies have been detected correctly
+        assert summary[('section1', None)].ops == 92
 
     @pytest.mark.parametrize('rotate', [False, True])
     @switchconfig(profiling='advanced')
