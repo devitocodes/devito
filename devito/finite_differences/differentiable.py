@@ -402,7 +402,7 @@ class Mod(DifferentiableOp, sympy.Mod):
     __new__ = DifferentiableOp.__new__
 
 
-class EvalDiffDerivative(DifferentiableOp, sympy.Add):
+class EvalDiffDerivative(DifferentiableOp, EvalDerivative):
     __sympy_class__ = EvalDerivative
     __new__ = DifferentiableOp.__new__
 
