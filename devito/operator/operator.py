@@ -276,7 +276,7 @@ class Operator(Callable):
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_exprs(expressions, **kwargs)
 
-        # Lower finite-difference DSL
+        # Lower functional DSL
         expressions = flatten([i.evaluate for i in expressions])
         expressions = [j for i in expressions for j in i._flatten]
 
