@@ -1224,13 +1224,7 @@ class Indexed(sympy.Indexed):
             return super().compare(other)
         for l, r in zip(self.indices, other.indices):
             try:
-                expr = l - r
-                if expr > 0:
-                    c = 1
-                elif expr == 0:
-                    c = 0
-                else:
-                    c = -1
+                c = int(sympy.sign(l - r))
             except TypeError:
                 # E.g., `l=x+1` and `r=y` or `r=sqrt(x)`
                 c = l.compare(r)
