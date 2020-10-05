@@ -380,6 +380,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         if self._distributor is None:
             return (None,)*self.ndim
+        #if self.name == "u":
+            #from IPython import embed; embed()
         mapper = {d: self._distributor.decomposition[d] for d in self._dist_dimensions}
         return tuple(mapper.get(d) for d in self.dimensions)
 
@@ -600,7 +602,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Tuple of MPI-distributed Dimensions."""
         if self._distributor is None:
             return ()
-        return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
+        return tuple(d for d in self.dimensions if d.root in self._distributor.dimensions)
 
     @property
     def initializer(self):
