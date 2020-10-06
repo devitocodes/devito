@@ -6,7 +6,6 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 
 from collections import OrderedDict
 from collections.abc import Iterable
-from operator import attrgetter
 
 import cgen as c
 
@@ -14,7 +13,7 @@ from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
-from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
+from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction
 
 
@@ -538,7 +537,7 @@ class MapNodes(Visitor):
 class FindSymbols(Visitor):
 
     class Retval(list):
-        def __init__(self, *retvals, key=None, node=None):
+        def __init__(self, *retvals, node=None):
             elements = []
             self.mapper = {}
             for i in retvals:
@@ -547,7 +546,7 @@ class FindSymbols(Visitor):
                 except AttributeError:
                     pass
                 elements.extend(i)
-            elements = filter_ordered(elements, key=key)
+            elements = filter_sorted(elements, key=str)
             if node is not None:
                 self.mapper[node] = tuple(elements)
             super().__init__(elements)
@@ -611,7 +610,7 @@ class FindSymbols(Visitor):
                            self.rule(o), self.rule(o.condition), node=o)
 
     def visit_Expression(self, o):
-        return self.Retval([f for f in self.rule(o)], key=attrgetter('name'))
+        return self.Retval([f for f in self.rule(o)])
 
     visit_PointerCast = visit_Expression
     visit_Dereference = visit_Expression
