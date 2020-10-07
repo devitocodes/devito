@@ -221,6 +221,29 @@ constructing an Operator.</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt id="devito.types.equation.Eq.func">
+<em class="property">property </em><code class="sig-name descname">func</code><a class="headerlink" href="#devito.types.equation.Eq.func" title="Permalink to this definition">¶</a></dt>
+<dd><p>The top-level function in an expression.</p>
+<p>The following should hold for all objects:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">x</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span>
+<span class="go">&lt;class &#39;sympy.core.mul.Mul&#39;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">args</span>
+<span class="go">(2, x)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+<span class="go">2*x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">==</span> <span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
 <dt id="devito.types.equation.Eq.subdomain">
 <em class="property">property </em><code class="sig-name descname">subdomain</code><a class="headerlink" href="#devito.types.equation.Eq.subdomain" title="Permalink to this definition">¶</a></dt>
 <dd><p>The SubDomain in which the Eq is defined.</p>
