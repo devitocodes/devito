@@ -148,10 +148,17 @@ class Eq(sympy.Eq, Evaluable):
         else:
             TypeError('Failed to retrieve symbolic functions')
 
+    @property
+    def func(self):
+        return lambda *args, **kwargs:\
+            self.__class__(*args,
+                           subdomain=kwargs.pop('subdomain', self._subdomain),
+                           coefficients=kwargs.pop('coefficients', self._substitutions),
+                           implicit_dims=kwargs.pop('implicit_dims', self._implicit_dims),
+                           **kwargs)
+
     def xreplace(self, rules):
-        return self.func(self.lhs.xreplace(rules), rhs=self.rhs.xreplace(rules),
-                         subdomain=self._subdomain, coefficients=self._substitutions,
-                         implicit_dims=self._implicit_dims)
+        return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules))
 
     def __str__(self):
         return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)

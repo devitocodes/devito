@@ -6,9 +6,9 @@ import sympy
 from devito.finite_differences.finite_difference import (generic_derivative,
                                                          first_derivative,
                                                          cross_derivative)
-from devito.finite_differences.differentiable import Differentiable
+from devito.finite_differences.differentiable import Differentiable, EvalDiffDerivative
 from devito.finite_differences.tools import direct, transpose
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Derivative']
@@ -105,8 +105,8 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
-        obj._subs = as_tuple(kwargs.get("subs"))
-        obj._x0 = kwargs.get('x0', None)
+        obj._subs = as_tuple(frozendict(i) for i in kwargs.get("subs", []))
+        obj._x0 = frozendict(kwargs.get('x0', {}))
         return obj
 
     @classmethod
@@ -182,7 +182,7 @@ class Derivative(sympy.Derivative, Differentiable):
             raise TypeError("Side only supported for first order single"
                             "Dimension derivative such as `.dxl` or .dx(side=left)")
         # Cross derivative
-        _x0 = self._x0 or {}
+        _x0 = dict(self._x0)
         _fd_order = dict(self.fd_order._getters)
         try:
             _fd_order.update(**(fd_order or {}))
@@ -202,6 +202,10 @@ class Derivative(sympy.Derivative, Differentiable):
         _kwargs.update(**kwargs)
         return Derivative(expr, *self.dims, **_kwargs)
 
+    @property
+    def func(self):
+        return lambda *a, **kw: self._new_from_self(expr=a[0], **kw)
+
     def subs(self, *args, **kwargs):
         """
         Bypass sympy.Subs as Devito has its own lazy evaluation mechanism.
@@ -219,6 +223,12 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         subs = self._subs + (subs,)  # Postponed substitutions
         return self._new_from_self(subs=subs), True
+
+    @property
+    def _metadata(self):
+        state = list(self._state)
+        state.remove('expr')
+        return tuple(getattr(self, i) for i in state)
 
     @property
     def dims(self):
@@ -276,12 +286,14 @@ class Derivative(sympy.Derivative, Differentiable):
         # If an x0 already exists do not overwrite it
         x0 = self.x0 or dict(func.indices_ref._getters)
         if self.expr.is_Add:
-            # Derivatives are linear and  the derivative of an Add can be treated as an
-            # Add of derivatives which makes (u(x + h_x/2) + v(x)).dx` easier to handle
-            # since u(x + h_x/2) and v(x) require different indices
-            # for the finite difference.
-            args = [self._new_from_self(expr=a, x0=x0) if a in self.expr._args_diff else a
-                    for a in self.expr.args]
+            # If `expr` has both staggered and non-staggered terms such as
+            # `(u(x + h_x/2) + v(x)).dx` then we exploit linearity of FD to split
+            # it into `u(x + h_x/2).dx` and `v(x).dx`, since they require
+            # different FD indices
+            mapper = as_mapper(self.expr._args_diff, lambda i: i.staggered)
+            args = [self.expr.func(*v) for v in mapper.values()]
+            args.extend([a for a in self.expr.args if a not in self.expr._args_diff])
+            args = [self._new_from_self(expr=a, x0=x0) for a in args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
             # For Mul, We treat the basic case `u(x + h_x/2) * v(x) which is what appear
@@ -289,10 +301,11 @@ class Derivative(sympy.Derivative, Differentiable):
             # at the highest priority index (see _gather_for_diff) to compute the
             # derivative at x0.
             return self._new_from_self(x0=x0, expr=self.expr._gather_for_diff)
-        # For every other cases, that has more functions or more complexe arithmetic,
-        # there is not actual way to decide what to do so it’s as safe to use
-        # the expression as is.
-        return self._new_from_self(x0=x0)
+        else:
+            # For every other cases, that has more functions or more complexe arithmetic,
+            # there is not actual way to decide what to do so it’s as safe to use
+            # the expression as is.
+            return self._new_from_self(x0=x0)
 
     @property
     def evaluate(self):
@@ -309,13 +322,16 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         Evaluate finite difference approximation of the Derivative.
         Evaluation is carried out via the following four steps:
+
         - 1: Evaluate derivatives within the expression. For example given
-        `f.dx * g`, `f.dx` will be evaluated first.
+            `f.dx * g`, `f.dx` will be evaluated first.
         - 2: Evaluate the finite difference for the (new) expression.
         - 3: Evaluate remaining terms (as `g` may need to be evaluated
         at a different point).
         - 4: Apply substitutions.
-
+        - 5: Cast to an object of type `EvalDiffDerivative` so that we know
+             the argument stems from a `Derivative. This may be useful for
+             later compilation passes.
         """
         # Step 1: Evaluate derivatives within expression
         expr = getattr(expr, '_eval_deriv', expr)
@@ -338,4 +354,9 @@ class Derivative(sympy.Derivative, Differentiable):
         # Step 4: Apply substitution
         for e in self._subs:
             res = res.xreplace(e)
+
+        # Step 5: Cast to EvaluatedDerivative
+        assert res.is_Add
+        res = EvalDiffDerivative(*res.args, evaluate=False)
+
         return res

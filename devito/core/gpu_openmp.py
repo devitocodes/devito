@@ -291,7 +291,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
     """
 
-    CIRE_REPEATS_SOPS = 5
+    CIRE_REPEATS_SOPS = 7
     """
     Number of CIRE passes to detect and optimize away redundant sum-of-products.
     """
@@ -332,6 +332,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         o['cire-rotate'] = False
         o['cire-onstack'] = False
         o['cire-maxpar'] = oo.pop('cire-maxpar', True)
+        o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-repeats'] = {
             'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
             'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
