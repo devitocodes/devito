@@ -8,8 +8,9 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, ElementalFunction, List,
-                           FindNodes, LocalExpression, MapExprStmts, Transformer)
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, Expression, List,
+                           FindNodes, FindSymbols, LocalExpression, MapExprStmts,
+                           Transformer)
 from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
@@ -59,6 +60,10 @@ class DeviceOmpizer(Ompizer):
 
     _Iteration = DeviceOpenMPIteration
 
+    def __init__(self, sregistry, options, key=None):
+        super().__init__(sregistry, options, key=key)
+        self.gpu_fit = options['gpu-fit']
+
     @classmethod
     def _map_data(cls, f):
         if f.is_Array:
@@ -102,8 +107,11 @@ class DeviceOmpizer(Ompizer):
         raise NotImplementedError
 
     def _make_threaded_prodders(self, partree):
-        # no-op for now
-        return partree
+        if isinstance(partree.root, DeviceOpenMPIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_threaded_prodders(partree)
 
     def _make_partree(self, candidates, nthreads=None):
         """
@@ -113,35 +121,68 @@ class DeviceOmpizer(Ompizer):
         assert candidates
         root = candidates[0]
 
-        # Get the collapsable Iterations
-        collapsable = self._find_collapsable(root, candidates)
-        ncollapse = 1 + len(collapsable)
+        if is_on_gpu(root, self.gpu_fit, only_writes=True):
+            # The typical case: all accessed Function's are device Function's, that is
+            # all Function's are in the device memory. Then we offload the candidate
+            # Iterations to the device
 
-        # Prepare to build a ParallelTree
-        # Create a ParallelTree
-        body = self._Iteration(ncollapse=ncollapse, **root.args)
-        partree = ParallelTree([], body, nthreads=nthreads)
+            # Get the collapsable Iterations
+            collapsable = self._find_collapsable(root, candidates)
+            ncollapse = 1 + len(collapsable)
 
-        collapsed = [partree] + collapsable
+            body = self._Iteration(ncollapse=ncollapse, **root.args)
+            partree = ParallelTree([], body, nthreads=nthreads)
+            collapsed = [partree] + collapsable
 
-        return root, partree, collapsed
+            return root, partree, collapsed
+        else:
+            # Resort to host parallelism
+            return super()._make_partree(candidates, nthreads)
 
     def _make_parregion(self, partree, *args):
-        # no-op for now
-        return partree
+        if isinstance(partree.root, DeviceOpenMPIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_parregion(partree, *args)
 
-    def _make_guard(self, partree, *args):
-        # no-op for now
-        return partree
+    def _make_guard(self, parregion, *args):
+        partrees = FindNodes(ParallelTree).visit(parregion)
+        if any(isinstance(i.root, DeviceOpenMPIteration) for i in partrees):
+            # no-op for now
+            return parregion
+        else:
+            return super()._make_guard(parregion, *args)
 
     def _make_nested_partree(self, partree):
-        # no-op for now
-        return partree
+        if isinstance(partree.root, DeviceOpenMPIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_nested_partree(partree)
 
 
 class DeviceOpenMPDataManager(DataManager):
 
     _Parallelizer = DeviceOmpizer
+
+    def __init__(self, sregistry, options):
+        """
+        Parameters
+        ----------
+        sregistry : SymbolRegistry
+            The symbol registry, to quickly access the special symbols that may
+            appear in the IET (e.g., `sregistry.threadid`, that is the thread
+            Dimension, used by the DataManager for parallel memory allocation).
+        options : dict
+            The optimization options.
+            Accepted: ['gpu-fit'].
+            * 'gpu-fit': an iterable of `Function`s that are guaranteed to fit
+              in the device memory. By default, all `Function`s except saved
+              `TimeFunction`'s are assumed to fit in the device memory.
+        """
+        super().__init__(sregistry)
+        self.gpu_fit = options['gpu-fit']
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
         _storage = Storage()
@@ -191,9 +232,11 @@ class DeviceOpenMPDataManager(DataManager):
             # Populate `storage`
             storage = Storage()
             for i in filter_sorted(writes):
-                self._map_function_on_high_bw_mem(iet, i, storage)
+                if is_on_gpu(i, self.gpu_fit):
+                    self._map_function_on_high_bw_mem(iet, i, storage)
             for i in filter_sorted(reads):
-                self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
+                if is_on_gpu(i, self.gpu_fit):
+                    self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
 
             iet = self._dump_storage(iet, storage)
 
@@ -342,6 +385,9 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['gpu-direct'] = oo.pop('gpu-direct', True)
 
+        # GPU data
+        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', None))
+
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
                                   % ", ".join(list(oo)))
@@ -394,7 +440,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         DeviceOmpizer(sregistry, options).make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry)
+        data_manager = DeviceOpenMPDataManager(sregistry, options)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -425,7 +471,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry)
+        data_manager = DeviceOpenMPDataManager(sregistry, options)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -503,7 +549,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry)
+        data_manager = DeviceOpenMPDataManager(sregistry, options)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -512,3 +558,35 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         initialize(graph)
 
         return graph
+
+
+# Utils
+
+def is_on_gpu(maybe_symbol, gpu_fit, only_writes=False):
+    """
+    True if all Function's are allocated in the device memory, False otherwise.
+    Parameters
+    ----------
+    maybe_symbol : Indexed or Function or Node
+        The inspected object. May be a single Indexed or Function, or even an
+        entire piece of IET.
+    gpu_fit : list of Function
+        The Function's which are known to definitely fit in the device memory. This
+        information is given directly by the user through the compiler option
+        `gpu-fit` and is propagated down here through the various stages of lowering.
+    only_writes : boo, optional
+        Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
+        that do not appear on the LHS of at least one Expression. Defaults to False.
+    """
+    try:
+        functions = (maybe_symbol.function,)
+    except AttributeError:
+        assert maybe_symbol.is_Node
+        iet = maybe_symbol
+        functions = set(FindSymbols().visit(iet))
+        if only_writes:
+            expressions = FindNodes(Expression).visit(iet)
+            functions &= {i.write for i in expressions}
+
+    return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
+               for f in functions)

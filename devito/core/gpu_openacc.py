@@ -184,7 +184,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         DeviceAccizer(sregistry, options).make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry)
+        data_manager = DeviceOpenACCDataManager(sregistry, options)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -216,7 +216,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry)
+        data_manager = DeviceOpenACCDataManager(sregistry, options)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
@@ -288,7 +288,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
             passes_mapper['openacc'](graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry)
+        data_manager = DeviceOpenACCDataManager(sregistry, options)
         data_manager.place_ondevice(graph)
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)

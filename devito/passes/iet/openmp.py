@@ -75,10 +75,36 @@ class NThreadsNonaffine(NThreads):
 
 class OpenMPRegion(ParallelBlock):
 
-    def __init__(self, body, nthreads, private=None):
-        header = OpenMPRegion._make_header(nthreads, private)
-        super(OpenMPRegion, self).__init__(header=header, body=body)
-        self.nthreads = nthreads
+    def __init__(self, body, private=None):
+        # Normalize and sanity-check input. A bit ugly, but it makes everything
+        # much simpler to manage and reconstruct
+        body = as_tuple(body)
+        assert len(body) == 1
+        body = body[0]
+        assert body.is_List
+        if isinstance(body, ParallelTree):
+            partree = body
+        elif body.is_List:
+            assert len(body.body) == 1 and isinstance(body.body[0], ParallelTree)
+            assert len(body.footer) == 0
+            partree = body.body[0]
+            partree = partree._rebuild(prefix=(List(header=body.header,
+                                                    body=partree.prefix)))
+
+        header = OpenMPRegion._make_header(partree.nthreads, private)
+        super(OpenMPRegion, self).__init__(header=header, body=partree)
+
+    @property
+    def partree(self):
+        return self.body[0]
+
+    @property
+    def root(self):
+        return self.partree.root
+
+    @property
+    def nthreads(self):
+        return self.partree.nthreads
 
     @classmethod
     def _make_header(cls, nthreads, private=None):
@@ -89,8 +115,7 @@ class OpenMPRegion(ParallelBlock):
 class OpenMPIteration(ParallelIteration):
 
     def __init__(self, *args, **kwargs):
-        kwargs.pop('pragmas', None)
-        pragma = self._make_header(**kwargs)
+        pragmas, kwargs = self._make_header(**kwargs)
 
         properties = as_tuple(kwargs.pop('properties', None))
         properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
@@ -102,17 +127,18 @@ class OpenMPIteration(ParallelIteration):
         self.nthreads = kwargs.pop('nthreads', None)
         self.reduction = kwargs.pop('reduction', None)
 
-        super(OpenMPIteration, self).__init__(*args, pragmas=[pragma],
+        super(OpenMPIteration, self).__init__(*args, pragmas=pragmas,
                                               properties=properties, **kwargs)
 
     @classmethod
     def _make_header(cls, **kwargs):
+        kwargs.pop('pragmas', None)
+
         construct = cls._make_construct(**kwargs)
         clauses = cls._make_clauses(**kwargs)
+        header = c.Pragma(' '.join([construct] + clauses))
 
-        header = ' '.join([construct] + clauses)
-
-        return c.Pragma(header)
+        return (header,), kwargs
 
     @classmethod
     def _make_construct(cls, parallel=False, **kwargs):
@@ -417,12 +443,12 @@ class Ompizer(object):
                                                         array=i))
             heap_globals.append(Dereference(i, pi))
         if heap_globals:
-            body = List(header=self._make_tid(self.threadid),
-                        body=heap_globals+[partree], footer=c.Line())
-        else:
-            body = partree
+            prefix = List(header=self._make_tid(self.threadid),
+                          body=heap_globals + list(partree.prefix),
+                          footer=c.Line())
+            partree = partree._rebuild(prefix=prefix)
 
-        return OpenMPRegion(body, partree.nthreads)
+        return self._Region(partree)
 
     def _make_guard(self, partree, collapsed):
         # Do not enter the parallel region if the step increment is 0; this
