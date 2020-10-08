@@ -2,7 +2,8 @@ import pytest
 import numpy as np
 
 from conftest import skipif
-from devito import Grid, Function, TimeFunction, Eq, Operator, norm, solve
+from devito import (Grid, Constant, Function, TimeFunction, ConditionalDimension,
+                    SubDomain, Eq, Inc, Operator, norm, solve)
 from devito.data import LEFT
 from devito.ir.iet import retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
@@ -100,6 +101,97 @@ class TestOperator(object):
         op(time=time_range.num-1, dt=dt)
 
         assert np.isclose(norm(rec), 490.56, atol=1e-2, rtol=0)
+
+
+class TestStreaming(object):
+
+    """
+    Tests requiring continuous data movement between host and device(s).
+    """
+
+    @skipif('nodevice')
+    @pytest.mark.parametrize('gpu_fit', [True, False])
+    def test_save(self, gpu_fit):
+        nt = 10
+        grid = Grid(shape=(300, 300, 300))
+
+        time_dim = grid.time_dim
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                             save=int(nt//factor.data), time_dim=time_sub)
+        # For the given `nt` and grid shape, `usave` is roughly 4*5*300**3=~ .5GB of data
+
+        op = Operator([Eq(u.forward, u + 1), Eq(usave, u.forward)],
+                      platform='nvidiaX', language='openacc',
+                      opt=('advanced', {'gpu-fit': usave if gpu_fit else None}))
+
+        op.apply(time_M=nt-1)
+
+        assert all(np.all(usave.data[i] == 2*i + 1) for i in range(usave.save))
+
+    @skipif('nodevice')
+    @pytest.mark.parametrize('gpu_fit', [True, False])
+    def test_xcor_from_saved(self, gpu_fit):
+        nt = 10
+
+        grid = Grid(shape=(10, 10, 10))
+        time_dim = grid.time_dim
+
+        period = 2
+        factor = Constant(name='factor', value=period, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        g = Function(name='g', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                             save=int(nt//factor.data), time_dim=time_sub)
+
+        for i in range(int(nt//period)):
+            usave.data[i, :] = i
+        v.data[:] = i*2 + 1
+
+        # Assuming nt//period=5, we are computing, over 5 iterations:
+        # g = 4*4  [time=8] + 3*3 [time=6] + 2*2 [time=4] + 1*1 [time=2]
+        op = Operator([Eq(v.backward, v - 1), Inc(g, usave*(v/2))],
+                      platform='nvidiaX', language='openacc',
+                      opt=('advanced', {'gpu-fit': usave if gpu_fit else None}))
+
+        op.apply(time_M=nt-1)
+
+        assert np.all(g.data == 30)
+
+    @skipif('nodevice')
+    def test_save_whole_field_split(self):
+        nt = 10
+
+        # We use a subdomain to enforce Eqs to end up in different loops
+        class Bundle(SubDomain):
+            name = 'bundle'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('middle', 0, 0), y: ('middle', 0, 0), z: ('middle', 0, 0)}
+
+        bundle0 = Bundle()
+        grid = Grid(shape=(10, 10, 10), subdomains=bundle0)
+
+        tmp = Function(name='tmp', grid=grid)
+        u = TimeFunction(name='u', grid=grid, save=nt)
+
+        # `u` uses `save` so by default it lives on the host. This implies
+        # that only the first equation gets computed on the device (clearly
+        # `tmp` lives on the device), while the second one gets computed
+        # asynchronously on the host once the data (`tmp`)has been streamed back
+        op = Operator([Eq(tmp, u + 1), Eq(u.forward, tmp, subdomain=bundle0)],
+                      platform='nvidiaX', language='openacc')
+
+        op.apply(time_M=nt-2)
+
+        assert np.all(u.data[nt-1] == 8)
 
 
 class TestMPI(object):
