@@ -52,9 +52,6 @@ class Array(ArrayBasic):
         Control data sharing. Allowed values: 'shared', 'local'. Defaults to 'shared'.
         'shared' means that in a multi-threaded context, the Array is shared by all
         threads. 'local', instead, means the Array is thread-private.
-    volatile : bool, optional
-        True if the type qualifier "volatile" should be added to the C-level Array
-        type name. Defaults to False.
 
     Warnings
     --------
@@ -76,8 +73,6 @@ class Array(ArrayBasic):
 
         self._sharing = kwargs.get('sharing', 'shared')
         assert self._sharing in ['shared', 'local']
-
-        self._volatile = kwargs.get('volatile', False)
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -118,11 +113,7 @@ class Array(ArrayBasic):
 
     @property
     def _C_typename(self):
-        words = []
-        if self.volatile:
-            words.append('volatile')
-        words.append(ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype))))
-        return ' '.join(words)
+        return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
     @property
     def scope(self):
@@ -131,10 +122,6 @@ class Array(ArrayBasic):
     @property
     def sharing(self):
         return self._sharing
-
-    @property
-    def volatile(self):
-        return self._volatile
 
     @property
     def _mem_stack(self):
@@ -158,7 +145,7 @@ class Array(ArrayBasic):
 
     # Pickling support
     _pickle_kwargs = AbstractFunction._pickle_kwargs +\
-        ['dimensions', 'scope', 'sharing', 'volatile']
+        ['dimensions', 'scope', 'sharing']
 
 
 class PointerArray(ArrayBasic):

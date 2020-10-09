@@ -8,10 +8,9 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimen
                     Dimension, SubDimension, Eq, Inc, Operator, info)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
-from devito.passes import NThreads, NThreadsNonaffine
 from devito.passes.iet.openmp import OpenMPRegion
 from devito.tools import as_tuple
-from devito.types import Scalar
+from devito.types import Scalar, NThreads, NThreadsNonaffine
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):

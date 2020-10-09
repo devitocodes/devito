@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import cgen as c
 from sympy import Or, Max, Not
@@ -13,10 +11,9 @@ from devito.symbolics import CondEq, DefFunction, INT
 from devito.parameters import configuration
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
-from devito.types import Constant, PointerArray, Symbol
+from devito.types import PointerArray, Symbol, NThreadsMixin
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'Ompizer',
-           'OpenMPIteration', 'ParallelTree']
+__all__ = ['Ompizer', 'OpenMPIteration', 'ParallelTree']
 
 
 def ncores():
@@ -25,52 +22,6 @@ def ncores():
 
 def nhyperthreads():
     return configuration['platform'].threads_per_core
-
-
-class NThreadsMixin(object):
-
-    is_PerfKnob = True
-
-    def __new__(cls, **kwargs):
-        name = kwargs.get('name', cls.name)
-        value = cls.default_value()
-        obj = Constant.__new__(cls, name=name, dtype=np.int32, value=value)
-        obj.aliases = as_tuple(kwargs.get('aliases')) + (name,)
-        return obj
-
-    @property
-    def _arg_names(self):
-        return self.aliases
-
-    def _arg_values(self, **kwargs):
-        for i in self.aliases:
-            if i in kwargs:
-                return {self.name: kwargs.pop(i)}
-        # Fallback: as usual, pick the default value
-        return self._arg_defaults()
-
-
-class NThreads(NThreadsMixin, Constant):
-
-    name = 'nthreads'
-
-    @classmethod
-    def default_value(cls):
-        return int(os.environ.get('OMP_NUM_THREADS', ncores()))
-
-
-class NThreadsNested(NThreadsMixin, Constant):
-
-    name = 'nthreads_nested'
-
-    @classmethod
-    def default_value(cls):
-        return nhyperthreads()
-
-
-class NThreadsNonaffine(NThreads):
-
-    name = 'nthreads_nonaffine'
 
 
 class OpenMPRegion(ParallelBlock):

@@ -261,19 +261,15 @@ class CGen(Visitor):
 
     def visit_LocalExpression(self, o):
         if o.write.is_Array:
-            ctype = [o.expr.lhs._C_typedata]
-            if o.write.volatile:
-                ctype.insert(0, 'volatile')
-            ctype = ' '.join(ctype)
             lhs = '%s%s' % (
                 o.expr.lhs.name,
                 ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
             )
         else:
-            ctype = o.expr.lhs._C_typedata
             lhs = ccode(o.expr.lhs, dtype=o.dtype)
 
-        return c.Initializer(c.Value(ctype, lhs), ccode(o.expr.rhs, dtype=o.dtype))
+        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
+                             ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):
         return c.Statement(ccode(o.expr))
