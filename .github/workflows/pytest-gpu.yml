@@ -66,31 +66,21 @@ jobs:
           pgaccelinfo
         fi
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/elastic/elastic_example.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/acoustic/acoustic_example.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoacoustic/viscoacoustic_example.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoelastic/viscoelastic_example.py
 
-        if [ "${{ matrix.name }}" == 'pytest-gpu-omp' ]; then
-            pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoelastic/viscoelastic_example.py
-        fi
-
-    - name: Run examples
-      if: matrix.name == 'pytest-gpu-acc'
+    - name: Test examples
       run: |
-        python3 examples/seismic/elastic/elastic_example.py
-        python3 examples/seismic/elastic/elastic_example.py
-        python3 examples/seismic/tti/tti_example.py
-        python3 examples/seismic/viscoacoustic/viscoacoustic_example.py
-        python3 examples/seismic/viscoelastic/viscoelastic_example.py
+        pytest examples/seismic/elastic/elastic_example.py
+        pytest examples/seismic/elastic/elastic_example.py
+        pytest examples/seismic/tti/tti_example.py
+        pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
-      if: matrix.name == 'pytest-gpu-acc'
       run: |
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/elastic/elastic_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/tti/tti_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/viscoelastic/viscoelastic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
