@@ -55,6 +55,10 @@ class DeviceAccizer(DeviceOmpizer):
             c.Pragma('acc data present(%s%s)' % (i, j)),
         'map-update': lambda i, j:
             c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
+        'map-update-host': lambda i, j:
+	    c.Pragma('acc update self(%s%s)' % (i, j)),
+	'map-update-device': lambda i, j:
+	    c.Pragma('acc update device(%s%s)' % (i, j)),
         'map-release': lambda i, j:
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
         'map-exit-delete': lambda i, j:
@@ -66,19 +70,14 @@ class DeviceAccizer(DeviceOmpizer):
     _Iteration = DeviceOpenACCIteration
 
     @classmethod
-    def _map_present(cls, f):
-        # TODO: currently this is unused, because we cannot yet distinguish between
-        # "real" Arrays and Functions that "acts as Arrays", created by the compiler
-        # to build support routines (e.g., the Sendrecv/Gather/Scatter MPI Callables).
-        # We should only use "#pragma acc present" for *real* Arrays -- that is
-        # temporaries that are born and die on the Device
-        return cls.lang['map-present'](f.name, ''.join('[0:%s]' % i
-                                                       for i in cls._map_data(f)))
+    def _map_present(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-present'](f.name, sections)
 
     @classmethod
-    def _map_delete(cls, f):
-        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
-                                                           for i in cls._map_data(f)))
+    def _map_delete(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-exit-delete'](f.name, sections)
 
     @classmethod
     def _map_pointers(cls, functions):
@@ -180,8 +179,10 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # GPU parallelism via OpenACC offloading
-        DeviceAccizer(sregistry, options).make_parallel(graph)
+        # Device and host parallelism via OpenACC offloading
+        accizer = DeviceAccizer(sregistry, options)
+        accizer.make_parallel(graph)
+        accizer.make_orchestration(graph)
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager(sregistry, options)
@@ -209,8 +210,10 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # GPU parallelism via OpenACC offloading
-        DeviceAccizer(sregistry, options).make_parallel(graph)
+        # Device and host parallelism via OpenACC offloading
+        accizer = DeviceAccizer(sregistry, options)
+        accizer.make_parallel(graph)
+        accizer.make_orchestration(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -230,7 +233,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
 
 class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
 
-    _known_passes = ('optcomms', 'openacc', 'mpi', 'prodders')
+    _known_passes = ('optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders')
     _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
@@ -244,6 +247,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         return {
             'optcomms': partial(optimize_halospots),
             'openacc': partial(accizer.make_parallel),
+            'orchestrate': partial(accizer.make_orchestration),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders)
         }

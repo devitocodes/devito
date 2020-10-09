@@ -165,6 +165,20 @@ class TestStreaming(object):
         assert np.all(g.data == 30)
 
     @skipif('nodevice')
+    def test_save_whole_field(self):
+        nt = 10
+
+        grid = Grid(shape=(10, 10, 10))
+
+        u = TimeFunction(name='u', grid=grid, save=nt)
+
+        op = Operator(Eq(u.forward, u + u.backward + 1), platform='nvidiaX', language='openacc')
+
+        op.apply(time_M=nt-2)
+
+        assert np.all(u.data[nt-1] == 8)
+
+    @skipif('nodevice')
     def test_save_whole_field_split(self):
         nt = 10
 
