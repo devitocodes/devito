@@ -31,14 +31,19 @@ class Cluster(object):
     properties : dict, optional
         Mapper from Dimensions to Property, describing the Cluster properties
         such as its parallel Dimensions.
+    syncs : dict, optional
+        Mapper from Dimensions to list of SyncOps, that is ordered sequences of
+        synchronization operations that must be performed prior to computing the
+        Cluster if asynchronous execution (e.g., via threads) is used.
     """
 
-    def __init__(self, exprs, ispace, dspace, guards=None, properties=None):
+    def __init__(self, exprs, ispace, dspace, guards=None, properties=None, syncs=None):
         self._exprs = tuple(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                             for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._guards = frozendict(guards or {})
+        self._syncs = frozendict(syncs or {})
 
         properties = dict(properties or {})
         properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
@@ -61,19 +66,23 @@ class Cluster(object):
         if not all(root.guards == c.guards for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "non-homogeneous guards")
+        if not all(root.syncs == c.syncs for c in clusters):
+            raise ValueError("Cannot build a Cluster from Clusters with "
+                             "non-homogeneous synchronization operations")
 
         exprs = chain(*[c.exprs for c in clusters])
         ispace = IterationSpace.union(*[c.ispace for c in clusters])
         dspace = DataSpace.union(*[c.dspace for c in clusters])
 
         guards = root.guards
+        syncs = root.syncs
 
         properties = {}
         for c in clusters:
             for d, v in c.properties.items():
                 properties[d] = normalize_properties(properties.get(d, v), v)
 
-        return Cluster(exprs, ispace, dspace, guards, properties)
+        return Cluster(exprs, ispace, dspace, guards, properties, syncs)
 
     def rebuild(self, *args, **kwargs):
         """
@@ -92,7 +101,8 @@ class Cluster(object):
                        ispace=kwargs.get('ispace', self.ispace),
                        dspace=kwargs.get('dspace', self.dspace),
                        guards=kwargs.get('guards', self.guards),
-                       properties=kwargs.get('properties', self.properties))
+                       properties=kwargs.get('properties', self.properties),
+                       syncs=kwargs.get('syncs', self.syncs))
 
     @property
     def exprs(self):
@@ -125,6 +135,10 @@ class Cluster(object):
     @property
     def properties(self):
         return self._properties
+
+    @property
+    def syncs(self):
+        return self._syncs
 
     @cached_property
     def free_symbols(self):

@@ -1,9 +1,10 @@
 """
-Support types to generate multithreaded code.
+Support types to implement asynchronous execution via e.g., threading,
+device offloading, etc.
 """
 
 import os
-from ctypes import POINTER
+from ctypes import POINTER, c_void_p
 
 import numpy as np
 import sympy
@@ -11,11 +12,13 @@ import sympy
 from devito.parameters import configuration
 from devito.tools import Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype
 from devito.types.array import Array
+from devito.types.basic import LocalObject
 from devito.types.constant import Constant
 from devito.types.dimension import CustomDimension
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
-           'ThreadID', 'Lock', 'WaitLock', 'WithLock']
+           'ThreadID', 'Lock', 'WaitLock', 'SetLock', 'UnsetLock', 'WaitThread',
+           'WithThread', 'SyncData', 'DeleteData', 'STDThread']
 
 
 class NThreadsMixin(object):
@@ -71,6 +74,17 @@ class ThreadID(CustomDimension):
         return CustomDimension.__new__(cls, name='tid', symbolic_size=nthreads)
 
 
+class STDThread(LocalObject):
+
+    dtype = type('std::thread', (c_void_p,), {})
+
+    def __init__(self, name):
+        self.name = name
+
+    # Pickling support
+    _pickle_args = ['name']
+
+
 class Lock(Array):
 
     """
@@ -96,31 +110,69 @@ class Lock(Array):
         return 'volatile %s' % ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
 
-class LockOp(sympy.Expr, Pickable):
+class SyncOp(sympy.Expr, Pickable):
 
     is_WaitLock = False
-    is_WithLock = False
+    is_SetLock = False
+    is_UnsetLock = False
+    is_WaitThread = False
+    is_WithThread = False
+    is_SyncData = False
+    is_DeleteData = False
 
-    def __new__(cls, lock):
-        obj = sympy.Expr.__new__(cls, lock)
-        obj.lock = lock
+    def __new__(cls, handle):
+        obj = sympy.Expr.__new__(cls, handle)
+        obj.handle = handle
         return obj
 
     def __str__(self):
-        return "%s[%s]" % (self.__class__.__name__, self.lock)
+        return "%s[%s]" % (self.__class__.__name__, self.handle)
 
     __repr__ = __str__
 
     # Pickling support
-    _pickle_args = ['lock']
+    _pickle_args = ['handle']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class WaitLock(LockOp):
-
+class WaitLock(SyncOp):
     is_WaitLock = True
 
 
-class WithLock(LockOp):
+class SetLock(SyncOp):
+    is_SetLock = True
 
-    is_WithLock = True
+
+class UnsetLock(SyncOp):
+    is_UnsetLock = True
+
+
+class WaitThread(SyncOp):
+    is_WaitThread = True
+
+
+class WithThread(SyncOp):
+
+    is_WithThread = True
+
+    def __new__(cls, handle, sync_ops):
+        obj = sympy.Expr.__new__(cls, handle, sync_ops)
+        obj.handle = handle
+        obj.sync_ops = as_tuple(sync_ops)
+        return obj
+
+    def __str__(self):
+        return "%s[%s]<%s>" % (self.__class__.__name__, self.handle,
+                               ','.join(str(i) for i in self.sync_ops))
+
+    # Pickling support
+    _pickle_args = ['handle', 'sync_ops']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class SyncData(SyncOp):
+    is_SyncData = True
+
+
+class DeleteData(SyncOp):
+    is_DeleteData = True

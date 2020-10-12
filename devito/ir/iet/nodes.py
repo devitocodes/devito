@@ -23,7 +23,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda']
+           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot']
 
 # First-class IET nodes
 
@@ -54,6 +54,7 @@ class Node(Signer):
     is_ExpressionBundle = False
     is_ParallelIteration = False
     is_ParallelBlock = False
+    is_SyncSpot = False
 
     _traversable = []
     """
@@ -1039,6 +1040,23 @@ class ParallelBlock(Block):
     """
 
     is_ParallelBlock = True
+
+
+class SyncSpot(List):
+
+    """
+    A node representing one or more synchronization operations, e.g., WaitLock,
+    withLock, etc.
+    """
+
+    is_SyncSpot = True
+
+    def __init__(self, sync_ops, body=None):
+        super().__init__(body=body)
+        self.sync_ops = sync_ops
+
+    def __repr__(self):
+        return "<SyncSpot (%s)>" % ",".join(str(i) for i in self.sync_ops)
 
 
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))

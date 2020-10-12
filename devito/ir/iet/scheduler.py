@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
+from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional, SyncSpot,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
                            XSubs, Transformer)
 from devito.symbolics import IntDiv, xreplace_indices
@@ -39,6 +39,9 @@ def iet_build(stree):
 
         elif i.is_Halo:
             body = HaloSpot(i.halo_scheme, body=queues.pop(i))
+
+        elif i.is_Sync:
+            body = SyncSpot(i.sync_ops, body=queues.pop(i))
 
         queues.setdefault(i.parent, []).append(body)
 

@@ -12,7 +12,7 @@ from .equation import *  # noqa
 from .constant import *  # noqa
 
 # Some more internal types which depend on some of the types above
-from .threading import *  # noqa
+from .sync import *  # noqa
 
 # Needed only outside Devito
 from .grid import *  # noqa

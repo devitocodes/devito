@@ -3,11 +3,11 @@ from collections import OrderedDict
 from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeExprs, NodeSection, NodeHalo, insert)
+                                  NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
 from devito.ir.support import SEQUENTIAL, IterationSpace
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
-from devito.tools import flatten
+from devito.tools import as_tuple, flatten
 
 __all__ = ['stree_build']
 
@@ -65,17 +65,21 @@ def stree_schedule(clusters):
         # Add in Expressions
         NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, root)
 
-        # Add in Conditionals
-        drop_guarded = None
+        # Add in Conditionals and Syncs, which chop down the reuse tree
+        drop = None
         for k, v in list(mapper.items()):
-            if drop_guarded:
+            if drop:
                 mapper.pop(k)
+            if k.dim in c.syncs:
+                node = NodeSync(c.syncs[k.dim])
+                v.last.parent = node
+                node.parent = v
+                drop = True
             if k.dim in c.guards:
                 node = NodeConditional(c.guards[k.dim])
                 v.last.parent = node
                 node.parent = v
-                # Drop nested guarded sub-trees
-                drop_guarded = True
+                drop = True
 
     return stree
 
