@@ -6,6 +6,7 @@ import os
 from ctypes import POINTER
 
 import numpy as np
+import sympy
 
 from devito.parameters import configuration
 from devito.tools import Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype
@@ -14,7 +15,7 @@ from devito.types.constant import Constant
 from devito.types.dimension import CustomDimension
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
-           'ThreadID', 'Lock']
+           'ThreadID', 'Lock', 'WaitLock', 'WithLock']
 
 
 class NThreadsMixin(object):
@@ -93,3 +94,33 @@ class Lock(Array):
     @property
     def _C_typename(self):
         return 'volatile %s' % ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
+
+
+class LockOp(sympy.Expr, Pickable):
+
+    is_WaitLock = False
+    is_WithLock = False
+
+    def __new__(cls, lock):
+        obj = sympy.Expr.__new__(cls, lock)
+        obj.lock = lock
+        return obj
+
+    def __str__(self):
+        return "%s[%s]" % (self.__class__.__name__, self.lock)
+
+    __repr__ = __str__
+
+    # Pickling support
+    _pickle_args = ['lock']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class WaitLock(LockOp):
+
+    is_WaitLock = True
+
+
+class WithLock(LockOp):
+
+    is_WithLock = True
