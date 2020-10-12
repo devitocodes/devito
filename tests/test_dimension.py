@@ -483,6 +483,32 @@ class TestSubDimension(object):
         # "ValueError: No value found for parameter xi_size"
         op()
 
+    def test_expandingbox_like(self):
+        """
+        Make sure SubDimensions aren't an obstacle to expanding boxes.
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid)
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=2, thickness_right=2)
+        yi = SubDimension.middle(name='yi', parent=y, thickness_left=2, thickness_right=2)
+
+        eqn = Eq(u.forward, u + 1)
+        eqn = eqn.subs({x: xi, y: yi})
+
+        op = Operator(eqn)
+
+        op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
+                 xi_ltkn=0, xi_rtkn=0, yi_ltkn=0, yi_rtkn=0)
+
+        assert np.all(u.data[0, 2:-2, 2:-2] == 4.)
+        assert np.all(u.data[1, 2:-2, 2:-2] == 3.)
+        assert np.all(u.data[:, :2] == 0.)
+        assert np.all(u.data[:, -2:] == 0.)
+        assert np.all(u.data[:, :, :2] == 0.)
+        assert np.all(u.data[:, :, -2:] == 0.)
+
 
 class TestConditionalDimension(object):
 
