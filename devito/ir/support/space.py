@@ -9,7 +9,7 @@ from sympy import Expr
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
                           frozendict, toposort, is_integer)
-from devito.types import Dimension
+from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
@@ -169,11 +169,10 @@ class Interval(AbstractInterval):
         circumstances, which we explicitly handle here. Ultimately, therefore,
         we return a `size` that is made up of known symbols.
         """
-        if self.dim.is_Custom:
+        if self.dim.is_Custom and isinstance(self.dim.symbolic_min, ModuloDimension):
             # Special case 1)
-            # May be caused by the performance option `cire-rotate=True`
+            # Caused by the performance option `cire-rotate=True`
             d = self.dim.symbolic_min
-            assert d.is_Modulo
             n = d.parent.symbolic_size
 
             # Iteration 0:
