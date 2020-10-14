@@ -141,6 +141,10 @@ def lower_exprs(expressions, **kwargs):
             indices = [(lower_exprs(a) + o) for a, o in
                        zip(i.indices, f._size_nodomain.left)]
 
+            # Substitute spacing (spacing only used in own dimension)
+            indices = [i.xreplace({d.spacing: 1, -d.spacing: -1})
+                       for i, d in zip(indices, f.dimensions)]
+
             # Apply substitutions, if necessary
             if dimension_map:
                 indices = [j.xreplace(dimension_map) for j in indices]
