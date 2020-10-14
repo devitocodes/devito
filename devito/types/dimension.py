@@ -895,6 +895,7 @@ class ModuloDimension(DerivedDimension):
     `origin` will then be `t + 1` and so on.
     """
 
+    is_NonlinearDerived = True
     is_Modulo = True
 
     def __new__(cls, parent, offset=None, modulo=None, incr=None, origin=None, name=None):
