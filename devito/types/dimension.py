@@ -1165,6 +1165,7 @@ class CustomDimension(BasicDimension):
         self._symbolic_min = symbolic_min
         self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
+        super().__init_finalize__(name)
 
     @property
     def symbolic_min(self):
