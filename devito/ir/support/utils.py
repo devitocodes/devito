@@ -3,7 +3,7 @@ from collections import OrderedDict, defaultdict
 from devito.ir.support.space import Interval
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
-from devito.tools import as_tuple, flatten, filter_sorted
+from devito.tools import as_tuple, flatten, filter_sorted, is_integer
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
@@ -72,22 +72,26 @@ def detect_oobs(mapper):
 def build_iterators(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return a mapper ``M' : D -> V``,
-    where D is the set of Dimensions in M, and V is a set of
-    DerivedDimensions. M'[d] provides the sub-iterators along the
-    Dimension `d`.
+    where D is the set of Dimensions in M, and V is a set of DerivedDimensions.
+    M'[d] provides the sub-iterators along the Dimension `d`.
     """
     iterators = OrderedDict()
     for k, v in mapper.items():
         for d, offs in v.items():
             if d.is_Stepping:
-                values = iterators.setdefault(d.parent, [])
-                # Offsets are sorted so that the semantic order (t0, t1, t2)
-                # follows sympy's index ordering (t, t-1, t+1) afer modulo replacement
-                # so that associativity errors are consistent.
-                # This corresponds to sorting offsets {-1, 0, 1} as {0, -1, 1} assigning
-                # -inf to 0.
-                for i in sorted(offs, key=lambda x: -float("inf") if x == 0 else x):
-                    md = ModuloDimension(d, d.root + i, k._time_size, origin=d + i)
+                # Offsets are sorted so that the semantic order (t0, t1, t2) follows
+                # SymPy's index ordering (t, t-1, t+1) afer modulo replacement so that
+                # associativity errors are consistent. This corresponds to sorting
+                # offsets {-1, 0, 1} as {0, -1, 1}, assigning -inf to 0
+                soffs = sorted(offs, key=lambda x: -float("inf") if x == 0 else x)
+                values = iterators.setdefault(d.root, [])
+                for i in soffs:
+                    try:
+                        size = k._time_size
+                    except AttributeError:
+                        size = k.symbolic_shape[d]
+                    assert is_integer(size)
+                    md = ModuloDimension(d, d.root + i, size, origin=d + i)
                     if md not in values:
                         values.append(md)
             elif d.is_Conditional:
@@ -105,8 +109,12 @@ def build_intervals(stencil):
     """
     mapper = {}
     for d, offs in stencil.items():
-        dim = d.parent if d.is_NonlinearDerived else d
-        mapper.setdefault(dim, set()).update(offs)
+        if d.is_Stepping:
+            mapper.setdefault(d.root, set()).update(offs)
+        elif d.is_Conditional:
+            mapper.setdefault(d.parent, set()).update(offs)
+        else:
+            mapper.setdefault(d, set()).update(offs)
     return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
 
 
