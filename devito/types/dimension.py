@@ -1162,11 +1162,41 @@ class CustomDimension(BasicDimension):
     is_Custom = True
 
     def __init_finalize__(self, name, symbolic_min=None, symbolic_max=None,
-                          symbolic_size=None):
+                          symbolic_size=None, parent=None):
         self._symbolic_min = symbolic_min
         self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
+        self._parent = parent
         super().__init_finalize__(name)
+
+    @property
+    def is_Derived(self):
+        return self._parent is not None
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @property
+    def root(self):
+        if self.is_Derived:
+            return self.parent.root
+        else:
+            return self
+
+    @property
+    def spacing(self):
+        if self.is_Derived:
+            return self.parent.spacing
+        else:
+            return self.spacing
+
+    @cached_property
+    def _defines(self):
+        ret = frozenset({self})
+        if self.is_Derived:
+            ret |= self.parent._defines
+        return ret
 
     @property
     def symbolic_min(self):
@@ -1207,8 +1237,12 @@ class CustomDimension(BasicDimension):
     def _arg_values(self, *args, **kwargs):
         return {}
 
+    def _arg_check(self, *args):
+        """A CustomDimension performs no runtime checks."""
+        return
+
     # Pickling support
-    _pickle_kwargs = ['symbolic_min', 'symbolic_max', 'symbolic_size']
+    _pickle_kwargs = ['symbolic_min', 'symbolic_max', 'symbolic_size', 'parent']
 
 
 def dimensions(names):
