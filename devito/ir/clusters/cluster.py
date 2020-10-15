@@ -8,6 +8,7 @@ from devito.ir.support import (PARALLEL, IterationSpace, DataSpace, Scope,
                                detect_io, normalize_properties)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
+from devito.types import normalize_syncs
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -66,21 +67,23 @@ class Cluster(object):
         if not all(root.guards == c.guards for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "non-homogeneous guards")
-        if not all(root.syncs == c.syncs for c in clusters):
-            raise ValueError("Cannot build a Cluster from Clusters with "
-                             "non-homogeneous synchronization operations")
 
         exprs = chain(*[c.exprs for c in clusters])
         ispace = IterationSpace.union(*[c.ispace for c in clusters])
         dspace = DataSpace.union(*[c.dspace for c in clusters])
 
         guards = root.guards
-        syncs = root.syncs
 
         properties = {}
         for c in clusters:
             for d, v in c.properties.items():
                 properties[d] = normalize_properties(properties.get(d, v), v)
+
+        try:
+            syncs = normalize_syncs(*[c.syncs for c in clusters])
+        except ValueError:
+            raise ValueError("Cannot build a Cluster from Clusters with "
+                             "non-compatible synchronization operations")
 
         return Cluster(exprs, ispace, dspace, guards, properties, syncs)
 

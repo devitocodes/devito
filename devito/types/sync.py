@@ -4,21 +4,23 @@ device offloading, etc.
 """
 
 import os
+from collections import defaultdict
 from ctypes import POINTER, c_void_p
 
 import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype
+from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
+                          dtype_to_cstr, filter_ordered)
 from devito.types.array import Array
 from devito.types.basic import LocalObject
 from devito.types.constant import Constant
 from devito.types.dimension import CustomDimension
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
-           'ThreadID', 'Lock', 'WaitLock', 'SetLock', 'UnsetLock', 'WaitThread',
-           'WithThread', 'SyncData', 'DeleteData', 'STDThread']
+           'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'WaitAndFetch', 'STDThread',
+           'normalize_syncs']
 
 
 class NThreadsMixin(object):
@@ -88,10 +90,13 @@ class STDThread(LocalObject):
 class Lock(Array):
 
     """
-    An integer Array usable as a lock in a multithreaded context
+    An integer Array to synchronize accesses to a given object
+    in a multithreaded context.
     """
 
     def __init_finalize__(self, *args, **kwargs):
+        self._target = kwargs.pop('target')
+
         kwargs['scope'] = 'stack'
         kwargs['sharing'] = 'shared'
         super().__init_finalize__(*args, **kwargs)
@@ -106,19 +111,27 @@ class Lock(Array):
         return np.int32
 
     @property
+    def target(self):
+        return self._target
+
+    @property
     def _C_typename(self):
         return 'volatile %s' % ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
+
+    @property
+    def _C_typedata(self):
+        return 'volatile %s' % dtype_to_cstr(self.dtype)
+
+    @property
+    def locked_dimensions(self):
+        return set().union(*[d._defines for d in self.dimensions])
 
 
 class SyncOp(sympy.Expr, Pickable):
 
     is_WaitLock = False
-    is_SetLock = False
-    is_UnsetLock = False
-    is_WaitThread = False
-    is_WithThread = False
-    is_SyncData = False
-    is_DeleteData = False
+    is_WithLock = False
+    is_WaitAndFetch = False
 
     def __new__(cls, handle):
         obj = sympy.Expr.__new__(cls, handle)
@@ -126,53 +139,87 @@ class SyncOp(sympy.Expr, Pickable):
         return obj
 
     def __str__(self):
-        return "%s[%s]" % (self.__class__.__name__, self.handle)
+        return "%s<%s>" % (self.__class__.__name__, self.handle)
 
     __repr__ = __str__
+
+    __hash__ = sympy.Basic.__hash__
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.args == other.args
 
     # Pickling support
     _pickle_args = ['handle']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class WaitLock(SyncOp):
+class SyncLock(SyncOp):
+
+    @property
+    def lock(self):
+        return self.handle.function
+
+    @property
+    def target(self):
+        return self.lock.target
+
+
+class WaitLock(SyncLock):
     is_WaitLock = True
 
 
-class SetLock(SyncOp):
-    is_SetLock = True
+class WithLock(SyncLock):
+    is_WithLock = True
 
 
-class UnsetLock(SyncOp):
-    is_UnsetLock = True
+class WaitAndFetch(SyncOp):
 
+    is_WaitAndFetch = True
 
-class WaitThread(SyncOp):
-    is_WaitThread = True
-
-
-class WithThread(SyncOp):
-
-    is_WithThread = True
-
-    def __new__(cls, handle, sync_ops):
-        obj = sympy.Expr.__new__(cls, handle, sync_ops)
-        obj.handle = handle
-        obj.sync_ops = as_tuple(sync_ops)
+    def __new__(cls, function, dim, direction, fetch):
+        fetch = frozenset(fetch)
+        obj = sympy.Expr.__new__(cls, function, dim, direction, fetch)
+        obj.function = function
+        obj.dim = dim
+        obj.direction = direction
+        obj.fetch = fetch
         return obj
 
     def __str__(self):
-        return "%s[%s]<%s>" % (self.__class__.__name__, self.handle,
-                               ','.join(str(i) for i in self.sync_ops))
+        return "WaitAndFetch<%s:%s:%s>" % (self.function, self.dim, self.fetch)
+
+    __repr__ = __str__
+
+    __hash__ = sympy.Basic.__hash__
+
+    @property
+    def dimensions(self):
+        return self.function.dimensions
 
     # Pickling support
-    _pickle_args = ['handle', 'sync_ops']
+    _pickle_args = ['function', 'dim', 'direction', 'fetch']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class SyncData(SyncOp):
-    is_SyncData = True
+def normalize_syncs(*args):
+    if not args:
+        return
+    if len(args) == 1:
+        return args[0]
 
+    syncs = defaultdict(list)
+    for _dict in args:
+        for k, v in _dict.items():
+            syncs[k].extend(v)
 
-class DeleteData(SyncOp):
-    is_DeleteData = True
+    syncs = {k: filter_ordered(v) for k, v in syncs.items()}
+
+    for v in syncs.values():
+        waitlocks = [i for i in v if i.is_WaitLock]
+        withlocks = [i for i in v if i.is_WithLock]
+
+        if waitlocks and withlocks:
+            # We do not allow mixing up WaitLock and WithLock ops
+            raise ValueError("Incompatible SyncOps")
+
+    return syncs
