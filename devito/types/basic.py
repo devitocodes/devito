@@ -1204,6 +1204,10 @@ class Indexed(sympy.Indexed):
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)
 
+    @cached_property
+    def indices(self):
+        return DimensionTuple(*super().indices, getters=self.function.dimensions)
+
     @property
     def function(self):
         return self.base.function
