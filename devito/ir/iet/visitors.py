@@ -798,6 +798,21 @@ class XSubs(Transformer):
         else_body = self._visit(o.else_body)
         return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
 
+    def visit_SyncSpot(self, o):
+        sync_ops = []
+        for s in o.sync_ops:
+            # TODO: this is not the prettiest, but until we find a way to
+            # postpone _lower_stepping_dims and _lower_conditional_dims
+            # after _specialize_iet, it's the only thing we can do
+            if s.is_WaitLock or s.is_WithLock:
+                sync_ops.append(s.func(self.replacer(s.handle)))
+            else:
+                assert s.is_WaitAndFetch
+                sync_ops.append(s.func(s.function, s.dim, s.direction,
+                                       {self.replacer(i) for i in s.fetch}))
+        body = self._visit(o.body)
+        return o._rebuild(sync_ops=sync_ops, body=body)
+
     def visit_Expression(self, o):
         return o._rebuild(expr=self.replacer(o.expr))
 

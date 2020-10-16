@@ -87,7 +87,11 @@ def _lower_stepping_dims(iet):
         root = i
         for k, v in groups.items():
             mapper = {d.origin: d for d in v}
-            rule = lambda e: e.function.is_TimeFunction and e.function._time_size == k
+
+            def rule(e):
+                return ((e.function.is_TimeFunction and e.function._time_size == k) or
+                        (e.function.is_Array and e.function.symbolic_shape[i.dim] == k))
+
             replacer = lambda e: xreplace_indices(e, mapper, rule)
             root = XSubs(replacer=replacer).visit(root)
         subs[i] = root
