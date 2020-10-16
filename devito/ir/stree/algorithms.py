@@ -139,7 +139,10 @@ def stree_section(stree):
     class Section(object):
         def __init__(self, node):
             self.parent = node.parent
-            self.dim = node.dim
+            try:
+                self.dim = node.dim
+            except AttributeError:
+                self.dim = None
             self.nodes = [node]
 
         def is_compatible(self, node):
@@ -154,18 +157,22 @@ def stree_section(stree):
             if any(p in flatten(s.nodes for s in sections) for p in n.ancestors):
                 # Already within a section
                 continue
-            elif not n.is_Iteration:
-                section = None
-            elif n.dim.is_Time and SEQUENTIAL in n.properties:
-                # If n.dim.is_Time, we end up here in 99.9% of the cases.
-                # Sometimes, however, time is a PARALLEL Dimension (e.g.,
-                # think of `norm` Operators)
-                section = None
-            elif section is None or not section.is_compatible(n):
+            elif n.is_Sync:
                 section = Section(n)
                 sections.append(section)
+            elif n.is_Iteration:
+                if n.dim.is_Time and SEQUENTIAL in n.properties:
+                    # If n.dim.is_Time, we end up here in 99.9% of the cases.
+                    # Sometimes, however, time is a PARALLEL Dimension (e.g.,
+                    # think of `norm` Operators)
+                    section = None
+                elif section is None or not section.is_compatible(n):
+                    section = Section(n)
+                    sections.append(section)
+                else:
+                    section.nodes.append(n)
             else:
-                section.nodes.append(n)
+                section = None
 
     # Transform the schedule tree by adding in sections
     for i in sections:
