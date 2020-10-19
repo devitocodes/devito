@@ -50,7 +50,7 @@ def detect_oobs(mapper):
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_DiscreteFunction:
+        if f is None or not (f.is_DiscreteFunction or f.is_Array):
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
@@ -66,7 +66,7 @@ def detect_oobs(mapper):
                 # (/p/ not in /f._size_halo/, typical of indirect
                 # accesses such as A[B[i]])
                 pass
-    return found | {i.parent for i in found if i.is_Derived}
+    return found | set().union(*[i._defines for i in found if i.is_Derived])
 
 
 def build_iterators(mapper):
