@@ -7,9 +7,9 @@ from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
-from devito.finite_differences.lazy import Evaluable, EvalDerivative
 from devito.logger import warning
 from devito.tools import filter_ordered, flatten
+from devito.types.lazy import Evaluable, EvalDerivative
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Differentiable']

@@ -11,12 +11,12 @@ from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.data import default_allocator
-from devito.finite_differences import Evaluable
 from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
                           frozendict, memoized_meth)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
+from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject', 'CompositeObject']
@@ -1202,7 +1202,11 @@ class Indexed(sympy.Indexed):
     @cached_property
     def free_symbols(self):
         # Make it cached, since it's relatively expensive and called often
-        return super(Indexed, self).free_symbols
+        ret = super(Indexed, self).free_symbols
+        # Get rid of the IndexedBase label this Indexed stems from
+        # as in Devito we can't have it floating around in Eq's
+        ret.discard(self.base.label)
+        return ret
 
     def compare(self, other):
         """
