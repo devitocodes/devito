@@ -5,6 +5,7 @@ import cgen as c
 from sympy import And, Function
 import numpy as np
 
+from devito.core.cpu import CustomOperator
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
@@ -600,6 +601,9 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         # input to Operator
         oo.pop('openmp')
 
+        # Buffering
+        o['buf-async-degree'] = oo.pop('buf-async-degree', None)
+
         # CIRE
         o['min-storage'] = False
         o['cire-rotate'] = False
@@ -754,14 +758,34 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         return graph
 
 
-class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
-
-    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct')
-    _known_passes_disabled = ('blocking', 'denormals', 'simd')
-    assert not (set(_known_passes) & set(_known_passes_disabled))
+class DeviceOpenMPCustomOperator(DeviceOpenMPOperator, CustomOperator):
 
     @classmethod
-    def _make_passes_mapper(cls, **kwargs):
+    def _make_exprs_passes_mapper(cls, **kwargs):
+        return {
+            'collect-derivs': collect_derivatives,
+            'buffering': buffering
+        }
+
+    @classmethod
+    def _make_clusters_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
+
+        return {
+            'factorize': factorize,
+            'fuse': fuse,
+            'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
+                                                  options, platform)),
+            'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
+            'cse': lambda i: cse(i, sregistry),
+            'opt-pows': optimize_pows,
+            'topofuse': lambda i: fuse(i, toposort=True)
+        }
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
@@ -775,6 +799,17 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             'gpu-direct': partial(mpi_gpu_direct)
         }
 
+    _known_passes = (
+        # Expressions
+        'collect-deriv', 'buffering',
+        # Clusters
+        'factorize', 'fuse', 'lift', 'cire-sops', 'cse', 'opt-pows', 'topofuse',
+        # IET
+        'optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct'
+    )
+    _known_passes_disabled = ('blocking', 'denormals', 'simd')
+    assert not (set(_known_passes) & set(_known_passes_disabled))
+
     @classmethod
     def _build(cls, expressions, **kwargs):
         # Sanity check
@@ -787,7 +822,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
                 else:
                     raise InvalidOperator("Unknown pass `%s`" % i)
 
-        return super(DeviceOpenMPCustomOperator, cls)._build(expressions, **kwargs)
+        return super()._build(expressions, **kwargs)
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -797,7 +832,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
-        passes_mapper = cls._make_passes_mapper(**kwargs)
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
         # Call passes
         for i in passes:

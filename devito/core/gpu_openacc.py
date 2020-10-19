@@ -2,8 +2,9 @@ from functools import partial, singledispatch
 
 import cgen as c
 
-from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIteration,
-                                    DeviceOmpizer, DeviceOpenMPDataManager)
+from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPCustomOperator,
+                                    DeviceOpenMPIteration, DeviceOmpizer,
+                                    DeviceOpenMPDataManager)
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import Call, ElementalFunction, FindSymbols, List, LocalExpression
@@ -231,14 +232,10 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         return graph
 
 
-class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
-
-    _known_passes = ('optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders')
-    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'simd')
-    assert not (set(_known_passes) & set(_known_passes_disabled))
+class DeviceOpenACCCustomOperator(DeviceOpenACCOperator, DeviceOpenMPCustomOperator):
 
     @classmethod
-    def _make_passes_mapper(cls, **kwargs):
+    def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
@@ -252,19 +249,16 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
             'prodders': partial(hoist_prodders)
         }
 
-    @classmethod
-    def _build(cls, expressions, **kwargs):
-        # Sanity check
-        passes = as_tuple(kwargs['mode'])
-        for i in passes:
-            if i not in cls._known_passes:
-                if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
-                else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
-
-        return super(DeviceOpenACCCustomOperator, cls)._build(expressions, **kwargs)
+    _known_passes = (
+        # Expressions
+        'collect-deriv', 'buffering',
+        # Clusters
+        'factorize', 'fuse', 'lift', 'cire-sops', 'cse', 'opt-pows', 'topofuse',
+        # IET
+        'optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders'
+    )
+    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'simd', 'gpu-direct')
+    assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -274,7 +268,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
-        passes_mapper = cls._make_passes_mapper(**kwargs)
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
         # Call passes
         for i in passes:
