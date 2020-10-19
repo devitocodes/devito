@@ -2,6 +2,7 @@ from collections import OrderedDict, defaultdict
 
 from cached_property import cached_property
 
+from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
 from devito.tools import (Bunch, DefaultOrderedDict, as_tuple, filter_ordered, flatten,
                           timed_pass)
@@ -12,7 +13,7 @@ __all__ = ['buffering']
 
 
 @timed_pass()
-def buffering(expressions, callback=None):
+def buffering(expressions, callback=None, options=None):
     """
     Replace written Functions with Arrays. This gives the compiler more control
     over storage layout, data movement (e.g. between host and device), etc.
@@ -31,6 +32,16 @@ def buffering(expressions, callback=None):
         contains the Dimensions to be replaced by new SteppingDimensions. If
         unspecified, by default all DiscreteFunctions are turned into buffers,
         but no Dimension replacement occurs.
+    options : dict, optional
+        The optimization options.
+        Accepted: ['buf-async-degree'].
+        * 'buf-async-degree': Specify the size of the buffer. By default, the
+          buffer size is the minimal one, inferred from the memory accesses in
+          the ``expressions`` themselves. An asynchronous degree equals to `k`
+          means that the buffer will be enforced to size=`k` along the introduced
+          SteppingDimensions. This might help relieving the synchronization
+          overhead when asynchronous operations are used (these are however
+          implemented by other passes).
 
     Examples
     --------
@@ -71,10 +82,12 @@ def buffering(expressions, callback=None):
                 return None
     assert callable(callback)
 
-    return _buffering(expressions, callback)
+    return _buffering(expressions, callback, options)
 
 
-def _buffering(expressions, callback):
+def _buffering(expressions, callback, options):
+    async_degree = options['buf-async-degree']
+
     # Locate all Function accesses within the provided `expressions`
     accessmap = AccessMapper(expressions)
 
@@ -88,11 +101,12 @@ def _buffering(expressions, callback):
         if accessv.lastwrite is None:
             # Read-only Functions cannot be buffering candidates
             continue
-        buffers.append(Buffer(f, dims, accessv, n))
+        buffers.append(Buffer(f, dims, accessv, n, async_degree))
 
-    # Create Eqs to initialize `bf`
+    # Create Eqs to initialize `bf`. Note: a buffer needs to be initialized only
+    # if the buffered Function is read in at least one place
     processed = [Eq(b.indexify(), b.function.subs(b.contraction_mapper))
-                 for b in buffers if not b.is_readonly]
+                 for b in buffers if b.is_read]
 
     # Substitution rules to replace buffered Functions with buffers
     subs = {}
@@ -132,9 +146,11 @@ class Buffer(object):
         All accesses involving `function`.
     n : int
         A unique identifier for this Buffer.
+    async_degree : int, optional
+        Enforce a size of `async_degree` along the contracted Dimensions.
     """
 
-    def __init__(self, function, contracted_dims, accessv, n):
+    def __init__(self, function, contracted_dims, accessv, n, async_degree):
         self.function = function
         self.accessv = accessv
 
@@ -148,6 +164,15 @@ class Buffer(object):
             indices = filter_ordered(i.indices[d] for i in accessv.accesses)
             slots = [i.xreplace({d: 0, d.spacing: 1}) for i in indices]
             size = max(slots) - min(slots) + 1
+
+            if async_degree is not None:
+                if async_degree < size:
+                    warning("Ignoring provided asynchronous degree as it'd be "
+                            "too small for the required buffer (provided %d, "
+                            "but need at least %d for `%s`)"
+                            % (async_degree, size, function.name))
+                else:
+                    size = async_degree
 
             # Replace `d` with a suitable CustomDimension
             bd = CustomDimension('db%d' % n, 0, size-1, size, d)
@@ -172,12 +197,12 @@ class Buffer(object):
                                                 for i in self.index_mapper))
 
     @property
-    def lastwrite(self):
-        return self.accessv.lastwrite
+    def is_read(self):
+        return self.accessv.is_read
 
     @property
-    def is_readonly(self):
-        return self.lastwrite is None
+    def lastwrite(self):
+        return self.accessv.lastwrite
 
     @cached_property
     def indexed(self):
@@ -218,6 +243,10 @@ class AccessValue(object):
     def accesses(self):
         return tuple(flatten(as_tuple(i.reads) + as_tuple(i.write)
                              for i in self.mapper.values()))
+
+    @cached_property
+    def is_read(self):
+        return any(av.reads for av in self.mapper.values())
 
     @cached_property
     def lastwrite(self):

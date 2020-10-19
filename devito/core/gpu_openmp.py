@@ -652,7 +652,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
                 return [f.time_dim]
             else:
                 return None
-        expressions = buffering(expressions, callback)
+        expressions = buffering(expressions, callback, options)
 
         return expressions
 
