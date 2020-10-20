@@ -2,6 +2,7 @@ from functools import partial
 
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
+from devito.logger import warning
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
@@ -258,10 +259,6 @@ class CPU64OpenMPOperator(CPU64Operator):
 
 class CustomOperator(CPU64Operator):
 
-    _known_passes = ('blocking', 'denormals', 'optcomms', 'openmp', 'mpi',
-                     'simd', 'prodders', 'topofuse', 'fuse', 'factorize',
-                     'cire-sops', 'cse', 'lift', 'opt-pows', 'collect-derivs')
-
     @classmethod
     def _make_exprs_passes_mapper(cls, **kwargs):
         return {
@@ -304,14 +301,31 @@ class CustomOperator(CPU64Operator):
             'prodders': hoist_prodders
         }
 
+    _known_passes = (
+        # Expressions
+        'collect-derivs',
+        # Clusters
+        'blocking', 'topofuse', 'fuse', 'factorize', 'cire-sops', 'cse',
+        'lift', 'opt-pows'
+        # IET
+        'denormals', 'optcomms', 'openmp', 'mpi', 'simd', 'prodders',
+    )
+    _known_passes_disabled = ('buffering', 'tasking', 'streaming', 'gpu-direct')
+    assert not (set(_known_passes) & set(_known_passes_disabled))
+
     @classmethod
     def _build(cls, expressions, **kwargs):
         # Sanity check
         passes = as_tuple(kwargs['mode'])
-        if any(i not in cls._known_passes for i in passes):
-            raise InvalidOperator("Unknown passes `%s`" % str(passes))
+        for i in passes:
+            if i not in cls._known_passes:
+                if i in cls._known_passes_disabled:
+                    warning("Got explicit pass `%s`, but it's unsupported on an "
+                            "Operator of type `%s`" % (i, str(cls)))
+                else:
+                    raise InvalidOperator("Unknown pass `%s`" % i)
 
-        return super(CustomOperator, cls)._build(expressions, **kwargs)
+        return super()._build(expressions, **kwargs)
 
     @classmethod
     @timed_pass(name='specializing.Expressions')

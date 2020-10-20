@@ -198,7 +198,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         return graph
 
 
-class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
+class DeviceOpenACCOperator(DeviceOpenMPOperator):
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -232,7 +232,7 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         return graph
 
 
-class DeviceOpenACCCustomOperator(DeviceOpenACCOperator, DeviceOpenMPCustomOperator):
+class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
@@ -253,7 +253,8 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator, DeviceOpenMPCustomOpera
         # Expressions
         'collect-deriv', 'buffering',
         # Clusters
-        'factorize', 'fuse', 'lift', 'cire-sops', 'cse', 'opt-pows', 'topofuse',
+        'tasking', 'streaming', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
+        'opt-pows', 'topofuse',
         # IET
         'optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders'
     )
@@ -270,13 +271,6 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator, DeviceOpenMPCustomOpera
         # Fetch passes to be called
         passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
-
         # Force-call `mpi` if requested via global option
         if 'mpi' not in passes and options['mpi']:
             passes_mapper['mpi'](graph)
@@ -284,6 +278,13 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator, DeviceOpenMPCustomOpera
         # GPU parallelism via OpenACC offloading
         if 'openacc' not in passes:
             passes_mapper['openacc'](graph)
+
+        # Call passes
+        for i in passes:
+            try:
+                passes_mapper[i](graph)
+            except KeyError:
+                pass
 
         # Symbol definitions
         data_manager = DeviceOpenACCDataManager(sregistry, options)

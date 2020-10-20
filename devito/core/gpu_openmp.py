@@ -639,6 +639,33 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         return kwargs
 
     @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        sregistry = kwargs['sregistry']
+
+        # Distributed-memory parallelism
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # GPU parallelism via OpenMP offloading
+        DeviceOmpizer(sregistry, options).make_parallel(graph)
+
+        # Symbol definitions
+        data_manager = DeviceOpenMPDataManager(sregistry, options)
+        data_manager.place_ondevice(graph)
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        # Initialize OpenMP environment
+        initialize(graph)
+
+        return graph
+
+
+class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
+
+    @classmethod
     @timed_pass(name='specializing.Expressions')
     def _specialize_exprs(cls, expressions, **kwargs):
         options = kwargs['options']
@@ -703,33 +730,6 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
-
-        # GPU parallelism via OpenMP offloading
-        DeviceOmpizer(sregistry, options).make_parallel(graph)
-
-        # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry, options)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
-
-        # Initialize OpenMP environment
-        initialize(graph)
-
-        return graph
-
-
-class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-
-        # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
@@ -758,13 +758,25 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         return graph
 
 
-class DeviceOpenMPCustomOperator(DeviceOpenMPOperator, CustomOperator):
+class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
+
+    _normalize_kwargs = DeviceOpenMPOperator._normalize_kwargs
 
     @classmethod
     def _make_exprs_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+
+        # This callback is used by `buffering` to replace host Functions with
+        # Arrays, used as device buffers for streaming-in and -out of data
+        def callback(f):
+            if not is_on_gpu(f, options['gpu-fit']):
+                return [f.time_dim]
+            else:
+                return None
+
         return {
             'collect-derivs': collect_derivatives,
-            'buffering': buffering
+            'buffering': lambda i: buffering(i, callback, options)
         }
 
     @classmethod
@@ -773,7 +785,13 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
+        # This callback is used to trigger certain passes only on Clusters
+        # accessing at least one host Function
+        key = lambda f: not is_on_gpu(f, options['gpu-fit'])
+
         return {
+            'tasking': Tasker(key).process,
+            'streaming': Stream(key).process,
             'factorize': factorize,
             'fuse': fuse,
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
@@ -794,6 +812,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator, CustomOperator):
         return {
             'optcomms': partial(optimize_halospots),
             'openmp': partial(ompizer.make_parallel),
+            'orchestrate': partial(ompizer.make_orchestration),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders),
             'gpu-direct': partial(mpi_gpu_direct)
@@ -803,26 +822,13 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator, CustomOperator):
         # Expressions
         'collect-deriv', 'buffering',
         # Clusters
-        'factorize', 'fuse', 'lift', 'cire-sops', 'cse', 'opt-pows', 'topofuse',
+        'tasking', 'streaming', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
+        'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct'
+        'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
     )
     _known_passes_disabled = ('blocking', 'denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
-
-    @classmethod
-    def _build(cls, expressions, **kwargs):
-        # Sanity check
-        passes = as_tuple(kwargs['mode'])
-        for i in passes:
-            if i not in cls._known_passes:
-                if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
-                else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
-
-        return super()._build(expressions, **kwargs)
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -834,13 +840,6 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator, CustomOperator):
         # Fetch passes to be called
         passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
-
         # Force-call `mpi` if requested via global option
         if 'mpi' not in passes and options['mpi']:
             passes_mapper['mpi'](graph)
@@ -848,6 +847,13 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator, CustomOperator):
         # GPU parallelism via OpenMP offloading
         if 'openmp' not in passes:
             passes_mapper['openmp'](graph)
+
+        # Call passes
+        for i in passes:
+            try:
+                passes_mapper[i](graph)
+            except KeyError:
+                pass
 
         # Symbol definitions
         data_manager = DeviceOpenMPDataManager(sregistry, options)
