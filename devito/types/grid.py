@@ -397,6 +397,7 @@ class SubDomain(object):
         access_map = {}
         shift = {}
         shape_local = []
+        decomp_map = {}
         for dim, d, s in zip(sub_dimensions, distributor.decomposition, self._shape):
             if dim.is_Sub:
                 c_name = 'c_%s' % dim.name
