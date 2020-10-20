@@ -27,7 +27,7 @@ from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                iet_pass)
 from devito.symbolics import (Byref, CondEq, DefFunction, FieldFromComposite,
                               ListInitializer, ccode)
-from devito.tools import as_mapper, as_tuple, filter_sorted, timed_pass
+from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, timed_pass
 from devito.types import Symbol, STDThread, WaitLock, WithLock, WaitAndFetch
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
@@ -102,8 +102,8 @@ class DeviceOmpizer(Ompizer):
         return cls.lang['map-enter-alloc'](f.name, sections)
 
     @classmethod
-    def _map_present(cls, f):
-        raise NotImplementedError
+    def _map_present(cls, f, imask=None):
+        return
 
     @classmethod
     def _map_update(cls, f):
@@ -341,7 +341,7 @@ class DeviceOmpizer(Ompizer):
                 # Construct deletion and present clauses
                 imask = [i if s.dim in d._defines else FULL for d in s.dimensions]
                 deletions.append(self._map_delete(f, imask))
-                presents.append(self._map_present(f, imask))
+                presents.extend(as_list(self._map_present(f, imask)))
 
                 # Construct prefetch IET
                 imask = [pfc if s.dim in d._defines else FULL for d in s.dimensions]

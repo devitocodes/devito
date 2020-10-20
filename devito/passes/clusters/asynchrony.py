@@ -7,7 +7,7 @@ from devito.ir.clusters import Queue, Cluster
 from devito.ir.support import AFFINE, SEQUENTIAL, Backward, Scope
 from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, as_tuple, filter_ordered, flatten,
-                          timed_pass)
+                          is_integer, timed_pass)
 from devito.types import (Array, CustomDimension, ModuloDimension, Eq,
                           Lock, WaitLock, WithLock, WaitAndFetch, normalize_syncs)
 
@@ -73,7 +73,13 @@ class Tasker(Asynchronous):
                         continue
 
                     try:
-                        ld = f.indices[d]
+                        if all(w.aindices[d].is_Stepping for w in writes):
+                            size = f.shape_allocated[d]
+                            assert is_integer(size)
+                            ld = CustomDimension(name='ld', symbolic_size=size, parent=d)
+                        else:
+                            # Functions over non-stepping Dimensions need no lock
+                            continue
                     except KeyError:
                         # Would degenerate to a scalar, but we rather use an Array
                         # of size 1 for simplicity
