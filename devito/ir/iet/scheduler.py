@@ -77,6 +77,7 @@ def _lower_stepping_dims(iet):
         if not i.uindices:
             # Be quick: avoid uselessy reconstructing nodes
             continue
+
         # In an expression, there could be `u[t+1, ...]` and `v[t+1, ...]`, where
         # `u` and `v` are TimeFunction with circular time buffers (save=None) *but*
         # different modulo extent. The `t+1` indices above are therefore conceptually
@@ -89,8 +90,13 @@ def _lower_stepping_dims(iet):
             mapper = {d.origin: d for d in v}
 
             def rule(e):
-                return ((e.function.is_TimeFunction and e.function._time_size == k) or
-                        (e.function.is_Array and e.function.symbolic_shape[i.dim] == k))
+                f = e.function
+                if not (f.is_TimeFunction or f.is_Array):
+                    return False
+                try:
+                    return f.shape_allocated[i.dim] == k
+                except KeyError:
+                    return False
 
             replacer = lambda e: xreplace_indices(e, mapper, rule)
             root = XSubs(replacer=replacer).visit(root)

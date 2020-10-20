@@ -86,10 +86,7 @@ def build_iterators(mapper):
                 soffs = sorted(offs, key=lambda x: -float("inf") if x == 0 else x)
                 values = iterators.setdefault(d.root, [])
                 for i in soffs:
-                    try:
-                        size = k._time_size
-                    except AttributeError:
-                        size = k.symbolic_shape[d]
+                    size = k.shape_allocated[d]
                     assert is_integer(size)
                     md = ModuloDimension(d, d.root + i, size, origin=d + i)
                     if md not in values:

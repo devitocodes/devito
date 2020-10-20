@@ -24,6 +24,8 @@ class ArrayBasic(AbstractFunction):
     def shape(self):
         return self.symbolic_shape
 
+    shape_allocated = shape
+
 
 class Array(ArrayBasic):
 

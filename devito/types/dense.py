@@ -277,8 +277,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         -----
         In an MPI context, this is the *local* with_halo region shape.
         """
-        return tuple(j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
-                                                    self._padding))
+        return DimensionTuple(*[j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
+                                                               self._padding)],
+                              getters=self.dimensions)
 
     @cached_property
     def shape_global(self):
