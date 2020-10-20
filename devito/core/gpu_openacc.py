@@ -253,7 +253,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
         # Expressions
         'collect-deriv', 'buffering',
         # Clusters
-        'tasking', 'streaming', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
+        'tasking', 'fetching', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
         'opt-pows', 'topofuse',
         # IET
         'optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders'

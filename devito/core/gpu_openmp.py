@@ -20,7 +20,7 @@ from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)
 from devito.passes.equations import collect_derivatives, buffering
-from devito.passes.clusters import (Lift, Stream, Tasker, cire, cse, eliminate_arrays,
+from devito.passes.clusters import (Lift, Fetcher, Tasker, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
@@ -719,7 +719,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         clusters = eliminate_arrays(clusters)
 
         # Place prefetch SyncOps
-        clusters = Stream(key).process(clusters)
+        clusters = Fetcher(key).process(clusters)
 
         return clusters
 
@@ -791,7 +791,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
 
         return {
             'tasking': Tasker(key).process,
-            'streaming': Stream(key).process,
+            'fetching': Fetcher(key).process,
             'factorize': factorize,
             'fuse': fuse,
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
@@ -822,7 +822,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         # Expressions
         'collect-deriv', 'buffering',
         # Clusters
-        'tasking', 'streaming', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
+        'tasking', 'fetching', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
         'opt-pows', 'topofuse',
         # IET
         'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'

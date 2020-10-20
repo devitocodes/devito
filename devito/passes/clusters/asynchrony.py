@@ -11,7 +11,7 @@ from devito.tools import (DefaultOrderedDict, as_tuple, filter_ordered, flatten,
 from devito.types import (Array, CustomDimension, ModuloDimension, Eq,
                           Lock, WaitLock, WithLock, WaitAndFetch, normalize_syncs)
 
-__all__ = ['Tasker', 'Stream']
+__all__ = ['Tasker', 'Fetcher']
 
 
 class Asynchronous(Queue):
@@ -125,7 +125,7 @@ class Tasker(Asynchronous):
         return processed
 
 
-class Stream(Asynchronous):
+class Fetcher(Asynchronous):
 
     """
     Tag Clusters with the WaitAndFetch SyncOp to stream Functions in and out
