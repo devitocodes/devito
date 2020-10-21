@@ -164,7 +164,7 @@ class LoweredEq(sympy.Eq, IREq):
             if d.condition is None:
                 conditionals[d] = CondEq(d.parent % d.factor, 0)
             else:
-                conditionals[d] = lower_exprs(d.condition)
+                conditionals[d] = diff2sympy(lower_exprs(d.condition))
         conditionals = frozendict(conditionals)
 
         # Lower all Differentiable operations into SymPy operations
