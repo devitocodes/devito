@@ -253,12 +253,12 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
         # Expressions
         'collect-deriv', 'buffering',
         # Clusters
-        'tasking', 'fetching', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
-        'opt-pows', 'topofuse',
+        'blocking', 'tasking', 'fetching', 'factorize', 'fuse', 'lift',
+        'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
         'optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders'
     )
-    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'simd', 'gpu-direct')
+    _known_passes_disabled = ('openmp', 'denormals', 'simd', 'gpu-direct')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod

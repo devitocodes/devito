@@ -20,8 +20,9 @@ from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)
 from devito.passes.equations import collect_derivatives, buffering
-from devito.passes.clusters import (Lift, Fetcher, Tasker, cire, cse, eliminate_arrays,
-                                    extract_increments, factorize, fuse, optimize_pows)
+from devito.passes.clusters import (Blocking, Lift, Fetcher, Tasker, cire, cse,
+                                    eliminate_arrays, extract_increments, factorize,
+                                    fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
@@ -560,6 +561,12 @@ def mpi_gpu_direct(iet, **kwargs):
 
 class DeviceOpenMPNoopOperator(OperatorCore):
 
+    BLOCK_LEVELS = 1
+    """
+    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
     CIRE_REPEATS_INV = 2
     """
     Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
@@ -603,6 +610,10 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
+
+        # Blocking
+        o['blockinner'] = oo.pop('blockinner', True)
+        o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
 
         # CIRE
         o['min-storage'] = False
@@ -790,6 +801,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         key = lambda f: not is_on_gpu(f, options['gpu-fit'])
 
         return {
+            'blocking': Blocking(options).process,
             'tasking': Tasker(key).process,
             'fetching': Fetcher(key).process,
             'factorize': factorize,
@@ -822,12 +834,12 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         # Expressions
         'collect-deriv', 'buffering',
         # Clusters
-        'tasking', 'fetching', 'factorize', 'fuse', 'lift', 'cire-sops', 'cse',
-        'opt-pows', 'topofuse',
+        'blocking', 'tasking', 'fetching', 'factorize', 'fuse', 'lift',
+        'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
         'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
     )
-    _known_passes_disabled = ('blocking', 'denormals', 'simd')
+    _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
