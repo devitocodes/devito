@@ -3,7 +3,7 @@ from functools import partial
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
-from devito.passes.equations import collect_derivatives
+from devito.passes.equations import buffering, collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
@@ -82,6 +82,9 @@ class CPU64NoopOperator(OperatorCore):
         # Execution modes
         o['openmp'] = oo.pop('openmp')
         o['mpi'] = oo.pop('mpi')
+
+        # Buffering
+        o['buf-async-degree'] = oo.pop('buf-async-degree', None)
 
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
@@ -261,8 +264,19 @@ class CustomOperator(CPU64Operator):
 
     @classmethod
     def _make_exprs_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+
+        # This callback simply mimics `is_on_gpu`, used in the device backends.
+        # It's used by `buffering` to replace `save!=None` TimeFunctions with buffers
+        def callback(f):
+            if f.is_TimeFunction and f.save is not None:
+                return [f.time_dim]
+            else:
+                return None
+
         return {
             'collect-derivs': collect_derivatives,
+            'buffering': lambda i: buffering(i, callback, options)
         }
 
     @classmethod
@@ -303,14 +317,14 @@ class CustomOperator(CPU64Operator):
 
     _known_passes = (
         # Expressions
-        'collect-derivs',
+        'buffering', 'collect-derivs',
         # Clusters
         'blocking', 'topofuse', 'fuse', 'factorize', 'cire-sops', 'cse',
         'lift', 'opt-pows'
         # IET
         'denormals', 'optcomms', 'openmp', 'mpi', 'simd', 'prodders',
     )
-    _known_passes_disabled = ('buffering', 'tasking', 'streaming', 'gpu-direct')
+    _known_passes_disabled = ('tasking', 'streaming', 'gpu-direct')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
