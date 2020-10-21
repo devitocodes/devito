@@ -158,8 +158,9 @@ def stree_section(stree):
                 # Already within a section
                 continue
             elif n.is_Sync:
-                section = Section(n)
-                sections.append(section)
+                # SyncNodes are self-contained
+                sections.append(Section(n))
+                section = None
             elif n.is_Iteration:
                 if n.dim.is_Time and SEQUENTIAL in n.properties:
                     # If n.dim.is_Time, we end up here in 99.9% of the cases.
