@@ -174,17 +174,6 @@ class DataManager(object):
 
         return processed
 
-    def analyze(self, graph):
-        memspace = {}
-
-        self.detect_memspace(graph, memspace=memspace)
-
-        return memspace
-
-    @iet_pass
-    def detect_memspace(self, iet, **kwargs):
-        return iet, {}
-
     @iet_pass
     def place_definitions(self, iet, **kwargs):
         """
@@ -196,8 +185,6 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
-        memspace = kwargs.pop('memspace')
-
         storage = Storage()
 
         refmap = FindSymbols().visit(iet).mapper
@@ -248,7 +235,7 @@ class DataManager(object):
                                     site = n
                                     break
                         if i._mem_heap:
-                            self._alloc_array_on_high_bw_mem(site, i, storage, memspace)
+                            self._alloc_array_on_high_bw_mem(site, i, storage)
                         else:
                             self._alloc_array_on_low_lat_mem(site, i, storage)
                     elif i.is_PointerArray:
@@ -300,8 +287,6 @@ class DataManager(object):
         """
         Apply the `map_on_memspace`, `place_definitions` and `place_casts` passes.
         """
-        memspace = self.analyze(graph)
-
-        self.map_onmemspace(graph, memspace=memspace)
-        self.place_definitions(graph, memspace=memspace)
+        self.map_onmemspace(graph)
+        self.place_definitions(graph)
         self.place_casts(graph)

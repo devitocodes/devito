@@ -424,9 +424,9 @@ class DeviceOpenMPDataManager(DataManager):
         super().__init__(sregistry)
         self.gpu_fit = options['gpu-fit']
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage, memspace):
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
         _storage = Storage()
-        super()._alloc_array_on_high_bw_mem(site, obj, _storage, memspace)
+        super()._alloc_array_on_high_bw_mem(site, obj, _storage)
 
         allocs = _storage[site].allocs + [self._Parallelizer._map_alloc(obj)]
         frees = [self._Parallelizer._map_delete(obj)] + _storage[site].frees
@@ -448,7 +448,6 @@ class DeviceOpenMPDataManager(DataManager):
 
     @iet_pass
     def map_onmemspace(self, iet, **kwargs):
-        memspace = kwargs.pop('memspace')
 
         @singledispatch
         def _map_onmemspace(iet):
