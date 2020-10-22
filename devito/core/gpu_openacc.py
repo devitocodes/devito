@@ -2,12 +2,13 @@ from functools import partial, singledispatch
 
 import cgen as c
 
-from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPCustomOperator,
-                                    DeviceOpenMPIteration, DeviceOmpizer,
-                                    DeviceOpenMPDataManager)
+from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
+                                    DeviceOpenMPCustomOperator, DeviceOpenMPIteration,
+                                    DeviceOmpizer, DeviceOpenMPDataManager)
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import Call, ElementalFunction, FindSymbols, List, LocalExpression
+from devito.ir.iet import (Call, ElementalFunction, List, LocalExpression,
+                           ParallelIteration, FindNodes, FindSymbols)
 from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
@@ -100,16 +101,41 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
         """
         Allocate an Array in the high bandwidth memory.
         """
-        size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
-        decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
-        cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
-        size_full = prod(obj.symbolic_shape)
-        alloc = "%s acc_malloc(sizeof(%s[%s]))" % (cast, obj._C_typedata, size_full)
-        init = c.Initializer(decl, alloc)
+        if memspace.get(obj) == 'HD':
+            # posix_memalign + copy-to-device
+            super()._alloc_array_on_high_bw_mem(site, obj, storage, memspace)
+        else:
+            # acc_malloc -- the Array only resides on the device, ie, it never
+            # needs to be accessed on the host
+            size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
+            decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
+            cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
+            size_full = prod(obj.symbolic_shape)
+            alloc = "%s acc_malloc(sizeof(%s[%s]))" % (cast, obj._C_typedata, size_full)
+            init = c.Initializer(decl, alloc)
 
-        free = c.Statement('acc_free(%s)' % obj.name)
+            free = c.Statement('acc_free(%s)' % obj.name)
 
-        storage.update(obj, site, allocs=init, frees=free)
+            storage.update(obj, site, allocs=init, frees=free)
+
+    @iet_pass
+    def detect_memspace(self, iet, **kwargs):
+        memspace = kwargs.pop('memspace')
+
+        for n in FindNodes(ParallelIteration).visit(iet):
+            if isinstance(n, DeviceOpenACCIteration):
+                continue
+
+            for i in FindSymbols().visit(n):
+                if not i.is_Array:
+                    continue
+
+                # Here we got an Array in a parallel Iteration performed on the
+                # host, so it appears in two memspaces, the host memspace and
+                # the device memspace
+                memspace[i] = 'HD'
+
+        return iet, {}
 
 
 @iet_pass
