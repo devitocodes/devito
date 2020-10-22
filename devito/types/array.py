@@ -46,11 +46,25 @@ class Array(ArrayBasic):
         The halo region of the object.
     padding : iterable of 2-tuples, optional
         The padding region of the object.
+    space : str, optional
+        The memory space. Allowed values: 'default', 'remote', 'mapped',
+        'uniform'.  Defaults to 'default'. The 'default' value means the Array
+        is allocated in the underlying platform's default memory space. For
+        example, this will be the thread virtual memory space if running on a
+        CPU, or the global memory if running on a GPU. 'remote' is the dual of
+        'default' -- if running on a GPU, a 'remote' Array will be allocated on
+        the host in the virtual memory of the driving thread. 'mapped' means
+        the Array is accessible by all compute elements of the underlying node,
+        though proper synchronization is needed (i.e., will be introduced by
+        the Devito compiler) to ensure data coherence. 'uniform', instead,
+        means the Array will be used as if the underlying node had uniform
+        memory address space.
     scope : str, optional
-        Control memory allocation. Allowed values: 'heap', 'stack'. Defaults to 'heap'.
+        The scope in the given memory space. Allowed values: 'heap', 'stack'.
+        Defaults to 'heap'. This may not have an impact on certain platforms.
     sharing : str, optional
         Control data sharing. Allowed values: 'shared', 'local'. Defaults to 'shared'.
-        'shared' means that in a multi-threaded context, the Array is shared by all
+        'shared' means that in a multi-threaded context the Array is shared by all
         threads. 'local', instead, means the Array is thread-private.
 
     Warnings
@@ -67,6 +81,9 @@ class Array(ArrayBasic):
 
     def __init_finalize__(self, *args, **kwargs):
         super(Array, self).__init_finalize__(*args, **kwargs)
+
+        self._space = kwargs.get('space', 'default')
+        assert self._space in ['default', 'remote', 'mapped', 'uniform']
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack']
@@ -116,12 +133,32 @@ class Array(ArrayBasic):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
     @property
+    def space(self):
+        return self._space
+
+    @property
     def scope(self):
         return self._scope
 
     @property
     def sharing(self):
         return self._sharing
+
+    @property
+    def _mem_default(self):
+        return self._space == 'default'
+
+    @property
+    def _mem_remote(self):
+        return self._space == 'remote'
+
+    @property
+    def _mem_mapped(self):
+        return self._space == 'mapped'
+
+    @property
+    def _mem_uniform(self):
+        return self._space == 'uniform'
 
     @property
     def _mem_stack(self):
@@ -145,7 +182,7 @@ class Array(ArrayBasic):
 
     # Pickling support
     _pickle_kwargs = AbstractFunction._pickle_kwargs +\
-        ['dimensions', 'scope', 'sharing']
+        ['dimensions', 'space', 'scope', 'sharing']
 
 
 class PointerArray(ArrayBasic):
