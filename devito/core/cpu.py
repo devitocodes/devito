@@ -140,9 +140,7 @@ class CPU64NoopOperator(OperatorCore):
             ompizer.make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DataManager(sregistry)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DataManager(sregistry).process(graph)
 
         return graph
 
@@ -215,9 +213,7 @@ class CPU64Operator(CPU64NoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager(sregistry)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DataManager(sregistry).process(graph)
 
         return graph
 
@@ -253,9 +249,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager(sregistry)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DataManager(sregistry).process(graph)
 
         return graph
 
@@ -401,8 +395,6 @@ class CustomOperator(CPU64Operator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        data_manager = DataManager(sregistry)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DataManager(sregistry).process(graph)
 
         return graph

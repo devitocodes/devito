@@ -424,9 +424,9 @@ class DeviceOpenMPDataManager(DataManager):
         super().__init__(sregistry)
         self.gpu_fit = options['gpu-fit']
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage, memspace):
         _storage = Storage()
-        super()._alloc_array_on_high_bw_mem(site, obj, _storage)
+        super()._alloc_array_on_high_bw_mem(site, obj, _storage, memspace)
 
         allocs = _storage[site].allocs + [self._Parallelizer._map_alloc(obj)]
         frees = [self._Parallelizer._map_delete(obj)] + _storage[site].frees
@@ -447,13 +447,14 @@ class DeviceOpenMPDataManager(DataManager):
         storage.update(obj, site, allocs=alloc, frees=free)
 
     @iet_pass
-    def place_ondevice(self, iet, **kwargs):
+    def map_onmemspace(self, iet, **kwargs):
+        memspace = kwargs.pop('memspace')
 
         @singledispatch
-        def _place_ondevice(iet):
+        def _map_onmemspace(iet):
             return iet
 
-        @_place_ondevice.register(Callable)
+        @_map_onmemspace.register(Callable)
         def _(iet):
             # Collect written and read-only symbols
             writes = set()
@@ -467,14 +468,14 @@ class DeviceOpenMPDataManager(DataManager):
                     continue
                 if i.write.is_DiscreteFunction:
                     writes.add(i.write)
-                reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
+                reads.update({r for r in i.reads if r.is_DiscreteFunction})
 
             # Populate `storage`
             storage = Storage()
             for i in filter_sorted(writes):
                 if is_on_gpu(i, self.gpu_fit):
                     self._map_function_on_high_bw_mem(iet, i, storage)
-            for i in filter_sorted(reads):
+            for i in filter_sorted(reads - writes):
                 if is_on_gpu(i, self.gpu_fit):
                     self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
 
@@ -482,17 +483,17 @@ class DeviceOpenMPDataManager(DataManager):
 
             return iet
 
-        @_place_ondevice.register(ElementalFunction)
+        @_map_onmemspace.register(ElementalFunction)
         def _(iet):
             return iet
 
-        @_place_ondevice.register(CopyBuffer)
-        @_place_ondevice.register(SendRecv)
-        @_place_ondevice.register(HaloUpdate)
+        @_map_onmemspace.register(CopyBuffer)
+        @_map_onmemspace.register(SendRecv)
+        @_map_onmemspace.register(HaloUpdate)
         def _(iet):
             return iet
 
-        iet = _place_ondevice(iet)
+        iet = _map_onmemspace(iet)
 
         return iet, {}
 
@@ -663,10 +664,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         DeviceOmpizer(sregistry, options).make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry, options)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenMPDataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
@@ -752,10 +750,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry, options)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenMPDataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
@@ -868,10 +863,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
                 pass
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry, options)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenMPDataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)

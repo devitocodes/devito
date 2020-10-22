@@ -96,7 +96,7 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     _Parallelizer = DeviceAccizer
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage, memspace):
         """
         Allocate an Array in the high bandwidth memory.
         """
@@ -186,10 +186,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         accizer.make_orchestration(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry, options)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         if options['mpi']:
@@ -220,10 +217,7 @@ class DeviceOpenACCOperator(DeviceOpenMPOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry, options)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         if options['mpi']:
@@ -287,10 +281,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
                 pass
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry, options)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         if options['mpi']:

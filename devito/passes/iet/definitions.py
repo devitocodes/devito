@@ -87,7 +87,7 @@ class DataManager(object):
         key = (site, expr.write)  # Ensure a scalar isn't redeclared in the given site
         storage.map(key, expr, LocalExpression(**expr.args))
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
         Allocate an Array in the high bandwidth memory.
         """
@@ -174,16 +174,30 @@ class DataManager(object):
 
         return processed
 
+    def analyze(self, graph):
+        memspace = {}
+
+        self.detect_memspace(graph, memspace=memspace)
+
+        return memspace
+
+    @iet_pass
+    def detect_memspace(self, iet, **kwargs):
+        return iet, {}
+
     @iet_pass
     def place_definitions(self, iet, **kwargs):
         """
-        Create a new IET with symbols allocated/deallocated in some memory space.
+        Create a new IET where all symbols have been declared, allocated, and
+        deallocated in one or more memory spaces.
 
         Parameters
         ----------
         iet : Callable
             The input Iteration/Expression tree.
         """
+        memspace = kwargs.pop('memspace')
+
         storage = Storage()
 
         refmap = FindSymbols().visit(iet).mapper
@@ -234,7 +248,7 @@ class DataManager(object):
                                     site = n
                                     break
                         if i._mem_heap:
-                            self._alloc_array_on_high_bw_mem(site, i, storage)
+                            self._alloc_array_on_high_bw_mem(site, i, storage, memspace)
                         else:
                             self._alloc_array_on_low_lat_mem(site, i, storage)
                     elif i.is_PointerArray:
@@ -246,6 +260,15 @@ class DataManager(object):
 
         iet = self._dump_storage(iet, storage)
 
+        return iet, {}
+
+    @iet_pass
+    def map_onmemspace(self, iet, **kwargs):
+        """
+        Create a new IET where certain symbols have been mapped to one or more
+        extra memory spaces. This may or may not be required depending on the
+        underlying architecture.
+        """
         return iet, {}
 
     @iet_pass
@@ -272,3 +295,13 @@ class DataManager(object):
         iet = iet._rebuild(body=casts + iet.body)
 
         return iet, {}
+
+    def process(self, graph):
+        """
+        Apply the `map_on_memspace`, `place_definitions` and `place_casts` passes.
+        """
+        memspace = self.analyze(graph)
+
+        self.map_onmemspace(graph, memspace=memspace)
+        self.place_definitions(graph, memspace=memspace)
+        self.place_casts(graph)
