@@ -188,7 +188,8 @@ class Buffer(object):
         self.buffer = Array(name='%sb' % function.name,
                             dimensions=dims,
                             dtype=function.dtype,
-                            halo=function.halo)
+                            halo=function.halo,
+                            space='mapped')
 
     def __repr__(self):
         return "Buffer[%s,<%s:%s>]" % (self.buffer.name,
