@@ -243,9 +243,10 @@ def default_rules(obj, functions):
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
+        # Needs to default to standard weights if none given
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
-                        (indices[j], deriv_order, function, extracted_dim): coeffs[j]})
+                        (indices[j], deriv_order, function, dim): coeffs[j]})
 
         return subs
 
@@ -264,11 +265,16 @@ def default_rules(obj, functions):
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))
+    print(args_provided)
     not_provided = [i for i in args_present if i not in frozenset(args_provided)]
 
     rules = {}
     for i in not_provided:
         rules = {**rules, **generate_subs(*i)}
+    print(rules)
+
+    # Weight functions are not getting replaced with weights
+    # See if replacement works correctly when substituations are carried out
     return rules
 
 
