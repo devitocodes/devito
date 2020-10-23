@@ -223,8 +223,9 @@ def default_rules(obj, functions):
         if isinstance(dim, sympy.Add):
             # Staggered function: need to extract dimension from dim
             extracted_dim = list(dim.as_coefficients_dict())[-1]
-            # Note: check dimension is always the second one here
+            # Note: check dimension is always the last one here
         else:
+            # Non-staggered: dimension is dim
             extracted_dim = dim
 
         if extracted_dim.is_Time:
@@ -245,9 +246,6 @@ def default_rules(obj, functions):
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
                         (indices[j], deriv_order, function, extracted_dim): coeffs[j]})
-
-        if isinstance(dim, sympy.Add):
-            raise NotImplementedError("Staggered grid support unfinished")
 
         return subs
 
