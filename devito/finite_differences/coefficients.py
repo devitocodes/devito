@@ -220,14 +220,14 @@ class Substitutions(object):
 def default_rules(obj, functions):
 
     def generate_subs(deriv_order, function, dim):
-
+        extract_dim = None  # Dimension extracted from dim
         if isinstance(dim, sympy.Add):
             # Staggered function: need to extract dimension from dim
-            true_dim = list(dim.as_coefficients_dict())[-1]
+            extract_dim = list(dim.as_coefficients_dict())[-1]
             # Note: check dimension is always the second one here
-            if true_dim.is_Time:
+            if extract_dim.is_Time:
                 fd_order = function.time_order
-            elif true_dim.is_Space:
+            elif extract_dim.is_Space:
                 fd_order = function.space_order
             else:
                 # Shouldn't arrive here
@@ -244,17 +244,20 @@ def default_rules(obj, functions):
 
         subs = {}
 
-        # Think I want to modify this to work with true_dim
-        indices, x0 = generate_indices(function, dim, fd_order, side=None)
-
-        if isinstance(dim, sympy.Add):
-            raise NotImplementedError("Staggered grid support unfinished")
+        if extract_dim is None:
+            indices, x0 = generate_indices(function, dim, fd_order, side=None)
+        else:  # Use extracted dimension
+            indices, x0 = generate_indices(function, extract_dim,
+                                           fd_order, side=None)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
                          (indices[j], deriv_order, function, dim): coeffs[j]})
+
+        if isinstance(dim, sympy.Add):
+            raise NotImplementedError("Staggered grid support unfinished")
 
         return subs
 
