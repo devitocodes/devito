@@ -81,6 +81,25 @@ class Coefficient(object):
     @property
     def dimension(self):
         """The dimension to which the coefficients will be applied."""
+        # Add another pseudo-dimension with offset included
+        return self._dimension
+
+    @property
+    def offset_dimension(self):
+        """
+        The dimension to which the coefficients will be applied plus the offset
+        in that dimension if the function is staggered.
+        """
+        if self._function.staggered is None:
+            # Default no stagger
+            return self._dimension
+        if self._dimension == self._function.staggered:
+            # Staggered only in this dimension
+            return self._dimension + self._dimension.spacing/2
+        if self._dimension in self._function.staggered:
+            # Staggered in this dimension and others
+            return self._dimension + self._dimension.spacing/2
+        # NODE staggered
         return self._dimension
 
     @property
@@ -176,6 +195,7 @@ class Substitutions(object):
             deriv_order = i.deriv_order
             function = i.function
             dim = i.dimension
+            offset_dim = i.offset_dimension
             weights = i.weights
 
             if isinstance(weights, np.ndarray):
@@ -194,7 +214,7 @@ class Substitutions(object):
             if isinstance(weights, np.ndarray):
                 for j in range(len(weights)):
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, dim): weights[j]})
+                                 (indices[j], deriv_order, function, offset_dim): weights[j]})
             else:
                 shape = weights.shape
                 x = weights.dimensions
@@ -202,7 +222,7 @@ class Substitutions(object):
                     idx = list(x)
                     idx[-1] = j
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, dim):
+                                 (indices[j], deriv_order, function, offset_dim):
                                      weights[as_tuple(idx)]})
 
             return subs
@@ -217,16 +237,18 @@ class Substitutions(object):
         return rules
 
 
+def extract_dim(dim):
+    if isinstance(dim, sympy.Add):
+        # Staggered function: need to extract dimension from dim
+        return list(dim.as_coefficients_dict())[-1]
+        # Note: check dimension is always the last one here
+    return dim
+
+
 def default_rules(obj, functions):
 
     def generate_subs(deriv_order, function, dim):
-        if isinstance(dim, sympy.Add):
-            # Staggered function: need to extract dimension from dim
-            extracted_dim = list(dim.as_coefficients_dict())[-1]
-            # Note: check dimension is always the last one here
-        else:
-            # Non-staggered: dimension is dim
-            extracted_dim = dim
+        extracted_dim = extract_dim(dim)
 
         if extracted_dim.is_Time:
             fd_order = function.time_order
@@ -243,7 +265,7 @@ def default_rules(obj, functions):
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
-        # Needs to default to standard weights if none given
+        # Currently always defaults to standard weights
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
                         (indices[j], deriv_order, function, dim): coeffs[j]})
@@ -257,7 +279,7 @@ def default_rules(obj, functions):
 
     subs = obj.substitutions
     if subs:
-        args_provided = [(i.deriv_order, i.function, i.dimension)
+        args_provided = [(i.deriv_order, i.function, i.offset_dimension)
                          for i in subs.coefficients]
     else:
         args_provided = []
@@ -265,16 +287,13 @@ def default_rules(obj, functions):
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))
-    print(args_provided)
     not_provided = [i for i in args_present if i not in frozenset(args_provided)]
 
     rules = {}
     for i in not_provided:
         rules = {**rules, **generate_subs(*i)}
-    print(rules)
 
     # Weight functions are not getting replaced with weights
-    # See if replacement works correctly when substituations are carried out
     return rules
 
 
