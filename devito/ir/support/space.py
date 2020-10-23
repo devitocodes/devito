@@ -523,6 +523,10 @@ class IterationInterval(object):
     def offsets(self):
         return self.interval.offsets
 
+    @property
+    def size(self):
+        return self.interval.size
+
 
 class Space(object):
 
