@@ -954,13 +954,13 @@ class TestCodeGeneration(object):
         f = Function(name='f', grid=grid, space_order=1)
         g = TimeFunction(name='g', grid=grid, space_order=1, time_order=2)
 
-        eqns = [Eq(f, g[t,x+1] + g[t,x-1]),
+        eqns = [Eq(f, g[t, x+1] + g[t, x-1]),
                 Eq(g.forward, f[x-1] + f[x+1])]
 
         op = Operator(eqns)
 
         assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
-        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[1].is_Iteration
+        assert not op.body[-1].body[0].nodes[0].body[0].body[0].body[1].is_Call
 
     @pytest.mark.parallel(mode=2)
     def test_unmerge_haloudate_if_diff_locindices(self):
