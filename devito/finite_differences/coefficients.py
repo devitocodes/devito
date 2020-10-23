@@ -214,7 +214,8 @@ class Substitutions(object):
             if isinstance(weights, np.ndarray):
                 for j in range(len(weights)):
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, offset_dim): weights[j]})
+                                 (indices[j], deriv_order,
+                                  function, offset_dim): weights[j]})
             else:
                 shape = weights.shape
                 x = weights.dimensions
