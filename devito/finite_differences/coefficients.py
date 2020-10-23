@@ -221,17 +221,34 @@ def default_rules(obj, functions):
 
     def generate_subs(deriv_order, function, dim):
 
-        if dim.is_Time:
-            fd_order = function.time_order
-        elif dim.is_Space:
-            fd_order = function.space_order
+        if isinstance(dim, sympy.Add):
+            # Staggered function: need to extract dimension from dim
+            true_dim = list(dim.as_coefficients_dict())[-1]
+            # Note: check dimension is always the second one here
+            if true_dim.is_Time:
+                fd_order = function.time_order
+            elif true_dim.is_Space:
+                fd_order = function.space_order
+            else:
+                # Shouldn't arrive here
+                raise TypeError("Dimension type not recognised")
+
         else:
-            # Shouldn't arrive here
-            raise TypeError("Dimension type not recognised")
+            if dim.is_Time:
+                fd_order = function.time_order
+            elif dim.is_Space:
+                fd_order = function.space_order
+            else:
+                # Shouldn't arrive here
+                raise TypeError("Dimension type not recognised")
 
         subs = {}
 
+        # Think I want to modify this to work with true_dim
         indices, x0 = generate_indices(function, dim, fd_order, side=None)
+
+        if isinstance(dim, sympy.Add):
+            raise NotImplementedError("Staggered grid support unfinished")
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
