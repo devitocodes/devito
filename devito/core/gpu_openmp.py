@@ -91,6 +91,7 @@ class DeviceOmpizer(Ompizer):
                     start, size = i
                 except TypeError:
                     start, size = i, 1
+                start = ccode(start)
             sections.append('[%s:%s]' % (start, size))
         return ''.join(sections)
 
@@ -327,7 +328,7 @@ class DeviceOmpizer(Ompizer):
         fetches = []
         for s in sync_ops:
             fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-            imask = [(fc, s.step) if d in s.dim._defines else FULL for d in s.dimensions]
+            imask = [(fc, s.step) if d.root is s.dim.root else FULL for d in s.dimensions]
             fetches.append(self._map_to(s.function, imask))
 
         # Glue together the new IET pieces
@@ -355,16 +356,16 @@ class DeviceOmpizer(Ompizer):
                 pfc_cond = pfc >= s.dim.symbolic_min
 
             # Construct fetch IET
-            imask = [fc if s.dim in d._defines else FULL for d in s.dimensions]
+            imask = [fc if d.root is s.dim.root else FULL for d in s.dimensions]
             fetch = List(header=self._map_to(s.function, imask))
             fetches.append(Conditional(fc_cond, fetch))
 
             # Construct present clauses
-            imask = [s.fetch if s.dim in d._defines else FULL for d in s.dimensions]
+            imask = [s.fetch if d.root is s.dim.root else FULL for d in s.dimensions]
             presents.extend(as_list(self._map_present(s.function, imask)))
 
             # Construct prefetch IET
-            imask = [pfc if s.dim in d._defines else FULL for d in s.dimensions]
+            imask = [pfc if d.root is s.dim.root else FULL for d in s.dimensions]
             prefetch = List(header=self._map_to(s.function, imask))
             prefetches.append(Conditional(pfc_cond, prefetch))
 
@@ -423,7 +424,12 @@ class DeviceOmpizer(Ompizer):
         # Construct deletion clauses
         deletions = []
         for s in sync_ops:
-            imask = [s.fetch if d in s.dim._defines else FULL for d in s.dimensions]
+            if s.dim.is_Custom:
+                fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
+                imask = [(fc, s.step) if d.root is s.dim.root else FULL
+                         for d in s.dimensions]
+            else:
+                imask = [s.fetch if d.root is s.dim.root else FULL for d in s.dimensions]
             deletions.append(self._map_delete(s.function, imask))
 
         # Glue together the new IET pieces
