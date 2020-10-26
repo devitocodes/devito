@@ -294,7 +294,6 @@ def default_rules(obj, functions):
     for i in not_provided:
         rules = {**rules, **generate_subs(*i)}
 
-    # Weight functions are not getting replaced with weights
     return rules
 
 
