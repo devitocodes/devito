@@ -167,12 +167,16 @@ class TestStreaming(object):
         assert np.all(u.data[nt-1] == 9)
         assert np.all(v.data[nt-1] == 9)
 
-    def test_attempt_tasking_but_no_temporaries(self):
+    @pytest.mark.parametrize('opt', [
+        ('tasking', 'orchestrate'),
+        ('tasking', 'streaming', 'orchestrate'),
+    ])
+    def test_attempt_tasking_but_no_temporaries(self, opt):
         grid = Grid(shape=(10, 10, 10))
 
         u = TimeFunction(name='u', grid=grid, save=10)
 
-        op = Operator(Eq(u.forward, u + 1), opt=('tasking', 'orchestrate'))
+        op = Operator(Eq(u.forward, u + 1), opt=opt)
 
         # Degenerates to host execution with no data movement, since `u` is
         # a host Function
@@ -247,7 +251,7 @@ class TestStreaming(object):
         assert sections[0].body[0].body[0].is_Iteration
         assert 'while(lock0[t' in str(sections[1].body[0].body[0].body[0])
 
-    def test_fetching_simple(self):
+    def test_streaming_simple(self):
         nt = 10
         grid = Grid(shape=(4, 4))
 
@@ -259,14 +263,14 @@ class TestStreaming(object):
 
         eqn = Eq(u.forward, u + usave)
 
-        op = Operator(eqn, opt=('fetching', 'orchestrate'))
+        op = Operator(eqn, opt=('streaming', 'orchestrate'))
 
         op.apply(time_M=nt-2)
 
         assert np.all(u.data[0] == 28)
         assert np.all(u.data[1] == 36)
 
-    def test_fetching_two_buffers(self):
+    def test_streaming_two_buffers(self):
         nt = 10
         grid = Grid(shape=(4, 4))
 
@@ -280,31 +284,71 @@ class TestStreaming(object):
 
         eqn = Eq(u.forward, u + usave + vsave)
 
-        op = Operator(eqn, opt=('fetching', 'orchestrate'))  #TODO: change names in code
+        op = Operator(eqn, opt=('streaming', 'orchestrate'))
 
         op.apply(time_M=nt-2)
 
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
-    @pytest.mark.xfail(reason="Need to split WaitAndFetch into finer operations, "
-                              "WaitFetch, Delete, and WaitFetchDelete")
-    def test_postponed_deletion(self):
+    def test_streaming_postponed_deletion(self):
         nt = 10
         grid = Grid(shape=(10, 10, 10))
 
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
         usave = TimeFunction(name='usave', grid=grid, save=nt)
+        u1 = TimeFunction(name='u', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        for i in range(nt):
+            usave.data[i, :] = i
 
         eqns = [Eq(u.forward, u + usave),
                 Eq(v.forward, v + u.forward.dx + usave)]
 
-        op = Operator(eqns, opt=('fetching', 'orchestrate'))
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': usave}))
+        op1 = Operator(eqns, opt=('streaming', 'orchestrate'))
 
-        assert False
+        # Check generated code
+        sections = FindNodes(Section).visit(op1)
+        assert len(sections) == 2
+        assert str(sections[1].body[0].footer[1]) == ('#pragma acc exit data delete'
+                                                      '(usave[time:1][0:usave_vec->size['
+                                                      '1]][0:usave_vec->size[2]][0:usave'
+                                                      '_vec->size[3]])')
 
-    def test_composite_fetching_tasking(self):
+        op0.apply(time_M=nt-1)
+        op1.apply(time_M=nt-1, u=u1, v=v1)
+
+        assert np.all(u.data == u1.data)
+        assert np.all(v.data == v1.data)
+
+    def test_streaming_with_host_loop(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, save=10)
+
+        eqns = [Eq(f, u),
+                Eq(u.forward, f + 1)]
+
+        op = Operator(eqns, opt=('streaming', 'orchestrate'))
+
+        # Check generated code
+        assert len(op._func_table) == 2
+        assert 'init_device0' in op._func_table
+        assert 'prefetch_host_to_device0' in op._func_table
+        sections = FindNodes(Section).visit(op)
+        assert len(sections) == 2
+        s = sections[0].body[0].body[1]
+        assert str(s.body[0].footer[1]) == ('#pragma acc exit data delete'
+                                            '(u[time:1][0:u_vec->size[1]][0:u_vec'
+                                            '->size[2]][0:u_vec->size[3]])')
+        assert str(s.header[1]) == ('#pragma acc data present(u[time:1][0:u_vec->'
+                                    'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+
+    def test_composite_streaming_tasking(self):
         nt = 10
         grid = Grid(shape=(10, 10, 10))
 
@@ -321,7 +365,7 @@ class TestStreaming(object):
                 Eq(usave, u)]
 
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': (fsave, usave)}))
-        op1 = Operator(eqns, opt=('tasking', 'fetching', 'orchestrate'))
+        op1 = Operator(eqns, opt=('tasking', 'streaming', 'orchestrate'))
 
         # Check generated code
         assert len(retrieve_iteration_tree(op0)) == 1
@@ -338,33 +382,7 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(usave.data == usave1.data)
 
-    def test_composite_buffering_tasking_v1(self):
-        nt = 10
-        grid = Grid(shape=(4, 4))
-
-        u = TimeFunction(name='u', grid=grid, save=nt)
-        u1 = TimeFunction(name='u', grid=grid, save=nt)
-        v = TimeFunction(name='v', grid=grid, save=nt)
-        v1 = TimeFunction(name='v', grid=grid, save=nt)
-
-        eqns = [Eq(u.forward, u + v + 1),
-                Eq(v.forward, u + v + v.backward)]
-
-        op0 = Operator(eqns, opt='noop')
-        op1 = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
-
-        # Check generated code
-        assert len(retrieve_iteration_tree(op1)) == 5
-        buffers = [i for i in FindSymbols().visit(op1) if isinstance(i, Lock)]
-        assert len(buffers) == 2
-
-        op0.apply(time_M=nt-2)
-        op1.apply(time_M=nt-2, u=u1, v=v1)
-
-        assert np.all(u.data == u1.data)
-        assert np.all(v.data == v1.data)
-
-    def test_composite_buffering_tasking_v2(self):
+    def test_composite_buffering_tasking(self):
         nt = 10
         bundle0 = Bundle()
         grid = Grid(shape=(4, 4, 4), subdomains=bundle0)
@@ -394,6 +412,32 @@ class TestStreaming(object):
 
         assert np.all(u.data == u1.data)
         assert np.all(usave.data == usave1.data)
+
+    def test_composite_full(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid, save=nt)
+        v = TimeFunction(name='v', grid=grid, save=nt)
+        u1 = TimeFunction(name='u', grid=grid, save=nt)
+        v1 = TimeFunction(name='v', grid=grid, save=nt)
+
+        eqns = [Eq(u.forward, u + v + 1),
+                Eq(v.forward, u + v + v.backward)]
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': (u, v)}))
+        op1 = Operator(eqns, opt=('buffering', 'tasking', 'streaming', 'orchestrate'))
+
+        # Check generated code
+        assert len(retrieve_iteration_tree(op1)) == 5
+        buffers = [i for i in FindSymbols().visit(op1) if isinstance(i, Lock)]
+        assert len(buffers) == 2
+
+        op0.apply(time_M=nt-2)
+        op1.apply(time_M=nt-2, u=u1, v=v1)
+
+        assert np.all(u.data == u1.data)
+        assert np.all(v.data == v1.data)
 
     def test_tasking_over_compiler_generated(self):
         nt = 10
@@ -477,7 +521,7 @@ class TestStreaming(object):
         # Assuming nt//period=5, we are computing, over 5 iterations:
         # g = 4*4  [time=8] + 3*3 [time=6] + 2*2 [time=4] + 1*1 [time=2]
         op = Operator([Eq(v.backward, v - 1), Inc(g, usave*(v/2))],
-                      opt=('prefetching', 'orchestrate',
+                      opt=('streaming', 'orchestrate',
                            {'gpu-fit': usave if gpu_fit else None}))
 
         op.apply(time_M=nt-1)
