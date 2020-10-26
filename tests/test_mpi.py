@@ -973,11 +973,11 @@ class TestCodeGeneration(object):
         glb_pos_map = f.grid.distributor.glb_pos_map
         R = 1e-07  # Can't use np.all due to rounding error at the tails
         if LEFT in glb_pos_map[x]:
-                assert np.allclose(f.data_ro_domain[:5], [5., 6., 8., 8., 8.], rtol=R)
-                assert np.allclose(g.data_ro_domain[0, :5], [6., 13., 14., 16., 16.], rtol=R)
+            assert np.allclose(f.data_ro_domain[:5], [5., 6., 8., 8., 8.], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, :5], [6., 13., 14., 16., 16.], rtol=R)
         else:
-                assert np.allclose(f.data_ro_domain[5:], [8., 8., 8., 6., 5.], rtol=R)
-                assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
+            assert np.allclose(f.data_ro_domain[5:], [8., 8., 8., 6., 5.], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
 
     @pytest.mark.parallel(mode=2)
     def test_unmerge_haloudate_if_diff_locindices(self):
