@@ -20,7 +20,7 @@ from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)
 from devito.passes.equations import collect_derivatives, buffering
-from devito.passes.clusters import (Blocking, Lift, Fetcher, Tasker, cire, cse,
+from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
@@ -29,7 +29,8 @@ from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
 from devito.symbolics import (Byref, CondEq, DefFunction, FieldFromComposite,
                               ListInitializer, ccode)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, timed_pass
-from devito.types import Symbol, STDThread, WaitLock, WithLock, WaitAndFetch
+from devito.types import (Symbol, STDThread, WaitLock, WithLock, FetchWait,
+                          FetchWaitPrefetch, Delete)
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -81,8 +82,16 @@ class DeviceOmpizer(Ompizer):
         if imask is None:
             imask = [FULL]*len(datasize)
         assert len(imask) == len(datasize)
-        sections = ['[%s:%s]' % ((0, j) if i is FULL else (ccode(i), 1))
-                    for i, j in zip(imask, datasize)]
+        sections = []
+        for i, j in zip(imask, datasize):
+            if i is FULL:
+                start, size = 0, j
+            else:
+                try:
+                    start, size = i
+                except TypeError:
+                    start, size = i, 1
+            sections.append('[%s:%s]' % (start, size))
         return ''.join(sections)
 
     @classmethod
@@ -152,7 +161,7 @@ class DeviceOmpizer(Ompizer):
         for parallelism. In particular:
 
             * All parallel Iterations not *writing* to a host Function, that
-              is a Function `f` such that ``is_on_gpu(f) == False`, are offloaded
+              is a Function `f` such that ``is_on_device(f) == False`, are offloaded
               to the device.
             * The remaining ones, that is those writing to a host Function,
               are parallelized on the host.
@@ -160,7 +169,7 @@ class DeviceOmpizer(Ompizer):
         assert candidates
         root = candidates[0]
 
-        if is_on_gpu(root, self.gpu_fit, only_writes=True):
+        if is_on_device(root, self.gpu_fit, only_writes=True):
             # The typical case: all accessed Function's are device Function's, that is
             # all Function's are in the device memory. Then we offload the candidate
             # Iterations to the device
@@ -215,14 +224,15 @@ class DeviceOmpizer(Ompizer):
         """
 
         def key(s):
-            # The SyncOps are to be processed in the following order:
-            # 1) WithLock, 2) WaitLock, 3) WaitAndFetch
-            return {WaitLock: 0, WithLock: 1, WaitAndFetch: 2}[s]
+            # The SyncOps are to be processed in the following order
+            return [WaitLock, WithLock, Delete, FetchWait, FetchWaitPrefetch].index(s)
 
         callbacks = {
             WaitLock: self._make_orchestration_waitlock,
             WithLock: self._make_orchestration_withlock,
-            WaitAndFetch: self._make_orchestration_waitandfetch
+            FetchWait: self._make_orchestration_fetchwait,
+            FetchWaitPrefetch: self._make_orchestration_fetchwaitprefetch,
+            Delete: self._make_orchestration_delete
         }
 
         sync_spots = FindNodes(SyncSpot).visit(iet)
@@ -312,42 +322,51 @@ class DeviceOmpizer(Ompizer):
 
         return iet
 
-    def _make_orchestration_waitandfetch(self, iet, sync_ops, pieces):
+    def _make_orchestration_fetchwait(self, iet, sync_ops, pieces):
+        # Construct fetches
+        fetches = []
+        for s in sync_ops:
+            fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
+            imask = [(fc, s.step) if d in s.dim._defines else FULL for d in s.dimensions]
+            fetches.append(self._map_to(s.function, imask))
+
+        # Glue together the new IET pieces
+        iet = List(header=fetches, body=iet)
+
+        return iet
+
+    def _make_orchestration_fetchwaitprefetch(self, iet, sync_ops, pieces):
         thread = STDThread(self.sregistry.make_name(prefix='thread'))
         threadwait = Call(FieldFromComposite('join', thread))
 
         fetches = []
         prefetches = []
         presents = []
-        deletions = []
         for s in sync_ops:
-            f = s.function
-            for i in s.fetch:
-                if s.direction is Forward:
-                    fc = i.subs(s.dim, s.dim.symbolic_min)
-                    fc_cond = fc <= s.dim.symbolic_max
-                    pfc = i + 1
-                    pfc_cond = pfc <= s.dim.symbolic_max
-                else:
-                    fc = i.subs(s.dim, s.dim.symbolic_max)
-                    fc_cond = fc >= s.dim.symbolic_min
-                    pfc = i - 1
-                    pfc_cond = pfc >= s.dim.symbolic_min
+            if s.direction is Forward:
+                fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
+                fc_cond = fc <= s.dim.symbolic_max
+                pfc = s.fetch + 1
+                pfc_cond = pfc <= s.dim.symbolic_max
+            else:
+                fc = s.fetch.subs(s.dim, s.dim.symbolic_max)
+                fc_cond = fc >= s.dim.symbolic_min
+                pfc = s.fetch - 1
+                pfc_cond = pfc >= s.dim.symbolic_min
 
-                # Construct fetch IET
-                imask = [fc if s.dim in d._defines else FULL for d in s.dimensions]
-                fetch = List(header=self._map_to(f, imask))
-                fetches.append(Conditional(fc_cond, fetch))
+            # Construct fetch IET
+            imask = [fc if s.dim in d._defines else FULL for d in s.dimensions]
+            fetch = List(header=self._map_to(s.function, imask))
+            fetches.append(Conditional(fc_cond, fetch))
 
-                # Construct deletion and present clauses
-                imask = [i if s.dim in d._defines else FULL for d in s.dimensions]
-                deletions.append(self._map_delete(f, imask))
-                presents.extend(as_list(self._map_present(f, imask)))
+            # Construct present clauses
+            imask = [s.fetch if s.dim in d._defines else FULL for d in s.dimensions]
+            presents.extend(as_list(self._map_present(s.function, imask)))
 
-                # Construct prefetch IET
-                imask = [pfc if s.dim in d._defines else FULL for d in s.dimensions]
-                prefetch = List(header=self._map_to(f, imask))
-                prefetches.append(Conditional(pfc_cond, prefetch))
+            # Construct prefetch IET
+            imask = [pfc if s.dim in d._defines else FULL for d in s.dimensions]
+            prefetch = List(header=self._map_to(s.function, imask))
+            prefetches.append(Conditional(pfc_cond, prefetch))
 
         functions = [s.function for s in sync_ops]
         casts = [PointerCast(f) for f in functions]
@@ -378,15 +397,14 @@ class DeviceOmpizer(Ompizer):
         efunc_call = efunc.make_call(is_indirect=True)
         call = Call('std::thread', efunc_call, retobj=thread)
 
-        # Put together all the new IET pieces
+        # Glue together all the new IET pieces
         iet = List(
             header=[c.Line(),
                     c.Comment("Wait for %s to be available again" % thread)],
             body=[threadwait, List(
                 header=[c.Line()] + presents,
-                body=iet.body + (List(
-                    header=([c.Line()] + deletions +
-                            [c.Line(), c.Comment("Spawn %s to prefetch data" % thread)]),
+                body=(iet, List(
+                    header=[c.Line(), c.Comment("Spawn %s to prefetch data" % thread)],
                     body=call,
                     footer=c.Line()
                 ),)
@@ -398,6 +416,18 @@ class DeviceOmpizer(Ompizer):
             header=c.Comment("Wait for completion of %s" % thread),
             body=threadwait
         ))
+
+        return iet
+
+    def _make_orchestration_delete(self, iet, sync_ops, pieces):
+        # Construct deletion clauses
+        deletions = []
+        for s in sync_ops:
+            imask = [s.fetch if d in s.dim._defines else FULL for d in s.dimensions]
+            deletions.append(self._map_delete(s.function, imask))
+
+        # Glue together the new IET pieces
+        iet = List(header=c.Line(), body=iet, footer=[c.Line()] + deletions)
 
         return iet
 
@@ -472,10 +502,10 @@ class DeviceOpenMPDataManager(DataManager):
             # Populate `storage`
             storage = Storage()
             for i in filter_sorted(writes):
-                if is_on_gpu(i, self.gpu_fit):
+                if is_on_device(i, self.gpu_fit):
                     self._map_function_on_high_bw_mem(iet, i, storage)
             for i in filter_sorted(reads - writes):
-                if is_on_gpu(i, self.gpu_fit):
+                if is_on_device(i, self.gpu_fit):
                     self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
 
             iet = self._dump_storage(iet, storage)
@@ -683,7 +713,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         # Replace host Functions with Arrays, used as device buffers for
         # streaming-in and -out of data
         def callback(f):
-            if not is_on_gpu(f, options['gpu-fit']):
+            if not is_on_device(f, options['gpu-fit']):
                 return [f.time_dim]
             else:
                 return None
@@ -698,12 +728,10 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # This callback is used to trigger certain passes only on Clusters
-        # accessing at least one host Function
-        key = lambda f: not is_on_gpu(f, options['gpu-fit'])
+        runs_on_host, reads_if_on_host = make_callbacks(options)
 
         # Identify asynchronous tasks
-        clusters = Tasker(key).process(clusters)
+        clusters = Tasker(runs_on_host).process(clusters)
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
@@ -726,8 +754,8 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters)
 
-        # Place prefetch SyncOps
-        clusters = Fetcher(key).process(clusters)
+        # Place data-streaming SyncOps
+        clusters = Streaming(reads_if_on_host).process(clusters)
 
         return clusters
 
@@ -774,7 +802,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         # This callback is used by `buffering` to replace host Functions with
         # Arrays, used as device buffers for streaming-in and -out of data
         def callback(f):
-            if not is_on_gpu(f, options['gpu-fit']):
+            if not is_on_device(f, options['gpu-fit']):
                 return [f.time_dim]
             else:
                 return None
@@ -790,14 +818,12 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # This callback is used to trigger certain passes only on Clusters
-        # accessing at least one host Function
-        key = lambda f: not is_on_gpu(f, options['gpu-fit'])
+        runs_on_host, reads_if_on_host = make_callbacks(options)
 
         return {
             'blocking': Blocking(options).process,
-            'tasking': Tasker(key).process,
-            'fetching': Fetcher(key).process,
+            'tasking': Tasker(runs_on_host).process,
+            'streaming': Streaming(reads_if_on_host).process,
             'factorize': factorize,
             'fuse': fuse,
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
@@ -872,7 +898,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
 
 # Utils
 
-def is_on_gpu(maybe_symbol, gpu_fit, only_writes=False):
+def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
     """
     True if all Function's are allocated in the device memory, False otherwise.
     Parameters
@@ -900,3 +926,25 @@ def is_on_gpu(maybe_symbol, gpu_fit, only_writes=False):
 
     return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
                for f in functions)
+
+
+def make_callbacks(options):
+    """
+    Construction options-dependant callbacks used by various compiler passes.
+    """
+
+    def is_on_host(f):
+        return not is_on_device(f, options['gpu-fit'])
+
+    def runs_on_host(c):
+        # The only situation in which a Cluster doesn't get offloaded to
+        # the device is when it writes to a host Function
+        return any(is_on_host(f) for f in c.scope.writes)
+
+    def reads_if_on_host(c):
+        if not runs_on_host(c):
+            return [f for f in c.scope.reads if is_on_host(f)]
+        else:
+            return []
+
+    return runs_on_host, reads_if_on_host

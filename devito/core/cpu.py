@@ -260,7 +260,7 @@ class CustomOperator(CPU64Operator):
     def _make_exprs_passes_mapper(cls, **kwargs):
         options = kwargs['options']
 
-        # This callback simply mimics `is_on_gpu`, used in the device backends.
+        # This callback simply mimics `is_on_device`, used in the device backends.
         # It's used by `buffering` to replace `save!=None` TimeFunctions with buffers
         def callback(f):
             if f.is_TimeFunction and f.save is not None:

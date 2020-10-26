@@ -4,7 +4,7 @@ from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import SEQUENTIAL, IterationSpace
+from devito.ir.support import SEQUENTIAL, IterationSpace, UniteratedInterval
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
 from devito.tools import as_tuple, flatten
@@ -16,7 +16,7 @@ def stree_build(clusters):
     """
     Create a ScheduleTree from a ClusterGroup.
     """
-    # ClusterGroup -> Schedule tree
+    # ClusterGroup -> ScheduleTree
     stree = stree_schedule(clusters)
 
     # Add in section nodes
@@ -67,7 +67,7 @@ def stree_schedule(clusters):
 
         # Add in Conditionals and Syncs, which chop down the reuse tree
         drop = None
-        for k, v in list(mapper.items()):
+        for k, v in [(UniteratedInterval, stree)] + list(mapper.items()):
             if drop:
                 mapper.pop(k)
             if k.dim in c.syncs:

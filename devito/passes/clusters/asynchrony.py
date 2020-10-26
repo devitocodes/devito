@@ -8,10 +8,11 @@ from devito.ir.support import AFFINE, SEQUENTIAL, Backward, Scope
 from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, as_tuple, filter_ordered, flatten,
                           is_integer, timed_pass)
-from devito.types import (Array, CustomDimension, ModuloDimension, Eq,
-                          Lock, WaitLock, WithLock, WaitAndFetch, normalize_syncs)
+from devito.types import (Array, CustomDimension, ModuloDimension, Eq, Lock,
+                          WaitLock, WithLock, FetchWait, FetchWaitPrefetch, Delete,
+                          normalize_syncs)
 
-__all__ = ['Tasker', 'Fetcher']
+__all__ = ['Tasker', 'Streaming']
 
 
 class Asynchronous(Queue):
@@ -30,13 +31,12 @@ class Tasker(Asynchronous):
     Parameters
     ----------
     key : callable, optional
-        A Cluster `c` becomes an asynchronous task only `key(f)` returns True
-        for any of the Functions `f` in `c`.
+        A Cluster `c` becomes an asynchronous task only if `key(c)` returns True
 
     Notes
     -----
     From an implementation viewpoint, an asynchronous Cluster is a Cluster
-    with attached suitable SyncOps, such as WaitLock, WithThread, etc.
+    with attached suitable SyncOps, such as WaitLock, WithLock, etc.
     """
 
     @timed_pass(name='tasker')
@@ -56,10 +56,12 @@ class Tasker(Asynchronous):
         waits = defaultdict(list)
         tasks = defaultdict(list)
         for c0 in clusters:
+            if not self.key(c0):
+                # Not a candidate asynchronous task
+                continue
 
             # Prevent future writes to interfere with a task by waiting on a lock
-            may_require_lock = {i for i in c0.scope.reads
-                                if any(self.key(w) for w in c0.scope.writes)}
+            may_require_lock = set(c0.scope.reads)
 
             protected = defaultdict(set)
             for c1 in clusters:
@@ -125,19 +127,19 @@ class Tasker(Asynchronous):
         return processed
 
 
-class Fetcher(Asynchronous):
+class Streaming(Asynchronous):
 
     """
-    Tag Clusters with the WaitAndFetch SyncOp to stream Functions in and out
-    the process memory.
+    Tag Clusters with the FetchWait, FetchWaitPrefetch and Delete SyncOps to
+    stream Functions in and out the process memory.
 
     Parameters
     ----------
     key : callable, optional
-        A Function `f` in a Cluster `c` gets streamed only if `key(f)` returns True.
+        Return the Functions that need to be streamed in a given Cluster.
     """
 
-    @timed_pass(name='stream')
+    @timed_pass(name='streaming')
     def process(self, clusters):
         return super().process(clusters)
 
@@ -145,34 +147,57 @@ class Fetcher(Asynchronous):
         if not prefix:
             return clusters
 
-        d = prefix[-1].dim
-        direction = prefix[-1].direction
+        it = prefix[-1]
+        d = it.dim
+        direction = it.direction
 
-        mapper = defaultdict(set)
+        try:
+            pd = prefix[-2].dim
+        except IndexError:
+            pd = None
+
+        # What are the stream-able Dimensions?
+        # 0) all sequential Dimensions
+        # 1) all CustomDimensions of fixed (i.e. integer) size, which
+        #    implies a bound on the amount of streamed data
+        if all(SEQUENTIAL in c.properties[d] for c in clusters):
+            make_fetch = lambda f, v: FetchWaitPrefetch(f, d, v, 1, direction)
+            make_delete = lambda f, v: Delete(f, d, v, 1)
+            syncd = d
+        elif d.is_Custom and is_integer(it.size):
+            make_fetch = lambda f, v: FetchWait(f, d, v, it.size, direction)
+            make_delete = lambda f, v: Delete(f, d, v, it.size)
+            syncd = pd
+        else:
+            return clusters
+
+        first_seen = {}
+        last_seen = {}
         for c in clusters:
-            if SEQUENTIAL not in c.properties[d]:
+            candidates = self.key(c)
+            if not candidates:
                 continue
+            for i in c.scope.accesses:
+                f = i.function
+                if f in candidates:
+                    k = (f, i[d])
+                    first_seen.setdefault(k, c)
+                    last_seen[k] = c
 
-            for f, v in c.scope.reads.items():
-                if not self.key(f):
-                    continue
-                if any(f in c1.scope.writes for c1 in clusters):
-                    # Read-only Functions are the sole streaming candidates
-                    continue
+        if not first_seen:
+            return clusters
 
-                mapper[f].update({i[d] for i in v})
+        mapper = defaultdict(list)
+        for (f, v), c in first_seen.items():
+            mapper[c].append(make_fetch(f, v))
+        for (f, v), c in last_seen.items():
+            mapper[c].append(make_delete(f, v))
 
         processed = []
         for c in clusters:
-
-            syncs = []
-            for f, v in list(mapper.items()):
-                if f in c.scope.reads:
-                    syncs.append(WaitAndFetch(f, d, direction, v))
-                    mapper.pop(f)
-
-            if syncs:
-                processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, {d: syncs})))
+            v = mapper.get(c)
+            if v is not None:
+                processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, {syncd: v})))
             else:
                 processed.append(c)
 
