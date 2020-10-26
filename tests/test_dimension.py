@@ -931,12 +931,13 @@ class TestConditionalDimension(object):
         inner_domain = InnerDomain()
         grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
         g = Function(name='g', grid=grid)
-        g2 = Function(name='g', grid=grid)
+        g2 = Function(name='g2', grid=grid)
 
-        g.data[:4, :4] = 1
-        g.data[4:, :4] = 2
-        g.data[4:, 4:] = 3
-        g.data[:4, 4:] = 4
+        for i in [g, g2]:
+            i.data[:4, :4] = 1
+            i.data[4:, :4] = 2
+            i.data[4:, 4:] = 3
+            i.data[:4, 4:] = 4
 
         xi, yi = grid.subdomains['inner'].dimensions
 

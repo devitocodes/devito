@@ -488,7 +488,7 @@ class Ompizer(object):
 
             # Outer parallelism
             root, partree, collapsed = self._make_partree(candidates)
-            if root in mapper:
+            if partree is None or root in mapper:
                 continue
 
             # Nested parallelism

@@ -6,12 +6,11 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 
 from collections import OrderedDict
 from collections.abc import Iterable
-from operator import attrgetter
 
 import cgen as c
 
 from devito.exceptions import VisitorException
-from devito.ir.iet.nodes import Node, Iteration, Expression, Call
+from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
@@ -187,7 +186,9 @@ class CGen(Visitor):
         for i in args:
             try:
                 if isinstance(i, Call):
-                    ret.append(self.visit(i).text)
+                    ret.append(self.visit(i, nested_call=True))
+                elif isinstance(i, Lambda):
+                    ret.append(self.visit(i))
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
                 elif i.is_ArrayBasic:
@@ -254,23 +255,30 @@ class CGen(Visitor):
 
     def visit_LocalExpression(self, o):
         if o.write.is_Array:
+            ctype = [o.expr.lhs._C_typedata]
+            if o.write.volatile:
+                ctype.insert(0, 'volatile')
+            ctype = ' '.join(ctype)
             lhs = '%s%s' % (
                 o.expr.lhs.name,
                 ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
             )
         else:
+            ctype = o.expr.lhs._C_typedata
             lhs = ccode(o.expr.lhs, dtype=o.dtype)
 
-        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
-                             ccode(o.expr.rhs, dtype=o.dtype))
+        return c.Initializer(c.Value(ctype, lhs), ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):
         return c.Statement(ccode(o.expr))
 
-    def visit_Call(self, o):
+    def visit_Call(self, o, nested_call=False):
         arguments = self._args_call(o.arguments)
-        code = '%s(%s)' % (o.name, ','.join(arguments))
-        return c.Statement(code)
+        if o.retobj is not None:
+            return c.Assign(ccode(o.retobj), MultilineCall(o.name, arguments,
+                                                           True, o.is_indirect))
+        else:
+            return MultilineCall(o.name, arguments, nested_call, o.is_indirect)
 
     def visit_Conditional(self, o):
         then_body = c.Block(self._visit(o.then_body))
@@ -331,6 +339,13 @@ class CGen(Visitor):
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
 
+    def visit_Lambda(self, o):
+        body = flatten(self._visit(i) for i in o.children)
+        captures = [str(i) for i in o.captures]
+        decls = [i.inline() for i in self._args_decl(o.parameters)]
+        top = c.Line('[%s](%s)' % (', '.join(captures), ', '.join(decls)))
+        return LambdaCollection([top, c.Block(body)])
+
     def visit_HaloSpot(self, o):
         body = flatten(self._visit(i) for i in o.children)
         return c.Collection(body)
@@ -356,7 +371,8 @@ class CGen(Visitor):
 
         # Header files, extra definitions, ...
         header = [c.Line(i) for i in o._headers]
-        includes = [c.Include(i, system=False) for i in o._includes]
+        includes = [c.Include(i, system=(False if i.endswith('.h') else True))
+                    for i in o._includes]
         includes += [blankline]
         cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
         cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
@@ -520,9 +536,24 @@ class MapNodes(Visitor):
 
 class FindSymbols(Visitor):
 
+    class Retval(list):
+        def __init__(self, *retvals, node=None):
+            elements = []
+            self.mapper = {}
+            for i in retvals:
+                try:
+                    self.mapper.update(i.mapper)
+                except AttributeError:
+                    pass
+                elements.extend(i)
+            elements = filter_sorted(elements, key=str)
+            if node is not None:
+                self.mapper[node] = tuple(elements)
+            super().__init__(elements)
+
     @classmethod
     def default_retval(cls):
-        return []
+        return cls.Retval()
 
     """
     Find symbols in an Iteration/Expression tree.
@@ -562,34 +593,30 @@ class FindSymbols(Visitor):
         self.rule = self.rules[mode]
 
     def visit_tuple(self, o):
-        symbols = flatten([self._visit(i) for i in o])
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return self.Retval(*[self._visit(i) for i in o])
 
     visit_list = visit_tuple
 
     def visit_Iteration(self, o):
-        symbols = flatten([self._visit(i) for i in o.children])
-        symbols += self.rule(o)
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o), node=o)
 
-    visit_List = visit_Iteration
+    visit_Callable = visit_Iteration
+
+    def visit_List(self, o):
+        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o))
 
     def visit_Conditional(self, o):
-        symbols = flatten([self._visit(i) for i in o.children])
-        symbols += self.rule(o)
-        symbols += self.rule(o.condition)
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return self.Retval(*[self._visit(i) for i in o.children],
+                           self.rule(o), self.rule(o.condition), node=o)
 
     def visit_Expression(self, o):
-        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
-
-    def visit_Call(self, o):
-        symbols = self._visit(o.children)
-        symbols.extend([f for f in self.rule(o)])
-        return filter_sorted(symbols, key=attrgetter('name'))
+        return self.Retval([f for f in self.rule(o)])
 
     visit_PointerCast = visit_Expression
     visit_Dereference = visit_Expression
+
+    def visit_Call(self, o):
+        return self.Retval(self._visit(o.children), [f for f in self.rule(o)])
 
 
 class FindNodes(Visitor):
@@ -765,5 +792,47 @@ class XSubs(Transformer):
         return o._rebuild(expr=self.replacer(o.expr))
 
 
+# Utils
+
 def printAST(node, verbose=True):
     return PrintAST(verbose=verbose)._visit(node)
+
+
+class LambdaCollection(c.Collection):
+    pass
+
+
+class MultilineCall(c.Generable):
+
+    def __init__(self, name, arguments, is_expr, is_indirect):
+        self.name = name
+        self.arguments = as_tuple(arguments)
+        self.is_expr = is_expr
+        self.is_indirect = is_indirect
+
+    def generate(self):
+        if not self.is_indirect:
+            tip = "%s(" % self.name
+        else:
+            tip = "%s," % self.name
+        processed = []
+        for i in self.arguments:
+            if isinstance(i, (MultilineCall, LambdaCollection)):
+                lines = list(i.generate())
+                if len(lines) > 1:
+                    yield tip + ",".join(processed + [lines[0]])
+                    for line in lines[1:-1]:
+                        yield line
+                    tip = ""
+                    processed = [lines[-1]]
+                else:
+                    assert len(lines) == 1
+                    processed.append(lines[0])
+            else:
+                processed.append(str(i))
+        tip = tip + ",".join(processed)
+        if not self.is_indirect:
+            tip += ")"
+        if not self.is_expr:
+            tip += ";"
+        yield tip

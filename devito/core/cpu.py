@@ -2,6 +2,7 @@ from functools import partial
 
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
+from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
@@ -29,7 +30,7 @@ class CPU64NoopOperator(OperatorCore):
     Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
     """
 
-    CIRE_REPEATS_SOPS = 5
+    CIRE_REPEATS_SOPS = 7
     """
     Number of CIRE passes to detect and optimize away redundant sum-of-products.
     """
@@ -94,6 +95,7 @@ class CPU64NoopOperator(OperatorCore):
         o['cire-rotate'] = oo.pop('cire-rotate', False)
         o['cire-onstack'] = oo.pop('cire-onstack', False)
         o['cire-maxpar'] = oo.pop('cire-maxpar', False)
+        o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-repeats'] = {
             'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
             'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
@@ -109,6 +111,8 @@ class CPU64NoopOperator(OperatorCore):
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
         o['par-dynamic-work'] = oo.pop('par-dynamic-work', cls.PAR_DYNAMIC_WORK)
         o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
+
+        o['gpu-direct'] = oo.pop('gpu-direct', False)
 
         if oo:
             raise InvalidOperator("Unrecognized optimization options: [%s]"
@@ -144,11 +148,15 @@ class CPU64NoopOperator(OperatorCore):
 class CPU64Operator(CPU64NoopOperator):
 
     @classmethod
+    @timed_pass(name='specializing.Expressions')
+    def _specialize_exprs(cls, expressions, **kwargs):
+        expressions = collect_derivatives(expressions)
+
+        return expressions
+
+    @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
-        """
-        Optimize Clusters for better runtime performance.
-        """
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
@@ -169,13 +177,13 @@ class CPU64Operator(CPU64NoopOperator):
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
-        # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, sregistry)
-
         # The previous passes may have created fusion opportunities, which in
         # turn may enable further optimizations
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, sregistry)
 
         return clusters
 
@@ -290,13 +298,13 @@ class Intel64FSGOperator(Intel64Operator):
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
 
-        # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, sregistry)
-
         # The previous passes may have created fusion opportunities, which in
         # turn may enable further optimizations
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, sregistry)
 
         # Blocking to improve data locality
         clusters = Blocking(options).process(clusters)
@@ -319,7 +327,13 @@ class CustomOperator(CPU64Operator):
 
     _known_passes = ('blocking', 'denormals', 'optcomms', 'openmp', 'mpi',
                      'simd', 'prodders', 'topofuse', 'fuse', 'factorize',
-                     'cire-sops', 'cse', 'lift', 'opt-pows')
+                     'cire-sops', 'cse', 'lift', 'opt-pows', 'collect-derivs')
+
+    @classmethod
+    def _make_exprs_passes_mapper(cls, **kwargs):
+        return {
+            'collect-derivs': collect_derivatives,
+        }
 
     @classmethod
     def _make_clusters_passes_mapper(cls, **kwargs):
@@ -365,6 +379,23 @@ class CustomOperator(CPU64Operator):
             raise InvalidOperator("Unknown passes `%s`" % str(passes))
 
         return super(CustomOperator, cls)._build(expressions, **kwargs)
+
+    @classmethod
+    @timed_pass(name='specializing.Expressions')
+    def _specialize_exprs(cls, expressions, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_exprs_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                expressions = passes_mapper[i](expressions)
+            except KeyError:
+                pass
+
+        return expressions
 
     @classmethod
     @timed_pass(name='specializing.Clusters')

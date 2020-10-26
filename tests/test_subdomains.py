@@ -4,6 +4,7 @@ from math import floor
 
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
+from devito.ir import FindNodes, Expression
 from devito.tools import timed_region
 
 
@@ -251,6 +252,12 @@ class TestSubdomains(object):
         assert((np.array(f.data) == expected1).all())
         assert((np.array(g.data) == expected2).all())
         assert((np.array(h.data) == expected3).all())
+
+        # Also make sure the Functions carrying the subdomain bounds are
+        # unique -- see issue #1474
+        exprs = FindNodes(Expression).visit(op)
+        reads = set().union(*[e.reads for e in exprs])
+        assert len(reads) == 7  # f, g, h, xi_n_m, xi_n_M, yi_n_m, yi_n_M
 
     def test_multi_sets(self):
         """
