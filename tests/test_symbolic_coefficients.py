@@ -119,7 +119,7 @@ class TestSC(object):
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
         
-        f = Function(name='f', grid=grid, space_order=order
+        f = Function(name='f', grid=grid, space_order=order,
                      coefficients='symbolic')
         g = Function(name='g', grid=grid, space_order=order,
                      coefficients='symbolic', staggered=x)
