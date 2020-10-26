@@ -15,7 +15,6 @@ from devito.ir.iet import (Block, Call, Callable, Conditional, ElementalFunction
                            FindSymbols, LocalExpression, MapExprStmts, Transformer,
                            derive_parameters, make_efunc)
 from devito.ir.support import Forward
-from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)

@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from devito import Grid, Eq, Function, TimeFunction, Operator
+from devito import Grid, Eq, TimeFunction, Operator
 from devito.ir import FindSymbols, retrieve_iteration_tree
 
 

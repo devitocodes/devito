@@ -1,16 +1,10 @@
-from collections import OrderedDict, defaultdict
-from itertools import chain
+from collections import defaultdict
 
-from cached_property import cached_property
-
-from devito.ir.clusters import Queue, Cluster
-from devito.ir.support import AFFINE, SEQUENTIAL, Backward, Scope
-from devito.symbolics import uxreplace
-from devito.tools import (DefaultOrderedDict, as_tuple, filter_ordered, flatten,
-                          is_integer, timed_pass)
-from devito.types import (Array, CustomDimension, ModuloDimension, Eq, Lock,
-                          WaitLock, WithLock, FetchWait, FetchWaitPrefetch, Delete,
-                          normalize_syncs)
+from devito.ir.clusters import Queue
+from devito.ir.support import AFFINE, SEQUENTIAL
+from devito.tools import is_integer, timed_pass
+from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchWait,
+                          FetchWaitPrefetch, Delete, normalize_syncs)
 
 __all__ = ['Tasker', 'Streaming']
 
@@ -83,7 +77,7 @@ class Tasker(Asynchronous):
                             # Functions over non-stepping Dimensions need no lock
                             continue
                     except KeyError:
-                        # Would degenerate to a scalar, but we rather use an Array
+                        # Would degenerate to a scalar, but we rather use a lock
                         # of size 1 for simplicity
                         ld = CustomDimension(name='ld', symbolic_size=1)
                     lock = locks.setdefault(f, Lock(name='lock%d' % len(locks),

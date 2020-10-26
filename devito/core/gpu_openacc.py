@@ -5,11 +5,8 @@ import cgen as c
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
                                     DeviceOpenMPCustomOperator, DeviceOpenMPIteration,
                                     DeviceOmpizer, DeviceOpenMPDataManager)
-from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, ElementalFunction, List, LocalExpression,
-                           ParallelIteration, FindNodes, FindSymbols)
-from devito.logger import warning
+from devito.ir.iet import Call, ElementalFunction, List, LocalExpression, FindSymbols
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
 from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders, iet_pass
@@ -59,9 +56,9 @@ class DeviceAccizer(DeviceOmpizer):
         'map-update': lambda i, j:
             c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
         'map-update-host': lambda i, j:
-	    c.Pragma('acc update self(%s%s)' % (i, j)),
-	'map-update-device': lambda i, j:
-	    c.Pragma('acc update device(%s%s)' % (i, j)),
+            c.Pragma('acc update self(%s%s)' % (i, j)),
+        'map-update-device': lambda i, j:
+            c.Pragma('acc update device(%s%s)' % (i, j)),
         'map-release': lambda i, j:
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
         'map-exit-delete': lambda i, j:

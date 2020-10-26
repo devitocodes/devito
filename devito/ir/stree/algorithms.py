@@ -7,7 +7,7 @@ from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
 from devito.ir.support import SEQUENTIAL, IterationSpace, UniteratedInterval
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
-from devito.tools import as_tuple, flatten
+from devito.tools import flatten
 
 __all__ = ['stree_build']
 
