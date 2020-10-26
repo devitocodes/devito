@@ -119,8 +119,10 @@ class TestSC(object):
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
         
-        f = Function(name='f', grid=grid, space_order=order)
-        g = Function(name='g', grid=grid, space_order=order, staggered=x)
+        f = Function(name='f', grid=grid, space_order=order
+                     coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=order,
+                     coefficients='symbolic', staggered=x)
         f.data[::2] = 1
         g.data[::2] = 1
 
@@ -142,8 +144,10 @@ class TestSC(object):
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
         
-        f = Function(name='f', grid=grid, space_order=order)
-        g = Function(name='g', grid=grid, space_order=order, staggered=x)
+        f = Function(name='f', grid=grid, space_order=order,
+                     coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=order,
+                     coefficients='symbolic', staggered=x)
         f.data[::2] = 1
         g.data[::2] = 1
 
