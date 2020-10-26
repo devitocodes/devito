@@ -34,6 +34,51 @@ class TestCodeGeneration(object):
             ('acc exit data delete(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
+    def test_streaming_postponed_deletion(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=10)
+        u1 = TimeFunction(name='u', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        eqns = [Eq(u.forward, u + usave),
+                Eq(v.forward, v + u.forward.dx + usave)]
+
+        op = Operator(eqns, opt=('streaming', 'orchestrate'))
+
+        sections = FindNodes(Section).visit(op)
+        assert len(sections) == 2
+        assert str(sections[1].body[0].footer[1]) == ('#pragma acc exit data delete'
+                                                      '(usave[time:1][0:usave_vec->size['
+                                                      '1]][0:usave_vec->size[2]][0:usave'
+                                                      '_vec->size[3]])')
+
+    def test_streaming_with_host_loop(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, save=10)
+
+        eqns = [Eq(f, u),
+                Eq(u.forward, f + 1)]
+
+        op = Operator(eqns, opt=('streaming', 'orchestrate'))
+
+        # Check generated code
+        assert len(op._func_table) == 2
+        assert 'init_device0' in op._func_table
+        assert 'prefetch_host_to_device0' in op._func_table
+        sections = FindNodes(Section).visit(op)
+        assert len(sections) == 2
+        s = sections[0].body[0].body[1]
+        assert str(s.body[0].footer[1]) == ('#pragma acc exit data delete'
+                                            '(u[time:1][0:u_vec->size[1]][0:u_vec'
+                                            '->size[2]][0:u_vec->size[3]])')
+        assert str(s.header[1]) == ('#pragma acc data present(u[time:1][0:u_vec->'
+                                    'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+
 
 class TestOperator(object):
 

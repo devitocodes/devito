@@ -310,14 +310,6 @@ class TestStreaming(object):
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': usave}))
         op1 = Operator(eqns, opt=('streaming', 'orchestrate'))
 
-        # Check generated code
-        sections = FindNodes(Section).visit(op1)
-        assert len(sections) == 2
-        assert str(sections[1].body[0].footer[1]) == ('#pragma acc exit data delete'
-                                                      '(usave[time:1][0:usave_vec->size['
-                                                      '1]][0:usave_vec->size[2]][0:usave'
-                                                      '_vec->size[3]])')
-
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, v=v1)
 
@@ -335,18 +327,9 @@ class TestStreaming(object):
 
         op = Operator(eqns, opt=('streaming', 'orchestrate'))
 
-        # Check generated code
         assert len(op._func_table) == 2
         assert 'init_device0' in op._func_table
         assert 'prefetch_host_to_device0' in op._func_table
-        sections = FindNodes(Section).visit(op)
-        assert len(sections) == 2
-        s = sections[0].body[0].body[1]
-        assert str(s.body[0].footer[1]) == ('#pragma acc exit data delete'
-                                            '(u[time:1][0:u_vec->size[1]][0:u_vec'
-                                            '->size[2]][0:u_vec->size[3]])')
-        assert str(s.header[1]) == ('#pragma acc data present(u[time:1][0:u_vec->'
-                                    'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
     def test_composite_streaming_tasking(self):
         nt = 10
