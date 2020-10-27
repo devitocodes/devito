@@ -4,6 +4,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
+from devito.types import NODE
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -81,7 +82,6 @@ class Coefficient(object):
     @property
     def dimension(self):
         """The dimension to which the coefficients will be applied."""
-        # Add another pseudo-dimension with offset included
         return self._dimension
 
     @property
@@ -93,13 +93,16 @@ class Coefficient(object):
         if self._function.staggered is None:
             # Default no stagger
             return self._dimension
+        if self._function.staggered == NODE:
+            # NODE staggered
+            return self._dimension
         if self._dimension == self._function.staggered:
             # Staggered only in this dimension
             return self._dimension + self._dimension.spacing/2
         if self._dimension in self._function.staggered:
             # Staggered in this dimension and others
             return self._dimension + self._dimension.spacing/2
-        # NODE staggered
+        # Staggered, but not in this dimension
         return self._dimension
 
     @property
