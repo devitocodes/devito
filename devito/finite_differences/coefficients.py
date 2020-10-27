@@ -90,20 +90,7 @@ class Coefficient(object):
         The dimension to which the coefficients will be applied plus the offset
         in that dimension if the function is staggered.
         """
-        if self._function.staggered is None:
-            # Default no stagger
-            return self._dimension
-        if self._function.staggered == NODE:
-            # NODE staggered
-            return self._dimension
-        if self._dimension == self._function.staggered:
-            # Staggered only in this dimension
-            return self._dimension + self._dimension.spacing/2
-        if self._dimension in self._function.staggered:
-            # Staggered in this dimension and others
-            return self._dimension + self._dimension.spacing/2
-        # Staggered, but not in this dimension
-        return self._dimension
+        return self._function.indices_ref[self._dimension]
 
     @property
     def weights(self):
