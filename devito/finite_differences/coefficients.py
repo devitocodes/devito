@@ -4,7 +4,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
-from devito.types import NODE
+from devito.types.utils import NODE
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
