@@ -280,7 +280,7 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
             iloc = sympify(i).xreplace(mapper)
         # Enforce fixed precision FD coefficients to avoid variations in results
         c = sympify(c).evalf(_PRECISION)
-        terms.append(expr._subs(expr.indices_ref[dim], iloc) * c)
+        terms.append(expr._subs(dim, iloc - (expr.indices_ref[dim] - dim)) * c)
 
     deriv = Add(*terms)
 

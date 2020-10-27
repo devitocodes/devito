@@ -946,6 +946,40 @@ class TestCodeGeneration(object):
             assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.], rtol=R)
 
     @pytest.mark.parallel(mode=2)
+    def test_unmerge_haloupdate_if_no_locindices(self):
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid, space_order=1)
+        g = TimeFunction(name='g', grid=grid, space_order=1, time_order=1)
+
+        f.data_with_halo[:] = 0.
+        g.data_with_halo[:] = 1.
+
+        eqns = [Eq(f, g[t, x+1] + g[t, x-1]),
+                Eq(g.forward, f[x-1] + f[x+1])]
+
+        op = Operator(eqns)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
+        assert not op.body[-1].body[0].nodes[0].body[0].body[0].body[1].is_Call
+
+        op.apply(time_M=1)
+
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        R = 1e-07  # Can't use np.all due to rounding error at the tails
+        if LEFT in glb_pos_map[x]:
+            assert np.allclose(f.data_ro_domain[:5], [5., 6., 8., 8., 8.], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, :5], [6., 13., 14., 16., 16.], rtol=R)
+        else:
+            assert np.allclose(f.data_ro_domain[5:], [8., 8., 8., 6., 5.], rtol=R)
+            assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
+
+    @pytest.mark.parallel(mode=2)
     def test_unmerge_haloudate_if_diff_locindices(self):
         """
         In the Operator there are three Eqs:
