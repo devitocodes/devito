@@ -144,6 +144,11 @@ class Cluster(object):
         return self._syncs
 
     @cached_property
+    def sync_locks(self):
+        return frozendict({k: frozenset(type(i) for i in v if i.is_SyncLock)
+                           for k, v in self.syncs.items()})
+
+    @cached_property
     def free_symbols(self):
         return set().union(*[e.free_symbols for e in self.exprs])
 
@@ -307,6 +312,16 @@ class ClusterGroup(tuple):
     def itintervals(self):
         """The prefix IterationIntervals common to all Clusters in self."""
         return self._itintervals
+
+    @cached_property
+    def guards(self):
+        """The guards of each Cluster in self."""
+        return tuple(i.guards for i in self)
+
+    @cached_property
+    def sync_locks(self):
+        """The synchronization locks of each Cluster in self."""
+        return tuple(i.sync_locks for i in self)
 
     @cached_property
     def dspace(self):
