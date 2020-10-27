@@ -75,10 +75,6 @@ jobs:
         # dask error on osx, skip dask tuto
         echo "::set-env name=SKIP::--deselect=examples/seismic/tutorials/*dask*.ipynb"
     
-
-
-
-
     - name: Build docker image
       if: matrix.name == 'tutos-docker-gcc-py36'
       run: |
