@@ -103,8 +103,8 @@ def _buffering(expressions, callback, options):
             continue
         buffers.append(Buffer(f, dims, accessv, n, async_degree))
 
-    # Create Eqs to initialize `bf`. Note: a buffer needs to be initialized only
-    # if the buffered Function is read in at least one place
+    # Create Eqs to initialize buffers. Note: a buffer needs to be initialized
+    # only if the buffered Function is read in at least one place
     processed = [Eq(b.indexify(), b.function.subs(b.contraction_mapper))
                  for b in buffers if b.is_read]
 
@@ -114,18 +114,15 @@ def _buffering(expressions, callback, options):
         for a in b.accessv.accesses:
             subs[a] = b.indexify(a.indices)
 
-    # Create Eqs to copy back `bf` into `f`
+    # Create Eqs to copy back buffers into their buffered Functions
     for e in expressions:
         processed.append(uxreplace(e, subs))
 
+        # We also append the copy-back if `e` is the last-write of some buffers
         for b in buffers:
-            # Compulsory copyback <=> in a guard OR last write
-            test0 = any(isinstance(i, ConditionalDimension) for i in e.free_symbols)
-            test1 = e is b.accessv.lastwrite
-            if not (test0 or test1):
-                continue
-
-            processed.append(Eq(e.lhs, b.indexify(e.lhs.indices)))
+            if e is b.accessv.lastwrite:
+                processed.append(Eq(e.lhs, b.indexify(e.lhs.indices)))
+                break
 
     return processed
 
