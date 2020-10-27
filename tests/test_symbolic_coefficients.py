@@ -118,7 +118,7 @@ class TestSC(object):
         """Test custom coefficients provided as an array on a staggered grid"""
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
-        
+
         f = Function(name='f', grid=grid, space_order=order,
                      coefficients='symbolic')
         g = Function(name='g', grid=grid, space_order=order,
@@ -126,9 +126,9 @@ class TestSC(object):
         f.data[::2] = 1
         g.data[::2] = 1
 
-        weights = np.ones(order+1)
+        weights = np.ones(order+1)/grid.spacing[0]**2
         coeffs_f = Coefficient(2, f, x, weights)
-        coeffs_g = Coefficient(2, f, x, weights)
+        coeffs_g = Coefficient(2, g, x, weights)
 
         eq_f = Eq(f, f.dx2, coefficients=Substitutions(coeffs_f))
         eq_g = Eq(g, g.dx2, coefficients=Substitutions(coeffs_g))
@@ -137,13 +137,12 @@ class TestSC(object):
 
         assert np.allclose(f.data, g.data, atol=1e-7)
 
-
     @pytest.mark.parametrize('order', [2, 4, 6])
     def test_staggered_function(self, order):
         """Test custom function coefficients on a staggered grid"""
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
-        
+
         f = Function(name='f', grid=grid, space_order=order,
                      coefficients='symbolic')
         g = Function(name='g', grid=grid, space_order=order,
@@ -158,10 +157,10 @@ class TestSC(object):
         wdims = grid.dimensions + (s,)
 
         w = Function(name='w', dimensions=wdims, shape=wshape)
-        w.data[:] = 1.0/grid.spacing[0]
+        w.data[:] = 1.0/grid.spacing[0]**2
 
         coeffs_f = Coefficient(2, f, x, w)
-        coeffs_g = Coefficient(2, f, x, w)
+        coeffs_g = Coefficient(2, g, x, w)
 
         eq_f = Eq(f, f.dx2, coefficients=Substitutions(coeffs_f))
         eq_g = Eq(g, g.dx2, coefficients=Substitutions(coeffs_g))
@@ -169,5 +168,3 @@ class TestSC(object):
         Operator([eq_f, eq_g])()
 
         assert np.allclose(f.data, g.data, atol=1e-7)
-
-
