@@ -396,6 +396,47 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(usave.data == usave1.data)
 
+    def test_composite_buffering_tasking_multi_output(self):
+        nt = 10
+        bundle0 = Bundle()
+        grid = Grid(shape=(4, 4, 4), subdomains=bundle0)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2)
+        v = TimeFunction(name='v', grid=grid, time_order=2)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt)
+
+        u1 = TimeFunction(name='u', grid=grid, time_order=2)
+        v1 = TimeFunction(name='v', grid=grid, time_order=2)
+        usave1 = TimeFunction(name='usave', grid=grid, save=nt)
+        vsave1 = TimeFunction(name='vsave', grid=grid, save=nt)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(v.forward, v + 1),
+                Eq(usave, u, subdomain=bundle0),
+                Eq(vsave, v, subdomain=bundle0)]
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': (usave, vsave)}))
+        op1 = Operator(eqns, opt=('buffering', 'topofuse', 'tasking', 'orchestrate'))
+
+        # Check generated code -- thanks to buffering only expect 1 lock!
+        assert len(retrieve_iteration_tree(op0)) == 2
+        assert len(retrieve_iteration_tree(op1)) == 3
+        symbols = FindSymbols().visit(op1)
+        locks = [i for i in symbols if isinstance(i, Lock)]
+        assert len(locks) == 2
+        threads = [i for i in symbols if isinstance(i, STDThread)]
+        assert len(threads) == 1
+        assert len(op1._func_table) == 1  # usave and vsave eqns have been fused
+
+        op0.apply(time_M=nt-1)
+        op1.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
+
+        assert np.all(u.data == u1.data)
+        assert np.all(v.data == v1.data)
+        assert np.all(usave.data == usave1.data)
+        assert np.all(vsave.data == vsave1.data)
+
     def test_composite_full(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -453,8 +494,6 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(usave.data == usave1.data)
 
-    # Below more real-life-like tests
-
     @pytest.mark.parametrize('opt,gpu_fit', [
         (('tasking', 'orchestrate'), True),
         (('buffering', 'tasking', 'orchestrate'), True),
@@ -480,6 +519,35 @@ class TestStreaming(object):
         op.apply(time_M=nt-1)
 
         assert all(np.all(usave.data[i] == 2*i + 1) for i in range(usave.save))
+
+    def test_save_multi_output(self):
+        nt = 10
+        grid = Grid(shape=(150, 150, 150))
+
+        time_dim = grid.time_dim
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                             save=int(nt//factor.data), time_dim=time_sub)
+        vsave = TimeFunction(name='vsave', grid=grid, time_order=0,
+                             save=int(nt//factor.data), time_dim=time_sub)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward),
+                Eq(vsave, u.forward)]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate'))
+
+        # Check generated code
+        assert len(op._func_table) == 1  # usave and vsave eqns have been fused
+
+        op.apply(time_M=nt-1)
+
+        assert all(np.all(usave.data[i] == 2*i + 1) for i in range(usave.save))
+        assert all(np.all(vsave.data[i] == 2*i + 1) for i in range(vsave.save))
 
     @pytest.mark.parametrize('gpu_fit', [True, False])
     def test_xcor_from_saved(self, gpu_fit):
