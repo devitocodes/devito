@@ -175,9 +175,13 @@ class Buffer(object):
             bd = CustomDimension('db%d' % n, 0, size-1, size, d)
             contraction_mapper[d] = dims[dims.index(d)] = bd
 
-            # Create the necessary SteppingDimensions for indexing
-            sd = SteppingDimension(name='sb%d' % n, parent=bd)
-            index_mapper.update({i: i.xreplace({d: sd}) for i in indices})
+            if size > 1:
+                # Create the necessary SteppingDimensions for indexing
+                sd = SteppingDimension(name='sb%d' % n, parent=bd)
+                index_mapper.update({i: i.xreplace({d: sd}) for i in indices})
+            else:
+                # Special case, no need to keep a SteppingDimension around
+                index_mapper.update({i: 0 for i in indices})
 
         self.contraction_mapper = contraction_mapper
         self.index_mapper = index_mapper

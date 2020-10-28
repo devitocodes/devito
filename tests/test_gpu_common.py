@@ -549,6 +549,29 @@ class TestStreaming(object):
         assert all(np.all(usave.data[i] == 2*i + 1) for i in range(usave.save))
         assert all(np.all(vsave.data[i] == 2*i + 1) for i in range(vsave.save))
 
+    def test_save_w_shifting(self):
+        factor = 4
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=2, time_dim=time_subsampled)
+
+        save_shift = Constant(name='save_shift', dtype=np.int32)
+
+        eqns = [Eq(u.forward, u + 1.),
+                Eq(usave.subs(time_subsampled, time_subsampled - save_shift), u)]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
+
+        # Starting at time_m=10, so time_subsampled - save_shift is in range
+        op.apply(time_m=10, time_M=nt-2, save_shift=3)
+        assert np.all(np.allclose(u.data[0], 8))
+        assert np.all([np.allclose(usave.data[i], 2+i*factor) for i in range(2)])
+
     @pytest.mark.parametrize('gpu_fit', [True, False])
     def test_xcor_from_saved(self, gpu_fit):
         nt = 10

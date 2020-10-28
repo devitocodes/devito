@@ -73,6 +73,9 @@ class Tasker(Asynchronous):
                             size = f.shape_allocated[d]
                             assert is_integer(size)
                             ld = CustomDimension(name='ld', symbolic_size=size, parent=d)
+                        elif all(w[d] == 0 for w in writes):
+                            # Special case, degenerates to scalar lock
+                            raise KeyError
                         else:
                             # Functions over non-stepping Dimensions need no lock
                             continue
