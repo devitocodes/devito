@@ -500,7 +500,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         v = VectorTimeFunction(name="v", grid=model.grid,
                                save=geometry.nt if save else None,
                                time_order=time_order, space_order=space_order)
-        kwargs.update({v.name: v})
+        kwargs.update({'v': v})
 
     p = TimeFunction(name="p", grid=model.grid, staggered=NODE,
                      save=geometry.nt if save else None,
