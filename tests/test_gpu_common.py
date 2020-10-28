@@ -148,7 +148,7 @@ class TestStreaming(object):
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2
         assert (str(sections[0].body[0].body[0].body[0]) ==
-                'while(lock0[0] == 0 && lock1[0] == 0);')  # Wait-lock
+                'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         assert (str(sections[1].body[0].body[0]) ==
                 'if (thread0.joinable())\n{\n  thread0.join();\n}')  # Wait-thread
         assert str(sections[1].body[0].body[1].body[0]) == 'lock0[0] = 0;'  # Set-lock

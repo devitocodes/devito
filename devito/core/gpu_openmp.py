@@ -2,7 +2,7 @@ from collections import namedtuple
 from functools import partial, singledispatch
 
 import cgen as c
-from sympy import And, Function
+from sympy import Or, Function
 import numpy as np
 
 from devito.core.cpu import CustomOperator
@@ -261,7 +261,7 @@ class DeviceOmpizer(Ompizer):
         waitloop = List(
             header=c.Comment("Wait for `%s` to be copied to the host" %
                              ",".join(s.target.name for s in sync_ops)),
-            body=While(And(*[CondEq(s.handle, 0) for s in sync_ops])),
+            body=While(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
             footer=c.Line()
         )
 
