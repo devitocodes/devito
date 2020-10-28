@@ -26,12 +26,6 @@ RUN apt-get update -y && \
     apt-get install -y -q \
          /app/nvhpc-20-9_20.9_amd64.deb \
          /app/nvhpc-2020_20.9_amd64.deb && \
-#    wget -q -P /app/\
-#         https://developer.download.nvidia.com/hpc-sdk/nvhpc-20-7_20.7_amd64.deb \
-#         https://developer.download.nvidia.com/hpc-sdk/nvhpc-2020_20.7_amd64.deb && \
-#    apt-get install -y -q \
-#         /app/nvhpc-20-7_20.7_amd64.deb \
-#         /app/nvhpc-2020_20.7_amd64.deb && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
     rm -rf /var/lib/apt/lists/*
