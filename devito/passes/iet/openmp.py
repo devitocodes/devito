@@ -4,6 +4,7 @@ import numpy as np
 import cgen as c
 from sympy import Or, Max, Not
 
+from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
                        List, Prodder, ParallelIteration, ParallelBlock, While,
                        FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
@@ -135,8 +136,22 @@ class OpenMPIteration(ParallelIteration):
             clauses.append('num_threads(%s)' % nthreads)
 
         if reduction:
-            args = ','.join(str(i) for i in reduction)
-            clauses.append('reduction(+:%s)' % args)
+            args = []
+            for i in reduction:
+                if i.is_Indexed:
+                    f = i.function
+                    bounds = []
+                    for k, d in zip(i.indices, f.dimensions):
+                        if k.is_Number:
+                            bounds.append('[%s]' % k)
+                        else:
+                            # OpenMP expects a range as input of reduction,
+                            # such as reduction(+:f[0:f_vec->size[1]])
+                            bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
+                    args.append('%s%s' % (i.name, ''.join(bounds)))
+                else:
+                    args.append(str(i))
+            clauses.append('reduction(+:%s)' % ','.join(args))
 
         return clauses
 
@@ -314,7 +329,7 @@ class Ompizer(object):
         return c.Initializer(c.Value(tid._C_typedata, tid.name), cls.lang['thread-num'])
 
     def _make_reductions(self, partree, collapsed):
-        if not partree.is_ParallelAtomic:
+        if not any(i.is_ParallelAtomic for i in collapsed):
             return partree
 
         # Collect expressions inducing reductions
@@ -473,7 +488,7 @@ class Ompizer(object):
 
             # Outer parallelism
             root, partree, collapsed = self._make_partree(candidates)
-            if root in mapper:
+            if partree is None or root in mapper:
                 continue
 
             # Nested parallelism

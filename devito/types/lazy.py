@@ -1,3 +1,5 @@
+import sympy
+
 __all__ = ['Evaluable']
 
 
@@ -47,3 +49,15 @@ class Evaluable(object):
         args = self._evaluate_args()
         evaluate = not all(i is j for i, j in zip(args, self.args))
         return self.func(*args, evaluate=evaluate)
+
+
+# Custom SymPy types used upon evaluation
+
+
+class EvalDerivative(sympy.Add):
+
+    """
+    A sympy.Add representing an expanded finite-difference Derivative.
+    """
+
+    pass

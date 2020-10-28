@@ -4,6 +4,7 @@ from math import floor
 
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
+from devito.ir import FindNodes, Expression
 from devito.tools import timed_region
 
 
@@ -252,6 +253,12 @@ class TestSubdomains(object):
         assert((np.array(g.data) == expected2).all())
         assert((np.array(h.data) == expected3).all())
 
+        # Also make sure the Functions carrying the subdomain bounds are
+        # unique -- see issue #1474
+        exprs = FindNodes(Expression).visit(op)
+        reads = set().union(*[e.reads for e in exprs])
+        assert len(reads) == 7  # f, g, h, xi_n_m, xi_n_M, yi_n_m, yi_n_M
+
     def test_multi_sets(self):
         """
         Check functionality for when multiple subdomain sets are present.
@@ -356,3 +363,65 @@ class TestSubdomains(object):
         fex.data[:] = np.transpose(expected)
 
         assert((np.array(result) == np.array(fex.data[:])).all())
+
+    def test_multi_sets_eq(self):
+        """
+        Check functionality for when multiple subdomain sets are present, each
+        with multiple equations.
+        """
+
+        Nx = 10
+        Ny = Nx
+        n_domains = 2
+
+        n = Dimension(name='n')
+        m = Dimension(name='m')
+
+        class MySubdomains1(SubDomainSet):
+            name = 'mydomains1'
+            implicit_dimension = n
+
+        class MySubdomains2(SubDomainSet):
+            name = 'mydomains2'
+            implicit_dimension = m
+
+        bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
+        bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
+        bounds_ym = int(1)
+        bounds_yM = int(Ny/2+1)
+        bounds1 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
+
+        bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
+        bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
+        bounds_ym = int(Ny/2+1)
+        bounds_yM = int(1)
+        bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
+
+        my_sd1 = MySubdomains1(N=n_domains, bounds=bounds1)
+        my_sd2 = MySubdomains2(N=n_domains, bounds=bounds2)
+
+        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd1, my_sd2))
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        g = Function(name='g', grid=grid, dtype=np.int32)
+
+        eq1 = Eq(f, f+2, subdomain=grid.subdomains['mydomains1'])
+        eq2 = Eq(g, g+2, subdomain=grid.subdomains['mydomains2'])
+        eq3 = Eq(f, f-1, subdomain=grid.subdomains['mydomains1'])
+        eq4 = Eq(g, g+1, subdomain=grid.subdomains['mydomains2'])
+
+        op = Operator([eq1, eq2, eq3, eq4])
+        op.apply()
+
+        expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 1, 1, 1, 0, 0, 3, 3, 3, 0],
+                             [0, 1, 1, 1, 0, 0, 3, 3, 3, 0],
+                             [0, 1, 1, 1, 0, 0, 3, 3, 3, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 1, 1, 1, 0, 0, 3, 3, 3, 0],
+                             [0, 1, 1, 1, 0, 0, 3, 3, 3, 0],
+                             [0, 1, 1, 1, 0, 0, 3, 3, 3, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
+
+        assert((np.array(f.data[:]+g.data[:]) == expected).all())

@@ -38,7 +38,7 @@ def cire(cluster, mode, sregistry, options, platform):
         The symbol registry, to create unique temporary names.
     options : dict
         The optimization options.
-        Accepted: ['min-storage', 'cire-maxpar', 'cire-rotate'].
+        Accepted: ['min-storage', 'cire-maxpar', 'cire-rotate', 'cire-maxalias'].
         * 'min-storage': if True, the pass will try to minimize the amount of
           storage introduced for the tensor temporaries. This might also reduce
           the operation count. On the other hand, this might affect fusion and
@@ -50,6 +50,9 @@ def cire(cluster, mode, sregistry, options, platform):
         * 'cire-rotate': if True, the pass will use modulo indexing for the
           outermost Dimension iterated over by the temporaries. This will sacrifice
           a parallel loop for a reduced working set size. Defaults to False (legacy).
+        * 'cire-maxalias': if True, capture the largest redundancies. This will
+          minimize the flop count while maximizing the number of tensor temporaries,
+          thus increasing the working set size.
     platform : Platform
         The underlying platform. Used to optimize the shape of the introduced
         tensor symbols.
@@ -149,18 +152,19 @@ class Callbacks(object):
     def __new__(cls, context, n, options):
         min_cost = options['cire-mincost']
         max_par = options['cire-maxpar']
+        max_alias = options['cire-maxalias']
 
         min_cost = min_cost[cls.mode]
         if callable(min_cost):
             min_cost = min_cost(n)
 
-        return (partial(cls.extract, n, context, min_cost),
+        return (partial(cls.extract, n, context, min_cost, max_alias),
                 cls.ignore_collected,
                 partial(cls.in_writeto, max_par),
                 partial(cls.selector, min_cost))
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, sregistry):
+    def extract(cls, n, context, min_cost, max_alias, cluster, sregistry):
         raise NotImplementedError
 
     @classmethod
@@ -181,7 +185,7 @@ class CallbacksInvariants(Callbacks):
     mode = 'invariants'
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, sregistry):
+    def extract(cls, n, context, min_cost, max_alias, cluster, sregistry):
         make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
 
         exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
@@ -217,7 +221,7 @@ class CallbacksSOPS(Callbacks):
     mode = 'sops'
 
     @classmethod
-    def extract(cls, n, context, min_cost, cluster, sregistry):
+    def extract(cls, n, context, min_cost, max_alias, cluster, sregistry):
         make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
 
         # The `depth` determines "how big" the extracted sum-of-products will be.
@@ -240,8 +244,23 @@ class CallbacksSOPS(Callbacks):
                 if i in mapper:
                     continue
 
-                # Separate numbers and Functions, as they could be a derivative coeff
-                terms, others = split(i.args, lambda a: a.is_Add)
+                key = lambda a: a.is_Add
+                terms, others = split(list(i.args), key)
+
+                if max_alias:
+                    # Treat `e` as an FD expression and pull out the derivative
+                    # coefficient from `i`
+                    # Note: typically derivative coefficients are numbers, but
+                    # sometimes they could be provided in symbolic form through an
+                    # arbitrary Function.  In the latter case, we rely on the
+                    # heuristic that such Function's basically never span the whole
+                    # grid, but rather a single Grid dimension (e.g., `c[z, n]` for a
+                    # stencil of diameter `n` along `z`)
+                    if e.grid is not None and terms:
+                        key = partial(maybe_coeff_key, e.grid)
+                        others, more_terms = split(others, key)
+                        terms.extend(more_terms)
+
                 if terms:
                     k = i.func(*terms)
                     try:
@@ -379,8 +398,9 @@ def collect(exprs, ignore_collected, options):
         mapper.setdefault(k, []).append(group)
 
     aliases = AliasMapper()
-    for _groups in list(mapper.values()):
-        groups = list(_groups)
+    queue = list(mapper.values())
+    while queue:
+        groups = queue.pop(0)
 
         while groups:
             # For each Dimension, determine the Minimum Intervals (MI) spanning
@@ -409,8 +429,16 @@ def collect(exprs, ignore_collected, options):
                 break
 
             # Try again with fewer groups
+            # Heuristic: first try retaining the larger ones
             smallest = len(min(groups, key=len))
-            groups = [g for g in groups if len(g) > smallest]
+            groups, remainder = split(groups, lambda g: len(g) > smallest)
+            if groups:
+                queue.append(remainder)
+            else:
+                # No luck with the heuristic, e.g. there are two groups
+                # and both have same `len`
+                queue.append(groups[1:])
+                groups = [groups.pop(0)]
 
         for g in groups:
             c = g.pivot
@@ -695,7 +723,7 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
                 # E.g., `z` -- a non-shifted Dimension
                 indices.append(i.dim - i.lower)
 
-        expression = Eq(array[indices], uxreplace(alias, subs))
+        expression = Eq(array[indices], alias)
 
         # Create the substitution rules so that we can use the newly created
         # temporary in place of the aliasing expressions
@@ -1017,3 +1045,13 @@ def cit(c0, c1):
         else:
             break
     return tuple(found)
+
+
+def maybe_coeff_key(grid, expr):
+    """
+    True if `expr` could be the coefficient of an FD derivative, False otherwise.
+    """
+    if expr.is_Number:
+        return True
+    indexeds = [i for i in expr.free_symbols if i.is_Indexed]
+    return any(not set(grid.dimensions) <= set(i.function.dimensions) for i in indexeds)

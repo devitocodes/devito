@@ -3,7 +3,6 @@ from devito import TimeFunction, warning
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import particle_velocity_fields
-from examples.seismic import PointSource, Receiver
 
 
 class AnisotropicWaveSolver(object):
@@ -28,6 +27,7 @@ class AnisotropicWaveSolver(object):
     """
     def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
+        self.model._initialize_bcs(bcs="damp")
         self.geometry = geometry
 
         if space_order % 2 != 0:
@@ -106,9 +106,7 @@ class AnisotropicWaveSolver(object):
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
         # Create a new receiver object to store the result
-        rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.geometry.time_axis,
-                              coordinates=self.geometry.rec_positions)
+        rec = rec or self.geometry.rec
 
         # Create the forward wavefield if not provided
         if u is None:
@@ -179,9 +177,8 @@ class AnisotropicWaveSolver(object):
         time_order = 2
         stagg_p = stagg_r = None
         # Source term is read-only, so re-use the default
-        srca = srca or PointSource(name='srca', grid=self.model.grid,
-                                   time_range=self.geometry.time_axis,
-                                   coordinates=self.geometry.src_positions)
+        srca = srca or self.geometry.new_src(name='srca', src_type=None)
+
         # Create the wavefield if not provided
         if p is None:
             p = TimeFunction(name='p', grid=self.model.grid, staggered=stagg_p,

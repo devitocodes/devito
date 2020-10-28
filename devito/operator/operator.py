@@ -9,23 +9,22 @@ import ctypes
 from devito.archinfo import platform_registry
 from devito.compiler import compiler_registry
 from devito.exceptions import InvalidOperator
-from devito.finite_differences import Evaluable
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
 from devito.ir.stree import stree_build
-from devito.ir.equations.algorithms import lower_exprs
+from devito.ir.equations.algorithms import lower_exprs, generate_implicit_exprs
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine
-from devito.symbolics import estimate_cost, retrieve_functions
+from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import CustomDimension, Dimension, Eq
+from devito.types import CustomDimension, Evaluable
 
 __all__ = ['Operator']
 
@@ -246,47 +245,15 @@ class Operator(Callable):
     # Compilation -- Expression level
 
     @classmethod
-    def _add_implicit(cls, expressions):
-        """
-        Create and add any associated implicit expressions.
-
-        Implicit expressions are those not explicitly defined by the user
-        but instead are requisites of some specified functionality.
-        """
-        processed = []
-        seen = set()
-        for e in expressions:
-            if e.subdomain:
-                try:
-                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
-                    sub_dims = [d.root for d in e.subdomain.dimensions]
-                    sub_dims.append(e.subdomain.implicit_dimension)
-                    dims = [d for d in dims if d not in frozenset(sub_dims)]
-                    dims.append(e.subdomain.implicit_dimension)
-                    if e.subdomain not in seen:
-                        grid = list(retrieve_functions(e, mode='unique'))[0].grid
-                        processed.extend([i.func(*i.args, implicit_dims=dims) for i in
-                                          e.subdomain._create_implicit_exprs(grid)])
-                        seen.add(e.subdomain)
-                    dims.extend(e.subdomain.dimensions)
-                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
-                    processed.append(new_e)
-                except AttributeError:
-                    processed.append(e)
-            else:
-                processed.append(e)
-        return processed
-
-    @classmethod
     def _initialize_state(cls, **kwargs):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
-    def _specialize_exprs(cls, expressions):
+    def _specialize_exprs(cls, expressions, **kwargs):
         """
         Backend hook for specialization at the Expression level.
         """
-        return [LoweredEq(i) for i in expressions]
+        return expressions
 
     @classmethod
     @timed_pass(name='lowering.Expressions')
@@ -295,24 +262,27 @@ class Operator(Callable):
         Expression lowering:
 
             * Form and gather any required implicit expressions;
+            * Apply rewrite rules;
             * Evaluate derivatives;
             * Flatten vectorial equations;
             * Indexify Functions;
             * Apply substitution rules;
-            * Specialize (e.g., index shifting)
+            * Shift indices for domain alignment.
         """
-        # Add in implicit expressions, e.g., induced by SubDomains
-        expressions = cls._add_implicit(expressions)
+        # Add in implicit expressions
+        expressions = generate_implicit_exprs(expressions)
 
-        # Unfold lazyiness
+        # Specialization is performed on unevaluated expressions
+        expressions = cls._specialize_exprs(expressions, **kwargs)
+
+        # Lower functional DSL
         expressions = flatten([i.evaluate for i in expressions])
-
-        # Scalarize tensor expressions
         expressions = [j for i in expressions for j in i._flatten]
 
+        # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
 
-        processed = cls._specialize_exprs(expressions)
+        processed = [LoweredEq(i) for i in expressions]
 
         return processed
 
