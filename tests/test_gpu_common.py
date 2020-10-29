@@ -574,7 +574,6 @@ class TestStreaming(object):
 
     def test_save_w_nonaffine_time(self):
         factor = 4
-        nt = 19
         grid = Grid(shape=(11, 11))
         x, y = grid.dimensions
         t = grid.stepping_dim
@@ -597,7 +596,6 @@ class TestStreaming(object):
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1
         assert len(op._func_table) == 1
-
 
     @pytest.mark.parametrize('gpu_fit', [True, False])
     def test_xcor_from_saved(self, gpu_fit):

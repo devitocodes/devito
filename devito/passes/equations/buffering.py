@@ -6,8 +6,7 @@ from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
 from devito.tools import (Bunch, DefaultOrderedDict, as_tuple, filter_ordered, flatten,
                           timed_pass)
-from devito.types import (Array, ConditionalDimension, CustomDimension, Eq,
-                          SteppingDimension)
+from devito.types import Array, CustomDimension, Eq, SteppingDimension
 
 __all__ = ['buffering']
 

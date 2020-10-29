@@ -2,10 +2,9 @@ import pytest
 import numpy as np
 
 from conftest import skipif
-from devito import (Grid, Constant, Function, TimeFunction, ConditionalDimension,
-                    SubDomain, Eq, Inc, Operator, norm, solve)
+from devito import Grid, Function, TimeFunction, Eq, Operator, norm, solve
 from devito.data import LEFT
-from devito.ir.iet import retrieve_iteration_tree
+from devito.ir.iet import FindNodes, Section, retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
 
@@ -40,8 +39,6 @@ class TestCodeGeneration(object):
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
         usave = TimeFunction(name='usave', grid=grid, save=10)
-        u1 = TimeFunction(name='u', grid=grid)
-        v1 = TimeFunction(name='v', grid=grid)
 
         eqns = [Eq(u.forward, u + usave),
                 Eq(v.forward, v + u.forward.dx + usave)]

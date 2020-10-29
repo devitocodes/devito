@@ -5,7 +5,7 @@ from devito.ir.clusters import Cluster, ClusterGroup, Queue
 from devito.ir.support import TILABLE, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul, uxreplace
-from devito.tools import DAG, as_tuple, flatten, filter_ordered, timed_pass
+from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types import Scalar
 
 __all__ = ['Lift', 'fuse', 'eliminate_arrays', 'optimize_pows', 'extract_increments']
