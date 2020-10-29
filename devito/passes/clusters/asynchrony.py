@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from devito.ir.clusters import Queue
-from devito.ir.support import AFFINE, SEQUENTIAL
+from devito.ir.support import SEQUENTIAL
 from devito.tools import is_integer, timed_pass
 from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchWait,
                           FetchWaitPrefetch, Delete, normalize_syncs)
@@ -43,7 +43,7 @@ class Tasker(Asynchronous):
 
         d = prefix[-1].dim
 
-        if not all(c.properties[d] >= {SEQUENTIAL, AFFINE} for c in clusters):
+        if not all(SEQUENTIAL in c.properties[d] for c in clusters):
             return clusters
 
         locks = {}

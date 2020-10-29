@@ -572,6 +572,33 @@ class TestStreaming(object):
         assert np.all(np.allclose(u.data[0], 8))
         assert np.all([np.allclose(usave.data[i], 2+i*factor) for i in range(2)])
 
+    def test_save_w_nonaffine_time(self):
+        factor = 4
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        time = grid.time_dim
+
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=2, time_dim=time_subsampled)
+
+        save_shift = Constant(name='save_shift', dtype=np.int32)
+
+        eqns = [Eq(u.forward, u[t, f[x, x], f[y, y]] + 1.),
+                Eq(usave.subs(time_subsampled, time_subsampled - save_shift), u)]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
+
+        # We just check the generated code here
+        locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
+        assert len(locks) == 1
+        assert len(op._func_table) == 1
+
+
     @pytest.mark.parametrize('gpu_fit', [True, False])
     def test_xcor_from_saved(self, gpu_fit):
         nt = 10
