@@ -602,7 +602,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Tuple of MPI-distributed Dimensions."""
         if self._distributor is None:
             return ()
-        return tuple(d for d in self.dimensions if d.root in self._distributor.dimensions)
+        return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @property
     def initializer(self):
