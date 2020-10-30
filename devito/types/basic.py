@@ -732,7 +732,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """The name of the object."""
         return self._name
 
-    @cached_property
+    @property
     def indices(self):
         """The indices (aka dimensions) of the object."""
         return DimensionTuple(*self.args, getters=self.dimensions)
