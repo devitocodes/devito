@@ -153,12 +153,16 @@ class Fusion(Queue):
             if not scheduled:
                 return queue.pop()
             key = self._key(scheduled[-1])
-            for i in reversed(range(1, len(key) + 1)):
-                for e in list(queue):
-                    if self._key(e)[:i] == key[:i]:
-                        queue.remove(e)
-                        return e
-            return queue.popleft()
+            for i in reversed(range(len(key) + 1)):
+                candidates = [e for e in queue if self._key(e)[:i] == key[:i]]
+                try:
+                    # Ensure stability
+                    e = min(candidates, key=lambda i: cgroups.index(i))
+                except ValueError:
+                    continue
+                queue.remove(e)
+                return e
+            assert False
 
         return ClusterGroup(dag.topological_sort(choose_element))
 
