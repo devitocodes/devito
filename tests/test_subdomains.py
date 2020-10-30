@@ -554,3 +554,10 @@ class TestSubdomainFunctionsParallel(object):
         """
         # FIXME: Write this test
         assert(1 == 1)
+
+    def test_non_spanning(self):
+        """
+        Write a test where the subdomain does not span all ranks.
+        """
+        # FIXME: Write this test
+        assert(1 == 1)
