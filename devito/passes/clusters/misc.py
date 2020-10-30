@@ -213,6 +213,9 @@ class Fusion(Queue):
                 elif any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()):
                     dag.add_edge(cg0, cg1)
 
+                elif any(scope.d_output_gen()):
+                    dag.add_edge(cg0, cg1)
+
         return dag
 
 
