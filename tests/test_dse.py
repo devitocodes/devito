@@ -1740,12 +1740,12 @@ class TestAliases(object):
         assert len(pbs) == 1
         pb = pbs[0]
         if rotate:
-            assert 'r6[2][y0_blk0_size][z_size]' in str(pb.body[0].header[0])
-            assert 'r3[2][z_size]' in str(pb.body[0].header[1])
+            assert 'r6[2][y0_blk0_size][z_size]' in str(pb.partree.prefix[0].header[0])
+            assert 'r3[2][z_size]' in str(pb.partree.prefix[0].header[1])
         else:
             assert 'r6[x0_blk0_size + 1][y0_blk0_size][z_size]'\
-                in str(pb.body[0].header[0])
-            assert 'r3[y0_blk0_size + 1][z_size]' in str(pb.body[0].header[1])
+                in str(pb.partree.prefix[0].header[0])
+            assert 'r3[y0_blk0_size + 1][z_size]' in str(pb.partree.prefix[0].header[1])
 
         # Check numerical output
         op0.apply(time_M=2)

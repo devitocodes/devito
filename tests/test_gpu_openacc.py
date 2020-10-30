@@ -43,7 +43,8 @@ class TestCodeGeneration(object):
         eqns = [Eq(u.forward, u + usave),
                 Eq(v.forward, v + u.forward.dx + usave)]
 
-        op = Operator(eqns, opt=('streaming', 'orchestrate'))
+        op = Operator(eqns, platform='nvidiaX', language='openacc',
+                      opt=('streaming', 'orchestrate'))
 
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2
@@ -61,7 +62,8 @@ class TestCodeGeneration(object):
         eqns = [Eq(f, u),
                 Eq(u.forward, f + 1)]
 
-        op = Operator(eqns, opt=('streaming', 'orchestrate'))
+        op = Operator(eqns, platform='nvidiaX', language='openacc',
+                      opt=('streaming', 'orchestrate'))
 
         # Check generated code
         assert len(op._func_table) == 2
