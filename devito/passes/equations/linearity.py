@@ -52,7 +52,19 @@ def _(c, deriv):
 
 @_is_const_coeff.register(sympy.Function)
 def _(c, deriv):
-    return not set(deriv.dims) & c.free_symbols
+    is_const = not set(deriv.dims) & c.free_symbols
+    try:
+        is_const &= not set([d.parent for d in deriv.dims]) & c.free_symbols
+    except AttributeError:
+        pass
+    # Need to check that there isn't any sub/super-dimension of deriv.dims
+    # in c
+    for c in c.free_symbols:
+        try:
+            is_const &= not set(deriv.dims) & {c.parent}
+        except AttributeError:
+            pass
+    return is_const
 
 
 @_is_const_coeff.register(sympy.Expr)
