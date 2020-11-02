@@ -431,14 +431,15 @@ def collect(exprs, ignore_collected, options):
             # Try again with fewer groups
             # Heuristic: first try retaining the larger ones
             smallest = len(min(groups, key=len))
+            fallback = groups
             groups, remainder = split(groups, lambda g: len(g) > smallest)
             if groups:
                 queue.append(remainder)
             else:
                 # No luck with the heuristic, e.g. there are two groups
                 # and both have same `len`
-                queue.append(groups[1:])
-                groups = [groups.pop(0)]
+                queue.append(fallback[1:])
+                groups = [fallback.pop(0)]
 
         for g in groups:
             c = g.pivot

@@ -1730,6 +1730,43 @@ class TestAliases(object):
         op1.apply(time_M=2, u=u1)
         assert np.isclose(norm(u), norm(u1), rtol=1e-7)
 
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_grouping_fallback(self, rotate):
+        """
+        MFE for issue #1477.
+        """
+        space_order = 8
+        grid = Grid(shape=(21, 21, 11))
+
+        eps = Function(name='eps', grid=grid, space_order=space_order)
+        p = TimeFunction(name='p', grid=grid, time_order=2, space_order=space_order)
+        p1 = TimeFunction(name='p0', grid=grid, time_order=2, space_order=space_order)
+
+        p.data[:] = 0.02
+        p1.data[:] = 0.02
+        eps.data_with_halo[:] =\
+            np.linspace(0.1, 0.3, eps.data_with_halo.size).reshape(*eps.shape_with_halo)
+
+        eqn = Eq(p.forward, ((1+sqrt(eps)) * p.dy).dy + (p.dz).dz)
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
+
+        # Check code generation
+        # `min-storage` leads to one 2D and one 3D Arrays
+        xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
+        assert len(arrays) == 3
+        assert len([i for i in arrays if i._mem_shared]) == 1
+        assert len([i for i in arrays if i._mem_local]) == 2
+        self.check_array(arrays[0], ((4, 4),), (zs+8,))  # On purpose w/o `rotate`
+        self.check_array(arrays[1], ((4, 4), (0, 0)), (ys+8, zs), rotate)
+
+        # Check numerical output
+        op0.apply(time_M=2)
+        op1.apply(time_M=2, p=p1)
+        assert np.isclose(norm(p), norm(p1), rtol=1e-7)
+
 
 # Acoustic
 class TestIsoAcoustic(object):
