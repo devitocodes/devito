@@ -41,8 +41,8 @@ RUN echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib" >> /etc/ld.so.conf.d/n
 
 # Compiler, CUDA, and Library paths
 ENV CUDA_ROOT /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda
-ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:${PATH}
-ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/math_libs/11.0/lib64:${LD_LIBRARY_PATH}
+ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/bin:${PATH}
+ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/math_libs/11.0/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/cuda/11.0/extras/CUPTI/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/lib:${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
@@ -52,8 +52,12 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir wheel && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt && \
+    rm -rf ~/.cache/pip
+    
+ENV CFLAGS=-noswitcherror
+RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
+    unset CFLAGS && \
     rm -rf ~/.cache/pip
 
 ADD ./devito /app/devito
@@ -75,7 +79,7 @@ RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
     /venv/bin/jupyter serverextension enable dask_labextension && \
     /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
 
-# Environment Variables for OpenACC Builds
+## Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
 # Set arch to PGI (pgcc)
 ENV DEVITO_ARCH="pgcc" 
@@ -88,7 +92,32 @@ ENV DEVITO_PLATFORM=nvidiaX
 ENV DEVITO_LOGGING=DEBUG 
 ENV PGI_ACC_TIME=1 
 
+# OMPI ROOT USER DEFAULTS
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
+#DEVITO_MPI=1 mpirun --allow-run-as-root -n 2 py.test examples/seismic/elastic/elastic_example.py
+#DEVITO_MPI=1 sudo -u mpirun -n 2 py.test examples/seismic/elastic/elastic_example.py
+#DEVITO_MPI=1 CC=pgc++ CXX=pgc++ mpirun -n 2 py.test examples/seismic/elastic/elastic_example.py
+#
+
+## Create App user 
+# Set the home directory to our app user's home.
+ENV HOME=/app
+ENV APP_HOME=/app
+
+# Create the home directory for the new app user.
+# Create an app user so our program doesn't run as root.
+# Chown all the files to the app user.
+RUN mkdir -p /app && \
+    groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app $APP_HOME
+
+# Change to the app user.
+USER app
 WORKDIR /app
+
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/jupyter"]
