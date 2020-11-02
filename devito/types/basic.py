@@ -1180,6 +1180,10 @@ class Indexed(sympy.Indexed):
 
     is_Dimension = False
 
+    @memoized_meth
+    def __str__(self):
+        return super().__str__()
+
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)
 
