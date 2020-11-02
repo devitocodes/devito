@@ -397,7 +397,7 @@ class SubDomain(object):
         access_map = {}
         shift = {}
         shape_local = []
-        decomp_map = {}
+        #decomp_map = {}
         for counter, (dim, d, s) in enumerate(zip(sub_dimensions, distributor.decomposition, self._shape)):
             if dim.is_Sub:
                 c_name = 'c_%s' % dim.name
@@ -460,16 +460,20 @@ class SubDomain(object):
                         shift[c_name].data = dim.thickness.left[1]
                         shape_local.append(s)
                     access_map.update({dim: dim-shift[c_name]})
-                decomp_map[dim] = (max(minc, d.loc_abs_min), min(maxc, d.loc_abs_max),
-                                   distributor.mycoords[counter])
                 # Now lets make our 'sub-distributor'
-                # MPI stuff?
+                # decomp_map[dim] = (max(minc, d.loc_abs_min), min(maxc, d.loc_abs_max),
+                # distributor.mycoords[counter])
+                # MPI stuff
+                send = np.array([max(minc, d.loc_abs_min), min(maxc, d.loc_abs_max)])
+                rec = np.zeros(2*distributor.comm.Get_size(), dtype=send.dtype.type)
+                distributor.comm.Allgather(send, rec)
+                # from IPython import embed; embed()
             else:
                 shape_local.append(len(d.loc_abs_numb))
                 access_map.update({dim: dim})
         self._access_map = access_map
         self._shape_local = tuple(shape_local)
-        self._decomp_map = decomp_map
+        #self._decomp_map = decomp_map
 
     def __eq__(self, other):
         if not isinstance(other, SubDomain):
