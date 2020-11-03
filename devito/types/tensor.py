@@ -317,13 +317,10 @@ class VectorFunction(TensorFunction):
         """
         Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
         """
-        comps = []
-        to = getattr(self, 'time_order', 0)
         func = vec_func(self, self)
         comps = [sum([getattr(s, 'd%s2' % d.name) for d in self.space_dimensions])
                  for s in self]
-        return func(name='lap_%s' % self.name, space_order=self.space_order,
-                    components=comps, time_order=to)
+        return func._new(comps)
 
     @property
     def curl(self):
