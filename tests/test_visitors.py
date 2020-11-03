@@ -1,12 +1,13 @@
 import cgen as c
-from sympy import Mod, Eq
+from sympy import Mod
 import pytest
 
+from devito import Grid, Eq, Function, Operator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
                            Conditional, printAST, Iteration)
-from devito.types import SpaceDimension, Array, Grid
+from devito.types import SpaceDimension, Array
 
 
 @pytest.fixture(scope="module")
@@ -332,3 +333,16 @@ def test_nested_transformer(exprs, iters, block2):
   <Iteration s::s::(0, 4, 1)>
     <Iteration k::k::(0, 7, 1)>
       <Expression a[i] = 8.0*a[i] + 6.0/b[i]>"""
+
+
+def test_find_symbols():
+    grid = Grid(shape=(4, 4))
+    x, y = grid.dimensions
+
+    f = Function(name='f', grid=grid)
+
+    op = Operator(Eq(f, f[x-1, y] + f[x+1, y] + 1))
+
+    symbols = FindSymbols('indexeds').visit(op)
+
+    assert len(symbols) == 3
