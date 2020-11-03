@@ -87,10 +87,10 @@ jobs:
     - name: Test examples with MPI
       if: matrix.name == 'pytest-gpu-acc'
       run: |
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/elastic/elastic_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/tti/tti_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/viscoelastic/viscoelastic_example.py
+        DEVITO_MPI=1 mpirun -n 2 -x UCX_MEMTYPE_CACHE=no py.test examples/seismic/elastic/elastic_example.py
+        DEVITO_MPI=1 mpirun -n 2 -x UCX_MEMTYPE_CACHE=no py.test examples/seismic/tti/tti_example.py
+        DEVITO_MPI=1 mpirun -n 2 -x UCX_MEMTYPE_CACHE=no py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
+        DEVITO_MPI=1 mpirun -n 2 -x UCX_MEMTYPE_CACHE=no py.test examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
