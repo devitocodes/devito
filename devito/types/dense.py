@@ -380,8 +380,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         if self._distributor is None:
             return (None,)*self.ndim
-        #if self.name == "u":
-            #from IPython import embed; embed()
         mapper = {d: self._distributor.decomposition[d] for d in self._dist_dimensions}
         return tuple(mapper.get(d) for d in self.dimensions)
 
@@ -1111,6 +1109,35 @@ class Function(DiscreteFunction):
             return tuple((0, i) if isinstance(i, int) else i for i in padding)
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
+
+    @cached_property
+    def _dist_dimensions(self):
+        """Tuple of MPI-distributed Dimensions."""
+        if self._distributor is None:
+            return ()
+        # FIXME: Tidy + fix for certain subdim cases
+        if self._subdomain:
+            dist_dimensions = set(self._distributor.dimensions + self._subdomain.dimensions)
+            return tuple(d for d in self.dimensions if d in  dist_dimensions)
+        else:
+            return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
+
+    @cached_property
+    def _decomposition(self):
+        """
+        Tuple of Decomposition objects, representing the domain decomposition.
+        None is used as a placeholder for non-decomposed Dimensions.
+        """
+        #from IPython import embed; embed()
+        if self._distributor is None:
+            return (None,)*self.ndim
+        if self._subdomain:
+            # FIXME: Test mixed case
+            mapper = {d: self._subdomain._decomposition[d] for d in self._dist_dimensions}
+        else:
+            mapper = {d: self._distributor.decomposition[d] for d in self._dist_dimensions}
+        #temp = tuple(mapper.get(d) for d in self.dimensions)
+        return tuple(mapper.get(d) for d in self.dimensions)
 
     @property
     def space_order(self):

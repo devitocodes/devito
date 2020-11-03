@@ -4,7 +4,7 @@ import numpy as np
 from sympy import prod
 from math import floor
 
-from devito.data import LEFT, RIGHT
+from devito.data import LEFT, RIGHT, Decomposition
 from devito.mpi import Distributor
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
@@ -397,7 +397,7 @@ class SubDomain(object):
         access_map = {}
         shift = {}
         shape_local = []
-        #decomp_map = {}
+        sub_decomposition = []
         for counter, (dim, d, s) in enumerate(zip(sub_dimensions, distributor.decomposition, self._shape)):
             if dim.is_Sub:
                 c_name = 'c_%s' % dim.name
@@ -460,20 +460,26 @@ class SubDomain(object):
                         shift[c_name].data = dim.thickness.left[1]
                         shape_local.append(s)
                     access_map.update({dim: dim-shift[c_name]})
-                # Now lets make our 'sub-distributor'
-                # decomp_map[dim] = (max(minc, d.loc_abs_min), min(maxc, d.loc_abs_max),
-                # distributor.mycoords[counter])
-                # MPI stuff
-                send = np.array([max(minc, d.loc_abs_min), min(maxc, d.loc_abs_max)])
-                rec = np.zeros(2*distributor.comm.Get_size(), dtype=send.dtype.type)
-                distributor.comm.Allgather(send, rec)
-                # from IPython import embed; embed()
+                # Create the 'sub-distributor'
+                send_min = np.array([max(minc, d.loc_abs_min)])
+                send_max = np.array([min(maxc, d.loc_abs_max)])
+                rec_min = np.zeros(distributor.comm.Get_size(),
+                                   dtype=send_min.dtype.type)
+                rec_max = np.zeros(distributor.comm.Get_size(),
+                                   dtype=send_max.dtype.type)
+                distributor.comm.Allgather(send_min, rec_min)
+                distributor.comm.Allgather(send_max, rec_max)
+                mins = sorted(set(rec_min))
+                maxs = sorted(set(rec_max))
+                decomp_arrays = [np.array(range(mi, mx+1)) for mi, mx in zip(mins, maxs)]
+                sub_decomposition.append(Decomposition(decomp_arrays,
+                                                       distributor.mycoords[counter]))
             else:
                 shape_local.append(len(d.loc_abs_numb))
                 access_map.update({dim: dim})
         self._access_map = access_map
         self._shape_local = tuple(shape_local)
-        #self._decomp_map = decomp_map
+        self._decomposition = tuple(sub_decomposition)
 
     def __eq__(self, other):
         if not isinstance(other, SubDomain):
