@@ -4,7 +4,7 @@ import cgen as c
 
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
                                     DeviceOpenMPCustomOperator, DeviceOpenMPIteration,
-                                    DeviceOmpizer, DeviceOpenMPDataManager)
+                                    DeviceOmpizer, DeviceOpenMPDataManager, is_on_device)
 from devito.ir.equations import DummyEq
 from devito.ir.iet import Call, ElementalFunction, List, LocalExpression, FindSymbols
 from devito.mpi.distributed import MPICommObject
@@ -33,9 +33,17 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
         kwargs['chunk_size'] = False
         clauses = super(DeviceOpenACCIteration, cls)._make_clauses(**kwargs)
 
-        partree = kwargs['nodes']
-        deviceptrs = [i.name for i in FindSymbols().visit(partree)
-                      if i.is_Array and i._mem_default]
+        symbols = FindSymbols().visit(kwargs['nodes'])
+
+        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
+        presents = [i.name for i in symbols if i.is_AbstractFunction and
+                    is_on_device(i, kwargs['gpu_fit']) and i.name not in deviceptrs]
+
+        # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
+        # indirectly indexed arrays (e.g., a[b[i]]) unless a present clause is used
+        if presents:
+            clauses.append("present(%s)" % ",".join(presents))
+
         if deviceptrs:
             clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
 

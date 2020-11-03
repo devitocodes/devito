@@ -38,6 +38,13 @@ __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
 class DeviceOpenMPIteration(OpenMPIteration):
 
     @classmethod
+    def _make_header(cls, **kwargs):
+        header, kwargs = super()._make_header(**kwargs)
+        kwargs.pop('gpu_fit', None)
+
+        return header, kwargs
+
+    @classmethod
     def _make_construct(cls, **kwargs):
         return 'omp target teams distribute parallel for'
 
@@ -170,15 +177,14 @@ class DeviceOmpizer(Ompizer):
         root = candidates[0]
 
         if is_on_device(root, self.gpu_fit, only_writes=True):
-            # The typical case: all accessed Function's are device Function's, that is
-            # all Function's are in the device memory. Then we offload the candidate
-            # Iterations to the device
+            # The typical case: all written Functions are device Functions, that is
+            # they're mapped in the device memory. Then we offload `root` to the device
 
             # Get the collapsable Iterations
             collapsable = self._find_collapsable(root, candidates)
             ncollapse = 1 + len(collapsable)
 
-            body = self._Iteration(ncollapse=ncollapse, **root.args)
+            body = self._Iteration(gpu_fit=self.gpu_fit, ncollapse=ncollapse, **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
             collapsed = [partree] + collapsable
 

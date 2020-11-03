@@ -21,7 +21,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'acc parallel loop collapse(3)'
+            'acc parallel loop collapse(3) present(u)'
         assert op.body[1].header[0].value ==\
             ('acc enter data copyin(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
@@ -77,6 +77,9 @@ class TestCodeGeneration(object):
                                             '->size[2]][0:u_vec->size[3]])')
         assert str(s.header[1]) == ('#pragma acc data present(u[time:1][0:u_vec->'
                                     'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+        assert 'present(f)' in str(trees[1][1].pragmas[0])
 
 
 class TestOperator(object):
