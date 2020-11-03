@@ -819,7 +819,6 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
                 return None
 
         return {
-            'collect-derivs': collect_derivatives,
             'buffering': lambda i: buffering(i, callback, options)
         }
 
@@ -862,8 +861,10 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         }
 
     _known_passes = (
+        # DSL
+        'collect-derivs',
         # Expressions
-        'collect-deriv', 'buffering',
+        'buffering',
         # Clusters
         'blocking', 'tasking', 'fetching', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',

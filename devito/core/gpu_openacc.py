@@ -258,8 +258,10 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
         }
 
     _known_passes = (
+        # DSL
+        'collect-derivs',
         # Expressions
-        'collect-deriv', 'buffering',
+        'buffering',
         # Clusters
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',

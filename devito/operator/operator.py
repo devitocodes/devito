@@ -248,9 +248,20 @@ class Operator(Callable):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
+    def _specialize_dsl(cls, expressions, **kwargs):
+        """
+        Backend hook for specialization at the DSL level. The input is made of
+        expressions and other higher order objects such as Injection or
+        Interpolation; the expressions are still unevaluated at this stage,
+        meaning that they are still in tensorial form and derivatives aren't
+        expanded yet.
+        """
+        return expressions
+
+    @classmethod
     def _specialize_exprs(cls, expressions, **kwargs):
         """
-        Backend hook for specialization at the Expression level.
+        Backend hook for specialization at the expression level.
         """
         return expressions
 
@@ -272,11 +283,14 @@ class Operator(Callable):
         expressions = generate_implicit_exprs(expressions)
 
         # Specialization is performed on unevaluated expressions
-        expressions = cls._specialize_exprs(expressions, **kwargs)
+        expressions = cls._specialize_dsl(expressions, **kwargs)
 
         # Lower functional DSL
         expressions = flatten([i.evaluate for i in expressions])
         expressions = [j for i in expressions for j in i._flatten]
+
+        # A second round of specialization is performed on nevaluated expressions
+        expressions = cls._specialize_exprs(expressions, **kwargs)
 
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
