@@ -6,7 +6,7 @@
 # BUILD: docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
 # RUN: docker run --network=host --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
 ##############################################################
-FROM python:3.8
+FROM python:3.6
 
 ENV DEBIAN_FRONTEND noninteractive 
 
@@ -14,11 +14,14 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update -y && \
     apt-get install -y -q \
         apt-utils \
+        vim \
         curl \
         mpich libmpich-dev && \    
     curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
         nodejs \
+        liblapack-dev  \
+        libblas-dev \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super && \
     wget -q -P /app/\
          https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb \
@@ -37,8 +40,9 @@ ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 # required for nvidia-docker v1
 RUN echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf
-
+    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/lib" >> /etc/ld.so.conf.d/nvidia.conf
+    
 # Compiler, CUDA, and Library paths
 ENV CUDA_ROOT /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda
 ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/bin:${PATH}
@@ -47,16 +51,19 @@ ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/h
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
 ADD ./requirements-nvidia.txt /app/requirements-nvidia.txt
+ADD ./requirements-mpi.txt /app/requirements-mpi.txt
 
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir wheel && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt && \
     rm -rf ~/.cache/pip
-    
+
+ENV CPATH=/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/include:${CPATH}
 ENV CFLAGS=-noswitcherror
-RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
+RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
     unset CFLAGS && \
     rm -rf ~/.cache/pip
 
@@ -95,11 +102,6 @@ ENV PGI_ACC_TIME=1
 # OMPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-
-#DEVITO_MPI=1 mpirun --allow-run-as-root -n 2 py.test examples/seismic/elastic/elastic_example.py
-#DEVITO_MPI=1 sudo -u mpirun -n 2 py.test examples/seismic/elastic/elastic_example.py
-#DEVITO_MPI=1 CC=pgc++ CXX=pgc++ mpirun -n 2 py.test examples/seismic/elastic/elastic_example.py
-#
 
 ## Create App user 
 # Set the home directory to our app user's home.
