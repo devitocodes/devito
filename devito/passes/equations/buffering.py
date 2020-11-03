@@ -120,7 +120,10 @@ def _buffering(expressions, callback, options):
         # We also append the copy-back if `e` is the last-write of some buffers
         for b in buffers:
             if e is b.accessv.lastwrite:
-                processed.append(Eq(e.lhs, b.indexify(e.lhs.indices)))
+                items = list(zip(e.lhs.indices, b.function.dimensions))
+                lhs = b.function[[i if i in b.index_mapper else d for i, d in items]]
+                rhs = b.indexed[[b.index_mapper.get(i, d) for i, d in items]]
+                processed.append(Eq(lhs, rhs))
                 break
 
     return processed
@@ -251,7 +254,7 @@ class AccessValue(object):
 
     @cached_property
     def lastwrite(self):
-        for e, av in self.mapper.items():
+        for e, av in reversed(self.mapper.items()):
             if av.write is not None:
                 return e
         return None
