@@ -102,6 +102,7 @@ ENV PGI_ACC_TIME=1
 # OMPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV UCX_MEMTYPE_CACHE=no
 
 ## Create App user 
 # Set the home directory to our app user's home.
