@@ -15,3 +15,6 @@ multidict
 anytree>=2.4.3
 pyrevolve>=2.1.3
 distributed<2.31
+pytest>=3.6,<7.0
+pytest-runner
+pytest-cov
