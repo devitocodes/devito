@@ -329,7 +329,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:
-                    for i, j, k, l in zip(left, right, self._distributor.mycoords,
+                    for i, j, k, l in zip(left[-len(self._distributor.dimensions):],
+                                          right[-len(self._distributor.dimensions):],
+                                          self._distributor.mycoords,
                                           self._distributor.topology):
                         if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
                             warning(warning_msg)
