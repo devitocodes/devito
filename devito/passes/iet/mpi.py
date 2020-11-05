@@ -71,7 +71,7 @@ def _hoist_halospots(iet):
         # E.g., `dep=W<f,[t1, x, y]> -> R<f,[t0, x-1, y+1]>`, `dep.cause={t,time}` and
         #       `candidates=(x,)` => True
         return (all(d in dep.distance_mapper for d in candidates) and
-                not dep.cause & candidates and 
+                not dep.cause & candidates and
                 not loc_dims & candidates)
 
     def rule1(dep, candidates, loc_dims):
@@ -93,7 +93,8 @@ def _hoist_halospots(iet):
             for f, (loc_indices, _) in hs.fmapper.items():
                 for n, i in enumerate(iters):
                     candidates = set().union(*[i.dim._defines for i in iters[n:]])
-                    loc_dims = frozenset().union([q for d in loc_indices for q in d._defines])
+                    loc_dims = frozenset().union([q for d in loc_indices
+                                                  for q in d._defines])
 
                     test = True
                     for dep in scopes[i].d_flow.project(f):
