@@ -95,6 +95,11 @@ class Fusion(Queue):
         super(Fusion, self).__init__()
         self.toposort = toposort
 
+    def _make_key_hook(self, cgroup, level):
+        assert level > 0
+        assert len(cgroup.guards) == 1
+        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.itintervals[:level-1]),)
+
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
         cgroups = self._process_fdta(cgroups, 1)
@@ -200,11 +205,15 @@ class Fusion(Queue):
                 # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
                 # while not being its immediate successor (unless it already is),
                 # to avoid they are fused together (thus breaking the dependence)
+                # TODO: the "not being its immediate successor" part *seems* to be
+                # a work around to the fact that any two Clusters characterized
+                # by anti-dependence should have been given a different stamp,
+                # and same for guarded Clusters, but that is not the case (yet)
                 elif any(scope.d_anti_gen()) or\
                         any(i.is_iaw for i in scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
                     index = cgroups.index(cg1) - 1
-                    if index > n:
+                    if index > n and self._key(cg0) == self._key(cg1):
                         dag.add_edge(cg0, cgroups[index])
                         dag.add_edge(cgroups[index], cg1)
 
@@ -213,6 +222,7 @@ class Fusion(Queue):
                 elif any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()):
                     dag.add_edge(cg0, cg1)
 
+                # Clearly, output dependences must be honored
                 elif any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
 
