@@ -866,7 +866,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         # Expressions
         'buffering',
         # Clusters
-        'blocking', 'tasking', 'fetching', 'factorize', 'fuse', 'lift',
+        'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
         'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
