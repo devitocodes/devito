@@ -230,10 +230,12 @@ class Substitutions(object):
 def extract_dim(dim):
     if isinstance(dim, sympy.Add):
         # Staggered function: need to extract dimension from dim
-        # return list(dim.as_coefficients_dict())[-1]
-        # Get the value with a coefficient of 1 -> the dimension
-        return [item[0] for item in dim.as_coefficients_dict().items()
-                if item[1] == 1][0]
+        for key in dim.as_coefficients_dict():
+            try:
+                if key.is_Dimension:
+                    return key
+            except AttributeError:
+                pass
     return dim
 
 
