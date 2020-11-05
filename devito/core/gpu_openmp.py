@@ -351,14 +351,15 @@ class DeviceOmpizer(Ompizer):
         for s in sync_ops:
             if s.direction is Forward:
                 fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-                fc_cond = fc <= s.dim.symbolic_max
+                fsize = s.function._C_get_field(FULL, s.dim).size
+                fc_cond = fc < fsize
                 pfc = s.fetch + 1
-                pfc_cond = pfc <= s.dim.symbolic_max
+                pfc_cond = pfc < fsize
             else:
                 fc = s.fetch.subs(s.dim, s.dim.symbolic_max)
-                fc_cond = fc >= s.dim.symbolic_min
+                fc_cond = fc >= 0
                 pfc = s.fetch - 1
-                pfc_cond = pfc >= s.dim.symbolic_min
+                pfc_cond = pfc >= 0
 
             # Construct fetch IET
             imask = [fc if d.root is s.dim.root else FULL for d in s.dimensions]
