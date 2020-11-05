@@ -4,7 +4,6 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
-from devito.types.dimension import Dimension
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -232,9 +231,9 @@ def extract_dim(dim):
     if isinstance(dim, sympy.Add):
         # Staggered function: need to extract dimension from dim
         # return list(dim.as_coefficients_dict())[-1]
-        return [key for key in dim.as_coefficients_dict().keys()
-                if issubclass(key, Dimension)][0]
-        # Note: check dimension is always the last one here
+        # Get the value with a coefficient of 1 -> the dimension
+        return [item[0] for item in dim.as_coefficients_dict().items()
+                if item[1] == 1][0]
     return dim
 
 
