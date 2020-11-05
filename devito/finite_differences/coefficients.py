@@ -4,6 +4,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
+from devito.types.dimension import Dimension
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -230,7 +231,9 @@ class Substitutions(object):
 def extract_dim(dim):
     if isinstance(dim, sympy.Add):
         # Staggered function: need to extract dimension from dim
-        return list(dim.as_coefficients_dict())[-1]
+        # return list(dim.as_coefficients_dict())[-1]
+        return [key for key in dim.as_coefficients_dict().keys()
+                if issubclass(key, Dimension)][0]
         # Note: check dimension is always the last one here
     return dim
 
@@ -255,7 +258,6 @@ def default_rules(obj, functions):
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
-        # Currently always defaults to standard weights
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
                         (indices[j], deriv_order, function, dim): coeffs[j]})
