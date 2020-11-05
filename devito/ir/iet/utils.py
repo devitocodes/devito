@@ -1,13 +1,10 @@
-from collections import OrderedDict
-
-from devito.ir.iet import (Iteration, List, IterationTree, FindSections, FindSymbols,
-                           FindNodes, Section, Expression)
+from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
 from devito.symbolics import Literal, Macro
-from devito.tools import flatten, ReducerMap
+from devito.tools import flatten
 from devito.types import Array, LocalObject
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree',
-           'compose_nodes', 'derive_parameters', 'find_affine_trees']
+__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'compose_nodes',
+           'derive_parameters']
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -121,38 +118,3 @@ def derive_parameters(iet, drop_locals=False):
         parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
 
     return parameters
-
-
-def find_affine_trees(iet):
-    """
-    Find affine trees. A tree is affine when all of the array accesses are
-    constant/affine functions of the Iteration variables and the Iteration bounds
-    are fixed (but possibly symbolic).
-
-    Parameters
-    ----------
-    iet : `Node`
-        The searched tree
-
-    Returns
-    -------
-    list of `Node`
-        Each item in the list is the root of an affine tree
-    """
-    affine = OrderedDict()
-    roots = [i for i in FindNodes(Iteration).visit(iet) if i.dim.is_Time]
-    for root in roots:
-        sections = FindNodes(Section).visit(root)
-        for section in sections:
-            for tree in retrieve_iteration_tree(section):
-                if not all(i.is_Affine for i in tree):
-                    # Non-affine array accesses not supported
-                    break
-                exprs = [i.expr for i in FindNodes(Expression).visit(tree.root)]
-                grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')
-                writeto_dimensions = tuple(i.dim.root for i in tree)
-                if grid.dimensions == writeto_dimensions:
-                    affine.setdefault(section, []).append(tree)
-                else:
-                    break
-    return affine
