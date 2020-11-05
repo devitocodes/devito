@@ -99,7 +99,7 @@ def derive_parameters(iet, drop_locals=False):
     free_symbols = FindSymbols('free-symbols').visit(iet)
 
     # Filter out function base symbols and use real function objects
-    function_names = [s.name for s in functions]
+    function_names = set(flatten([(s.name, s._C_name) for s in functions]))
     symbols = [s for s in free_symbols if s.name not in function_names]
     symbols = functions + symbols
 
