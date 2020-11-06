@@ -299,6 +299,15 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
 
+    @property
+    def size_global(self):
+        """
+        The global number of elements this object is expected to store in memory.
+        Note that this would need to be combined with self.dtype to give the actual
+        size in bytes.
+        """
+        return reduce(mul, self.shape_global)
+
     _offset_inhalo = AbstractFunction._offset_halo
     _size_inhalo = AbstractFunction._size_halo
 
