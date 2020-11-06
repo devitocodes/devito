@@ -165,7 +165,6 @@
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">converter</span> <span class="k">as</span> <span class="n">sympify_converter</span>
 
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">AbstractTensor</span>
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TimeFunction</span>
 <span class="kn">from</span> <span class="nn">devito.types.utils</span> <span class="kn">import</span> <span class="n">NODE</span>
@@ -234,13 +233,8 @@
     <span class="n">_op_priority</span> <span class="o">=</span> <span class="n">Differentiable</span><span class="o">.</span><span class="n">_op_priority</span> <span class="o">+</span> <span class="mf">1.</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">args</span><span class="p">:</span>
-            <span class="n">comps</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
-            <span class="n">grid</span> <span class="o">=</span> <span class="n">comps</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">grid</span>
-            <span class="n">dimensions</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">grid</span> <span class="k">else</span> <span class="n">comps</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dimensions</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
-            <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
         <span class="n">inds</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span><span class="p">(</span><span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span>
                                              <span class="n">dimensions</span><span class="o">=</span><span class="n">dimensions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_space_dimensions</span> <span class="o">=</span> <span class="n">inds</span>
@@ -339,6 +333,10 @@
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span><span class="p">(</span><span class="n">grid</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">),</span>
                                           <span class="n">dimensions</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_symbolic_functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">_symbolic_functions</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_TimeDependent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -477,13 +475,10 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Laplacian of the VectorFunction, creates the Laplacian VectorFunction.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">comps</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">to</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">func</span> <span class="o">=</span> <span class="n">vec_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="n">comps</span> <span class="o">=</span> <span class="p">[</span><span class="nb">sum</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s1">&#39;d</span><span class="si">%s</span><span class="s1">2&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">])</span>
                  <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;lap_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                    <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">comps</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">to</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">comps</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">curl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
