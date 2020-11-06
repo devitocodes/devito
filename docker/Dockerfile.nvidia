@@ -3,8 +3,8 @@
 # libraries, and plugins to enable OpenACC and NVIDIA GPU 
 # acceleration of Devito codes.
 #
-# BUILD: docker build --file docker/Dockerfile.nvidia --tag devito:nvidia .
-# RUN: docker run --runtime=nvidia --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
+# BUILD: docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
+# RUN: docker run --network=host --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
 ##############################################################
 FROM python:3.8
 
@@ -21,11 +21,11 @@ RUN apt-get update -y && \
         nodejs \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super && \
     wget -q -P /app/\
-         https://developer.download.nvidia.com/hpc-sdk/nvhpc-20-7_20.7_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/nvhpc-2020_20.7_amd64.deb && \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9_20.9_amd64.deb && \
     apt-get install -y -q \
-         /app/nvhpc-20-7_20.7_amd64.deb \
-         /app/nvhpc-2020_20.7_amd64.deb && \
+         /app/nvhpc-20-9_20.9_amd64.deb \
+         /app/nvhpc-2020_20.9_amd64.deb && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
     rm -rf /var/lib/apt/lists/*
@@ -37,12 +37,12 @@ ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 # required for nvidia-docker v1
 RUN echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.7/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf
+    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf
 
 # Compiler, CUDA, and Library paths
 ENV CUDA_ROOT /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda
-ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.7/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:${PATH}
-ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.7/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/20.7/math_libs/11.0/lib64:${LD_LIBRARY_PATH}
+ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:${PATH}
+ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/math_libs/11.0/lib64:${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt

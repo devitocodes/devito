@@ -536,6 +536,14 @@ class MapNodes(Visitor):
 
 class FindSymbols(Visitor):
 
+    def quick_str(o):
+        """
+        SymPy's __str__ is horribly slow so we stay away from it for as much
+        as we can. A devito.Indexed has its own overridden __str__, which
+        relies on memoization, which is acceptable.
+        """
+        return str(o) if o.is_Indexed else o.name
+
     class Retval(list):
         def __init__(self, *retvals, node=None):
             elements = []
@@ -546,7 +554,7 @@ class FindSymbols(Visitor):
                 except AttributeError:
                     pass
                 elements.extend(i)
-            elements = filter_sorted(elements, key=str)
+            elements = filter_sorted(elements, key=FindSymbols.quick_str)
             if node is not None:
                 self.mapper[node] = tuple(elements)
             super().__init__(elements)
