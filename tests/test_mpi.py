@@ -1633,6 +1633,33 @@ class TestOperatorAdvanced(object):
 
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
+    @pytest.mark.parallel(mode=2)
+    def test_haloupdate_same_timestep_v2(self):
+        """
+        Similar to test_haloupdate_same_timestep, but switching the expression that
+        writes to subsequent time step. Also checks halo update call placement.
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        u.data_with_halo[:] = 1.
+        v = TimeFunction(name='v', grid=grid)
+        v.data_with_halo[:] = 0.
+
+        eqns = [Eq(u, u + v + 1.),
+                Eq(v.forward, u[t, x, y-1] + u[t, x, y] + u[t, x, y+1])]
+
+        op = Operator(eqns)
+
+        assert op.body[-1].body[0].nodes[0].body[0].body[0].is_List
+        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
+
+        op.apply(time=0)
+
+        assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
+
     @pytest.mark.parallel(mode=4)
     def test_haloupdate_multi_op(self):
         """
