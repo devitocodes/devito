@@ -4,6 +4,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
+from devito.symbolics.inspection import retrieve_dim
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -227,22 +228,10 @@ class Substitutions(object):
         return rules
 
 
-def extract_dim(dim):
-    if isinstance(dim, sympy.Add):
-        # Staggered function: need to extract dimension from dim
-        for key in dim.as_coefficients_dict():
-            try:
-                if key.is_Dimension:
-                    return key
-            except AttributeError:
-                pass
-    return dim
-
-
 def default_rules(obj, functions):
 
     def generate_subs(deriv_order, function, dim):
-        extracted_dim = extract_dim(dim)
+        extracted_dim = retrieve_dim(dim)
 
         if extracted_dim.is_Time:
             fd_order = function.time_order

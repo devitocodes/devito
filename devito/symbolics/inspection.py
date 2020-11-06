@@ -1,6 +1,6 @@
 from collections import Counter
 
-from sympy import cos, sin, exp, log
+from sympy import cos, sin, exp, log, Add
 
 from devito.symbolics.queries import q_routine
 from devito.symbolics.search import retrieve_terminals, retrieve_xops, search
@@ -61,6 +61,22 @@ def count(exprs, query):
     for expr in exprs:
         mapper.update(Counter(search(expr, query, 'all', 'bfs')))
     return dict(mapper)
+
+
+def retrieve_dim(dim):
+    """
+    Return the dimension component from a value which may be a Dimension or an
+    Add object containing dimension and spacing.
+    """
+    if isinstance(dim, Add):
+        # Staggered function: need to extract dimension from dim
+        for key in dim.as_coefficients_dict():
+            try:
+                if key.is_Dimension:
+                    return key
+            except AttributeError:
+                pass
+    return dim
 
 
 def estimate_cost(exprs, estimate=False):
