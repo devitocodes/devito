@@ -7,7 +7,7 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
 from devito.ir.support import PARALLEL, Scope
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.passes.iet.engine import iet_pass
-from devito.tools import filter_sorted, generator
+from devito.tools import as_mapper, filter_sorted, generator
 
 __all__ = ['optimize_halospots', 'mpiize']
 
@@ -39,7 +39,13 @@ def _drop_halospots(iet):
 
     # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
     for hs, iterations in MapNodes(HaloSpot, Iteration).visit(iet).items():
-        if any(i.is_Sequential for i in iterations if i.dim.root in hs.dimensions):
+        dmapper = as_mapper(iterations, lambda i: i.dim.root)
+        flag = False
+        for d, v in dmapper.items():
+            if d in hs.dimensions and all(i.is_Sequential for i in v):
+                flag = True
+                break
+        if flag:
             mapper[hs].update(set(hs.functions))
 
     # If all HaloSpot reads pertain to increments, then the HaloSpot is useless
