@@ -7,7 +7,6 @@ from sympy.core.decorators import call_highest_priority
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
-from devito.tools import flatten
 from devito.types.basic import AbstractTensor
 from devito.types.dense import Function, TimeFunction
 from devito.types.utils import NODE
@@ -76,13 +75,8 @@ class TensorFunction(AbstractTensor):
     _op_priority = Differentiable._op_priority + 1.
 
     def __init_finalize__(self, *args, **kwargs):
-        if args:
-            comps = flatten(args[2])
-            grid = comps[0].grid
-            dimensions = None if grid else comps[0].dimensions
-        else:
-            grid = kwargs.get('grid')
-            dimensions = kwargs.get('dimensions')
+        grid = kwargs.get('grid')
+        dimensions = kwargs.get('dimensions')
         inds, _ = Function.__indices_setup__(grid=grid,
                                              dimensions=dimensions)
         self._space_dimensions = inds
@@ -181,6 +175,10 @@ class TensorFunction(AbstractTensor):
     def __indices_setup__(cls, **kwargs):
         return Function.__indices_setup__(grid=kwargs.get('grid'),
                                           dimensions=kwargs.get('dimensions'))
+
+    @property
+    def _symbolic_functions(self):
+        return frozenset().union(*[a._symbolic_functions for a in self.values()])
 
     @property
     def is_TimeDependent(self):
@@ -319,13 +317,10 @@ class VectorFunction(TensorFunction):
         """
         Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
         """
-        comps = []
-        to = getattr(self, 'time_order', 0)
         func = vec_func(self, self)
         comps = [sum([getattr(s, 'd%s2' % d.name) for d in self.space_dimensions])
                  for s in self]
-        return func(name='lap_%s' % self.name, grid=self.grid,
-                    space_order=self.space_order, components=comps, time_order=to)
+        return func._new(comps)
 
     @property
     def curl(self):
