@@ -457,6 +457,15 @@
             <span class="n">retval</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">size</span><span class="o">.</span><span class="n">glb</span> <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">s</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">retval</span><span class="p">)</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size_global</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The global number of elements this object is expected to store in memory.</span>
+<span class="sd">        Note that this would need to be combined with self.dtype to give the actual</span>
+<span class="sd">        size in bytes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_global</span><span class="p">)</span>
+
     <span class="n">_offset_inhalo</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">_offset_halo</span>
     <span class="n">_size_inhalo</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">_size_halo</span>
 
