@@ -28,6 +28,7 @@ class TestDistributor(object):
             4: [(8, 8), (8, 7), (7, 8), (7, 7)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
+        assert f.size_global == 225
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_partitioning_fewer_dims(self):
