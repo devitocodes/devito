@@ -201,6 +201,7 @@ def q_identity(expr, var):
     """
     return len(as_tuple(var)) == 1 and q_affine(expr, var) and (expr - var).is_Number
 
+
 def q_dimension(expr):
     """
     Return True if ``expr`` is a dimension, False otherwise.

@@ -221,5 +221,3 @@ class TestSC(object):
         Operator([eq_f, eq_g])(t_m=0, t_M=1)
 
         assert np.allclose(f.data[-1], -g.data[-1], atol=1e-7)
-
-

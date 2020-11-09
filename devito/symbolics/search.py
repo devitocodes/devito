@@ -3,8 +3,8 @@ from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
 from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_xops', 'retrieve_scalars', 'retrieve_dimension',
-           'search']
+           'retrieve_terminals', 'retrieve_xops', 'retrieve_scalars',
+           'retrieve_dimension', 'search']
 
 
 class Search(object):
@@ -189,6 +189,7 @@ def retrieve_terminals(exprs, mode='all', deep=False):
 def retrieve_xops(exprs):
     """Shorthand to retrieve the arithmetic operations within ``exprs``."""
     return search(exprs, q_xop, 'all', 'dfs')
+
 
 def retrieve_dimension(exprs, mode='all', deep=False):
     """Shorthand to retrieve the dimensions in ``exprs``."""

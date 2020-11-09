@@ -1,6 +1,6 @@
 from collections import Counter
 
-from sympy import cos, sin, exp, log, Add
+from sympy import cos, sin, exp, log
 
 from devito.symbolics.queries import q_routine
 from devito.symbolics.search import retrieve_terminals, retrieve_xops, search
