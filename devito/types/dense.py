@@ -299,6 +299,15 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
 
+    @property
+    def size_global(self):
+        """
+        The global number of elements this object is expected to store in memory.
+        Note that this would need to be combined with self.dtype to give the actual
+        size in bytes.
+        """
+        return reduce(mul, self.shape_global)
+
     _offset_inhalo = AbstractFunction._offset_halo
     _size_inhalo = AbstractFunction._size_halo
 
@@ -329,7 +338,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:
-                    for i, j, k, l in zip(left, right, self._distributor.mycoords,
+                    left_dist = [i for i, d in zip(left, self.dimensions) if d
+                                 in self._distributor.dimensions]
+                    right_dist = [i for i, d in zip(right, self.dimensions) if d
+                                  in self._distributor.dimensions]
+                    for i, j, k, l in zip(left_dist, right_dist,
+                                          self._distributor.mycoords,
                                           self._distributor.topology):
                         if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
                             warning(warning_msg)

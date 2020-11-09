@@ -8,7 +8,8 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
                     switchconfig, generic_derivative)
 from devito.data import LEFT, RIGHT
-from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
+from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
+                           retrieve_iteration_tree)
 from devito.mpi import MPI
 from examples.seismic.acoustic import acoustic_setup
 
@@ -28,6 +29,7 @@ class TestDistributor(object):
             4: [(8, 8), (8, 7), (7, 8), (7, 7)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
+        assert f.size_global == 225
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_partitioning_fewer_dims(self):
@@ -1686,7 +1688,7 @@ class TestOperatorAdvanced(object):
         assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
-    def test_aliases(self):
+    def test_cire(self):
         """
         Check correctness when the DSE extracts aliases and places them
         into offset-ed loop (nest). For example, the compiler may generate:
@@ -1725,9 +1727,9 @@ class TestOperatorAdvanced(object):
         assert u0_norm == u1_norm
 
     @pytest.mark.parallel(mode=[(4, 'overlap2', True)])
-    def test_aliases_with_shifted_diagonal_halo_touch(self):
+    def test_cire_with_shifted_diagonal_halo_touch(self):
         """
-        Like ``test_aliases`` but now the diagonal halos required to compute
+        Like ``test_cire`` but now the diagonal halos required to compute
         the aliases are shifted due to the iteration space. Basically, this
         is checking that ``TimedAccess.touched_halo`` does the right thing
         using the information stored in ``.intervals``.
@@ -1754,6 +1756,37 @@ class TestOperatorAdvanced(object):
         u1_norm = norm(u)
 
         assert u0_norm == u1_norm
+
+    @pytest.mark.parallel(mode=4)
+    def test_cire_w_rotations(self):
+        """
+        MFE for issue #1490.
+        """
+        grid = Grid(shape=(128, 128, 128), dtype=np.float64)
+
+        p = TimeFunction(name='p', grid=grid, time_order=2, space_order=8)
+        p1 = TimeFunction(name='p', grid=grid, time_order=2, space_order=8)
+
+        p.data[0, 40:80, 40:80, 40:80] = 0.12
+        p1.data[0, 40:80, 40:80, 40:80] = 0.12
+
+        eqn = Eq(p.forward, (p.dx).dx + (p.dy).dy + (p.dz).dz)
+
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt=('advanced', {'cire-repeats-sops': 9,
+                                              'cire-rotate': True}))
+
+        # Check generated code
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
+        assert len(arrays) == 3
+        assert 'haloupdate_0' in op1._func_table
+
+        op0.apply(time_M=1)
+        op1.apply(time_M=1, p=p1)
+
+        # TODO: we can tighthen the tolerance, or switch to single precision,
+        # once issue #1438 is fixed
+        assert np.allclose(p.data, p1.data, rtol=10e-11)
 
     @pytest.mark.parallel(mode=[(4, 'full', True)])
     def test_staggering(self):

@@ -497,8 +497,25 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 # Constructor if input is list of list as (row, cols, list_of_list)
                 # doesn't work as it expects a flattened.
                 newobj = super(AbstractTensor, cls)._new(args[2])
+
+            # Filter grid and dimensions
+            grids = {getattr(c, 'grid', None) for c in newobj._mat} - {None}
+            dimensions = {d for c in newobj._mat
+                          for d in getattr(c, 'dimensions', ())} - {None}
+            # If none of the components are devito objects, returns a sympy Matrix
+            if len(grids) == 0 and len(dimensions) == 0:
+                return sympy.ImmutableDenseMatrix(*args)
+            elif len(grids) > 0:
+                dimensions = None
+                assert len(grids) == 1
+                grid = grids.pop()
+            else:
+                grid = None
+                dimensions = tuple(dimensions)
+
             # Initialized with constructed object
-            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj._mat)
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj._mat,
+                                     grid=grid, dimensions=dimensions)
         else:
             # Initialize components and create new Matrix from standard
             # Devito inputs
