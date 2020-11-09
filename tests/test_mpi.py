@@ -1735,7 +1735,7 @@ class TestOperatorAdvanced(object):
         """
         MFE for issue #1490.
         """
-        grid = Grid(shape=(128, 128, 128))
+        grid = Grid(shape=(128, 128, 128), dtype=np.float64)
 
         p = TimeFunction(name='p', grid=grid, time_order=2, space_order=8)
         p1 = TimeFunction(name='p', grid=grid, time_order=2, space_order=8)
@@ -1749,13 +1749,17 @@ class TestOperatorAdvanced(object):
         op1 = Operator(eqn, opt=('advanced', {'cire-repeats-sops': 9,
                                               'cire-rotate': True}))
 
+        # Check generated code
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 3
+        assert 'haloupdate_0' in op1._func_table
 
         op0.apply(time_M=1)
         op1.apply(time_M=1, p=p1)
 
-        assert np.allclose(p.data, p1.data, rtol=10e-5)
+        # TODO: we can tighthen the tolerance, or switch to single precision,
+        # once issue #1438 is fixed
+        assert np.allclose(p.data, p1.data, rtol=10e-11)
 
     @pytest.mark.parallel(mode=[(4, 'full', True)])
     def test_staggering(self):

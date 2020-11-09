@@ -40,13 +40,10 @@ def _drop_halospots(iet):
     # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
     for hs, iterations in MapNodes(HaloSpot, Iteration).visit(iet).items():
         dmapper = as_mapper(iterations, lambda i: i.dim.root)
-        flag = False
         for d, v in dmapper.items():
             if d in hs.dimensions and all(i.is_Sequential for i in v):
-                flag = True
+                mapper[hs].update(set(hs.functions))
                 break
-        if flag:
-            mapper[hs].update(set(hs.functions))
 
     # If all HaloSpot reads pertain to increments, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
