@@ -94,10 +94,10 @@ def _hoist_halospots(iet):
             hsmapper[hs] = hs.halo_scheme
 
             for f, (loc_indices, _) in hs.fmapper.items():
+                loc_dims = frozenset().union([q for d in loc_indices
+                                                for q in d._defines])
                 for n, i in enumerate(iters):
                     candidates = set().union(*[i.dim._defines for i in iters[n:]])
-                    loc_dims = frozenset().union([q for d in loc_indices
-                                                  for q in d._defines])
 
                     test = True
                     for dep in scopes[i].d_flow.project(f):
