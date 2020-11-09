@@ -232,7 +232,6 @@ def default_rules(obj, functions):
 
     def generate_subs(deriv_order, function, dim):
         retrieved_dim = retrieve_dimension(dim)[0]
-        print(retrieved_dim)
 
         if retrieved_dim.is_Time:
             fd_order = function.time_order
