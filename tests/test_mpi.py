@@ -1640,6 +1640,7 @@ class TestOperatorAdvanced(object):
         """
         Similar to test_haloupdate_same_timestep, but switching the expression that
         writes to subsequent time step. Also checks halo update call placement.
+        MFE for issue #1483
         """
         grid = Grid(shape=(8, 8))
         x, y = grid.dimensions
