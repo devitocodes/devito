@@ -145,7 +145,7 @@ class Cluster(object):
 
     @cached_property
     def sync_locks(self):
-        return frozendict({k: frozenset(type(i) for i in v if i.is_SyncLock)
+        return frozendict({k: tuple(i for i in v if i.is_SyncLock)
                            for k, v in self.syncs.items()})
 
     @cached_property
