@@ -63,22 +63,6 @@ def count(exprs, query):
     return dict(mapper)
 
 
-def retrieve_dim(dim):
-    """
-    Return the dimension component from a value which may be a Dimension or an
-    Add object containing dimension and spacing.
-    """
-    if isinstance(dim, Add):
-        # Staggered function: need to extract dimension from dim
-        for key in dim.as_coefficients_dict():
-            try:
-                if key.is_Dimension:
-                    return key
-            except AttributeError:
-                pass
-    return dim
-
-
 def estimate_cost(exprs, estimate=False):
     """
     Estimate the operation count of an expression.

@@ -4,7 +4,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
-from devito.symbolics.inspection import retrieve_dim
+from devito.symbolics.search import retrieve_dimension
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -231,11 +231,12 @@ class Substitutions(object):
 def default_rules(obj, functions):
 
     def generate_subs(deriv_order, function, dim):
-        extracted_dim = retrieve_dim(dim)
+        retrieved_dim = retrieve_dimension(dim)[0]
+        print(retrieved_dim)
 
-        if extracted_dim.is_Time:
+        if retrieved_dim.is_Time:
             fd_order = function.time_order
-        elif extracted_dim.is_Space:
+        elif retrieved_dim.is_Space:
             fd_order = function.space_order
         else:
             # Shouldn't arrive here
@@ -243,7 +244,7 @@ def default_rules(obj, functions):
 
         subs = {}
 
-        indices, x0 = generate_indices(function, extracted_dim,
+        indices, x0 = generate_indices(function, retrieved_dim,
                                        fd_order, side=None)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]

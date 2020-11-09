@@ -16,15 +16,21 @@ class TestSC(object):
     """
 
     @pytest.mark.parametrize('order', [1, 2, 6])
-    def test_default_rules(self, order):
+    @pytest.mark.parametrize('stagger', [True, False])
+    def test_default_rules(self, order, stagger):
         """
         Test that the default replacement rules return the same
         as standard FD.
         """
         grid = Grid(shape=(20, 20))
-        u0 = TimeFunction(name='u', grid=grid, time_order=order, space_order=order)
+        if stagger:
+            staggered = grid.dimensions[0]
+        else:
+            staggered = None
+        u0 = TimeFunction(name='u', grid=grid, time_order=order, space_order=order,
+                          staggered=staggered)
         u1 = TimeFunction(name='u', grid=grid, time_order=order, space_order=order,
-                          coefficients='symbolic')
+                          staggered=staggered, coefficients='symbolic')
         eq0 = Eq(-u0.dx+u0.dt)
         eq1 = Eq(u1.dt-u1.dx)
         assert(eq0.evalf(_PRECISION).__repr__() == eq1.evalf(_PRECISION).__repr__())
@@ -188,3 +194,32 @@ class TestSC(object):
         expected = 'Eq(f(x + h_x/2), 1.0*f(x - h_x/2) - 2.0*f(x + h_x/2)' \
             + ' + 1.0*f(x + 3*h_x/2))'
         assert(str(eq_f.evaluate) == expected)
+
+    @pytest.mark.parametrize('stagger', [True, False])
+    def test_with_timefunction(self, stagger):
+        """Check compatibility of custom coefficients and TimeFunctions"""
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+        if stagger:
+            staggered = x
+        else:
+            staggered = None
+
+        f = TimeFunction(name='f', grid=grid, space_order=2, staggered=staggered)
+        g = TimeFunction(name='g', grid=grid, space_order=2, staggered=staggered,
+                         coefficients='symbolic')
+
+        f.data[:, ::2] = 1
+        g.data[:, ::2] = 1
+
+        weights = np.array([-1, 2, -1])/grid.spacing[0]**2
+        coeffs = Coefficient(2, g, x, weights)
+
+        eq_f = Eq(f.forward, f.dx2)
+        eq_g = Eq(g.forward, g.dx2, coefficients=Substitutions(coeffs))
+
+        Operator([eq_f, eq_g])(t_m=0, t_M=1)
+
+        assert np.allclose(f.data[-1], -g.data[-1], atol=1e-7)
+
+
