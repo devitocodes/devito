@@ -119,7 +119,7 @@ class TestStreaming(object):
         assert np.all(u.data[nt-1] == 9)
         assert np.all(v.data[nt-1] == 9)
 
-    def test_tasking_fused_two_locks(self):
+    def test_tasking_unfused_two_locks(self):
         nt = 10
         bundle0 = Bundle()
         grid = Grid(shape=(10, 10, 10), subdomains=bundle0)
@@ -140,27 +140,28 @@ class TestStreaming(object):
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 2
-        locks = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(locks) == 2
-        assert type(locks.pop()).__base__ == Lock
-        assert type(locks.pop()).__base__ == Lock
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         # Check waits and set-locks are at the right depth
         sections = FindNodes(Section).visit(op)
-        assert len(sections) == 2
+        assert len(sections) == 3
         assert (str(sections[0].body[0].body[0].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         assert (str(sections[1].body[0].body[0]) ==
                 'if (thread0.joinable())\n{\n  thread0.join();\n}')  # Wait-thread
         assert str(sections[1].body[0].body[1].body[0]) == 'lock0[0] = 0;'  # Set-lock
-        assert str(sections[1].body[0].body[1].body[1]) == 'lock1[0] = 0;'  # Set-lock
-        assert sections[1].body[0].body[1].body[2].body[0].is_Call
-        assert len(op._func_table) == 1
+        assert sections[1].body[0].body[1].body[1].body[0].is_Call
+        assert (str(sections[2].body[0].body[0]) ==
+                'if (thread1.joinable())\n{\n  thread1.join();\n}')  # Wait-thread
+        assert str(sections[2].body[0].body[1].body[0]) == 'lock1[0] = 0;'  # Set-lock
+        assert sections[2].body[0].body[1].body[1].body[0].is_Call
+        assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 4
+        assert len(exprs) == 2
         assert str(exprs[0]) == 'lock0[0] = 1;'
-        assert str(exprs[1]) == 'lock1[0] = 1;'
-        assert exprs[2].write is u
-        assert exprs[3].write is v
+        assert exprs[1].write is u
+        exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host1'].root)
+        assert str(exprs[0]) == 'lock1[0] = 1;'
+        assert exprs[1].write is v
 
         op.apply(time_M=nt-2)
 
@@ -542,7 +543,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate'))
 
         # Check generated code
-        assert len(op._func_table) == 1  # usave and vsave eqns have been fused
+        assert len(op._func_table) == 2  # usave and vsave eqns are in separate tasks
 
         op.apply(time_M=nt-1)
 

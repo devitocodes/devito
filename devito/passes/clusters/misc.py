@@ -5,7 +5,7 @@ from devito.ir.clusters import Cluster, ClusterGroup, Queue
 from devito.ir.support import TILABLE, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul, uxreplace
-from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
+from devito.tools import DAG, as_tuple, filter_ordered, frozendict, timed_pass
 from devito.types import Scalar
 
 __all__ = ['Lift', 'fuse', 'eliminate_arrays', 'optimize_pows', 'extract_increments']
@@ -133,8 +133,21 @@ class Fusion(Queue):
         return [ClusterGroup(processed, prefix)]
 
     def _key(self, c):
-        # Two Clusters or ClusterGroups are fusion candidates if their key is identical
-        return (frozenset(c.itintervals), c.guards, c.sync_locks)
+        # Two Clusters/ClusterGroups are fusion candidates if their key is identical
+
+        key = (frozenset(c.itintervals), c.guards)
+
+        # We allow fusing Clusters/ClusterGroups with WaitLocks over different Locks,
+        # while the WithLocks are to be kept separated (i.e. the remain separate tasks)
+        if isinstance(c, Cluster):
+            sync_locks = (c.sync_locks,)
+        else:
+            sync_locks = c.sync_locks
+        for i in sync_locks:
+            key += (frozendict({k: frozenset(type(i) if i.is_WaitLock else i for i in v)
+                                for k, v in i.items()}),)
+
+        return key
 
     def _toposort(self, cgroups, prefix):
         # Are there any ClusterGroups that could potentially be fused? If
