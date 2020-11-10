@@ -57,6 +57,9 @@ class Tasker(Asynchronous):
             # Prevent future writes to interfere with a task by waiting on a lock
             may_require_lock = set(c0.scope.reads)
 
+            # Sort for deterministic code generation
+            may_require_lock = sorted(may_require_lock, key=lambda i: i.name)
+
             protected = defaultdict(set)
             for c1 in clusters:
                 offset = int(clusters.index(c1) <= clusters.index(c0))
