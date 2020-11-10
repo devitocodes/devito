@@ -12,6 +12,7 @@ import matplotlib
 from matplotlib.ticker import ScalarFormatter
 import matplotlib.pyplot as plt  # noqa
 import sys
+import os
 
 from benchmarks.user.advisor.advisor_logging import check, err, log
 
@@ -157,8 +158,8 @@ def roofline(name, project, scale, precision, mode, th):
 
     # saving the chart in PNG format
     plt.savefig('%s.png' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
-
-    log('Figure saved as %s.png.' % name)
+    figpath = os.path.realpath(__file__).split(os.path.basename(__file__))[0]
+    log('Figure saved in %s%s.png.' % (figpath, name))
 
 
 analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']
