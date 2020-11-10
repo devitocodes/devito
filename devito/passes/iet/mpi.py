@@ -70,12 +70,12 @@ def _hoist_halospots(iet):
     # a stopper to halo hoisting
 
     def rule0(dep, candidates, loc_dims):
-        # E.g., `dep=W<f,[x]> -> R<f,[x-1]>` and `candidates=(time, x)` => False
+        # E.g., `dep=W<f,[x]> -> R<f,[x-1]>` and `candidates=({time}, {x})` => False
         # E.g., `dep=W<f,[t1, x, y]> -> R<f,[t0, x-1, y+1]>`, `dep.cause={t,time}` and
-        #       `candidates=(x,)` => True
-        return (all(d in dep.distance_mapper for d in candidates) and
-                not dep.cause & candidates and
-                not loc_dims & candidates)
+        #       `candidates=({x},)` => True
+        return (all(i & set(dep.distance_mapper) for i in candidates) and
+                not any(i & dep.cause for i in candidates) and
+                not any(i & loc_dims for i in candidates))
 
     def rule1(dep, candidates, loc_dims):
         # An increment isn't a stopper to hoisting
@@ -98,7 +98,7 @@ def _hoist_halospots(iet):
                                               for q in d._defines])
 
                 for n, i in enumerate(iters):
-                    candidates = set().union(*[i.dim._defines for i in iters[n:]])
+                    candidates = [i.dim._defines for i in iters[n:]]
 
                     test = True
                     for dep in scopes[i].d_flow.project(f):
