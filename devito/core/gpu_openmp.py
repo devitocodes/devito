@@ -109,9 +109,11 @@ class DeviceOmpizer(Ompizer):
             return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
 
     @classmethod
-    def _map_to(cls, f, imask=None):
+    def _map_to(cls, f, imask=None, **kwargs):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-enter-to'](f.name, sections)
+
+    _map_to_wait = _map_to
 
     @classmethod
     def _map_alloc(cls, f, imask=None):
@@ -128,14 +130,18 @@ class DeviceOmpizer(Ompizer):
                                                       for i in cls._map_data(f)))
 
     @classmethod
-    def _map_update_host(cls, f, imask=None):
+    def _map_update_host(cls, f, imask=None, **kwargs):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-update-host'](f.name, sections)
 
+    _map_update_wait_host = _map_update_host
+
     @classmethod
-    def _map_update_device(cls, f, imask=None):
+    def _map_update_device(cls, f, imask=None, **kwargs):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-update-device'](f.name, sections)
+
+    _map_update_wait_device = _map_update_device
 
     @classmethod
     def _map_release(cls, f):
@@ -246,7 +252,7 @@ class DeviceOmpizer(Ompizer):
         if not sync_spots:
             return iet, {}
 
-        pieces = namedtuple('Pieces', 'init finalize efuncs')([], [], [])
+        pieces = namedtuple('Pieces', 'init finalize efuncs threads')([], [], [], [])
 
         subs = {}
         for n in sync_spots:
@@ -277,6 +283,9 @@ class DeviceOmpizer(Ompizer):
 
     def _make_orchestration_withlock(self, iet, sync_ops, pieces):
         thread = STDThread(self.sregistry.make_name(prefix='thread'))
+        pieces.threads.append(thread)
+        queueid = len(pieces.threads)
+
         threadwait = List(
             body=Conditional(DefFunction(FieldFromComposite('joinable', thread)),
                              Call(FieldFromComposite('join', thread)))
@@ -290,7 +299,7 @@ class DeviceOmpizer(Ompizer):
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
                      for d in s.target.dimensions]
             actions.append(List(
-                header=self._map_update_host(s.target, imask),
+                header=self._map_update_wait_host(s.target, imask, queueid=queueid),
                 body=Expression(DummyEq(s.handle, 1))
             ))
 
@@ -343,6 +352,9 @@ class DeviceOmpizer(Ompizer):
 
     def _make_orchestration_fetchwaitprefetch(self, iet, sync_ops, pieces):
         thread = STDThread(self.sregistry.make_name(prefix='thread'))
+        pieces.threads.append(thread)
+        queueid = len(pieces.threads)
+
         threadwait = Call(FieldFromComposite('join', thread))
 
         fetches = []
@@ -363,7 +375,7 @@ class DeviceOmpizer(Ompizer):
 
             # Construct fetch IET
             imask = [fc if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetch = List(header=self._map_to(s.function, imask))
+            fetch = List(header=self._map_to_wait(s.function, imask, queueid=queueid))
             fetches.append(Conditional(fc_cond, fetch))
 
             # Construct present clauses
@@ -372,7 +384,7 @@ class DeviceOmpizer(Ompizer):
 
             # Construct prefetch IET
             imask = [pfc if d.root is s.dim.root else FULL for d in s.dimensions]
-            prefetch = List(header=self._map_to(s.function, imask))
+            prefetch = List(header=self._map_to_wait(s.function, imask, queueid=queueid))
             prefetches.append(Conditional(pfc_cond, prefetch))
 
         functions = [s.function for s in sync_ops]

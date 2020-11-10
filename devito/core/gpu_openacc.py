@@ -57,6 +57,9 @@ class DeviceAccizer(DeviceOmpizer):
         'atomic': c.Pragma('acc atomic update'),
         'map-enter-to': lambda i, j:
             c.Pragma('acc enter data copyin(%s%s)' % (i, j)),
+        'map-enter-to-wait': lambda i, j, k:
+            (c.Pragma('acc enter data copyin(%s%s) async(%s)' % (i, j, k)),
+             c.Pragma('acc wait(%s)' % k)),
         'map-enter-alloc': lambda i, j:
             c.Pragma('acc enter data create(%s%s)' % (i, j)),
         'map-present': lambda i, j:
@@ -65,8 +68,14 @@ class DeviceAccizer(DeviceOmpizer):
             c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
         'map-update-host': lambda i, j:
             c.Pragma('acc update self(%s%s)' % (i, j)),
+        'map-update-wait-host': lambda i, j, k:
+            (c.Pragma('acc update self(%s%s) async(%s)' % (i, j, k)),
+             c.Pragma('acc wait(%s)' % k)),
         'map-update-device': lambda i, j:
             c.Pragma('acc update device(%s%s)' % (i, j)),
+        'map-update-wait-device': lambda i, j, k:
+            (c.Pragma('acc update device(%s%s) async(k)' % (i, j, k)),
+             c.Pragma('acc wait(%s)' % k)),
         'map-release': lambda i, j:
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
         'map-exit-delete': lambda i, j:
@@ -78,6 +87,11 @@ class DeviceAccizer(DeviceOmpizer):
     _Iteration = DeviceOpenACCIteration
 
     @classmethod
+    def _map_to_wait(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-enter-to-wait'](f.name, sections, queueid)
+
+    @classmethod
     def _map_present(cls, f, imask=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-present'](f.name, sections)
@@ -86,6 +100,16 @@ class DeviceAccizer(DeviceOmpizer):
     def _map_delete(cls, f, imask=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-exit-delete'](f.name, sections)
+
+    @classmethod
+    def _map_update_wait_host(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-wait-host'](f.name, sections, queueid)
+
+    @classmethod
+    def _map_update_wait_device(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-wait-device'](f.name, sections, queueid)
 
     @classmethod
     def _map_pointers(cls, functions):
