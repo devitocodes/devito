@@ -1731,9 +1731,13 @@ class TestOperatorAdvanced(object):
         assert u0_norm == u1_norm
 
     @pytest.mark.parallel(mode=4)
-    def test_cire_w_rotations(self):
+    @pytest.mark.parametrize('opt_options', [
+        {'cire-repeats-sops': 9, 'cire-rotate': True},  # Issue #1490 (rotating registers)
+        {'min-storage': True},                          # Issue #1491 (min-storage option)
+    ])
+    def test_cire_options(self, opt_options):
         """
-        MFE for issue #1490.
+        MFEs for several issues tracked on GitHub.
         """
         grid = Grid(shape=(128, 128, 128), dtype=np.float64)
 
@@ -1746,19 +1750,23 @@ class TestOperatorAdvanced(object):
         eqn = Eq(p.forward, (p.dx).dx + (p.dy).dy + (p.dz).dz)
 
         op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn, opt=('advanced', {'cire-repeats-sops': 9,
-                                              'cire-rotate': True}))
+        op1 = Operator(eqn, opt=('advanced', opt_options))
 
         # Check generated code
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 3
         assert 'haloupdate_0' in op1._func_table
+        # We expect exactly one halo exchange
+        calls = FindNodes(Call).visit(op1)
+        assert len(calls) == 5
+        assert calls[0].name == 'haloupdate_0'
+        assert all(i.name == 'bf0' for i in calls[1:])
 
         op0.apply(time_M=1)
         op1.apply(time_M=1, p=p1)
 
-        # TODO: we can tighthen the tolerance, or switch to single precision,
-        # once issue #1438 is fixed
+        # TODO: we will tighten the tolerance, or switch to single precision,
+        # or both, once issue #1438 is fixed
         assert np.allclose(p.data, p1.data, rtol=10e-11)
 
     @pytest.mark.parallel(mode=[(4, 'full', True)])
