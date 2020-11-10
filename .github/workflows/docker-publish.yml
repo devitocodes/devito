@@ -89,4 +89,4 @@ jobs:
         - name: Run simple test
           run: |
              docker pull 'devitocodes/devito:${{ matrix.im-name }}'
-             docker run --gpus --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_gpu_openacc.py
+             docker run --gpus all --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_gpu_openacc.py
