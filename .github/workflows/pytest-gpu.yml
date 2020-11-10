@@ -69,7 +69,7 @@ jobs:
 
     - name: Test examples
       run: |
-        pytest examples/seismic/elastic/elastic_example.py
+        pytest examples/seismic/acoustic/acoustic_example.py
         pytest examples/seismic/elastic/elastic_example.py
         pytest examples/seismic/tti/tti_example.py
         pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
@@ -77,6 +77,7 @@ jobs:
 
     - name: Test examples with MPI
       run: |
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
