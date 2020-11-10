@@ -292,6 +292,29 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
+    def test_streaming_multi_input(self):
+        nt = 100
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, save=nt, time_order=2, space_order=2)
+        v = TimeFunction(name='v', grid=grid, save=None, time_order=2, space_order=2)
+        grad = Function(name='grad', grid=grid)
+        grad1 = Function(name='grad', grid=grid)
+
+        v.data[:] = 0.02
+        for i in range(nt):
+            u.data[i, :] = i*0.01
+
+        eqn = Inc(grad, - u.dt2 * v)
+
+        op0 = Operator(eqn, opt=('noop', {'gpu-fit': u}))
+        op1 = Operator(eqn, opt=('streaming', 'orchestrate'))
+
+        op0.apply(time_M=nt-1)
+        op1.apply(time_M=nt-1, grad=grad1)
+
+        assert np.all(grad.data == grad1.data)
+
     def test_streaming_postponed_deletion(self):
         nt = 10
         grid = Grid(shape=(10, 10, 10))

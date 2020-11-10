@@ -27,7 +27,8 @@ from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                iet_pass)
 from devito.symbolics import (Byref, CondEq, DefFunction, FieldFromComposite,
                               ListInitializer, ccode)
-from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, timed_pass
+from devito.tools import (as_mapper, as_list, as_tuple, filter_ordered,
+                          filter_sorted, timed_pass)
 from devito.types import (Symbol, STDThread, WaitLock, WithLock, FetchWait,
                           FetchWaitPrefetch, Delete)
 
@@ -387,7 +388,7 @@ class DeviceOmpizer(Ompizer):
             prefetch = List(header=self._map_to_wait(s.function, imask, queueid=queueid))
             prefetches.append(Conditional(pfc_cond, prefetch))
 
-        functions = [s.function for s in sync_ops]
+        functions = filter_ordered(s.function for s in sync_ops)
         casts = [PointerCast(f) for f in functions]
 
         # Turn init IET into an efunc
