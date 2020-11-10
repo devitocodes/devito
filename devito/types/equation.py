@@ -91,6 +91,7 @@ class Eq(sympy.Eq, Evaluable):
         eq = self.func(lhs, rhs, subdomain=self.subdomain,
                        coefficients=self.substitutions,
                        implicit_dims=self._implicit_dims)
+
         if eq._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
