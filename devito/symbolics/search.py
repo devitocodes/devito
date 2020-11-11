@@ -4,7 +4,7 @@ from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
            'retrieve_terminals', 'retrieve_xops', 'retrieve_scalars',
-           'retrieve_dimension', 'search']
+           'retrieve_dimensions', 'search']
 
 
 class Search(object):
@@ -191,6 +191,6 @@ def retrieve_xops(exprs):
     return search(exprs, q_xop, 'all', 'dfs')
 
 
-def retrieve_dimension(exprs, mode='all', deep=False):
+def retrieve_dimensions(exprs, mode='all', deep=False):
     """Shorthand to retrieve the dimensions in ``exprs``."""
     return search(exprs, q_dimension, mode, 'dfs', deep)

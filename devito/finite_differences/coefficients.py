@@ -4,7 +4,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
-from devito.symbolics.search import retrieve_dimension
+from devito.symbolics.search import retrieve_dimensions
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -85,7 +85,7 @@ class Coefficient(object):
         return self._dimension
 
     @property
-    def offset_dimension(self):
+    def index(self):
         """
         The dimension to which the coefficients will be applied plus the offset
         in that dimension if the function is staggered.
@@ -185,7 +185,7 @@ class Substitutions(object):
             deriv_order = i.deriv_order
             function = i.function
             dim = i.dimension
-            offset_dim = i.offset_dimension
+            index = i.index
             weights = i.weights
 
             if isinstance(weights, np.ndarray):
@@ -205,7 +205,7 @@ class Substitutions(object):
                 for j in range(len(weights)):
                     subs.update({function._coeff_symbol
                                  (indices[j], deriv_order,
-                                  function, offset_dim): weights[j]})
+                                  function, index): weights[j]})
             else:
                 shape = weights.shape
                 x = weights.dimensions
@@ -213,7 +213,7 @@ class Substitutions(object):
                     idx = list(x)
                     idx[-1] = j
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, offset_dim):
+                                 (indices[j], deriv_order, function, index):
                                      weights[as_tuple(idx)]})
 
             return subs
@@ -231,7 +231,7 @@ class Substitutions(object):
 def default_rules(obj, functions):
 
     def generate_subs(deriv_order, function, index):
-        dim = retrieve_dimension(index)[0]
+        dim = retrieve_dimensions(index)[0]
 
         if dim.is_Time:
             fd_order = function.time_order
@@ -261,7 +261,7 @@ def default_rules(obj, functions):
 
     subs = obj.substitutions
     if subs:
-        args_provided = [(i.deriv_order, i.function, i.offset_dimension)
+        args_provided = [(i.deriv_order, i.function, i.index)
                          for i in subs.coefficients]
     else:
         args_provided = []
