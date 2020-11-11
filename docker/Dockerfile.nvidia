@@ -3,10 +3,10 @@
 # libraries, and plugins to enable OpenACC and NVIDIA GPU 
 # acceleration of Devito codes.
 #
-# BUILD: docker build --file docker/Dockerfile.nvidia --tag devito:nvidia .
-# RUN: docker run --runtime=nvidia --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
+# BUILD: docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
+# RUN: docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
 ##############################################################
-FROM python:3.8
+FROM python:3.6
 
 ENV DEBIAN_FRONTEND noninteractive 
 
@@ -14,18 +14,21 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update -y && \
     apt-get install -y -q \
         apt-utils \
+        vim \
         curl \
         mpich libmpich-dev && \    
     curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
         nodejs \
+        liblapack-dev  \
+        libblas-dev \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super && \
     wget -q -P /app/\
-         https://developer.download.nvidia.com/hpc-sdk/nvhpc-20-7_20.7_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/nvhpc-2020_20.7_amd64.deb && \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9_20.9_amd64.deb && \
     apt-get install -y -q \
-         /app/nvhpc-20-7_20.7_amd64.deb \
-         /app/nvhpc-2020_20.7_amd64.deb && \
+         /app/nvhpc-20-9_20.9_amd64.deb \
+         /app/nvhpc-2020_20.9_amd64.deb && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
     rm -rf /var/lib/apt/lists/*
@@ -37,16 +40,18 @@ ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 # required for nvidia-docker v1
 RUN echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.7/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf
-
+    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/lib" >> /etc/ld.so.conf.d/nvidia.conf
+    
 # Compiler, CUDA, and Library paths
 ENV CUDA_ROOT /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda
-ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.7/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:${PATH}
-ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.7/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/20.7/math_libs/11.0/lib64:${LD_LIBRARY_PATH}
+ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/bin:${PATH}
+ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/math_libs/11.0/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/cuda/11.0/extras/CUPTI/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/lib:${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
 ADD ./requirements-nvidia.txt /app/requirements-nvidia.txt
+ADD ./requirements-mpi.txt /app/requirements-mpi.txt
 
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
@@ -54,6 +59,12 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt && \
+    rm -rf ~/.cache/pip
+
+ENV CPATH=/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/include:${CPATH}
+ENV CFLAGS=-noswitcherror
+RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
+    unset CFLAGS && \
     rm -rf ~/.cache/pip
 
 ADD ./devito /app/devito
@@ -75,7 +86,7 @@ RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
     /venv/bin/jupyter serverextension enable dask_labextension && \
     /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
 
-# Environment Variables for OpenACC Builds
+## Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
 # Set arch to PGI (pgcc)
 ENV DEVITO_ARCH="pgcc" 
@@ -88,7 +99,28 @@ ENV DEVITO_PLATFORM=nvidiaX
 ENV DEVITO_LOGGING=DEBUG 
 ENV PGI_ACC_TIME=1 
 
+# OMPI ROOT USER DEFAULTS
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV UCX_MEMTYPE_CACHE=no
+
+## Create App user 
+# Set the home directory to our app user's home.
+ENV HOME=/app
+ENV APP_HOME=/app
+
+# Create the home directory for the new app user.
+# Create an app user so our program doesn't run as root.
+# Chown all the files to the app user.
+RUN mkdir -p /app && \
+    groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app $APP_HOME
+
+# Change to the app user.
+USER app
 WORKDIR /app
+
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/jupyter"]

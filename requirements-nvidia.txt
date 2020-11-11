@@ -1,4 +1,4 @@
-cupy-cuda102
+cupy-cuda110
 dask-cuda
 jupyterlab==1.2.1
 jupyterlab-nvdashboard

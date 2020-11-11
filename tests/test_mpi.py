@@ -8,7 +8,8 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
                     switchconfig, generic_derivative)
 from devito.data import LEFT, RIGHT
-from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
+from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
+                           retrieve_iteration_tree)
 from devito.mpi import MPI
 from examples.seismic.acoustic import acoustic_setup
 
@@ -28,6 +29,7 @@ class TestDistributor(object):
             4: [(8, 8), (8, 7), (7, 8), (7, 7)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
+        assert f.size_global == 225
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_partitioning_fewer_dims(self):
@@ -1633,6 +1635,34 @@ class TestOperatorAdvanced(object):
 
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
+    @pytest.mark.parallel(mode=2)
+    def test_haloupdate_same_timestep_v2(self):
+        """
+        Similar to test_haloupdate_same_timestep, but switching the expression that
+        writes to subsequent time step. Also checks halo update call placement.
+        MFE for issue #1483
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        u.data_with_halo[:] = 1.
+        v = TimeFunction(name='v', grid=grid)
+        v.data_with_halo[:] = 0.
+
+        eqns = [Eq(u, u + v + 1.),
+                Eq(v.forward, u[t, x, y-1] + u[t, x, y] + u[t, x, y+1])]
+
+        op = Operator(eqns)
+
+        assert op.body[-1].body[0].nodes[0].body[0].body[0].is_List
+        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
+
+        op.apply(time=0)
+
+        assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
+
     @pytest.mark.parallel(mode=4)
     def test_haloupdate_multi_op(self):
         """
@@ -1659,7 +1689,7 @@ class TestOperatorAdvanced(object):
         assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
-    def test_aliases(self):
+    def test_cire(self):
         """
         Check correctness when the DSE extracts aliases and places them
         into offset-ed loop (nest). For example, the compiler may generate:
@@ -1698,9 +1728,9 @@ class TestOperatorAdvanced(object):
         assert u0_norm == u1_norm
 
     @pytest.mark.parallel(mode=[(4, 'overlap2', True)])
-    def test_aliases_with_shifted_diagonal_halo_touch(self):
+    def test_cire_with_shifted_diagonal_halo_touch(self):
         """
-        Like ``test_aliases`` but now the diagonal halos required to compute
+        Like ``test_cire`` but now the diagonal halos required to compute
         the aliases are shifted due to the iteration space. Basically, this
         is checking that ``TimedAccess.touched_halo`` does the right thing
         using the information stored in ``.intervals``.
@@ -1727,6 +1757,45 @@ class TestOperatorAdvanced(object):
         u1_norm = norm(u)
 
         assert u0_norm == u1_norm
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('opt_options', [
+        {'cire-repeats-sops': 9, 'cire-rotate': True},  # Issue #1490 (rotating registers)
+        {'min-storage': True},                          # Issue #1491 (min-storage option)
+    ])
+    def test_cire_options(self, opt_options):
+        """
+        MFEs for several issues tracked on GitHub.
+        """
+        grid = Grid(shape=(128, 128, 128), dtype=np.float64)
+
+        p = TimeFunction(name='p', grid=grid, time_order=2, space_order=8)
+        p1 = TimeFunction(name='p', grid=grid, time_order=2, space_order=8)
+
+        p.data[0, 40:80, 40:80, 40:80] = 0.12
+        p1.data[0, 40:80, 40:80, 40:80] = 0.12
+
+        eqn = Eq(p.forward, (p.dx).dx + (p.dy).dy + (p.dz).dz)
+
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt=('advanced', opt_options))
+
+        # Check generated code
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
+        assert len(arrays) == 3
+        assert 'haloupdate_0' in op1._func_table
+        # We expect exactly one halo exchange
+        calls = FindNodes(Call).visit(op1)
+        assert len(calls) == 5
+        assert calls[0].name == 'haloupdate_0'
+        assert all(i.name == 'bf0' for i in calls[1:])
+
+        op0.apply(time_M=1)
+        op1.apply(time_M=1, p=p1)
+
+        # TODO: we will tighten the tolerance, or switch to single precision,
+        # or both, once issue #1438 is fixed
+        assert np.allclose(p.data, p1.data, rtol=10e-11)
 
     @pytest.mark.parallel(mode=[(4, 'full', True)])
     def test_staggering(self):

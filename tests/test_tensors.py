@@ -205,3 +205,46 @@ def test_sympy_vector(func1):
     mat = sympy.Matrix(3, 3, np.random.rand(3, 3).ravel())
 
     assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1))
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
+def test_non_devito_tens(func1):
+    grid = Grid(tuple([5]*3))
+    comps = sympy.Matrix(3, 3, [1, 2, 3, 2, 3, 6, 3, 6, 9])
+
+    f1 = func1(name="f1", grid=grid, components=comps)
+    f2 = func1(name="f2", grid=grid)
+
+    assert f1.T == f1
+    assert isinstance(f1.T, sympy.ImmutableDenseMatrix)
+    # No devito object in the matrix components, should return a pure sympy Matrix
+    assert ~isinstance(f1.T, func1)
+    # Can still multiply
+    f3 = f2*f1.T
+    assert isinstance(f3, func1)
+
+    for i in range(3):
+        for j in range(3):
+            assert f3[i, j] == sum(f2[i, k] * f1[j, k] for k in range(3))
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
+def test_partial_devito_tens(func1):
+    grid = Grid(tuple([5]*3))
+    f2 = func1(name="f2", grid=grid)
+
+    comps = sympy.Matrix(3, 3, [1, 2, f2[0, 0], 2, 3, 6, f2[0, 0], 6, 9])
+
+    f1 = func1(name="f1", grid=grid, components=comps)
+
+    assert f1.T == f1
+    assert isinstance(f1.T, func1)
+    # Should have original grid
+    assert f1[0, 2].grid == grid
+    # Can still multiply
+    f3 = f2*f1.T
+    assert isinstance(f3, func1)
+
+    for i in range(3):
+        for j in range(3):
+            assert f3[i, j] == sum(f2[i, k] * f1[j, k] for k in range(3))
