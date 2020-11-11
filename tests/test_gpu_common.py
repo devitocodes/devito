@@ -303,15 +303,15 @@ class TestStreaming(object):
 
         v.data[:] = 0.02
         for i in range(nt):
-            u.data[i, :] = i*0.01
+            u.data[i, :] = i + 0.1
 
-        eqn = Inc(grad, - u.dt2 * v)
+        eqn = Eq(grad, grad - u.dt2 * v)
 
         op0 = Operator(eqn, opt=('noop', {'gpu-fit': u}))
         op1 = Operator(eqn, opt=('streaming', 'orchestrate'))
 
-        op0.apply(time_M=nt-1)
-        op1.apply(time_M=nt-1, grad=grad1)
+        op0.apply(time_M=nt-2, dt=0.1)
+        op1.apply(time_M=nt-2, dt=0.1, grad=grad1)
 
         assert np.all(grad.data == grad1.data)
 

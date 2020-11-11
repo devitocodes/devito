@@ -343,7 +343,7 @@ class DeviceOmpizer(Ompizer):
         fetches = []
         for s in sync_ops:
             fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-            imask = [(fc, s.step) if d.root is s.dim.root else FULL for d in s.dimensions]
+            imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
             fetches.append(self._map_to(s.function, imask))
 
         # Glue together the new IET pieces
@@ -365,9 +365,9 @@ class DeviceOmpizer(Ompizer):
             if s.direction is Forward:
                 fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
                 fsize = s.function._C_get_field(FULL, s.dim).size
-                fc_cond = fc < fsize
+                fc_cond = fc + (s.size - 1) < fsize
                 pfc = s.fetch + 1
-                pfc_cond = pfc < fsize
+                pfc_cond = pfc + (s.size - 1) < fsize
             else:
                 fc = s.fetch.subs(s.dim, s.dim.symbolic_max)
                 fc_cond = fc >= 0
@@ -375,16 +375,18 @@ class DeviceOmpizer(Ompizer):
                 pfc_cond = pfc >= 0
 
             # Construct fetch IET
-            imask = [fc if d.root is s.dim.root else FULL for d in s.dimensions]
+            imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
             fetch = List(header=self._map_to_wait(s.function, imask, queueid=queueid))
             fetches.append(Conditional(fc_cond, fetch))
 
             # Construct present clauses
-            imask = [s.fetch if d.root is s.dim.root else FULL for d in s.dimensions]
+            imask = [(s.fetch, s.size) if d.root is s.dim.root else FULL
+                     for d in s.dimensions]
             presents.extend(as_list(self._map_present(s.function, imask)))
 
             # Construct prefetch IET
-            imask = [pfc if d.root is s.dim.root else FULL for d in s.dimensions]
+            imask = [(pfc, s.size) if d.root is s.dim.root else FULL
+                     for d in s.dimensions]
             prefetch = List(header=self._map_to_wait(s.function, imask, queueid=queueid))
             prefetches.append(Conditional(pfc_cond, prefetch))
 
@@ -445,10 +447,11 @@ class DeviceOmpizer(Ompizer):
         for s in sync_ops:
             if s.dim.is_Custom:
                 fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-                imask = [(fc, s.step) if d.root is s.dim.root else FULL
+                imask = [(fc, s.size) if d.root is s.dim.root else FULL
                          for d in s.dimensions]
             else:
-                imask = [s.fetch if d.root is s.dim.root else FULL for d in s.dimensions]
+                imask = [(s.fetch, s.size) if d.root is s.dim.root else FULL
+                         for d in s.dimensions]
             deletions.append(self._map_delete(s.function, imask))
 
         # Glue together the new IET pieces

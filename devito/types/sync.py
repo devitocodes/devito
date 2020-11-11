@@ -175,18 +175,18 @@ class SyncData(SyncOp):
 
     is_SyncData = True
 
-    def __new__(cls, function, dim, fetch, step, direction=None):
-        obj = sympy.Expr.__new__(cls, function, dim, fetch, step, direction)
+    def __new__(cls, function, dim, fetch, size, direction=None):
+        obj = sympy.Expr.__new__(cls, function, dim, fetch, size, direction)
         obj.function = function
         obj.dim = dim
         obj.fetch = fetch
-        obj.step = step
+        obj.size = size
         obj.direction = direction
         return obj
 
     def __str__(self):
         return "%s<%s:%s:%s:%d>" % (self.__class__.__name__, self.function,
-                                    self.dim, self.fetch, self.step)
+                                    self.dim, self.fetch, self.size)
 
     __repr__ = __str__
 
@@ -197,7 +197,7 @@ class SyncData(SyncOp):
         return self.function.dimensions
 
     # Pickling support
-    _pickle_args = ['function', 'dim', 'fetch', 'step', 'direction']
+    _pickle_args = ['function', 'dim', 'fetch', 'size', 'direction']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 

@@ -2,7 +2,8 @@ from collections import defaultdict
 
 from devito.ir.clusters import Queue
 from devito.ir.support import SEQUENTIAL
-from devito.tools import is_integer, timed_pass
+from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
+                          indices_to_sections, timed_pass)
 from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchWait,
                           FetchWaitPrefetch, Delete, normalize_syncs)
 
@@ -161,12 +162,12 @@ class Streaming(Asynchronous):
         # 1) all CustomDimensions of fixed (i.e. integer) size, which
         #    implies a bound on the amount of streamed data
         if all(SEQUENTIAL in c.properties[d] for c in clusters):
-            make_fetch = lambda f, v: FetchWaitPrefetch(f, d, v, 1, direction)
-            make_delete = lambda f, v: Delete(f, d, v, 1)
+            make_fetch = lambda f, i, s: FetchWaitPrefetch(f, d, i, s, direction)
+            make_delete = lambda f, i, s: Delete(f, d, i, s)
             syncd = d
         elif d.is_Custom and is_integer(it.size):
-            make_fetch = lambda f, v: FetchWait(f, d, v, it.size, direction)
-            make_delete = lambda f, v: Delete(f, d, v, it.size)
+            make_fetch = lambda f, i, s: FetchWait(f, d, i, it.size, direction)
+            make_delete = lambda f, i, s: Delete(f, d, i, it.size)
             syncd = pd
         else:
             return clusters
@@ -187,15 +188,23 @@ class Streaming(Asynchronous):
         if not first_seen:
             return clusters
 
-        mapper = defaultdict(list)
-        for (f, v), c in first_seen.items():
-            mapper[c].append(make_fetch(f, v))
-        for (f, v), c in last_seen.items():
-            mapper[c].append(make_delete(f, v))
+        # Bind fetches and deletes to Clusters
+        sync_ops = defaultdict(list)
+        callbacks = [(frozendict(first_seen), make_fetch),
+                     (frozendict(last_seen), make_delete)]
+        for seen, callback in callbacks:
+            mapper = defaultdict(lambda: DefaultOrderedDict(list))
+            for (f, v), c in seen.items():
+                mapper[c][f].append(v)
+            for c, m in mapper.items():
+                for f, v in m.items():
+                    for i, s in indices_to_sections(v):
+                        sync_ops[c].append(callback(f, i, s))
 
+        # Attach SyncOps to Clusters
         processed = []
         for c in clusters:
-            v = mapper.get(c)
+            v = sync_ops.get(c)
             if v is not None:
                 processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, {syncd: v})))
             else:

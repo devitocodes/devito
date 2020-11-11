@@ -808,7 +808,7 @@ class XSubs(Transformer):
                 sync_ops.append(s.func(self.replacer(s.handle)))
             elif s.is_SyncData:
                 sync_ops.append(s.func(s.function, s.dim, self.replacer(s.fetch),
-                                       s.step, s.direction))
+                                       s.size, s.direction))
             else:
                 assert False
         body = self._visit(o.body)
