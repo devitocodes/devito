@@ -516,12 +516,13 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(usave.data == usave1.data)
 
-    @pytest.mark.parametrize('opt,gpu_fit', [
-        (('tasking', 'orchestrate'), True),
-        (('buffering', 'tasking', 'orchestrate'), True),
-        (('buffering', 'tasking', 'orchestrate'), False),
+    @pytest.mark.parametrize('opt,gpu_fit,async_degree', [
+        (('tasking', 'orchestrate'), True, None),
+        (('buffering', 'tasking', 'orchestrate'), True, None),
+        (('buffering', 'tasking', 'orchestrate'), False, None),
+        (('buffering', 'tasking', 'orchestrate'), False, 3),
     ])
-    def test_save(self, opt, gpu_fit):
+    def test_save(self, opt, gpu_fit, async_degree):
         nt = 10
         grid = Grid(shape=(300, 300, 300))
 
@@ -536,7 +537,8 @@ class TestStreaming(object):
         # For the given `nt` and grid shape, `usave` is roughly 4*5*300**3=~ .5GB of data
 
         op = Operator([Eq(u.forward, u + 1), Eq(usave, u.forward)],
-                      opt=(opt, {'gpu-fit': usave if gpu_fit else None}))
+                      opt=(opt, {'gpu-fit': usave if gpu_fit else None,
+                                 'buf-async-degree': async_degree}))
 
         op.apply(time_M=nt-1)
 
