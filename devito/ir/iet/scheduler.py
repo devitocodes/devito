@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
-                           XSubs)
+                           XSubs, Transformer)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper, timed_pass
 from devito.types import ConditionalDimension
@@ -69,6 +69,7 @@ def _lower_stepping_dims(iet):
 
     u[t1, x] = u[t0, x] + 1
     """
+    subs = {}
     for i in FindNodes(Iteration).visit(iet):
         if not i.uindices:
             # Be quick: avoid uselessy reconstructing nodes
@@ -80,13 +81,15 @@ def _lower_stepping_dims(iet):
         # two different calls to `xreplace`
         mindices = [d for d in i.uindices if d.is_Modulo]
         groups = as_mapper(mindices, lambda d: d.modulo)
+        i_org = i
         for k, v in groups.items():
             mapper = {d.origin: d for d in v}
             rule = lambda i: i.function.is_TimeFunction and i.function._time_size == k
             replacer = lambda i: xreplace_indices(i, mapper, rule)
-            iet = XSubs(replacer=replacer).visit(iet)
+            i = XSubs(replacer=replacer).visit(i)
+        subs[i_org] = i
 
-    return iet
+    return Transformer(subs).visit(iet)
 
 
 def _lower_conditional_dims(iet):
