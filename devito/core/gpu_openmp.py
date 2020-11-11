@@ -348,7 +348,7 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism
-        o['gpu-direct'] = oo.pop('gpu-direct', False)
+        o['gpu-direct'] = oo.pop('gpu-direct', True)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
