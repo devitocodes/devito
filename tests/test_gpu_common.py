@@ -441,17 +441,15 @@ class TestStreaming(object):
                 Eq(vsave, v, subdomain=bundle0)]
 
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': (usave, vsave)}))
-        op1 = Operator(eqns, opt=('buffering', 'topofuse', 'tasking', 'orchestrate'))
+        op1 = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate'))
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
         assert len(retrieve_iteration_tree(op1)) == 3
         symbols = FindSymbols().visit(op1)
-        locks = [i for i in symbols if isinstance(i, Lock)]
-        assert len(locks) == 2
-        threads = [i for i in symbols if isinstance(i, STDThread)]
-        assert len(threads) == 1
-        assert len(op1._func_table) == 1  # usave and vsave eqns have been fused
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 2
+        assert len([i for i in symbols if isinstance(i, STDThread)]) == 2
+        assert len(op1._func_table) == 2  # usave and vsave eqns are in two diff efuncs
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
