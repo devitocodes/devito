@@ -5,7 +5,8 @@ from devito.tools import as_tuple, is_integer
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_constant', 'q_affine',
-           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine']
+           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine',
+           'q_dimension']
 
 
 # The following SymPy objects are considered tree leaves:
@@ -199,3 +200,11 @@ def q_identity(expr, var):
     x + 2 -> True
     """
     return len(as_tuple(var)) == 1 and q_affine(expr, var) and (expr - var).is_Number
+
+
+def q_dimension(expr):
+    """
+    Return True if ``expr`` is a dimension, False otherwise.
+    """
+    from devito.types.dimension import Dimension
+    return isinstance(expr, Dimension)
