@@ -52,6 +52,7 @@ class Bundle(SubDomain):
         return {x: ('middle', 0, 0), y: ('middle', 0, 0), z: ('middle', 0, 0)}
 
 
+@skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
 class TestStreaming(object):
 
     def test_tasking_in_isolation(self):
