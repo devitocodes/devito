@@ -9,7 +9,8 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import Call, ElementalFunction, List, LocalExpression, FindSymbols
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
-from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders, iet_pass
+from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
+                               iet_pass)
 from devito.symbolics import Byref, DefFunction, Macro
 from devito.tools import as_tuple, prod, timed_pass
 from devito.types import Symbol
@@ -123,6 +124,11 @@ class DeviceAccizer(DeviceOmpizer):
         return iet, metadata
 
 
+class DeviceOpenACCOrchestrator(Orchestrator):
+
+    _Parallelizer = DeviceAccizer
+
+
 class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     _Parallelizer = DeviceAccizer
@@ -221,7 +227,10 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         # Device and host parallelism via OpenACC offloading
         accizer = DeviceAccizer(sregistry, options)
         accizer.make_parallel(graph)
-        accizer.make_orchestration(graph)
+
+        # Device and host orchestration
+        orchestrator = DeviceOpenACCOrchestrator(sregistry)
+        orchestrator.process(graph)
 
         # Symbol definitions
         DeviceOpenACCDataManager(sregistry, options).process(graph)
@@ -249,7 +258,10 @@ class DeviceOpenACCOperator(DeviceOpenMPOperator):
         # Device and host parallelism via OpenACC offloading
         accizer = DeviceAccizer(sregistry, options)
         accizer.make_parallel(graph)
-        accizer.make_orchestration(graph)
+
+        # Device and host orchestration
+        orchestrator = DeviceOpenACCOrchestrator(sregistry)
+        orchestrator.process(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -272,11 +284,12 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
         sregistry = kwargs['sregistry']
 
         accizer = DeviceAccizer(sregistry, options)
+        orchestrator = DeviceOpenACCOrchestrator(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
             'openacc': partial(accizer.make_parallel),
-            'orchestrate': partial(accizer.make_orchestration),
+            'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders)
         }

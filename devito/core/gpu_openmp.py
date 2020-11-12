@@ -1,8 +1,7 @@
-from collections import namedtuple
 from functools import partial, singledispatch
 
 import cgen as c
-from sympy import Or, Function
+from sympy import Function
 import numpy as np
 
 from devito.core.cpu import CustomOperator
@@ -10,11 +9,9 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, Conditional, ElementalFunction,
-                           Expression, List, PointerCast, SyncSpot, While, FindNodes,
-                           FindSymbols, LocalExpression, MapExprStmts, Transformer,
-                           derive_parameters, make_efunc)
-from devito.ir.support import Forward
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, Expression,
+                           List, FindNodes, FindSymbols, LocalExpression,
+                           MapExprStmts, Transformer)
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)
@@ -25,12 +22,9 @@ from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.symbolics import (Byref, CondEq, DefFunction, FieldFromComposite,
-                              ListInitializer, ccode)
-from devito.tools import (as_mapper, as_list, as_tuple, filter_ordered,
-                          filter_sorted, timed_pass)
-from devito.types import (Symbol, STDThread, WaitLock, WithLock, FetchWait,
-                          FetchWaitPrefetch, Delete)
+from devito.symbolics import Byref, ccode
+from devito.tools import as_tuple, filter_sorted, timed_pass
+from devito.types import Symbol
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -110,7 +104,7 @@ class DeviceOmpizer(Ompizer):
             return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
 
     @classmethod
-    def _map_to(cls, f, imask=None, **kwargs):
+    def _map_to(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-enter-to'](f.name, sections)
 
@@ -131,14 +125,14 @@ class DeviceOmpizer(Ompizer):
                                                       for i in cls._map_data(f)))
 
     @classmethod
-    def _map_update_host(cls, f, imask=None, **kwargs):
+    def _map_update_host(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-update-host'](f.name, sections)
 
     _map_update_wait_host = _map_update_host
 
     @classmethod
-    def _map_update_device(cls, f, imask=None, **kwargs):
+    def _map_update_device(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-update-device'](f.name, sections)
 
@@ -221,243 +215,6 @@ class DeviceOmpizer(Ompizer):
             return partree
         else:
             return super()._make_nested_partree(partree)
-
-    @iet_pass
-    def make_orchestration(self, iet):
-        """
-        Coordinate host and device parallelism. This pass:
-
-            * Implements smart transfer of data between host and device
-              exploiting the information carried by the IET produced by the
-              previous compilation passes;
-            * Creates asynchrnous tasks, implemented via C++ threads, which
-              are responsible for carrying out the data transfer
-            * Generates lock-based statements to implement synchronization
-              between the main thread and the asynchronous tasks.
-        """
-
-        def key(s):
-            # The SyncOps are to be processed in the following order
-            return [WaitLock, WithLock, Delete, FetchWait, FetchWaitPrefetch].index(s)
-
-        callbacks = {
-            WaitLock: self._make_orchestration_waitlock,
-            WithLock: self._make_orchestration_withlock,
-            FetchWait: self._make_orchestration_fetchwait,
-            FetchWaitPrefetch: self._make_orchestration_fetchwaitprefetch,
-            Delete: self._make_orchestration_delete
-        }
-
-        sync_spots = FindNodes(SyncSpot).visit(iet)
-
-        if not sync_spots:
-            return iet, {}
-
-        pieces = namedtuple('Pieces', 'init finalize efuncs threads')([], [], [], [])
-
-        subs = {}
-        for n in sync_spots:
-            mapper = as_mapper(n.sync_ops, lambda i: type(i))
-            for _type in sorted(mapper, key=key):
-                subs[n] = callbacks[_type](subs.get(n, n), mapper[_type], pieces)
-
-        iet = Transformer(subs).visit(iet)
-
-        # Add initialization and finalization code
-        init = List(body=pieces.init, footer=c.Line())
-        finalize = List(header=c.Line(), body=pieces.finalize)
-        iet = iet._rebuild(body=(init,) + iet.body + (finalize,))
-
-        return iet, {'efuncs': pieces.efuncs, 'includes': ['thread']}
-
-    def _make_orchestration_waitlock(self, iet, sync_ops, pieces):
-        waitloop = List(
-            header=c.Comment("Wait for `%s` to be copied to the host" %
-                             ",".join(s.target.name for s in sync_ops)),
-            body=While(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
-            footer=c.Line()
-        )
-
-        iet = List(body=(waitloop,) + iet.body)
-
-        return iet
-
-    def _make_orchestration_withlock(self, iet, sync_ops, pieces):
-        thread = STDThread(self.sregistry.make_name(prefix='thread'))
-        pieces.threads.append(thread)
-        queueid = len(pieces.threads)
-
-        threadwait = List(
-            body=Conditional(DefFunction(FieldFromComposite('joinable', thread)),
-                             Call(FieldFromComposite('join', thread)))
-        )
-
-        setlock = []
-        actions = []
-        for s in sync_ops:
-            setlock.append(Expression(DummyEq(s.handle, 0)))
-
-            imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
-                     for d in s.target.dimensions]
-            actions.append(List(
-                header=self._map_update_wait_host(s.target, imask, queueid=queueid),
-                body=Expression(DummyEq(s.handle, 1))
-            ))
-
-        # Turn `iet` into an ElementalFunction so that it can be
-        # executed asynchronously by `threadhost`
-        name = self.sregistry.make_name(prefix='copy_device_to_host')
-        body = (List(body=actions, footer=c.Line()),) + iet.body
-        efunc = make_efunc(name, List(body=body))
-        pieces.efuncs.append(efunc)
-
-        # Replace `iet` with a call to `efunc` plus locking
-        iet = List(
-            header=c.Comment("Wait for %s to be available again" % thread),
-            body=[threadwait] + [List(
-                header=c.Line(),
-                body=setlock + [List(
-                    header=[c.Line(), c.Comment("Spawn %s to perform the copy" % thread)],
-                    body=Call('std::thread', efunc.make_call(is_indirect=True),
-                              retobj=thread,)
-                )]
-            )]
-        )
-
-        # Initialize the locks
-        locks = sorted({s.lock for s in sync_ops}, key=lambda i: i.name)
-        for i in locks:
-            values = np.ones(i.shape, dtype=np.int32).tolist()
-            pieces.init.append(LocalExpression(DummyEq(i, ListInitializer(values))))
-
-        # Final wait before jumping back to Python land
-        pieces.finalize.append(List(
-            header=c.Comment("Wait for completion of %s" % thread),
-            body=threadwait
-        ))
-
-        return iet
-
-    def _make_orchestration_fetchwait(self, iet, sync_ops, pieces):
-        # Construct fetches
-        fetches = []
-        for s in sync_ops:
-            fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-            imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetches.append(self._map_to(s.function, imask))
-
-        # Glue together the new IET pieces
-        iet = List(header=fetches, body=iet)
-
-        return iet
-
-    def _make_orchestration_fetchwaitprefetch(self, iet, sync_ops, pieces):
-        thread = STDThread(self.sregistry.make_name(prefix='thread'))
-        pieces.threads.append(thread)
-        queueid = len(pieces.threads)
-
-        threadwait = Call(FieldFromComposite('join', thread))
-
-        fetches = []
-        prefetches = []
-        presents = []
-        for s in sync_ops:
-            if s.direction is Forward:
-                fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-                fsize = s.function._C_get_field(FULL, s.dim).size
-                fc_cond = fc + (s.size - 1) < fsize
-                pfc = s.fetch + 1
-                pfc_cond = pfc + (s.size - 1) < fsize
-            else:
-                fc = s.fetch.subs(s.dim, s.dim.symbolic_max)
-                fc_cond = fc >= 0
-                pfc = s.fetch - 1
-                pfc_cond = pfc >= 0
-
-            # Construct fetch IET
-            imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetch = List(header=self._map_to_wait(s.function, imask, queueid=queueid))
-            fetches.append(Conditional(fc_cond, fetch))
-
-            # Construct present clauses
-            imask = [(s.fetch, s.size) if d.root is s.dim.root else FULL
-                     for d in s.dimensions]
-            presents.extend(as_list(self._map_present(s.function, imask)))
-
-            # Construct prefetch IET
-            imask = [(pfc, s.size) if d.root is s.dim.root else FULL
-                     for d in s.dimensions]
-            prefetch = List(header=self._map_to_wait(s.function, imask, queueid=queueid))
-            prefetches.append(Conditional(pfc_cond, prefetch))
-
-        functions = filter_ordered(s.function for s in sync_ops)
-        casts = [PointerCast(f) for f in functions]
-
-        # Turn init IET into an efunc
-        name = self.sregistry.make_name(prefix='init_device')
-        body = List(body=casts + fetches)
-        parameters = filter_sorted(functions + derive_parameters(body))
-        efunc = ElementalFunction(name, body, 'void', parameters)
-        pieces.efuncs.append(efunc)
-
-        # Call init IET
-        efunc_call = efunc.make_call(is_indirect=True)
-        pieces.init.append(List(
-            header=c.Comment("Spawn %s to initialize data" % thread),
-            body=Call('std::thread', efunc_call, retobj=thread),
-            footer=c.Line()
-        ))
-
-        # Turn prefetch IET into an efunc
-        name = self.sregistry.make_name(prefix='prefetch_host_to_device')
-        body = List(body=casts + prefetches)
-        parameters = filter_sorted(functions + derive_parameters(body))
-        efunc = ElementalFunction(name, body, 'void', parameters)
-        pieces.efuncs.append(efunc)
-
-        # Call prefetch IET
-        efunc_call = efunc.make_call(is_indirect=True)
-        call = Call('std::thread', efunc_call, retobj=thread)
-
-        # Glue together all the new IET pieces
-        iet = List(
-            header=[c.Line(),
-                    c.Comment("Wait for %s to be available again" % thread)],
-            body=[threadwait, List(
-                header=[c.Line()] + presents,
-                body=(iet, List(
-                    header=[c.Line(), c.Comment("Spawn %s to prefetch data" % thread)],
-                    body=call,
-                    footer=c.Line()
-                ),)
-            )]
-        )
-
-        # Final wait before jumping back to Python land
-        pieces.finalize.append(List(
-            header=c.Comment("Wait for completion of %s" % thread),
-            body=threadwait
-        ))
-
-        return iet
-
-    def _make_orchestration_delete(self, iet, sync_ops, pieces):
-        # Construct deletion clauses
-        deletions = []
-        for s in sync_ops:
-            if s.dim.is_Custom:
-                fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-                imask = [(fc, s.size) if d.root is s.dim.root else FULL
-                         for d in s.dimensions]
-            else:
-                imask = [(s.fetch, s.size) if d.root is s.dim.root else FULL
-                         for d in s.dimensions]
-            deletions.append(self._map_delete(s.function, imask))
-
-        # Glue together the new IET pieces
-        iet = List(header=c.Line(), body=iet, footer=[c.Line()] + deletions)
-
-        return iet
 
 
 class DeviceOpenMPDataManager(DataManager):
@@ -871,7 +628,6 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         return {
             'optcomms': partial(optimize_halospots),
             'openmp': partial(ompizer.make_parallel),
-            'orchestrate': partial(ompizer.make_orchestration),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders),
             'gpu-direct': partial(mpi_gpu_direct)
@@ -886,7 +642,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
+        'optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
