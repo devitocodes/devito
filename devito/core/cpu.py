@@ -148,7 +148,7 @@ class CPU64NoopOperator(OperatorCore):
 class CPU64Operator(CPU64NoopOperator):
 
     @classmethod
-    @timed_pass(name='specializing.Expressions')
+    @timed_pass(name='specializing.DSL')
     def _specialize_dsl(cls, expressions, **kwargs):
         expressions = collect_derivatives(expressions)
 

@@ -489,10 +489,8 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
     @classmethod
-    @timed_pass(name='specializing.Expressions')
-    def _specialize_exprs(cls, expressions, **kwargs):
-        options = kwargs['options']
-
+    @timed_pass(name='specializing.DSL')
+    def _specialize_dsl(cls, expressions, **kwargs):
         expressions = collect_derivatives(expressions)
 
         return expressions
