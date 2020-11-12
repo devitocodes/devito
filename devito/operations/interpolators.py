@@ -367,13 +367,13 @@ class PrecomputedInterpolator(GenericInterpolator):
         def callback():
             _expr = indexify(expr)
             _field = indexify(field)
+            p, _ = self.obj.gridpoints.indices
 
-            p, _ = self.gridpoints.indices
             dim_subs = []
             coeffs = []
-            for i, d in enumerate(self.grid.dimensions):
+            for i, d in enumerate(self.obj.grid.dimensions):
                 rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-                dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
+                dim_subs.append((d, INT(rd + self.obj.gridpoints[p, i])))
                 coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
             rhs = prod(coeffs) * _expr
             _field = _field.subs(dim_subs)
