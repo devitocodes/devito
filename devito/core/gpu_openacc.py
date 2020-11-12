@@ -228,10 +228,6 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         accizer = DeviceAccizer(sregistry, options)
         accizer.make_parallel(graph)
 
-        # Device and host orchestration
-        orchestrator = DeviceOpenACCOrchestrator(sregistry)
-        orchestrator.process(graph)
-
         # Symbol definitions
         DeviceOpenACCDataManager(sregistry, options).process(graph)
 
@@ -258,10 +254,6 @@ class DeviceOpenACCOperator(DeviceOpenMPOperator):
         # Device and host parallelism via OpenACC offloading
         accizer = DeviceAccizer(sregistry, options)
         accizer.make_parallel(graph)
-
-        # Device and host orchestration
-        orchestrator = DeviceOpenACCOrchestrator(sregistry)
-        orchestrator.process(graph)
 
         # Misc optimizations
         hoist_prodders(graph)

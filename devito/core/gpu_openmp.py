@@ -495,15 +495,6 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
         expressions = collect_derivatives(expressions)
 
-        # Replace host Functions with Arrays, used as device buffers for
-        # streaming-in and -out of data
-        def callback(f):
-            if not is_on_device(f, options['gpu-fit']):
-                return [f.time_dim]
-            else:
-                return None
-        expressions = buffering(expressions, callback, options)
-
         return expressions
 
     @classmethod
@@ -512,11 +503,6 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
-
-        runs_on_host, reads_if_on_host = make_callbacks(options)
-
-        # Identify asynchronous tasks
-        clusters = Tasker(runs_on_host).process(clusters)
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
@@ -538,9 +524,6 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         # further optimizations
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters)
-
-        # Place data-streaming SyncOps
-        clusters = Streaming(reads_if_on_host).process(clusters)
 
         return clusters
 
