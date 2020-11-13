@@ -330,7 +330,7 @@ class CGen(Visitor):
         condition = ccode(o.condition)
         if o.body:
             body = flatten(self._visit(i) for i in o.children)
-            return c.While(condition, body)
+            return c.While(condition, c.Block(body))
         else:
             # Hack: cgen doesn't support body-less while-loops, i.e. `while(...);`
             return c.Statement('while(%s)' % condition)
