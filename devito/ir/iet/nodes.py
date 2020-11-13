@@ -355,10 +355,10 @@ class Expression(ExprStmt, Node):
         """The Functions read by the Expression."""
         return detect_io(self.expr, relax=True)[0]
 
-    @property
+    @cached_property
     def write(self):
         """The Function written by the Expression."""
-        return self.expr.lhs.function
+        return self.expr.lhs.base.function
 
     @cached_property
     def dimensions(self):
