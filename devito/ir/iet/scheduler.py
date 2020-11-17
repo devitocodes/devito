@@ -81,13 +81,13 @@ def _lower_stepping_dims(iet):
         # two different calls to `xreplace`
         mindices = [d for d in i.uindices if d.is_Modulo]
         groups = as_mapper(mindices, lambda d: d.modulo)
-        i_org = i
+        root = i
         for k, v in groups.items():
             mapper = {d.origin: d for d in v}
-            rule = lambda i: i.function.is_TimeFunction and i.function._time_size == k
-            replacer = lambda i: xreplace_indices(i, mapper, rule)
+            rule = lambda e: e.function.is_TimeFunction and e.function._time_size == k
+            replacer = lambda e: xreplace_indices(e, mapper, rule)
             i = XSubs(replacer=replacer).visit(i)
-        subs[i_org] = i
+        subs[root] = i
 
     return Transformer(subs).visit(iet)
 

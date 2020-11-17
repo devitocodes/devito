@@ -225,6 +225,9 @@ class TestCodeGen(object):
         g = Function(name="g", grid=grid, space_order=4)
         h = TimeFunction(name="h", grid=grid, space_order=4, time_order=2)
 
+        f.data[:] = 0.0
+        h.data[:] = 0.0
+
         eqn = [Eq(f, h + 1), Eq(g, f),
                Eq(h.forward, h + g + 1)]
 
@@ -239,6 +242,12 @@ class TestCodeGen(object):
             assert (exprtimeindices == set(iter.uindices))
             # Check if expressions time indices are modulo dimensions
             assert(all([i.is_Modulo for i in exprtimeindices]))
+
+        op.apply(time_M=10)
+
+        assert np.all(h.data[0, :] == 18)
+        assert np.all(h.data[1, :] == 20)
+        assert np.all(h.data[2, :] == 22)
 
     @skipif('device')
     def test_timedlist_wraps_time_if_parallel(self):
