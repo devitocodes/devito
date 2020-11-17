@@ -65,11 +65,14 @@ def get_cpu_info():
         cpu_info['flags'] = get_cpu_flags()
         cpu_info['brand'] = get_cpu_brand()
 
-    if not all(i in cpu_info for i in ('flags', 'brand')):
+    if cpu_info['flags'] is None or cpu_info['brand'] is None:
         # Fallback
         ci = cpuinfo.get_cpu_info()
         cpu_info['flags'] = ci.get('flags')
         cpu_info['brand'] = ci.get('brand')
+
+        if cpu_info['brand'] is None:
+            cpu_info['brand'] = ci.get('arch_string_raw')
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
@@ -301,7 +304,7 @@ def get_platform():
             return platform_registry['power8']
         elif 'power9' in brand:
             return platform_registry['power8']
-        elif 'arm' in brand:
+        elif 'arm' in brand or 'aarch64' in brand:
             return platform_registry['arm']
         elif 'amd' in brand:
             return platform_registry['amd']
