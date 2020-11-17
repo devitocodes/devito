@@ -23,11 +23,13 @@ RUN apt-get update -y && \
         liblapack-dev  \
         libblas-dev \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super && \
-    wget -q -P /app/\
-         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9_20.9_amd64.deb && \
+    wget -q -P /app/ \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9_20.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9-cuda-multi_20.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb && \
     apt-get install -y -q \
          /app/nvhpc-20-9_20.9_amd64.deb \
+         /app/nvhpc-20-9-cuda-multi_20.9_amd64.deb \
          /app/nvhpc-2020_20.9_amd64.deb && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
@@ -103,6 +105,7 @@ ENV PGI_ACC_TIME=1
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV UCX_MEMTYPE_CACHE=no
+ENV UCX_TLS=self,shm,cuda_copy
 
 ## Create App user 
 # Set the home directory to our app user's home.
