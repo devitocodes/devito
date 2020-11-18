@@ -49,8 +49,6 @@ RUN echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib" >> /etc/ld.so.conf.d/n
 ENV CUDA_ROOT /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda
 ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi/bin:${PATH}
 ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi/lib:${LD_LIBRARY_PATH}
-#ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/openmpi4/openmpi-4.0.5/lib:${LD_LIBRARY_PATH}
-#ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/11.0/extras/CUPTI/lib64:${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
@@ -74,8 +72,9 @@ ENV UCX_TLS=self,shm,cuda_copy
 ENV CPATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi/include:${CPATH}
 ENV CFLAGS=-noswitcherror
 RUN rm -f  /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi && \
-    ln -sf  /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/openmpi4/openmpi-4.0.5  /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi
-RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
+    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/openmpi4/openmpi-4.0.5 \
+           /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
     rm -rf ~/.cache/pip
 ENV CFLAGS=
 
@@ -119,13 +118,13 @@ ENV APP_HOME=/app
 # Create the home directory for the new app user.
 # Create an app user so our program doesn't run as root.
 # Chown all the files to the app user.
-#RUN mkdir -p /app && \
-#    groupadd -r app && \
-#    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
-#    chown -R app:app $APP_HOME
+RUN mkdir -p /app && \
+    groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app $APP_HOME
 
 # Change to the app user.
-#USER app
+USER app
 WORKDIR /app
 
 EXPOSE 8888
