@@ -71,15 +71,15 @@ class TestCodeGeneration(object):
         assert 'prefetch_host_to_device0' in op._func_table
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2
-        s = sections[0].body[0].body[1]
-        assert str(s.body[0].footer[1]) == ('#pragma acc exit data delete'
+        s = sections[0].body[0]
+        assert str(s.body[3].footer[1]) == ('#pragma acc exit data delete'
                                             '(u[time:1][0:u_vec->size[1]][0:u_vec'
                                             '->size[2]][0:u_vec->size[3]])')
-        assert str(s.header[1]) == ('#pragma acc data present(u[time:1][0:u_vec->'
-                                    'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert str(s.body[2]) == ('#pragma acc data present(u[time:1][0:u_vec->'
+                                  'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
-        assert 'present(f)' in str(trees[1][1].pragmas[0])
+        assert 'present(f)' in str(trees[0][1].pragmas[0])
 
 
 class TestOperator(object):
