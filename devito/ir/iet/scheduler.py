@@ -86,8 +86,8 @@ def _lower_stepping_dims(iet):
             mapper = {d.origin: d for d in v}
             rule = lambda e: e.function.is_TimeFunction and e.function._time_size == k
             replacer = lambda e: xreplace_indices(e, mapper, rule)
-            i = XSubs(replacer=replacer).visit(i)
-        subs[root] = i
+            root = XSubs(replacer=replacer).visit(root)
+        subs[i] = root
 
     return Transformer(subs).visit(iet)
 
