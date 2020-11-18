@@ -6,7 +6,6 @@ from devito.ir.iet import (List, Prodder, FindNodes, Transformer, make_efunc,
                            compose_nodes, filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
 from devito.tools import flatten, is_integer, split
-from devito import archinfo
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
 
@@ -19,7 +18,7 @@ def avoid_denormals(iet):
     are normally flushed when using SSE-based instruction sets, except when
     compiling shared objects.
     """
-    if iet.is_ElementalFunction or isinstance(archinfo.get_platform(), archinfo.Arm):
+    if iet.is_ElementalFunction:
         return iet, {}
 
     header = (cgen.Comment('Flush denormal numbers to zero in hardware'),

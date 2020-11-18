@@ -319,8 +319,71 @@ class Intel64FSGOpenMPOperator(Intel64FSGOperator, CPU64OpenMPOperator):
 PowerOperator = CPU64Operator
 PowerOpenMPOperator = CPU64OpenMPOperator
 
-ArmOperator = CPU64Operator
-ArmOpenMPOperator = CPU64OpenMPOperator
+
+class ArmOperator(CPU64Operator):
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
+
+        # Distributed-memory parallelism
+        optimize_halospots(graph)
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # Lower IncrDimensions so that blocks of arbitrary shape may be used
+        relax_incr_dimensions(graph, sregistry=sregistry)
+
+        # SIMD-level parallelism
+        ompizer = Ompizer(sregistry, options)
+        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+
+        # Misc optimizations
+        hoist_prodders(graph)
+
+        # Symbol definitions
+        data_manager = DataManager(sregistry)
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph
+
+
+class ArmOpenMPOperator(CPU64OpenMPOperator):
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
+
+        # Distributed-memory parallelism
+        optimize_halospots(graph)
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # Lower IncrDimensions so that blocks of arbitrary shape may be used
+        relax_incr_dimensions(graph, sregistry=sregistry)
+
+        # SIMD-level parallelism
+        ompizer = Ompizer(sregistry, options)
+        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+
+        # Shared-memory parallelism
+        ompizer.make_parallel(graph)
+
+        # Misc optimizations
+        hoist_prodders(graph)
+
+        # Symbol definitions
+        data_manager = DataManager(sregistry)
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph
 
 
 class CustomOperator(CPU64Operator):
