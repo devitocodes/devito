@@ -12,8 +12,9 @@ from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
-                          PointerArray, Timer)
-from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer, DefFunction
+                          PointerArray, Lock, STDThreadArray, SharedData, Timer)
+from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
+                              FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
@@ -191,6 +192,61 @@ def test_custom_dimension():
 
     assert d.name == new_d.name
     assert d.symbolic_size.name == new_d.symbolic_size.name
+
+
+def test_lock():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    ld = CustomDimension(name='ld', symbolic_size=2)
+    lock = Lock(name='lock', dimensions=ld, target=f)
+
+    pkl_lock = pickle.dumps(lock)
+    new_lock = pickle.loads(pkl_lock)
+
+    lock.name == new_lock.name
+    new_lock.dimensions[0].symbolic_size == ld.symbolic_size
+    new_lock.target.name == f.name
+    new_lock.target.shape == f.shape
+
+
+def test_std_thread_array():
+    a = STDThreadArray(name='threads', nthreads_std=4)
+
+    pkl_a = pickle.dumps(a)
+    new_a = pickle.loads(pkl_a)
+
+    assert a.name == new_a.name
+    assert a.dimensions[0].name == new_a.dimensions[0].name
+    assert a.size == new_a.size
+
+
+def test_shared_data():
+    s = Scalar(name='s')
+
+    sdata = SharedData(name='sdata', nthreads_std=2, fields=[s])
+
+    pkl_sdata = pickle.dumps(sdata)
+    new_sdata = pickle.loads(pkl_sdata)
+
+    assert sdata.name == new_sdata.name
+    assert sdata.size == new_sdata.size
+    assert sdata.fields == new_sdata.fields
+    assert sdata.pfields == new_sdata.pfields
+
+    ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
+
+    pkl_ffp = pickle.dumps(ffp)
+    new_ffp = pickle.loads(pkl_ffp)
+
+    assert ffp == new_ffp
+
+    indexed = sdata[0]
+
+    pkl_indexed = pickle.dumps(indexed)
+    new_indexed = pickle.loads(pkl_indexed)
+
+    assert indexed.name == new_indexed.name
+    assert indexed.shape == new_indexed.shape
 
 
 def test_receiver():
