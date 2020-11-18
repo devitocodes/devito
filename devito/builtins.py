@@ -229,7 +229,7 @@ def nbl_to_padsize(nbl, ndim):
 
 
 def initialize_function(function, data, nbl, mapper=None, mode='constant',
-                        name='padfunc', **kwargs):
+                        name='padfunc', pad_halo=True, **kwargs):
     """
     Initialize a Function with the given ``data``. ``data``
     does *not* include the ``nbl`` outer/boundary layers; these are added via padding
@@ -255,6 +255,8 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         accepted.
     name : str, optional
         The name assigned to the operator.
+    pad_halo : bool, optional
+        Whether to pad the FD halo as well.
 
     Examples
     --------
@@ -304,10 +306,11 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
             function.data[:] = data.data[:]
         else:
             function.data[:] = data[:]
+        if pad_halo:
+            pad_fd_halo(function)
         return
 
     nbl = nbl_to_padsize(nbl, function.ndim)
-
     slices = tuple([slice(nl, -nr) for _, (nl, nr) in zip(range(function.grid.dim),
                                                           as_tuple(nbl))])
     if isinstance(data, dv.Function):
@@ -363,6 +366,29 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         options = None
 
     assign(lhs, rhs, options=options, name=name, **kwargs)
+
+    if pad_halo:
+        pad_fd_halo(function)
+
+
+def pad_fd_halo(function):
+    """ Pad finite-difference halo with edge values."""
+    h_shape = function._data_with_outhalo.shape
+    for i, h in enumerate(function._size_outhalo):
+        if h.left == 0 and h.right == 0:
+            continue
+        slices = [slice(None)]*len(function.shape)
+        slices_d = [slice(None)]*len(function.shape)
+        # left part
+        slices[i] = slice(0, h.left)
+        slices_d[i] = slice(h.left, h.left+1, 1)
+        function._data_with_outhalo[tuple(slices)] \
+            = function._data_with_outhalo[tuple(slices_d)]
+        # right part
+        slices[i] = slice(h_shape[i] - h.right, h_shape[i], 1)
+        slices_d[i] = slice(h_shape[i] - h.right - 1, h_shape[i] - h.right, 1)
+        function._data_with_outhalo[tuple(slices)] \
+            = function._data_with_outhalo[tuple(slices_d)]
 
 
 # Reduction-inducing builtins
