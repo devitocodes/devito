@@ -256,7 +256,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     name : str, optional
         The name assigned to the operator.
     pad_halo : bool, optional
-        Whether to pad the FD halo as well.
+        Whether to also pad the finite-difference halo.
 
     Examples
     --------
@@ -375,20 +375,21 @@ def pad_fd_halo(function):
     """ Pad finite-difference halo with edge values."""
     h_shape = function._data_with_outhalo.shape
     for i, h in enumerate(function._size_outhalo):
-        if h.left == 0 and h.right == 0:
-            continue
         slices = [slice(None)]*len(function.shape)
         slices_d = [slice(None)]*len(function.shape)
-        # left part
-        slices[i] = slice(0, h.left)
-        slices_d[i] = slice(h.left, h.left+1, 1)
-        function._data_with_outhalo[tuple(slices)] \
-            = function._data_with_outhalo[tuple(slices_d)]
-        # right part
-        slices[i] = slice(h_shape[i] - h.right, h_shape[i], 1)
-        slices_d[i] = slice(h_shape[i] - h.right - 1, h_shape[i] - h.right, 1)
-        function._data_with_outhalo[tuple(slices)] \
-            = function._data_with_outhalo[tuple(slices_d)]
+        if h.left != 0:
+            # left part
+            slices[i] = slice(0, h.left)
+            slices_d[i] = slice(h.left, h.left+1, 1)
+            function._data_with_outhalo._local[tuple(slices)] \
+                = function._data_with_outhalo._local[tuple(slices_d)]
+        if h.right != 0:
+            # right part
+            slices[i] = slice(h_shape[i] - h.right, h_shape[i], 1)
+            slices_d[i] = slice(h_shape[i] - h.right - 1, h_shape[i] - h.right, 1)
+            print(i, slices, slices_d)
+            function._data_with_outhalo._local[tuple(slices)] \
+                = function._data_with_outhalo._local[tuple(slices_d)]
 
 
 # Reduction-inducing builtins

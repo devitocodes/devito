@@ -242,9 +242,9 @@ class Differentiable(sympy.Expr, Evaluable):
 
     def div(self, shift=None):
         space_dims = [d for d in self.dimensions if d.is_Space]
-        derivs = tuple('d%s' % d.name for d in space_dims)
-        return Add(*[getattr(self, d)(x0=None if shift is None else d + shift * d.spacing)
-                     for d in derivs])
+        return Add(*[getattr(self, 'd%s' % d.name)(x0=None if shift is None else
+                                                   d + shift * d.spacing)
+                     for d in space_dims])
 
     def grad(self, shift=None):
         from devito.types.tensor import VectorFunction, VectorTimeFunction

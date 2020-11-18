@@ -262,11 +262,13 @@ class TestInitializeFunction(object):
         assert np.all(np.take(f._data_with_outhalo, 0, axis=0) == 2)
         assert np.all(np.take(f._data_with_outhalo, -1, axis=0) == 4)
         if ndim == 3:
+            assert f._data_with_outhalo[7, 7, 7] == 0
             assert np.take(f._data_with_outhalo, 0, axis=-1)[7, 7] == 1
             assert np.take(f._data_with_outhalo, -1, axis=-1)[7, 7] == 3
             assert np.take(f._data_with_outhalo, 0, axis=1)[7, 7] == 5
             assert np.take(f._data_with_outhalo, -1, axis=1)[7, 7] == 6
         else:
+            assert f._data_with_outhalo[7, 7] == 0
             assert np.take(f._data_with_outhalo, 0, axis=-1)[7] == 1
             assert np.take(f._data_with_outhalo, -1, axis=-1)[7] == 3
 
