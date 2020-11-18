@@ -387,7 +387,6 @@ def pad_fd_halo(function):
             # right part
             slices[i] = slice(h_shape[i] - h.right, h_shape[i], 1)
             slices_d[i] = slice(h_shape[i] - h.right - 1, h_shape[i] - h.right, 1)
-            print(i, slices, slices_d)
             function._data_with_outhalo._local[tuple(slices)] \
                 = function._data_with_outhalo._local[tuple(slices_d)]
 
