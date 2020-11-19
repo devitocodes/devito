@@ -296,8 +296,8 @@ def test_cache_blocking_imperfect_nest(blockinner):
     assert trees[0][4] is not trees[1][4]
     assert trees[0].root.dim.is_Incr
     assert trees[1].root.dim.is_Incr
-    assert op1.parameters[8] is trees[0][0].step
-    assert op1.parameters[11] is trees[0][1].step
+    assert op1.parameters[7] is trees[0][0].step
+    assert op1.parameters[10] is trees[0][1].step
 
     u.data[:] = 0.2
     v.data[:] = 1.5
@@ -341,7 +341,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert trees[0][2] is not trees[1][2]
     assert trees[0].root.dim.is_Incr
     assert trees[1].root.dim.is_Incr
-    assert op2.parameters[7] is trees[0].root.step
+    assert op2.parameters[6] is trees[0].root.step
 
     op0(time_M=0)
 

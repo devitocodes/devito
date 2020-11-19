@@ -130,12 +130,12 @@ class TestCodeGen(object):
         assert op.parameters[0].is_Tensor
         assert op.parameters[1].name == 'constant'
         assert op.parameters[1].is_Scalar
-        assert op.parameters[2].name == 'timers'
-        assert op.parameters[2].is_Object
-        assert op.parameters[3].name == 'x_M'
+        assert op.parameters[2].name == 'x_M'
+        assert op.parameters[2].is_Scalar
+        assert op.parameters[3].name == 'x_m'
         assert op.parameters[3].is_Scalar
-        assert op.parameters[4].name == 'x_m'
-        assert op.parameters[4].is_Scalar
+        assert op.parameters[4].name == 'timers'
+        assert op.parameters[4].is_Object
         assert 'a_dense[x + 1] = 2.0F*constant + a_dense[x + 1]' in str(op)
 
     @pytest.mark.parametrize('expr, so, to, expected', [
