@@ -103,6 +103,16 @@ class DataManager(object):
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
 
+    def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
+        """
+        Allocate an Array of Objects in the low latency memory.
+        """
+        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
+        alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
+        decl = "%s%s %s" % (obj.name, shape, alignment)
+
+        storage.update(obj, site, allocs=c.Value(obj._C_typedata, decl))
+
     def _alloc_pointed_array_on_high_bw_mem(self, site, obj, storage):
         """
         Allocate the following objects in the high bandwidth memory:
@@ -240,6 +250,9 @@ class DataManager(object):
                             self._alloc_array_on_high_bw_mem(site, i, storage)
                         else:
                             self._alloc_array_on_low_lat_mem(site, i, storage)
+                    elif i.is_ObjectArray:
+                        # ObjectArray's get placed at the top of the IET
+                        self._alloc_object_array_on_low_lat_mem(iet, i, storage)
                     elif i.is_PointerArray:
                         # PointerArray's get placed at the top of the IET
                         self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
