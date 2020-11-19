@@ -343,7 +343,7 @@ class Ompizer(object):
             mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
         else:
             # Introduce one `omp atomic` pragma for each increment
-            mapper = {i: List(header=self.lang['atomic'], body=i) for i in exprs}
+            mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
 
         partree = Transformer(mapper).visit(partree)
 
