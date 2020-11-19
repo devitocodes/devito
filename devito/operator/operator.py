@@ -20,7 +20,7 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine
+from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
@@ -371,8 +371,8 @@ class Operator(Callable):
         # Build an IET from a ScheduleTree
         iet = iet_build(stree)
 
-        # Instrument the IET for C-level profiling
-        iet = profiler.instrument(iet)
+        # Analyze the IET Sections for C-level profiling
+        profiler.analyze(iet)
 
         # Lower all DerivedDimensions
         iet = iet_lower_dims(iet)
@@ -384,6 +384,11 @@ class Operator(Callable):
         # Lower IET to a target-specific IET
         graph = Graph(iet)
         graph = cls._specialize_iet(graph, **kwargs)
+
+        # Instrument the IET for C-level profiling
+        # Note: this is postponed until after _specialize_iet because during
+        # specialization further Sections may be introduced
+        instrument(graph, profiler=profiler)
 
         return graph.root, graph
 
@@ -477,9 +482,6 @@ class Operator(Callable):
             except AttributeError:
                 # User-provided floats/ndarray obviously do not have `_arg_as_ctype`
                 args.update(p._arg_as_ctype(args, alias=p))
-
-        # Add in the profiler argument
-        args[self._profiler.name] = self._profiler.timer.reset()
 
         # Add in any backend-specific argument
         args.update(kwargs.pop('backend', {}))

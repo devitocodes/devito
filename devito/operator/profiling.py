@@ -1,6 +1,5 @@
 from collections import OrderedDict, namedtuple
 from contextlib import contextmanager
-from ctypes import c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
@@ -9,7 +8,6 @@ from time import time as seq_time
 import os
 
 import cgen as c
-from cached_property import cached_property
 
 from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
                            Iteration, FindNodes, Transformer)
@@ -18,9 +16,8 @@ from devito.logger import warning, error
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
-from devito.types import CompositeObject
 
-__all__ = ['Timer', 'create_profile']
+__all__ = ['create_profile']
 
 
 SectionData = namedtuple('SectionData', 'ops sops points traffic itermaps')
@@ -51,15 +48,16 @@ class Profiler(object):
 
         self.initialized = True
 
-    def instrument(self, iet):
+    def analyze(self, iet):
         """
-        Enrich the Iteration/Expression tree ``iet`` adding nodes for C-level
-        performance profiling. In particular, turn all Sections within ``iet``
-        into TimedLists.
+        Analyze the Sections in the given IET. This populates `self._sections`.
         """
         sections = FindNodes(Section).visit(iet)
-        for section in sections:
-            bundles = FindNodes(ExpressionBundle).visit(section)
+        for s in sections:
+            if s.name in self._sections:
+                continue
+
+            bundles = FindNodes(ExpressionBundle).visit(s)
 
             # Total operation count
             ops = sum(i.ops*i.ispace.size for i in bundles)
@@ -83,7 +81,7 @@ class Profiler(object):
             # Each ExpressionBundle lives in its own iteration space
             itermaps = [i.ispace.dimension_map for i in bundles]
 
-            # Track how many grid points are written within `section`
+            # Track how many grid points are written within `s`
             points = []
             for i in bundles:
                 writes = {e.write for e in i.exprs
@@ -91,13 +89,21 @@ class Profiler(object):
                 points.append(i.size*len(writes))
             points = sum(points)
 
-            self._sections[section] = SectionData(ops, sops, points, traffic, itermaps)
+            self._sections[s.name] = SectionData(ops, sops, points, traffic, itermaps)
 
-        # Transform the Iteration/Expression tree introducing the C-level timers
-        mapper = {i: TimedList(timer=self.timer, lname=i.name, body=i) for i in sections}
-        iet = Transformer(mapper).visit(iet)
-
-        return iet
+    def instrument(self, iet, timer):
+        """
+        Instrument the given IET for C-level performance profiling.
+        """
+        sections = FindNodes(Section).visit(iet)
+        if sections:
+            mapper = {}
+            for i in sections:
+                assert i.name in timer.fields
+                mapper[i] = TimedList(timer=timer, lname=i.name, body=i)
+            return Transformer(mapper).visit(iet)
+        else:
+            return iet
 
     @contextmanager
     def timer_on(self, name, comm=None):
@@ -147,9 +153,7 @@ class Profiler(object):
         comm = args.comm
 
         summary = PerformanceSummary()
-        for section, data in self._sections.items():
-            name = section.name
-
+        for name, data in self._sections.items():
             # Time to run the section
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
@@ -165,10 +169,6 @@ class Profiler(object):
 
         return summary
 
-    @cached_property
-    def timer(self):
-        return Timer(self.name, [i.name for i in self._sections])
-
 
 class AdvancedProfiler(Profiler):
 
@@ -178,9 +178,7 @@ class AdvancedProfiler(Profiler):
         comm = args.comm
 
         summary = PerformanceSummary()
-        for section, data in self._sections.items():
-            name = section.name
-
+        for name, data in self._sections.items():
             # Time to run the section
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
@@ -265,6 +263,9 @@ class AdvisorProfiler(AdvancedProfiler):
             compiler.add_library_dirs(libdir)
             compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
 
+    def analyze(self, iet):
+        return
+
     def instrument(self, iet):
         # Look for the presence of a time loop within the IET of the Operator
         found = False
@@ -281,28 +282,6 @@ class AdvisorProfiler(AdvancedProfiler):
                         footer=c.Statement('%s()' % self._api_pause))
 
         return iet
-
-
-class Timer(CompositeObject):
-
-    def __init__(self, name, sections):
-        super(Timer, self).__init__(name, 'profiler', [(i, c_double) for i in sections])
-
-    def reset(self):
-        for i in self.fields:
-            setattr(self.value._obj, i, 0.0)
-        return self.value
-
-    @property
-    def total(self):
-        return sum(getattr(self.value._obj, i) for i in self.fields)
-
-    @property
-    def sections(self):
-        return self.fields
-
-    # Pickling support
-    _pickle_args = ['name', 'sections']
 
 
 class PerformanceSummary(OrderedDict):
