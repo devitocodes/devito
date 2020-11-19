@@ -10,7 +10,7 @@ from collections.abc import Iterable
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.equations import ClusterizedEq
+from devito.ir.equations import ClusterizedEq, DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
                                AFFINE, Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
@@ -23,7 +23,8 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot']
+           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
+           'DummyExpr', 'BlankLine']
 
 # First-class IET nodes
 
@@ -1059,6 +1060,20 @@ class SyncSpot(List):
         return "<SyncSpot (%s)>" % ",".join(str(i) for i in self.sync_ops)
 
 
+class CBlankLine(List):
+
+    def __init__(self, **kwargs):
+        super().__init__(header=c.Line())
+
+    def __repr__(self):
+        return ""
+
+
+def DummyExpr(*args):
+    return Expression(DummyEq(*args))
+
+
+BlankLine = CBlankLine()
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))
 
 
