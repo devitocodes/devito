@@ -2,7 +2,7 @@ from collections import OrderedDict, defaultdict
 
 from devito.ir.support.space import Interval
 from devito.ir.support.stencil import Stencil
-from devito.symbolics import retrieve_indexed, retrieve_terminals
+from devito.symbolics import FunctionFromPointer, retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted, is_integer
 from devito.types import Dimension, ModuloDimension
 
@@ -167,7 +167,15 @@ def detect_io(exprs, relax=False):
             f = i.lhs.function
         except AttributeError:
             continue
-        if rule(f):
-            writes.append(f)
+        try:
+            if rule(f):
+                writes.append(f)
+        except AttributeError:
+            # We only end up here after complex IET transformations which make
+            # use of composite types
+            assert isinstance(i.lhs, FunctionFromPointer)
+            f = i.lhs.base.function
+            if rule(f):
+                writes.append(f)
 
     return filter_sorted(reads), filter_sorted(writes)
