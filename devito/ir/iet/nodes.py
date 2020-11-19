@@ -15,7 +15,7 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORI
                                AFFINE, Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          validate_type, dtype_to_cstr)
+                          validate_type)
 from devito.types import Symbol, Indexed
 from devito.types.basic import AbstractFunction
 
@@ -271,7 +271,7 @@ class Call(ExprStmt, Node):
     def functions(self):
         retval = tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
         if self.base is not None:
-            retval += (self.base,)
+            retval += (self.base.function,)
         if self.retobj is not None:
             retval += (self.retobj.function,)
         return retval
@@ -656,10 +656,8 @@ class Callable(Node):
         self.parameters = as_tuple(parameters)
 
     def __repr__(self):
-        parameters = ",".join(['void*' if i.is_Object else dtype_to_cstr(i.dtype)
-                               for i in self.parameters])
         return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
-                                   parameters)
+                                   ",".join([i._C_typename for i in self.parameters]))
 
     @property
     def functions(self):
@@ -855,6 +853,10 @@ class LocalExpression(Expression):
     """
 
     is_LocalExpression = True
+
+    @cached_property
+    def write(self):
+        return self.expr.lhs.function
 
     @property
     def defines(self):
