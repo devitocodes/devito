@@ -75,7 +75,7 @@ class DeviceAccizer(DeviceOmpizer):
         'map-update-device': lambda i, j:
             c.Pragma('acc update device(%s%s)' % (i, j)),
         'map-update-wait-device': lambda i, j, k:
-            (c.Pragma('acc update device(%s%s) async(k)' % (i, j, k)),
+            (c.Pragma('acc update device(%s%s) async(%s)' % (i, j, k)),
              c.Pragma('acc wait(%s)' % k)),
         'map-release': lambda i, j:
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
