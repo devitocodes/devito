@@ -71,7 +71,7 @@ class CPU64NoopOperator(OperatorCore):
     threshold. Otherwise, use static scheduling.
     """
 
-    PAR_NESTED = 2
+    PAR_NESTED = 2 
     """
     Use nested parallelism if the number of hyperthreads per core is greater
     than this threshold.
@@ -320,7 +320,8 @@ PowerOperator = CPU64Operator
 PowerOpenMPOperator = CPU64OpenMPOperator
 
 
-class ArmOperator(CPU64Operator):
+class ArmOperator(CPU64Operator): 
+
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
@@ -352,6 +353,8 @@ class ArmOperator(CPU64Operator):
 
 
 class ArmOpenMPOperator(CPU64OpenMPOperator):
+
+    PAR_NESTED = 8
 
     @classmethod
     @timed_pass(name='specializing.IET')
