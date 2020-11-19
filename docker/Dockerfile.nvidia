@@ -35,20 +35,23 @@ RUN apt-get update -y && \
     rm -rf /app/nvhpc* && \
     rm -rf /var/lib/apt/lists/*
 
+ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2020
+
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 
 # required for nvidia-docker v1
-RUN echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf
+RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf
     
 # Compiler, CUDA, and Library paths
-ENV CUDA_ROOT /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda
-ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi/bin:${PATH}
-ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi/lib:${LD_LIBRARY_PATH}
+ENV CUDA_HOME $HPCSDK_HOME/cuda
+ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
+ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
+ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
@@ -69,11 +72,11 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV UCX_MEMTYPE_CACHE=no
 ENV UCX_TLS=self,shm,cuda_copy
 
-ENV CPATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi/include:${CPATH}
+ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 ENV CFLAGS=-noswitcherror
-RUN rm -f  /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi && \
-    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/openmpi4/openmpi-4.0.5 \
-           /opt/nvidia/hpc_sdk/Linux_x86_64/2020/comm_libs/mpi && \
+RUN rm -f  $HPCSDK_HOME/comm_libs/mpi && \
+    ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
+           $HPCSDK_HOME/comm_libs/mpi && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
     rm -rf ~/.cache/pip
 ENV CFLAGS=
