@@ -13,7 +13,7 @@ from devito.ir import (List, LocalExpression, PointerCast, FindSymbols,
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.openmp import Ompizer
 from devito.symbolics import ccode
-from devito.tools import as_mapper, as_tuple, flatten
+from devito.tools import as_mapper, flatten
 
 __all__ = ['DataManager', 'Storage']
 
@@ -207,7 +207,9 @@ class DataManager(object):
                 else:
                     objs = [k.parray]
             elif k.is_Call:
-                objs = k.arguments + as_tuple(k.retobj)
+                objs = list(k.arguments)
+                if k.retobj is not None:
+                    objs.append(k.retobj.function)
 
             for i in objs:
                 if i in placed:
