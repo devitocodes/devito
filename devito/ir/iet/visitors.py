@@ -377,6 +377,10 @@ class CGen(Visitor):
                     for i in o._includes]
         includes += [blankline]
         cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
+        for i in o._func_table.values():
+            if i.local:
+                cdefs.extend([j._C_typedecl for j in i.root.parameters
+                              if j._C_typedecl is not None])
         cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
         if o._compiler.src_ext == 'cpp':
             cdefs += [c.Extern('C', signature)]
