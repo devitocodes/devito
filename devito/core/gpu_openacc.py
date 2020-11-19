@@ -37,8 +37,10 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
         symbols = FindSymbols().visit(kwargs['nodes'])
 
         deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
-        presents = [i.name for i in symbols if i.is_AbstractFunction and
-                    is_on_device(i, kwargs['gpu_fit']) and i.name not in deviceptrs]
+        presents = [i.name for i in symbols
+                    if (i.is_AbstractFunction and
+                        is_on_device(i, kwargs['gpu_fit']) and
+                        i.name not in deviceptrs)]
 
         # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
         # indirectly indexed arrays (e.g., a[b[i]]) unless a present clause is used

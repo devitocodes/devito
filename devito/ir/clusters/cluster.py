@@ -33,9 +33,9 @@ class Cluster(object):
         Mapper from Dimensions to Property, describing the Cluster properties
         such as its parallel Dimensions.
     syncs : dict, optional
-        Mapper from Dimensions to list of SyncOps, that is ordered sequences of
-        synchronization operations that must be performed prior to computing the
-        Cluster if asynchronous execution (e.g., via threads) is used.
+        Mapper from Dimensions to lists of SyncOps, that is ordered sequences of
+        synchronization operations that must be performed in order to compute the
+        Cluster asynchronously.
     """
 
     def __init__(self, exprs, ispace, dspace, guards=None, properties=None, syncs=None):
