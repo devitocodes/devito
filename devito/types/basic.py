@@ -1166,7 +1166,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
     def __new__(cls, label, shape=None, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
-            label = Symbol(name=label, dtype=function.dtype)
+            label = Symbol(name=label, dtype=None)
         obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
