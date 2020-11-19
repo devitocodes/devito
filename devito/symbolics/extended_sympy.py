@@ -139,6 +139,10 @@ class FunctionFromPointer(sympy.Expr, Pickable):
         else:
             return self.pointer
 
+    @property
+    def dtype(self):
+        return self.base.function.dtype
+
     # Pickling support
     _pickle_args = ['function', 'pointer']
     _pickle_kwargs = ['params']
