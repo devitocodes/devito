@@ -213,6 +213,42 @@ class TestCodeGen(object):
         assert(i.indices[i.function._time_position].modulo == exp_mods[i.function.name]
                for i in flatten(retrieve_indexed(i) for i in exprs))
 
+    def test_lower_stepping_dims_with_mutiple_iterations(self):
+        """
+        Test lowering SteppingDimensions for a time dimension with
+        more than one iteration loop with different ModuloDimensions.
+        MFE for issue #1486
+        """
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name="f", grid=grid, space_order=4)
+        g = Function(name="g", grid=grid, space_order=4)
+        h = TimeFunction(name="h", grid=grid, space_order=4, time_order=2)
+
+        f.data[:] = 0.0
+        h.data[:] = 0.0
+
+        eqn = [Eq(f, h + 1), Eq(g, f),
+               Eq(h.forward, h + g + 1)]
+
+        op = Operator(eqn)
+
+        for iter in [i for i in FindNodes(Iteration).visit(op) if i.dim.is_Time]:
+            exprtimeindices = set([a.indices[a.function._time_position] for
+                                   expr in FindNodes(Expression).visit(iter) for
+                                   a in retrieve_indexed(expr.expr) if
+                                   isinstance(a.function, TimeFunction)])
+            # Check if iteration time indices match with expressions time indices
+            assert (exprtimeindices == set(iter.uindices))
+            # Check if expressions time indices are modulo dimensions
+            assert(all([i.is_Modulo for i in exprtimeindices]))
+
+        op.apply(time_M=10)
+
+        assert np.all(h.data[0, :] == 18)
+        assert np.all(h.data[1, :] == 20)
+        assert np.all(h.data[2, :] == 22)
+
     @skipif('device')
     def test_timedlist_wraps_time_if_parallel(self):
         """

@@ -417,6 +417,7 @@ def collect(exprs, ignore_collected, options):
 
             # For each Group, find a rotation that is compatible with a given MI
             mapper = {}
+
             for d, intervals in intervalss.items():
                 for interval in list(intervals):
                     found = {g: g.find_rotation_distance(d, interval) for g in groups}

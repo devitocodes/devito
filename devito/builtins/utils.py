@@ -1,0 +1,88 @@
+import numpy as np
+
+import devito as dv
+from devito.tools import as_tuple
+
+
+class MPIReduction(object):
+    """
+    A context manager to build MPI-aware reduction Operators.
+    """
+
+    def __init__(self, *functions, op=dv.mpi.MPI.SUM):
+        grids = {f.grid for f in functions}
+        if len(grids) == 0:
+            self.grid = None
+        elif len(grids) == 1:
+            self.grid = grids.pop()
+        else:
+            raise ValueError("Multiple Grids found")
+        dtype = {f.dtype for f in functions}
+        if len(dtype) == 1:
+            self.dtype = dtype.pop()
+        else:
+            raise ValueError("Illegal mixed data types")
+        self.v = None
+        self.op = op
+
+    def __enter__(self):
+        i = dv.Dimension(name='i',)
+        self.n = dv.Function(name='n', shape=(1,), dimensions=(i,),
+                             grid=self.grid, dtype=self.dtype)
+        self.n.data[0] = 0
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.grid is None or not dv.configuration['mpi']:
+            assert self.n.data.size == 1
+            self.v = self.n.data[0]
+        else:
+            comm = self.grid.distributor.comm
+            self.v = comm.allreduce(np.asarray(self.n.data), self.op)[0]
+
+
+def nbl_to_padsize(nbl, ndim):
+    """
+    Creates the pad sizes from `nbl`. The output is a tuple of tuple
+    such as ((40, 40), (40, 40)) where each subtuple is the left/right
+    pad size for the dimension.
+    """
+    nb_total = as_tuple(nbl)
+    if len(nb_total) == 1 and len(nb_total) < ndim:
+        nb_pad = ndim*((nb_total[0], nb_total[0]),)
+    elif len(nb_total) == ndim:
+        nb_pad = []
+        for nb_dim in nb_total:
+            if len(as_tuple(nb_dim)) == 1:
+                nb_pad.append((nb_dim, nb_dim))
+            else:
+                assert len(nb_dim) == 2
+                nb_pad.append(nb_dim)
+    else:
+        raise ValueError("`nbl` must be an integer or tuple of (tuple of) integers"
+                         "of length `function.ndim`.")
+    return tuple(nb_pad)
+
+
+def pad_outhalo(function):
+    """ Pad outer halo with edge values."""
+    h_shape = function._data_with_outhalo.shape
+    for i, h in enumerate(function._size_outhalo):
+        slices = [slice(None)]*len(function.shape)
+        slices_d = [slice(None)]*len(function.shape)
+        if h.left != 0:
+            # left part
+            slices[i] = slice(0, h.left)
+            slices_d[i] = slice(h.left, h.left+1, 1)
+            function._data_with_outhalo._local[tuple(slices)] \
+                = function._data_with_outhalo._local[tuple(slices_d)]
+        if h.right != 0:
+            # right part
+            slices[i] = slice(h_shape[i] - h.right, h_shape[i], 1)
+            slices_d[i] = slice(h_shape[i] - h.right - 1, h_shape[i] - h.right, 1)
+            function._data_with_outhalo._local[tuple(slices)] \
+                = function._data_with_outhalo._local[tuple(slices_d)]
+        if h.left == 0 and h.right == 0:
+            # Need to access it so that that worker is not blocking exectution since
+            # _data_with_outhalo requires communication
+            function._data_with_outhalo._local[0] = function._data_with_outhalo._local[0]
