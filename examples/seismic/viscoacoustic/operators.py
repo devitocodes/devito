@@ -1,7 +1,7 @@
 import sympy as sp
 import numpy as np
 
-from devito import (Eq, Operator, VectorFunction, VectorTimeFunction, TimeFunction, NODE,
+from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, NODE,
                     div, grad)
 from examples.seismic import PointSource, Receiver
 
@@ -134,48 +134,28 @@ def sls_2nd_order(model, geometry, p, **kwargs):
     r = TimeFunction(name="r", grid=model.grid, time_order=2, space_order=space_order,
                      staggered=NODE)
 
-    # Auxiliary function
-    l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
-
     if forward:
 
-        u_l = Eq(l, b * grad(p))
-
-        pde_r = r + s * (tt / t_s) * rho * div(l) - s * (1. / t_s) * r
+        pde_r = r + s * (tt / t_s) * rho * div(b * grad(p)) - s * (1. / t_s) * r
         u_r = Eq(r.forward, damp * pde_r)
 
         pde_p = 2. * p - damp * p.backward + s * s * vp * vp * (1. + tt) * rho * \
-            div(l) - s * s * vp * vp * r.forward
+            div(b * grad(p)) - s * s * vp * vp * r.forward
         u_p = Eq(p.forward, damp * pde_p)
 
-        return [u_l, u_r, u_p]
+        return [u_r, u_p]
 
     else:
-
-        # Auxiliary functions
-        w = VectorTimeFunction(name="w", grid=model.grid, time_order=2,
-                               space_order=space_order)
-        h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
-        g = TimeFunction(name="g", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
 
         pde_r = r + s * (tt / t_s) * p - s * (1. / t_s) * r
         u_r = Eq(r.backward, damp * pde_r)
 
-        u_h = Eq(h, (1. + tt) * rho * p)
-
-        u_l = Eq(l, b * grad(h))
-
-        u_g = Eq(g, rho * r.backward)
-
-        u_w = Eq(w, b * grad(g))
-
-        pde_p = 2. * p - damp * p.forward + s * s * vp * vp * div(l) - \
-            s * s * vp * vp * div(w)
+        pde_p = 2. * p - damp * p.forward + s * s * vp * vp * \
+            div(b * grad((1. + tt) * rho * p)) - s * s * vp * vp * \
+            div(b * grad(rho * r.backward))
         u_p = Eq(p.backward, damp * pde_p)
 
-        return [u_r, u_h, u_l, u_g, u_w, u_p]
+        return [u_r, u_p]
 
 
 def ren_1st_order(model, geometry, p, **kwargs):
@@ -228,7 +208,6 @@ def ren_2nd_order(model, geometry, p, **kwargs):
         Pressure field.
     """
     forward = kwargs.get('forward', True)
-    space_order = p.space_order
 
     s = model.grid.stepping_dim.spacing
     f0 = geometry._f0
@@ -248,48 +227,22 @@ def ren_2nd_order(model, geometry, p, **kwargs):
     # Bulk modulus
     bm = rho * (vp * vp)
 
-    # Auxiliary funciton
-    l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
-
-    h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                     staggered=NODE)
-
-    w = VectorTimeFunction(name="w", grid=model.grid, time_order=2,
-                           space_order=space_order)
-
     if forward:
 
-        u_h = Eq(h, (p - p.backward) / s)
-
-        u_l = Eq(l, b * grad(p))
-
-        u_w = Eq(w, b * grad(h))
-
-        pde_p = 2. * p - damp * p.backward + s * s * bm * div(l) + \
-            s * s * eta * rho * div(w)
+        pde_p = 2. * p - damp * p.backward + s * s * bm * div(b * grad(p)) + \
+            s * s * eta * rho * div(b * grad(p - p.backward) / s)
 
         u_p = Eq(p.forward, damp * pde_p)
 
-        return [u_h, u_l, u_w, u_p]
+        return [u_p]
 
     else:
 
-        # Auxiliary funciton
-        g = TimeFunction(name="g", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
-
-        u_h = Eq(h, bm * p)
-
-        u_w = Eq(w, b * grad(h))
-
-        u_g = Eq(g, ((p.forward - p) / s) * rho * eta)
-
-        u_l = Eq(l, b * grad(g))
-
-        pde_p = 2. * p - damp * p.forward + s * s * div(w) - s * s * div(l)
+        pde_p = 2. * p - damp * p.forward + s * s * div(b * grad(bm * p)) - s * s * \
+            div(b * grad(((p.forward - p) / s) * rho * eta))
         u_p = Eq(p.backward, damp * pde_p)
 
-        return [u_h, u_w, u_g, u_l, u_p]
+        return [u_p]
 
 
 def deng_1st_order(model, geometry, p, **kwargs):
@@ -343,7 +296,6 @@ def deng_2nd_order(model, geometry, p, **kwargs):
         Pressure field.
     """
     forward = kwargs.get('forward', True)
-    space_order = p.space_order
 
     s = model.grid.stepping_dim.spacing
     f0 = geometry._f0
@@ -360,47 +312,21 @@ def deng_2nd_order(model, geometry, p, **kwargs):
 
     bm = rho * (vp * vp)
 
-    # Auxiliary Function
-    l = VectorFunction(name="l", grid=model.grid, space_order=space_order)
-
-    h = TimeFunction(name="h", grid=model.grid, time_order=2, space_order=space_order,
-                     staggered=NODE)
-
     if forward:
 
-        # Auxiliary functions
-        w = VectorTimeFunction(name="w", grid=model.grid, time_order=2,
-                               space_order=space_order)
-
-        u_h = Eq(h, (p - p.backward) / s)
-
-        u_l = Eq(l, b * grad(p))
-
-        u_w = Eq(w, b * grad(h))
-
-        pde_p = 2. * p - damp * p.backward + s * s * bm * div(l) - \
-            s * s * (w0 / qp) * h
+        pde_p = 2. * p - damp*p.backward + s * s * bm * \
+            div(b * grad(p)) - s * s * w0/qp * (p - p.backward)/s
         u_p = Eq(p.forward, damp * pde_p)
 
-        return [u_h, u_l, u_w, u_p]
+        return [u_p]
 
     else:
 
-        # Auxiliary functions
-        g = TimeFunction(name="g", grid=model.grid, time_order=2, space_order=space_order,
-                         staggered=NODE)
-
-        u_h = Eq(h, bm * p)
-
-        u_l = Eq(l, b * grad(h))
-
-        u_g = Eq(g, (p.forward - p) / s)
-
-        pde_p = 2. * p - damp * p.forward + s * s * div(l) + \
-            s * s * (w0 / qp) * g
+        pde_p = 2. * p - damp * p.forward + s * s * w0 / qp * (p.forward - p) / s + \
+            s * s * div(b * grad(bm * p))
         u_p = Eq(p.backward, damp * pde_p)
 
-        return [u_h, u_l, u_g, u_p]
+        return [u_p]
 
 
 def sls(model, geometry, p, forward=True, **kwargs):
