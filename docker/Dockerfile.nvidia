@@ -3,8 +3,12 @@
 # libraries, and plugins to enable OpenACC and NVIDIA GPU 
 # acceleration of Devito codes.
 #
-# BUILD: docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
-# RUN: docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
+# BUILD: 
+#   docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
+# EXPERIMENTAL: 
+#   docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
+# RUN: 
+#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
 ##############################################################
 FROM python:3.6
 
@@ -37,6 +41,7 @@ RUN apt-get update -y && \
 
 ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2020
 ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/11.0/extras/CUPTI
+ARG MPI_VER=3
 
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
@@ -75,9 +80,12 @@ ENV UCX_TLS=self,shm,cuda_copy
 
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 ENV CFLAGS=-noswitcherror
-RUN rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-    ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
-           $HPCSDK_HOME/comm_libs/mpi && \
+
+RUN if [ "x$MPI_VER" = "x4" ]; then \
+        rm -f  $HPCSDK_HOME/comm_libs/mpi && \
+        ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
+               $HPCSDK_HOME/comm_libs/mpi ; \
+    fi;  \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
     rm -rf ~/.cache/pip
 ENV CFLAGS=
