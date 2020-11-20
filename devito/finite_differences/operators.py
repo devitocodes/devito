@@ -1,4 +1,4 @@
-def div(func):
+def div(func, shift=None):
     """
     Divergence of the input Function.
 
@@ -7,12 +7,12 @@ def div(func):
     func : Function or TensorFunction
     """
     try:
-        return func.div
+        return func.div(shift=shift)
     except AttributeError:
         return 0
 
 
-def grad(func):
+def grad(func, shift=None):
     """
     Gradient of the input Function.
 
@@ -21,7 +21,7 @@ def grad(func):
     func : Function or VectorFunction
     """
     try:
-        return func.grad
+        return func.grad(shift=shift)
     except AttributeError:
         raise AttributeError("Gradient not supported for class %s" % func.__class__)
 

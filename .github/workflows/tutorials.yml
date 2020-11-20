@@ -67,7 +67,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         if [ "${{ matrix.compiler }}" = "gcc-9" ]; then
-          brew install gcc
+          brew install gcc@9
         else
           sudo xcode-select -s /Applications/Xcode_12.2.app/Contents/Developer
         fi

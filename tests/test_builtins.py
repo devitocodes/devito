@@ -239,6 +239,72 @@ class TestInitializeFunction(object):
             assert np.all(a[::-1, 3:6] - np.array(f.data[12:18, 9:12]) == 0)
             assert np.all(a[3:6, ::-1] - np.array(f.data[9:12, 12:18]) == 0)
 
+    @pytest.mark.parametrize('ndim, nbl', [
+        (2, 0), (2, 3), (3, 0), (3, 3)
+    ])
+    def test_if_halo(self, ndim, nbl):
+        """
+        Test that FD halo is padded as well.
+        """
+        grid = Grid(tuple([11]*ndim))
+        f = Function(name="f", grid=grid)
+        a = np.zeros(tuple([11-2*nbl]*ndim))
+        a[..., 0] = 1
+        a[..., -1] = 3
+        if ndim == 3:
+            a[:, 0, :] = 5
+            a[:, -1, :] = 6
+        a[0, ...] = 2
+        a[-1, ...] = 4
+
+        initialize_function(f, a, nbl)
+
+        assert np.all(np.take(f._data_with_outhalo, 0, axis=0) == 2)
+        assert np.all(np.take(f._data_with_outhalo, -1, axis=0) == 4)
+        if ndim == 3:
+            assert f._data_with_outhalo[7, 7, 7] == 0
+            assert np.take(f._data_with_outhalo, 0, axis=-1)[7, 7] == 1
+            assert np.take(f._data_with_outhalo, -1, axis=-1)[7, 7] == 3
+            assert np.take(f._data_with_outhalo, 0, axis=1)[7, 7] == 5
+            assert np.take(f._data_with_outhalo, -1, axis=1)[7, 7] == 6
+        else:
+            assert f._data_with_outhalo[7, 7] == 0
+            assert np.take(f._data_with_outhalo, 0, axis=-1)[7] == 1
+            assert np.take(f._data_with_outhalo, -1, axis=-1)[7] == 3
+
+    @skipif('nompi')
+    @pytest.mark.parametrize('nbl', [0, 2])
+    @pytest.mark.parallel(mode=4)
+    def test_if_halo_mpi(self, nbl):
+        """
+        Test that FD halo is padded as well.
+        """
+        grid = Grid((10, 10))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        f = Function(name="f", grid=grid)
+        a = np.zeros((10-2*nbl, 10-2*nbl))
+        na = a.shape[0]
+        a[:, 0] = 1
+        a[:, -1] = 3
+        a[0, :] = 2
+        a[-1, :] = 4
+
+        initialize_function(f, a, nbl)
+
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            expected = np.pad(a[:na//2, :na//2], [(1+nbl, 0), (1+nbl, 0)], 'edge')
+            assert np.all(f._data_with_outhalo._local == expected)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            expected = np.pad(a[:na//2, na//2:], [(1+nbl, 0), (0, 1+nbl)], 'edge')
+            assert np.all(f._data_with_outhalo._local == expected)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            expected = np.pad(a[na//2:, :na//2], [(0, 1+nbl), (1+nbl, 0)], 'edge')
+            assert np.all(f._data_with_outhalo._local == expected)
+        else:
+            expected = np.pad(a[na//2:, na//2:], [(0, 1+nbl), (0, 1+nbl)], 'edge')
+            assert np.all(f._data_with_outhalo._local == expected)
+
 
 class TestBuiltinsResult(object):
 

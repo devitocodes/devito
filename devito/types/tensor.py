@@ -213,8 +213,7 @@ class TensorFunction(AbstractTensor):
         else:
             return super(TensorFunction, self).values()
 
-    @property
-    def div(self):
+    def div(self, shift=None):
         """
         Divergence of the TensorFunction (is a VectorFunction).
         """
@@ -237,8 +236,7 @@ class TensorFunction(AbstractTensor):
                               for i, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
-    @property
-    def grad(self):
+    def grad(self, shift=None):
         raise AttributeError("Gradient of a second order tensor not supported")
 
     def new_from_mat(self, mat):
@@ -304,8 +302,7 @@ class VectorFunction(TensorFunction):
 
     __repr__ = __str__
 
-    @property
-    def div(self):
+    def div(self, shift=None):
         """
         Divergence of the VectorFunction, creates the divergence Function.
         """
@@ -339,8 +336,7 @@ class VectorFunction(TensorFunction):
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func._new(3, 1, [comp1, comp2, comp3])
 
-    @property
-    def grad(self):
+    def grad(self, shift=None):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
         """
