@@ -306,17 +306,27 @@ class Call(ExprStmt, Node):
 
 class Expression(ExprStmt, Node):
 
-    """A node encapsulating a ClusterizedEq."""
+    """
+    A node encapsulating a ClusterizedEq.
+
+    Parameters
+    ----------
+    expr : ClusterizedEq
+        The encapsulated expression.
+    pragmas : cgen.Pragma or list of cgen.Pragma, optional
+        A bag of pragmas attached to this Expression.
+    """
 
     is_Expression = True
 
     @validate_type(('expr', ClusterizedEq))
-    def __init__(self, expr):
-        self.__expr_finalize__(expr)
+    def __init__(self, expr, pragmas=None):
+        self.__expr_finalize__(expr, pragmas)
 
-    def __expr_finalize__(self, expr):
+    def __expr_finalize__(self, expr, pragmas):
         """Finalize the Expression initialization."""
         self._expr = expr
+        self._pragmas = as_tuple(pragmas)
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -325,6 +335,10 @@ class Expression(ExprStmt, Node):
     @property
     def expr(self):
         return self._expr
+
+    @property
+    def pragmas(self):
+        return self._pragmas
 
     @property
     def dtype(self):
@@ -390,8 +404,8 @@ class AugmentedExpression(Expression):
 
     is_Increment = True
 
-    def __init__(self, expr, op):
-        super(AugmentedExpression, self).__init__(expr)
+    def __init__(self, expr, op, pragmas=None):
+        super(AugmentedExpression, self).__init__(expr, pragmas=pragmas)
         self.op = op
 
 
@@ -399,8 +413,8 @@ class Increment(AugmentedExpression):
 
     """Shortcut for ``AugmentedExpression(expr, '+'), since it's so widely used."""
 
-    def __init__(self, expr):
-        super(Increment, self).__init__(expr, '+')
+    def __init__(self, expr, pragmas=None):
+        super(Increment, self).__init__(expr, '+', pragmas=pragmas)
 
 
 class Iteration(Node):
