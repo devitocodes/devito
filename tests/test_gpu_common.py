@@ -57,7 +57,6 @@ class Bundle(SubDomain):
         return {x: ('middle', 0, 0), y: ('middle', 0, 0), z: ('middle', 0, 0)}
 
 
-@skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
 class TestStreaming(object):
 
     def test_tasking_in_isolation(self):
@@ -271,6 +270,7 @@ class TestStreaming(object):
         assert str(sections[1].body[0].body[0].body[0].body[0]) ==\
             'while(lock0[t1] == 0);'
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_simple(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -290,6 +290,7 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 28)
         assert np.all(u.data[1] == 36)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_two_buffers(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -311,6 +312,7 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_multi_input(self):
         nt = 100
         grid = Grid(shape=(10, 10))
@@ -334,6 +336,7 @@ class TestStreaming(object):
 
         assert np.all(grad.data == grad1.data)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_postponed_deletion(self):
         nt = 10
         grid = Grid(shape=(10, 10, 10))
@@ -359,6 +362,7 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(v.data == v1.data)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_with_host_loop(self):
         grid = Grid(shape=(10, 10, 10))
 
@@ -374,6 +378,7 @@ class TestStreaming(object):
         assert 'init_device0' in op._func_table
         assert 'prefetch_host_to_device0' in op._func_table
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_composite_streaming_tasking(self):
         nt = 10
         grid = Grid(shape=(10, 10, 10))
@@ -482,6 +487,7 @@ class TestStreaming(object):
         assert np.all(usave.data == usave1.data)
         assert np.all(vsave.data == vsave1.data)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_composite_full(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -670,6 +676,7 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, :3] == 0)
             assert np.all(usave.data[i, :, -3:] == 0)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('gpu_fit', [True, False])
     def test_xcor_from_saved(self, gpu_fit):
         nt = 10
