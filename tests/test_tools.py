@@ -23,12 +23,19 @@ def test_toposort(elements, expected):
 
 def test_sorting():
     key = lambda x: x
-    array = np.random.rand(10000)
+
+    # Need predictable random sequence or test will
+    # have inconsistent behaviour results between tests.
+    np.random.seed(0)
+    array = np.random.randint(-1000, 1000, 10000)
+
     t0 = time.time()
-    sort_key = filter_ordered(array, key=key)
+    for _ in range(100):
+        sort_key = filter_ordered(array, key=key)
     t1 = time.time()
-    sort_nokey = filter_ordered(array)
+    for _ in range(100):
+        sort_nokey = filter_ordered(array)
     t2 = time.time()
-    # This one is slightly faster
-    assert t2 - t1 < .5 * (t1 - t0)
+
+    assert t2 - t1 < 0.5 * (t1 - t0)
     assert sort_key == sort_nokey
