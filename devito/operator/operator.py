@@ -726,8 +726,12 @@ class Operator(Callable):
 
             v = summary.globals.get('fdlike')
             if v is not None:
-                perf("%s* Achieved %.2f FD-GPts/s" % (indent, v.gpointss))
-
+                if v.gflopss is not None:
+                    perf("%s* Achieved %.2f GFlops/s, %.2f FD-GPts/s" %
+                         (indent, v.gflopss, v.gpointss))
+                else:
+                    perf("%s* Achieved %.2f FD-GPts/s" %
+                         (indent, v.gpointss))
             perf("Local performance indicators")
         else:
             indent = ""
