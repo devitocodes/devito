@@ -884,8 +884,12 @@
 
             <span class="n">v</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">globals</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;fdlike&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* Achieved </span><span class="si">%.2f</span><span class="s2"> FD-GPts/s&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">))</span>
-
+                <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* Achieved </span><span class="si">%.2f</span><span class="s2"> GFlops/s, </span><span class="si">%.2f</span><span class="s2"> FD-GPts/s&quot;</span> <span class="o">%</span>
+                         <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* Achieved </span><span class="si">%.2f</span><span class="s2"> FD-GPts/s&quot;</span> <span class="o">%</span>
+                         <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">))</span>
             <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Local performance indicators&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">indent</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
