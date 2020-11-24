@@ -10,8 +10,8 @@ from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Call, Callable, ElementalFunction, Expression,
-                           List, FindNodes, FindSymbols, LocalExpression,
-                           MapExprStmts, Transformer)
+                           List, LocalExpression, ThreadFunction, FindNodes,
+                           FindSymbols, MapExprStmts, Transformer)
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)
@@ -306,9 +306,7 @@ class DeviceOpenMPDataManager(DataManager):
             return iet
 
         @_map_onmemspace.register(ElementalFunction)
-        def _(iet):
-            return iet
-
+        @_map_onmemspace.register(ThreadFunction)
         @_map_onmemspace.register(CopyBuffer)
         @_map_onmemspace.register(SendRecv)
         @_map_onmemspace.register(HaloUpdate)
@@ -357,6 +355,7 @@ def initialize(iet, **kwargs):
         return iet
 
     @_initialize.register(ElementalFunction)
+    @_initialize.register(ThreadFunction)
     @_initialize.register(MPICallable)
     def _(iet):
         return iet
