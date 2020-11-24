@@ -4,14 +4,11 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.finite_differences import Evaluable
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, indexify, INT
 from devito.tools import powerset, flatten, prod
-from devito.types import Eq, Inc
-from devito.types.basic import Scalar
-from devito.types.dense import SubFunction
-from devito.types.dimension import ConditionalDimension, Dimension, DefaultDimension
+from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq, Inc,
+                          Evaluable, Scalar, SubFunction)
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
 

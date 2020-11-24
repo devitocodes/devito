@@ -42,7 +42,13 @@ class AbstractSparseFunction(DiscreteFunction):
         self._space_order = kwargs.get('space_order', 0)
 
         # Dynamically add derivative short-cuts
-        self._fd = generate_fd_shortcuts(self)
+        self._fd = self.__fd_setup__()
+
+    def __fd_setup__(self):
+        """
+        Dynamically add derivative short-cuts.
+        """
+        return generate_fd_shortcuts(self.dimensions, self.space_order)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -352,6 +358,13 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
             raise ValueError("`time_order` must be int")
 
         super(AbstractSparseTimeFunction, self).__init_finalize__(*args, **kwargs)
+
+    def __fd_setup__(self):
+        """
+        Dynamically add derivative short-cuts.
+        """
+        return generate_fd_shortcuts(self.dimensions, self.space_order,
+                                     to=self.time_order)
 
     @property
     def time_dim(self):

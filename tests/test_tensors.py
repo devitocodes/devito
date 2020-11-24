@@ -1,11 +1,11 @@
 import numpy as np
+import sympy
 
 import pytest
 
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
 from devito import Grid, Function, TimeFunction, Dimension, Eq
 from devito.types import NODE
-from devito.finite_differences.differentiable import Add
 
 
 def dimify(dimensions):
@@ -81,11 +81,9 @@ def test_tensor_space_order(func_type, ndim):
 @pytest.mark.parametrize('func1, func2, out_type', [
     (Function, VectorFunction, VectorFunction),
     (Function, VectorTimeFunction, VectorTimeFunction),
-    (TimeFunction, VectorFunction, VectorTimeFunction),
     (TimeFunction, VectorTimeFunction, VectorTimeFunction),
     (Function, TensorFunction, TensorFunction),
     (Function, TensorTimeFunction, TensorTimeFunction),
-    (TimeFunction, TensorFunction, TensorTimeFunction),
     (TimeFunction, TensorTimeFunction, TensorTimeFunction),
     (TensorFunction, VectorFunction, VectorFunction),
     (TensorFunction, VectorTimeFunction, VectorTimeFunction),
@@ -104,9 +102,7 @@ def test_tensor_matmul(func1, func2, out_type):
     (VectorFunction, TensorFunction, VectorFunction),
     (VectorTimeFunction, TensorFunction, VectorTimeFunction),
     (VectorFunction, TensorTimeFunction, VectorTimeFunction),
-    (VectorTimeFunction, TensorTimeFunction, VectorTimeFunction),
-    (VectorFunction, VectorFunction, Add),
-    (VectorTimeFunction, VectorTimeFunction, Add)])
+    (VectorTimeFunction, TensorTimeFunction, VectorTimeFunction)])
 def test_tensor_matmul_T(func1, func2, out_type):
     grid = Grid(tuple([5]*3))
     f1 = func1(name="f1", grid=grid)
@@ -171,7 +167,7 @@ def test_tensor_fd(func1):
 def test_tensor_eq(func1, symm, diag, expected):
     grid = Grid(tuple([5]*3))
     f1 = func1(name="f1", grid=grid, symmetric=symm, diagonal=diag)
-    for attr in f1._fd:
+    for attr in f1[0]._fd:
         eq = Eq(f1, getattr(f1, attr))
         assert len(eq.evaluate._flatten) == expected
 
@@ -181,8 +177,74 @@ def test_save(func1):
     grid = Grid(tuple([5]*3))
     time = grid.time_dim
     f1 = func1(name="f1", grid=grid, save=10, time_order=1)
-    assert f1.indices[0] == time
+    assert all(ff.indices[0] == time for ff in f1)
     assert all(ff.indices[0] == time + time.spacing for ff in f1.forward)
     assert all(ff.indices[0] == time + 2*time.spacing for ff in f1.forward.forward)
     assert all(ff.indices[0] == time - time.spacing for ff in f1.backward)
     assert all(ff.shape[0] == 10 for ff in f1)
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
+def test_sympy_matrix(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+
+    sympy_f1 = f1.as_mutable()
+    vec = sympy.Matrix(3, 1, np.random.rand(3))
+    mat = sympy.Matrix(3, 3, np.random.rand(3, 3).ravel())
+    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1))
+    assert all(sp - dp == 0 for sp, dp in zip(f1 * vec, sympy_f1 * vec))
+
+
+@pytest.mark.parametrize('func1', [VectorFunction, VectorTimeFunction])
+def test_sympy_vector(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+
+    sympy_f1 = f1.as_mutable()
+    mat = sympy.Matrix(3, 3, np.random.rand(3, 3).ravel())
+
+    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1))
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
+def test_non_devito_tens(func1):
+    grid = Grid(tuple([5]*3))
+    comps = sympy.Matrix(3, 3, [1, 2, 3, 2, 3, 6, 3, 6, 9])
+
+    f1 = func1(name="f1", grid=grid, components=comps)
+    f2 = func1(name="f2", grid=grid)
+
+    assert f1.T == f1
+    assert isinstance(f1.T, sympy.ImmutableDenseMatrix)
+    # No devito object in the matrix components, should return a pure sympy Matrix
+    assert ~isinstance(f1.T, func1)
+    # Can still multiply
+    f3 = f2*f1.T
+    assert isinstance(f3, func1)
+
+    for i in range(3):
+        for j in range(3):
+            assert f3[i, j] == sum(f2[i, k] * f1[j, k] for k in range(3))
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
+def test_partial_devito_tens(func1):
+    grid = Grid(tuple([5]*3))
+    f2 = func1(name="f2", grid=grid)
+
+    comps = sympy.Matrix(3, 3, [1, 2, f2[0, 0], 2, 3, 6, f2[0, 0], 6, 9])
+
+    f1 = func1(name="f1", grid=grid, components=comps)
+
+    assert f1.T == f1
+    assert isinstance(f1.T, func1)
+    # Should have original grid
+    assert f1[0, 2].grid == grid
+    # Can still multiply
+    f3 = f2*f1.T
+    assert isinstance(f3, func1)
+
+    for i in range(3):
+        for j in range(3):
+            assert f3[i, j] == sum(f2[i, k] * f1[j, k] for k in range(3))

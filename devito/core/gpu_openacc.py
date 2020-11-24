@@ -44,7 +44,8 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
 
 class DeviceAccizer(DeviceOmpizer):
 
-    lang = {
+    lang = dict(DeviceOmpizer.__base__.lang)
+    lang.update({
         'atomic': c.Pragma('acc atomic update'),
         'map-enter-to': lambda i, j:
             c.Pragma('acc enter data copyin(%s%s)' % (i, j)),
@@ -60,7 +61,7 @@ class DeviceAccizer(DeviceOmpizer):
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
         'map-pointers': lambda i:
             c.Pragma('acc host_data use_device(%s)' % i)
-    }
+    })
 
     _Iteration = DeviceOpenACCIteration
 
@@ -73,6 +74,11 @@ class DeviceAccizer(DeviceOmpizer):
         # temporaries that are born and die on the Device
         return cls.lang['map-present'](f.name, ''.join('[0:%s]' % i
                                                        for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_delete(cls, f):
+        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
+                                                           for i in cls._map_data(f)))
 
     @classmethod
     def _map_pointers(cls, functions):

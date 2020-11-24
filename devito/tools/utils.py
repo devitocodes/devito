@@ -165,7 +165,14 @@ def filter_ordered(elements, key=None):
             return unordered[np.argsort(inds)].tolist()
         except:
             return sorted(list(set(elements)), key=elements.index)
-    return [e for e in elements if not (key(e) in seen or seen.add(key(e)))]
+    else:
+        ret = []
+        for e in elements:
+            k = key(e)
+            if k not in seen:
+                ret.append(e)
+                seen.add(k)
+        return ret
 
 
 def filter_sorted(elements, key=None):

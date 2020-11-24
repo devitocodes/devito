@@ -66,9 +66,17 @@ class IREq(object):
     def dtype(self):
         return self.lhs.dtype
 
-    @property
+    @cached_property
     def grid(self):
-        return self.lhs.function.grid if self.is_Tensor else None
+        grids = set()
+        for f in self.dspace.parts:
+            if f.is_DiscreteFunction:
+                grids.add(f.grid)
+
+        if len(grids) == 1:
+            return grids.pop()
+        else:
+            return None
 
     @property
     def state(self):
@@ -156,7 +164,7 @@ class LoweredEq(sympy.Eq, IREq):
             if d.condition is None:
                 conditionals[d] = CondEq(d.parent % d.factor, 0)
             else:
-                conditionals[d] = lower_exprs(d.condition)
+                conditionals[d] = diff2sympy(lower_exprs(d.condition))
         conditionals = frozendict(conditionals)
 
         # Lower all Differentiable operations into SymPy operations

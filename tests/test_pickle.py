@@ -11,8 +11,8 @@ from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
-from devito.operator.profiling import Timer
-from devito.types import Array, CustomDimension, Symbol as dSymbol, Scalar, PointerArray
+from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
+                          PointerArray, Timer)
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer, DefFunction
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)

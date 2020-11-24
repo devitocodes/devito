@@ -7,7 +7,7 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
 from devito.ir.support import PARALLEL, Scope
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.passes.iet.engine import iet_pass
-from devito.tools import filter_sorted, generator
+from devito.tools import as_mapper, filter_sorted, generator
 
 __all__ = ['optimize_halospots', 'mpiize']
 
@@ -39,8 +39,11 @@ def _drop_halospots(iet):
 
     # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
     for hs, iterations in MapNodes(HaloSpot, Iteration).visit(iet).items():
-        if any(i.is_Sequential for i in iterations if i.dim.root in hs.dimensions):
-            mapper[hs].update(set(hs.functions))
+        dmapper = as_mapper(iterations, lambda i: i.dim.root)
+        for d, v in dmapper.items():
+            if d in hs.dimensions and all(i.is_Sequential for i in v):
+                mapper[hs].update(set(hs.functions))
+                break
 
     # If all HaloSpot reads pertain to increments, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
@@ -66,14 +69,15 @@ def _hoist_halospots(iet):
     # Hoisting rules -- if the retval is True, then it means the input `dep` is not
     # a stopper to halo hoisting
 
-    def rule0(dep, candidates):
-        # E.g., `dep=W<f,[x]> -> R<f,[x-1]>` and `candidates=(time, x)` => False
+    def rule0(dep, candidates, loc_dims):
+        # E.g., `dep=W<f,[x]> -> R<f,[x-1]>` and `candidates=({time}, {x})` => False
         # E.g., `dep=W<f,[t1, x, y]> -> R<f,[t0, x-1, y+1]>`, `dep.cause={t,time}` and
-        #       `candidates=(x,)` => True
-        return (all(d in dep.distance_mapper for d in candidates) and
-                not dep.cause & candidates)
+        #       `candidates=({x},)` => True
+        return (all(i & set(dep.distance_mapper) for i in candidates) and
+                not any(i & dep.cause for i in candidates) and
+                not any(i & loc_dims for i in candidates))
 
-    def rule1(dep, candidates):
+    def rule1(dep, candidates, loc_dims):
         # An increment isn't a stopper to hoisting
         return dep.write.is_increment
 
@@ -89,13 +93,16 @@ def _hoist_halospots(iet):
         for hs in halo_spots:
             hsmapper[hs] = hs.halo_scheme
 
-            for f in hs.fmapper:
+            for f, (loc_indices, _) in hs.fmapper.items():
+                loc_dims = frozenset().union([q for d in loc_indices
+                                              for q in d._defines])
+
                 for n, i in enumerate(iters):
-                    candidates = set().union(*[i.dim._defines for i in iters[n:]])
+                    candidates = [i.dim._defines for i in iters[n:]]
 
                     test = True
                     for dep in scopes[i].d_flow.project(f):
-                        if any(rule(dep, candidates) for rule in hoist_rules):
+                        if any(rule(dep, candidates, loc_dims) for rule in hoist_rules):
                             continue
                         test = False
                         break
@@ -145,7 +152,7 @@ def _merge_halospots(iet):
 
     def rule2(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
-        return all(dep.distance_mapper[d] == 0 and dep.source[d] is not v
+        return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                    for d, v in loc_indices.items())
 
     merge_rules = [rule0, rule1, rule2]

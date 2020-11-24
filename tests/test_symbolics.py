@@ -3,7 +3,7 @@ import time
 import pytest
 
 from devito import Grid, Function, solve, div, grad, TimeFunction
-from devito.symbolics import retrieve_functions
+from devito.symbolics import retrieve_functions, retrieve_indexed
 
 
 def test_float_indices():
@@ -62,3 +62,25 @@ def test_solve(so):
                           for k in diff.atoms(sympy.Float)}) == 0
     # Make sure faster (actually much more than 10 for very complex cases)
     assert t12 < t1/10
+
+
+@pytest.mark.parametrize('expr,expected', [
+    ('f[x+2]*g[x+4] + f[x+3]*g[x+5] + f[x+4] + f[x+1]',
+     ['f[x+2]', 'g[x+4]', 'f[x+3]', 'g[x+5]', 'f[x+1]', 'f[x+4]']),
+    ('f[x]*g[x+2] + f[x+1]*g[x+3]', ['f[x]', 'g[x+2]', 'f[x+1]', 'g[x+3]']),
+])
+def test_canonical_ordering(expr, expected):
+    """
+    Test that the `expr.args` are stored in canonical ordering.
+    """
+    grid = Grid(shape=(10,))
+    x, = grid.dimensions  # noqa
+
+    f = Function(name='f', grid=grid)  # noqa
+    g = Function(name='g', grid=grid)  # noqa
+
+    expr = eval(expr)
+    for n, i in enumerate(list(expected)):
+        expected[n] = eval(i)
+
+    assert retrieve_indexed(expr) == expected

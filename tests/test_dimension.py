@@ -931,12 +931,13 @@ class TestConditionalDimension(object):
         inner_domain = InnerDomain()
         grid = Grid(shape=(8, 8), subdomains=(inner_domain,))
         g = Function(name='g', grid=grid)
-        g2 = Function(name='g', grid=grid)
+        g2 = Function(name='g2', grid=grid)
 
-        g.data[:4, :4] = 1
-        g.data[4:, :4] = 2
-        g.data[4:, 4:] = 3
-        g.data[:4, 4:] = 4
+        for i in [g, g2]:
+            i.data[:4, :4] = 1
+            i.data[4:, :4] = 2
+            i.data[4:, 4:] = 3
+            i.data[:4, 4:] = 4
 
         xi, yi = grid.subdomains['inner'].dimensions
 
@@ -1040,7 +1041,7 @@ class TestConditionalDimension(object):
         assert exprs[2].expr.rhs is exprs[0].output
 
         exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
-        assert len(exprs) == 2
+        assert len(exprs) == 3
 
         exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
         assert len(exprs) == 3

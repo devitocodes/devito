@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
-                           XSubs)
+                           XSubs, Transformer)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper, timed_pass
 from devito.types import ConditionalDimension
@@ -30,11 +30,8 @@ def iet_build(stree):
             body = Conditional(i.guard, queues.pop(i))
 
         elif i.is_Iteration:
-            # Order to ensure deterministic code generation
-            uindices = sorted(i.sub_iterators, key=lambda d: d.name)
-            # Generate Iteration
             body = Iteration(queues.pop(i), i.dim, i.limits, direction=i.direction,
-                             properties=i.properties, uindices=uindices)
+                             properties=i.properties, uindices=i.sub_iterators)
 
         elif i.is_Section:
             body = Section('section%d' % nsections, body=queues.pop(i))
@@ -72,6 +69,7 @@ def _lower_stepping_dims(iet):
 
     u[t1, x] = u[t0, x] + 1
     """
+    subs = {}
     for i in FindNodes(Iteration).visit(iet):
         if not i.uindices:
             # Be quick: avoid uselessy reconstructing nodes
@@ -83,13 +81,15 @@ def _lower_stepping_dims(iet):
         # two different calls to `xreplace`
         mindices = [d for d in i.uindices if d.is_Modulo]
         groups = as_mapper(mindices, lambda d: d.modulo)
+        root = i
         for k, v in groups.items():
             mapper = {d.origin: d for d in v}
-            rule = lambda i: i.function.is_TimeFunction and i.function._time_size == k
-            replacer = lambda i: xreplace_indices(i, mapper, rule)
-            iet = XSubs(replacer=replacer).visit(iet)
+            rule = lambda e: e.function.is_TimeFunction and e.function._time_size == k
+            replacer = lambda e: xreplace_indices(e, mapper, rule)
+            root = XSubs(replacer=replacer).visit(root)
+        subs[i] = root
 
-    return iet
+    return Transformer(subs).visit(iet)
 
 
 def _lower_conditional_dims(iet):

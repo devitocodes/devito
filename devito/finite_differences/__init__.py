@@ -1,4 +1,3 @@
-from .lazy import *  # noqa
 from .differentiable import *  # noqa
 from .finite_difference import *  # noqa
 from .derivative import *  # noqa

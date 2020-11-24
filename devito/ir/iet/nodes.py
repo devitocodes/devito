@@ -23,7 +23,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock', 'Dereference']
+           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda']
 
 # First-class IET nodes
 
@@ -40,7 +40,9 @@ class Node(Signer):
     is_Expression = False
     is_Increment = False
     is_ForeignExpression = False
+    is_LocalExpression = False
     is_Callable = False
+    is_Lambda = False
     is_ElementalFunction = False
     is_Call = False
     is_List = False
@@ -230,24 +232,51 @@ class Element(Node):
 
 class Call(ExprStmt, Node):
 
-    """A function call."""
+    """
+    A function call.
+
+    Parameters
+    ----------
+    name : str or FunctionFromPointer
+        The called function.
+    arguments : list of Basic, optional
+        The objects in input to the function call.
+    retobj : Symbol or Indexed, optional
+        The object the return value of the Call is assigned to.
+    is_indirect : bool, optional
+        If True, the object represents an indirect function call. The emitted
+        code will be `name, arg1, ..., argN` rather than `name(arg1, ..., argN)`.
+        Defaults to False.
+    """
 
     is_Call = True
 
-    def __init__(self, name, arguments=None):
-        self.name = name
+    def __init__(self, name, arguments=None, retobj=None, is_indirect=False):
+        if isinstance(name, FunctionFromPointer):
+            self.base = name.base
+        else:
+            self.base = None
+        self.name = str(name)
         self.arguments = as_tuple(arguments)
+        self.retobj = retobj
+        self.is_indirect = is_indirect
 
     def __repr__(self):
-        return "Call::\n\t%s(...)" % self.name
+        ret = "" if self.retobj is None else "%s = " % self.retobj
+        return "%sCall::\n\t%s(...)" % (ret, self.name)
 
     @property
     def functions(self):
-        return tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+        retval = tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+        if self.base is not None:
+            retval += (self.base,)
+        if self.retobj is not None:
+            retval += (self.retobj.function,)
+        return retval
 
     @property
     def children(self):
-        return tuple(i for i in self.arguments if isinstance(i, Call))
+        return tuple(i for i in self.arguments if isinstance(i, (Call, Lambda)))
 
     @cached_property
     def free_symbols(self):
@@ -259,26 +288,45 @@ class Call(ExprStmt, Node):
                 free.add(i)
             else:
                 free.update(i.free_symbols)
+        if self.base is not None:
+            free.add(self.base)
+        if self.retobj is not None:
+            free.update(self.retobj.free_symbols)
         return free
 
     @property
     def defines(self):
-        return ()
+        ret = ()
+        if self.base is not None:
+            ret += (self.base,)
+        if self.retobj is not None:
+            ret += (self.retobj,)
+        return ret
 
 
 class Expression(ExprStmt, Node):
 
-    """A node encapsulating a ClusterizedEq."""
+    """
+    A node encapsulating a ClusterizedEq.
+
+    Parameters
+    ----------
+    expr : ClusterizedEq
+        The encapsulated expression.
+    pragmas : cgen.Pragma or list of cgen.Pragma, optional
+        A bag of pragmas attached to this Expression.
+    """
 
     is_Expression = True
 
     @validate_type(('expr', ClusterizedEq))
-    def __init__(self, expr):
-        self.__expr_finalize__(expr)
+    def __init__(self, expr, pragmas=None):
+        self.__expr_finalize__(expr, pragmas)
 
-    def __expr_finalize__(self, expr):
+    def __expr_finalize__(self, expr, pragmas):
         """Finalize the Expression initialization."""
         self._expr = expr
+        self._pragmas = as_tuple(pragmas)
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -287,6 +335,10 @@ class Expression(ExprStmt, Node):
     @property
     def expr(self):
         return self._expr
+
+    @property
+    def pragmas(self):
+        return self._pragmas
 
     @property
     def dtype(self):
@@ -352,8 +404,8 @@ class AugmentedExpression(Expression):
 
     is_Increment = True
 
-    def __init__(self, expr, op):
-        super(AugmentedExpression, self).__init__(expr)
+    def __init__(self, expr, op, pragmas=None):
+        super(AugmentedExpression, self).__init__(expr, pragmas=pragmas)
         self.op = op
 
 
@@ -361,8 +413,8 @@ class Increment(AugmentedExpression):
 
     """Shortcut for ``AugmentedExpression(expr, '+'), since it's so widely used."""
 
-    def __init__(self, expr):
-        super(Increment, self).__init__(expr, '+')
+    def __init__(self, expr, pragmas=None):
+        super(Increment, self).__init__(expr, '+', pragmas=pragmas)
 
 
 class Iteration(Node):
@@ -607,6 +659,18 @@ class Callable(Node):
         return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
                                    parameters)
 
+    @property
+    def functions(self):
+        return tuple(i for i in self.parameters if isinstance(i, AbstractFunction))
+
+    @property
+    def free_symbols(self):
+        return tuple(self.parameters)
+
+    @property
+    def defines(self):
+        return ()
+
 
 class Conditional(Node):
 
@@ -788,6 +852,8 @@ class LocalExpression(Expression):
     A node encapsulating a SymPy equation which also defines its LHS.
     """
 
+    is_LocalExpression = True
+
     @property
     def defines(self):
         return (self.write, )
@@ -832,6 +898,49 @@ class ForeignExpression(Expression):
     @property
     def is_tensor(self):
         return False
+
+
+class Lambda(Node):
+
+    """
+    A callable C++ lambda function. Several syntaxes are possible; here we
+    implement one of the common ones:
+
+        [captures](parameters){body}
+
+    For more info about C++ lambda functions:
+
+        https://en.cppreference.com/w/cpp/language/lambda
+
+    Parameters
+    ----------
+    body : Node or list of Node
+        The lambda function body.
+    captures : list of str or expr-like, optional
+        The captures of the lambda function.
+    parameters : list of Basic or expr-like, optional
+        The objects in input to the lambda function.
+    """
+
+    is_Lambda = True
+
+    _traversable = ['body']
+
+    def __init__(self, body, captures=None, parameters=None):
+        self.body = as_tuple(body)
+        self.captures = as_tuple(captures)
+        self.parameters = as_tuple(parameters)
+
+    def __repr__(self):
+        return "Lambda[%s](%s)" % (self.captures, self.parameters)
+
+    @cached_property
+    def free_symbols(self):
+        return set(self.parameters)
+
+    @property
+    def defines(self):
+        return ()
 
 
 class Section(List):
