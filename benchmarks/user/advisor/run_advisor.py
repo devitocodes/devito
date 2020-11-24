@@ -61,7 +61,7 @@ def run_with_advisor(path, output, name, exec_args):
     os.environ['DEVITO_ARCH'] = 'intel'
 
     # Tell Devito to instrument the generated code for Advisor
-    os.environ['DEVITO_PROFILING'] = 'advisor'
+    os.environ['DEVITO_PROFILING'] = 'advanced'
 
     # Devito Logging is disabled unless the user asks explicitly to see it
     devito_logging = os.environ.get('DEVITO_LOGGING')

@@ -266,7 +266,7 @@ class AdvisorProfiler(AdvancedProfiler):
     def analyze(self, iet):
         return
 
-    def instrument(self, iet):
+    def instrument(self, iet, timer):
         # Look for the presence of a time loop within the IET of the Operator
         found = False
         for node in FindNodes(Iteration).visit(iet):
