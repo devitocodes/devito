@@ -8,13 +8,12 @@ from devito.data import FULL
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, List, Iteration, PointerCast,
                            SyncSpot, While, FindNodes, LocalExpression, Transformer,
-                           BlankLine, DummyExpr, derive_parameters)
+                           BlankLine, DummyExpr, derive_parameters, make_tfunc)
 from devito.ir.support import Forward
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
-                              ListInitializer)
+from devito.symbolics import CondEq, CondNe, FieldFromComposite, ListInitializer
 from devito.tools import (as_mapper, as_list, filter_ordered, filter_sorted,
-                          is_integer, split)
+                          is_integer)
 from devito.types import (NThreadsSTD, STDThreadArray, WaitLock, WithLock,
                           FetchWait, FetchWaitPrefetch, Delete, SharedData, Symbol)
 
@@ -46,45 +45,6 @@ class Orchestrator(object):
         """Shortcut for self._Parallelizer."""
         return self._Parallelizer
 
-    def __make_tfunc(self, name, iet, root, threads):
-        # Create the SharedData
-        required = derive_parameters(iet)
-        known = (root.parameters +
-                 tuple(i for i in required if i.is_Array and i._mem_shared))
-        parameters, dynamic_parameters = split(required, lambda i: i in known)
-
-        sdata = SharedData(name=self.sregistry.make_name(prefix='sdata'),
-                           nthreads_std=threads.size, fields=dynamic_parameters)
-        parameters.append(sdata)
-
-        # Prepend the unwinded SharedData fields, available upon thread activation
-        preactions = [DummyExpr(i, FieldFromPointer(i.name, sdata.symbolic_base))
-                      for i in dynamic_parameters]
-        preactions.append(DummyExpr(sdata.symbolic_id,
-                                    FieldFromPointer(sdata._field_id,
-                                                     sdata.symbolic_base)))
-
-        # Append the flag reset
-        postactions = [List(body=[
-            BlankLine,
-            DummyExpr(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 1)
-        ])]
-
-        iet = List(body=preactions + [iet] + postactions)
-
-        # Append the flag reset
-
-        # The thread has work to do when it receives the signal that all locks have
-        # been set to 0 by the main thread
-        iet = Conditional(CondEq(FieldFromPointer(sdata._field_flag,
-                                                  sdata.symbolic_base), 2), iet)
-
-        # The thread keeps spinning until the alive flag is set to 0 by the main thread
-        iet = While(CondNe(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 0),
-                    iet)
-
-        return Callable(name, iet, 'void', parameters, 'static'), sdata
-
     def __make_threads(self, value=None):
         name = self.sregistry.make_name(prefix='threads')
 
@@ -96,8 +56,9 @@ class Orchestrator(object):
 
         return threads
 
-    def __make_init_threads(self, threads, sdata, tfunc, pieces):
+    def __make_init_threads(self, threads, tfunc, pieces):
         d = threads.index
+        sdata = tfunc.sdata
         if threads.size == 1:
             callback = lambda body: body
         else:
@@ -199,8 +160,10 @@ class Orchestrator(object):
         # executed asynchronously by `threadhost`
         name = self.sregistry.make_name(prefix='copy_device_to_host')
         body = List(body=tuple(preactions) + iet.body + tuple(postactions))
-        tfunc, sdata = self.__make_tfunc(name, body, root, threads)
+        tfunc = make_tfunc(name, body, root, threads, self.sregistry)
         pieces.funcs.append(tfunc)
+
+        sdata = tfunc.sdata
 
         # Schedule computation to the first available thread
         iet = self.__make_activate_thread(threads, sdata, sync_ops)
@@ -211,7 +174,7 @@ class Orchestrator(object):
             pieces.init.append(LocalExpression(DummyEq(i, ListInitializer(values))))
 
         # Fire up the threads
-        pieces.init.append(self.__make_init_threads(threads, sdata, tfunc, pieces))
+        pieces.init.append(self.__make_init_threads(threads, tfunc, pieces))
         pieces.threads.append(threads)
 
         # Final wait before jumping back to Python land
@@ -287,8 +250,10 @@ class Orchestrator(object):
         # Turn prefetch IET into a threaded Callable
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(header=c.Line(), body=casts + prefetches)
-        tfunc, sdata = self.__make_tfunc(name, body, root, threads)
+        tfunc = make_tfunc(name, body, root, threads, self.sregistry)
         pieces.funcs.append(tfunc)
+
+        sdata = tfunc.sdata
 
         # Glue together all the IET pieces, including the activation bits
         iet = List(body=[
@@ -301,7 +266,7 @@ class Orchestrator(object):
         ])
 
         # Fire up the threads
-        pieces.init.append(self.__make_init_threads(threads, sdata, tfunc, pieces))
+        pieces.init.append(self.__make_init_threads(threads, tfunc, pieces))
         pieces.threads.append(threads)
 
         # Final wait before jumping back to Python land

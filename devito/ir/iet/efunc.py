@@ -1,10 +1,14 @@
 from cached_property import cached_property
 
-from devito.ir.iet.nodes import Call, Callable
+from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, DummyExpr,
+                                 List, While)
 from devito.ir.iet.utils import derive_parameters
-from devito.tools import as_tuple
+from devito.symbolics import CondEq, CondNe, FieldFromPointer
+from devito.tools import as_tuple, split
+from devito.types import SharedData
 
-__all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc']
+__all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
+           'ThreadFunction', 'make_tfunc']
 
 
 class ElementalFunction(Callable):
@@ -83,3 +87,62 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
     """
     return ElementalFunction(name, iet, retval, derive_parameters(iet), prefix,
                              dynamic_parameters)
+
+
+class ThreadFunction(Callable):
+
+    """
+    A Callable executed asynchronously by a separate thread.
+    """
+
+    def __init__(self, name, body, retval, parameters=None, prefix=('static',),
+                 sdata=None):
+        super().__init__(name, body, retval, parameters, prefix)
+        self.sdata = sdata
+
+
+def make_tfunc(name, iet, root, threads, sregistry):
+    """
+    Shortcut to create a ThreadFunction and all support data structures and
+    routines to implement communication between the main thread and the child
+    threads executing the ThreadFunction.
+    """
+    #TODO: threads -> npthreads
+
+    # Create the SharedData
+    required = derive_parameters(iet)
+    known = (root.parameters +
+             tuple(i for i in required if i.is_Array and i._mem_shared))
+    parameters, dynamic_parameters = split(required, lambda i: i in known)
+
+    sdata = SharedData(name=sregistry.make_name(prefix='sdata'),
+                       nthreads_std=threads.size, fields=dynamic_parameters)
+    parameters.append(sdata)
+
+    # Prepend the unwinded SharedData fields, available upon thread activation
+    preactions = [DummyExpr(i, FieldFromPointer(i.name, sdata.symbolic_base))
+                  for i in dynamic_parameters]
+    preactions.append(DummyExpr(sdata.symbolic_id,
+                                FieldFromPointer(sdata._field_id,
+                                                 sdata.symbolic_base)))
+
+    # Append the flag reset
+    postactions = [List(body=[
+        BlankLine,
+        DummyExpr(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 1)
+    ])]
+
+    iet = List(body=preactions + [iet] + postactions)
+
+    # Append the flag reset
+
+    # The thread has work to do when it receives the signal that all locks have
+    # been set to 0 by the main thread
+    iet = Conditional(CondEq(FieldFromPointer(sdata._field_flag,
+                                              sdata.symbolic_base), 2), iet)
+
+    # The thread keeps spinning until the alive flag is set to 0 by the main thread
+    iet = While(CondNe(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 0),
+                iet)
+
+    return ThreadFunction(name, iet, 'void', parameters, 'static', sdata)
