@@ -805,7 +805,7 @@ class MultilineCall(c.Generable):
         if not self.is_indirect:
             tip = "%s(" % self.name
         else:
-            tip = "%s," % self.name
+            tip = "%s%s" % (self.name, ',' if self.arguments else '')
         processed = []
         for i in self.arguments:
             if isinstance(i, (MultilineCall, LambdaCollection)):
