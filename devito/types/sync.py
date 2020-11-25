@@ -10,7 +10,7 @@ import os
 from collections import defaultdict
 from ctypes import POINTER, c_int, c_void_p
 
-from cgen import Initializer, Struct, Value
+from cgen import Struct, Value
 from cached_property import cached_property
 import numpy as np
 import sympy

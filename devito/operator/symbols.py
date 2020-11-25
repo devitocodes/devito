@@ -1,4 +1,5 @@
 from devito.tools import generator
+from devito.types import NPThreads
 
 __init__ = ['SymbolRegistry']
 
@@ -20,6 +21,10 @@ class SymbolRegistry(object):
         self.nthreads_nonaffine = nthreads_nonaffine
         self.threadid = threadid
 
+        # Several groups of pthreads each of size `npthread` may be created
+        # during compilation
+        self.npthreads = []
+
     def make_name(self, prefix=None):
         # By default we're creating a new symbol
         if prefix is None:
@@ -31,3 +36,8 @@ class SymbolRegistry(object):
             counter = self.counters.setdefault(prefix, generator())
 
         return "%s%d" % (prefix, counter())
+
+    def make_npthreads(self, value):
+        npthreads = NPThreads(name='npthreads', value=value)
+        self.npthreads.append(npthreads)
+        return npthreads

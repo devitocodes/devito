@@ -1,14 +1,19 @@
+from collections import namedtuple
+
 from cached_property import cached_property
+from sympy import Or
+import cgen as c
 
 from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, DummyExpr,
-                                 List, While)
+                                 Iteration, List, While)
 from devito.ir.iet.utils import derive_parameters
-from devito.symbolics import CondEq, CondNe, FieldFromPointer
+from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
+                              Macro)
 from devito.tools import as_tuple, split
-from devito.types import SharedData
+from devito.types import PThreadArray, SharedData, Symbol
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
-           'ThreadFunction', 'make_tfunc']
+           'ThreadFunction', 'make_thread_ctx']
 
 
 class ElementalFunction(Callable):
@@ -89,26 +94,54 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
                              dynamic_parameters)
 
 
+ThreadCtx = namedtuple('ThreadCtx', 'threads sdata init tfunc activate finalize')
+
+
 class ThreadFunction(Callable):
 
     """
     A Callable executed asynchronously by a separate thread.
     """
 
-    def __init__(self, name, body, retval, parameters=None, prefix=('static',),
-                 sdata=None):
-        super().__init__(name, body, retval, parameters, prefix)
-        self.sdata = sdata
+    pass
 
 
-def make_tfunc(name, iet, root, threads, sregistry):
-    """
-    Shortcut to create a ThreadFunction and all support data structures and
-    routines to implement communication between the main thread and the child
-    threads executing the ThreadFunction.
-    """
-    #TODO: threads -> npthreads
+def _make_threads(value, sregistry):
+    name = sregistry.make_name(prefix='threads')
 
+    if value is None:
+        threads = PThreadArray(name=name, npthreads=1)
+    else:
+        npthreads = sregistry.make_npthreads(value)
+        threads = PThreadArray(name=name, npthreads=npthreads)
+
+    return threads
+
+
+def _make_thread_init(threads, tfunc, sdata, sregistry):
+    d = threads.index
+    if threads.size == 1:
+        callback = lambda body: body
+    else:
+        callback = lambda body: Iteration(body, d, threads.size - 1)
+
+    base = list(sregistry.npthreads)
+    base.remove(threads.size)
+    idinit = DummyExpr(FieldFromComposite(sdata._field_id, sdata[d]),
+                       1 + sum(i.data for i in base) + d)
+    call = Call('pthread_create', (threads.symbolic_base + d,
+                                   Macro('NULL'),
+                                   Call(tfunc.name, [], is_indirect=True),
+                                   sdata.symbolic_base + d))
+    threadsinit = List(
+        header=c.Comment("Fire up and initialize `%s`" % threads.name),
+        body=callback([idinit, call])
+    )
+
+    return threadsinit
+
+
+def _make_thread_func(name, iet, root, npthreads, sregistry):
     # Create the SharedData
     required = derive_parameters(iet)
     known = (root.parameters +
@@ -116,7 +149,7 @@ def make_tfunc(name, iet, root, threads, sregistry):
     parameters, dynamic_parameters = split(required, lambda i: i in known)
 
     sdata = SharedData(name=sregistry.make_name(prefix='sdata'),
-                       npthreads=threads.size, fields=dynamic_parameters)
+                       npthreads=npthreads, fields=dynamic_parameters)
     parameters.append(sdata)
 
     # Prepend the unwinded SharedData fields, available upon thread activation
@@ -145,4 +178,67 @@ def make_tfunc(name, iet, root, threads, sregistry):
     iet = While(CondNe(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 0),
                 iet)
 
-    return ThreadFunction(name, iet, 'void', parameters, 'static', sdata)
+    return ThreadFunction(name, iet, 'void', parameters, 'static'), sdata
+
+
+def _make_thread_activate(threads, sdata, sync_ops, sregistry):
+    if threads.size == 1:
+        d = threads.index
+    else:
+        d = Symbol(name=sregistry.make_name(prefix=threads.index.name))
+
+    sync_locks = [s for s in sync_ops if s.is_SyncLock]
+    condition = Or(*([CondNe(s.handle, 2) for s in sync_locks] +
+                     [CondNe(FieldFromComposite(sdata._field_flag, sdata[d]), 1)]))
+
+    if threads.size == 1:
+        activation = [While(condition)]
+    else:
+        activation = [DummyExpr(d, 0),
+                      While(condition, DummyExpr(d, (d + 1) % threads.size))]
+
+    activation.extend([DummyExpr(FieldFromComposite(i.name, sdata[d]), i)
+                       for i in sdata.fields])
+    activation.extend([DummyExpr(s.handle, 0) for s in sync_locks])
+    activation.append(DummyExpr(FieldFromComposite(sdata._field_flag, sdata[d]), 2))
+    activation = List(
+        header=[c.Line(), c.Comment("Activate `%s`" % threads.name)],
+        body=activation,
+        footer=c.Line()
+    )
+
+    return activation
+
+
+def _make_thread_finalize(threads, sdata):
+    d = threads.index
+    if threads.size == 1:
+        callback = lambda body: body
+    else:
+        callback = lambda body: Iteration(body, d, threads.size - 1)
+
+    threadswait = List(
+        header=c.Comment("Wait for completion of `%s`" % threads.name),
+        body=callback([
+            While(CondEq(FieldFromComposite(sdata._field_flag, sdata[d]), 2)),
+            DummyExpr(FieldFromComposite(sdata._field_flag, sdata[d]), 0),
+            Call('pthread_join', (threads[d], Macro('NULL')))
+        ])
+    )
+
+    return threadswait
+
+
+def make_thread_ctx(name, iet, root, npthreads, sync_ops, sregistry):
+    """
+    Shortcut to create a ThreadFunction and all support data structures and
+    routines to implement communication between the main thread and the child
+    threads executing the ThreadFunction.
+    """
+    threads = _make_threads(npthreads, sregistry)
+    tfunc, sdata = _make_thread_func(name, iet, root, npthreads, sregistry)
+    init = _make_thread_init(threads, tfunc, sdata, sregistry)
+    activate = _make_thread_activate(threads, sdata, sync_ops, sregistry)
+    finalize = _make_thread_finalize(threads, sdata)
+
+    return ThreadCtx(threads, sdata, init, tfunc, activate, finalize)
