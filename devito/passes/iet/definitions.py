@@ -217,7 +217,7 @@ class DataManager(object):
                 else:
                     objs = [k.parray]
             elif k.is_Call:
-                objs = list(k.arguments)
+                objs = list(k.functions)
                 if k.retobj is not None:
                     objs.append(k.retobj.function)
 
@@ -226,6 +226,7 @@ class DataManager(object):
                     continue
 
                 try:
+                    #TODO: DROP TRY-EXCPET FINALLY??
                     if i.is_LocalObject:
                         # LocalObject's get placed as close as possible to
                         # their first appearence
