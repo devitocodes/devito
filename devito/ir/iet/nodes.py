@@ -16,8 +16,7 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORI
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type)
-from devito.types import Symbol, Indexed
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
@@ -269,12 +268,13 @@ class Call(ExprStmt, Node):
 
     @property
     def functions(self):
-        retval = tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+        retval = [i.function for i in self.arguments
+                  if isinstance(i, (AbstractFunction, Indexed, LocalObject))]
         if self.base is not None:
-            retval += (self.base.function,)
+            retval.append(self.base.function)
         if self.retobj is not None:
-            retval += (self.retobj.function,)
-        return retval
+            retval.append(self.retobj.function)
+        return tuple(retval)
 
     @property
     def children(self):
