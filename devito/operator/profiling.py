@@ -99,6 +99,7 @@ class Profiler(object):
         if sections:
             mapper = {}
             for i in sections:
+                import pdb;pdb.set_trace()
                 assert i.name in timer.fields
                 mapper[i] = TimedList(timer=timer, lname=i.name, body=i)
             return Transformer(mapper).visit(iet)
@@ -266,22 +267,22 @@ class AdvisorProfiler(AdvancedProfiler):
     def analyze(self, iet):
         return
 
-    def instrument(self, iet):
+    def instrument(self, iet, timer):
         # Look for the presence of a time loop within the IET of the Operator
-        found = False
-        for node in FindNodes(Iteration).visit(iet):
-            if node.dim.is_Time:
-                found = True
-                break
+        # found = False
+        mapper = {}
+        for i in FindNodes(Iteration).visit(iet):
+            if i.dim.is_Time:
+                # import pdb;pdb.set_trace()
+                mapper[i] = List(header=c.Statement('%s()' % self._api_resume),
+                                 body=i,
+                                 footer=c.Statement('%s()' % self._api_pause))
+                return Transformer(mapper).visit(iet)
+            else:
+                return iet
 
-        if found:
-            # The calls to Advisor's Collection Control API are only for Operators with
-            # a time loop
-            return List(header=c.Statement('%s()' % self._api_resume),
-                        body=iet,
-                        footer=c.Statement('%s()' % self._api_pause))
-
-        return iet
+        # import pdb;pdb.set_trace()
+#        return iet
 
 
 class PerformanceSummary(OrderedDict):
