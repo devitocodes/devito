@@ -31,7 +31,7 @@ class DeviceOpenMPIteration(OpenMPIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
-        return 'omp target teams distribute parallel for device(devicenum)'
+        return 'omp target teams distribute parallel for'
 
     @classmethod
     def _make_clauses(cls, **kwargs):
@@ -44,16 +44,16 @@ class DeviceOmpizer(Ompizer):
     lang = dict(Ompizer.lang)
     lang.update({
         'map-enter-to': lambda i, j:
-            c.Pragma('omp target enter data map(to: %s%s) device(devicenum)' % (i, j)),
+            c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
-            c.Pragma('omp target enter data map(alloc: %s%s) device(devicenum)' % (i, j)),
+            c.Pragma('omp target enter data map(alloc: %s%s)' % (i, j)),
         'map-update': lambda i, j:
-            c.Pragma('omp target update from(%s%s) device(devicenum)' % (i, j)),
+            c.Pragma('omp target update from(%s%s)' % (i, j)),
         'map-release': lambda i, j:
-            c.Pragma('omp target exit data map(release: %s%s) device(devicenum)'
+            c.Pragma('omp target exit data map(release: %s%s)'
                      % (i, j)),
         'map-exit-delete': lambda i, j, k:
-            c.Pragma('omp target exit data map(delete: %s%s) device(devicenum)%s'
+            c.Pragma('omp target exit data map(delete: %s%s)%s'
                      % (i, j, k)),
     })
 
@@ -219,7 +219,6 @@ def initialize(iet, **kwargs):
     """
     Initialize the OpenMP environment.
     """
-    devicenum = Symbol(name='devicenum')
 
     @singledispatch
     def _initialize(iet):
@@ -239,22 +238,15 @@ def initialize(iet, **kwargs):
             call = Function('omp_get_num_devices')()
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
 
-            devicenum_init = LocalExpression(DummyEq(devicenum, rank % ngpus))
+            set_device_num = Call('omp_set_default_device', [rank % ngpus])
 
-            body = [rank_decl, rank_init, ngpus_init, devicenum_init]
+            body = [rank_decl, rank_init, ngpus_init, set_device_num]
 
             init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
                         body=body,
                         footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
-        else:
-            devicenum_init = LocalExpression(DummyEq(devicenum, 0))
-            body = [devicenum_init]
 
-            init = List(header=c.Comment('Begin of OpenMP setup'),
-                        body=body,
-                        footer=(c.Comment('End of OpenMP setup'), c.Line()))
-
-        iet = iet._rebuild(body=(init,) + iet.body)
+            iet = iet._rebuild(body=(init,) + iet.body)
 
         return iet
 
@@ -265,7 +257,7 @@ def initialize(iet, **kwargs):
 
     iet = _initialize(iet)
 
-    return iet, {'args': devicenum}
+    return iet, {}
 
 
 @iet_pass
@@ -275,7 +267,7 @@ def mpi_gpu_direct(iet, **kwargs):
     """
     mapper = {}
     for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
-        header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' %
+        header = c.Pragma('omp target data use_device_ptr(%s)' %
                           node.arguments[0].name)
         mapper[node] = Block(header=header, body=node)
 
