@@ -11,11 +11,12 @@ from devito.ir.iet import (Call, Callable, Conditional, List, Iteration, Pointer
                            BlankLine, DummyExpr, derive_parameters, make_tfunc)
 from devito.ir.support import Forward
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import CondEq, CondNe, FieldFromComposite, ListInitializer
+from devito.symbolics import (CondEq, CondNe, FieldFromComposite, ListInitializer,
+                              Macro)
 from devito.tools import (as_mapper, as_list, filter_ordered, filter_sorted,
                           is_integer)
-from devito.types import (NThreadsSTD, STDThreadArray, WaitLock, WithLock,
-                          FetchWait, FetchWaitPrefetch, Delete, SharedData, Symbol)
+from devito.types import (NPThreads, PThreadArray, WaitLock, WithLock, FetchWait,
+                          FetchWaitPrefetch, Delete, SharedData, Symbol)
 
 __init__ = ['Orchestrator', 'BusyWait']
 
@@ -49,10 +50,10 @@ class Orchestrator(object):
         name = self.sregistry.make_name(prefix='threads')
 
         if value is None:
-            threads = STDThreadArray(name=name, nthreads_std=1)
+            threads = PThreadArray(name=name, npthreads=1)
         else:
-            nthreads_std = NThreadsSTD(name='np%s' % name, value=value)
-            threads = STDThreadArray(name=name, nthreads_std=nthreads_std)
+            npthreads = NPThreads(name='np%s' % name, value=value)
+            threads = PThreadArray(name=name, npthreads=npthreads)
 
         return threads
 
@@ -66,10 +67,10 @@ class Orchestrator(object):
 
         idinit = DummyExpr(FieldFromComposite(sdata._field_id, sdata[d]),
                            1 + sum(i.size for i in pieces.threads) + d)
-        arguments = list(tfunc.parameters)
-        arguments[-1] = sdata.symbolic_base + d
-        call = Call('std::thread', Call(tfunc.name, arguments, is_indirect=True),
-                    retobj=threads[d])
+        call = Call('pthread_create', (threads.symbolic_base + d,
+                                       Macro('NULL'),
+                                       Call(tfunc.name, [], is_indirect=True),
+                                       tfunc.sdata.symbolic_base + d))
         threadsinit = List(
             header=c.Comment("Fire up and initialize `%s`" % threads.name),
             body=callback([idinit, call])
@@ -89,7 +90,7 @@ class Orchestrator(object):
             body=callback([
                 While(CondEq(FieldFromComposite(sdata._field_flag, sdata[d]), 2)),
                 DummyExpr(FieldFromComposite(sdata._field_flag, sdata[d]), 0),
-                Call(FieldFromComposite('join', threads[d]))
+                Call('pthread_join', (threads[d], Macro('NULL')))
             ])
         )
 
@@ -328,7 +329,7 @@ class Orchestrator(object):
         iet = iet._rebuild(body=(init,) + iet.body + (finalize,))
 
         return iet, {'efuncs': pieces.funcs,
-                     'includes': ['thread'],
+                     'includes': ['pthread.h'],
                      'args': [i.size for i in pieces.threads if not is_integer(i.size)]}
 
 

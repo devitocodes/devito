@@ -25,7 +25,7 @@ from devito.types.dimension import CustomDimension
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
            'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
-           'Delete', 'STDThreadArray', 'SharedData', 'NThreadsSTD', 'normalize_syncs']
+           'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'normalize_syncs']
 
 
 class NThreadsMixin(object):
@@ -82,9 +82,9 @@ class NThreadsNonaffine(NThreads):
     name = 'nthreads_nonaffine'
 
 
-class NThreadsSTD(NThreadsMixin, Constant):
+class NPThreads(NThreadsMixin, Constant):
 
-    name = 'nthreads_std'
+    name = 'npthreads'
 
     @classmethod
     def default_value(cls):
@@ -104,7 +104,7 @@ class ThreadArray(ArrayObject):
         try:
             return as_tuple(kwargs['dimensions']), as_tuple(kwargs['dimensions'])
         except KeyError:
-            nthreads = kwargs['nthreads_std']
+            nthreads = kwargs['npthreads']
             dim = CustomDimension(name='wi', symbolic_size=nthreads)
             return (dim,), (dim,)
 
@@ -120,10 +120,14 @@ class ThreadArray(ArrayObject):
         else:
             return self.dim
 
+    @cached_property
+    def symbolic_base(self):
+        return Scalar(name=self.name, dtype=None)
 
-class STDThreadArray(ThreadArray):
 
-    dtype = type('std::thread', (c_void_p,), {})
+class PThreadArray(ThreadArray):
+
+    dtype = type('pthread_t', (c_void_p,), {})
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -152,14 +156,10 @@ class SharedData(ThreadArray):
         fields = []
         for i, j in self.pfields:
             if i == self._field_flag:
-                fields.append(Initializer(Value('volatile %s' % ctypes_to_cstr(j), i), 1))
+                fields.append(Value('volatile %s' % ctypes_to_cstr(j), i))
             else:
                 fields.append(Value(ctypes_to_cstr(j), i))
         return Struct(self.pname, fields)
-
-    @cached_property
-    def symbolic_base(self):
-        return Scalar(name=self.name, dtype=None)
 
     @cached_property
     def symbolic_id(self):

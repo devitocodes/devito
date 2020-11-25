@@ -209,8 +209,8 @@ def test_lock():
     new_lock.target.shape == f.shape
 
 
-def test_std_thread_array():
-    a = STDThreadArray(name='threads', nthreads_std=4)
+def test_p_thread_array():
+    a = PThreadArray(name='threads', npthreads=4)
 
     pkl_a = pickle.dumps(a)
     new_a = pickle.loads(pkl_a)
@@ -223,7 +223,7 @@ def test_std_thread_array():
 def test_shared_data():
     s = Scalar(name='s')
 
-    sdata = SharedData(name='sdata', nthreads_std=2, fields=[s])
+    sdata = SharedData(name='sdata', npthreads=2, fields=[s])
 
     pkl_sdata = pickle.dumps(sdata)
     new_sdata = pickle.loads(pkl_sdata)

@@ -116,7 +116,7 @@ def make_tfunc(name, iet, root, threads, sregistry):
     parameters, dynamic_parameters = split(required, lambda i: i in known)
 
     sdata = SharedData(name=sregistry.make_name(prefix='sdata'),
-                       nthreads_std=threads.size, fields=dynamic_parameters)
+                       npthreads=threads.size, fields=dynamic_parameters)
     parameters.append(sdata)
 
     # Prepend the unwinded SharedData fields, available upon thread activation

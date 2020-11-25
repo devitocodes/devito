@@ -6,7 +6,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
 from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes import OpenMPIteration
-from devito.types import Lock, STDThreadArray
+from devito.types import Lock, PThreadArray
 
 from conftest import skipif
 
@@ -396,7 +396,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 4
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1
-        threads = [i for i in symbols if isinstance(i, STDThreadArray)]
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size == 1
         assert threads[1].size.data == 2
@@ -428,7 +428,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 5
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1
-        threads = [i for i in symbols if isinstance(i, STDThreadArray)]
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 1
         assert threads[0].size.data == 1
 
@@ -466,7 +466,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 7
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 2
-        threads = [i for i in symbols if isinstance(i, STDThreadArray)]
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.data == 1
         assert threads[1].size.data == 1
