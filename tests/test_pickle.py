@@ -12,7 +12,7 @@ from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
-                          PointerArray, Lock, STDThreadArray, SharedData, Timer)
+                          PointerArray, Lock, PThreadArray, SharedData, Timer)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,

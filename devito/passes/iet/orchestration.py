@@ -114,8 +114,6 @@ class Orchestrator(object):
         return iet
 
     def _make_fetchwaitprefetch(self, iet, sync_ops, pieces, root):
-        npthreads = 1
-
         fetches = []
         prefetches = []
         presents = []
@@ -159,21 +157,21 @@ class Orchestrator(object):
         func = Callable(name, body, 'void', parameters, 'static')
         pieces.funcs.append(func)
 
+        # Perform initial fetch by the main thread
+        pieces.init.append(List(
+            header=c.Comment("Initialize data stream"),
+            body=[Call(name, parameters), BlankLine]
+        ))
+
         # Turn prefetch IET into a ThreadFunction
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(header=c.Line(), body=casts + prefetches)
-        tctx = make_thread_ctx(name, body, root, npthreads, sync_ops, self.sregistry)
+        tctx = make_thread_ctx(name, body, root, None, sync_ops, self.sregistry)
         pieces.funcs.extend(tctx.funcs)
-
-        # Perform initial fetch by the main thread
-        threads = tctx.threads
-        pieces.init.append(List(
-            header=c.Comment("Initialize data stream for `%s`" % threads.name),
-            body=[Call(name, func.parameters), BlankLine]
-        ))
 
         # Glue together all the IET pieces, including the activation logic
         sdata = tctx.sdata
+        threads = tctx.threads
         iet = List(body=[
             BlankLine,
             BusyWait(CondNe(FieldFromComposite(sdata._field_flag,

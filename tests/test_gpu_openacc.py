@@ -65,8 +65,9 @@ class TestCodeGeneration(object):
                       opt=('streaming', 'orchestrate'))
 
         # Check generated code
-        assert len(op._func_table) == 2
+        assert len(op._func_table) == 3
         assert 'init_device0' in op._func_table
+        assert 'init_tsdata0' in op._func_table
         assert 'prefetch_host_to_device0' in op._func_table
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2

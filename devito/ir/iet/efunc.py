@@ -7,10 +7,9 @@ import cgen as c
 from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Dereference,
                                  DummyExpr, Iteration, List, PointerCast, Return, While)
 from devito.ir.iet.utils import derive_parameters
-from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
-                              Literal, Macro)
+from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
 from devito.tools import as_tuple, split
-from devito.types import LocalObject, PThreadArray, SharedData, Symbol, VoidPointer
+from devito.types import PThreadArray, SharedData, Symbol, VoidPointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
            'EntryFunction', 'ThreadFunction', 'make_thread_ctx']
@@ -137,7 +136,7 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 
     # A unique identifier for each created pthread
     other_thread_pools = set(sregistry.npthreads) - {threads.size}
-    pthreadid = 1 + sum(i.data for i in other_thread_pools) + threads.dim
+    pthreadid = 1 + sum(i.data for i in other_thread_pools) + d
 
     # Initialize `sdata`
     arguments = list(isdata.parameters)
@@ -172,7 +171,7 @@ def _make_thread_func(name, iet, root, threads, sregistry):
 
     # Create a Callable to initialize `sdata` with the known const values
     iname = 'init_%s' % sdata.dtype._type_.__name__
-    ibody = [DummyExpr(FieldFromPointer(i._C_name, sbase), Literal(i._C_name))
+    ibody = [DummyExpr(FieldFromPointer(i._C_name, sbase), i._C_symbol)
              for i in parameters]
     ibody.extend([
         BlankLine,
