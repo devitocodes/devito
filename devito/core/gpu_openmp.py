@@ -9,12 +9,11 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, ElementalFunction, Expression,
-                           List, LocalExpression, ThreadFunction, FindNodes,
-                           FindSymbols, MapExprStmts, Transformer)
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, EntryFunction,
+                           Expression, List, LocalExpression, ThreadFunction,
+                           FindNodes, FindSymbols, MapExprStmts, Transformer)
 from devito.mpi.distributed import MPICommObject
-from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
-                                 MPICallable)
+from devito.mpi.routines import CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv
 from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
@@ -326,6 +325,10 @@ def initialize(iet, **kwargs):
 
     @singledispatch
     def _initialize(iet):
+        return iet
+
+    @_initialize.register(EntryFunction)
+    def _(iet):
         comm = None
 
         for i in iet.parameters:
@@ -352,12 +355,6 @@ def initialize(iet, **kwargs):
 
             iet = iet._rebuild(body=(init,) + iet.body)
 
-        return iet
-
-    @_initialize.register(ElementalFunction)
-    @_initialize.register(ThreadFunction)
-    @_initialize.register(MPICallable)
-    def _(iet):
         return iet
 
     iet = _initialize(iet)

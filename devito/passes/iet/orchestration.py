@@ -68,12 +68,9 @@ class Orchestrator(object):
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
                      for d in s.target.dimensions]
 
-            preactions.append(List(body=[
-                BlankLine,
-                List(header=self._P._map_update_wait_host(s.target, imask,
-                                                          SharedData._field_id)),
-                DummyExpr(s.handle, 1)
-            ]))
+            update = self._P._map_update_wait_host(s.target, imask, SharedData._field_id)
+            preactions.append(List(body=[BlankLine, update, DummyExpr(s.handle, 1)]))
+
             postactions.append(DummyExpr(s.handle, 2))
         preactions.append(BlankLine)
         postactions.insert(0, BlankLine)
@@ -83,7 +80,7 @@ class Orchestrator(object):
         name = self.sregistry.make_name(prefix='copy_device_to_host')
         body = List(body=tuple(preactions) + iet.body + tuple(postactions))
         tctx = make_thread_ctx(name, body, root, npthreads, sync_ops, self.sregistry)
-        pieces.funcs.append(tctx.tfunc)
+        pieces.funcs.extend(tctx.funcs)
 
         # Schedule computation to the first available thread
         iet = tctx.activate
@@ -165,7 +162,7 @@ class Orchestrator(object):
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(header=c.Line(), body=casts + prefetches)
         tctx = make_thread_ctx(name, body, root, npthreads, sync_ops, self.sregistry)
-        pieces.funcs.append(tctx.tfunc)
+        pieces.funcs.extend(tctx.funcs)
 
         # Perform initial fetch by the main thread
         threads = tctx.threads
