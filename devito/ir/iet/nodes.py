@@ -771,7 +771,7 @@ class TimedList(List):
         return (self.timer,)
 
 
-class PointerCast(Node):
+class PointerCast(ExprStmt, Node):
 
     """
     A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
@@ -779,8 +779,9 @@ class PointerCast(Node):
 
     is_PointerCast = True
 
-    def __init__(self, function):
+    def __init__(self, function, obj=None):
         self.function = function
+        self.obj = obj
 
     def __repr__(self):
         return "<PointerCast(%s)>" % self.function
@@ -821,7 +822,12 @@ class PointerCast(Node):
 class Dereference(ExprStmt, Node):
 
     """
-    A node encapsulating a dereference from a PointerArray to an Array.
+    A node encapsulating a dereference from an object `parray` to another object
+    `array`. Two possibilities are supported:
+
+        * `parray` is a PointerArray and `array` is an Array (default case)
+        * `parray` is an ArrayObject representing a pointer to a C struct while
+          `array` is a field in `parray`.
     """
 
     is_Dereference = True

@@ -15,6 +15,7 @@ from devito.ir.support.space import Backward
 from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction
+from devito.types import ArrayObject, VoidPointer
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
@@ -201,16 +202,22 @@ class CGen(Visitor):
 
     def visit_PointerCast(self, o):
         f = o.function
+        if isinstance(o.obj, VoidPointer):
+            obj = o.obj.name
+        elif isinstance(o.obj, ArrayObject):
+            obj = '%s->%s' % (o.obj.name, f._C_name)
+        else:
+            obj = f._C_name
         if f.is_PointerArray:
-            rvalue = '(%s**) %s' % (f._C_typedata, f._C_name)
+            rvalue = '(%s**) %s' % (f._C_typedata, obj)
             lvalue = c.Value(f._C_typedata, '**%s' % f.name)
         else:
             shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
             if f.is_DiscreteFunction:
-                rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
+                rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, obj,
                                                 f._C_field_data)
             else:
-                rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, f._C_name)
+                rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, obj)
             lvalue = c.AlignedAttribute(f._data_alignment,
                                         c.Value(f._C_typedata,
                                                 '(*restrict %s)%s' % (f.name, shape)))
@@ -218,11 +225,15 @@ class CGen(Visitor):
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
-        shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
-        rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name, a1.dim.name)
-        lvalue = c.AlignedAttribute(a0._data_alignment,
-                                    c.Value(a0._C_typedata,
-                                            '(*restrict %s)%s' % (a0.name, shape)))
+        if a1.is_PointerArray:
+            shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
+            rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name, a1.dim.name)
+            lvalue = c.AlignedAttribute(a0._data_alignment,
+                                        c.Value(a0._C_typedata,
+                                                '(*restrict %s)%s' % (a0.name, shape)))
+        else:
+            rvalue = '%s->%s' % (a1.name, a0._C_name)
+            lvalue = c.Value(a0._C_typename, a0._C_name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
