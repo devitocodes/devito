@@ -69,8 +69,9 @@ class Orchestrator(object):
                      for d in s.target.dimensions]
 
             update = self._P._map_update_wait_host(s.target, imask, SharedData._field_id)
-            preactions.append(List(body=[BlankLine, update, DummyExpr(s.handle, 1)]))
+            update = List(header=update)
 
+            preactions.append(List(body=[BlankLine, update, DummyExpr(s.handle, 1)]))
             postactions.append(DummyExpr(s.handle, 2))
         preactions.append(BlankLine)
         postactions.insert(0, BlankLine)

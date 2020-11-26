@@ -4,13 +4,13 @@ from cached_property import cached_property
 from sympy import Or
 import cgen as c
 
-from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, DummyExpr,
-                                 Iteration, List, While)
+from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Dereference,
+                                 DummyExpr, Iteration, List, PointerCast, Return, While)
 from devito.ir.iet.utils import derive_parameters
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
                               Literal, Macro)
 from devito.tools import as_tuple, split
-from devito.types import PThreadArray, SharedData, Symbol
+from devito.types import LocalObject, PThreadArray, SharedData, Symbol, VoidPointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
            'EntryFunction', 'ThreadFunction', 'make_thread_ctx']
@@ -135,11 +135,21 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
     else:
         callback = lambda body: Iteration(body, d, threads.size - 1)
 
-    call0 = Call(isdata.name, list(isdata.parameters))
+    # A unique identifier for each created pthread
+    other_thread_pools = set(sregistry.npthreads) - {threads.size}
+    pthreadid = 1 + sum(i.data for i in other_thread_pools) + threads.dim
+
+    # Initialize `sdata`
+    arguments = list(isdata.parameters)
+    arguments[-1] = pthreadid
+    call0 = Call(isdata.name, arguments)
+
+    # Create pthreads
     call1 = Call('pthread_create', (threads.symbolic_base + d,
                                     Macro('NULL'),
                                     Call(tfunc.name, [], is_indirect=True),
                                     sdata.symbolic_base + d))
+
     threadsinit = List(
         header=c.Comment("Fire up and initialize `%s`" % threads.name),
         body=callback([call0, call1])
@@ -149,64 +159,64 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 
 
 def _make_thread_func(name, iet, root, threads, sregistry):
-    # Base to create an unique identifier for a pthread in the `threads` pool
-    other_thread_pools = set(sregistry.npthreads) - {threads.size}
-    base = 1 + sum(i.data for i in other_thread_pools) + threads.dim
-
-    # Create the SharedData
+    # Create the SharedData, that is the data structure that will be used by the
+    # main thread to pass information dows to the child thread(s)
     required = derive_parameters(iet)
-    known = (root.parameters +
-             tuple(i for i in required if i.is_Array and i._mem_shared))
+    known = root.parameters + tuple(i for i in required if i.is_Array and i._mem_shared)
     parameters, dynamic_parameters = split(required, lambda i: i in known)
+    sdata = SharedData(name=sregistry.make_name(prefix='sdata'), npthreads=threads.size,
+                       fields=required, dynamic_fields=dynamic_parameters)
 
-    # The data structure to pass arguments from the main thread to a child thread
-    # in the `threads` pool
-    sdata = SharedData(name=sregistry.make_name(prefix='sdata'),
-                       npthreads=threads.size, fields=dynamic_parameters)
+    sbase = sdata.symbolic_base
+    sid = sdata.symbolic_id
 
     # Create a Callable to initialize `sdata` with the known const values
     iname = 'init_%s' % sdata.dtype._type_.__name__
-    ibody = [DummyExpr(FieldFromPointer(i.name, sdata.symbolic_base), Literal(i.name))
+    ibody = [DummyExpr(FieldFromPointer(i._C_name, sbase), Literal(i._C_name))
              for i in parameters]
     ibody.extend([
         BlankLine,
-        DummyExpr(FieldFromPointer(sdata._field_id, sdata.symbolic_base), base),
-        DummyExpr(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 1)
+        DummyExpr(FieldFromPointer(sdata._field_id, sbase), sid),
+        DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
     ])
-    iparameters = parameters + [sdata, threads.dim]
+    iparameters = parameters + [sdata, sid]
     isdata = Callable(iname, ibody, 'void', iparameters, 'static')
 
-    # Prepend the unwinded SharedData fields, available upon thread activation
-    preactions = [DummyExpr(i, FieldFromPointer(i.name, sdata.symbolic_base))
+    # Prepend the SharedData fields available upon thread activation
+    preactions = [DummyExpr(i, FieldFromPointer(i.name, sbase))
                   for i in dynamic_parameters]
-    preactions.append(DummyExpr(sdata.symbolic_id,
-                                FieldFromPointer(sdata._field_id,
-                                                 sdata.symbolic_base)))
 
     # Append the flag reset
     postactions = [List(body=[
         BlankLine,
-        DummyExpr(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 1)
+        DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
     ])]
 
     iet = List(body=preactions + [iet] + postactions)
 
-    # Append the flag reset
-
     # The thread has work to do when it receives the signal that all locks have
     # been set to 0 by the main thread
-    iet = Conditional(CondEq(FieldFromPointer(sdata._field_flag,
-                                              sdata.symbolic_base), 2), iet)
+    iet = Conditional(CondEq(FieldFromPointer(sdata._field_flag, sbase), 2), iet)
 
     # The thread keeps spinning until the alive flag is set to 0 by the main thread
-    iet = While(CondNe(FieldFromPointer(sdata._field_flag, sdata.symbolic_base), 0), iet)
+    iet = While(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), iet)
+
+    # pthread functions expect exactly one argument, a void*, and must return void*
+    tretval = 'void*'
+    tparameter = VoidPointer('_%s' % sdata.name)
 
     # Unpack `sdata`
-    unpack = [DummyExpr(i, FieldFromPointer(i.name, sdata.symbolic_base))
-              for i in parameters]
-    iet = List(body=unpack + [iet])
+    unpack = [PointerCast(sdata, tparameter), BlankLine]
+    for i in parameters:
+        if i.is_AbstractFunction:
+            unpack.extend([Dereference(i, sdata), PointerCast(i)])
+        else:
+            unpack.append(DummyExpr(i, FieldFromPointer(i.name, sbase)))
+    unpack.append(DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase)))
+    unpack.append(BlankLine)
+    iet = List(body=unpack + [iet, BlankLine, Return(Macro('NULL'))])
 
-    tfunc = ThreadFunction(name, iet, 'void', parameters, 'static')
+    tfunc = ThreadFunction(name, iet, tretval, tparameter, 'static')
 
     return tfunc, isdata, sdata
 
@@ -228,7 +238,7 @@ def _make_thread_activate(threads, sdata, sync_ops, sregistry):
                       While(condition, DummyExpr(d, (d + 1) % threads.size))]
 
     activation.extend([DummyExpr(FieldFromComposite(i.name, sdata[d]), i)
-                       for i in sdata.fields])
+                       for i in sdata.dynamic_fields])
     activation.extend([DummyExpr(s.handle, 0) for s in sync_locks])
     activation.append(DummyExpr(FieldFromComposite(sdata._field_flag, sdata[d]), 2))
     activation = List(
