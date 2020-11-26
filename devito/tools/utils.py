@@ -221,17 +221,21 @@ def ctypes_to_cstr(ctype, toarray=None):
     elif issubclass(ctype, ctypes.Array):
         return '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
+        if ctype.__name__.startswith('c_volatile_'):
+            name = 'volatile %s' % ctype.__name__[11:]
+        else:
+            name = ctype.__name__[2:]
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
         # either the format c_X_p or c_X, where X is the C typename, for instance
         # `int` or `float`.
-        if ctype.__name__.endswith('_p'):
-            return '%s *' % ctype.__name__[2:-2]
+        if name.endswith('_p'):
+            return '%s *' % name[:-2]
         elif toarray:
-            return '%s %s' % (ctype.__name__[2:], toarray)
+            return '%s %s' % (name, toarray)
         else:
-            return ctype.__name__[2:]
+            return name
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         return ctype.__name__
