@@ -22,6 +22,10 @@ class ArrayBasic(AbstractFunction):
         return as_tuple(kwargs['dimensions']), as_tuple(kwargs['dimensions'])
 
     @property
+    def _C_ctype(self):
+        return POINTER(dtype_to_ctype(self.dtype))
+
+    @property
     def shape(self):
         return self.symbolic_shape
 
@@ -133,7 +137,7 @@ class Array(ArrayBasic):
 
     @property
     def _C_typename(self):
-        return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
+        return ctypes_to_cstr(self._C_ctype)
 
     @property
     def space(self):
@@ -231,7 +235,7 @@ class ArrayObject(ArrayBasic):
 
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        return [(i.name, i._C_ctype) for i in kwargs.get('fields', [])]
+        return [(i._C_name, i._C_ctype) for i in kwargs.get('fields', [])]
 
     @cached_property
     def _C_typename(self):
@@ -312,7 +316,7 @@ class PointerArray(ArrayBasic):
 
     @property
     def _C_typename(self):
-        return ctypes_to_cstr(POINTER(POINTER(dtype_to_ctype(self.dtype))))
+        return ctypes_to_cstr(POINTER(self._C_ctype))
 
     @property
     def dim(self):

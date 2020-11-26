@@ -8,20 +8,19 @@ by the compiler.
 
 import os
 from collections import defaultdict
-from ctypes import POINTER, c_int, c_void_p
+from ctypes import c_void_p
 
-from cgen import Struct, Value
 from cached_property import cached_property
 import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
-                          dtype_to_cstr, filter_ordered)
+from devito.tools import Pickable, as_tuple, dtype_to_cstr, filter_ordered
 from devito.types.array import Array, ArrayObject
-from devito.types.basic import Scalar
+from devito.types.basic import Symbol
 from devito.types.constant import Constant
 from devito.types.dimension import CustomDimension
+from devito.types.misc import VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
            'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
@@ -122,7 +121,7 @@ class ThreadArray(ArrayObject):
 
     @cached_property
     def symbolic_base(self):
-        return Scalar(name=self.name, dtype=None)
+        return Symbol(name=self.name, dtype=None)
 
 
 class PThreadArray(ThreadArray):
@@ -144,30 +143,28 @@ class SharedData(ThreadArray):
     _field_id = 'id'
     _field_flag = 'flag'
 
+    _symbolic_id = Symbol(name=_field_id, dtype=np.int32)
+    _symbolic_flag = VolatileInt(name=_field_flag)
+
+    def __init_finalize__(self, *args, **kwargs):
+        self.dynamic_fields = kwargs.pop('dynamic_fields', ())
+
+        kwargs.setdefault('fields', []).extend([self._symbolic_id, self._symbolic_flag])
+
+        super().__init_finalize__(*args, **kwargs)
+
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        pfields = super().__pfields_setup__(**kwargs)
-        pfields.extend([(cls._field_id, c_int),
-                        (cls._field_flag, c_int)])
-        return pfields
-
-    @cached_property
-    def _C_typedecl(self):
-        fields = []
-        for i, j in self.pfields:
-            if i == self._field_flag:
-                fields.append(Value('volatile %s' % ctypes_to_cstr(j), i))
-            else:
-                fields.append(Value(ctypes_to_cstr(j), i))
-        return Struct(self.pname, fields)
+        fields = kwargs.get('fields', []) + [cls._symbolic_id, cls._symbolic_flag]
+        return [(i._C_name, i._C_ctype) for i in fields]
 
     @cached_property
     def symbolic_id(self):
-        return Scalar(name='id', dtype=np.int32)
+        return self._symbolic_id
 
     @cached_property
     def symbolic_flag(self):
-        return Scalar(name='flag', dtype=np.int32)
+        return self._symbolic_flag
 
 
 class Lock(Array):
@@ -198,8 +195,8 @@ class Lock(Array):
         return self._target
 
     @property
-    def _C_typename(self):
-        return 'volatile %s' % ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
+    def _C_ctype(self):
+        return c_volatile_int_p
 
     @property
     def _C_typedata(self):
