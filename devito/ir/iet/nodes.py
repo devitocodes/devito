@@ -287,7 +287,12 @@ class Call(ExprStmt, Node):
             if isinstance(i, numbers.Number):
                 continue
             elif isinstance(i, AbstractFunction):
-                free.add(i)
+                if i.is_Array:
+                    free.add(i)
+                else:
+                    # Always passed by _C_name since what actually needs to be
+                    # provided is the pointer to the corresponding C struct
+                    free.add(i._C_symbol)
             else:
                 free.update(i.free_symbols)
         if self.base is not None:
@@ -665,7 +670,7 @@ class Callable(Node):
 
     @property
     def free_symbols(self):
-        return tuple(self.parameters)
+        return ()
 
     @property
     def defines(self):
@@ -768,7 +773,7 @@ class TimedList(List):
 
     @property
     def free_symbols(self):
-        return (self.timer,)
+        return ()
 
 
 class PointerCast(ExprStmt, Node):
@@ -808,11 +813,11 @@ class PointerCast(ExprStmt, Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        if self.function.is_ArrayBasic:
-            sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
-            return (self.function, ) + as_tuple(sizes)
+        f = self.function
+        if f.is_ArrayBasic:
+            return tuple(flatten(s.free_symbols for s in f.symbolic_shape[1:]))
         else:
-            return (self.function,)
+            return ()
 
     @property
     def defines(self):
@@ -850,7 +855,7 @@ class Dereference(ExprStmt, Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        return ((self.array, self.parray) +
+        return ((self.array.indexed.label, self.parray.indexed.label) +
                 tuple(flatten(i.free_symbols for i in self.array.symbolic_shape[1:])) +
                 tuple(self.parray.free_symbols))
 
