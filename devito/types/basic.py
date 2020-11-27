@@ -164,6 +164,19 @@ class Basic(object):
         """
         return
 
+    @property
+    def _C_symbol(self):
+        """
+        The C-level symbol. This may or may not coincide with the symbol used
+        to make up an `Eq`. For example, if `self` provides the C code with
+        a struct, then the _C_symbol will be the symbol representing such struct.
+
+        Returns
+        -------
+        Basic
+        """
+        return self
+
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
@@ -886,6 +899,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def _C_typedata(self):
         return dtype_to_cstr(self.dtype)
+
+    @cached_property
+    def _C_symbol(self):
+        return Symbol(name=self._C_name, dtype=self.dtype)
 
     @cached_property
     def _size_domain(self):
