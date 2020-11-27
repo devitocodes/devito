@@ -289,8 +289,8 @@ class DataManager(object):
         need_cast = {i for i in functions if i.is_Tensor}
 
         # Make the generated code less verbose by avoiding unnecessary casts
-        indexed_names = {i.name for i in FindSymbols('indexeds').visit(iet)}
-        need_cast = {i for i in need_cast if i.name in indexed_names or i.is_ArrayBasic}
+        symbol_names = {i.name for i in FindSymbols('free-symbols').visit(iet)}
+        need_cast = {i for i in need_cast if i.name in symbol_names}
 
         casts = tuple(PointerCast(i) for i in iet.parameters if i in need_cast)
         if casts:
