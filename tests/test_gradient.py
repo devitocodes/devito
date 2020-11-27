@@ -1,10 +1,12 @@
+
 import numpy as np
 import pytest
 from numpy import linalg
 
-from devito import Function, info
+from devito import Function, info, TimeFunction, Operator, Inc
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
-from examples.seismic import Receiver
+from examples.seismic.acoustic.operators import iso_stencil
+from examples.seismic import Receiver, demo_model, setup_geometry
 
 
 class TestGradient(object):
@@ -50,6 +52,71 @@ class TestGradient(object):
         gradient, _ = wave.jacobian_adjoint(residual, u0, vp=v0, checkpointing=True)
         gradient2, _ = wave.jacobian_adjoint(residual, u0, vp=v0, checkpointing=False)
         assert np.allclose(gradient.data, gradient2.data)
+
+    @pytest.mark.parametrize('space_order', [4])
+    @pytest.mark.parametrize('kernel', ['OT2'])
+    @pytest.mark.parametrize('shape', [(70, 80)])
+    def test_gradient_by_parts(self, shape, kernel, space_order):
+        preset = 'layers-isotropic'
+        nbl = 10
+        dtype = np.float32
+        spacing = (10, 10)
+        tn = 500.
+
+        model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
+                           dtype=dtype, spacing=spacing)
+        m = model.m
+        geometry = setup_geometry(model, tn)
+        dt = geometry.dt
+        u = TimeFunction(name='u', grid=model.grid, time_order=2, space_order=space_order,
+                         save=geometry.nt)
+
+        src = geometry.src
+
+        rec = geometry.rec
+
+        s = model.grid.stepping_dim.spacing
+
+        eqn = iso_stencil(u, model, kernel)
+
+        # Construct expression to inject source values
+        src_term = src.inject(field=u.forward, expr=src * s**2 / m)
+
+        # Create interpolation expression for receivers
+        rec_term = rec.interpolate(expr=u)
+
+        fwd_op = Operator(eqn + src_term + rec_term, subs=model.spacing_map,
+                          name='Forward')
+
+        # Gradient symbol and wavefield symbols
+        grad_u = Function(name='grad', grid=model.grid)
+        grad_v = Function(name='grad', grid=model.grid)
+
+        v = TimeFunction(name='v', grid=model.grid, save=None, time_order=2,
+                         space_order=space_order)
+
+        s = model.grid.stepping_dim.spacing
+        eqn = iso_stencil(v, model, kernel, forward=False)
+
+        gradient_update_v = Inc(grad_v, - u * v.dt2)
+
+        gradient_update_u = Inc(grad_u, - u.dt2 * v)
+
+        # Add expression for receiver injection
+        receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
+
+        # Substitute spacing terms to reduce flops
+        grad_op_v = Operator(eqn + receivers + [gradient_update_v],
+                             subs=model.spacing_map, name='Gradient')
+
+        grad_op_u = Operator(eqn + receivers + [gradient_update_u],
+                             subs=model.spacing_map, name='Gradient')
+
+        fwd_op.apply(dt=dt)
+        grad_op_u.apply(dt=dt)
+        grad_op_v.apply(dt=dt)
+
+        assert(np.allclose(grad_u.data, grad_v.data, atol=1e-4, rtol=1e-4))
 
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
