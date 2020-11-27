@@ -769,9 +769,9 @@ class ConditionalDimension(DerivedDimension):
     def index(self):
         return self if self.indirect is True else self.parent
 
-    @property
+    @cached_property
     def free_symbols(self):
-        retval = super(ConditionalDimension, self).free_symbols
+        retval = set(super(ConditionalDimension, self).free_symbols)
         if self.condition is not None:
             retval |= self.condition.free_symbols
         return retval
