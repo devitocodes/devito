@@ -715,7 +715,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @memoized_meth
     def _C_get_field(self, region, dim, side=None):
         """Symbolic representation of a given data region."""
-        ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
+        ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_symbol)
         if region is DOMAIN:
             offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
             size = ffp(self._C_field_domain_size, self._C_make_index(dim))

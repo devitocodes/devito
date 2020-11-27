@@ -15,7 +15,7 @@ import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import Pickable, as_tuple, dtype_to_cstr, filter_ordered
+from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Symbol
 from devito.types.constant import Constant
@@ -147,15 +147,13 @@ class SharedData(ThreadArray):
     _symbolic_flag = VolatileInt(name=_field_flag)
 
     def __init_finalize__(self, *args, **kwargs):
-        self.dynamic_fields = kwargs.pop('dynamic_fields', ())
-
-        kwargs.setdefault('fields', []).extend([self._symbolic_id, self._symbolic_flag])
+        self.dynamic_fields = tuple(kwargs.pop('dynamic_fields', ()))
 
         super().__init_finalize__(*args, **kwargs)
 
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        fields = kwargs.get('fields', []) + [cls._symbolic_id, cls._symbolic_flag]
+        fields = as_list(kwargs.get('fields')) + [cls._symbolic_id, cls._symbolic_flag]
         return [(i._C_name, i._C_ctype) for i in fields]
 
     @cached_property

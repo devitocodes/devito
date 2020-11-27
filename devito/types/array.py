@@ -220,7 +220,7 @@ class ArrayObject(ArrayBasic):
 
     def __init_finalize__(self, *args, **kwargs):
         name = kwargs['name']
-        fields = kwargs.pop('fields', [])
+        fields = tuple(kwargs.pop('fields', ()))
 
         self._fields = fields
         self._pname = "t%s" % name

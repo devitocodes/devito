@@ -6,9 +6,9 @@ import cgen as c
 
 from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Dereference,
                                  DummyExpr, Iteration, List, PointerCast, Return, While)
-from devito.ir.iet.utils import derive_parameters
+from devito.ir.iet.utils import derive_parameters, diff_parameters
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
-from devito.tools import as_tuple, split
+from devito.tools import as_tuple
 from devito.types import PThreadArray, SharedData, Symbol, VoidPointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
@@ -160,9 +160,7 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 def _make_thread_func(name, iet, root, threads, sregistry):
     # Create the SharedData, that is the data structure that will be used by the
     # main thread to pass information dows to the child thread(s)
-    required = derive_parameters(iet)
-    known = root.parameters + tuple(i for i in required if i.is_Array and i._mem_shared)
-    parameters, dynamic_parameters = split(required, lambda i: i in known)
+    required, parameters, dynamic_parameters = diff_parameters(iet, root)
     sdata = SharedData(name=sregistry.make_name(prefix='sdata'), npthreads=threads.size,
                        fields=required, dynamic_fields=dynamic_parameters)
 

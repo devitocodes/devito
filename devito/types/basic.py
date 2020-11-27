@@ -902,7 +902,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     @cached_property
     def _C_symbol(self):
-        return Symbol(name=self._C_name, dtype=self.dtype)
+        return BoundSymbol(name=self._C_name, dtype=self.dtype, function=self.function)
 
     @cached_property
     def _size_domain(self):
@@ -1201,6 +1201,22 @@ class IndexedData(sympy.IndexedBase, Pickable):
     # Pickling support
     _pickle_kwargs = ['label', 'shape', 'function']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class BoundSymbol(Symbol):
+
+    """
+    Wrapper class for Symbols that are bound to a symbolic data object.
+    """
+
+    def __init_finalize__(self, *args, function=None, **kwargs):
+        self._function = function
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def function(self):
+        return self._function
 
 
 class Indexed(sympy.Indexed):

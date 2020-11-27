@@ -165,7 +165,7 @@ class Orchestrator(object):
 
         # Turn prefetch IET into a ThreadFunction
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
-        body = List(header=c.Line(), body=casts + prefetches)
+        body = List(header=c.Line(), body=prefetches)
         tctx = make_thread_ctx(name, body, root, None, sync_ops, self.sregistry)
         pieces.funcs.extend(tctx.funcs)
 
