@@ -113,14 +113,16 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op)) == 4
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
-        assert len(op._func_table) == 1
+        assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 7
-        assert str(exprs[0]) == 'const int time = sdata0->time;'
-        assert str(exprs[1]) == 'int id = sdata0->id;'
-        assert str(exprs[2]) == 'lock0[0] = 1;'
-        assert exprs[3].write is u
-        assert exprs[4].write is v
+        assert len(exprs) == 20
+        assert str(exprs[13]) == 'int id = sdata0->id;'
+        assert str(exprs[14]) == 'const int time = sdata0->time;'
+        assert str(exprs[15]) == 'lock0[0] = 1;'
+        assert exprs[16].write is u
+        assert exprs[17].write is v
+        assert str(exprs[18]) == 'lock0[0] = 2;'
+        assert str(exprs[19]) == 'sdata0->flag = 1;'
 
         op.apply(time_M=nt-2)
 
@@ -169,14 +171,14 @@ class TestStreaming(object):
         assert str(body.body[2]) == 'sdata1[wi1].time = time;'
         assert str(body.body[3]) == 'lock1[0] = 0;'  # Set-lock
         assert str(body.body[4]) == 'sdata1[wi1].flag = 2;'
-        assert len(op._func_table) == 2
+        assert len(op._func_table) == 4
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 6
-        assert str(exprs[2]) == 'lock0[0] = 1;'
-        assert exprs[3].write is u
+        assert len(exprs) == 19
+        assert str(exprs[15]) == 'lock0[0] = 1;'
+        assert exprs[16].write is u
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host1'].root)
-        assert str(exprs[2]) == 'lock1[0] = 1;'
-        assert exprs[3].write is v
+        assert str(exprs[15]) == 'lock1[0] = 1;'
+        assert exprs[16].write is v
 
         op.apply(time_M=nt-2)
 
@@ -234,12 +236,12 @@ class TestStreaming(object):
         for i in range(3):
             assert 'lock0[t' in str(sections[1].body[0].body[0].body[6 + i])  # Set-lock
         assert str(sections[1].body[0].body[0].body[9]) == 'sdata0[wi0].flag = 2;'
-        assert len(op1._func_table) == 1
+        assert len(op1._func_table) == 2
         exprs = FindNodes(Expression).visit(op1._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 13
+        assert len(exprs) == 26
         for i in range(3):
-            assert 'lock0[t' in str(exprs[5 + i])
-        assert exprs[8].write is usave
+            assert 'lock0[t' in str(exprs[18 + i])
+        assert exprs[21].write is usave
 
         op0.apply(time_M=nt-2)
         op1.apply(time_M=nt-2, u=u1, usave=usave1)
