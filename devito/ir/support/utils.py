@@ -83,7 +83,7 @@ def build_iterators(mapper):
                 values = iterators.setdefault(d.parent, [])
                 # Offsets are sorted so that the semantic order (t0, t1, t2)
                 # follows sympy's index ordering (t, t-1, t+1) afer modulo replacement
-                # and guarantying bitwise reproducibility.
+                # so that associativity errors are consistent.
                 # This corresponds to sorting offsets {-1, 0, 1} as {0, -1, 1} assigning
                 # -inf to 0.
                 for i in sorted(offs, key=lambda x: -float("inf") if x == 0 else x):

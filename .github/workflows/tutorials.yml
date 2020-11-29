@@ -95,30 +95,17 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-<<<<<<< HEAD
         ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml -k 'not dask' examples/seismic/tutorials/  # Horrible, but we're still at a loss
         ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:acc_coverage.xml examples/seismic/acoustic/accuracy.ipynb
-=======
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml -k 'not dask' examples/seismic/tutorials/
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:acc_coverage.xml examples/seismic/acoustic/accuracy.ipynb
->>>>>>> c13ddc68f... sacrificed goat
 
     - name: Dask notebooks
       if: runner.os != 'macOS'
       run: |
-<<<<<<< HEAD
           ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml examples/seismic/tutorials/*dask*.ipynb
 
     - name: Self-adjoint notebooks
       run: |
         ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:sa_coverage.xml examples/seismic/self_adjoint/
-=======
-          $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml examples/seismic/tutorials/*dask*.ipynb
-
-    - name: Self-adjoint notebooks
-      run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:sa_coverage.xml examples/seismic/self_adjoint/
->>>>>>> c13ddc68f... sacrificed goat
 
     - name: CFD notebooks
       run: |
