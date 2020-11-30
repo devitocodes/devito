@@ -92,10 +92,12 @@ class DeviceOmpizer(Ompizer):
 
     @classmethod
     def _map_delete(cls, f):
+        conditional = ''
+        if f.is_SparseFunction:
+            conditional = ' if(%s)' %\
+                          ' && '.join('(%s != 0)' % i for i in cls._map_data(f))
         return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i for i in
-                                                           cls._map_data(f)), ' if(%s)' %
-                                           ' && '.join('(%s != 0)' % i for i in
-                                                       cls._map_data(f)))
+                                                           cls._map_data(f)), conditional)
 
     @classmethod
     def _map_pointers(cls, f):
