@@ -1,7 +1,8 @@
 import pytest
 import numpy as np
 
-from devito import Grid, TimeFunction, SparseTimeFunction, Function, Operator, Eq
+from devito import (Grid, TimeFunction, SparseTimeFunction, Function, Operator, Eq,
+                    configuration)
 from devito.ir import FindSymbols, retrieve_iteration_tree
 from devito.passes.equations.linearity import _is_const_coeff
 from devito.tools import timed_region
@@ -167,7 +168,8 @@ class TestBuffering(object):
         op1 = Operator(eqns, opt='buffering')
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op1)) == 5
+        assert len(retrieve_iteration_tree(op1)) ==\
+            5 + bool(configuration['language'] != 'C')
         buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(buffers) == 1
 
