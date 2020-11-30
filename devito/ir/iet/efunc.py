@@ -140,6 +140,7 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 
     # Initialize `sdata`
     arguments = list(isdata.parameters)
+    arguments[-2] = sdata.symbolic_base + d
     arguments[-1] = pthreadid
     call0 = Call(isdata.name, arguments)
 
