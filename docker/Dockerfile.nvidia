@@ -3,8 +3,17 @@
 # libraries, and plugins to enable OpenACC and NVIDIA GPU 
 # acceleration of Devito codes.
 #
-# BUILD: docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
-# RUN: docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
+# BUILD: 
+#   docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
+#
+# EXPERIMENTAL:
+#   Enabling and using MPI 4.0.5 works on R450 drivers, but is showing compatibility 
+#   issues during testing on older R418 drivers.
+# 
+#   docker build --network=host --build-arg MPI_VER=4 --file docker/Dockerfile.nvidia --tag devito:nvidia .
+#
+# RUN: 
+#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
 ##############################################################
 FROM python:3.6
 
@@ -23,30 +32,37 @@ RUN apt-get update -y && \
         liblapack-dev  \
         libblas-dev \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super && \
-    wget -q -P /app/\
-         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9_20.9_amd64.deb && \
+    wget -q -P /app/ \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9_20.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9-cuda-multi_20.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb && \
     apt-get install -y -q \
          /app/nvhpc-20-9_20.9_amd64.deb \
+         /app/nvhpc-20-9-cuda-multi_20.9_amd64.deb \
          /app/nvhpc-2020_20.9_amd64.deb && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
     rm -rf /var/lib/apt/lists/*
+
+ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2020
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/11.0/extras/CUPTI
+ARG MPI_VER=3
 
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 
 # required for nvidia-docker v1
-RUN echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/lib" >> /etc/ld.so.conf.d/nvidia.conf
+RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf
     
 # Compiler, CUDA, and Library paths
-ENV CUDA_ROOT /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda
-ENV PATH /opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/bin:${PATH}
-ENV LD_LIBRARY_PATH /opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/math_libs/11.0/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/cuda/11.0/extras/CUPTI/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/lib:${LD_LIBRARY_PATH}
+ENV CUDA_HOME $HPCSDK_HOME/cuda
+ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
+ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
+ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
@@ -61,11 +77,23 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt && \
     rm -rf ~/.cache/pip
 
-ENV CPATH=/opt/nvidia/hpc_sdk/Linux_x86_64/20.9/comm_libs/openmpi4/openmpi-4.0.5/include:${CPATH}
+# MPI ROOT USER DEFAULTS
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV UCX_MEMTYPE_CACHE=no
+ENV UCX_TLS=self,shm,cuda_copy
+
+ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 ENV CFLAGS=-noswitcherror
-RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
-    unset CFLAGS && \
+
+RUN if [ "x$MPI_VER" = "x4" ]; then \
+        rm -f  $HPCSDK_HOME/comm_libs/mpi && \
+        ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
+               $HPCSDK_HOME/comm_libs/mpi ; \
+    fi;  \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
     rm -rf ~/.cache/pip
+ENV CFLAGS=
 
 ADD ./devito /app/devito
 ADD ./tests /app/tests
@@ -97,12 +125,7 @@ ENV DEVITO_PLATFORM=nvidiaX
 
 # Enable logging, Options: [unset, PERF, DEBUG]
 ENV DEVITO_LOGGING=DEBUG 
-ENV PGI_ACC_TIME=1 
-
-# OMPI ROOT USER DEFAULTS
-ENV OMPI_ALLOW_RUN_AS_ROOT=1
-ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-ENV UCX_MEMTYPE_CACHE=no
+#ENV PGI_ACC_TIME=1 
 
 ## Create App user 
 # Set the home directory to our app user's home.
