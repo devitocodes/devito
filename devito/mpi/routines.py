@@ -315,10 +315,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         if swap is False:
             eq = DummyEq(buf[buf_indices], f[f_indices])
-            name = 'gather_%s' % key
+            name = 'gather%s' % key
         else:
             eq = DummyEq(f[f_indices], buf[buf_indices])
-            name = 'scatter_%s' % key
+            name = 'scatter%s' % key
 
         iet = Expression(eq)
         for i, d in reversed(list(zip(buf_indices, buf_dims))):
@@ -342,8 +342,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        gather = Call('gather_%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
-        scatter = Call('scatter_%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
+        gather = Call('gather%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
+        scatter = Call('scatter%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
@@ -548,7 +548,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
 
-        gather = Call('gather_%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
@@ -605,7 +605,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
-        scatter = Call('scatter_%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -721,7 +721,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
-        gather = Call('gather_%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
@@ -769,7 +769,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
-        scatter = Call('scatter_%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
@@ -878,7 +878,7 @@ class CopyBuffer(MPICallable):
 class SendRecv(MPICallable):
 
     def __init__(self, key, body, parameters, bufg, bufs):
-        super(SendRecv, self).__init__('sendrecv_%s' % key, body, parameters)
+        super(SendRecv, self).__init__('sendrecv%s' % key, body, parameters)
         self.bufg = bufg
         self.bufs = bufs
 
@@ -886,7 +886,7 @@ class SendRecv(MPICallable):
 class HaloUpdate(MPICallable):
 
     def __init__(self, key, body, parameters):
-        super(HaloUpdate, self).__init__('haloupdate_%s' % key, body, parameters)
+        super(HaloUpdate, self).__init__('haloupdate%s' % key, body, parameters)
 
 
 # Call sub-hierarchy
