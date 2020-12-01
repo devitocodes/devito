@@ -131,7 +131,7 @@ class Operator(Callable):
     refer to the relevant documentation.
     """
 
-    _default_headers = ['#define _POSIX_C_SOURCE 200809L']
+    _default_headers = [('_POSIX_C_SOURCE', '200809L')]
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 

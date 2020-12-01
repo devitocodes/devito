@@ -742,14 +742,21 @@ class TimedList(List):
     def __init__(self, timer, lname, body):
         self._name = lname
         self._timer = timer
-        header = [c.Statement("struct timeval start_%s, end_%s" % (lname, lname)),
-                  c.Statement("gettimeofday(&start_%s, NULL)" % lname)]
-        footer = [c.Statement("gettimeofday(&end_%s, NULL)" % lname),
-                  c.Statement(("%(gn)s->%(ln)s += " +
-                               "(double)(end_%(ln)s.tv_sec-start_%(ln)s.tv_sec)+" +
-                               "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
-                               "/1000000") % {'gn': timer.name, 'ln': lname})]
-        super(TimedList, self).__init__(header, body, footer)
+
+        super().__init__(header=c.Line('START_TIMER(%s)' % lname),
+                         body=body,
+                         footer=c.Line('STOP_TIMER(%s,%s)' % (lname, timer.name)))
+
+    @classmethod
+    def _start_timer_header(cls):
+        return ('START_TIMER(S)', ('struct timeval start_ ## S , end_ ## S ; '
+                                   'gettimeofday(&start_ ## S , NULL);'))
+
+    @classmethod
+    def _stop_timer_header(cls):
+        return ('STOP_TIMER(S,T)', ('gettimeofday(&end_ ## S, NULL); T->S += (double)'
+                                    '(end_ ## S .tv_sec-start_ ## S.tv_sec)+(double)'
+                                    '(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000;'))
 
     @property
     def name(self):

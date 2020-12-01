@@ -372,7 +372,7 @@ class CGen(Visitor):
                 efuncs.extend([i.root.ccode, blankline])
 
         # Header files, extra definitions, ...
-        header = [c.Line(i) for i in o._headers]
+        header = [c.Define(*i) for i in o._headers] + [blankline]
         includes = [c.Include(i, system=(False if i.endswith('.h') else True))
                     for i in o._includes]
         includes += [blankline]

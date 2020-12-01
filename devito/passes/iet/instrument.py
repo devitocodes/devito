@@ -1,3 +1,4 @@
+from devito.ir.iet import TimedList
 from devito.passes.iet.engine import iet_pass
 from devito.types import Timer
 
@@ -39,5 +40,7 @@ def instrument_sections(iet, **kwargs):
 
     if piet is iet:
         return piet, {}
-    else:
-        return piet, {'args': timer}
+
+    headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
+
+    return piet, {'args': timer, 'headers': headers}
