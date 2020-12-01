@@ -23,7 +23,8 @@ def avoid_denormals(iet):
 
     header = (cgen.Comment('Flush denormal numbers to zero in hardware'),
               cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
-              cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'))
+              cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'),
+              cgen.Line())
     iet = iet._rebuild(body=(List(header=header),) + iet.body)
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
 

@@ -99,8 +99,9 @@ class Profiler(object):
         if sections:
             mapper = {}
             for i in sections:
-                assert i.name in timer.fields
-                mapper[i] = TimedList(timer=timer, lname=i.name, body=i)
+                n = i.name
+                assert n in timer.fields
+                mapper[i] = i._rebuild(body=TimedList(timer=timer, lname=n, body=i.body))
             return Transformer(mapper).visit(iet)
         else:
             return iet
