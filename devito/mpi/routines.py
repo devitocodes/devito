@@ -9,9 +9,9 @@ from sympy import Integer
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
-                           AugmentedExpression, Iteration, List, Prodder, Return,
-                           make_efunc, FindNodes, Transformer)
+from devito.ir.iet import (Call, Callable, Conditional, ElementalCall, Expression,
+                           ExpressionBundle, AugmentedExpression, Iteration, List,
+                           Prodder, Return, make_efunc, FindNodes, Transformer)
 from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
@@ -427,7 +427,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         comm = f.grid.distributor._obj_comm
         nb = f.grid.distributor._obj_neighborhood
         args = [f, comm, nb] + list(hse.loc_indices.values())
-        return Call(name, flatten(args))
+        return HaloUpdateCall(name, flatten(args))
 
     def _make_compute(self, *args):
         return
@@ -647,7 +647,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
     def _call_halowait(self, name, f, hse, msg):
         nb = f.grid.distributor._obj_neighborhood
-        return Call(name, [f] + list(hse.loc_indices.values()) + [nb, msg])
+        return HaloWaitCall(name, [f] + list(hse.loc_indices.values()) + [nb, msg])
 
     def _make_remainder(self, hs, key, callcompute, *args):
         assert callcompute.is_Call
@@ -655,7 +655,9 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return make_efunc('remainder%d' % key, body)
 
     def _call_remainder(self, remainder):
-        return remainder.make_call()
+        efunc = remainder.make_call()
+        call = RemainderCall(efunc.name, efunc.arguments)
+        return call
 
 
 class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
@@ -739,7 +741,8 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
     def _call_haloupdate(self, name, f, hse, msg):
         comm = f.grid.distributor._obj_comm
-        return Call(name, [f, comm, msg, msg.npeers] + list(hse.loc_indices.values()))
+        args = [f, comm, msg, msg.npeers] + list(hse.loc_indices.values())
+        return HaloUpdateCall(name, args)
 
     def _make_sendrecv(self, *args):
         return
@@ -781,7 +784,8 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return Callable('halowait%d' % key, iet, 'void', parameters, ('static',))
 
     def _call_halowait(self, name, f, hse, msg):
-        return Call(name, [f] + list(hse.loc_indices.values()) + [msg, msg.npeers])
+        args = [f] + list(hse.loc_indices.values()) + [msg, msg.npeers]
+        return HaloWaitCall(name, args)
 
     def _make_wait(self, *args):
         return
@@ -897,6 +901,23 @@ class IrecvCall(Call):
 
     def __init__(self, parameters):
         super(IrecvCall, self).__init__('MPI_Irecv', parameters)
+
+
+class MPICall(Call):
+    pass
+
+
+class HaloUpdateCall(MPICall):
+    pass
+
+
+class HaloWaitCall(MPICall):
+    pass
+
+
+class RemainderCall(MPICall):
+    pass
+
 
 # Types sub-hierarchy
 
