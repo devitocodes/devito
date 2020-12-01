@@ -261,8 +261,9 @@ class TestCodeGen(object):
 
         op = Operator(Eq(u, u + 1))
 
-        assert isinstance(op.body[2].body[0], TimedList)
-        assert op.body[2].body[0].body[0].is_Section
+        assert op.body[2].body[0].is_Section
+        assert isinstance(op.body[2].body[0].body[0], TimedList)
+        assert op.body[2].body[0].body[0].body[0].dim is grid.time_dim
 
     def test_nested_lowering(self):
         """
