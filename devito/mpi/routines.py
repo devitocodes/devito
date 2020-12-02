@@ -116,13 +116,19 @@ class HaloExchangeBuilder(object):
             self._efuncs.append(remainder)
 
         # Now build up the HaloSpot body, with explicit Calls to the constructed Callables
-        body = [callcompute]
+        haloupdates = []
+        halowaits = []
         for i, (f, hse) in enumerate(hs.fmapper.items()):
             msg = self._msgs[(f, hse)]
             haloupdate, halowait = self._cache_halo[(f.ndim, hse)]
-            body.insert(i, self._call_haloupdate(haloupdate.name, f, hse, msg))
+            haloupdates.append(self._call_haloupdate(haloupdate.name, f, hse, msg))
             if halowait is not None:
-                body.append(self._call_halowait(halowait.name, f, hse, msg))
+                halowaits.append(self._call_halowait(halowait.name, f, hse, msg))
+        body = [
+            HaloUpdateList(body=haloupdates),
+            callcompute,
+            HaloWaitList(body=halowaits)
+        ]
         if remainder is not None:
             body.append(self._call_remainder(remainder))
 
@@ -916,6 +922,18 @@ class HaloWaitCall(MPICall):
 
 
 class RemainderCall(MPICall):
+    pass
+
+
+class MPIList(List):
+    pass
+
+
+class HaloUpdateList(MPIList):
+    pass
+
+
+class HaloWaitList(MPIList):
     pass
 
 

@@ -833,7 +833,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
         # Also make sure the Call is at the right place in the IET
-        assert op.body[-1].body[0].body[0].body[0].body[0].is_Call
+        assert op.body[-1].body[0].body[0].body[0].body[0].body[0].is_Call
         assert op.body[-1].body[0].body[0].body[0].body[1].is_Iteration
 
     @pytest.mark.parallel(mode=2)
@@ -967,8 +967,11 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
-        assert not op.body[-1].body[0].nodes[0].body[0].body[0].body[1].is_Call
+        titer = op.body[-1].body[0]
+        assert titer.dim is grid.time_dim
+        assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
+        assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
+        assert titer.nodes[0].body[0].body[0].body[1].is_Iteration
 
         op.apply(time_M=1)
 
@@ -1656,8 +1659,11 @@ class TestOperatorAdvanced(object):
 
         op = Operator(eqns)
 
-        assert op.body[-1].body[0].nodes[0].body[0].body[0].is_List
-        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
+        titer = op.body[-1].body[0]
+        assert titer.dim is grid.time_dim
+        assert titer.nodes[0].body[0].body[0].is_List
+        assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
+        assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
 
         op.apply(time=0)
 
