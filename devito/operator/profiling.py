@@ -244,8 +244,7 @@ class AdvancedProfiler(Profiler):
         # Add global performance data
         if reduce_over is not None:
             # Vanilla metrics
-            if comm is not MPI.COMM_NULL:
-                summary.add_glb_vanilla(self.py_timers[reduce_over])
+            summary.add_glb_vanilla(self.py_timers[reduce_over])
 
             # Typical finite difference benchmark metrics
             if grid is not None:
