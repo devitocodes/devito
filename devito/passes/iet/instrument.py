@@ -1,5 +1,6 @@
 from devito.ir.iet import MapNodes, Section, TimedList, Transformer
-from devito.mpi.routines import MPICall, HaloUpdateCall, HaloWaitCall, RemainderCall
+from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
+                                 HaloUpdateList, HaloWaitList, RemainderCall)
 from devito.passes.iet.engine import iet_pass
 from devito.types import Timer
 
@@ -30,15 +31,22 @@ def track_subsections(iet, **kwargs):
     name_mapper = {
         HaloUpdateCall: 'haloupdate',
         HaloWaitCall: 'halowait',
-        RemainderCall: 'remainder'
+        RemainderCall: 'remainder',
+        HaloUpdateList: 'haloupdate',
+        HaloWaitList: 'halowait'
     }
 
     mapper = {}
-    for k, v in MapNodes(Section, MPICall).visit(iet).items():
-        for i in v:
-            name = sregistry.make_name(prefix=name_mapper[i.__class__])
-            mapper[i] = Section(name, body=i, is_subsection=True)
-            profiler.track_subsection(k.name, name)
+
+    for NodeType in [MPIList, MPICall]:
+        for k, v in MapNodes(Section, NodeType).visit(iet).items():
+            for i in v:
+                if i in mapper or not any(issubclass(i.__class__, n)
+                                          for n in profiler.trackable_subsections):
+                    continue
+                name = sregistry.make_name(prefix=name_mapper[i.__class__])
+                mapper[i] = Section(name, body=i, is_subsection=True)
+                profiler.track_subsection(k.name, name)
 
     iet = Transformer(mapper).visit(iet)
 
