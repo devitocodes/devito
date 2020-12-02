@@ -2,6 +2,7 @@ from devito.ir.iet import MapNodes, Section, TimedList, Transformer
 from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
                                  HaloUpdateList, HaloWaitList, RemainderCall)
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.orchestration import BusyWait
 from devito.types import Timer
 
 __all__ = ['instrument']
@@ -33,12 +34,13 @@ def track_subsections(iet, **kwargs):
         HaloWaitCall: 'halowait',
         RemainderCall: 'remainder',
         HaloUpdateList: 'haloupdate',
-        HaloWaitList: 'halowait'
+        HaloWaitList: 'halowait',
+        BusyWait: 'busywait'
     }
 
     mapper = {}
 
-    for NodeType in [MPIList, MPICall]:
+    for NodeType in [MPIList, MPICall, BusyWait]:
         for k, v in MapNodes(Section, NodeType).visit(iet).items():
             for i in v:
                 if i in mapper or not any(issubclass(i.__class__, n)

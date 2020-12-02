@@ -17,6 +17,7 @@ from devito.logger import warning, error
 from devito.mpi import MPI
 from devito.mpi.routines import MPICall, MPIList, RemainderCall, MPI
 from devito.parameters import configuration
+from devito.passes.iet import BusyWait
 from devito.symbolics import subs_op_args
 from devito.tools import DefaultOrderedDict, flatten
 
@@ -190,14 +191,14 @@ class ProfilerVerbose1(Profiler):
 
     @property
     def trackable_subsections(self):
-        return (MPIList, RemainderCall)
+        return (MPIList, RemainderCall, BusyWait)
 
 
 class ProfilerVerbose2(Profiler):
 
     @property
     def trackable_subsections(self):
-        return (MPICall,)
+        return (MPICall, BusyWait)
 
 
 class AdvancedProfiler(Profiler):
@@ -282,14 +283,14 @@ class AdvancedProfilerVerbose1(AdvancedProfiler):
 
     @property
     def trackable_subsections(self):
-        return (MPIList, RemainderCall)
+        return (MPIList, RemainderCall, BusyWait)
 
 
 class AdvancedProfilerVerbose2(AdvancedProfiler):
 
     @property
     def trackable_subsections(self):
-        return (MPICall,)
+        return (MPICall, BusyWait)
 
 
 class AdvisorProfiler(AdvancedProfiler):
