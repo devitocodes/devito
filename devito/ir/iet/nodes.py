@@ -968,12 +968,13 @@ class Section(List):
 
     is_Section = True
 
-    def __init__(self, name, body=None):
+    def __init__(self, name, body=None, is_subsection=False):
         super(Section, self).__init__(body=body)
         self.name = name
+        self.is_subsection = is_subsection
 
     def __repr__(self):
-        return "<Section (%d)>" % len(self.body)
+        return "<Section (%s)>" % self.name
 
     @property
     def roots(self):

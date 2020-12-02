@@ -1,4 +1,5 @@
-from devito.ir.iet import TimedList
+from devito.ir.iet import MapNodes, Section, TimedList, Transformer
+from devito.mpi.routines import MPICall, HaloUpdateCall, HaloWaitCall, RemainderCall
 from devito.passes.iet.engine import iet_pass
 from devito.types import Timer
 
@@ -6,24 +7,40 @@ __all__ = ['instrument']
 
 
 def instrument(graph, **kwargs):
-    analyze_sections(graph, **kwargs)
+    track_subsections(graph, **kwargs)
 
     # Construct a fresh Timer object
     profiler = kwargs['profiler']
-    timer = Timer(profiler.name, list(profiler._sections))
+    timer = Timer(profiler.name, list(profiler.all_sections))
 
     instrument_sections(graph, timer=timer, **kwargs)
 
 
 @iet_pass
-def analyze_sections(iet, **kwargs):
+def track_subsections(iet, **kwargs):
     """
-    Analyze the input IET and update `profiler.sections` with all of the
-    Sections introduced by the previous passes.
+    Add custom Sections to the `profiler`. Custom Sections include:
+
+        * MPI Calls (e.g., HaloUpdateCall and HaloUpdateWait)
+        * Busy-waiting on While(lock) (e.g., from host-device orchestration)
     """
     profiler = kwargs['profiler']
+    sregistry = kwargs['sregistry']
 
-    profiler.analyze(iet)
+    name_mapper = {
+        HaloUpdateCall: 'haloupdate',
+        HaloWaitCall: 'halowait',
+        RemainderCall: 'remainder'
+    }
+
+    mapper = {}
+    for k, v in MapNodes(Section, MPICall).visit(iet).items():
+        for i in v:
+            name = sregistry.make_name(prefix=name_mapper[i.__class__])
+            mapper[i] = Section(name, body=i, is_subsection=True)
+            profiler.track_subsection(k.name, name)
+
+    iet = Transformer(mapper).visit(iet)
 
     return iet, {}
 

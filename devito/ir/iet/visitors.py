@@ -237,10 +237,14 @@ class CGen(Visitor):
         return c.Module(o.header + (c.Collection(body),) + o.footer)
 
     def visit_Section(self, o):
-        header = c.Comment("Begin %s" % o.name)
         body = flatten(self._visit(i) for i in o.children)
-        footer = c.Comment("End %s" % o.name)
-        return c.Module([header] + body + [footer])
+        if o.is_subsection:
+            header = []
+            footer = []
+        else:
+            header = [c.Comment("Begin %s" % o.name)]
+            footer = [c.Comment("End %s" % o.name)]
+        return c.Module(header + body + footer)
 
     def visit_Element(self, o):
         return o.element
