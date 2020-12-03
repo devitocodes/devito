@@ -317,7 +317,7 @@ class AbstractSparseFunction(DiscreteFunction):
                     for i, s in zip(k.indices, v.shape):
                         size = s - sum(k._size_nodomain[i])
                         values.update(i._arg_defaults(size=size))
-                # Add MPI-related data structures
+                # Add value overrides associated with the Grid
                 values.update(self.grid._arg_defaults())
         else:
             values = self._arg_defaults(alias=self).reduce_all()
