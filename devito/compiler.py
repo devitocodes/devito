@@ -385,7 +385,7 @@ class ClangCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
 
-        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
