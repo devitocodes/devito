@@ -968,7 +968,7 @@
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
             <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">_min</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="p">))</span>
 
-        <span class="c1"># Add MPI-related data structures</span>
+        <span class="c1"># Add value overrides associated with the Grid</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">())</span>
 
@@ -998,7 +998,7 @@
                 <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">new</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
                     <span class="n">size</span> <span class="o">=</span> <span class="n">s</span> <span class="o">-</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_size_nodomain</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
                     <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">))</span>
-                <span class="c1"># Add MPI-related data structures</span>
+                <span class="c1"># Add value overrides associated with the Grid</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">())</span>
         <span class="k">else</span><span class="p">:</span>

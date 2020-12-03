@@ -577,6 +577,7 @@
 <span class="sd">        default values for any remaining arguments.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">overrides</span><span class="p">,</span> <span class="n">defaults</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">)</span>
+
         <span class="c1"># Process data-carrier overrides</span>
         <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">:</span>
