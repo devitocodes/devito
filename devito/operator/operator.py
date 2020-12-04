@@ -419,6 +419,7 @@ class Operator(Callable):
         default values for any remaining arguments.
         """
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
+
         # Process data-carrier overrides
         args = ReducerMap()
         for p in overrides:

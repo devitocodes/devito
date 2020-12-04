@@ -810,7 +810,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         for i, s in zip(key.dimensions, self.shape):
             args.update(i._arg_defaults(_min=0, size=s))
 
-        # Add MPI-related data structures
+        # Add value overrides associated with the Grid
         if self.grid is not None:
             args.update(self.grid._arg_defaults())
 
@@ -840,7 +840,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 for i, s in zip(self.dimensions, new.shape):
                     size = s - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
-                # Add MPI-related data structures
+                # Add value overrides associated with the Grid
                 if self.grid is not None:
                     values.update(self.grid._arg_defaults())
         else:
