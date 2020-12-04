@@ -321,6 +321,7 @@ PowerOpenMPOperator = CPU64OpenMPOperator
 
 
 class ArmOperator(CPU64Operator):
+
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
@@ -352,6 +353,9 @@ class ArmOperator(CPU64Operator):
 
 
 class ArmOpenMPOperator(CPU64OpenMPOperator):
+
+    # Variable set to 4 to avoid nested parallelism on ThunderX2
+    PAR_NESTED = 4
 
     @classmethod
     @timed_pass(name='specializing.IET')
