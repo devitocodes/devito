@@ -6,7 +6,7 @@ from numpy import linalg
 from devito import Function, info, TimeFunction, Operator, Eq
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic.acoustic.operators import iso_stencil
-from examples.seismic import Receiver
+from examples.seismic import Receiver, demo_model, setup_geometry
 
 
 class TestGradient(object):
@@ -86,8 +86,7 @@ class TestGradient(object):
         grad_uv = Function(name='graduv', grid=model.grid)
         v = TimeFunction(name='v', grid=model.grid, save=None, time_order=2,
                          space_order=space_order)
-        s = wave.model.grid.stepping_dim.spacing
-        eqn = iso_stencil(v, wave.model, 'OT2', forward=False)
+        s = model.grid.stepping_dim.spacing
 
         eqn_adj = iso_stencil(v, model, kernel, forward=False)
         receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
