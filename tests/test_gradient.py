@@ -53,14 +53,25 @@ class TestGradient(object):
 
     @pytest.mark.parametrize('tn', [750.])
     @pytest.mark.parametrize('spacing', [(10, 10)])
-    @pytest.mark.parametrize('dtype', [np.float32])
+    @pytest.mark.parametrize("dtype, tolerance", [(np.float32, 1e-3),
+                                                  (np.float64, 1e-12)])
     @pytest.mark.parametrize('nbl', [40])
     @pytest.mark.parametrize('preset', ['layers-isotropic'])
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(101, 101)])
     def test_gradient_equivalence(self, shape, kernel, space_order, preset, nbl, dtype,
-                                  spacing, tn):
+                                  tolerance, spacing, tn):
+        """ This test asserts that the gradient calculated through the following three
+            expressions should match within floating-point precision:
+            - grad = sum(-u.dt2 * v)
+            - grad = sum(-u * v.dt2)
+            - grad = sum(-u.dt * v.dt)
+
+            The computation has the following number of operations:
+            u.dt2 (5 ops) * v = 6ops * 500 (nt) ~ 3000 ops ~ 1e4 ops
+            Hence tolerances are eps * ops = 1e-3 (sp) and 1e-12 (dp)
+        """
         model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                            dtype=dtype, spacing=spacing)
         m = model.m
@@ -112,8 +123,8 @@ class TestGradient(object):
         v.data[:] = 0.
         grad_op_uv.apply(dt=dt)
 
-        assert(np.allclose(grad_u.data, grad_v.data, rtol=1e-3, atol=1e-3))
-        assert(np.allclose(grad_u.data, grad_uv.data, rtol=1e-3, atol=1e-3))
+        assert(np.allclose(grad_u.data, grad_v.data, rtol=tolerance, atol=tolerance))
+        assert(np.allclose(grad_u.data, grad_uv.data, rtol=tolerance, atol=tolerance))
 
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('space_order', [4])
