@@ -1,8 +1,10 @@
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
 from devito.core.cpu import (CPU64NoopOperator, CPU64Operator, CPU64OpenMPOperator,
-                             Intel64Operator, Intel64OpenMPOperator, Intel64FSGOperator,
-                             Intel64FSGOpenMPOperator, ArmOperator, ArmOpenMPOperator,
-                             PowerOperator, PowerOpenMPOperator, CustomOperator)
+                             CustomOperator)
+from devito.core.intel import (Intel64Operator, Intel64OpenMPOperator,
+                               Intel64FSGOperator, Intel64FSGOpenMPOperator)
+from devito.core.arm import (ArmOperator, ArmOpenMPOperator)
+from devito.core.power import (PowerOperator, PowerOpenMPOperator)
 from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
                                     DeviceOpenMPCustomOperator)
 from devito.core.gpu_openacc import (DeviceOpenACCNoopOperator, DeviceOpenACCOperator,
