@@ -1,12 +1,14 @@
 from collections import OrderedDict
+from itertools import combinations
 
 from cached_property import cached_property
 
+from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
 from devito.tools import (Bunch, DefaultOrderedDict, as_tuple, filter_ordered, flatten,
                           timed_pass)
-from devito.types import Array, CustomDimension, Eq, SteppingDimension
+from devito.types import Array, CustomDimension, Dimension, Eq, SteppingDimension
 
 __all__ = ['buffering']
 
@@ -103,9 +105,11 @@ def _buffering(expressions, callback, options):
         buffers.append(Buffer(f, dims, accessv, n, async_degree))
 
     # Create Eqs to initialize buffers. Note: a buffer needs to be initialized
-    # only if the buffered Function is read in at least one place
+    # only if the buffered Function is read in at least one place or in the case
+    # of non-uniform SubDimensions, to avoid uninitialized values to be copied-back
+    # into the buffered Function
     processed = [Eq(b.indexify(), b.function.subs(b.contraction_mapper))
-                 for b in buffers if b.is_read]
+                 for b in buffers if b.is_read or not b.has_uniform_subdims]
 
     # Substitution rules to replace buffered Functions with buffers
     subs = {}
@@ -123,7 +127,10 @@ def _buffering(expressions, callback, options):
                 items = list(zip(e.lhs.indices, b.function.dimensions))
                 lhs = b.function[[i if i in b.index_mapper else d for i, d in items]]
                 rhs = b.indexed[[b.index_mapper.get(i, d) for i, d in items]]
-                processed.append(Eq(lhs, rhs))
+                if b.subdims_mapper:
+                    processed.append(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
+                else:
+                    processed.append(Eq(lhs, rhs))
                 break
 
     return processed
@@ -188,6 +195,34 @@ class Buffer(object):
         self.contraction_mapper = contraction_mapper
         self.index_mapper = index_mapper
 
+        # Track the SubDimensions used to index into `function`
+        subdims_mapper = DefaultOrderedDict(set)
+        for e in accessv.mapper:
+            try:
+                # Case 1: implicitly via SubDomains
+                m = {d.root: v for d, v in e.subdomain.dimension_map.items()}
+            except AttributeError:
+                # Case 2: explicitly via the lower-level SubDimension API
+                m = {i.root: i for i in e.free_symbols
+                     if isinstance(i, Dimension) and (i.is_Sub or not i.is_Derived)}
+            for d, v in m.items():
+                subdims_mapper[d].add(v)
+        if any(len(v) > 1 for v in subdims_mapper.values()):
+            # Non-uniform SubDimensions. At this point we're going to raise
+            # an exception. It's either illegal or still unsupported
+            for v in subdims_mapper.values():
+                for d0, d1 in combinations(v, 2):
+                    if d0.overlap(d1):
+                        raise InvalidOperator("Cannot apply `buffering` to `%s` as it "
+                                              "is accessed over the overlapping "
+                                              " SubDimensions `<%s, %s>`" %
+                                              (function, d0, d1))
+            self.subdims_mapper = None
+            raise NotImplementedError("`buffering` does not support multiple "
+                                      "non-overlapping SubDimensions yet.")
+        else:
+            self.subdims_mapper = {d: v.pop() for d, v in subdims_mapper.items()}
+
         self.buffer = Array(name='%sb' % function.name,
                             dimensions=dims,
                             dtype=function.dtype,
@@ -207,6 +242,10 @@ class Buffer(object):
     @property
     def lastwrite(self):
         return self.accessv.lastwrite
+
+    @property
+    def has_uniform_subdims(self):
+        return self.subdims_mapper is not None
 
     @cached_property
     def indexed(self):

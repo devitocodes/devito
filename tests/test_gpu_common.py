@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    SubDomain, TimeFunction, Operator)
+                    SubDimension, SubDomain, TimeFunction, Operator)
 from devito.archinfo import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes import OpenMPIteration
@@ -623,6 +623,36 @@ class TestStreaming(object):
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1
         assert len(op._func_table) == 1
+
+    def test_save_w_subdims(self):
+        nt = 10
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        time_dim = grid.time_dim
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=3, thickness_right=3)
+        yi = SubDimension.middle(name='yi', parent=y, thickness_left=3, thickness_right=3)
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                             save=int(nt//factor.data), time_dim=time_sub)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward)]
+        eqns = [e.xreplace({x: xi, y: yi}) for e in eqns]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
+
+        op.apply(time_M=nt-1)
+
+        for i in range(usave.save):
+            assert np.all(usave.data[i, 3:-3, 3:-3] == 2*i + 1)
+            assert np.all(usave.data[i, :3, :] == 0)
+            assert np.all(usave.data[i, -3:, :] == 0)
+            assert np.all(usave.data[i, :, :3] == 0)
+            assert np.all(usave.data[i, :, -3:] == 0)
 
     @pytest.mark.parametrize('gpu_fit', [True, False])
     def test_xcor_from_saved(self, gpu_fit):

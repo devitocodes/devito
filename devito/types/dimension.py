@@ -640,6 +640,12 @@ class SubDimension(DerivedDimension):
                 symbolic_thickness
             )
 
+    def overlap(self, other):
+        return (isinstance(other, SubDimension) and
+                self.root is other.root and
+                self._offset_left.extreme is other._offset_left.extreme and
+                self._offset_right.extreme is other._offset_right.extreme)
+
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
