@@ -1,13 +1,12 @@
 # Runner information:
-# Standard F8s_v2 (8 vcpus, 16 GiB memory)
-# Intel Xeon® Platinum 8168 (SkyLake)
+# CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz
+# GPU: NVIDIA GeForce RTX 2060
 
 name: asv-benchmarks
 
 env:
   OUTPUT_PATH: ${{ github.workspace }}
-  RESOURCE_GROUP: devito-regression
-  VM_NAME: asv-runner-00
+  ENVHOME: "/home/devito/environments"
 
 on:
   # Trigger the workflow on push to the master branch
@@ -16,49 +15,10 @@ on:
       - master
 
 jobs:
-  # Boot the self-hosted runner and start runner app
-  start-runner:
-    name: start-runner
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v2.3.2
-
-    - name: start VM
-      env:
-        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
-        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
-        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
-        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\startVM.ps1'"
-        -servicePrincipal $SP_APPID
-        -servicePrincipalSecret $SP_SECRET
-        -servicePrincipalTenantId $TENANT_ID
-        -azureSubscriptionName $SUB_ID
-        -resourceGroupName $RESOURCE_GROUP
-        -vmName $VM_NAME
-
-    - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n $VM_NAME --query publicIps -o tsv)
-      id: host
-
-    - name: start actions runner app
-      uses: fifsky/ssh-action@master
-      with:
-        command: |
-          #!/bin/bash
-          nohup actions-runner/run.sh >/dev/null 2>&1 &
-        host: ${{ steps.host.outputs.action_host }}
-        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        args: "-tt"
 
   # Run the asv benchmarks on the self-hosted runner
   benchmarks:
     name: benchmarks
-    needs: start-runner
     runs-on: [self-hosted, asv]
 
     env:
@@ -74,6 +34,15 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v2.3.2
 
+    - name: Set VIRTUAL_ENV
+      run: |
+        echo "VIRTUAL_ENV=$ENVHOME/asv" >> $GITHUB_ENV
+        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
+
+    - name: Set PATH
+      run: |
+        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
+
     - name: Install dependencies
       run: |
         pip install --upgrade pip
@@ -82,11 +51,11 @@ jobs:
 
     - name: Setup asv
       run: |
-        asv machine --config benchmarks/regression/asv.conf.json --machine F8s_v2 --os ubuntu-18.04 --arch x86-64 --cpu IntelXeon8168 --num_cpu 8 --ram 16GB
+        asv machine --config benchmarks/regression/asv.conf.json --machine i7-6700K --os ubuntu-20.10 --arch x86-64 --cpu i7-6700K --num_cpu 8 --ram 16GB
 
     - name: Run benchmarks
       run: |
-        asv run -v --strict --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine F8s_v2
+        asv run -v --strict --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine i7-6700K
 
     - name: Checkout asv-results branch
       uses: actions/checkout@v2.3.2
@@ -120,29 +89,3 @@ jobs:
         EXTERNAL_REPOSITORY: devitocodes/devito-performance
         PUBLISH_BRANCH: gh-pages
         PUBLISH_DIR: ./benchmarks/regression/.asv/html
-
-  # Stop the runner
-  stop-runner:
-    name: stop-runner
-    if: ${{ always() }}
-    needs: benchmarks
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v2.3.2
-
-    - name: stop VM
-      env:
-        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
-        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
-        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
-        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\stopVM.ps1'"
-        -servicePrincipal $SP_APPID
-        -servicePrincipalSecret $SP_SECRET
-        -servicePrincipalTenantId $TENANT_ID
-        -azureSubscriptionName $SUB_ID
-        -resourceGroupName $RESOURCE_GROUP
-        -vmName $VM_NAME

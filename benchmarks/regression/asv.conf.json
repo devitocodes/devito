@@ -32,7 +32,7 @@
     // If missing or the empty string, the tool will be automatically
     // determined by looking for tools on the PATH environment
     // variable.
-    "environment_type": "conda",
+    "environment_type": "virtualenv",
 
     // timeout in seconds for installing any dependencies in environment
     // defaults to 10 min
@@ -43,11 +43,7 @@
 
     // The Pythons you'd like to test against.  If not provided, defaults
     // to the current version of Python used to run `asv`.
-    // "pythons": ["3.6"],
-
-    // The list of conda channel names to be searched for benchmark
-    // dependency packages in the specified order
-    // "conda_channels": ["conda-forge", "defaults"],
+    // "pythons": ["3.8"],
 
     // The matrix of dependencies to test.  Each key is the name of a
     // package (in PyPI) and the values are version numbers.  An empty
@@ -92,10 +88,10 @@
     // ],
     //
     // "include": [
-    //     // additional env for python3.6
-    //     {"python": "3.6", "numpy": "1.8"},
+    //     // additional env for python3.8
+    //     {"python": "3.8", "numpy": "1.8"},
     //     // additional env if run on windows+conda
-    //     {"platform": "win32", "environment_type": "conda", "python": "3.6", "libpython": ""},
+    //     {"platform": "win32", "environment_type": "conda", "python": "3.8", "libpython": ""},
     // ],
 
     // The directory (relative to the current directory) that benchmarks are
