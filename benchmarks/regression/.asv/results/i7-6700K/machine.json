@@ -1,0 +1,8 @@
+{
+    "arch": "x86-64",
+    "cpu": "i7-6700K",
+    "machine": "i7-6700K",
+    "os": "ubuntu-20.10",
+    "ram": "16GB",
+    "version": 1
+}
