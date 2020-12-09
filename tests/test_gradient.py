@@ -4,6 +4,7 @@ import pytest
 from numpy import linalg
 
 from devito import Function, info, TimeFunction, Operator, Eq
+from devito.parameters import switchconfig
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic.acoustic.operators import iso_stencil
 from examples.seismic import Receiver, demo_model, setup_geometry
@@ -60,6 +61,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(101, 101)])
+    @switchconfig(safe_math=True)
     def test_gradient_equivalence(self, shape, kernel, space_order, preset, nbl, dtype,
                                   tolerance, spacing, tn):
         """ This test asserts that the gradient calculated through the following three
@@ -74,11 +76,12 @@ class TestGradient(object):
         """
         model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                            dtype=dtype, spacing=spacing)
-        m_true = model.m
+        m = model.m
         v_true = model.vp
         geometry = setup_geometry(model, tn)
         dt = model.critical_dt
         src = geometry.src
+        rec = geometry.rec
         rec_true = geometry.rec
         rec0 = geometry.rec
         s = model.grid.stepping_dim.spacing
@@ -86,8 +89,8 @@ class TestGradient(object):
                          save=geometry.nt)
 
         eqn_fwd = iso_stencil(u, model, kernel)
-        src_term = src.inject(field=u.forward, expr=src * s**2 / m_true)
-        rec_term = rec_true.interpolate(expr=u)
+        src_term = src.inject(field=u.forward, expr=src * s**2 / m)
+        rec_term = rec.interpolate(expr=u)
 
         fwd_op = Operator(eqn_fwd + src_term + rec_term, subs=model.spacing_map,
                           name='Forward')
@@ -104,7 +107,7 @@ class TestGradient(object):
         s = model.grid.stepping_dim.spacing
 
         eqn_adj = iso_stencil(v, model, kernel, forward=False)
-        receivers = rec_true.inject(field=v.backward, expr=rec_true * s**2 / m_true)
+        receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
 
         gradient_update_v = Eq(grad_v, grad_v - u * v.dt2)
         grad_op_v = Operator(eqn_adj + receivers + [gradient_update_v],
