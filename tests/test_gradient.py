@@ -53,8 +53,8 @@ class TestGradient(object):
 
     @pytest.mark.parametrize('tn', [750.])
     @pytest.mark.parametrize('spacing', [(10, 10)])
-    @pytest.mark.parametrize("dtype, tolerance", [(np.float32, 1e-3),
-                                                  (np.float64, 1e-12)])
+    @pytest.mark.parametrize("dtype, tolerance", [(np.float32, 1e-4),
+                                                  (np.float64, 1e-13)])
     @pytest.mark.parametrize('nbl', [40])
     @pytest.mark.parametrize('preset', ['layers-isotropic'])
     @pytest.mark.parametrize('space_order', [4])
@@ -70,25 +70,31 @@ class TestGradient(object):
 
             The computation has the following number of operations:
             u.dt2 (5 ops) * v = 6ops * 500 (nt) ~ 3000 ops ~ 1e4 ops
-            Hence tolerances are eps * ops = 1e-3 (sp) and 1e-12 (dp)
+            Hence tolerances are eps * ops = 1e-4 (sp) and 1e-13 (dp)
         """
         model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                            dtype=dtype, spacing=spacing)
-        m = model.m
+        m_true = model.m
+        v_true = model.vp
         geometry = setup_geometry(model, tn)
         dt = model.critical_dt
         src = geometry.src
-        rec = geometry.rec
+        rec_true = geometry.rec
+        rec0 = geometry.rec
         s = model.grid.stepping_dim.spacing
         u = TimeFunction(name='u', grid=model.grid, time_order=2, space_order=space_order,
                          save=geometry.nt)
 
         eqn_fwd = iso_stencil(u, model, kernel)
-        src_term = src.inject(field=u.forward, expr=src * s**2 / m)
-        rec_term = rec.interpolate(expr=u)
+        src_term = src.inject(field=u.forward, expr=src * s**2 / m_true)
+        rec_term = rec_true.interpolate(expr=u)
 
         fwd_op = Operator(eqn_fwd + src_term + rec_term, subs=model.spacing_map,
                           name='Forward')
+
+        v0 = Function(name='v0', grid=model.grid, space_order=space_order,
+                      dtype=dtype)
+        smooth(v0, model.vp)
 
         grad_u = Function(name='gradu', grid=model.grid)
         grad_v = Function(name='gradv', grid=model.grid)
@@ -98,7 +104,7 @@ class TestGradient(object):
         s = model.grid.stepping_dim.spacing
 
         eqn_adj = iso_stencil(v, model, kernel, forward=False)
-        receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
+        receivers = rec_true.inject(field=v.backward, expr=rec_true * s**2 / m_true)
 
         gradient_update_v = Eq(grad_v, grad_v - u * v.dt2)
         grad_op_v = Operator(eqn_adj + receivers + [gradient_update_v],
@@ -112,16 +118,20 @@ class TestGradient(object):
         grad_op_uv = Operator(eqn_adj + receivers + [gradient_update_uv],
                               subs=model.spacing_map, name='GradientUV')
 
-        fwd_op.apply(dt=dt)
+        fwd_op.apply(dt=dt, vp=v_true, rec=rec_true)
+        fwd_op.apply(dt=dt, vp=v0, rec=rec0)
 
-        grad_op_u.apply(dt=dt)
+        residual = Receiver(name='rec', grid=model.grid, data=(rec0.data - rec_true.data),
+                            time_range=geometry.time_axis,
+                            coordinates=geometry.rec_positions, dtype=dtype)
+        grad_op_u.apply(dt=dt, vp=v0, rec=residual)
 
         # Reset v before calling the second operator since the object is shared
         v.data[:] = 0.
-        grad_op_v.apply(dt=dt)
+        grad_op_v.apply(dt=dt, vp=v0, rec=residual)
 
         v.data[:] = 0.
-        grad_op_uv.apply(dt=dt)
+        grad_op_uv.apply(dt=dt, vp=v0, rec=residual)
 
         assert(np.allclose(grad_u.data, grad_v.data, rtol=tolerance, atol=tolerance))
         assert(np.allclose(grad_u.data, grad_uv.data, rtol=tolerance, atol=tolerance))
