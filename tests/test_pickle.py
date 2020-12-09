@@ -160,7 +160,7 @@ def test_conditional_dimension():
 def test_incr_dimension():
     s = Scalar(name='s')
     d = Dimension(name='d')
-    dd = IncrDimension(d, s, 5, 2, name='dd')
+    dd = IncrDimension('dd', d, s, 5, 2)
 
     pkl_dd = pickle.dumps(dd)
     new_dd = pickle.loads(pkl_dd)

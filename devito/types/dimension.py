@@ -428,23 +428,12 @@ class DerivedDimension(BasicDimension):
 
     is_Derived = True
 
-    _keymap = {}
-    """Used to create unique Dimension names based on seen kwargs."""
-
     def __init_finalize__(self, name, parent):
         assert isinstance(parent, Dimension)
         self._parent = parent
         # Inherit time/space identifiers
         self.is_Time = parent.is_Time
         self.is_Space = parent.is_Space
-
-    @classmethod
-    def _gensuffix(cls, key):
-        return cls._keymap.setdefault(key, len(cls._keymap))
-
-    @classmethod
-    def _genname(cls, prefix, key):
-        return "%s%d" % (prefix, cls._gensuffix(key))
 
     @property
     def parent(self):
@@ -876,6 +865,8 @@ class ModuloDimension(DerivedDimension):
 
     Parameters
     ----------
+    name : str
+        Name of the dimension.
     parent : Dimension
         The Dimension from which the ModuloDimension is derived.
     offset : expr-like, optional
@@ -887,8 +878,6 @@ class ModuloDimension(DerivedDimension):
     origin : expr-like, optional
         The expression -- typically a function of the parent Dimension -- the
         ModuloDimension represents.
-    name : str, optional
-        To override the default name.
 
     Notes
     -----
@@ -904,20 +893,13 @@ class ModuloDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Modulo = True
 
-    def __new__(cls, parent, offset=None, modulo=None, incr=None, origin=None, name=None):
+    def __init_finalize__(self, name, parent,
+                          offset=None, modulo=None, incr=None, origin=None):
+        super().__init_finalize__(name, parent)
+
         # Sanity check
         assert modulo is not None or incr is not None
-        assert name is not None or (modulo is not None and offset is not None)
 
-        if name is None:
-            name = cls._genname(parent.name, (offset, modulo))
-
-        return super().__new__(cls, parent, offset=offset, modulo=modulo, incr=incr,
-                               origin=origin, name=name)
-
-    def __init_finalize__(self, parent, offset=None, modulo=None, incr=None,
-                          origin=None, name=None):
-        super().__init_finalize__(name, parent)
         self._offset = offset or 0
         self._modulo = modulo
         self._incr = incr
@@ -990,8 +972,7 @@ class ModuloDimension(DerivedDimension):
         return {}
 
     # Pickling support
-    _pickle_args = ['parent']
-    _pickle_kwargs = ['offset', 'modulo', 'incr', 'origin', 'name']
+    _pickle_kwargs = ['offset', 'modulo', 'incr', 'origin']
 
 
 class IncrDimension(DerivedDimension):
@@ -1004,6 +985,8 @@ class IncrDimension(DerivedDimension):
 
     Parameters
     ----------
+    name : str
+        Name of the dimension.
     parent : Dimension
         The Dimension from which the IncrDimension is derived.
     _min : expr-like
@@ -1013,8 +996,6 @@ class IncrDimension(DerivedDimension):
     step : expr-like, optional
         The distance between two consecutive points. Defaults to the
         symbolic size.
-    name : str, optional
-        To override the default name.
 
     Notes
     -----
@@ -1024,12 +1005,7 @@ class IncrDimension(DerivedDimension):
     is_Incr = True
     is_PerfKnob = True
 
-    def __new__(cls, parent, _min, _max, step=None, name=None):
-        if name is None:
-            name = cls._genname(parent.name, (_min, _max, step))
-        return super().__new__(cls, parent, _min, _max, step=step, name=name)
-
-    def __init_finalize__(self, parent, _min, _max, step=None, name=None):
+    def __init_finalize__(self, name, parent, _min, _max, step=None):
         super().__init_finalize__(name, parent)
         self._min = _min
         self._max = _max
@@ -1136,8 +1112,8 @@ class IncrDimension(DerivedDimension):
                                       % (name, value))
 
     # Pickling support
-    _pickle_args = ['parent', 'symbolic_min', 'symbolic_max']
-    _pickle_kwargs = ['step', 'name']
+    _pickle_args = ['name', 'parent', 'symbolic_min', 'symbolic_max']
+    _pickle_kwargs = ['step']
 
 
 class ShiftedDimension(IncrDimension):
@@ -1149,7 +1125,7 @@ class ShiftedDimension(IncrDimension):
     is_Shifted = True
 
     def __new__(cls, d, name):
-        return super().__new__(cls, d, 0, d.symbolic_size - 1, step=1, name=name)
+        return super().__new__(cls, name, d, 0, d.symbolic_size - 1, step=1)
 
     _pickle_args = ['parent', 'name']
     _pickle_kwargs = []

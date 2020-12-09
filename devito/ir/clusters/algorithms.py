@@ -1,12 +1,16 @@
 from itertools import groupby
 
+import numpy as np
 import sympy
 
+from devito.exceptions import InvalidOperator
 from devito.ir.support import Any, Backward, Forward, IterationSpace
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.queue import QueueStateful
-from devito.tools import timed_pass
+from devito.ir.clusters.queue import Queue, QueueStateful
+from devito.symbolics import uxreplace
+from devito.tools import DefaultOrderedDict, is_integer, timed_pass
+from devito.types import ModuloDimension
 
 __all__ = ['clusterize']
 
@@ -23,6 +27,9 @@ def clusterize(exprs):
 
     # Handle ConditionalDimensions
     clusters = guard(clusters)
+
+    # Handle SteppingDimensions
+    clusters = Stepper().process(clusters)
 
     # Determine relevant computational properties (e.g., parallelism)
     clusters = analyze(clusters)
@@ -186,3 +193,76 @@ def guard(clusters):
             processed.append(c.rebuild(exprs=exprs, guards=guards))
 
     return ClusterGroup(processed)
+
+
+class Stepper(Queue):
+
+    """
+    Produce a new sequence of Clusters in which the IterationSpaces carry the
+    sub-iterators induced by a SteppingDimension.
+    """
+
+    @timed_pass(name='stepping')
+    def process(self, clusters):
+        return self._process_fdta(clusters, 1)
+
+    def callback(self, clusters, prefix):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+
+        subiters = set().union(*[c.ispace.sub_iterators.get(d, []) for c in clusters])
+        if not subiters:
+            return clusters
+
+        # Collect the index access functions along `d`, e.g., `t + 1` where `t` is
+        # a SteppingDimension for `d = time`
+        mapper = DefaultOrderedDict(lambda: DefaultOrderedDict(set))
+        for c in clusters:
+            indexeds = [a.indexed for a in c.scope.accesses if a.function.is_Tensor]
+
+            for i in indexeds:
+                try:
+                    iaf = i.indices[d]
+                except KeyError:
+                    continue
+
+                # Sanity checks
+                sis = iaf.free_symbols & subiters
+                if len(sis) == 0:
+                    continue
+                elif len(sis) == 1:
+                    si = sis.pop()
+                else:
+                    raise InvalidOperator("Cannot use multiple SteppingDimensions "
+                                          "to index into a Function")
+                size = i.function.shape_allocated[d]
+                assert is_integer(size)
+
+                mapper[size][si].add(iaf)
+
+        # Construct the unique ModuloDimensions
+        mds = []
+        for size, v in mapper.items():
+            for si, iafs in list(v.items()):
+                # Offsets are sorted so that the semantic order (t0, t1, t2) follows
+                # SymPy's index ordering (t, t-1, t+1) afer modulo replacement so
+                # that associativity errors are consistent. This corresponds to
+                # sorting offsets {-1, 0, 1} as {0, -1, 1} assigning -inf to 0
+                siafs = sorted(iafs, key=lambda i: -np.inf if i - si == 0 else (i - si))
+
+                for iaf in siafs:
+                    name = '%s%d' % (si.name, len(mds))
+                    offset = uxreplace(iaf, {si: d.root})
+                    mds.append(ModuloDimension(name, si, offset, size, origin=iaf))
+
+        # Reconstruct Clusters with augmented IterationSpace
+        processed = []
+        for c in clusters:
+            ispace = IterationSpace(c.ispace.intervals,
+                                    {**c.ispace.sub_iterators, **{d: tuple(mds)}},
+                                    c.ispace.directions)
+            processed.append(c.rebuild(ispace=ispace))
+
+        return processed

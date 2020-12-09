@@ -3,8 +3,8 @@ from collections import OrderedDict, defaultdict
 from devito.ir.support.space import Interval
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import FunctionFromPointer, retrieve_indexed, retrieve_terminals
-from devito.tools import as_tuple, flatten, filter_sorted, is_integer
-from devito.types import Dimension, ModuloDimension
+from devito.tools import as_tuple, flatten, filter_sorted
+from devito.types import Dimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_io']
@@ -77,20 +77,11 @@ def build_iterators(mapper):
     """
     iterators = OrderedDict()
     for k, v in mapper.items():
-        for d, offs in v.items():
+        for d in v:
             if d.is_Stepping:
-                # Offsets are sorted so that the semantic order (t0, t1, t2) follows
-                # SymPy's index ordering (t, t-1, t+1) afer modulo replacement so that
-                # associativity errors are consistent. This corresponds to sorting
-                # offsets {-1, 0, 1} as {0, -1, 1}, assigning -inf to 0
-                soffs = sorted(offs, key=lambda x: -float("inf") if x == 0 else x)
                 values = iterators.setdefault(d.root, [])
-                for i in soffs:
-                    size = k.shape_allocated[d]
-                    assert is_integer(size)
-                    md = ModuloDimension(d, d.root + i, size, origin=d + i)
-                    if md not in values:
-                        values.append(md)
+                if d not in values:
+                    values.append(d)
             elif d.is_Conditional:
                 # There are no iterators associated to a ConditionalDimension
                 continue
