@@ -12,13 +12,13 @@ import cgen as c
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
-from devito.symbolics import ccode, uxreplace
+from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer']
+           'IsPerfectIteration', 'printAST', 'CGen', 'Transformer']
 
 
 class Visitor(GenericVisitor):
@@ -777,49 +777,6 @@ class Transformer(Visitor):
 
     def visit_Operator(self, o, **kwargs):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
-
-
-class XSubs(Transformer):
-    """
-    Transformer that performs substitutions on Expressions
-    in a given tree, akin to SymPy's ``subs``.
-
-    Parameters
-    ----------
-    mapper : dict, optional
-        The substitution rules.
-    replacer : callable, optional
-        An ad-hoc function to perform the substitution. Defaults to ``uxreplace``.
-    """
-
-    def __init__(self, mapper=None, replacer=None):
-        super(XSubs, self).__init__()
-        self.replacer = replacer or (lambda i: uxreplace(i, mapper))
-
-    def visit_Conditional(self, o):
-        condition = self.replacer(o.condition)
-        then_body = self._visit(o.then_body)
-        else_body = self._visit(o.else_body)
-        return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
-
-    def visit_SyncSpot(self, o):
-        sync_ops = []
-        for s in o.sync_ops:
-            # TODO: this is not the prettiest, but until we find a way to
-            # postpone _lower_stepping_dims and _lower_conditional_dims
-            # after _specialize_iet, it's the only thing we can do
-            if s.is_SyncLock:
-                sync_ops.append(s.func(self.replacer(s.handle)))
-            elif s.is_SyncData:
-                sync_ops.append(s.func(s.function, s.dim, self.replacer(s.fetch),
-                                       s.size, s.direction))
-            else:
-                assert False
-        body = self._visit(o.body)
-        return o._rebuild(sync_ops=sync_ops, body=body)
-
-    def visit_Expression(self, o):
-        return o._rebuild(expr=self.replacer(o.expr))
 
 
 # Utils

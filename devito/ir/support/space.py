@@ -458,7 +458,7 @@ class IntervalGroup(PartialOrderTuple):
         for i in self:
             if i.dim is key:
                 return i
-            if key.is_NonlinearDerived and i.dim is key.parent:
+            if key.is_NonlinearDerived and i.dim in key._defines:
                 # NonlinearDerived Dimensions cannot appear in iteration Intervals,
                 # but their parent can
                 return i

@@ -1,3 +1,4 @@
+from functools import partial
 from itertools import groupby
 
 import numpy as np
@@ -8,8 +9,8 @@ from devito.ir.support import Any, Backward, Forward, IterationSpace
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import Queue, QueueStateful
-from devito.symbolics import uxreplace
-from devito.tools import DefaultOrderedDict, is_integer, timed_pass
+from devito.symbolics import uxreplace, xreplace_indices
+from devito.tools import DefaultOrderedDict, as_mapper, flatten, is_integer, timed_pass
 from devito.types import ModuloDimension
 
 __all__ = ['clusterize']
@@ -25,11 +26,11 @@ def clusterize(exprs):
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
 
-    # Handle ConditionalDimensions
-    clusters = guard(clusters)
-
     # Handle SteppingDimensions
     clusters = Stepper().process(clusters)
+
+    # Handle ConditionalDimensions
+    clusters = guard(clusters)
 
     # Determine relevant computational properties (e.g., parallelism)
     clusters = analyze(clusters)
@@ -202,7 +203,6 @@ class Stepper(Queue):
     sub-iterators induced by a SteppingDimension.
     """
 
-    @timed_pass(name='stepping')
     def process(self, clusters):
         return self._process_fdta(clusters, 1)
 
@@ -212,7 +212,8 @@ class Stepper(Queue):
 
         d = prefix[-1].dim
 
-        subiters = set().union(*[c.ispace.sub_iterators.get(d, []) for c in clusters])
+        subiters = flatten([c.ispace.sub_iterators.get(d, []) for c in clusters])
+        subiters = {i for i in subiters if i.is_Stepping}
         if not subiters:
             return clusters
 
@@ -242,7 +243,7 @@ class Stepper(Queue):
 
                 mapper[size][si].add(iaf)
 
-        # Construct the unique ModuloDimensions
+        # Construct the ModuloDimensions
         mds = []
         for size, v in mapper.items():
             for si, iafs in list(v.items()):
@@ -257,12 +258,36 @@ class Stepper(Queue):
                     offset = uxreplace(iaf, {si: d.root})
                     mds.append(ModuloDimension(name, si, offset, size, origin=iaf))
 
-        # Reconstruct Clusters with augmented IterationSpace
+        # Replacement rule for ModuloDimensions
+        def rule(size, e):
+            try:
+                return e.function.shape_allocated[d] == size
+            except (AttributeError, KeyError):
+                return False
+
+        # Reconstruct the Clusters
         processed = []
         for c in clusters:
+            # Apply substitutions to expressions
+            # Note: In an expression, there could be `u[t+1, ...]` and `v[t+1,
+            # ...]`, where `u` and `v` are TimeFunction with circular time
+            # buffers (save=None) *but* different modulo extent. The `t+1`
+            # indices above are therefore conceptually different, so they will
+            # be replaced with the proper ModuloDimension through two different
+            # calls to `xreplace_indices`
+            exprs = c.exprs
+            groups = as_mapper(mds, lambda d: d.modulo)
+            for size, v in groups.items():
+                mapper = {md.origin: md for md in v}
+
+                func = partial(xreplace_indices, mapper=mapper, key=partial(rule, size))
+                exprs = [e.apply(func) for e in exprs]
+
+            # Augment IterationSpace
             ispace = IterationSpace(c.ispace.intervals,
                                     {**c.ispace.sub_iterators, **{d: tuple(mds)}},
                                     c.ispace.directions)
-            processed.append(c.rebuild(ispace=ispace))
+
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
