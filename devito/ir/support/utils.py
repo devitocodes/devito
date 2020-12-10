@@ -95,14 +95,16 @@ def build_intervals(stencil):
     Given a Stencil, return an iterable of Intervals, one
     for each Dimension in the stencil.
     """
-    mapper = {}
+    mapper = defaultdict(set)
     for d, offs in stencil.items():
         if d.is_Stepping:
-            mapper.setdefault(d.root, set()).update(offs)
+            mapper[d.root].update(offs)
         elif d.is_Conditional:
-            mapper.setdefault(d.parent, set()).update(offs)
+            mapper[d.parent].update(offs)
+        elif d.is_Modulo:
+            mapper[d.root].update({d.offset - d.root + i for i in offs})
         else:
-            mapper.setdefault(d, set()).update(offs)
+            mapper[d].update(offs)
     return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
 
 
