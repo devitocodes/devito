@@ -73,7 +73,8 @@ class Tasker(Asynchronous):
                         continue
 
                     try:
-                        if all(w.aindices[d].is_Stepping for w in writes):
+                        if all(w.aindices[d].is_Stepping for w in writes) or \
+                           all(w.aindices[d].is_Modulo for w in writes):
                             size = f.shape_allocated[d]
                             assert is_integer(size)
                             ld = CustomDimension(name='ld', symbolic_size=size, parent=d)
