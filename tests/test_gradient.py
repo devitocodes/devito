@@ -1,10 +1,13 @@
+
 import numpy as np
 import pytest
 from numpy import linalg
 
-from devito import Function, info
+from devito import Function, info, TimeFunction, Operator, Eq
+from devito.parameters import switchconfig
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
-from examples.seismic import Receiver
+from examples.seismic.acoustic.operators import iso_stencil
+from examples.seismic import Receiver, demo_model, setup_geometry
 
 
 class TestGradient(object):
@@ -48,6 +51,93 @@ class TestGradient(object):
                                              grad=grad)
 
         assert np.allclose(gradient.data, gradient2.data, atol=0, rtol=0)
+
+    @pytest.mark.parametrize('tn', [750.])
+    @pytest.mark.parametrize('spacing', [(10, 10)])
+    @pytest.mark.parametrize("dtype, tolerance", [(np.float32, 1e-4),
+                                                  (np.float64, 1e-13)])
+    @pytest.mark.parametrize('nbl', [40])
+    @pytest.mark.parametrize('preset', ['layers-isotropic'])
+    @pytest.mark.parametrize('space_order', [4])
+    @pytest.mark.parametrize('kernel', ['OT2'])
+    @pytest.mark.parametrize('shape', [(101, 101)])
+    @switchconfig(safe_math=True)
+    def test_gradient_equivalence(self, shape, kernel, space_order, preset, nbl, dtype,
+                                  tolerance, spacing, tn):
+        """ This test asserts that the gradient calculated through the following three
+            expressions should match within floating-point precision:
+            - grad = sum(-u.dt2 * v)
+            - grad = sum(-u * v.dt2)
+            - grad = sum(-u.dt * v.dt)
+
+            The computation has the following number of operations:
+            u.dt2 (5 ops) * v = 6ops * 500 (nt) ~ 3000 ops ~ 1e4 ops
+            Hence tolerances are eps * ops = 1e-4 (sp) and 1e-13 (dp)
+        """
+        model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
+                           dtype=dtype, spacing=spacing)
+        m = model.m
+        v_true = model.vp
+        geometry = setup_geometry(model, tn)
+        dt = model.critical_dt
+        src = geometry.src
+        rec = geometry.rec
+        rec_true = geometry.rec
+        rec0 = geometry.rec
+        s = model.grid.stepping_dim.spacing
+        u = TimeFunction(name='u', grid=model.grid, time_order=2, space_order=space_order,
+                         save=geometry.nt)
+
+        eqn_fwd = iso_stencil(u, model, kernel)
+        src_term = src.inject(field=u.forward, expr=src * s**2 / m)
+        rec_term = rec.interpolate(expr=u)
+
+        fwd_op = Operator(eqn_fwd + src_term + rec_term, subs=model.spacing_map,
+                          name='Forward')
+
+        v0 = Function(name='v0', grid=model.grid, space_order=space_order,
+                      dtype=dtype)
+        smooth(v0, model.vp)
+
+        grad_u = Function(name='gradu', grid=model.grid)
+        grad_v = Function(name='gradv', grid=model.grid)
+        grad_uv = Function(name='graduv', grid=model.grid)
+        v = TimeFunction(name='v', grid=model.grid, save=None, time_order=2,
+                         space_order=space_order)
+        s = model.grid.stepping_dim.spacing
+
+        eqn_adj = iso_stencil(v, model, kernel, forward=False)
+        receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
+
+        gradient_update_v = Eq(grad_v, grad_v - u * v.dt2)
+        grad_op_v = Operator(eqn_adj + receivers + [gradient_update_v],
+                             subs=model.spacing_map, name='GradientV')
+
+        gradient_update_u = Eq(grad_u, grad_u - u.dt2 * v)
+        grad_op_u = Operator(eqn_adj + receivers + [gradient_update_u],
+                             subs=model.spacing_map, name='GradientU')
+
+        gradient_update_uv = Eq(grad_uv, grad_uv + u.dt * v.dt)
+        grad_op_uv = Operator(eqn_adj + receivers + [gradient_update_uv],
+                              subs=model.spacing_map, name='GradientUV')
+
+        fwd_op.apply(dt=dt, vp=v_true, rec=rec_true)
+        fwd_op.apply(dt=dt, vp=v0, rec=rec0)
+
+        residual = Receiver(name='rec', grid=model.grid, data=(rec0.data - rec_true.data),
+                            time_range=geometry.time_axis,
+                            coordinates=geometry.rec_positions, dtype=dtype)
+        grad_op_u.apply(dt=dt, vp=v0, rec=residual)
+
+        # Reset v before calling the second operator since the object is shared
+        v.data[:] = 0.
+        grad_op_v.apply(dt=dt, vp=v0, rec=residual)
+
+        v.data[:] = 0.
+        grad_op_uv.apply(dt=dt, vp=v0, rec=residual)
+
+        assert(np.allclose(grad_u.data, grad_v.data, rtol=tolerance, atol=tolerance))
+        assert(np.allclose(grad_u.data, grad_uv.data, rtol=tolerance, atol=tolerance))
 
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('space_order', [4])
