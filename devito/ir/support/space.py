@@ -179,7 +179,7 @@ class Interval(AbstractInterval):
             assert is_integer(d.symbolic_min)
             assert is_integer(d.symbolic_incr)
             assert is_integer(self.dim.symbolic_max)
-            assert self.lower == self.upper == 0
+            assert self.lower == self.upper
             npoints = self.dim.symbolic_max - d.symbolic_min + 1
             # Iterations [1, ..., n-1]:
             assert d.symbolic_incr == self.dim.symbolic_max
