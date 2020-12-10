@@ -971,6 +971,28 @@ class ModuloDimension(DerivedDimension):
         """
         return {}
 
+    # Override SymPy arithmetic operators to exploit properties of modular arithmetic
+
+    def __add__(self, other):
+        # Exploit compatibility with addition:
+        # `a1 ≡ b1 (mod n) and a2 ≡ b2 (mod n)` => `a1 + a2 ≡ b1 + b2 (mod n)`
+        try:
+            if self.modulo == other.modulo:
+                return self.origin + other.origin
+        except (AttributeError, TypeError):
+            pass
+        return super().__add__(other)
+
+    def __sub__(self, other):
+        # Exploit compatibility with subtraction:
+        # `a1 ≡ b1 (mod n) and a2 ≡ b2 (mod n)` => `a1 – a2 ≡ b1 – b2 (mod n)`
+        try:
+            if self.modulo == other.modulo:
+                return self.origin - other.origin
+        except (AttributeError, TypeError):
+            pass
+        return super().__sub__(other)
+
     # Pickling support
     _pickle_kwargs = ['offset', 'modulo', 'incr', 'origin']
 
