@@ -677,7 +677,7 @@ def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
         The Function's which are known to definitely fit in the device memory. This
         information is given directly by the user through the compiler option
         `gpu-fit` and is propagated down here through the various stages of lowering.
-    only_writes : boo, optional
+    only_writes : bool, optional
         Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
         that do not appear on the LHS of at least one Expression. Defaults to False.
     """

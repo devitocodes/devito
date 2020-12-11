@@ -325,7 +325,7 @@ class CustomOperator(CPU64Operator):
         # IET
         'denormals', 'optcomms', 'openmp', 'mpi', 'simd', 'prodders',
     )
-    _known_passes_disabled = ('tasking', 'streaming', 'gpu-direct')
+    _known_passes_disabled = ('tasking', 'streaming', 'gpu-direct', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
