@@ -3,7 +3,6 @@ from devito.passes.iet import (DataManager, Ompizer, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
 
-
 __all__ = ['ArmOperator', 'ArmOpenMPOperator']
 
 

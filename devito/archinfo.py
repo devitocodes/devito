@@ -88,6 +88,9 @@ def get_cpu_info():
             logical = 1
     cpu_info['logical'] = logical
 
+    # Detect number of physical cores
+    # TODO: on multi-socket systems + unix, can't use psutil due to
+    # `https://github.com/giampaolo/psutil/issues/1558`
     # Special case: in some ARM processors psutils fails to detect physical cores
     # correctly so we use lscpu()
     try:
@@ -97,9 +100,6 @@ def get_cpu_info():
     except:
         pass
 
-    # Detect number of physical cores
-    # TODO: on multi-socket systems + unix, can't use psutil due to
-    # `https://github.com/giampaolo/psutil/issues/1558`
     mapper = {}
     if lines:
         # Copied and readapted from psutil
