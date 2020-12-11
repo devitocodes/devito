@@ -7,10 +7,6 @@ from devito.tools import timed_pass
 __all__ = ['ArmOperator', 'ArmOpenMPOperator']
 
 
-ArmOperator = CPU64Operator
-ArmOpenMPOperator = CPU64OpenMPOperator
-
-
 class ArmOperator(CPU64Operator):
 
     @classmethod
