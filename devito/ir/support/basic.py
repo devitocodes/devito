@@ -563,10 +563,9 @@ class Dependence(object):
         Return True if ``dim`` may represent a reduction dimension for
         ``self``, False otherwise.
         """
-        test0 = self.is_increment
-        test1 = self.is_regular
-        test2 = all(i not in self._defined_findices for i in dim._defines)
-        return test0 and test1 and test2
+        return (self.is_increment and
+                self.is_regular and
+                not (dim._defines & self._defined_findices))
 
     @memoized_meth
     def is_reduce_atmost(self, dim=None):
@@ -592,10 +591,9 @@ class Dependence(object):
                 # `dim` *and* that the distance along `dim` is 0 (e.g., dim=x and
                 # f[x, g[x, y]] -> f[x, h[x, y]])
                 try:
-                    test0 = self.source.affine(dim)
-                    test1 = self.sink.affine(dim)
-                    test2 = self.distance_mapper[dim] == 0
-                    return test0 and test1 and test2
+                    return (self.source.affine(dim) and
+                            self.sink.affine(dim) and
+                            self.distance_mapper[dim] == 0)
                 except KeyError:
                     # `dim is None` or anything not in `self._defined_findices`
                     return False
@@ -604,9 +602,8 @@ class Dependence(object):
             else:
                 # The only hope at this point is that `dim` appears in the findices
                 # with distance 0 (that is, it's not the cause of the dependence)
-                test0 = any(i in self._defined_findices for i in dim._defines)
-                test1 = len(self.cause & dim._defines) == 0
-                return test0 and test1
+                return (any(i in self._defined_findices for i in dim._defines) and
+                        len(self.cause & dim._defines) == 0)
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
