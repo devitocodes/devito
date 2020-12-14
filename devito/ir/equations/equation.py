@@ -13,11 +13,8 @@ from devito.types import Eq
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
 
-class IREq(object):
+class IREq(sympy.Eq):
 
-    """
-    A mixin providing operations common to all :mod:`ir` equation types.
-    """
     _state = ('is_Increment', 'ispace', 'dspace', 'conditionals', 'implicit_dims')
 
     @property
@@ -83,7 +80,7 @@ class IREq(object):
         return {i: getattr(self, i) for i in self._state}
 
 
-class LoweredEq(sympy.Eq, IREq):
+class LoweredEq(IREq):
 
     """
     LoweredEq(devito.Eq)
@@ -198,7 +195,7 @@ class LoweredEq(sympy.Eq, IREq):
         return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(sympy.Eq, IREq, Pickable):
+class ClusterizedEq(IREq, Pickable):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)
