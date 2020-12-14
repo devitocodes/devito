@@ -496,7 +496,7 @@ class Dependence(object):
 
     @cached_property
     def is_increment(self):
-        return self.source.is_increment and self.sink.is_increment
+        return self.source.is_increment or self.sink.is_increment
 
     @cached_property
     def is_regular(self):
@@ -575,7 +575,8 @@ class Dependence(object):
         represent a reduction dimension for ``self`` or if `self`` is definitely
         independent of ``dim``, False otherwise.
         """
-        return self.is_reduce(dim) or self.is_indep(dim)
+        return (not (dim._defines & self._defined_findices)
+                or self.is_indep(dim))
 
     @memoized_meth
     def is_indep(self, dim=None):
@@ -601,11 +602,9 @@ class Dependence(object):
             if dim is None:
                 return self.distance == 0
             else:
-                # Note: below, `i in self._defined_findices` is to check whether `i`
-                # is actually (one of) the reduction dimension(s), in which case
-                # `self` would indeed be a dimension-dependent dependence
-                test0 = (not self.is_increment or
-                         any(i in self._defined_findices for i in dim._defines))
+                # The only hope at this point is that `dim` appears in the findices
+                # with distance 0 (that is, it's not the cause of the dependence)
+                test0 = any(i in self._defined_findices for i in dim._defines)
                 test1 = len(self.cause & dim._defines) == 0
                 return test0 and test1
         except TypeError:
