@@ -31,9 +31,7 @@ class ArmOperator(CPU64Operator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager(sregistry)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DataManager(sregistry).process(graph)
 
         return graph
 
@@ -69,8 +67,6 @@ class ArmOpenMPOperator(CPU64OpenMPOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DataManager(sregistry)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DataManager(sregistry).process(graph)
 
         return graph
