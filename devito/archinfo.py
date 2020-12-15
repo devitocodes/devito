@@ -32,7 +32,6 @@ def get_cpu_info():
 
     # Extract CPU flags and branch
     if lines:
-
         # The /proc/cpuinfo format doesn't follow a standard, and on some
         # more or less exotic combinations of OS and platform it might not
         # contain the information we look for, hence the proliferation of
@@ -40,7 +39,9 @@ def get_cpu_info():
 
         def get_cpu_flags():
             try:
-                flags = [i for i in lines if i.startswith('flags')][0]
+                # ARM Thunder X2 is using 'Features' instead of 'flags'
+                flags = [i for i in lines if (i.startswith('Features')
+                                              or i.startswith('flags'))][0]
                 return flags.split(':')[1].strip().split()
             except:
                 return None
@@ -60,16 +61,20 @@ def get_cpu_info():
             except:
                 pass
 
-            return None
+            try:
+                # Certain ARM CPUs, e.g. Marvell Thunder X2
+                return cpuinfo.get_cpu_info().get('arch').lower()
+            except:
+                return None
 
         cpu_info['flags'] = get_cpu_flags()
         cpu_info['brand'] = get_cpu_brand()
 
-    if not all(i in cpu_info for i in ('flags', 'brand')):
-        # Fallback
-        ci = cpuinfo.get_cpu_info()
-        cpu_info['flags'] = ci.get('flags')
-        cpu_info['brand'] = ci.get('brand')
+    if not cpu_info.get('flags'):
+        cpu_info['flags'] = cpuinfo.get_cpu_info().get('flags')
+
+    if not cpu_info.get('brand'):
+        cpu_info['brand'] = cpuinfo.get_cpu_info().get('brand')
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
@@ -86,6 +91,15 @@ def get_cpu_info():
     # Detect number of physical cores
     # TODO: on multi-socket systems + unix, can't use psutil due to
     # `https://github.com/giampaolo/psutil/issues/1558`
+    # Special case: in some ARM processors psutils fails to detect physical cores
+    # correctly so we use lscpu()
+    try:
+        if 'arm' in cpu_info['brand']:
+            cpu_info['physical'] = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
+            return cpu_info
+    except:
+        pass
+
     mapper = {}
     if lines:
         # Copied and readapted from psutil
@@ -107,15 +121,13 @@ def get_cpu_info():
         # Fallback 1: it should now be fine to use psutil
         physical = psutil.cpu_count(logical=False)
         if not physical:
-            # Fallback 2: we might end up here on more exotic platforms such a Power8
-            # Hopefully we can rely on `lscpu`
+            # Fallback 2: we might end up here on more exotic platforms such as Power8
             try:
                 physical = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
             except KeyError:
                 warning("Physical core count autodetection failed")
                 physical = 1
     cpu_info['physical'] = physical
-
     return cpu_info
 
 
@@ -258,7 +270,9 @@ def lscpu():
     if output:
         lines = output.decode("utf-8").strip().split('\n')
         mapper = {}
-        for k, v in [tuple(i.split(':')) for i in lines]:
+        # Using split(':', 1) to avoid splitting lines where lscpu shows vulnerabilities
+        # on some CPUs: https://askubuntu.com/questions/1248273/lscpu-vulnerabilities
+        for k, v in [tuple(i.split(':', 1)) for i in lines]:
             try:
                 mapper[k] = int(v)
             except ValueError:
