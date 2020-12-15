@@ -1,6 +1,10 @@
 # Runner information:
-# Standard NC24_Promo (24 vcpus, 224 GiB memory)
-# NVIDIA Tesla K80, Intel Xeon E5-2690 v3 (Haswell)
+# pytest-gpu-omp:
+# CPU: Intel(R) Core(TM) i7-5930K CPU @ 3.50GHz
+# GPU: NVIDIA GeForce GTX 960
+# pytest-gpu-acc:
+# CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz
+# GPU: NVIDIA GeForce RTX 2060
 
 name: CI-gpu
 
@@ -20,9 +24,6 @@ jobs:
     runs-on: ${{ matrix.tags }}
 
     env:
-      DEVITO_ARCH: ${{ matrix.arch }}
-      DEVITO_PLATFORM: ${{ matrix.platform }}
-      DEVITO_LANGUAGE: ${{ matrix.language }}
       OMPI_CC: ${{ matrix.arch }}
 
     strategy:
@@ -40,33 +41,38 @@ jobs:
           arch: "clang"
           platform: "nvidiaX"
           language: "openmp"
-          tags: ["self-hosted", "gpu", "openmp"]
+          tags: ["self-hosted", "rhodrin"]
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
-          arch: "pgcc"
+          arch: "nvcc"
           platform: "nvidiaX"
           language: "openacc"
-          tags: ["self-hosted", "gpu", "openacc"]
+          tags: ["self-hosted", "gerard"]
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v1
+      uses: actions/checkout@v2
 
     - name: Install dependencies
       run: |
-        pip3 install --upgrade pip
-        pip3 install -e .[extras]
+        # NOTE: Using 'source' during every step is ugly and should be changed
+        source ~/environments/${{ matrix.language }}/bin/activate
+        source ~/environments/scripts/${{ matrix.language }}_env.sh
+        pip install --upgrade pip
+        pip install -e .[extras]
 
     - name: Test with pytest
       run: |
-        if [ "${{ matrix.name }}" == 'pytest-gpu-acc' ]; then
-          pgaccelinfo
-        fi
+        nvidia-smi
+        source ~/environments/${{ matrix.language }}/bin/activate
+        source ~/environments/scripts/${{ matrix.language }}_env.sh
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
 
     - name: Test examples
       run: |
+        source ~/environments/${{ matrix.language }}/bin/activate
+        source ~/environments/scripts/${{ matrix.language }}_env.sh
         pytest examples/seismic/acoustic/acoustic_example.py
         pytest examples/seismic/elastic/elastic_example.py
         pytest examples/seismic/tti/tti_example.py
@@ -74,7 +80,11 @@ jobs:
         pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
+      # Skip openmp for now due to issue #1536
+      if: matrix.name != 'pytest-gpu-acc'
       run: |
+        source ~/environments/${{ matrix.language }}/bin/activate
+        source ~/environments/scripts/${{ matrix.language }}_env.sh
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py
