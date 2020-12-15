@@ -750,6 +750,28 @@ class TestAliases(object):
         assert np.isclose(expected, norm(u1), rtol=1e-5)
         assert np.isclose(expected, norm(u2), rtol=1e-5)
 
+    def test_min_storage_issue_1506(self):
+        grid = Grid(shape=(10, 10))
+
+        u1 = TimeFunction(name='u1', grid=grid, time_order=2, space_order=4, save=10)
+        u2 = TimeFunction(name='u2', grid=grid, time_order=2, space_order=4, save=10)
+        v1 = TimeFunction(name='v1', grid=grid, time_order=2, space_order=4, save=None)
+        v2 = TimeFunction(name='v2', grid=grid, time_order=2, space_order=4, save=None)
+
+        eqns = [Eq(u1.forward, (u1+u2).laplace),
+                Eq(u2.forward, (u1-u2).laplace),
+                Eq(v1.forward, (v1+v2).laplace + u1.dt2),
+                Eq(v2.forward, (v1-v2).laplace + u2.dt2)]
+
+        op0 = Operator(eqns, opt=('advanced', {'min-storage': False,
+                                               'cire-mincost-sops': 1}))
+        op1 = Operator(eqns, opt=('advanced', {'min-storage': True,
+                                               'cire-mincost-sops': 1}))
+
+        # Check code generation
+        # min-storage has no effect in this example
+        assert str(op0) == str(op1)
+
     @pytest.mark.parametrize('rotate', [False, True])
     def test_mixed_shapes_v2_w_subdims(self, rotate):
         """

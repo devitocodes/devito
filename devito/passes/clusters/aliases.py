@@ -419,8 +419,12 @@ def collect(exprs, ignore_collected, options):
             mapper = {}
 
             for d, intervals in intervalss.items():
+                # Not all groups may access all dimensions
+                # Example: `d=t` and groups=[Group(...[t, x]...), Group(...[time, x]...)]
+                impacted = [g for g in groups if d in g.dimensions]
+
                 for interval in list(intervals):
-                    found = {g: g.find_rotation_distance(d, interval) for g in groups}
+                    found = {g: g.find_rotation_distance(d, interval) for g in impacted}
                     if all(distance is not None for distance in found.values()):
                         # `interval` is OK !
                         mapper[interval] = found
@@ -444,7 +448,7 @@ def collect(exprs, ignore_collected, options):
 
         for g in groups:
             c = g.pivot
-            distances = defaultdict(int, [(i.dim, v[g]) for i, v in mapper.items()])
+            distances = defaultdict(int, [(i.dim, v.get(g)) for i, v in mapper.items()])
 
             # Create the basis alias
             offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
