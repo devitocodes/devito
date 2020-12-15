@@ -625,7 +625,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         # IET
         'optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct'
     )
-    _known_passes_disabled = ('denormals', 'simd')
+    _known_passes_disabled = ('denormals', 'simd', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
