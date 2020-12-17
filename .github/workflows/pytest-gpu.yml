@@ -41,14 +41,14 @@ jobs:
           arch: "clang"
           platform: "nvidiaX"
           language: "openmp"
-          tags: ["self-hosted", "rhodrin"]
+          tags: ["self-hosted", "gpu", "openmp"]
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
           arch: "nvcc"
           platform: "nvidiaX"
           language: "openacc"
-          tags: ["self-hosted", "gerard"]
+          tags: ["self-hosted", "gpu", "openacc"]
 
     steps:
     - name: Checkout devito
@@ -81,7 +81,7 @@ jobs:
 
     - name: Test examples with MPI
       # Skip openmp for now due to issue #1536
-      if: matrix.name != 'pytest-gpu-acc'
+      if: matrix.name == 'pytest-gpu-acc'
       run: |
         source ~/environments/${{ matrix.language }}/bin/activate
         source ~/environments/scripts/${{ matrix.language }}_env.sh
