@@ -45,7 +45,7 @@ jobs:
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
-          arch: "nvcc"
+          arch: "nvc"
           platform: "nvidiaX"
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
@@ -80,16 +80,43 @@ jobs:
         pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
-      # Skip openmp for now due to issue #1536
-      if: matrix.name == 'pytest-gpu-acc'
       run: |
+        # Tests currently being executed individually due to issue #1536
         source ~/environments/${{ matrix.language }}/bin/activate
         source ~/environments/scripts/${{ matrix.language }}_env.sh
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic_stability[OT2-1]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic_stability[OT2-2]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic_stability[OT2-3]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic_stability[OT4-1]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic_stability[OT4-2]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic_stability[OT4-3]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic[True-369.955-float32]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py::test_isoacoustic[False-459.1678-float64]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py::test_elastic[float32]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py::test_elastic[float64]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py::examples/seismic/elastic/elastic_example.py::test_elastic_stability[1]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py::examples/seismic/elastic/elastic_example.py::test_elastic_stability[2]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py::examples/seismic/elastic/elastic_example.py::test_elastic_stability[3]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py::test_tti_stability[2-centered]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py::test_tti_stability[2-staggered]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py::test_tti_stability[3-centered]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py::test_tti_stability[3-staggered]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic[float32]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic[float64]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[blanch_symes-1]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[blanch_symes-2]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[blanch_symes-3]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[ren-1]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[ren-2]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[ren-3]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[deng_mcmechan-1]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[deng_mcmechan-2]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py::test_viscoacoustic_stability[deng_mcmechan-3]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py::test_viscoelastic[float32]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py::test_viscoelastic[float64]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py::test_viscoelastic_stability[1]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py::test_viscoelastic_stability[2]
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py::test_viscoelastic_stability[3]
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
