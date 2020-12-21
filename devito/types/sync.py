@@ -1,6 +1,9 @@
 """
-Support types to implement asynchronous execution via e.g., threading,
-device offloading, etc.
+Support types for the generation of shared-memory parallel code. This module
+contains basic types for threaded code (e.g., special symbols representing
+the number of threads in a parallel region, objects such as locks to
+implement thread synchronization, etc). Most of these objects are used internally
+by the compiler.
 """
 
 import os
