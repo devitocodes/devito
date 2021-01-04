@@ -143,7 +143,7 @@ jobs:
         name: ${{ matrix.name }}
 
   # Deallocate runners
-  stop-runner:
+  stop-runners:
     name: ${{ matrix.name }}
     if: ${{ always() }}
     needs: benchmarks
@@ -159,10 +159,10 @@ jobs:
           stop-runner-acc
         ]
         include:
-        - name: start-runner-omp
+        - name: stop-runner-omp
           vm_name: gpu-runner-04
 
-        - name: start-runner-acc
+        - name: stop-runner-acc
           vm_name: gpu-runner-01
 
     steps:
