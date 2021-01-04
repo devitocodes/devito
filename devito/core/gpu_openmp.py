@@ -14,11 +14,11 @@ from devito.logger import warning
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)
-from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
+from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays, extract_increments,
                                     factorize, fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
-                               iet_pass)
+                               relax_incr_dimensions, iet_pass)
 from devito.symbolics import Byref
 from devito.tools import as_tuple, filter_sorted, timed_pass
 from devito.types import Symbol
@@ -278,6 +278,12 @@ def mpi_gpu_direct(iet, **kwargs):
 
 class DeviceOpenMPNoopOperator(OperatorCore):
 
+    BLOCK_LEVELS = 1
+    """
+    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
     CIRE_REPEATS_INV = 2
     """
     Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
@@ -313,6 +319,10 @@ class DeviceOpenMPNoopOperator(OperatorCore):
 
         # Execution modes
         o['mpi'] = oo.pop('mpi')
+
+        # Blocking
+        o['blockinner'] = oo.pop('blockinner', False)
+        o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
 
         # Strictly unneccesary, but make it clear that this Operator *will*
         # generate OpenMP code, bypassing any `openmp=False` provided in
@@ -444,12 +454,20 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
 class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
-    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct')
-    _known_passes_disabled = ('blocking', 'denormals', 'simd')
+    _known_passes = ('blocking', 'optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct', )
+    _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
-    def _make_passes_mapper(cls, **kwargs):
+    def _make_clusters_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+
+        return {
+            'blocking': Blocking(options).process
+        }
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
@@ -457,6 +475,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
 
         return {
             'optcomms': partial(optimize_halospots),
+            'blocking': partial(relax_incr_dimensions, sregistry=sregistry),
             'openmp': partial(ompizer.make_parallel),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders),
@@ -478,6 +497,23 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         return super(DeviceOpenMPCustomOperator, cls)._build(expressions, **kwargs)
 
     @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_clusters_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                clusters = passes_mapper[i](clusters)
+            except KeyError:
+                pass
+
+        return clusters
+
+    @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
@@ -485,7 +521,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
-        passes_mapper = cls._make_passes_mapper(**kwargs)
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
         # Call passes
         for i in passes:
