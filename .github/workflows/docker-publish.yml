@@ -88,7 +88,7 @@ jobs:
   # Comment out until gpu docker image problem resolved
   test-gpu-image:
     needs: deploy-docker
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu, docker]
 
     strategy:
       fail-fast: false
