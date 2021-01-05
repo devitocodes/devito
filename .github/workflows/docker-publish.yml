@@ -70,7 +70,7 @@ jobs:
 
   # Comment out 'cpu-latest' until next release
   test-cpu-image:
-    needs: deploy-docker
+    needs: deploy-docker-cpu
     runs-on: ubuntu-latest
 
     strategy:
@@ -87,7 +87,7 @@ jobs:
 
   # Comment out until gpu docker image problem resolved
   test-gpu-image:
-    needs: deploy-docker
+    needs: deploy-docker-gpu
     runs-on: [self-hosted, gpu, docker]
 
     strategy:
