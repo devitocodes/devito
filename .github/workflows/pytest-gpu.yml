@@ -34,7 +34,7 @@ jobs:
           vm_name: gpu-runner-04
 
         - name: start-runner-acc
-          vm_name: gpu-runner-01
+          vm_name: gpu-runner-02
 
     steps:
     - name: checkout repo
@@ -164,7 +164,7 @@ jobs:
           vm_name: gpu-runner-04
 
         - name: stop-runner-acc
-          vm_name: gpu-runner-01
+          vm_name: gpu-runner-02
 
     steps:
     - name: checkout repo
