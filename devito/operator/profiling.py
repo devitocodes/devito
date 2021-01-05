@@ -86,7 +86,7 @@ class Profiler(object):
             # Each ExpressionBundle lives in its own iteration space
             itermaps = [i.ispace.dimension_map for i in bundles]
 
-            # Track how many fd-points are written within `s`
+            # Track how many FD points are written within `s`
             points = []
             total_writes = 0
             for i in bundles:
@@ -230,6 +230,7 @@ class AdvancedProfiler(Profiler):
             # Number of FLOPs performed
             ops = int(subs_op_args(data.ops, args))
 
+            # Number of FD points computed
             points = int(subs_op_args(data.points, args))
 
             # Compulsory traffic
