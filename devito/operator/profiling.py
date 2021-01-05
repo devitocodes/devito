@@ -86,15 +86,27 @@ class Profiler(object):
             # Each ExpressionBundle lives in its own iteration space
             itermaps = [i.ispace.dimension_map for i in bundles]
 
-            # Track how many grid points are written within `s`
+            # Track how many fd-points are written within `s`
             points = []
+            total_writes = 0
             for i in bundles:
                 writes = {e.write for e in i.exprs
                           if e.is_tensor and e.write.is_TimeFunction}
-                points.append(i.size*len(writes))
-            points = sum(points)
+                total_writes += len(writes)
+                # If we have writes only consider one iteration space size
+                # per bundle otherwise append 0
+                if len(writes):
+                    points.append(i.size)
+                else:
+                    points.append(i.size*len(writes))
 
-            self._sections[s.name] = SectionData(ops, sops, points, traffic, itermaps)
+            # list(set()) will return a list with unique elements
+            # discarding duplicate grid sizes
+            points = list(set(points))
+
+            fdpoints = sum(points)
+
+            self._sections[s.name] = SectionData(ops, sops, fdpoints, traffic, itermaps)
 
     def track_subsection(self, sname, name):
         v = self._subsections.setdefault(sname, OrderedDict())
@@ -218,7 +230,6 @@ class AdvancedProfiler(Profiler):
             # Number of FLOPs performed
             ops = int(subs_op_args(data.ops, args))
 
-            # Number of grid points computed
             points = int(subs_op_args(data.points, args))
 
             # Compulsory traffic
