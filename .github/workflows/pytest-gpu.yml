@@ -56,7 +56,7 @@ jobs:
         -vmName ${{ matrix.vm_name }}
 
     - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n $VM_NAME --query publicIps -o tsv)
+      run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n ${{ matrix.vm_name }} --query publicIps -o tsv)
       id: host
 
     - name: start actions runner app
