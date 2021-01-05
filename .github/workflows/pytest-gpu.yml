@@ -72,6 +72,7 @@ jobs:
 
   build:
     name: ${{ matrix.name }}
+    needs: start-runners
     runs-on: ${{ matrix.tags }}
 
     env:
@@ -146,7 +147,7 @@ jobs:
   stop-runners:
     name: ${{ matrix.name }}
     if: ${{ always() }}
-    needs: benchmarks
+    needs: build
     runs-on: ubuntu-latest
 
     strategy:
