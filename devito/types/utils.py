@@ -21,7 +21,7 @@ CELL = Stagger('cell')
 class DimensionTuple(EnrichedTuple):
 
     def __getitem_hook__(self, dim):
-        for d in dim._defines:
-            if d in self._getters:
+        for d in self._getters:
+            if d._defines & dim._defines:
                 return self._getters[d]
         raise KeyError

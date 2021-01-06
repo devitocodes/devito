@@ -24,9 +24,7 @@ def skipif(items, whole_module=False):
     items = as_tuple(items)
     # Sanity check
     accepted = set(configuration._accepted['backend'])
-    # TODO: to be refined in the near future, once we start adding support for
-    # multiple GPU languages (openmp, openacc, cuda, ...)
-    accepted.add('device')
+    accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc'})
     accepted.update({'no%s' % i for i in configuration._accepted['backend']})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
@@ -56,8 +54,14 @@ def skipif(items, whole_module=False):
         if i == 'device' and isinstance(configuration['platform'], Device):
             skipit = "device `%s` unsupported" % configuration['platform'].name
             break
-        # Skip if must run GPUs but not currently on a GPU
-        if i == 'nodevice' and not isinstance(configuration['platform'], Device):
+        # Skip if won't run on a specific GPU backend
+        langs = configuration._accepted['language']
+        if any(i == 'device-%s' % l and configuration['language'] == l for l in langs):
+            skipit = "language `%s` for device unsupported" % configuration['language']
+            break
+        # Skip if must run on GPUs but not currently on a GPU
+        if i in ('nodevice', 'nodevice-omp', 'nodevice-acc') and\
+                not isinstance(configuration['platform'], Device):
             skipit = ("must run on device, but currently on `%s`" %
                       configuration['platform'].name)
             break

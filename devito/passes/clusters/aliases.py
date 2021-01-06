@@ -611,10 +611,10 @@ def _optimize_schedule_rotations(schedule, sregistry):
         iis = candidate.lower
         iib = candidate.upper
 
-        ii = ModuloDimension(ds, iis, incr=iib, name='%sii' % d)
+        ii = ModuloDimension('%sii' % d, ds, iis, incr=iib)
         cd = CustomDimension(name='%s%s' % (d, d), symbolic_min=ii, symbolic_max=iib,
                              symbolic_size=n)
-        dsi = ModuloDimension(cd, cd + ds - iis, n, name='%si' % ds)
+        dsi = ModuloDimension('%si' % ds, cd, cd + ds - iis, n)
 
         mapper = OrderedDict()
         for i in g:
@@ -626,7 +626,7 @@ def _optimize_schedule_rotations(schedule, sregistry):
                     md = mapper[v]
                 except KeyError:
                     name = sregistry.make_name(prefix='%sr' % d.name)
-                    md = mapper.setdefault(v, ModuloDimension(ds, v, n, name=name))
+                    md = mapper.setdefault(v, ModuloDimension(name, ds, v, n))
                 mds.append(md)
             indicess = [indices[:ridx] + [md] + indices[ridx + 1:]
                         for md, indices in zip(mds, i.indicess)]

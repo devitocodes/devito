@@ -12,13 +12,13 @@ import cgen as c
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
-from devito.symbolics import ccode, uxreplace
+from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer']
+           'IsPerfectIteration', 'printAST', 'CGen', 'Transformer']
 
 
 class Visitor(GenericVisitor):
@@ -261,19 +261,15 @@ class CGen(Visitor):
 
     def visit_LocalExpression(self, o):
         if o.write.is_Array:
-            ctype = [o.expr.lhs._C_typedata]
-            if o.write.volatile:
-                ctype.insert(0, 'volatile')
-            ctype = ' '.join(ctype)
             lhs = '%s%s' % (
                 o.expr.lhs.name,
                 ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
             )
         else:
-            ctype = o.expr.lhs._C_typedata
             lhs = ccode(o.expr.lhs, dtype=o.dtype)
 
-        return c.Initializer(c.Value(ctype, lhs), ccode(o.expr.rhs, dtype=o.dtype))
+        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
+                             ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):
         return c.Statement(ccode(o.expr))
@@ -334,7 +330,7 @@ class CGen(Visitor):
         condition = ccode(o.condition)
         if o.body:
             body = flatten(self._visit(i) for i in o.children)
-            return c.While(condition, body)
+            return c.While(condition, c.Block(body))
         else:
             # Hack: cgen doesn't support body-less while-loops, i.e. `while(...);`
             return c.Statement('while(%s)' % condition)
@@ -381,6 +377,10 @@ class CGen(Visitor):
                     for i in o._includes]
         includes += [blankline]
         cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
+        for i in o._func_table.values():
+            if i.local:
+                cdefs.extend([j._C_typedecl for j in i.root.parameters
+                              if j._C_typedecl is not None])
         cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
         if o._compiler.src_ext == 'cpp':
             cdefs += [c.Extern('C', signature)]
@@ -542,13 +542,13 @@ class MapNodes(Visitor):
 
 class FindSymbols(Visitor):
 
-    def quick_str(o):
+    def quick_key(o):
         """
         SymPy's __str__ is horribly slow so we stay away from it for as much
         as we can. A devito.Indexed has its own overridden __str__, which
         relies on memoization, which is acceptable.
         """
-        return str(o) if o.is_Indexed else o.name
+        return (str(o) if o.is_Indexed else o.name, type(o))
 
     class Retval(list):
         def __init__(self, *retvals, node=None):
@@ -560,7 +560,7 @@ class FindSymbols(Visitor):
                 except AttributeError:
                     pass
                 elements.extend(i)
-            elements = filter_sorted(elements, key=FindSymbols.quick_str)
+            elements = filter_sorted(elements, key=FindSymbols.quick_key)
             if node is not None:
                 self.mapper[node] = tuple(elements)
             super().__init__(elements)
@@ -777,33 +777,6 @@ class Transformer(Visitor):
 
     def visit_Operator(self, o, **kwargs):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
-
-
-class XSubs(Transformer):
-    """
-    Transformer that performs substitutions on Expressions
-    in a given tree, akin to SymPy's ``subs``.
-
-    Parameters
-    ----------
-    mapper : dict, optional
-        The substitution rules.
-    replacer : callable, optional
-        An ad-hoc function to perform the substitution. Defaults to ``uxreplace``.
-    """
-
-    def __init__(self, mapper=None, replacer=None):
-        super(XSubs, self).__init__()
-        self.replacer = replacer or (lambda i: uxreplace(i, mapper))
-
-    def visit_Conditional(self, o):
-        condition = self.replacer(o.condition)
-        then_body = self._visit(o.then_body)
-        else_body = self._visit(o.else_body)
-        return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
-
-    def visit_Expression(self, o):
-        return o._rebuild(expr=self.replacer(o.expr))
 
 
 # Utils
