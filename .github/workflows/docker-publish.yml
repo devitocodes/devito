@@ -51,7 +51,7 @@ jobs:
             'devitocodes/devito:cpu-${{ github.event.release.tag_name }}'
 
   deploy-docker-gpu:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gpu, docker]
 
     steps:
       - name: Checkout devito
@@ -124,3 +124,8 @@ jobs:
           run: |
              docker pull 'devitocodes/devito:${{ matrix.im-name }}'
              docker run --gpus all --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_gpu_openacc.py
+
+        # NOTE: Suitable for the time being but will need to modify when we switch runners
+        - name: Clean
+          run: |
+            docker system prune -a -f
