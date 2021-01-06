@@ -172,21 +172,20 @@
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="kn">import</span> <span class="n">compiler_registry</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="kn">import</span> <span class="n">InvalidOperator</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
-<span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span>
+<span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span><span class="p">,</span> <span class="n">lower_exprs</span><span class="p">,</span> <span class="n">generate_implicit_exprs</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="kn">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">clusterize</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">iet_lower_dims</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="kn">import</span> <span class="n">stree_build</span>
-<span class="kn">from</span> <span class="nn">devito.ir.equations.algorithms</span> <span class="kn">import</span> <span class="n">lower_exprs</span><span class="p">,</span> <span class="n">generate_implicit_exprs</span>
 <span class="kn">from</span> <span class="nn">devito.operator.profiling</span> <span class="kn">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.operator.registry</span> <span class="kn">import</span> <span class="n">operator_selector</span>
 <span class="kn">from</span> <span class="nn">devito.operator.symbols</span> <span class="kn">import</span> <span class="n">SymbolRegistry</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.passes</span> <span class="kn">import</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">NThreads</span><span class="p">,</span> <span class="n">NThreadsNested</span><span class="p">,</span> <span class="n">NThreadsNonaffine</span><span class="p">,</span> <span class="n">instrument</span>
+<span class="kn">from</span> <span class="nn">devito.passes</span> <span class="kn">import</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">instrument</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">estimate_cost</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">DAG</span><span class="p">,</span> <span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span>
                           <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">split</span><span class="p">,</span> <span class="n">timed_pass</span><span class="p">,</span> <span class="n">timed_region</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="kn">import</span> <span class="n">CustomDimension</span><span class="p">,</span> <span class="n">Evaluable</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="kn">import</span> <span class="n">Evaluable</span><span class="p">,</span> <span class="n">NThreads</span><span class="p">,</span> <span class="n">NThreadsNested</span><span class="p">,</span> <span class="n">NThreadsNonaffine</span><span class="p">,</span> <span class="n">ThreadID</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Operator&#39;</span><span class="p">]</span>
 
@@ -336,7 +335,7 @@
         <span class="n">nthreads</span> <span class="o">=</span> <span class="n">NThreads</span><span class="p">(</span><span class="n">aliases</span><span class="o">=</span><span class="s1">&#39;nthreads0&#39;</span><span class="p">)</span>
         <span class="n">nthreads_nested</span> <span class="o">=</span> <span class="n">NThreadsNested</span><span class="p">(</span><span class="n">aliases</span><span class="o">=</span><span class="s1">&#39;nthreads1&#39;</span><span class="p">)</span>
         <span class="n">nthreads_nonaffine</span> <span class="o">=</span> <span class="n">NThreadsNonaffine</span><span class="p">(</span><span class="n">aliases</span><span class="o">=</span><span class="s1">&#39;nthreads2&#39;</span><span class="p">)</span>
-        <span class="n">threadid</span> <span class="o">=</span> <span class="n">CustomDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;tid&#39;</span><span class="p">,</span> <span class="n">symbolic_size</span><span class="o">=</span><span class="n">nthreads</span><span class="p">)</span>
+        <span class="n">threadid</span> <span class="o">=</span> <span class="n">ThreadID</span><span class="p">(</span><span class="n">nthreads</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">SymbolRegistry</span><span class="p">(</span><span class="n">nthreads</span><span class="p">,</span> <span class="n">nthreads_nested</span><span class="p">,</span> <span class="n">nthreads_nonaffine</span><span class="p">,</span> <span class="n">threadid</span><span class="p">)</span>
 
@@ -411,9 +410,20 @@
         <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;optimizations&#39;</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;mode&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;opt&#39;</span><span class="p">])}</span>
 
     <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_specialize_dsl</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Backend hook for specialization at the DSL level. The input is made of</span>
+<span class="sd">        expressions and other higher order objects such as Injection or</span>
+<span class="sd">        Interpolation; the expressions are still unevaluated at this stage,</span>
+<span class="sd">        meaning that they are still in tensorial form and derivatives aren&#39;t</span>
+<span class="sd">        expanded yet.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">expressions</span>
+
+    <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_exprs</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Backend hook for specialization at the Expression level.</span>
+<span class="sd">        Backend hook for specialization at the expression level.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">expressions</span>
 
@@ -435,11 +445,14 @@
         <span class="n">expressions</span> <span class="o">=</span> <span class="n">generate_implicit_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
         <span class="c1"># Specialization is performed on unevaluated expressions</span>
-        <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_dsl</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Lower functional DSL</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">evaluate</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">])</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">_flatten</span><span class="p">]</span>
+
+        <span class="c1"># A second round of specialization is performed on nevaluated expressions</span>
+        <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># &quot;True&quot; lowering (indexification, shifting, ...)</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="n">lower_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -535,9 +548,6 @@
 
         <span class="c1"># Analyze the IET Sections for C-level profiling</span>
         <span class="n">profiler</span><span class="o">.</span><span class="n">analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
-
-        <span class="c1"># Lower all DerivedDimensions</span>
-        <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_lower_dims</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
         <span class="c1"># Wrap the IET with a Callable</span>
         <span class="n">parameters</span> <span class="o">=</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>

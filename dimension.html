@@ -291,6 +291,21 @@ free_symbols method.</p>
 <p class="rubric">Notes</p>
 <p>This could be extended in the future for more customization (e.g., incr.).</p>
 <dl class="py method">
+<dt id="devito.types.dimension.CustomDimension.is_Derived">
+<em class="property">property </em><code class="sig-name descname">is_Derived</code><a class="headerlink" href="#devito.types.dimension.CustomDimension.is_Derived" title="Permalink to this definition">¶</a></dt>
+<dd><p>bool(x) -&gt; bool</p>
+<p>Returns True when the argument x is true, False otherwise.
+The builtins True and False are the only two instances of the class bool.
+The class bool is a subclass of the class int, and cannot be subclassed.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="devito.types.dimension.CustomDimension.spacing">
+<em class="property">property </em><code class="sig-name descname">spacing</code><a class="headerlink" href="#devito.types.dimension.CustomDimension.spacing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol representing the physical spacing along the Dimension.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt id="devito.types.dimension.CustomDimension.symbolic_max">
 <em class="property">property </em><code class="sig-name descname">symbolic_max</code><a class="headerlink" href="#devito.types.dimension.CustomDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol defining the maximum point of the Dimension.</p>
@@ -431,7 +446,7 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 
 <dl class="py class">
 <dt id="devito.types.dimension.IncrDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">IncrDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parent</span></em>, <em class="sig-param"><span class="n">_min</span></em>, <em class="sig-param"><span class="n">_max</span></em>, <em class="sig-param"><span class="n">step</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#IncrDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.IncrDimension" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">IncrDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#IncrDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.IncrDimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
 <p>Dimension symbol representing a non-contiguous sub-region of a given
 <code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, with one point every <code class="docutils literal notranslate"><span class="pre">step</span></code> points. Thus, if
@@ -440,12 +455,12 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
 <li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</p></li>
 <li><p><strong>_min</strong> (<em>expr-like</em>) – The minimum point of the Dimension.</p></li>
 <li><p><strong>_max</strong> (<em>expr-like</em>) – The maximum point of the Dimension.</p></li>
 <li><p><strong>step</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
 symbolic size.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default name.</p></li>
 </ul>
 </dd>
 </dl>
@@ -455,7 +470,7 @@ symbolic size.</p></li>
 
 <dl class="py class">
 <dt id="devito.types.dimension.ModuloDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ModuloDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parent</span></em>, <em class="sig-param"><span class="n">offset</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">modulo</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">incr</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">origin</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">name</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ModuloDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ModuloDimension" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ModuloDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ModuloDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ModuloDimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
 <p>Dimension symbol representing a non-contiguous sub-region of a given
 <code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, which cyclically produces a finite range of values,
@@ -466,13 +481,13 @@ on <code class="docutils literal notranslate"><span class="pre">incr</span></cod
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
 <li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</p></li>
 <li><p><strong>offset</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Min value offset. Defaults to 0.</p></li>
 <li><p><strong>modulo</strong> (<em>int</em><em>, </em><em>optional</em>) – The divisor value.</p></li>
 <li><p><strong>incr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The iterator increment value. Defaults to <code class="docutils literal notranslate"><span class="pre">offset</span> <span class="pre">%</span> <span class="pre">modulo</span></code>.</p></li>
 <li><p><strong>origin</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The expression – typically a function of the parent Dimension – the
 ModuloDimension represents.</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To override the default name.</p></li>
 </ul>
 </dd>
 </dl>

@@ -439,8 +439,9 @@
 <span class="sd">        -----</span>
 <span class="sd">        In an MPI context, this is the *local* with_halo region shape.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_with_inhalo</span><span class="p">,</span>
-                                                    <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">DimensionTuple</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_with_inhalo</span><span class="p">,</span>
+                                                               <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">)],</span>
+                              <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">shape_global</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
