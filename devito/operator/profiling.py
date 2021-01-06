@@ -46,7 +46,7 @@ class Profiler(object):
 
         # C-level code sections
         self._sections = OrderedDict()
-        self._subsections = DefaultOrderedDict(lambda: OrderedDict())
+        self._subsections = OrderedDict()
 
         # Python-level timers
         self.py_timers = OrderedDict()
@@ -97,7 +97,8 @@ class Profiler(object):
             self._sections[s.name] = SectionData(ops, sops, points, traffic, itermaps)
 
     def track_subsection(self, sname, name):
-        self._subsections[sname][name] = SectionData(S.Zero, S.Zero, S.Zero, S.Zero, [])
+        v = self._subsections.setdefault(sname, OrderedDict())
+        v[name] = SectionData(S.Zero, S.Zero, S.Zero, S.Zero, [])
 
     def instrument(self, iet, timer):
         """
