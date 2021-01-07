@@ -263,7 +263,12 @@ class TestCodeGen(object):
 
         assert op.body[2].body[0].is_Section
         assert isinstance(op.body[2].body[0].body[0], TimedList)
-        assert op.body[2].body[0].body[0].body[0].dim is grid.time_dim
+        timedlist = op.body[2].body[0].body[0]
+        if configuration['language'] == 'openmp':
+            ompreg = timedlist.body[0]
+            assert ompreg.body[0].dim is grid.time_dim
+        else:
+            timedlist.body[0].dim is grid.time_dim
 
     def test_nested_lowering(self):
         """

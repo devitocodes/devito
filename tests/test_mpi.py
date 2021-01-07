@@ -971,7 +971,11 @@ class TestCodeGeneration(object):
         assert titer.dim is grid.time_dim
         assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
         assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
-        assert titer.nodes[0].body[0].body[0].body[1].is_Iteration
+        parent = titer.nodes[0].body[0].body[0].body[1]
+        if configuration['language'] == 'openmp':
+            assert parent.body[0].body[0].is_Iteration
+        else:
+            assert parent.is_Iteration
 
         op.apply(time_M=1)
 
