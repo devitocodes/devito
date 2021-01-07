@@ -130,12 +130,12 @@ class TestCodeGen(object):
         assert op.parameters[0].is_Tensor
         assert op.parameters[1].name == 'constant'
         assert op.parameters[1].is_Scalar
-        assert op.parameters[2].name == 'timers'
-        assert op.parameters[2].is_Object
-        assert op.parameters[3].name == 'x_M'
+        assert op.parameters[2].name == 'x_M'
+        assert op.parameters[2].is_Scalar
+        assert op.parameters[3].name == 'x_m'
         assert op.parameters[3].is_Scalar
-        assert op.parameters[4].name == 'x_m'
-        assert op.parameters[4].is_Scalar
+        assert op.parameters[4].name == 'timers'
+        assert op.parameters[4].is_Object
         assert 'a_dense[x + 1] = 2.0F*constant + a_dense[x + 1]' in str(op)
 
     @pytest.mark.parametrize('expr, so, to, expected', [
@@ -212,6 +212,42 @@ class TestCodeGen(object):
         exprs = [i.expr for i in FindNodes(Expression).visit(op)]
         assert(i.indices[i.function._time_position].modulo == exp_mods[i.function.name]
                for i in flatten(retrieve_indexed(i) for i in exprs))
+
+    def test_lower_stepping_dims_with_mutiple_iterations(self):
+        """
+        Test lowering SteppingDimensions for a time dimension with
+        more than one iteration loop with different ModuloDimensions.
+        MFE for issue #1486
+        """
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name="f", grid=grid, space_order=4)
+        g = Function(name="g", grid=grid, space_order=4)
+        h = TimeFunction(name="h", grid=grid, space_order=4, time_order=2)
+
+        f.data[:] = 0.0
+        h.data[:] = 0.0
+
+        eqn = [Eq(f, h + 1), Eq(g, f),
+               Eq(h.forward, h + g + 1)]
+
+        op = Operator(eqn)
+
+        for iter in [i for i in FindNodes(Iteration).visit(op) if i.dim.is_Time]:
+            exprtimeindices = set([a.indices[a.function._time_position] for
+                                   expr in FindNodes(Expression).visit(iter) for
+                                   a in retrieve_indexed(expr.expr) if
+                                   isinstance(a.function, TimeFunction)])
+            # Check if iteration time indices match with expressions time indices
+            assert (exprtimeindices == set(iter.uindices))
+            # Check if expressions time indices are modulo dimensions
+            assert(all([i.is_Modulo for i in exprtimeindices]))
+
+        op.apply(time_M=10)
+
+        assert np.all(h.data[0, :] == 18)
+        assert np.all(h.data[1, :] == 20)
+        assert np.all(h.data[2, :] == 22)
 
     @skipif('device')
     def test_timedlist_wraps_time_if_parallel(self):
@@ -1142,6 +1178,25 @@ class TestApplyArguments(object):
         assert (op.arguments(u=u2, time_M=0)['nb'] is
                 grid2.distributor._obj_neighborhood.value)
 
+    def test_spacing_from_new_grid(self):
+        """
+        MFE for issue #1518.
+        """
+        grid = Grid(shape=(10, 10), extent=(9, 9))
+        u = Function(name='u', grid=grid, space_order=1)
+
+        # A bogus operator that just assigns the x spacing into the array
+        # Note, grid.dimensions[0].spacing here is not a number, it's the symbol h_x
+        op = Operator(Eq(u, grid.dimensions[0].spacing))
+
+        # Create a new grid with different spacing, and a function defined on it
+        grid2 = Grid(shape=(5, 5), extent=(9, 9))
+        u2 = Function(name='u', grid=grid2, space_order=1)
+        op(u=u2)
+
+        # The h_x that was passed to the C code must be the one `grid2`, not `grid`
+        assert u2.data[2, 2] == grid2.spacing[0]
+
 
 @skipif('device')
 class TestDeclarator(object):
@@ -1272,7 +1327,7 @@ class TestDeclarator(object):
         x = Dimension(name="x")
         a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
         init_value = ListInitializer([0, 0])
-        list_initialize = Expression(ClusterizedEq(Eq(a, init_value)))
+        list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value)))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
         iet = DataManager.place_definitions.__wrapped__(DataManager(None), iet)[0]

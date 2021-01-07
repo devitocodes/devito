@@ -5,7 +5,7 @@ from devito.ir.clusters import Cluster, ClusterGroup, Queue
 from devito.ir.support import TILABLE, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul, uxreplace
-from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
+from devito.tools import DAG, as_tuple, filter_ordered, frozendict, timed_pass
 from devito.types import Scalar
 
 __all__ = ['Lift', 'fuse', 'eliminate_arrays', 'optimize_pows', 'extract_increments']
@@ -95,6 +95,11 @@ class Fusion(Queue):
         super(Fusion, self).__init__()
         self.toposort = toposort
 
+    def _make_key_hook(self, cgroup, level):
+        assert level > 0
+        assert len(cgroup.guards) == 1
+        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.itintervals[:level-1]),)
+
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
         cgroups = self._process_fdta(cgroups, 1)
@@ -110,7 +115,7 @@ class Fusion(Queue):
 
         # Fusion
         processed = []
-        for k, g in groupby(clusters, key=lambda c: (set(c.itintervals), c.guards)):
+        for k, g in groupby(clusters, key=self._key):
             maybe_fusible = list(g)
 
             if len(maybe_fusible) == 1:
@@ -127,31 +132,55 @@ class Fusion(Queue):
 
         return [ClusterGroup(processed, prefix)]
 
+    def _key(self, c):
+        # Two Clusters/ClusterGroups are fusion candidates if their key is identical
+
+        key = (frozenset(c.itintervals), c.guards)
+
+        # We allow fusing Clusters/ClusterGroups with WaitLocks over different Locks,
+        # while the WithLocks are to be kept separated (i.e. the remain separate tasks)
+        if isinstance(c, Cluster):
+            sync_locks = (c.sync_locks,)
+        else:
+            sync_locks = c.sync_locks
+        for i in sync_locks:
+            key += (frozendict({k: frozenset(type(i) if i.is_WaitLock else i for i in v)
+                                for k, v in i.items()}),)
+
+        return key
+
     def _toposort(self, cgroups, prefix):
         # Are there any ClusterGroups that could potentially be fused? If
         # not, do not waste time computing a new topological ordering
-        counter = Counter(cg.itintervals for cg in cgroups)
+        counter = Counter(self._key(cg) for cg in cgroups)
         if not any(v > 1 for it, v in counter.most_common()):
             return ClusterGroup(cgroups)
 
-        # Similarly, if all ClusterGroups have the same exact prefix, no
-        # need to attempt a topological sorting
+        # Similarly, if all ClusterGroups have the same exact prefix and
+        # use the same form of synchronization (if any at all), no need to
+        # attempt a topological sorting
         if len(counter.most_common()) == 1:
             return ClusterGroup(cgroups)
 
         dag = self._build_dag(cgroups, prefix)
 
         def choose_element(queue, scheduled):
-            # Heuristic: prefer a node having same IterationSpace as that
-            # of the last scheduled node to maximize Cluster fusion
+            # Heuristic: let `k0` be the key of the last scheduled node; then out of
+            # the possible schedulable nodes we pick the one with key `k1` such that
+            # `max_i : k0[:i] == k1[:i]` (i.e., the one with "the most similar key")
             if not scheduled:
                 return queue.pop()
-            last = scheduled[-1]
-            for i in list(queue):
-                if i.itintervals == last.itintervals:
-                    queue.remove(i)
-                    return i
-            return queue.popleft()
+            key = self._key(scheduled[-1])
+            for i in reversed(range(len(key) + 1)):
+                candidates = [e for e in queue if self._key(e)[:i] == key[:i]]
+                try:
+                    # Ensure stability
+                    e = min(candidates, key=lambda i: cgroups.index(i))
+                except ValueError:
+                    continue
+                queue.remove(e)
+                return e
+            assert False
 
         return ClusterGroup(dag.topological_sort(choose_element))
 
@@ -189,17 +218,25 @@ class Fusion(Queue):
                 # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
                 # while not being its immediate successor (unless it already is),
                 # to avoid they are fused together (thus breaking the dependence)
+                # TODO: the "not being its immediate successor" part *seems* to be
+                # a work around to the fact that any two Clusters characterized
+                # by anti-dependence should have been given a different stamp,
+                # and same for guarded Clusters, but that is not the case (yet)
                 elif any(scope.d_anti_gen()) or\
                         any(i.is_iaw for i in scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
                     index = cgroups.index(cg1) - 1
-                    if index > n:
+                    if index > n and self._key(cg0) == self._key(cg1):
                         dag.add_edge(cg0, cgroups[index])
                         dag.add_edge(cgroups[index], cg1)
 
                 # Any flow-dependences along an inner Dimension (i.e., a Dimension
                 # that doesn't appear in `prefix`) impose that `cg1` follows `cg0`
                 elif any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()):
+                    dag.add_edge(cg0, cg1)
+
+                # Clearly, output dependences must be honored
+                elif any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
 
         return dag

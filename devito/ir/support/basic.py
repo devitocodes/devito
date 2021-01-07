@@ -6,9 +6,9 @@ from sympy import S
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import retrieve_terminals, q_constant, q_affine
-from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
-                          filter_sorted, flatten, memoized_meth, memoized_generator)
-from devito.types import Dimension
+from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
+                          memoized_meth, memoized_generator)
+from devito.types import Dimension, DimensionTuple
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
@@ -86,7 +86,7 @@ class IterationInstance(LabeledVector):
                     retval.append(IRREGULAR)
             else:
                 retval.append(IRREGULAR)
-        return EnrichedTuple(*retval, getters=self.findices)
+        return DimensionTuple(*retval, getters=self.findices)
 
     @cached_property
     def aindices(self):
@@ -101,7 +101,7 @@ class IterationInstance(LabeledVector):
                 retval.append(fi)
             else:
                 retval.append(None)
-        return EnrichedTuple(*retval, getters=self.findices)
+        return DimensionTuple(*retval, getters=self.findices)
 
     @property
     def findices(self):
@@ -496,7 +496,7 @@ class Dependence(object):
 
     @cached_property
     def is_increment(self):
-        return self.source.is_increment and self.sink.is_increment
+        return self.source.is_increment or self.sink.is_increment
 
     @cached_property
     def is_regular(self):
@@ -563,10 +563,9 @@ class Dependence(object):
         Return True if ``dim`` may represent a reduction dimension for
         ``self``, False otherwise.
         """
-        test0 = self.is_increment
-        test1 = self.is_regular
-        test2 = all(i not in self._defined_findices for i in dim._defines)
-        return test0 and test1 and test2
+        return (self.is_increment and
+                self.is_regular and
+                not (dim._defines & self._defined_findices))
 
     @memoized_meth
     def is_reduce_atmost(self, dim=None):
@@ -575,7 +574,8 @@ class Dependence(object):
         represent a reduction dimension for ``self`` or if `self`` is definitely
         independent of ``dim``, False otherwise.
         """
-        return self.is_reduce(dim) or self.is_indep(dim)
+        return (not (dim._defines & self._defined_findices)
+                or self.is_indep(dim))
 
     @memoized_meth
     def is_indep(self, dim=None):
@@ -591,23 +591,19 @@ class Dependence(object):
                 # `dim` *and* that the distance along `dim` is 0 (e.g., dim=x and
                 # f[x, g[x, y]] -> f[x, h[x, y]])
                 try:
-                    test0 = self.source.affine(dim)
-                    test1 = self.sink.affine(dim)
-                    test2 = self.distance_mapper[dim] == 0
-                    return test0 and test1 and test2
+                    return (self.source.affine(dim) and
+                            self.sink.affine(dim) and
+                            self.distance_mapper[dim] == 0)
                 except KeyError:
                     # `dim is None` or anything not in `self._defined_findices`
                     return False
             if dim is None:
                 return self.distance == 0
             else:
-                # Note: below, `i in self._defined_findices` is to check whether `i`
-                # is actually (one of) the reduction dimension(s), in which case
-                # `self` would indeed be a dimension-dependent dependence
-                test0 = (not self.is_increment or
-                         any(i in self._defined_findices for i in dim._defines))
-                test1 = len(self.cause & dim._defines) == 0
-                return test0 and test1
+                # The only hope at this point is that `dim` appears in the findices
+                # with distance 0 (that is, it's not the cause of the dependence)
+                return (any(i in self._defined_findices for i in dim._defines) and
+                        len(self.cause & dim._defines) == 0)
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False

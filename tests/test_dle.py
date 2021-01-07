@@ -4,14 +4,13 @@ from operator import mul
 import numpy as np
 import pytest
 
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
-                    Eq, Inc, Operator, info)
+from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
+                    Dimension, SubDimension, Eq, Inc, Operator, info)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
-from devito.passes import NThreads, NThreadsNonaffine
 from devito.passes.iet.openmp import OpenMPRegion
 from devito.tools import as_tuple
-from devito.types import Scalar
+from devito.types import Scalar, NThreads, NThreadsNonaffine
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):
@@ -296,8 +295,8 @@ def test_cache_blocking_imperfect_nest(blockinner):
     assert trees[0][4] is not trees[1][4]
     assert trees[0].root.dim.is_Incr
     assert trees[1].root.dim.is_Incr
-    assert op1.parameters[8] is trees[0][0].step
-    assert op1.parameters[11] is trees[0][1].step
+    assert op1.parameters[7] is trees[0][0].step
+    assert op1.parameters[10] is trees[0][1].step
 
     u.data[:] = 0.2
     v.data[:] = 1.5
@@ -341,7 +340,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert trees[0][2] is not trees[1][2]
     assert trees[0].root.dim.is_Incr
     assert trees[1].root.dim.is_Incr
-    assert op2.parameters[7] is trees[0].root.step
+    assert op2.parameters[6] is trees[0].root.step
 
     op0(time_M=0)
 
@@ -498,6 +497,38 @@ class TestNodeParallelism(object):
             else:
                 for k in i.pragmas:
                     assert 'omp for collapse' not in k.value
+
+    def test_collapsing_v2(self):
+        """
+        MFE from issue #1478.
+        """
+        n = 8
+        m = 8
+        nx, ny, nchi, ncho = 12, 12, 1, 1
+        x, y = SpaceDimension("x"), SpaceDimension("y")
+        ci, co = Dimension("ci"), Dimension("co")
+        i, j = Dimension("i"), Dimension("j")
+        grid = Grid((nx, ny), dtype=np.float32, dimensions=(x, y))
+
+        X = Function(name="xin", dimensions=(ci, x, y),
+                     shape=(nchi, nx, ny), grid=grid, space_order=n//2)
+        dy = Function(name="dy", dimensions=(co, x, y),
+                      shape=(ncho, nx, ny), grid=grid, space_order=n//2)
+        dW = Function(name="dW", dimensions=(co, ci, i, j), shape=(ncho, nchi, n, m),
+                      grid=grid)
+
+        eq = [Eq(dW[co, ci, i, j],
+                 dW[co, ci, i, j] + dy[co, x, y]*X[ci, x+i-n//2, y+j-m//2])
+              for i in range(n) for j in range(m)]
+
+        op = Operator(eq, opt=('advanced', {'openmp': True}))
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 4
+        assert iterations[0].ncollapse == 1
+        assert iterations[1].is_Vectorized
+        assert iterations[2].is_Sequential
+        assert iterations[3].is_Sequential
 
     def test_scheduling(self):
         """

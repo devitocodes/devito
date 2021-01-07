@@ -20,7 +20,6 @@ jobs:
       DEVITO_LANGUAGE: ${{ matrix.language }}
       DEVITO_BACKEND: "core"
       PYTHON_VERSION: "3.7"
-      RUN_CMD: ""
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -68,18 +67,24 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         if [ "${{ matrix.compiler }}" = "gcc-9" ]; then
-          brew install gcc
+          brew install gcc@9
         else
-          sudo xcode-select -s /Applications/Xcode_11.app/Contents/Developer
+          sudo xcode-select -s /Applications/Xcode_12.2.app/Contents/Developer
         fi
-        # dask error on osx, skip dask tuto
-        echo "::set-env name=SKIP::--deselect=examples/seismic/tutorials/*dask*.ipynb"
 
     - name: Build docker image
       if: matrix.name == 'tutos-docker-gcc-py36'
       run: |
           docker build . --file docker/Dockerfile --tag devito_img
-          echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
+
+    - name: Set run prefix
+      run: |
+          if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py36' ]; then
+              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_img"
+          else
+              echo "::set-output name=RUN_CMD::"
+          fi
+      id: set-run
 
     - name: Install dependencies
       if: matrix.name != 'tutos-docker-gcc-py36'
@@ -90,36 +95,41 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml $SKIP examples/seismic/tutorials/
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:acc_coverage.xml $SKIP examples/seismic/acoustic/accuracy.ipynb
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml -k 'not dask' examples/seismic/tutorials/  # Horrible, but we're still at a loss
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:acc_coverage.xml examples/seismic/acoustic/accuracy.ipynb
+
+    - name: Dask notebooks
+      if: runner.os != 'macOS'
+      run: |
+          ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:seis_coverage.xml examples/seismic/tutorials/*dask*.ipynb
 
     - name: Self-adjoint notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:sa_coverage.xml $SKIP examples/seismic/self_adjoint/
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:sa_coverage.xml examples/seismic/self_adjoint/
 
     - name: CFD notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:cfd_coverage.xml examples/cfd
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:cfd_coverage.xml examples/cfd
 
     - name: User api notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:api_coverage.xml examples/userapi
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:api_coverage.xml examples/userapi
 
     - name: Compiler notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/compiler
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/compiler
         
     - name: Finance notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/finance
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/finance
 
     - name: Performance notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance
 
     - name: ABC Notebooks
       run: |
-        $RUN_CMD py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/seismic/abc_methods
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/seismic/abc_methods
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'tutos-docker-gcc-py36'

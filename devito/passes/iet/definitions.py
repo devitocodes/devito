@@ -13,7 +13,7 @@ from devito.ir import (List, LocalExpression, PointerCast, FindSymbols,
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.openmp import Ompizer
 from devito.symbolics import ccode
-from devito.tools import as_mapper, as_tuple, flatten
+from devito.tools import as_mapper, flatten
 
 __all__ = ['DataManager', 'Storage']
 
@@ -87,7 +87,7 @@ class DataManager(object):
         key = (site, expr.write)  # Ensure a scalar isn't redeclared in the given site
         storage.map(key, expr, LocalExpression(**expr.args))
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
         Allocate an Array in the high bandwidth memory.
         """
@@ -102,6 +102,16 @@ class DataManager(object):
         free = c.Statement('free(%s)' % obj.name)
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
+
+    def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
+        """
+        Allocate an Array of Objects in the low latency memory.
+        """
+        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
+        alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
+        decl = "%s%s %s" % (obj.name, shape, alignment)
+
+        storage.update(obj, site, allocs=c.Value(obj._C_typedata, decl))
 
     def _alloc_pointed_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -177,7 +187,8 @@ class DataManager(object):
     @iet_pass
     def place_definitions(self, iet, **kwargs):
         """
-        Create a new IET with symbols allocated/deallocated in some memory space.
+        Create a new IET where all symbols have been declared, allocated, and
+        deallocated in one or more memory spaces.
 
         Parameters
         ----------
@@ -206,7 +217,9 @@ class DataManager(object):
                 else:
                     objs = [k.parray]
             elif k.is_Call:
-                objs = k.arguments + as_tuple(k.retobj)
+                objs = list(k.arguments)
+                if k.retobj is not None:
+                    objs.append(k.retobj.function)
 
             for i in objs:
                 if i in placed:
@@ -237,6 +250,9 @@ class DataManager(object):
                             self._alloc_array_on_high_bw_mem(site, i, storage)
                         else:
                             self._alloc_array_on_low_lat_mem(site, i, storage)
+                    elif i.is_ObjectArray:
+                        # ObjectArray's get placed at the top of the IET
+                        self._alloc_object_array_on_low_lat_mem(iet, i, storage)
                     elif i.is_PointerArray:
                         # PointerArray's get placed at the top of the IET
                         self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
@@ -246,6 +262,15 @@ class DataManager(object):
 
         iet = self._dump_storage(iet, storage)
 
+        return iet, {}
+
+    @iet_pass
+    def map_onmemspace(self, iet, **kwargs):
+        """
+        Create a new IET where certain symbols have been mapped to one or more
+        extra memory spaces. This may or may not be required depending on the
+        underlying architecture.
+        """
         return iet, {}
 
     @iet_pass
@@ -272,3 +297,11 @@ class DataManager(object):
         iet = iet._rebuild(body=casts + iet.body)
 
         return iet, {}
+
+    def process(self, graph):
+        """
+        Apply the `map_on_memspace`, `place_definitions` and `place_casts` passes.
+        """
+        self.map_onmemspace(graph)
+        self.place_definitions(graph)
+        self.place_casts(graph)

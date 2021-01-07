@@ -24,7 +24,7 @@ class TestCodeGeneration(object):
         assert str(op.body[0].body[0]) == 'int rank = 0;'
         assert str(op.body[0].body[1]) == 'MPI_Comm_rank(comm,&rank);'
         assert str(op.body[0].body[2]) == 'int ngpus = omp_get_num_devices();'
-        assert str(op.body[0].body[3]) == 'int devicenum = (rank)%(ngpus);'
+        assert str(op.body[0].body[3]) == 'omp_set_default_device((rank)%(ngpus));'
 
     @switchconfig(platform='nvidiaX')
     def test_basic(self):
@@ -38,18 +38,17 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for device(devicenum) collapse(3)'
-        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
-        assert op.body[2].header[0].value ==\
+            'omp target teams distribute parallel for collapse(3)'
+        assert op.body[1].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) device(devicenum)')
-        assert str(op.body[2].footer[0]) == ''
-        assert op.body[2].footer[1].contents[0].value ==\
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert str(op.body[1].footer[0]) == ''
+        assert op.body[1].footer[1].contents[0].value ==\
             ('omp target update from(u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) device(devicenum)')
-        assert op.body[2].footer[1].contents[1].value ==\
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert op.body[1].footer[1].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) device(devicenum)')
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
     @switchconfig(platform='nvidiaX')
     def test_multiple_eqns(self):
@@ -64,23 +63,19 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for device(devicenum) collapse(3)'
-        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
+            'omp target teams distribute parallel for collapse(3)'
         for i, f in enumerate([u, v]):
-            assert op.body[2].header[i].value ==\
+            assert op.body[1].header[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])'
-                 ' device(devicenum)' %
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[0].value ==\
+            assert op.body[1].footer[i+1].contents[0].value ==\
                 ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])'
-                 ' device(devicenum)' %
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[1].value ==\
+            assert op.body[1].footer[i+1].contents[1].value ==\
                 ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])'
-                 ' device(devicenum)' %
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
 
     @switchconfig(platform='nvidiaX')
@@ -103,51 +98,47 @@ class TestCodeGeneration(object):
 
         # All loop nests must have been parallelized
         assert trees[0][0].pragmas[0].value ==\
-            'omp target teams distribute parallel for device(devicenum) collapse(3)'
+            'omp target teams distribute parallel for collapse(3)'
         assert trees[1][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for device(devicenum) collapse(3)'
+            'omp target teams distribute parallel for collapse(3)'
         assert trees[2][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for device(devicenum) collapse(3)'
-        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
+            'omp target teams distribute parallel for collapse(3)'
 
         # Check `u` and `v`
         for i, f in enumerate([u, v], 1):
-            assert op.body[2].header[i].value ==\
+            assert op.body[1].header[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])'
-                 ' device(devicenum)' %
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[0].value ==\
+            assert op.body[1].footer[i+1].contents[0].value ==\
                 ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])'
-                 ' device(devicenum)' %
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[1].value ==\
+            assert op.body[1].footer[i+1].contents[1].value ==\
                 ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])'
-                 ' device(devicenum)' %
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
 
         # Check `f`
-        assert op.body[2].header[0].value ==\
+        assert op.body[1].header[0].value ==\
             ('omp target enter data map(to: f[0:f_vec->size[0]]'
-             '[0:f_vec->size[1]][0:f_vec->size[2]]) device(devicenum)')
-        assert op.body[2].footer[1].contents[0].value ==\
+             '[0:f_vec->size[1]][0:f_vec->size[2]])')
+        assert op.body[1].footer[1].contents[0].value ==\
             ('omp target update from(f[0:f_vec->size[0]]'
-             '[0:f_vec->size[1]][0:f_vec->size[2]]) device(devicenum)')
-        assert op.body[2].footer[1].contents[1].value ==\
+             '[0:f_vec->size[1]][0:f_vec->size[2]])')
+        assert op.body[1].footer[1].contents[1].value ==\
             ('omp target exit data map(release: f[0:f_vec->size[0]]'
-             '[0:f_vec->size[1]][0:f_vec->size[2]]) device(devicenum)')
+             '[0:f_vec->size[1]][0:f_vec->size[2]])')
 
         # Check `g` -- note that unlike `f`, this one should be `delete` upon
         # exit, not `from`
-        assert op.body[2].header[3].value ==\
+        assert op.body[1].header[3].value ==\
             ('omp target enter data map(to: g[0:g_vec->size[0]]'
-             '[0:g_vec->size[1]][0:g_vec->size[2]]) device(devicenum)')
-        assert op.body[2].footer[4].value ==\
+             '[0:g_vec->size[1]][0:g_vec->size[2]])')
+        assert op.body[1].footer[4].value ==\
             ('omp target exit data map(delete: g[0:g_vec->size[0]]'
-             '[0:g_vec->size[1]][0:g_vec->size[2]]) device(devicenum)'
-             ' if(1 && (g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
+             '[0:g_vec->size[1]][0:g_vec->size[2]])'
+             ' if((g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
              ' && (g_vec->size[2] != 0))')
 
     @switchconfig(platform='nvidiaX')
@@ -161,22 +152,20 @@ class TestCodeGeneration(object):
 
         op = Operator(eqn)
 
-        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
-        assert len(op.body[2].header) == 7
-        assert str(op.body[2].header[0]) == 'float (*r1)[y_size][z_size];'
-        assert op.body[2].header[1].text ==\
+        assert len(op.body[1].header) == 7
+        assert str(op.body[1].header[0]) == 'float (*r1)[y_size][z_size];'
+        assert op.body[1].header[1].text ==\
             'posix_memalign((void**)&r1, 64, sizeof(float[x_size][y_size][z_size]))'
-        assert op.body[2].header[2].value ==\
+        assert op.body[1].header[2].value ==\
             ('omp target enter data map(alloc: r1[0:x_size][0:y_size][0:z_size])'
-             ' device(devicenum)')
+             '')
 
-        assert len(op.body[2].footer) == 6
-        assert str(op.body[2].footer[0]) == ''
-        assert op.body[2].footer[1].value ==\
+        assert len(op.body[1].footer) == 6
+        assert str(op.body[1].footer[0]) == ''
+        assert op.body[1].footer[1].value ==\
             ('omp target exit data map(delete: r1[0:x_size][0:y_size][0:z_size])'
-             ' device(devicenum) if(1 && (x_size != 0) && (y_size != 0)'
-             ' && (z_size != 0))')
-        assert op.body[2].footer[2].text == 'free(r1)'
+             ' if((x_size != 0) && (y_size != 0) && (z_size != 0))')
+        assert op.body[1].footer[2].text == 'free(r1)'
 
     @switchconfig(platform='nvidiaX')
     def test_function_wo(self):
@@ -191,20 +180,19 @@ class TestCodeGeneration(object):
 
         op = Operator(eqns, opt='noop')
 
-        assert str(op.body[0].body[0]) == 'int devicenum = 0;'
-        assert len(op.body[2].header) == 2
-        assert len(op.body[2].footer) == 2
-        assert op.body[2].header[0].value ==\
+        assert len(op.body[1].header) == 2
+        assert len(op.body[1].footer) == 2
+        assert op.body[1].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) device(devicenum)')
-        assert str(op.body[2].header[1]) == ''
-        assert str(op.body[2].footer[0]) == ''
-        assert op.body[2].footer[1].contents[0].value ==\
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert str(op.body[1].header[1]) == ''
+        assert str(op.body[1].footer[0]) == ''
+        assert op.body[1].footer[1].contents[0].value ==\
             ('omp target update from(u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) device(devicenum)')
-        assert op.body[2].footer[1].contents[1].value ==\
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert op.body[1].footer[1].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) device(devicenum)')
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
     @switchconfig(platform='nvidiaX')
     def test_timeparallel_reduction(self):
@@ -226,7 +214,7 @@ class TestCodeGeneration(object):
         assert not tree.root.pragmas
         assert len(tree[1].pragmas) == 1
         assert tree[1].pragmas[0].value ==\
-            ('omp target teams distribute parallel for device(devicenum) collapse(3)'
+            ('omp target teams distribute parallel for collapse(3)'
              ' reduction(+:f[0])')
 
     @pytest.mark.parallel(mode=1)
@@ -242,7 +230,7 @@ class TestCodeGeneration(object):
             for node in FindNodes(Block).visit(v.root):
                 if type(node.children[0][0]) in (IrecvCall, IsendCall):
                     assert node.header[0].value ==\
-                        ('omp target data use_device_ptr(%s) device(devicenum)' %
+                        ('omp target data use_device_ptr(%s)' %
                          node.children[0][0].arguments[0].name)
 
 

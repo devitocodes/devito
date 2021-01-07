@@ -4,20 +4,82 @@
 
 name: CI-gpu
 
+env:
+  OUTPUT_PATH: ${{ github.workspace }}
+  RESOURCE_GROUP: CI-gpu
+
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the master branch
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Run GPU tests'
 
 jobs:
+  # Start the self-hosted runner and start runner app
+  start-runners:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+
+      matrix:
+        name: [
+          start-runner-omp,
+          start-runner-acc
+        ]
+        include:
+        - name: start-runner-omp
+          vm_name: gpu-runner-04
+
+        - name: start-runner-acc
+          vm_name: gpu-runner-02
+
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v2.3.2
+
+    - name: start VM
+      env:
+        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
+        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
+        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
+        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      run: >
+        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\startVM.ps1'"
+        -servicePrincipal $SP_APPID
+        -servicePrincipalSecret $SP_SECRET
+        -servicePrincipalTenantId $TENANT_ID
+        -azureSubscriptionName $SUB_ID
+        -resourceGroupName $RESOURCE_GROUP
+        -vmName ${{ matrix.vm_name }}
+
+    - name: set host
+      run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n ${{ matrix.vm_name }} --query publicIps -o tsv)
+      id: host
+
+    - name: start actions runner app
+      uses: fifsky/ssh-action@master
+      with:
+        command: |
+          #!/bin/bash
+          nohup actions-runner/run.sh >/dev/null 2>&1 &
+        host: ${{ steps.host.outputs.action_host }}
+        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
+        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
+        args: "-tt"
+
   build:
     name: ${{ matrix.name }}
+    needs: start-runners
     runs-on: ${{ matrix.tags }}
+
+    env:
+      DEVITO_ARCH: ${{ matrix.arch }}
+      DEVITO_PLATFORM: ${{ matrix.platform }}
+      DEVITO_LANGUAGE: ${{ matrix.language }}
+      OMPI_CC: ${{ matrix.arch }}
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -47,14 +109,6 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v1
 
-    - name: set environment variables
-      uses: allenevans/set-env@v1.0.0
-      with:
-        DEVITO_ARCH: ${{ matrix.arch }}
-        DEVITO_PLATFORM: ${{ matrix.platform }}
-        DEVITO_LANGUAGE: ${{ matrix.language }}
-        OMPI_CC: ${{ matrix.arch }}
-
     - name: Install dependencies
       run: |
         pip3 install --upgrade pip
@@ -66,34 +120,67 @@ jobs:
           pgaccelinfo
         fi
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/elastic/elastic_example.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/acoustic/acoustic_example.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoacoustic/viscoacoustic_example.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoelastic/viscoelastic_example.py
 
-        if [ "${{ matrix.name }}" == 'pytest-gpu-omp' ]; then
-            pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoelastic/viscoelastic_example.py
-        fi
-
-    - name: Run examples
-      if: matrix.name == 'pytest-gpu-acc'
+    - name: Test examples
       run: |
-        python3 examples/seismic/elastic/elastic_example.py
-        python3 examples/seismic/elastic/elastic_example.py
-        python3 examples/seismic/tti/tti_example.py
-        python3 examples/seismic/viscoacoustic/viscoacoustic_example.py
-        python3 examples/seismic/viscoelastic/viscoelastic_example.py
+        pytest examples/seismic/acoustic/acoustic_example.py
+        pytest examples/seismic/elastic/elastic_example.py
+        pytest examples/seismic/tti/tti_example.py
+        pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
-      if: matrix.name == 'pytest-gpu-acc'
       run: |
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/elastic/elastic_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/tti/tti_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/viscoacoustic/viscoacoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 py.test examples/seismic/viscoelastic/viscoelastic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
+
+  # Deallocate runners
+  stop-runners:
+    name: ${{ matrix.name }}
+    if: ${{ always() }}
+    needs: build
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+
+      matrix:
+        name: [
+          stop-runner-omp,
+          stop-runner-acc
+        ]
+        include:
+        - name: stop-runner-omp
+          vm_name: gpu-runner-04
+
+        - name: stop-runner-acc
+          vm_name: gpu-runner-02
+
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v2.3.2
+
+    - name: stop VM
+      env:
+        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
+        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
+        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
+        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      run: >
+        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\stopVM.ps1'"
+        -servicePrincipal $SP_APPID
+        -servicePrincipalSecret $SP_SECRET
+        -servicePrincipalTenantId $TENANT_ID
+        -azureSubscriptionName $SUB_ID
+        -resourceGroupName $RESOURCE_GROUP
+        -vmName ${{ matrix.vm_name }}

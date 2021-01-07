@@ -94,7 +94,7 @@ def _eval_numbers(expr, args):
         args[:] = [expr.func(*numbers)] + others
 
 
-def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
+def xreplace_indices(exprs, mapper, key=None):
     """
     Replace array indices in expressions.
 
@@ -109,11 +109,8 @@ def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
         If a list, apply the replacement to the symbols in ``key`` only. If a
         callable, apply the replacement to a symbol S if and only if ``key(S)``
         gives True.
-    only_rhs : bool, optional
-        If True, apply the replacement to Eq right-hand sides only.
     """
-    get = lambda i: i.rhs if only_rhs is True else i
-    handle = flatten(retrieve_indexed(get(i)) for i in as_tuple(exprs))
+    handle = flatten(retrieve_indexed(i) for i in as_tuple(exprs))
     if isinstance(key, Iterable):
         handle = [i for i in handle if i.base.label in key]
     elif callable(key):

@@ -68,6 +68,7 @@ class Basic(object):
     is_ArrayBasic = False
     is_Array = False
     is_PointerArray = False
+    is_ObjectArray = False
     is_Object = False
     is_LocalObject = False
 
@@ -735,7 +736,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def indices(self):
         """The indices (aka dimensions) of the object."""
-        return self.args
+        return DimensionTuple(*self.args, getters=self.dimensions)
 
     @property
     def indices_ref(self):
@@ -1165,7 +1166,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
     def __new__(cls, label, shape=None, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
-            label = Symbol(name=label, dtype=function.dtype)
+            label = Symbol(name=label, dtype=None)
         obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
@@ -1203,6 +1204,10 @@ class Indexed(sympy.Indexed):
 
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)
+
+    @cached_property
+    def indices(self):
+        return DimensionTuple(*super().indices, getters=self.function.dimensions)
 
     @property
     def function(self):

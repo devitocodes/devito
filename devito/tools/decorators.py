@@ -203,3 +203,10 @@ class timed_region(object):
     def __exit__(self, *args):
         self.timings[self.name] = time() - self.tic
         del timed_pass.timings[get_ident()]
+        try:
+            # Necessary clean up should one be constructing an Operator within
+            # a try-except, with the Operator construction failing
+            del timed_pass.stack[get_ident()]
+        except KeyError:
+            # Typically we end up here
+            pass

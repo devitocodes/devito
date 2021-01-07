@@ -1,7 +1,7 @@
 from anytree import NodeMixin, PostOrderIter, RenderTree, ContStyle
 
 __all__ = ["ScheduleTree", "NodeSection", "NodeIteration", "NodeConditional",
-           "NodeExprs", "NodeHalo"]
+           "NodeSync", "NodeExprs", "NodeHalo"]
 
 
 class ScheduleTree(NodeMixin):
@@ -9,6 +9,7 @@ class ScheduleTree(NodeMixin):
     is_Section = False
     is_Iteration = False
     is_Conditional = False
+    is_Sync = False
     is_Exprs = False
     is_Halo = False
 
@@ -83,6 +84,19 @@ class NodeConditional(ScheduleTree):
     @property
     def __repr_render__(self):
         return "If"
+
+
+class NodeSync(ScheduleTree):
+
+    is_Sync = True
+
+    def __init__(self, sync_ops, parent=None):
+        super(NodeSync, self).__init__(parent)
+        self.sync_ops = sync_ops
+
+    @property
+    def __repr_render__(self):
+        return "Sync[%s]" % ",".join(i.__class__.__name__ for i in self.sync_ops)
 
 
 class NodeExprs(ScheduleTree):

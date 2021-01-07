@@ -1,7 +1,3 @@
-# Runner informaiton:
-# Standard F4s_v2 (4 vcpus, 8 GiB memory)
-# Intel Xeon® Platinum 8168 (SkyLake)
-
 name: CI-mpi
 
 on:
@@ -17,30 +13,32 @@ on:
 jobs:
   build:
     name: pytest-mpi
-    runs-on: [self-hosted, mpi]
+    runs-on: ubuntu-20.04
 
     env:
       DEVITO_LANGUAGE: "openmp"
-      DEVITO_ARCH: "gcc-7"
+      DEVITO_ARCH: "gcc-9"
       DEVITO_BACKEND: "core"
-      CC: "gcc-7"
-      CXX: "g++-7"
+      CC: "gcc-9"
+      CXX: "g++-9"
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v1
+      uses: actions/checkout@v2
 
     - name: Install dependencies
       run: |
+        sudo apt install mpich -y
         pip3 install --upgrade pip
+        pip3 install -r requirements-mpi.txt
         pip3 install -e .[extras]
 
     - name: Test with pytest
       run: |
-        pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
+        python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1.0.6
+      uses: codecov/codecov-action@v1.0.15
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: pytest-mpi

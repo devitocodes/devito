@@ -97,12 +97,12 @@ class Parallelism(Detector):
                 is_parallel_indep &= (dep.distance_mapper.get(d.root) == 0)
                 continue
 
+            if dep.function in scope.initialized:
+                # False alarm, the dependence is over a locally-defined symbol
+                continue
+
             if dep.is_increment:
-                if dep.function in scope.initialized:
-                    # False alarm, the increment is over a locally-defined symbol
-                    pass
-                else:
-                    is_parallel_atomic = True
+                is_parallel_atomic = True
                 continue
 
             return SEQUENTIAL

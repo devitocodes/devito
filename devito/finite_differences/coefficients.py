@@ -4,6 +4,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
+from devito.symbolics.search import retrieve_dimensions
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -82,6 +83,14 @@ class Coefficient(object):
     def dimension(self):
         """The dimension to which the coefficients will be applied."""
         return self._dimension
+
+    @property
+    def index(self):
+        """
+        The dimension to which the coefficients will be applied plus the offset
+        in that dimension if the function is staggered.
+        """
+        return self._function.indices_ref[self._dimension]
 
     @property
     def weights(self):
@@ -176,6 +185,7 @@ class Substitutions(object):
             deriv_order = i.deriv_order
             function = i.function
             dim = i.dimension
+            index = i.index
             weights = i.weights
 
             if isinstance(weights, np.ndarray):
@@ -194,7 +204,8 @@ class Substitutions(object):
             if isinstance(weights, np.ndarray):
                 for j in range(len(weights)):
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, dim): weights[j]})
+                                 (indices[j], deriv_order,
+                                  function, index): weights[j]})
             else:
                 shape = weights.shape
                 x = weights.dimensions
@@ -202,7 +213,7 @@ class Substitutions(object):
                     idx = list(x)
                     idx[-1] = j
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, dim):
+                                 (indices[j], deriv_order, function, index):
                                      weights[as_tuple(idx)]})
 
             return subs
@@ -219,7 +230,8 @@ class Substitutions(object):
 
 def default_rules(obj, functions):
 
-    def generate_subs(deriv_order, function, dim):
+    def generate_subs(deriv_order, function, index):
+        dim = retrieve_dimensions(index)[0]
 
         if dim.is_Time:
             fd_order = function.time_order
@@ -231,13 +243,14 @@ def default_rules(obj, functions):
 
         subs = {}
 
-        indices, x0 = generate_indices(function, dim, fd_order, side=None)
+        indices, x0 = generate_indices(function, dim,
+                                       fd_order, side=None)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
-                         (indices[j], deriv_order, function, dim): coeffs[j]})
+                        (indices[j], deriv_order, function, index): coeffs[j]})
 
         return subs
 
@@ -248,7 +261,7 @@ def default_rules(obj, functions):
 
     subs = obj.substitutions
     if subs:
-        args_provided = [(i.deriv_order, i.function, i.dimension)
+        args_provided = [(i.deriv_order, i.function, i.index)
                          for i in subs.coefficients]
     else:
         args_provided = []
@@ -261,6 +274,7 @@ def default_rules(obj, functions):
     rules = {}
     for i in not_provided:
         rules = {**rules, **generate_subs(*i)}
+
     return rules
 
 

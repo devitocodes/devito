@@ -6,18 +6,15 @@ from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Stencil, detect_accesses, detect_oobs, detect_io,
                                build_intervals, build_iterators)
-from devito.symbolics import CondEq
+from devito.symbolics import CondEq, IntDiv, uxreplace
 from devito.tools import Pickable, frozendict
 from devito.types import Eq
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
 
-class IREq(object):
+class IREq(sympy.Eq):
 
-    """
-    A mixin providing operations common to all :mod:`ir` equation types.
-    """
     _state = ('is_Increment', 'ispace', 'dspace', 'conditionals', 'implicit_dims')
 
     @property
@@ -82,8 +79,18 @@ class IREq(object):
     def state(self):
         return {i: getattr(self, i) for i in self._state}
 
+    def apply(self, func):
+        """
+        Apply a callable to `self` and each expr-like attribute carried by `self`,
+        thus triggering a reconstruction.
+        """
+        args = [func(self.lhs), func(self.rhs)]
+        kwargs = dict(self.state)
+        kwargs['conditionals'] = {k: func(v) for k, v in self.conditionals.items()}
+        return self.func(*args, **kwargs)
 
-class LoweredEq(sympy.Eq, IREq):
+
+class LoweredEq(IREq):
 
     """
     LoweredEq(devito.Eq)
@@ -158,13 +165,15 @@ class LoweredEq(sympy.Eq, IREq):
                  for k, v in mapper.items() if k}
         dspace = DataSpace(dintervals, parts)
 
-        # Construct the conditionals
+        # Construct the conditionals and replace the ConditionalDimensions in `expr`
         conditionals = {}
         for d in conditional_dimensions:
             if d.condition is None:
                 conditionals[d] = CondEq(d.parent % d.factor, 0)
             else:
                 conditionals[d] = diff2sympy(lower_exprs(d.condition))
+            if d.factor is not None:
+                expr = uxreplace(expr, {d: IntDiv(d.index, d.factor)})
         conditionals = frozendict(conditionals)
 
         # Lower all Differentiable operations into SymPy operations
@@ -198,7 +207,7 @@ class LoweredEq(sympy.Eq, IREq):
         return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(sympy.Eq, IREq, Pickable):
+class ClusterizedEq(IREq, Pickable):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)

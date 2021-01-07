@@ -13,7 +13,8 @@ from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
-           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list']
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list',
+           'indices_to_slices', 'indices_to_sections']
 
 
 def prod(iterable, initial=1):
@@ -261,3 +262,39 @@ def sweep(parameters, keys=None):
                     for v in sweep_values]
     for vals in product(*sweep_values):
         yield dict(zip(keys, vals))
+
+
+def indices_to_slices(inputlist):
+    """
+    Convert a flatten list of indices to a list of slices.
+
+    Extracted from:
+        https://stackoverflow.com/questions/10987777/\
+                python-converting-a-list-of-indices-to-slices
+
+    Examples
+    --------
+    >>> indices_to_slices([0,2,3,4,5,6,12,99,100,101,102,13,14,18,19,20,25])
+    [(0, 1), (2, 7), (12, 15), (18, 21), (25, 26), (99, 103)]
+    """
+    inputlist.sort()
+    pointers = np.where(np.diff(inputlist) > 1)[0]
+    pointers = zip(np.r_[0, pointers+1], np.r_[pointers, len(inputlist)-1])
+    slices = [(inputlist[i], inputlist[j]+1) for i, j in pointers]
+    return slices
+
+
+def indices_to_sections(inputlist):
+    """
+    Convert a flatten list of indices to a list of sections.
+
+    A section is a (start, size) tuple.
+
+    Examples
+    --------
+    >>> indices_to_sections([0,2,3,4,5,6,12,99,100,101,102,13,14,18,19,20,25])
+    [(0, 1), (2, 5), (12, 3), (18, 3), (25, 1), (99, 4)]
+    """
+    slices = indices_to_slices(inputlist)
+    sections = [(i, j - i) for i, j in slices]
+    return sections

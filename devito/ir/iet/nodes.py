@@ -10,12 +10,12 @@ from collections.abc import Iterable
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.equations import ClusterizedEq
+from devito.ir.equations import ClusterizedEq, DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
                                AFFINE, Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          validate_type, dtype_to_cstr)
+                          validate_type)
 from devito.types import Symbol, Indexed
 from devito.types.basic import AbstractFunction
 
@@ -23,7 +23,8 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda']
+           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
+           'DummyExpr', 'BlankLine']
 
 # First-class IET nodes
 
@@ -54,6 +55,7 @@ class Node(Signer):
     is_ExpressionBundle = False
     is_ParallelIteration = False
     is_ParallelBlock = False
+    is_SyncSpot = False
 
     _traversable = []
     """
@@ -269,7 +271,7 @@ class Call(ExprStmt, Node):
     def functions(self):
         retval = tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
         if self.base is not None:
-            retval += (self.base,)
+            retval += (self.base.function,)
         if self.retobj is not None:
             retval += (self.retobj.function,)
         return retval
@@ -306,17 +308,27 @@ class Call(ExprStmt, Node):
 
 class Expression(ExprStmt, Node):
 
-    """A node encapsulating a ClusterizedEq."""
+    """
+    A node encapsulating a ClusterizedEq.
+
+    Parameters
+    ----------
+    expr : ClusterizedEq
+        The encapsulated expression.
+    pragmas : cgen.Pragma or list of cgen.Pragma, optional
+        A bag of pragmas attached to this Expression.
+    """
 
     is_Expression = True
 
     @validate_type(('expr', ClusterizedEq))
-    def __init__(self, expr):
-        self.__expr_finalize__(expr)
+    def __init__(self, expr, pragmas=None):
+        self.__expr_finalize__(expr, pragmas)
 
-    def __expr_finalize__(self, expr):
+    def __expr_finalize__(self, expr, pragmas):
         """Finalize the Expression initialization."""
         self._expr = expr
+        self._pragmas = as_tuple(pragmas)
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -325,6 +337,10 @@ class Expression(ExprStmt, Node):
     @property
     def expr(self):
         return self._expr
+
+    @property
+    def pragmas(self):
+        return self._pragmas
 
     @property
     def dtype(self):
@@ -340,10 +356,10 @@ class Expression(ExprStmt, Node):
         """The Functions read by the Expression."""
         return detect_io(self.expr, relax=True)[0]
 
-    @property
+    @cached_property
     def write(self):
         """The Function written by the Expression."""
-        return self.expr.lhs.function
+        return self.expr.lhs.base.function
 
     @cached_property
     def dimensions(self):
@@ -390,8 +406,8 @@ class AugmentedExpression(Expression):
 
     is_Increment = True
 
-    def __init__(self, expr, op):
-        super(AugmentedExpression, self).__init__(expr)
+    def __init__(self, expr, op, pragmas=None):
+        super(AugmentedExpression, self).__init__(expr, pragmas=pragmas)
         self.op = op
 
 
@@ -399,8 +415,8 @@ class Increment(AugmentedExpression):
 
     """Shortcut for ``AugmentedExpression(expr, '+'), since it's so widely used."""
 
-    def __init__(self, expr):
-        super(Increment, self).__init__(expr, '+')
+    def __init__(self, expr, pragmas=None):
+        super(Increment, self).__init__(expr, '+', pragmas=pragmas)
 
 
 class Iteration(Node):
@@ -640,10 +656,8 @@ class Callable(Node):
         self.parameters = as_tuple(parameters)
 
     def __repr__(self):
-        parameters = ",".join(['void*' if i.is_Object else dtype_to_cstr(i.dtype)
-                               for i in self.parameters])
         return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
-                                   parameters)
+                                   ",".join([i._C_typename for i in self.parameters]))
 
     @property
     def functions(self):
@@ -840,6 +854,10 @@ class LocalExpression(Expression):
 
     is_LocalExpression = True
 
+    @cached_property
+    def write(self):
+        return self.expr.lhs.function
+
     @property
     def defines(self):
         return (self.write, )
@@ -1027,6 +1045,37 @@ class ParallelBlock(Block):
     is_ParallelBlock = True
 
 
+class SyncSpot(List):
+
+    """
+    A node representing one or more synchronization operations, e.g., WaitLock,
+    withLock, etc.
+    """
+
+    is_SyncSpot = True
+
+    def __init__(self, sync_ops, body=None):
+        super().__init__(body=body)
+        self.sync_ops = sync_ops
+
+    def __repr__(self):
+        return "<SyncSpot (%s)>" % ",".join(str(i) for i in self.sync_ops)
+
+
+class CBlankLine(List):
+
+    def __init__(self, **kwargs):
+        super().__init__(header=c.Line())
+
+    def __repr__(self):
+        return ""
+
+
+def DummyExpr(*args):
+    return Expression(DummyEq(*args))
+
+
+BlankLine = CBlankLine()
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))
 
 

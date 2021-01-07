@@ -10,6 +10,9 @@ After the run has finished you should be able to plot a roofline with the result
 To export roofline data to JSON, use:
 * `python3 advisor_to_json.py --name Roofline --project <advisor-project-name>`
 
+To create a read-only snapshot for use with Intel Advisor GUI, use:
+* `advixe-cl --snapshot --project-dir=<advisor-project-name> pack -- /<new-snapshot-name>`
+
 Prerequisites:
 * Support guaranteed only for Intel Advisor as installed with Intel Parallel Studio v 2020 Update 2
   or Intel oneAPI 2021 beta08; earlier years may not work; other 2020/2021 versions, as well as later years,
@@ -25,7 +28,7 @@ Limitations:
 * Running the `tripcounts` analysis takes a lot, despite starting in paused
   mode. This analysis, together with the `survey` analysis, is necessary to
   generate a roofline. Both are run by `run_advisor.py`.
-* Requires python3, untested in earlier versions of python
+* Requires python3, untested in earlier versions of python and conda environments
 * Currently requires download of repository and running `pip3 install .`, the scripts
   are currently not included as a package with the user installation of Devito
 

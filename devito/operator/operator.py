@@ -10,21 +10,20 @@ from devito.archinfo import platform_registry
 from devito.compiler import compiler_registry
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
-from devito.ir.equations import LoweredEq
+from devito.ir.equations import LoweredEq, lower_exprs, generate_implicit_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
+from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build
 from devito.ir.stree import stree_build
-from devito.ir.equations.algorithms import lower_exprs, generate_implicit_exprs
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine
+from devito.passes import Graph, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import CustomDimension, Evaluable
+from devito.types import Evaluable, NThreads, NThreadsNested, NThreadsNonaffine, ThreadID
 
 __all__ = ['Operator']
 
@@ -174,7 +173,7 @@ class Operator(Callable):
         nthreads = NThreads(aliases='nthreads0')
         nthreads_nested = NThreadsNested(aliases='nthreads1')
         nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
-        threadid = CustomDimension(name='tid', symbolic_size=nthreads)
+        threadid = ThreadID(nthreads)
 
         return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
@@ -249,9 +248,20 @@ class Operator(Callable):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
+    def _specialize_dsl(cls, expressions, **kwargs):
+        """
+        Backend hook for specialization at the DSL level. The input is made of
+        expressions and other higher order objects such as Injection or
+        Interpolation; the expressions are still unevaluated at this stage,
+        meaning that they are still in tensorial form and derivatives aren't
+        expanded yet.
+        """
+        return expressions
+
+    @classmethod
     def _specialize_exprs(cls, expressions, **kwargs):
         """
-        Backend hook for specialization at the Expression level.
+        Backend hook for specialization at the expression level.
         """
         return expressions
 
@@ -273,11 +283,14 @@ class Operator(Callable):
         expressions = generate_implicit_exprs(expressions)
 
         # Specialization is performed on unevaluated expressions
-        expressions = cls._specialize_exprs(expressions, **kwargs)
+        expressions = cls._specialize_dsl(expressions, **kwargs)
 
         # Lower functional DSL
         expressions = flatten([i.evaluate for i in expressions])
         expressions = [j for i in expressions for j in i._flatten]
+
+        # A second round of specialization is performed on nevaluated expressions
+        expressions = cls._specialize_exprs(expressions, **kwargs)
 
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
@@ -371,11 +384,8 @@ class Operator(Callable):
         # Build an IET from a ScheduleTree
         iet = iet_build(stree)
 
-        # Instrument the IET for C-level profiling
-        iet = profiler.instrument(iet)
-
-        # Lower all DerivedDimensions
-        iet = iet_lower_dims(iet)
+        # Analyze the IET Sections for C-level profiling
+        profiler.analyze(iet)
 
         # Wrap the IET with a Callable
         parameters = derive_parameters(iet, True)
@@ -384,6 +394,11 @@ class Operator(Callable):
         # Lower IET to a target-specific IET
         graph = Graph(iet)
         graph = cls._specialize_iet(graph, **kwargs)
+
+        # Instrument the IET for C-level profiling
+        # Note: this is postponed until after _specialize_iet because during
+        # specialization further Sections may be introduced
+        instrument(graph, profiler=profiler)
 
         return graph.root, graph
 
@@ -414,6 +429,7 @@ class Operator(Callable):
         default values for any remaining arguments.
         """
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
+
         # Process data-carrier overrides
         args = ReducerMap()
         for p in overrides:
@@ -477,9 +493,6 @@ class Operator(Callable):
             except AttributeError:
                 # User-provided floats/ndarray obviously do not have `_arg_as_ctype`
                 args.update(p._arg_as_ctype(args, alias=p))
-
-        # Add in the profiler argument
-        args[self._profiler.name] = self._profiler.timer.reset()
 
         # Add in any backend-specific argument
         args.update(kwargs.pop('backend', {}))
@@ -724,8 +737,12 @@ class Operator(Callable):
 
             v = summary.globals.get('fdlike')
             if v is not None:
-                perf("%s* Achieved %.2f FD-GPts/s" % (indent, v.gpointss))
-
+                if v.gflopss is not None:
+                    perf("%s* Achieved %.2f GFlops/s, %.2f FD-GPts/s" %
+                         (indent, v.gflopss, v.gpointss))
+                else:
+                    perf("%s* Achieved %.2f FD-GPts/s" %
+                         (indent, v.gpointss))
             perf("Local performance indicators")
         else:
             indent = ""

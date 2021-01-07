@@ -22,7 +22,7 @@ import doctest
     'data.decomposition', 'finite_differences.finite_difference',
     'finite_differences.coefficients', 'finite_differences.derivative',
     'ir.support.space', 'data.utils', 'data.allocators', 'builtins',
-    'symbolics.inspection'
+    'symbolics.inspection', 'tools.utils'
 ])
 def test_docstrings(modname):
     module = import_module('devito.%s' % modname)

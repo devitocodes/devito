@@ -3,7 +3,7 @@ import pytest
 from sympy import simplify, diff, cos, sin, Float
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE,
-                    ConditionalDimension, left, right, centered)
+                    ConditionalDimension, left, right, centered, div, grad)
 from devito.finite_differences import Derivative, Differentiable
 from devito.finite_differences.differentiable import EvalDiffDerivative
 from devito.symbolics import indexify, retrieve_indexed
@@ -464,3 +464,25 @@ class TestFD(object):
         a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
+
+    @pytest.mark.parametrize('shift', [None, .5, -.5])
+    @pytest.mark.parametrize('ndim', [2, 3])
+    def test_shifted_div(self, shift, ndim):
+        grid = Grid(tuple([11]*ndim))
+        f = Function(name="f", grid=grid, space_order=4)
+        df = div(f, shift=shift).evaluate
+        ref = 0
+        for d in grid.dimensions:
+            x0 = None if shift is None else d + shift * d.spacing
+            ref += getattr(f, 'd%s' % d.name)(x0=x0)
+        assert df == ref.evaluate
+
+    @pytest.mark.parametrize('shift', [None, .5, -.5])
+    @pytest.mark.parametrize('ndim', [2, 3])
+    def test_shifted_grad(self, shift, ndim):
+        grid = Grid(tuple([11]*ndim))
+        f = Function(name="f", grid=grid, space_order=4)
+        g = grad(f, shift=shift).evaluate
+        for d, gi in zip(grid.dimensions, g):
+            x0 = None if shift is None else d + shift * d.spacing
+            assert gi == getattr(f, 'd%s' % d.name)(x0=x0).evaluate

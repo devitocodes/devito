@@ -2,15 +2,15 @@ from functools import partial, singledispatch
 
 import cgen as c
 
-from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPIteration,
-                                    DeviceOmpizer, DeviceOpenMPDataManager)
-from devito.exceptions import InvalidOperator
+from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
+                                    DeviceOpenMPCustomOperator, DeviceOpenMPIteration,
+                                    DeviceOmpizer, DeviceOpenMPDataManager, is_on_device)
 from devito.ir.equations import DummyEq
-from devito.ir.iet import Call, ElementalFunction, FindSymbols, List, LocalExpression
-from devito.logger import warning
+from devito.ir.iet import Call, ElementalFunction, List, LocalExpression, FindSymbols
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import MPICallable
-from devito.passes.iet import optimize_halospots, mpiize, hoist_prodders, iet_pass
+from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
+                               iet_pass)
 from devito.symbolics import Byref, DefFunction, Macro
 from devito.tools import as_tuple, prod, timed_pass
 from devito.types import Symbol
@@ -34,8 +34,19 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
         kwargs['chunk_size'] = False
         clauses = super(DeviceOpenACCIteration, cls)._make_clauses(**kwargs)
 
-        partree = kwargs['nodes']
-        deviceptrs = [i.name for i in FindSymbols().visit(partree) if i.is_Array]
+        symbols = FindSymbols().visit(kwargs['nodes'])
+
+        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
+        presents = [i.name for i in symbols
+                    if (i.is_AbstractFunction and
+                        is_on_device(i, kwargs['gpu_fit']) and
+                        i.name not in deviceptrs)]
+
+        # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
+        # indirectly indexed arrays (e.g., a[b[i]]) unless a present clause is used
+        if presents:
+            clauses.append("present(%s)" % ",".join(presents))
+
         if deviceptrs:
             clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
 
@@ -49,12 +60,25 @@ class DeviceAccizer(DeviceOmpizer):
         'atomic': c.Pragma('acc atomic update'),
         'map-enter-to': lambda i, j:
             c.Pragma('acc enter data copyin(%s%s)' % (i, j)),
+        'map-enter-to-wait': lambda i, j, k:
+            (c.Pragma('acc enter data copyin(%s%s) async(%s)' % (i, j, k)),
+             c.Pragma('acc wait(%s)' % k)),
         'map-enter-alloc': lambda i, j:
             c.Pragma('acc enter data create(%s%s)' % (i, j)),
         'map-present': lambda i, j:
             c.Pragma('acc data present(%s%s)' % (i, j)),
         'map-update': lambda i, j:
             c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
+        'map-update-host': lambda i, j:
+            c.Pragma('acc update self(%s%s)' % (i, j)),
+        'map-update-wait-host': lambda i, j, k:
+            (c.Pragma('acc update self(%s%s) async(%s)' % (i, j, k)),
+             c.Pragma('acc wait(%s)' % k)),
+        'map-update-device': lambda i, j:
+            c.Pragma('acc update device(%s%s)' % (i, j)),
+        'map-update-wait-device': lambda i, j, k:
+            (c.Pragma('acc update device(%s%s) async(%s)' % (i, j, k)),
+             c.Pragma('acc wait(%s)' % k)),
         'map-release': lambda i, j:
             c.Pragma('acc exit data delete(%s%s)' % (i, j)),
         'map-exit-delete': lambda i, j:
@@ -66,19 +90,29 @@ class DeviceAccizer(DeviceOmpizer):
     _Iteration = DeviceOpenACCIteration
 
     @classmethod
-    def _map_present(cls, f):
-        # TODO: currently this is unused, because we cannot yet distinguish between
-        # "real" Arrays and Functions that "acts as Arrays", created by the compiler
-        # to build support routines (e.g., the Sendrecv/Gather/Scatter MPI Callables).
-        # We should only use "#pragma acc present" for *real* Arrays -- that is
-        # temporaries that are born and die on the Device
-        return cls.lang['map-present'](f.name, ''.join('[0:%s]' % i
-                                                       for i in cls._map_data(f)))
+    def _map_to_wait(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-enter-to-wait'](f.name, sections, queueid)
 
     @classmethod
-    def _map_delete(cls, f):
-        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
-                                                           for i in cls._map_data(f)))
+    def _map_present(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-present'](f.name, sections)
+
+    @classmethod
+    def _map_delete(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-exit-delete'](f.name, sections)
+
+    @classmethod
+    def _map_update_wait_host(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-wait-host'](f.name, sections, queueid)
+
+    @classmethod
+    def _map_update_wait_device(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-wait-device'](f.name, sections, queueid)
 
     @classmethod
     def _map_pointers(cls, functions):
@@ -92,6 +126,11 @@ class DeviceAccizer(DeviceOmpizer):
         return iet, metadata
 
 
+class DeviceOpenACCOrchestrator(Orchestrator):
+
+    _Parallelizer = DeviceAccizer
+
+
 class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     _Parallelizer = DeviceAccizer
@@ -100,16 +139,23 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
         """
         Allocate an Array in the high bandwidth memory.
         """
-        size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
-        decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
-        cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
-        size_full = prod(obj.symbolic_shape)
-        alloc = "%s acc_malloc(sizeof(%s[%s]))" % (cast, obj._C_typedata, size_full)
-        init = c.Initializer(decl, alloc)
+        if obj._mem_mapped:
+            # posix_memalign + copy-to-device
+            super()._alloc_array_on_high_bw_mem(site, obj, storage)
+        else:
+            # acc_malloc -- the Array only resides on the device, ie, it never
+            # needs to be accessed on the host
+            assert obj._mem_default
+            size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
+            decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
+            cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
+            size_full = prod(obj.symbolic_shape)
+            alloc = "%s acc_malloc(sizeof(%s[%s]))" % (cast, obj._C_typedata, size_full)
+            init = c.Initializer(decl, alloc)
 
-        free = c.Statement('acc_free(%s)' % obj.name)
+            free = c.Statement('acc_free(%s)' % obj.name)
 
-        storage.update(obj, site, allocs=init, frees=free)
+            storage.update(obj, site, allocs=init, frees=free)
 
 
 @iet_pass
@@ -180,14 +226,12 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # GPU parallelism via OpenACC offloading
-        DeviceAccizer(sregistry, options).make_parallel(graph)
+        # Device and host parallelism via OpenACC offloading
+        accizer = DeviceAccizer(sregistry, options)
+        accizer.make_parallel(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         if options['mpi']:
@@ -196,7 +240,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         return graph
 
 
-class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
+class DeviceOpenACCOperator(DeviceOpenMPOperator):
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -209,17 +253,15 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
-        # GPU parallelism via OpenACC offloading
-        DeviceAccizer(sregistry, options).make_parallel(graph)
+        # Device and host parallelism via OpenACC offloading
+        accizer = DeviceAccizer(sregistry, options)
+        accizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         if options['mpi']:
@@ -228,39 +270,37 @@ class DeviceOpenACCOperator(DeviceOpenACCNoopOperator):
         return graph
 
 
-class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
-
-    _known_passes = ('optcomms', 'openacc', 'mpi', 'prodders')
-    _known_passes_disabled = ('blocking', 'openmp', 'denormals', 'simd')
-    assert not (set(_known_passes) & set(_known_passes_disabled))
+class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOperator):
 
     @classmethod
-    def _make_passes_mapper(cls, **kwargs):
+    def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
         accizer = DeviceAccizer(sregistry, options)
+        orchestrator = DeviceOpenACCOrchestrator(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
             'openacc': partial(accizer.make_parallel),
+            'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders)
         }
 
-    @classmethod
-    def _build(cls, expressions, **kwargs):
-        # Sanity check
-        passes = as_tuple(kwargs['mode'])
-        for i in passes:
-            if i not in cls._known_passes:
-                if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
-                else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
-
-        return super(DeviceOpenACCCustomOperator, cls)._build(expressions, **kwargs)
+    _known_passes = (
+        # DSL
+        'collect-derivs',
+        # Expressions
+        'buffering',
+        # Clusters
+        'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
+        'cire-sops', 'cse', 'opt-pows', 'topofuse',
+        # IET
+        'optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders'
+    )
+    _known_passes_disabled = ('openmp', 'denormals', 'simd', 'gpu-direct')
+    assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -270,14 +310,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
-        passes_mapper = cls._make_passes_mapper(**kwargs)
-
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
         # Force-call `mpi` if requested via global option
         if 'mpi' not in passes and options['mpi']:
@@ -287,11 +320,15 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperator):
         if 'openacc' not in passes:
             passes_mapper['openacc'](graph)
 
+        # Call passes
+        for i in passes:
+            try:
+                passes_mapper[i](graph)
+            except KeyError:
+                pass
+
         # Symbol definitions
-        data_manager = DeviceOpenACCDataManager(sregistry)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         if options['mpi']:
