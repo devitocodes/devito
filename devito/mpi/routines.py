@@ -9,9 +9,9 @@ from sympy import Integer
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Callable, Conditional, ElementalCall, Expression,
-                           ExpressionBundle, AugmentedExpression, Iteration, List,
-                           Prodder, Return, make_efunc, FindNodes, Transformer)
+from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
+                           AugmentedExpression, Iteration, List, Prodder, Return,
+                           make_efunc, FindNodes, Transformer)
 from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
