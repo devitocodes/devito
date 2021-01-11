@@ -479,6 +479,18 @@ class TestFD(object):
 
     @pytest.mark.parametrize('shift', [None, .5, -.5])
     @pytest.mark.parametrize('ndim', [2, 3])
+    def test_shifted_div_of_vectorfunction(self, shift, ndim):
+        grid = Grid(tuple([11]*ndim))
+        f = Function(name="f", grid=grid, space_order=4)
+        df = div(grad(f), shift=shift).evaluate
+        ref = 0
+        for i, d in enumerate(grid.dimensions):
+            x0 = None if shift is None else d + shift * d.spacing
+            ref += getattr(grad(f)[i], 'd%s' % d.name)(x0=x0)
+        assert df == ref.evaluate
+
+    @pytest.mark.parametrize('shift', [None, .5, -.5])
+    @pytest.mark.parametrize('ndim', [2, 3])
     def test_shifted_grad(self, shift, ndim):
         grid = Grid(tuple([11]*ndim))
         f = Function(name="f", grid=grid, space_order=4)
