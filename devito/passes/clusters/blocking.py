@@ -6,7 +6,7 @@ from devito.symbolics import uxreplace
 from devito.tools import timed_pass
 from devito.types import IncrDimension
 
-__all__ = ['Blocking', 'IncrDimension']
+__all__ = ['Blocking']
 
 
 class Blocking(Queue):
@@ -68,14 +68,14 @@ class Blocking(Queue):
         # Create the block Dimensions (in total `self.levels` Dimensions)
         name = self.template % (d.name, self.nblocked[d], '%d')
 
-        bd = IncrDimension(d, d.symbolic_min, d.symbolic_max, name=name % 0)
+        bd = IncrDimension(name % 0, d, d.symbolic_min, d.symbolic_max)
         block_dims = [bd]
 
         for i in range(1, self.levels):
-            bd = IncrDimension(bd, bd, bd + bd.step - 1, name=name % i)
+            bd = IncrDimension(name % i, bd, bd, bd + bd.step - 1)
             block_dims.append(bd)
 
-        bd = IncrDimension(bd, bd, bd + bd.step - 1, 1, d.name)
+        bd = IncrDimension(d.name, bd, bd, bd + bd.step - 1, 1)
         block_dims.append(bd)
 
         processed = []

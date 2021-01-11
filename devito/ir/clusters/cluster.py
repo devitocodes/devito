@@ -8,6 +8,7 @@ from devito.ir.support import (PARALLEL, IterationSpace, DataSpace, Scope,
                                detect_io, normalize_properties)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
+from devito.types import normalize_syncs
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -31,14 +32,19 @@ class Cluster(object):
     properties : dict, optional
         Mapper from Dimensions to Property, describing the Cluster properties
         such as its parallel Dimensions.
+    syncs : dict, optional
+        Mapper from Dimensions to lists of SyncOps, that is ordered sequences of
+        synchronization operations that must be performed in order to compute the
+        Cluster asynchronously.
     """
 
-    def __init__(self, exprs, ispace, dspace, guards=None, properties=None):
+    def __init__(self, exprs, ispace, dspace, guards=None, properties=None, syncs=None):
         self._exprs = tuple(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                             for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._guards = frozendict(guards or {})
+        self._syncs = frozendict(syncs or {})
 
         properties = dict(properties or {})
         properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
@@ -73,7 +79,13 @@ class Cluster(object):
             for d, v in c.properties.items():
                 properties[d] = normalize_properties(properties.get(d, v), v)
 
-        return Cluster(exprs, ispace, dspace, guards, properties)
+        try:
+            syncs = normalize_syncs(*[c.syncs for c in clusters])
+        except ValueError:
+            raise ValueError("Cannot build a Cluster from Clusters with "
+                             "non-compatible synchronization operations")
+
+        return Cluster(exprs, ispace, dspace, guards, properties, syncs)
 
     def rebuild(self, *args, **kwargs):
         """
@@ -92,7 +104,8 @@ class Cluster(object):
                        ispace=kwargs.get('ispace', self.ispace),
                        dspace=kwargs.get('dspace', self.dspace),
                        guards=kwargs.get('guards', self.guards),
-                       properties=kwargs.get('properties', self.properties))
+                       properties=kwargs.get('properties', self.properties),
+                       syncs=kwargs.get('syncs', self.syncs))
 
     @property
     def exprs(self):
@@ -125,6 +138,15 @@ class Cluster(object):
     @property
     def properties(self):
         return self._properties
+
+    @property
+    def syncs(self):
+        return self._syncs
+
+    @cached_property
+    def sync_locks(self):
+        return frozendict({k: tuple(i for i in v if i.is_SyncLock)
+                           for k, v in self.syncs.items()})
 
     @cached_property
     def free_symbols(self):
@@ -290,6 +312,16 @@ class ClusterGroup(tuple):
     def itintervals(self):
         """The prefix IterationIntervals common to all Clusters in self."""
         return self._itintervals
+
+    @cached_property
+    def guards(self):
+        """The guards of each Cluster in self."""
+        return tuple(i.guards for i in self)
+
+    @cached_property
+    def sync_locks(self):
+        """The synchronization locks of each Cluster in self."""
+        return tuple(i.sync_locks for i in self)
 
     @cached_property
     def dspace(self):

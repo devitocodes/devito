@@ -4,22 +4,25 @@ import cgen as c
 from sympy import Function
 import numpy as np
 
+from devito.core.cpu import CustomOperator
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, ElementalFunction, List,
-                           FindNodes, LocalExpression, MapExprStmts, Transformer)
-from devito.logger import warning
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, Expression,
+                           List, FindNodes, FindSymbols, LocalExpression,
+                           MapExprStmts, Transformer)
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
                                  MPICallable)
-from devito.passes.clusters import (Lift, cire, cse, eliminate_arrays, extract_increments,
-                                    factorize, fuse, optimize_pows)
+from devito.passes.equations import collect_derivatives, buffering
+from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
+                                    eliminate_arrays, extract_increments, factorize,
+                                    fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.symbolics import Byref
+from devito.symbolics import Byref, ccode
 from devito.tools import as_tuple, filter_sorted, timed_pass
 from devito.types import Symbol
 
@@ -30,8 +33,15 @@ __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
 class DeviceOpenMPIteration(OpenMPIteration):
 
     @classmethod
+    def _make_header(cls, **kwargs):
+        header, kwargs = super()._make_header(**kwargs)
+        kwargs.pop('gpu_fit', None)
+
+        return header, kwargs
+
+    @classmethod
     def _make_construct(cls, **kwargs):
-        return 'omp target teams distribute parallel for device(devicenum)'
+        return 'omp target teams distribute parallel for'
 
     @classmethod
     def _make_clauses(cls, **kwargs):
@@ -44,20 +54,47 @@ class DeviceOmpizer(Ompizer):
     lang = dict(Ompizer.lang)
     lang.update({
         'map-enter-to': lambda i, j:
-            c.Pragma('omp target enter data map(to: %s%s) device(devicenum)' % (i, j)),
+            c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
-            c.Pragma('omp target enter data map(alloc: %s%s) device(devicenum)' % (i, j)),
+            c.Pragma('omp target enter data map(alloc: %s%s)' % (i, j)),
         'map-update': lambda i, j:
-            c.Pragma('omp target update from(%s%s) device(devicenum)' % (i, j)),
+            c.Pragma('omp target update from(%s%s)' % (i, j)),
+        'map-update-host': lambda i, j:
+            c.Pragma('omp target update from(%s%s)' % (i, j)),
+        'map-update-device': lambda i, j:
+            c.Pragma('omp target update to(%s%s)' % (i, j)),
         'map-release': lambda i, j:
-            c.Pragma('omp target exit data map(release: %s%s) device(devicenum)'
+            c.Pragma('omp target exit data map(release: %s%s)'
                      % (i, j)),
         'map-exit-delete': lambda i, j, k:
-            c.Pragma('omp target exit data map(delete: %s%s) device(devicenum)%s'
+            c.Pragma('omp target exit data map(delete: %s%s)%s'
                      % (i, j, k)),
     })
 
     _Iteration = DeviceOpenMPIteration
+
+    def __init__(self, sregistry, options, key=None):
+        super().__init__(sregistry, options, key=key)
+        self.gpu_fit = options['gpu-fit']
+
+    @classmethod
+    def _make_sections_from_imask(cls, f, imask):
+        datasize = cls._map_data(f)
+        if imask is None:
+            imask = [FULL]*len(datasize)
+        assert len(imask) == len(datasize)
+        sections = []
+        for i, j in zip(imask, datasize):
+            if i is FULL:
+                start, size = 0, j
+            else:
+                try:
+                    start, size = i
+                except TypeError:
+                    start, size = i, 1
+                start = ccode(start)
+            sections.append('[%s:%s]' % (start, size))
+        return ''.join(sections)
 
     @classmethod
     def _map_data(cls, f):
@@ -67,18 +104,20 @@ class DeviceOmpizer(Ompizer):
             return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
 
     @classmethod
-    def _map_to(cls, f):
-        return cls.lang['map-enter-to'](f.name, ''.join('[0:%s]' % i
-                                                        for i in cls._map_data(f)))
+    def _map_to(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-enter-to'](f.name, sections)
+
+    _map_to_wait = _map_to
 
     @classmethod
-    def _map_alloc(cls, f):
-        return cls.lang['map-enter-alloc'](f.name, ''.join('[0:%s]' % i
-                                                           for i in cls._map_data(f)))
+    def _map_alloc(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-enter-alloc'](f.name, sections)
 
     @classmethod
-    def _map_present(cls, f):
-        raise NotImplementedError
+    def _map_present(cls, f, imask=None):
+        return
 
     @classmethod
     def _map_update(cls, f):
@@ -86,62 +125,119 @@ class DeviceOmpizer(Ompizer):
                                                       for i in cls._map_data(f)))
 
     @classmethod
+    def _map_update_host(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-host'](f.name, sections)
+
+    _map_update_wait_host = _map_update_host
+
+    @classmethod
+    def _map_update_device(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-device'](f.name, sections)
+
+    _map_update_wait_device = _map_update_device
+
+    @classmethod
     def _map_release(cls, f):
         return cls.lang['map-release'](f.name, ''.join('[0:%s]' % i
                                                        for i in cls._map_data(f)))
 
     @classmethod
-    def _map_delete(cls, f):
-        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i for i in
-                                                           cls._map_data(f)), ' if(1%s)' %
-                                           ''.join(' && (%s != 0)' % i for i in
-                                                   cls._map_data(f)))
+    def _map_delete(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        # This ugly condition is to avoid a copy-back when, due to
+        # domain decomposition, the local size of a Function is 0, which
+        # would cause a crash
+        cond = ' if(%s)' % ' && '.join('(%s != 0)' % i for i in cls._map_data(f))
+        return cls.lang['map-exit-delete'](f.name, sections, cond)
 
     @classmethod
     def _map_pointers(cls, f):
         raise NotImplementedError
 
     def _make_threaded_prodders(self, partree):
-        # no-op for now
-        return partree
+        if isinstance(partree.root, DeviceOpenMPIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_threaded_prodders(partree)
 
     def _make_partree(self, candidates, nthreads=None):
         """
         Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas
-        for GPU offloading.
+        for parallelism. In particular:
+
+            * All parallel Iterations not *writing* to a host Function, that
+              is a Function `f` such that ``is_on_device(f) == False`, are offloaded
+              to the device.
+            * The remaining ones, that is those writing to a host Function,
+              are parallelized on the host.
         """
         assert candidates
         root = candidates[0]
 
-        # Get the collapsable Iterations
-        collapsable = self._find_collapsable(root, candidates)
-        ncollapse = 1 + len(collapsable)
+        if is_on_device(root, self.gpu_fit, only_writes=True):
+            # The typical case: all written Functions are device Functions, that is
+            # they're mapped in the device memory. Then we offload `root` to the device
 
-        # Prepare to build a ParallelTree
-        # Create a ParallelTree
-        body = self._Iteration(ncollapse=ncollapse, **root.args)
-        partree = ParallelTree([], body, nthreads=nthreads)
+            # Get the collapsable Iterations
+            collapsable = self._find_collapsable(root, candidates)
+            ncollapse = 1 + len(collapsable)
 
-        collapsed = [partree] + collapsable
+            body = self._Iteration(gpu_fit=self.gpu_fit, ncollapse=ncollapse, **root.args)
+            partree = ParallelTree([], body, nthreads=nthreads)
+            collapsed = [partree] + collapsable
 
-        return root, partree, collapsed
+            return root, partree, collapsed
+        else:
+            # Resort to host parallelism
+            return super()._make_partree(candidates, nthreads)
 
     def _make_parregion(self, partree, *args):
-        # no-op for now
-        return partree
+        if isinstance(partree.root, DeviceOpenMPIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_parregion(partree, *args)
 
-    def _make_guard(self, partree, *args):
-        # no-op for now
-        return partree
+    def _make_guard(self, parregion, *args):
+        partrees = FindNodes(ParallelTree).visit(parregion)
+        if any(isinstance(i.root, DeviceOpenMPIteration) for i in partrees):
+            # no-op for now
+            return parregion
+        else:
+            return super()._make_guard(parregion, *args)
 
     def _make_nested_partree(self, partree):
-        # no-op for now
-        return partree
+        if isinstance(partree.root, DeviceOpenMPIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_nested_partree(partree)
 
 
 class DeviceOpenMPDataManager(DataManager):
 
     _Parallelizer = DeviceOmpizer
+
+    def __init__(self, sregistry, options):
+        """
+        Parameters
+        ----------
+        sregistry : SymbolRegistry
+            The symbol registry, to quickly access the special symbols that may
+            appear in the IET (e.g., `sregistry.threadid`, that is the thread
+            Dimension, used by the DataManager for parallel memory allocation).
+        options : dict
+            The optimization options.
+            Accepted: ['gpu-fit'].
+            * 'gpu-fit': an iterable of `Function`s that are guaranteed to fit
+              in the device memory. By default, all `Function`s except saved
+              `TimeFunction`'s are assumed to fit in the device memory.
+        """
+        super().__init__(sregistry)
+        self.gpu_fit = options['gpu-fit']
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
         _storage = Storage()
@@ -166,13 +262,13 @@ class DeviceOpenMPDataManager(DataManager):
         storage.update(obj, site, allocs=alloc, frees=free)
 
     @iet_pass
-    def place_ondevice(self, iet, **kwargs):
+    def map_onmemspace(self, iet, **kwargs):
 
         @singledispatch
-        def _place_ondevice(iet):
+        def _map_onmemspace(iet):
             return iet
 
-        @_place_ondevice.register(Callable)
+        @_map_onmemspace.register(Callable)
         def _(iet):
             # Collect written and read-only symbols
             writes = set()
@@ -186,30 +282,32 @@ class DeviceOpenMPDataManager(DataManager):
                     continue
                 if i.write.is_DiscreteFunction:
                     writes.add(i.write)
-                reads = (reads | {r for r in i.reads if r.is_DiscreteFunction}) - writes
+                reads.update({r for r in i.reads if r.is_DiscreteFunction})
 
             # Populate `storage`
             storage = Storage()
             for i in filter_sorted(writes):
-                self._map_function_on_high_bw_mem(iet, i, storage)
-            for i in filter_sorted(reads):
-                self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
+                if is_on_device(i, self.gpu_fit):
+                    self._map_function_on_high_bw_mem(iet, i, storage)
+            for i in filter_sorted(reads - writes):
+                if is_on_device(i, self.gpu_fit):
+                    self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
 
             iet = self._dump_storage(iet, storage)
 
             return iet
 
-        @_place_ondevice.register(ElementalFunction)
+        @_map_onmemspace.register(ElementalFunction)
         def _(iet):
             return iet
 
-        @_place_ondevice.register(CopyBuffer)
-        @_place_ondevice.register(SendRecv)
-        @_place_ondevice.register(HaloUpdate)
+        @_map_onmemspace.register(CopyBuffer)
+        @_map_onmemspace.register(SendRecv)
+        @_map_onmemspace.register(HaloUpdate)
         def _(iet):
             return iet
 
-        iet = _place_ondevice(iet)
+        iet = _map_onmemspace(iet)
 
         return iet, {}
 
@@ -219,7 +317,6 @@ def initialize(iet, **kwargs):
     """
     Initialize the OpenMP environment.
     """
-    devicenum = Symbol(name='devicenum')
 
     @singledispatch
     def _initialize(iet):
@@ -239,22 +336,15 @@ def initialize(iet, **kwargs):
             call = Function('omp_get_num_devices')()
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
 
-            devicenum_init = LocalExpression(DummyEq(devicenum, rank % ngpus))
+            set_device_num = Call('omp_set_default_device', [rank % ngpus])
 
-            body = [rank_decl, rank_init, ngpus_init, devicenum_init]
+            body = [rank_decl, rank_init, ngpus_init, set_device_num]
 
             init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
                         body=body,
                         footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
-        else:
-            devicenum_init = LocalExpression(DummyEq(devicenum, 0))
-            body = [devicenum_init]
 
-            init = List(header=c.Comment('Begin of OpenMP setup'),
-                        body=body,
-                        footer=(c.Comment('End of OpenMP setup'), c.Line()))
-
-        iet = iet._rebuild(body=(init,) + iet.body)
+            iet = iet._rebuild(body=(init,) + iet.body)
 
         return iet
 
@@ -265,7 +355,7 @@ def initialize(iet, **kwargs):
 
     iet = _initialize(iet)
 
-    return iet, {'args': devicenum}
+    return iet, {}
 
 
 @iet_pass
@@ -275,7 +365,7 @@ def mpi_gpu_direct(iet, **kwargs):
     """
     mapper = {}
     for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
-        header = c.Pragma('omp target data use_device_ptr(%s) device(devicenum)' %
+        header = c.Pragma('omp target data use_device_ptr(%s)' %
                           node.arguments[0].name)
         mapper[node] = Block(header=header, body=node)
 
@@ -285,6 +375,12 @@ def mpi_gpu_direct(iet, **kwargs):
 
 
 class DeviceOpenMPNoopOperator(OperatorCore):
+
+    BLOCK_LEVELS = 1
+    """
+    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
 
     CIRE_REPEATS_INV = 2
     """
@@ -327,6 +423,13 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         # input to Operator
         oo.pop('openmp')
 
+        # Buffering
+        o['buf-async-degree'] = oo.pop('buf-async-degree', None)
+
+        # Blocking
+        o['blockinner'] = oo.pop('blockinner', True)
+        o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+
         # CIRE
         o['min-storage'] = False
         o['cire-rotate'] = False
@@ -350,6 +453,9 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['gpu-direct'] = oo.pop('gpu-direct', True)
 
+        # GPU data
+        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', None))
+
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
                                   % ", ".join(list(oo)))
@@ -357,6 +463,37 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         kwargs['options'].update(o)
 
         return kwargs
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        sregistry = kwargs['sregistry']
+
+        # Distributed-memory parallelism
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # GPU parallelism via OpenMP offloading
+        DeviceOmpizer(sregistry, options).make_parallel(graph)
+
+        # Symbol definitions
+        DeviceOpenMPDataManager(sregistry, options).process(graph)
+
+        # Initialize OpenMP environment
+        initialize(graph)
+
+        return graph
+
+
+class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
+
+    @classmethod
+    @timed_pass(name='specializing.DSL')
+    def _specialize_dsl(cls, expressions, **kwargs):
+        expressions = collect_derivatives(expressions)
+
+        return expressions
 
     @classmethod
     @timed_pass(name='specializing.Clusters')
@@ -395,33 +532,6 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
-
-        # GPU parallelism via OpenMP offloading
-        DeviceOmpizer(sregistry, options).make_parallel(graph)
-
-        # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
-
-        # Initialize OpenMP environment
-        initialize(graph)
-
-        return graph
-
-
-class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-
-        # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
@@ -433,10 +543,7 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenMPDataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
@@ -450,14 +557,50 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
         return graph
 
 
-class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
+class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
 
-    _known_passes = ('optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct')
-    _known_passes_disabled = ('blocking', 'denormals', 'simd')
-    assert not (set(_known_passes) & set(_known_passes_disabled))
+    _normalize_kwargs = DeviceOpenMPOperator._normalize_kwargs
 
     @classmethod
-    def _make_passes_mapper(cls, **kwargs):
+    def _make_exprs_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+
+        # This callback is used by `buffering` to replace host Functions with
+        # Arrays, used as device buffers for streaming-in and -out of data
+        def callback(f):
+            if not is_on_device(f, options['gpu-fit']):
+                return [f.time_dim]
+            else:
+                return None
+
+        return {
+            'buffering': lambda i: buffering(i, callback, options)
+        }
+
+    @classmethod
+    def _make_clusters_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
+
+        runs_on_host, reads_if_on_host = make_callbacks(options)
+
+        return {
+            'blocking': Blocking(options).process,
+            'tasking': Tasker(runs_on_host).process,
+            'streaming': Streaming(reads_if_on_host).process,
+            'factorize': factorize,
+            'fuse': fuse,
+            'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
+                                                  options, platform)),
+            'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
+            'cse': lambda i: cse(i, sregistry),
+            'opt-pows': optimize_pows,
+            'topofuse': lambda i: fuse(i, toposort=True)
+        }
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
@@ -471,19 +614,19 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
             'gpu-direct': partial(mpi_gpu_direct)
         }
 
-    @classmethod
-    def _build(cls, expressions, **kwargs):
-        # Sanity check
-        passes = as_tuple(kwargs['mode'])
-        for i in passes:
-            if i not in cls._known_passes:
-                if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
-                else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
-
-        return super(DeviceOpenMPCustomOperator, cls)._build(expressions, **kwargs)
+    _known_passes = (
+        # DSL
+        'collect-derivs',
+        # Expressions
+        'buffering',
+        # Clusters
+        'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
+        'cire-sops', 'cse', 'opt-pows', 'topofuse',
+        # IET
+        'optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct'
+    )
+    _known_passes_disabled = ('denormals', 'simd', 'openacc')
+    assert not (set(_known_passes) & set(_known_passes_disabled))
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -493,14 +636,7 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
-        passes_mapper = cls._make_passes_mapper(**kwargs)
-
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
         # Force-call `mpi` if requested via global option
         if 'mpi' not in passes and options['mpi']:
@@ -510,13 +646,72 @@ class DeviceOpenMPCustomOperator(DeviceOpenMPOperator):
         if 'openmp' not in passes:
             passes_mapper['openmp'](graph)
 
+        # Call passes
+        for i in passes:
+            try:
+                passes_mapper[i](graph)
+            except KeyError:
+                pass
+
         # Symbol definitions
-        data_manager = DeviceOpenMPDataManager(sregistry)
-        data_manager.place_ondevice(graph)
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
+        DeviceOpenMPDataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
 
         return graph
+
+
+# Utils
+
+def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
+    """
+    True if all given Functions are allocated in the device memory, False otherwise.
+
+    Parameters
+    ----------
+    maybe_symbol : Indexed or Function or Node
+        The inspected object. May be a single Indexed or Function, or even an
+        entire piece of IET.
+    gpu_fit : list of Function
+        The Function's which are known to definitely fit in the device memory. This
+        information is given directly by the user through the compiler option
+        `gpu-fit` and is propagated down here through the various stages of lowering.
+    only_writes : bool, optional
+        Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
+        that do not appear on the LHS of at least one Expression. Defaults to False.
+    """
+    try:
+        functions = (maybe_symbol.function,)
+    except AttributeError:
+        assert maybe_symbol.is_Node
+        iet = maybe_symbol
+        functions = set(FindSymbols().visit(iet))
+        if only_writes:
+            expressions = FindNodes(Expression).visit(iet)
+            functions &= {i.write for i in expressions}
+
+    return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
+               for f in functions)
+
+
+def make_callbacks(options):
+    """
+    Options-dependent callbacks used by various compiler passes.
+    """
+
+    def is_on_host(f):
+        return not is_on_device(f, options['gpu-fit'])
+
+    def runs_on_host(c):
+        # The only situation in which a Cluster doesn't get offloaded to
+        # the device is when it writes to a host Function
+        return any(is_on_host(f) for f in c.scope.writes)
+
+    def reads_if_on_host(c):
+        if not runs_on_host(c):
+            return [f for f in c.scope.reads if is_on_host(f)]
+        else:
+            return []
+
+    return runs_on_host, reads_if_on_host

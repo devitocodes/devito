@@ -419,8 +419,12 @@ def collect(exprs, ignore_collected, options):
             mapper = {}
 
             for d, intervals in intervalss.items():
+                # Not all groups may access all dimensions
+                # Example: `d=t` and groups=[Group(...[t, x]...), Group(...[time, x]...)]
+                impacted = [g for g in groups if d in g.dimensions]
+
                 for interval in list(intervals):
-                    found = {g: g.find_rotation_distance(d, interval) for g in groups}
+                    found = {g: g.find_rotation_distance(d, interval) for g in impacted}
                     if all(distance is not None for distance in found.values()):
                         # `interval` is OK !
                         mapper[interval] = found
@@ -444,7 +448,7 @@ def collect(exprs, ignore_collected, options):
 
         for g in groups:
             c = g.pivot
-            distances = defaultdict(int, [(i.dim, v[g]) for i, v in mapper.items()])
+            distances = defaultdict(int, [(i.dim, v.get(g)) for i, v in mapper.items()])
 
             # Create the basis alias
             offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
@@ -607,10 +611,10 @@ def _optimize_schedule_rotations(schedule, sregistry):
         iis = candidate.lower
         iib = candidate.upper
 
-        ii = ModuloDimension(ds, iis, incr=iib, name='%sii' % d)
+        ii = ModuloDimension('%sii' % d, ds, iis, incr=iib)
         cd = CustomDimension(name='%s%s' % (d, d), symbolic_min=ii, symbolic_max=iib,
                              symbolic_size=n)
-        dsi = ModuloDimension(cd, cd + ds - iis, n, name='%si' % ds)
+        dsi = ModuloDimension('%si' % ds, cd, cd + ds - iis, n)
 
         mapper = OrderedDict()
         for i in g:
@@ -622,7 +626,7 @@ def _optimize_schedule_rotations(schedule, sregistry):
                     md = mapper[v]
                 except KeyError:
                     name = sregistry.make_name(prefix='%sr' % d.name)
-                    md = mapper.setdefault(v, ModuloDimension(ds, v, n, name=name))
+                    md = mapper.setdefault(v, ModuloDimension(name, ds, v, n))
                 mds.append(md)
             indicess = [indices[:ridx] + [md] + indices[ridx + 1:]
                         for md, indices in zip(mds, i.indicess)]

@@ -160,7 +160,8 @@ env_vars_mapper = {
     'DEVITO_LOGGING': 'log-level',
     'DEVITO_FIRST_TOUCH': 'first-touch',
     'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
-    'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
+    'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns',
+    'DEVITO_SAFE_MATH': 'safe-math'
 }
 
 env_vars_deprecated = {
@@ -257,13 +258,15 @@ class switchconfig(object):
             for k, v in self.params.items():
                 previous[k] = configuration[k]
                 configuration[k] = v
-            result = func(*args, **kwargs)
-            for k, v in self.params.items():
-                try:
-                    configuration[k] = previous[k]
-                except ValueError:
-                    # E.g., `platform` and `compiler` will end up here
-                    configuration[k] = previous[k].name
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                for k, v in self.params.items():
+                    try:
+                        configuration[k] = previous[k]
+                    except ValueError:
+                        # E.g., `platform` and `compiler` will end up here
+                        configuration[k] = previous[k].name
             return result
         return wrapper
 

@@ -7,8 +7,7 @@ from sympy import Max, Min
 
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
-from devito.tools import (Tag, as_mapper, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer)
+from devito.tools import Tag, as_tuple, filter_ordered, flatten, frozendict, is_integer
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException']
 
@@ -434,16 +433,8 @@ def compute_local_indices(f, dims, ispace, scope):
             raise HaloSchemeException("Don't know how to build a HaloScheme as `%s` "
                                       "doesn't appear in `%s`" % (d, ispace))
         candidates = [i[d] for i in scope.getreads(f) if not is_integer(i[d])]
-        loc_index = func(candidates, key=lambda i: i-d)
         if d.is_Stepping:
-            subiters = ispace.sub_iterators.get(d.root, [])
-            submap = as_mapper(subiters, lambda md: md.modulo)
-            try:
-                submap = {i.origin: i for i in submap[f._time_size]}
-                loc_indices[d] = submap[loc_index]
-            except KeyError:
-                raise HaloSchemeException("Don't know how to build a HaloScheme as the "
-                                          "stepping index `%s` is undefined" % loc_index)
+            loc_indices[d] = func(candidates, key=lambda i: i.origin - d)
         else:
-            loc_indices[d] = loc_index
+            loc_indices[d] = func(candidates, key=lambda i: i-d)
     return loc_indices

@@ -10,6 +10,7 @@ from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
 from devito.tools import filter_ordered, flatten, is_integer, prod
+from devito.types import Timer
 
 __all__ = ['autotune']
 
@@ -83,6 +84,10 @@ def autotune(operator, args, level, mode):
         warning("cannot perform autotuning unless there is one time loop; skipping")
         return args, {}
 
+    # Use a fresh Timer for auto-tuning
+    timer = Timer('timers', list(operator._profiler._sections))
+    at_args.update(timer._arg_values())
+
     # Perform autotuning
     timings = {}
     for n, tree in enumerate(trees):
@@ -127,17 +132,16 @@ def autotune(operator, args, level, mode):
 
             # Run the Operator
             operator.cfunction(*list(at_args.values()))
-            elapsed = operator._profiler.timer.total
 
+            # Record timing
+            elapsed = timer.total
             timings.setdefault(nt, OrderedDict()).setdefault(n, {})[bs] = elapsed
             log("run <%s> took %f (s) in %d timesteps" %
                 (','.join('%s=%s' % i for i in run), elapsed, timesteps))
 
             # Prepare for the next autotuning run
             update_time_bounds(stepper, at_args, timesteps, mode)
-
-            # Reset profiling timers
-            operator._profiler.timer.reset()
+            timer.reset()
 
     # The best variant is the one that for a given number of threads had the minium
     # turnaround time

@@ -1,7 +1,7 @@
 from devito.core.autotuning import autotune
 from devito.parameters import configuration
-from devito.passes import NThreads
 from devito.operator import Operator
+from devito.types import NThreads
 
 __all__ = ['OperatorCore']
 
