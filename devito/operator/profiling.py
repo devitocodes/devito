@@ -86,27 +86,14 @@ class Profiler(object):
             # Each ExpressionBundle lives in its own iteration space
             itermaps = [i.ispace.dimension_map for i in bundles]
 
-            # Track how many FD points are written within `s`
-            points = []
-            total_writes = 0
+            # Track how many grid points are written within `s`
+            points = set()
             for i in bundles:
-                writes = {e.write for e in i.exprs
-                          if e.is_tensor and e.write.is_TimeFunction}
-                total_writes += len(writes)
-                # If we have writes only consider one iteration space size
-                # per bundle otherwise append 0
-                if len(writes):
-                    points.append(i.size)
-                else:
-                    points.append(i.size*len(writes))
+                if any(e.write.is_TimeFunction for e in i.exprs):
+                    points.add(i.size)
+            points = sum(points, S.Zero)
 
-            # list(set()) will return a list with unique elements
-            # discarding duplicate grid sizes
-            points = list(set(points))
-
-            fdpoints = sum(points)
-
-            self._sections[s.name] = SectionData(ops, sops, fdpoints, traffic, itermaps)
+            self._sections[s.name] = SectionData(ops, sops, points, traffic, itermaps)
 
     def track_subsection(self, sname, name):
         v = self._subsections.setdefault(sname, OrderedDict())
@@ -230,7 +217,7 @@ class AdvancedProfiler(Profiler):
             # Number of FLOPs performed
             ops = int(subs_op_args(data.ops, args))
 
-            # Number of FD points computed
+            # Number of grid points computed
             points = int(subs_op_args(data.points, args))
 
             # Compulsory traffic
@@ -400,53 +387,30 @@ class PerformanceSummary(OrderedDict):
         Reduce the following performance data:
 
             * ops
-            * points
             * traffic
 
-        over a global "wrapping" timer.
+        over a given global timing.
         """
         if not self.input:
             return
 
         ops = sum(v.ops for v in self.input.values())
-        points = sum(v.points for v in self.input.values())
         traffic = sum(v.traffic for v in self.input.values())
 
         gflops = float(ops)/10**9
-        gpoints = float(points)/10**9
         gflopss = gflops/time
-        gpointss = gpoints/time
         oi = float(ops/traffic)
 
-        self.globals['vanilla'] = PerfEntry(time, gflopss, gpointss, oi, None, None)
+        self.globals['vanilla'] = PerfEntry(time, gflopss, None, oi, None, None)
 
     def add_glb_fdlike(self, points, time):
         """
-        Add "finite-difference-like" performance metrics, that is GPoints/s and
-        GFlops/s as if the code looked like a trivial n-D jacobi update
-
-            .. code-block:: c
-
-              for t = t_m to t_M
-                for x = 0 to x_size
-                  for y = 0 to y_size
-                    u[t+1, x, y] = f(...)
+        Add the typical GPoints/s finite-difference metric.
         """
         gpoints = float(points)/10**9
         gpointss = gpoints/time
 
-        if self.input:
-            traffic = sum(v.traffic for v in self.input.values())
-            ops = sum(v.ops for v in self.input.values())
-
-            gflops = float(ops)/10**9
-            gflopss = gflops/time
-            oi = float(ops/traffic)
-        else:
-            gflopss = None
-            oi = None
-
-        self.globals['fdlike'] = PerfEntry(time, gflopss, gpointss, oi, None, None)
+        self.globals['fdlike'] = PerfEntry(time, None, gpointss, None, None, None)
 
     @property
     def gflopss(self):
