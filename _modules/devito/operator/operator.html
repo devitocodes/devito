@@ -293,7 +293,7 @@
 <span class="sd">    refer to the relevant documentation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">_default_headers</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;#define _POSIX_C_SOURCE 200809L&#39;</span><span class="p">]</span>
+    <span class="n">_default_headers</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;_POSIX_C_SOURCE&#39;</span><span class="p">,</span> <span class="s1">&#39;200809L&#39;</span><span class="p">)]</span>
     <span class="n">_default_includes</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;stdlib.h&#39;</span><span class="p">,</span> <span class="s1">&#39;math.h&#39;</span><span class="p">,</span> <span class="s1">&#39;sys/time.h&#39;</span><span class="p">]</span>
     <span class="n">_default_globals</span> <span class="o">=</span> <span class="p">[]</span>
 
@@ -542,6 +542,7 @@
 <span class="sd">            * Finalize (e.g., symbol definitions, array casts)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;Kernel&quot;</span><span class="p">)</span>
+        <span class="n">sregistry</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;sregistry&#39;</span><span class="p">]</span>
 
         <span class="c1"># Build an IET from a ScheduleTree</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
@@ -560,7 +561,7 @@
         <span class="c1"># Instrument the IET for C-level profiling</span>
         <span class="c1"># Note: this is postponed until after _specialize_iet because during</span>
         <span class="c1"># specialization further Sections may be introduced</span>
-        <span class="n">instrument</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">profiler</span><span class="o">=</span><span class="n">profiler</span><span class="p">)</span>
+        <span class="n">instrument</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">profiler</span><span class="o">=</span><span class="n">profiler</span><span class="p">,</span> <span class="n">sregistry</span><span class="o">=</span><span class="n">sregistry</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">graph</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">graph</span>
 
@@ -899,12 +900,7 @@
 
             <span class="n">v</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">globals</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;fdlike&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* Achieved </span><span class="si">%.2f</span><span class="s2"> GFlops/s, </span><span class="si">%.2f</span><span class="s2"> FD-GPts/s&quot;</span> <span class="o">%</span>
-                         <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">))</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* Achieved </span><span class="si">%.2f</span><span class="s2"> FD-GPts/s&quot;</span> <span class="o">%</span>
-                         <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">))</span>
+                <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* Achieved </span><span class="si">%.2f</span><span class="s2"> FD-GPts/s&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">))</span>
             <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Local performance indicators&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">indent</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
@@ -930,6 +926,10 @@
                 <span class="n">name</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span>
                 <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* </span><span class="si">%s%s</span><span class="s2"> computed in </span><span class="si">%.2f</span><span class="s2"> s&quot;</span>
                      <span class="o">%</span> <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">)))</span>
+
+            <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">time</span> <span class="ow">in</span> <span class="n">summary</span><span class="o">.</span><span class="n">subsections</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">+ </span><span class="si">%s</span><span class="s2"> computed in </span><span class="si">%.2f</span><span class="s2"> s [</span><span class="si">%.2f%%</span><span class="s2">]&quot;</span> <span class="o">%</span>
+                     <span class="p">(</span><span class="n">indent</span><span class="o">*</span><span class="mi">2</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">fround</span><span class="p">(</span><span class="n">time</span><span class="o">/</span><span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="o">*</span><span class="mi">100</span><span class="p">)))</span>
 
         <span class="c1"># Emit performance mode and arguments</span>
         <span class="n">perf_args</span> <span class="o">=</span> <span class="p">{}</span>
