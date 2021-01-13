@@ -807,8 +807,8 @@ class TestCodeGeneration(object):
         # There are exactly two halo exchange calls in the Operator body
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2 + 8  # 8 are due to loop blocking
-        assert calls[0].name == 'haloupdate_0'
-        assert calls[1].name == 'haloupdate_0'
+        assert calls[0].name == 'haloupdate0'
+        assert calls[1].name == 'haloupdate0'
 
         # ... and none in the created efuncs
         calls = FindNodes(Call).visit(op._func_table['bf0'].root)
@@ -833,7 +833,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
         # Also make sure the Call is at the right place in the IET
-        assert op.body[-1].body[0].body[0].body[0].body[0].is_Call
+        assert op.body[-1].body[0].body[0].body[0].body[0].body[0].is_Call
         assert op.body[-1].body[0].body[0].body[0].body[1].is_Iteration
 
     @pytest.mark.parallel(mode=2)
@@ -967,8 +967,15 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
-        assert not op.body[-1].body[0].nodes[0].body[0].body[0].body[1].is_Call
+        titer = op.body[-1].body[0]
+        assert titer.dim is grid.time_dim
+        assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
+        assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
+        parent = titer.nodes[0].body[0].body[0].body[1]
+        if configuration['language'] == 'openmp':
+            assert parent.body[0].body[0].is_Iteration
+        else:
+            assert parent.is_Iteration
 
         op.apply(time_M=1)
 
@@ -1075,7 +1082,7 @@ class TestCodeGeneration(object):
 
         op = Operator(Eq(f.forward, eval(expr)), opt=('advanced', {'openmp': False}))
 
-        calls = FindNodes(Call).visit(op._func_table['haloupdate_0'])
+        calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
         destinations = {i.arguments[-2].field for i in calls}
         assert destinations == expected
 
@@ -1656,8 +1663,11 @@ class TestOperatorAdvanced(object):
 
         op = Operator(eqns)
 
-        assert op.body[-1].body[0].nodes[0].body[0].body[0].is_List
-        assert op.body[-1].body[0].nodes[0].body[0].body[0].body[0].is_Call
+        titer = op.body[-1].body[0]
+        assert titer.dim is grid.time_dim
+        assert titer.nodes[0].body[0].body[0].is_List
+        assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
+        assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
 
         op.apply(time=0)
 
@@ -1783,11 +1793,11 @@ class TestOperatorAdvanced(object):
         # Check generated code
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 3
-        assert 'haloupdate_0' in op1._func_table
+        assert 'haloupdate0' in op1._func_table
         # We expect exactly one halo exchange
         calls = FindNodes(Call).visit(op1)
         assert len(calls) == 5
-        assert calls[0].name == 'haloupdate_0'
+        assert calls[0].name == 'haloupdate0'
         assert all(i.name == 'bf0' for i in calls[1:])
 
         op0.apply(time_M=1)

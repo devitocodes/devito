@@ -48,10 +48,9 @@ class TestCodeGeneration(object):
 
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2
-        assert str(sections[1].body[0].footer[1]) == ('#pragma acc exit data delete'
-                                                      '(usave[time:1][0:usave_vec->size['
-                                                      '1]][0:usave_vec->size[2]][0:usave'
-                                                      '_vec->size[3]])')
+        assert str(sections[1].body[0].body[0].footer[1]) ==\
+            ('#pragma acc exit data delete(usave[time:1][0:usave_vec->size[1]]'
+             '[0:usave_vec->size[2]][0:usave_vec->size[3]])')
 
     def test_streaming_with_host_loop(self):
         grid = Grid(shape=(10, 10, 10))
@@ -71,7 +70,7 @@ class TestCodeGeneration(object):
         assert 'prefetch_host_to_device0' in op._func_table
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2
-        s = sections[0].body[0]
+        s = sections[0].body[0].body[0]
         assert str(s.body[3].footer[1]) == ('#pragma acc exit data delete'
                                             '(u[time:1][0:u_vec->size[1]][0:u_vec'
                                             '->size[2]][0:u_vec->size[3]])')

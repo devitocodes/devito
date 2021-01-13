@@ -131,7 +131,7 @@ class Operator(Callable):
     refer to the relevant documentation.
     """
 
-    _default_headers = ['#define _POSIX_C_SOURCE 200809L']
+    _default_headers = [('_POSIX_C_SOURCE', '200809L')]
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 
@@ -380,6 +380,7 @@ class Operator(Callable):
             * Finalize (e.g., symbol definitions, array casts)
         """
         name = kwargs.get("name", "Kernel")
+        sregistry = kwargs['sregistry']
 
         # Build an IET from a ScheduleTree
         iet = iet_build(stree)
@@ -398,7 +399,7 @@ class Operator(Callable):
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
-        instrument(graph, profiler=profiler)
+        instrument(graph, profiler=profiler, sregistry=sregistry)
 
         return graph.root, graph
 
@@ -737,12 +738,7 @@ class Operator(Callable):
 
             v = summary.globals.get('fdlike')
             if v is not None:
-                if v.gflopss is not None:
-                    perf("%s* Achieved %.2f GFlops/s, %.2f FD-GPts/s" %
-                         (indent, v.gflopss, v.gpointss))
-                else:
-                    perf("%s* Achieved %.2f FD-GPts/s" %
-                         (indent, v.gpointss))
+                perf("%s* Achieved %.2f FD-GPts/s" % (indent, v.gpointss))
             perf("Local performance indicators")
         else:
             indent = ""
@@ -768,6 +764,10 @@ class Operator(Callable):
                 name = k.name
                 perf("%s* %s%s computed in %.2f s"
                      % (indent, name, rank, fround(v.time)))
+
+            for n, time in summary.subsections.get(k.name, {}).items():
+                perf("%s+ %s computed in %.2f s [%.2f%%]" %
+                     (indent*2, n, time, fround(time/v.time*100)))
 
         # Emit performance mode and arguments
         perf_args = {}
