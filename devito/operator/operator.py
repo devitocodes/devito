@@ -713,7 +713,7 @@ class Operator(Callable):
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
-        info("Operator `%s` run in %.2f s" % (self.name,
+        info("Operator `%s` ran in %.2f s" % (self.name,
                                               fround(self._profiler.py_timers['apply'])))
 
         summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
@@ -761,9 +761,9 @@ class Operator(Callable):
                 itershapes = ""
             name = "%s%s<%s>" % (k.name, rank, itershapes)
 
-            perf("%s* %s run in %.2f s [%s]" % (indent, name, fround(v.time), metrics))
+            perf("%s* %s ran in %.2f s [%s]" % (indent, name, fround(v.time), metrics))
             for n, time in summary.subsections.get(k.name, {}).items():
-                perf("%s+ %s run in %.2f s [%.2f%%]" %
+                perf("%s+ %s ran in %.2f s [%.2f%%]" %
                      (indent*2, n, time, fround(time/v.time*100)))
 
         # Emit performance mode and arguments
