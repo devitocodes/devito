@@ -45,23 +45,23 @@ class TestAdjoint(object):
         ('layers-tti', (30, 35, 40), 'centered', 8, tti_setup),
         ('layers-tti', (30, 35, 40), 'centered', 4, tti_setup),
         # 2D SLS Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (30, 35), 'sls', 8, viscoacoustic_setup),
-        ('layers-viscoacoustic', (30, 35), 'sls', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 2, viscoacoustic_setup),
         # 3D SLS Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (30, 35, 40), 'sls', 8, viscoacoustic_setup),
-        ('layers-viscoacoustic', (30, 35, 40), 'sls', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 2, viscoacoustic_setup),
         # 2D Ren Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (30, 35), 'ren', 8, viscoacoustic_setup),
-        ('layers-viscoacoustic', (30, 35), 'ren', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'ren', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'ren', 2, viscoacoustic_setup),
         # 3D Ren Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (30, 35, 40), 'ren', 8, viscoacoustic_setup),
-        ('layers-viscoacoustic', (30, 35, 40), 'ren', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 2, viscoacoustic_setup),
         # 2D Deng Mcmechan Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (30, 35), 'deng_mcmechan', 8, viscoacoustic_setup),
-        ('layers-viscoacoustic', (30, 35), 'deng_mcmechan', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 2, viscoacoustic_setup),
         # 3D Deng Mcmechan Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (30, 35, 40), 'deng_mcmechan', 8, viscoacoustic_setup),
-        ('layers-viscoacoustic', (30, 35, 40), 'deng_mcmechan', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 2, viscoacoustic_setup),
     ])
     def test_adjoint_F(self, mkey, shape, kernel, space_order, setup_func):
         """
