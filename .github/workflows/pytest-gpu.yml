@@ -119,6 +119,7 @@ jobs:
         if [ "${{ matrix.name }}" == 'pytest-gpu-acc' ]; then
           pgaccelinfo
         fi
+        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_gpu_common.py
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
 
     - name: Test examples
