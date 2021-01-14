@@ -1,28 +1,56 @@
+from devito.ir.iet import MapNodes, Section, TimedList, Transformer
+from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
+                                 HaloUpdateList, HaloWaitList, RemainderCall)
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.orchestration import BusyWait
 from devito.types import Timer
 
 __all__ = ['instrument']
 
 
 def instrument(graph, **kwargs):
-    analyze_sections(graph, **kwargs)
+    track_subsections(graph, **kwargs)
 
     # Construct a fresh Timer object
     profiler = kwargs['profiler']
-    timer = Timer(profiler.name, list(profiler._sections))
+    timer = Timer(profiler.name, list(profiler.all_sections))
 
     instrument_sections(graph, timer=timer, **kwargs)
 
 
 @iet_pass
-def analyze_sections(iet, **kwargs):
+def track_subsections(iet, **kwargs):
     """
-    Analyze the input IET and update `profiler.sections` with all of the
-    Sections introduced by the previous passes.
+    Add custom Sections to the `profiler`. Custom Sections include:
+
+        * MPI Calls (e.g., HaloUpdateCall and HaloUpdateWait)
+        * Busy-waiting on While(lock) (e.g., from host-device orchestration)
     """
     profiler = kwargs['profiler']
+    sregistry = kwargs['sregistry']
 
-    profiler.analyze(iet)
+    name_mapper = {
+        HaloUpdateCall: 'haloupdate',
+        HaloWaitCall: 'halowait',
+        RemainderCall: 'remainder',
+        HaloUpdateList: 'haloupdate',
+        HaloWaitList: 'halowait',
+        BusyWait: 'busywait'
+    }
+
+    mapper = {}
+
+    for NodeType in [MPIList, MPICall, BusyWait]:
+        for k, v in MapNodes(Section, NodeType).visit(iet).items():
+            for i in v:
+                if i in mapper or not any(issubclass(i.__class__, n)
+                                          for n in profiler.trackable_subsections):
+                    continue
+                name = sregistry.make_name(prefix=name_mapper[i.__class__])
+                mapper[i] = Section(name, body=i, is_subsection=True)
+                profiler.track_subsection(k.name, name)
+
+    iet = Transformer(mapper).visit(iet)
 
     return iet, {}
 
@@ -39,5 +67,7 @@ def instrument_sections(iet, **kwargs):
 
     if piet is iet:
         return piet, {}
-    else:
-        return piet, {'args': timer}
+
+    headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
+
+    return piet, {'args': timer, 'headers': headers}

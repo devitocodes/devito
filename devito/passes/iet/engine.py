@@ -82,7 +82,7 @@ class Graph(object):
             self.includes.extend(list(metadata.get('includes', [])))
             self.includes = filter_ordered(self.includes)
             self.headers.extend(list(metadata.get('headers', [])))
-            self.headers = filter_ordered(self.headers)
+            self.headers = filter_ordered(self.headers, key=str)
 
             # Tracky any new external function
             self.ffuncs.extend(list(metadata.get('ffuncs', [])))

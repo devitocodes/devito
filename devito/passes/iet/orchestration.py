@@ -18,7 +18,7 @@ from devito.tools import (as_mapper, as_list, filter_ordered, filter_sorted,
 from devito.types import (NThreadsSTD, STDThreadArray, WaitLock, WithLock,
                           FetchWait, FetchWaitPrefetch, Delete, SharedData, Symbol)
 
-__init__ = ['Orchestrator']
+__init__ = ['Orchestrator', 'BusyWait']
 
 
 class Orchestrator(object):
@@ -145,10 +145,10 @@ class Orchestrator(object):
                          [CondNe(FieldFromComposite(sdata._field_flag, sdata[d]), 1)]))
 
         if threads.size == 1:
-            activation = [While(condition)]
+            activation = [BusyWait(condition)]
         else:
             activation = [DummyExpr(d, 0),
-                          While(condition, DummyExpr(d, (d + 1) % threads.size))]
+                          BusyWait(condition, DummyExpr(d, (d + 1) % threads.size))]
 
         activation.extend([DummyExpr(FieldFromComposite(i.name, sdata[d]), i)
                            for i in sdata.fields])
@@ -166,7 +166,7 @@ class Orchestrator(object):
         waitloop = List(
             header=c.Comment("Wait for `%s` to be copied to the host" %
                              ",".join(s.target.name for s in sync_ops)),
-            body=While(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
+            body=BusyWait(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
             footer=c.Line()
         )
 
@@ -293,7 +293,8 @@ class Orchestrator(object):
         # Glue together all the IET pieces, including the activation bits
         iet = List(body=[
             BlankLine,
-            While(CondNe(FieldFromComposite(sdata._field_flag, sdata[threads.index]), 1)),
+            BusyWait(CondNe(FieldFromComposite(sdata._field_flag,
+                                               sdata[threads.index]), 1)),
             List(header=presents),
             iet,
             self.__make_activate_thread(threads, sdata, sync_ops)
@@ -364,3 +365,9 @@ class Orchestrator(object):
         return iet, {'efuncs': pieces.funcs,
                      'includes': ['thread'],
                      'args': [i.size for i in pieces.threads if not is_integer(i.size)]}
+
+
+# Utils
+
+class BusyWait(While):
+    pass

@@ -76,6 +76,7 @@ class DeviceOmpizer(Ompizer):
     def __init__(self, sregistry, options, key=None):
         super().__init__(sregistry, options, key=key)
         self.gpu_fit = options['gpu-fit']
+        self.par_disabled = options['par-disabled']
 
     @classmethod
     def _make_sections_from_imask(cls, f, imask):
@@ -190,9 +191,11 @@ class DeviceOmpizer(Ompizer):
             collapsed = [partree] + collapsable
 
             return root, partree, collapsed
-        else:
+        elif not self.par_disabled:
             # Resort to host parallelism
             return super()._make_partree(candidates, nthreads)
+        else:
+            return root, None, None
 
     def _make_parregion(self, partree, *args):
         if isinstance(partree.root, DeviceOpenMPIteration):
@@ -451,9 +454,8 @@ class DeviceOpenMPNoopOperator(OperatorCore):
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism
+        o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
         o['gpu-direct'] = oo.pop('gpu-direct', True)
-
-        # GPU data
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', None))
 
         if oo:
