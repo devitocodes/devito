@@ -194,6 +194,11 @@ class TestStreaming(object):
 
         op = Operator(Eq(u.forward, u + 1), opt=opt)
 
+        piters = FindNodes(OpenMPIteration).visit(op)
+        assert len(piters) == 0
+
+        op = Operator(Eq(u.forward, u + 1), opt=(opt, {'par-disabled': False}))
+
         # Degenerates to host execution with no data movement, since `u` is
         # a host Function
         piters = FindNodes(OpenMPIteration).visit(op)
