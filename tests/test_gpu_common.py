@@ -115,14 +115,14 @@ class TestStreaming(object):
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 20
-        assert str(exprs[13]) == 'int id = sdata0->id;'
-        assert str(exprs[14]) == 'const int time = sdata0->time;'
-        assert str(exprs[15]) == 'lock0[0] = 1;'
-        assert exprs[16].write is u
-        assert exprs[17].write is v
-        assert str(exprs[18]) == 'lock0[0] = 2;'
-        assert str(exprs[19]) == 'sdata0->flag = 1;'
+        assert len(exprs) == 19
+        assert str(exprs[12]) == 'int id = sdata0->id;'
+        assert str(exprs[13]) == 'const int time = sdata0->time;'
+        assert str(exprs[14]) == 'lock0[0] = 1;'
+        assert exprs[15].write is u
+        assert exprs[16].write is v
+        assert str(exprs[17]) == 'lock0[0] = 2;'
+        assert str(exprs[18]) == 'sdata0->flag = 1;'
 
         op.apply(time_M=nt-2)
 
@@ -173,12 +173,12 @@ class TestStreaming(object):
         assert str(body.body[4]) == 'sdata1[wi1].flag = 2;'
         assert len(op._func_table) == 4
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 19
-        assert str(exprs[15]) == 'lock0[0] = 1;'
-        assert exprs[16].write is u
+        assert len(exprs) == 18
+        assert str(exprs[14]) == 'lock0[0] = 1;'
+        assert exprs[15].write is u
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host1'].root)
-        assert str(exprs[15]) == 'lock1[0] = 1;'
-        assert exprs[16].write is v
+        assert str(exprs[14]) == 'lock1[0] = 1;'
+        assert exprs[15].write is v
 
         op.apply(time_M=nt-2)
 
@@ -238,10 +238,10 @@ class TestStreaming(object):
         assert str(sections[1].body[0].body[0].body[9]) == 'sdata0[wi0].flag = 2;'
         assert len(op1._func_table) == 2
         exprs = FindNodes(Expression).visit(op1._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 26
+        assert len(exprs) == 25
         for i in range(3):
-            assert 'lock0[t' in str(exprs[18 + i])
-        assert exprs[21].write is usave
+            assert 'lock0[t' in str(exprs[17 + i])
+        assert exprs[20].write is usave
 
         op0.apply(time_M=nt-2)
         op1.apply(time_M=nt-2, u=u1, usave=usave1)
@@ -370,7 +370,7 @@ class TestStreaming(object):
 
         op = Operator(eqns, opt=('streaming', 'orchestrate'))
 
-        assert len(op._func_table) == 2
+        assert len(op._func_table) == 3
         assert 'init_device0' in op._func_table
         assert 'prefetch_host_to_device0' in op._func_table
 
@@ -472,7 +472,7 @@ class TestStreaming(object):
         assert len(threads) == 2
         assert threads[0].size.data == 1
         assert threads[1].size.data == 1
-        assert len(op1._func_table) == 2  # usave and vsave eqns are in two diff efuncs
+        assert len(op1._func_table) == 4  # usave and vsave eqns are in two diff efuncs
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
@@ -586,7 +586,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate'))
 
         # Check generated code
-        assert len(op._func_table) == 2  # usave and vsave eqns are in separate tasks
+        assert len(op._func_table) == 4  # usave and vsave eqns are in separate tasks
 
         op.apply(time_M=nt-1)
 
@@ -637,9 +637,8 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
 
         # We just check the generated code here
-        locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
-        assert len(locks) == 1
-        assert len(op._func_table) == 1
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
+        assert len(op._func_table) == 2
 
     def test_save_w_subdims(self):
         nt = 10
