@@ -237,10 +237,14 @@ class CGen(Visitor):
         return c.Module(o.header + (c.Collection(body),) + o.footer)
 
     def visit_Section(self, o):
-        header = c.Comment("Begin %s" % o.name)
         body = flatten(self._visit(i) for i in o.children)
-        footer = c.Comment("End %s" % o.name)
-        return c.Module([header] + body + [footer])
+        if o.is_subsection:
+            header = []
+            footer = []
+        else:
+            header = [c.Comment("Begin %s" % o.name)]
+            footer = [c.Comment("End %s" % o.name)]
+        return c.Module(header + body + footer)
 
     def visit_Element(self, o):
         return o.element
@@ -359,7 +363,7 @@ class CGen(Visitor):
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
-        retval = [c.Statement("return 0")]
+        retval = [c.Line(), c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
@@ -372,7 +376,7 @@ class CGen(Visitor):
                 efuncs.extend([i.root.ccode, blankline])
 
         # Header files, extra definitions, ...
-        header = [c.Line(i) for i in o._headers]
+        header = [c.Define(*i) for i in o._headers] + [blankline]
         includes = [c.Include(i, system=(False if i.endswith('.h') else True))
                     for i in o._includes]
         includes += [blankline]

@@ -8,14 +8,18 @@ from time import time as seq_time
 import os
 
 import cgen as c
+from sympy import S
 
 from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
                            Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning, error
 from devito.mpi import MPI
+from devito.mpi.routines import MPICall, MPIList, RemainderCall
 from devito.parameters import configuration
+from devito.passes.iet import BusyWait
 from devito.symbolics import subs_op_args
+from devito.tools import DefaultOrderedDict, flatten
 
 __all__ = ['create_profile']
 
@@ -42,6 +46,7 @@ class Profiler(object):
 
         # C-level code sections
         self._sections = OrderedDict()
+        self._subsections = OrderedDict()
 
         # Python-level timers
         self.py_timers = OrderedDict()
@@ -91,6 +96,10 @@ class Profiler(object):
 
             self._sections[s.name] = SectionData(ops, sops, points, traffic, itermaps)
 
+    def track_subsection(self, sname, name):
+        v = self._subsections.setdefault(sname, OrderedDict())
+        v[name] = SectionData(S.Zero, S.Zero, S.Zero, S.Zero, [])
+
     def instrument(self, iet, timer):
         """
         Instrument the given IET for C-level performance profiling.
@@ -99,9 +108,10 @@ class Profiler(object):
         if sections:
             mapper = {}
             for i in sections:
-                assert i.name in timer.fields
-                mapper[i] = TimedList(timer=timer, lname=i.name, body=i)
-            return Transformer(mapper).visit(iet)
+                n = i.name
+                assert n in timer.fields
+                mapper[i] = i._rebuild(body=TimedList(timer=timer, lname=n, body=i.body))
+            return Transformer(mapper, nested=True).visit(iet)
         else:
             return iet
 
@@ -137,6 +147,14 @@ class Profiler(object):
         """
         self._ops.append((initial, final))
 
+    @property
+    def all_sections(self):
+        return list(self._sections) + flatten(self._subsections.values())
+
+    @property
+    def trackable_subsections(self):
+        return ()
+
     def summary(self, args, dtype, reduce_over=None):
         """
         Return a PerformanceSummary of the profiled sections.
@@ -170,6 +188,20 @@ class Profiler(object):
         return summary
 
 
+class ProfilerVerbose1(Profiler):
+
+    @property
+    def trackable_subsections(self):
+        return (MPIList, RemainderCall, BusyWait)
+
+
+class ProfilerVerbose2(Profiler):
+
+    @property
+    def trackable_subsections(self):
+        return (MPICall, BusyWait)
+
+
 class AdvancedProfiler(Profiler):
 
     # Override basic summary so that arguments other than runtime are computed.
@@ -177,6 +209,7 @@ class AdvancedProfiler(Profiler):
         grid = args.grid
         comm = args.comm
 
+        # Produce sections summary
         summary = PerformanceSummary()
         for name, data in self._sections.items():
             # Time to run the section
@@ -213,11 +246,26 @@ class AdvancedProfiler(Profiler):
             else:
                 summary.add(name, None, time, ops, points, traffic, data.sops, itershapes)
 
+        # Enrich summary with subsections data
+        for sname, v in self._subsections.items():
+            for name, data in v.items():
+                # Time to run the section
+                time = max(getattr(args[self.name]._obj, name), 10e-7)
+
+                # Add local performance data
+                if comm is not MPI.COMM_NULL:
+                    # With MPI enabled, we add one entry per section per rank
+                    times = comm.allgather(time)
+                    assert comm.size == len(times)
+                    for rank in range(comm.size):
+                        summary.add_subsection(sname, name, rank, time)
+                else:
+                    summary.add_subsection(sname, name, None, time)
+
         # Add global performance data
         if reduce_over is not None:
             # Vanilla metrics
-            if comm is not MPI.COMM_NULL:
-                summary.add_glb_vanilla(self.py_timers[reduce_over])
+            summary.add_glb_vanilla(self.py_timers[reduce_over])
 
             # Typical finite difference benchmark metrics
             if grid is not None:
@@ -230,6 +278,20 @@ class AdvancedProfiler(Profiler):
                     summary.add_glb_fdlike(points, self.py_timers[reduce_over])
 
         return summary
+
+
+class AdvancedProfilerVerbose1(AdvancedProfiler):
+
+    @property
+    def trackable_subsections(self):
+        return (MPIList, RemainderCall, BusyWait)
+
+
+class AdvancedProfilerVerbose2(AdvancedProfiler):
+
+    @property
+    def trackable_subsections(self):
+        return (MPICall, BusyWait)
 
 
 class AdvisorProfiler(AdvancedProfiler):
@@ -286,6 +348,7 @@ class PerformanceSummary(OrderedDict):
 
     def __init__(self, *args, **kwargs):
         super(PerformanceSummary, self).__init__(*args, **kwargs)
+        self.subsections = DefaultOrderedDict(lambda: OrderedDict())
         self.input = OrderedDict()
         self.globals = {}
 
@@ -313,6 +376,12 @@ class PerformanceSummary(OrderedDict):
             self[k] = PerfEntry(time, gflopss, gpointss, oi, sops, itershapes)
 
         self.input[k] = PerfInput(time, ops, points, traffic, sops, itershapes)
+
+    def add_subsection(self, sname, name, rank, time):
+        k0 = PerfKey(sname, rank)
+        assert k0 in self
+
+        self.subsections[sname][name] = time
 
     def add_glb_vanilla(self, time):
         """
@@ -402,7 +471,11 @@ def create_profile(name):
 
 profiler_registry = {
     'basic': Profiler,
+    'basic1': ProfilerVerbose1,
+    'basic2': ProfilerVerbose2,
     'advanced': AdvancedProfiler,
+    'advanced1': AdvancedProfilerVerbose1,
+    'advanced2': AdvancedProfilerVerbose2,
     'advisor': AdvisorProfiler
 }
 """Profiling levels."""

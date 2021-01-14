@@ -113,6 +113,7 @@ class CPU64NoopOperator(OperatorCore):
         o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
 
         # Recognised but unused by the CPU backend
+        oo.pop('par-disabled', None)
         oo.pop('gpu-direct', None)
         oo.pop('gpu-fit', None)
 
