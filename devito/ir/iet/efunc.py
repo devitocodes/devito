@@ -162,6 +162,7 @@ def _make_thread_func(name, iet, root, threads, sregistry):
     # Create the SharedData, that is the data structure that will be used by the
     # main thread to pass information dows to the child thread(s)
     required, parameters, dynamic_parameters = diff_parameters(iet, root)
+    parameters = sorted(parameters, key=lambda i: i.is_Function)  # Allow casting
     sdata = SharedData(name=sregistry.make_name(prefix='sdata'), npthreads=threads.size,
                        fields=required, dynamic_fields=dynamic_parameters)
 
