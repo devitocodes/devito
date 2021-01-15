@@ -1,10 +1,10 @@
 from sympy import cos, sin, sqrt
 
-from devito import Eq, Operator, TimeFunction, NODE, solve
+from devito import Eq, Operator, Function, TimeFunction, NODE, solve
 from examples.seismic import PointSource, Receiver
 
 
-def second_order_stencil(model, u, v, H0, Hz, forward=True):
+def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
     """
     Creates the stencil corresponding to the second order TTI wave equation
     m * u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
@@ -18,8 +18,8 @@ def second_order_stencil(model, u, v, H0, Hz, forward=True):
     vdt = v.dt if forward else v.dt.T
 
     # Stencils
-    stencilp = solve(m * u.dt2 - H0 + damp * udt, unext)
-    stencilr = solve(m * v.dt2 - Hz + damp * vdt, vnext)
+    stencilp = solve(m * u.dt2 - H0 - qu + damp * udt, unext)
+    stencilr = solve(m * v.dt2 - Hz - qv + damp * vdt, vnext)
 
     first_stencil = Eq(unext, stencilp)
     second_stencil = Eq(vnext, stencilr)
@@ -177,7 +177,7 @@ def Gxx_centered_2d(model, field, costheta, sintheta, space_order):
     return field.laplace - Gzz_centered_2d(model, field, costheta, sintheta, space_order)
 
 
-def kernel_centered_2d(model, u, v, space_order, forward=True):
+def kernel_centered_2d(model, u, v, space_order, **kwargs):
     """
     TTI finite difference kernel. The equation solved is:
 
@@ -216,6 +216,9 @@ def kernel_centered_2d(model, u, v, space_order, forward=True):
     -------
     u and v component of the rotated Laplacian in 2D.
     """
+    # Forward or backward
+    forward = kwargs.get('forward', True)
+
     # Tilt and azymuth setup
     costheta, sintheta = trig_func(model)
 
@@ -223,20 +226,24 @@ def kernel_centered_2d(model, u, v, space_order, forward=True):
     epsilon = 1 + 2*epsilon
     delta = sqrt(1 + 2*delta)
 
+    # Get source
+    qu = kwargs.get('qu', 0)
+    qv = kwargs.get('qv', 0)
+
     if forward:
         Gxx = Gxx_centered_2d(model, u, costheta, sintheta, space_order)
         Gzz = Gzz_centered_2d(model, v, costheta, sintheta, space_order)
         H0 = epsilon*Gxx + delta*Gzz
         Hz = delta*Gxx + Gzz
-        return second_order_stencil(model, u, v, H0, Hz)
+        return second_order_stencil(model, u, v, H0, Hz, qu, qv)
     else:
         H0 = Gxx_centered_2d(model, (epsilon*u + delta*v), costheta,
                              sintheta, space_order)
         Hz = Gzz_centered_2d(model, (delta*u + v), costheta, sintheta, space_order)
-        return second_order_stencil(model, u, v, H0, Hz, forward=False)
+        return second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=forward)
 
 
-def kernel_centered_3d(model, u, v, space_order, forward=True):
+def kernel_centered_3d(model, u, v, space_order, **kwargs):
     """
     TTI finite difference kernel. The equation solved is:
 
@@ -275,24 +282,31 @@ def kernel_centered_3d(model, u, v, space_order, forward=True):
     -------
     u and v component of the rotated Laplacian in 3D.
     """
+    # Forward or backward
+    forward = kwargs.get('forward', True)
+
     costheta, sintheta, cosphi, sinphi = trig_func(model)
 
     delta, epsilon = model.delta, model.epsilon
     epsilon = 1 + 2*epsilon
     delta = sqrt(1 + 2*delta)
 
+    # Get source
+    qu = kwargs.get('qu', 0)
+    qv = kwargs.get('qv', 0)
+
     if forward:
         Gxx = Gxxyy_centered(model, u, costheta, sintheta, cosphi, sinphi, space_order)
         Gzz = Gzz_centered(model, v, costheta, sintheta, cosphi, sinphi, space_order)
         H0 = epsilon*Gxx + delta*Gzz
         Hz = delta*Gxx + Gzz
-        return second_order_stencil(model, u, v, H0, Hz)
+        return second_order_stencil(model, u, v, H0, Hz, qu, qv)
     else:
         H0 = Gxxyy_centered(model, (epsilon*u + delta*v), costheta, sintheta,
                             cosphi, sinphi, space_order)
         Hz = Gzz_centered(model, (delta*u + v), costheta, sintheta, cosphi,
                           sinphi, space_order)
-        return second_order_stencil(model, u, v, H0, Hz, forward=False)
+        return second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=forward)
 
 
 def particle_velocity_fields(model, space_order):
@@ -510,6 +524,123 @@ def AdjointOperator(model, geometry, space_order=4,
 
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='AdjointTTI', **kwargs)
+
+
+def BornOperator(model, geometry, space_order=4,
+                 kernel='centered', **kwargs):
+    """
+    Construct a Linearized Born operator in a TTI media.
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    kernel : str, optional
+        Type of discretization, centered or staggered.
+    """
+    dt = model.grid.time_dim.spacing
+    m = model.m
+    vp = model.vp
+
+    time_order = 1 if kernel == 'staggered' else 2
+    if kernel == 'staggered':
+        stagg_u = stagg_v = NODE
+    else:
+        stagg_u = stagg_v = None
+
+    # Create source and receiver symbols
+    src = Receiver(name='src', grid=model.grid, time_range=geometry.time_axis,
+                   npoint=geometry.nsrc)
+
+    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
+                   npoint=geometry.nrec)
+
+    # Create wavefields and a dm field
+    u0 = TimeFunction(name='u0', grid=model.grid, staggered=stagg_u,
+                      save=None, time_order=time_order, space_order=space_order)
+    v0 = TimeFunction(name='v0', grid=model.grid, staggered=stagg_v,
+                      save=None, time_order=time_order, space_order=space_order)
+    du = TimeFunction(name="du", grid=model.grid, save=None,
+                      time_order=2, space_order=space_order)
+    dv = TimeFunction(name="dv", grid=model.grid, save=None,
+                      time_order=2, space_order=space_order)
+    dm = Function(name="dm", grid=model.grid, space_order=0)
+
+    # FD kernels of the PDE
+    FD_kernel = kernels[(kernel, len(model.shape))]
+    eqn1 = FD_kernel(model, u0, v0, space_order)
+
+    # Linearized source and stencil
+    lin_usrc = 2 * dm * vp**(-3) * u0.dt2
+    lin_vsrc = 2 * dm * vp**(-3) * v0.dt2
+    eqn2 = FD_kernel(model, du, dv, space_order, qu=lin_usrc, qv=lin_vsrc)
+
+    # Construct expression to inject source values, injecting at u0(t+dt)/v0(t+dt)
+    src_term = src.inject(field=u0.forward, expr=src * dt**2 / m)
+    src_term += src.inject(field=v0.forward, expr=src * dt**2 / m)
+
+    # Create interpolation expression for receivers, extracting at du(t)+dv(t)
+    rec_term = rec.interpolate(expr=du + dv)
+
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn1 + src_term + eqn2 + rec_term, subs=model.spacing_map,
+                    name='BornTTI', **kwargs)
+
+
+def JacobianAdjOperator(model, geometry, space_order=4,
+                        kernel='centered', save=True, **kwargs):
+    """
+    Construct a linearized JacobianAdjoint modeling Operator in a TTI media.
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    save : int or Buffer, optional
+        Option to store the entire (unrolled) wavefield.
+    """
+    dt = model.grid.time_dim.spacing
+    m = model.m
+    time_order = 2
+    vp = model.vp
+
+    # Gradient symbol and wavefield symbols
+    u0 = TimeFunction(name='u0', grid=model.grid, save=geometry.nt if save
+                      else None, time_order=time_order, space_order=space_order)
+    v0 = TimeFunction(name='v0', grid=model.grid, save=geometry.nt if save
+                      else None, time_order=time_order, space_order=space_order)
+
+    du = TimeFunction(name="du", grid=model.grid,
+                      time_order=time_order, space_order=space_order)
+    dv = TimeFunction(name="dv", grid=model.grid,
+                      time_order=time_order, space_order=space_order)
+
+    dm = Function(name="dm", grid=model.grid)
+
+    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
+                   npoint=geometry.nrec)
+
+    # FD kernels of the PDE
+    FD_kernel = kernels[(kernel, len(model.shape))]
+    eqn = FD_kernel(model, du, dv, space_order, forward=False)
+
+    dm_update = Eq(dm, dm + 2 * vp**(-3) * (u0.dt2 * du + v0.dt2 * dv))
+
+    # Add expression for receiver injection
+    rec_term = rec.inject(field=du.backward, expr=rec * dt**2 / m)
+    rec_term += rec.inject(field=dv.backward, expr=rec * dt**2 / m)
+
+    # Substitute spacing terms to reduce flops
+    return Operator([dm_update] + eqn + rec_term, subs=model.spacing_map,
+                    name='TtiJacobianAdjOperator', **kwargs)
 
 
 kernels = {('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,
