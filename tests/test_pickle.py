@@ -210,7 +210,7 @@ def test_lock():
 
 
 def test_p_thread_array():
-    a = PThreadArray(name='threads', npthreads=4)
+    a = PThreadArray(name='threads', npthreads=4, base_id=2)
 
     pkl_a = pickle.dumps(a)
     new_a = pickle.loads(pkl_a)

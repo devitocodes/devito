@@ -118,11 +118,17 @@ class ThreadFunction(Callable):
 def _make_threads(value, sregistry):
     name = sregistry.make_name(prefix='threads')
 
+    base_id = 1 + sum(i.data for i in sregistry.npthreads)
+
     if value is None:
-        threads = PThreadArray(name=name, npthreads=1)
+        # The npthreads Symbol isn't actually used, but we record the fact
+        # that some new pthreads have been allocated
+        sregistry.make_npthreads(1)
+        npthreads = 1
     else:
         npthreads = sregistry.make_npthreads(value)
-        threads = PThreadArray(name=name, npthreads=npthreads)
+
+    threads = PThreadArray(name=name, npthreads=npthreads, base_id=base_id)
 
     return threads
 
@@ -135,8 +141,7 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
         callback = lambda body: Iteration(body, d, threads.size - 1)
 
     # A unique identifier for each created pthread
-    other_thread_pools = set(sregistry.npthreads) - {threads.size}
-    pthreadid = 1 + sum(i.data for i in other_thread_pools) + d
+    pthreadid = d + threads.base_id
 
     # Initialize `sdata`
     arguments = list(isdata.parameters)

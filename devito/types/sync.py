@@ -128,9 +128,17 @@ class PThreadArray(ThreadArray):
 
     dtype = type('pthread_t', (c_void_p,), {})
 
+    def __init_finalize__(self, *args, **kwargs):
+        self.base_id = kwargs.pop('base_id')
+
+        super().__init_finalize__(*args, **kwargs)
+
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return cls.dtype
+
+    # Pickling support
+    _pickle_kwargs = ThreadArray._pickle_kwargs + ['base_id']
 
 
 class SharedData(ThreadArray):
