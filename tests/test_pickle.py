@@ -218,12 +218,14 @@ def test_p_thread_array():
     assert a.name == new_a.name
     assert a.dimensions[0].name == new_a.dimensions[0].name
     assert a.size == new_a.size
+    assert a.base_id == new_a.base_id == 2
 
 
 def test_shared_data():
     s = Scalar(name='s')
+    a = Scalar(name='a')
 
-    sdata = SharedData(name='sdata', npthreads=2, fields=[s])
+    sdata = SharedData(name='sdata', npthreads=2, fields=[s], dynamic_fields=[a])
 
     pkl_sdata = pickle.dumps(sdata)
     new_sdata = pickle.loads(pkl_sdata)
@@ -232,6 +234,7 @@ def test_shared_data():
     assert sdata.size == new_sdata.size
     assert sdata.fields == new_sdata.fields
     assert sdata.pfields == new_sdata.pfields
+    assert sdata.dynamic_fields == new_sdata.dynamic_fields
 
     ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
 

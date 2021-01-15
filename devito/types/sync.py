@@ -164,6 +164,9 @@ class SharedData(ThreadArray):
     def symbolic_flag(self):
         return self._symbolic_flag
 
+    # Pickling support
+    _pickle_kwargs = ThreadArray._pickle_kwargs + ['dynamic_fields']
+
 
 class Lock(Array):
 
