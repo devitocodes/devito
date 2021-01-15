@@ -6,11 +6,13 @@ from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
 from examples.seismic.tti import tti_setup
+from examples.seismic.viscoacoustic import viscoacoustic_setup
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},
     'layers': {'preset': 'layers-isotropic', 'nlayers': 2},
     'layers-tti': {'preset': 'layers-tti', 'nlayers': 2},
+    'layers-viscoacoustic': {'preset': 'layers-viscoacoustic', 'nlayers': 2},
 }
 
 
@@ -42,6 +44,24 @@ class TestAdjoint(object):
         # 3D TTI tests with varying space orders
         ('layers-tti', (30, 35, 40), 'centered', 8, tti_setup),
         ('layers-tti', (30, 35, 40), 'centered', 4, tti_setup),
+        # 2D SLS Viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25), 'sls', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 2, viscoacoustic_setup),
+        # 3D SLS Viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 2, viscoacoustic_setup),
+        # 2D Ren Viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25), 'ren', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'ren', 2, viscoacoustic_setup),
+        # 3D Ren Viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 2, viscoacoustic_setup),
+        # 2D Deng Mcmechan Viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 2, viscoacoustic_setup),
+        # 3D Deng Mcmechan Viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 4, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 2, viscoacoustic_setup),
     ])
     def test_adjoint_F(self, mkey, shape, kernel, space_order, setup_func):
         """
