@@ -4,7 +4,8 @@ from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import BornOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
-from examples.seismic import PointSource, Receiver
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
+from pyrevolve import Revolver
 
 
 class AnisotropicWaveSolver(object):
@@ -338,8 +339,9 @@ class AnisotropicWaveSolver(object):
                                          u=u0, v=v0, vp=vp, epsilon=epsilon,
                                          delta=delta, theta=theta, phi=phi, dt=dt)
             wrap_rev = CheckpointOperator(self.op_jacadj(save=False), u0=u0, v0=v0,
-                                          du=du, dv=dv, vp=vp, epsilon=epsilon, delta=delta,
-                                          theta=theta, phi=phi, rec=rec, dt=dt, dm=dm)
+                                          du=du, dv=dv, vp=vp, epsilon=epsilon,
+                                          delta=delta, theta=theta, phi=phi, rec=rec,
+                                          dt=dt, dm=dm)
 
             # Run forward
             wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
