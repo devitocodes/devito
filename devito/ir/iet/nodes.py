@@ -23,7 +23,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
-           'DummyExpr', 'BlankLine']
+           'PragmaList', 'DummyExpr', 'BlankLine']
 
 # First-class IET nodes
 
@@ -1044,6 +1044,29 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class PragmaList(List):
+
+    """
+    A floating sequence of pragmas.
+    """
+
+    def __init__(self, pragmas, functions=None, **kwargs):
+        super().__init__(header=pragmas)
+        self._functions = as_tuple(functions)
+
+    @property
+    def pragmas(self):
+        return self.header
+
+    @property
+    def functions(self):
+        return self._functions
+
+    @property
+    def free_symbols(self):
+        return self._functions
 
 
 class ParallelIteration(Iteration):

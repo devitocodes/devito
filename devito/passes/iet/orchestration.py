@@ -6,9 +6,9 @@ import numpy as np
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Callable, Conditional, List, PointerCast,
-                           SyncSpot, While, FindNodes, LocalExpression, Transformer,
-                           BlankLine, DummyExpr, derive_parameters, make_thread_ctx)
+from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, While,
+                           FindNodes, LocalExpression, Transformer, BlankLine,
+                           PragmaList, DummyExpr, derive_parameters, make_thread_ctx)
 from devito.ir.support import Forward
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, ListInitializer
@@ -132,7 +132,7 @@ class Orchestrator(object):
 
             # Construct init IET
             imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetch = List(header=self._P._map_to(s.function, imask))
+            fetch = PragmaList(self._P._map_to(s.function, imask), s.function)
             fetches.append(Conditional(fc_cond, fetch))
 
             # Construct present clauses
@@ -143,16 +143,14 @@ class Orchestrator(object):
             # Construct prefetch IET
             imask = [(pfc, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]
-            prefetch = List(header=self._P._map_to_wait(s.function, imask,
-                                                        SharedData._field_id))
+            prefetch = PragmaList(self._P._map_to_wait(s.function, imask,
+                                                       SharedData._field_id), s.function)
             prefetches.append(Conditional(pfc_cond, prefetch))
 
-        functions = filter_ordered(s.function for s in sync_ops)
-        casts = [PointerCast(f) for f in functions]
-
         # Turn init IET into a Callable
+        functions = filter_ordered(s.function for s in sync_ops)
         name = self.sregistry.make_name(prefix='init_device')
-        body = List(body=casts + fetches)
+        body = List(body=fetches)
         parameters = filter_sorted(functions + derive_parameters(body))
         func = Callable(name, body, 'void', parameters, 'static')
         pieces.funcs.append(func)
