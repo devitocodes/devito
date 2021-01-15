@@ -87,7 +87,8 @@ def demo_model(preset, **kwargs):
         b = 1/2.
 
         return SeismicModel(space_order=space_order, vp=vp, qp=qp, b=b, nbl=nbl,
-                            origin=origin, shape=shape, spacing=spacing, **kwargs)
+                            dtype=dtype, origin=origin, shape=shape,
+                            spacing=spacing, **kwargs)
 
     elif preset.lower() in ['constant-tti']:
         # A constant single-layer model in a 2D or 3D domain
@@ -350,7 +351,8 @@ def demo_model(preset, **kwargs):
         b = 1 / (0.31*(vp[:]*1000.)**0.25)  # Gardner's relation
 
         return SeismicModel(space_order=space_order, vp=vp, qp=qp, b=b, nbl=nbl,
-                            origin=origin, shape=shape, spacing=spacing, **kwargs)
+                            dtype=dtype, origin=origin, shape=shape,
+                            spacing=spacing, **kwargs)
 
     else:
         raise ValueError("Unknown model preset name")
