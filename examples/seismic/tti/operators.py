@@ -571,6 +571,7 @@ def JacobianOperator(model, geometry, space_order=4,
     # Linearized source and stencil
     lin_usrc = -dm * u0.dt2
     lin_vsrc = -dm * v0.dt2
+
     eqn2 = FD_kernel(model, du, dv, space_order, qu=lin_usrc, qv=lin_vsrc)
 
     # Construct expression to inject source values, injecting at u0(t+dt)/v0(t+dt)
