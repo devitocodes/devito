@@ -110,9 +110,27 @@ class TestAdjoint(object):
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., atol=1.e-11)
 
-    @pytest.mark.parametrize('space_order', [4, 8, 12])
-    @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
-    def test_adjoint_J(self, shape, space_order):
+    @pytest.mark.parametrize('mkey, shape, kernel, space_order, setup_func', [
+        # 1 tests with varying space orders
+        ('layers', (60, ), 'OT2', 12, acoustic_setup),
+        ('layers', (60, ), 'OT2', 8, acoustic_setup),
+        ('layers', (60, ), 'OT2', 4, acoustic_setup),
+        # 2D tests with varying space orders
+        ('layers', (60, 70), 'OT2', 12, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 8, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 4, acoustic_setup),
+        # 3D tests with varying time and space orders
+        ('layers', (40, 50, 30), 'OT2', 12, acoustic_setup),
+        ('layers', (40, 50, 30), 'OT2', 8, acoustic_setup),
+        ('layers', (40, 50, 30), 'OT2', 4, acoustic_setup),
+        # 2D TTI tests with varying space orders
+        ('layers-tti', (30, 35), 'centered', 8, tti_setup),
+        ('layers-tti', (30, 35), 'centered', 4, tti_setup),
+        # 3D TTI tests with varying space orders
+        ('layers-tti', (30, 35, 40), 'centered', 8, tti_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 4, tti_setup),
+    ])
+    def test_adjoint_J(self, mkey, shape, kernel, space_order, setup_func):
         """
         Adjoint test for the FWI Jacobian operator.
         The Jacobian operator J generates a linearized shot record (measurements)
@@ -125,25 +143,27 @@ class TestAdjoint(object):
         nbl = 10 + space_order / 2
         spacing = tuple([10.]*len(shape))
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=spacing, nlayers=2, vp_bottom=2,
-                                nbl=nbl, tn=tn, space_order=space_order,
-                                preset='layers-isotropic', dtype=np.float64)
+        solver = setup_func(shape=shape, spacing=spacing, vp_bottom=2,
+                            kernel=kernel, nbl=nbl, tn=tn, space_order=space_order,
+                            **(presets[mkey]), dtype=np.float64)
 
         # Create initial model (m0) with a constant velocity throughout
-        model0 = demo_model('layers-isotropic', vp_top=1.5, vp_bottom=1.5,
+        model0 = demo_model(**(presets[mkey]), vp_top=1.5, vp_bottom=1.5,
                             spacing=spacing, space_order=space_order, shape=shape,
                             nbl=nbl, dtype=np.float64, grid=solver.model.grid)
-
-        # Compute the full wavefield u0
-        _, u0, _ = solver.forward(save=True, vp=model0.vp)
 
         # Compute initial born perturbation from m - m0
         dm = (solver.model.vp.data**(-2) - model0.vp.data**(-2))
 
-        du, _, _, _ = solver.jacobian(dm, vp=model0.vp)
+        du = solver.jacobian(dm, vp=model0.vp)[0]
 
-        # Compute gradientfrom initial perturbation
-        im, _ = solver.jacobian_adjoint(du, u0, vp=model0.vp)
+        # Compute the full bg field(s) & gradient from initial perturbation
+        if setup_func is acoustic_setup:
+            u0 = solver.forward(save=True, vp=model0.vp)[1]
+            im, _ = solver.jacobian_adjoint(du, u0, vp=model0.vp)
+        else:
+            u0, v0 = solver.forward(save=True, vp=model0.vp)[1:-1]
+            im, _ = solver.jacobian_adjoint(du, u0, v0, vp=model0.vp)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
