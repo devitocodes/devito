@@ -287,7 +287,7 @@ class Call(ExprStmt, Node):
             if isinstance(i, numbers.Number):
                 continue
             elif isinstance(i, AbstractFunction):
-                if i.is_Array:
+                if i.is_ArrayBasic:
                     free.add(i)
                 else:
                     # Always passed by _C_name since what actually needs to be
