@@ -12,7 +12,6 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Call, Callable, ElementalFunction, EntryFunction,
                            Expression, List, LocalExpression, ThreadFunction,
                            FindNodes, FindSymbols, MapExprStmts, Transformer)
-from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv
 from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
@@ -329,31 +328,21 @@ def initialize(iet, **kwargs):
 
     @_initialize.register(EntryFunction)
     def _(iet):
+        # A special symbol to identify devices in a multi-device node
         comm = None
-
         for i in iet.parameters:
-            if isinstance(i, MPICommObject):
-                comm = i
+            try:
+                comm = i.grid.comm
                 break
+            except AttributeError:
+                pass
+        deviceid = DeviceID(comm)
 
-        if comm is not None:
-            rank = Symbol(name='rank')
-            rank_decl = LocalExpression(DummyEq(rank, 0))
-            rank_init = Call('MPI_Comm_rank', [comm, Byref(rank)])
-
-            ngpus = Symbol(name='ngpus')
-            call = Function('omp_get_num_devices')()
-            ngpus_init = LocalExpression(DummyEq(ngpus, call))
-
-            set_device_num = Call('omp_set_default_device', [rank % ngpus])
-
-            body = [rank_decl, rank_init, ngpus_init, set_device_num]
-
-            init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
-                        body=body,
-                        footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
-
-            iet = iet._rebuild(body=(init,) + iet.body)
+        body = [Call('omp_set_default_device', [deviceid]]
+        init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
+                    body=body,
+                    footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
+        iet = iet._rebuild(body=(init,) + iet.body)
 
         return iet
 

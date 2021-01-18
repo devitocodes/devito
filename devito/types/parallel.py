@@ -1,9 +1,9 @@
 """
-Support types for the generation of shared-memory parallel code. This module
-contains basic types for threaded code (e.g., special symbols representing
+Support types for the generation of parallel code. This module contains types
+for the generation of threaded code (e.g., special symbols representing
 the number of threads in a parallel region, objects such as locks to
-implement thread synchronization, etc). Most of these objects are used internally
-by the compiler.
+implement thread synchronization, etc) and device code (e.g., a special symbol
+identifying a device attached to a node).
 """
 
 import os
@@ -14,6 +14,7 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
+from devito.archinfo import get_gpu_info
 from devito.parameters import configuration
 from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered
 from devito.types.array import Array, ArrayObject
@@ -22,7 +23,7 @@ from devito.types.constant import Constant
 from devito.types.dimension import CustomDimension
 from devito.types.misc import VolatileInt, c_volatile_int_p
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin', 'DeviceID',
            'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
            'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'normalize_syncs']
 
@@ -335,3 +336,44 @@ def normalize_syncs(*args):
             raise ValueError("Incompatible SyncOps")
 
     return syncs
+
+
+class DeviceID(Constant):
+
+    def __new__(cls, comm=None):
+        obj = Constant.__new__(cls, name='deviceid', dtype=np.int32, value=0)
+        obj.comm = comm
+        return obj
+
+    def _arg_defaults(self, alias=None, comm=None):
+        # TODO enhancement: use a system-level device pool to utilize unused device
+
+        if comm is None:
+            value = self.data
+        else:
+            gpu_info = get_gpu_info()  # Memoized routine, hence not expensive
+            if gpu_info is None:
+                raise ValueError("Unable to detect devices")
+
+            # TODO: if an MPI comm is provided, use it to create a sub-comm with
+            # the other ranks on the same physical node and then get a local rank.
+            # This will be used to assign different Devices to different MPI ranks
+            value = comm.rank % gpu_info['ncards']
+
+        key = alias or self
+        return {key.name: value}
+
+    def _arg_values(self, **kwargs):
+        try:
+            return kwargs[self.name]
+        except KeyError:
+            if self.comm is None:
+                return self._arg_defaults()
+            else:
+                # Get the MPI communicator from the runtime overrides, if any
+                for v in kwargs.values():
+                    try:
+                        return self._arg_defaults(comm=v.grid.comm)
+                    except AttributeError:
+                        pass
+                return self._arg_defaults()
