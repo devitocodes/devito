@@ -22,7 +22,7 @@ from devito.passes import Graph, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import Evaluable, NThreads, NThreadsNested, NThreadsNonaffine, ThreadID
+from devito.types import Evaluable
 
 __all__ = ['Operator']
 
@@ -150,7 +150,7 @@ class Operator(Callable):
         kwargs = cls._normalize_kwargs(**kwargs)
 
         # Create a symbol registry
-        kwargs['sregistry'] = cls._symbol_registry()
+        kwargs['sregistry'] = SymbolRegistry()
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
@@ -165,16 +165,6 @@ class Operator(Callable):
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         return kwargs
-
-    @classmethod
-    def _symbol_registry(cls):
-        # Special symbols an Operator might use
-        nthreads = NThreads(aliases='nthreads0')
-        nthreads_nested = NThreadsNested(aliases='nthreads1')
-        nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
-        threadid = ThreadID(nthreads)
-
-        return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
     @classmethod
     def _build(cls, expressions, **kwargs):
