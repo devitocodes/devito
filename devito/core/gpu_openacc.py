@@ -188,13 +188,9 @@ def initialize(iet, **kwargs):
             call = DefFunction('acc_get_num_devices', device_nvidia)
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
 
-            devicenum = Symbol(name='devicenum')
-            devicenum_init = LocalExpression(DummyEq(devicenum, rank % ngpus))
+            set_device_num = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
 
-            set_device_num = Call('acc_set_device_num', [devicenum, device_nvidia])
-
-            body = [rank_decl, rank_init, ngpus_init, devicenum_init,
-                    set_device_num, body]
+            body = [rank_decl, rank_init, ngpus_init, set_device_num, body]
 
         init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
                     body=body,
