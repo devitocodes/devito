@@ -9,9 +9,11 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, ElementalFunction, EntryFunction,
-                           Expression, List, LocalExpression, ThreadFunction,
-                           FindNodes, FindSymbols, MapExprStmts, Transformer)
+from devito.ir.iet import (Block, Call, Callable, Conditional, ElementalFunction,
+                           EntryFunction, Expression, List, LocalExpression,
+                           ThreadFunction, FindNodes, FindSymbols, MapExprStmts,
+                           Transformer)
+from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv
 from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
@@ -20,9 +22,9 @@ from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, Orchestrator, optimize_halospots, mpiize,
                                hoist_prodders, iet_pass)
-from devito.symbolics import Byref, ccode
+from devito.symbolics import CondEq, Byref, ccode
 from devito.tools import as_tuple, filter_sorted, timed_pass
-from devito.types import Symbol
+from devito.types import DeviceID, Symbol
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -324,31 +326,47 @@ def initialize(iet, **kwargs):
 
     @singledispatch
     def _initialize(iet):
-        return iet
+        return iet, {}
 
     @_initialize.register(EntryFunction)
     def _(iet):
         # A special symbol to identify devices in a multi-device node
-        comm = None
+        objcomm = None
         for i in iet.parameters:
-            try:
-                comm = i.grid.comm
+            if isinstance(i, MPICommObject):
+                objcomm = i
                 break
-            except AttributeError:
-                pass
-        deviceid = DeviceID(comm)
 
-        body = [Call('omp_set_default_device', [deviceid]]
+        deviceid = DeviceID(objcomm)
+
+        if objcomm is not None:
+            rank = Symbol(name='rank')
+            rank_decl = LocalExpression(DummyEq(rank, 0))
+            rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
+
+            ngpus = Symbol(name='ngpus')
+            call = Function('omp_get_num_devices')()
+            ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+            osdd_then = Call('omp_set_default_device', [rank % ngpus])
+            osdd_else = Call('omp_set_default_device', [deviceid])
+
+            body = [Conditional(
+                CondEq(deviceid, -1),
+                List(body=[rank_decl, rank_init, ngpus_init, osdd_then]),
+                osdd_else
+            )]
+        else:
+            body = Call('omp_set_default_device', [deviceid])
+
         init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
                     body=body,
                     footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
         iet = iet._rebuild(body=(init,) + iet.body)
 
-        return iet
+        return iet, {'args': deviceid}
 
-    iet = _initialize(iet)
-
-    return iet, {}
+    return _initialize(iet)
 
 
 @iet_pass

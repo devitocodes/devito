@@ -6,11 +6,12 @@ from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperat
                                     DeviceOpenMPCustomOperator, DeviceOpenMPIteration,
                                     DeviceOmpizer, DeviceOpenMPDataManager, is_on_device)
 from devito.ir.equations import DummyEq
-from devito.ir.iet import Call, ElementalFunction, List, LocalExpression, FindSymbols
-from devito.mpi.routines import MPICallable
+from devito.ir.iet import (Call, Conditional, EntryFunction, List, LocalExpression,
+                           FindSymbols)
+from devito.mpi.distributed import MPICommObject
 from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.symbolics import Byref, DefFunction, Macro
+from devito.symbolics import Byref, CondEq, DefFunction, Macro
 from devito.tools import as_tuple, prod, timed_pass
 from devito.types import DeviceID, Symbol
 
@@ -165,30 +166,46 @@ def initialize(iet, **kwargs):
 
     @singledispatch
     def _initialize(iet):
-        # A special symbol to identify devices in a multi-device node
-        comm = None
-        for i in iet.parameters:
-            try:
-                comm = i.grid.comm
-                break
-            except AttributeError:
-                pass
-        deviceid = DeviceID(comm)
+        return iet, {}
 
+    @_initialize.register(EntryFunction)
+    def _initialize(iet):
+        objcomm = None
+        for i in iet.parameters:
+            if isinstance(i, MPICommObject):
+                objcomm = i
+                break
+
+        deviceid = DeviceID(objcomm)
         device_nvidia = Macro('acc_device_nvidia')
-        body = [Call('acc_init', [device_nvidia]),
-                Call('acc_set_device_num', [deviceid, device_nvidia])]
+
+        if objcomm is not None:
+            rank = Symbol(name='rank')
+            rank_decl = LocalExpression(DummyEq(rank, 0))
+            rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
+
+            ngpus = Symbol(name='ngpus')
+            call = DefFunction('acc_get_num_devices', device_nvidia)
+            ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+            asdn_then = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
+            asdn_else = Call('acc_set_device_num', [deviceid, device_nvidia])
+
+            body = [Call('acc_init', [device_nvidia]), Conditional(
+                CondEq(deviceid, -1),
+                List(body=[rank_decl, rank_init, ngpus_init, asdn_then]),
+                asdn_else
+            )]
+        else:
+            body = [Call('acc_init', [device_nvidia]),
+                    Call('acc_set_device_num', [deviceid, device_nvidia])]
+
         init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
                     body=body,
                     footer=(c.Comment('End of OpenACC+MPI setup'), c.Line()))
         iet = iet._rebuild(body=(init,) + iet.body)
 
         return iet, {'args': deviceid}
-
-    @_initialize.register(ElementalFunction)
-    @_initialize.register(MPICallable)
-    def _(iet):
-        return iet, {}
 
     return _initialize(iet)
 

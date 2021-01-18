@@ -340,12 +340,28 @@ def normalize_syncs(*args):
 
 class DeviceID(Constant):
 
-    def __new__(cls, comm=None):
-        obj = Constant.__new__(cls, name='deviceid', dtype=np.int32, value=0)
-        obj.comm = comm
-        return obj
+    name = 'deviceid'
 
-    def _arg_defaults(self, alias=None, comm=None):
+    def __new__(cls, *args, **kwargs):
+        kwargs['name'] = DeviceID.name
+        return Constant.__new__(cls, *args, **kwargs)
+
+    def __init_finalize__(self, objcomm, **kwargs):
+        super().__init_finalize__(**kwargs)
+        self.objcomm = objcomm
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return np.int32
+
+    @property
+    def comm(self):
+        try:
+            return self.objcomm.comm
+        except AttributeError:
+            return None
+
+    def _arg_defaults(self, comm=None):
         # TODO enhancement: use a system-level device pool to utilize unused device
 
         if comm is None:
@@ -360,12 +376,11 @@ class DeviceID(Constant):
             # This will be used to assign different Devices to different MPI ranks
             value = comm.rank % gpu_info['ncards']
 
-        key = alias or self
-        return {key.name: value}
+        return {self.name: value}
 
     def _arg_values(self, **kwargs):
         try:
-            return kwargs[self.name]
+            return {self.name: kwargs[self.name]}
         except KeyError:
             if self.comm is None:
                 return self._arg_defaults()
@@ -376,4 +391,12 @@ class DeviceID(Constant):
                         return self._arg_defaults(comm=v.grid.comm)
                     except AttributeError:
                         pass
-                return self._arg_defaults()
+                return self._arg_defaults(comm=self.comm)
+
+    # Pickling support
+    # Note: when `objcomm` is unpickled, the carried MPI communicator is
+    # replaced by MPI.COMM_WORLD, which in practice is a dummy value.
+    # This is fine -- an unpickled Operator expects symbol overrides
+    # (i.e., `op.apply(u=u1, v=v1, ...)`), and within `_arg_values` these
+    # overrides will provide the actual MPI communicator to the DeviceID.
+    _pickle_args = Constant._pickle_args + ['objcomm']

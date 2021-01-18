@@ -2,11 +2,11 @@ import pytest
 import numpy as np
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    SubDimension, SubDomain, TimeFunction, Operator)
+                    SubDimension, SubDomain, TimeFunction, Operator, switchconfig)
 from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes import OpenMPIteration
-from devito.types import Lock, PThreadArray
+from devito.types import DeviceID, Lock, PThreadArray
 
 from conftest import skipif
 
@@ -706,3 +706,30 @@ class TestStreaming(object):
         op.apply(time_M=nt-1)
 
         assert np.all(g.data == 30)
+
+
+class TestDeviceScheduling(object):
+
+    def check_api(self):
+        grid = Grid(shape=(6, 6))
+
+        u = TimeFunction(name='u', grid=grid, space_order=2, save=10)
+
+        op = Operator(Eq(u.forward, u.dx + 1))
+
+        deviceid = None
+        for i in op.parameters:
+            if isinstance(i, DeviceID):
+                deviceid = i
+                break
+        assert deviceid is not None
+        assert deviceid.data == 0
+        assert op.arguments()[deviceid.name] == 0
+        assert op.arguments(deviceid=1)[deviceid.name] == 1
+
+    def test_api(self):
+        self.check_api()
+
+    @switchconfig(mpi=True)
+    def test_api_w_mpi(self):
+        self.check_api()

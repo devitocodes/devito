@@ -8,11 +8,13 @@ from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, ShiftedDimension)
 from devito.data import LEFT, OWNED
+from devito.mpi import MPI
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
-                          PointerArray, Lock, PThreadArray, SharedData, Timer)
+                          PointerArray, Lock, PThreadArray, SharedData, Timer,
+                          DeviceID)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -463,6 +465,22 @@ def test_mpi_objects():
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
     assert obj.dtype == new_obj.dtype
+
+
+@skipif(['nompi'])
+@pytest.mark.parallel(mode=[1])
+def test_deviceid():
+    grid = Grid(shape=(4, 4, 4))
+
+    did = DeviceID(grid.distributor._obj_comm)
+
+    pkl_did = pickle.dumps(did)
+    new_did = pickle.loads(pkl_did)
+
+    assert did.name == new_did.name
+    assert did.dtype == new_did.dtype
+    assert did.data == new_did.data
+    assert new_did.comm is MPI.COMM_WORLD
 
 
 @skipif(['nompi'])
