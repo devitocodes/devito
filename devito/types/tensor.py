@@ -221,6 +221,8 @@ class TensorFunction(AbstractTensor):
         func = vec_func(self, self)
         for j, d in enumerate(self.space_dimensions):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
+                              (x0=None if shift is None else d + shift[i] * d.spacing
+                               if type(shift) is tuple else d + shift * d.spacing)
                               for i, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
