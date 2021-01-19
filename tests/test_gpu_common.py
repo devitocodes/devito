@@ -710,6 +710,12 @@ class TestStreaming(object):
 
 class TestDeviceScheduling(object):
 
+    def get_deviceid(self, op):
+        for i in op.parameters:
+            if isinstance(i, DeviceID):
+                return i
+        return None
+
     def check_api(self):
         grid = Grid(shape=(6, 6))
 
@@ -717,11 +723,7 @@ class TestDeviceScheduling(object):
 
         op = Operator(Eq(u.forward, u.dx + 1))
 
-        deviceid = None
-        for i in op.parameters:
-            if isinstance(i, DeviceID):
-                deviceid = i
-                break
+        deviceid = self.get_deviceid(op)
         assert deviceid is not None
         assert deviceid.data == -1
         assert op.arguments()[deviceid.name] == -1

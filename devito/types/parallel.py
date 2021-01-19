@@ -15,8 +15,7 @@ import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered,
-                          is_integer)
+from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Symbol
 from devito.types.constant import Constant
@@ -347,67 +346,15 @@ class DeviceID(Constant):
         kwargs['value'] = -1
         return Constant.__new__(cls, *args, **kwargs)
 
-    def __init_finalize__(self, objcomm, **kwargs):
-        super().__init_finalize__(**kwargs)
-        self.objcomm = objcomm
-
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return np.int32
 
-    @property
-    def comm(self):
-        try:
-            return self.objcomm.comm
-        except AttributeError:
-            return None
-
-    def _arg_defaults(self, comm=None, automatic=False):
-        if not automatic:
-            return {self.name: self.data}
-
-        # TODO enhancement: use a system-level device pool to run on unloaded devices
-
-        # TODO: use the MPI comm to create a sub-comm with the other ranks on
-        # the same physical node and then get a local rank. This will be used to
-        # assign different Devices to different MPI ranks
-        raise NotImplementedError
-
-        # gpu_info = get_gpu_info()  # Memoized routine, hence not expensive
-        # if gpu_info is None:
-        #     raise ValueError("Unable to detect devices")
-
-        # value = comm.rank % gpu_info['ncards']
-
-        # return {self.name: value}
+    def _arg_defaults(self):
+        return {self.name: self.data}
 
     def _arg_values(self, **kwargs):
         try:
-            v = kwargs[self.name]
-            if is_integer(v):
-                return {self.name: kwargs[self.name]}
-            elif v != 'automatic':
-                raise ValueError("Illegal `%s=%s`" % (self.name, v))
-            else:
-                automatic = True
+            return {self.name: kwargs[self.name]}
         except KeyError:
-            automatic = False
-
-        if self.comm is None:
-            return self._arg_defaults(automatic=automatic)
-        else:
-            # Get the MPI communicator from the runtime overrides, if any
-            for v in kwargs.values():
-                try:
-                    return self._arg_defaults(comm=v.grid.comm, automatic=automatic)
-                except AttributeError:
-                    pass
-            return self._arg_defaults(comm=self.comm, automatic=automatic)
-
-    # Pickling support
-    # Note: when `objcomm` is unpickled, the carried MPI communicator is
-    # replaced by MPI.COMM_WORLD, which in practice is a dummy value.
-    # This is fine -- an unpickled Operator expects symbol overrides
-    # (i.e., `op.apply(u=u1, v=v1, ...)`), and within `_arg_values` these
-    # overrides will provide the actual MPI communicator to the DeviceID.
-    _pickle_args = Constant._pickle_args + ['objcomm']
+            return self._arg_defaults()

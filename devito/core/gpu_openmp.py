@@ -341,8 +341,7 @@ def initialize(iet, **kwargs):
                 objcomm = i
                 break
 
-        deviceid = DeviceID(objcomm)
-
+        deviceid = DeviceID()
         if objcomm is not None:
             rank = Symbol(name='rank')
             rank_decl = LocalExpression(DummyEq(rank, 0))

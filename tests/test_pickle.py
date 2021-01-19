@@ -8,7 +8,6 @@ from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, ShiftedDimension)
 from devito.data import LEFT, OWNED
-from devito.mpi import MPI
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
@@ -480,7 +479,6 @@ def test_deviceid():
     assert did.name == new_did.name
     assert did.dtype == new_did.dtype
     assert did.data == new_did.data
-    assert new_did.comm is MPI.COMM_WORLD
 
 
 @skipif(['nompi'])
