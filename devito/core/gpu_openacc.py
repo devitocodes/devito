@@ -11,7 +11,7 @@ from devito.ir.iet import (Call, Conditional, EntryFunction, List, LocalExpressi
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.symbolics import Byref, CondEq, DefFunction, Macro
+from devito.symbolics import Byref, CondNe, DefFunction, Macro
 from devito.tools import as_tuple, prod, timed_pass
 from devito.types import DeviceID, Symbol
 
@@ -169,7 +169,12 @@ def initialize(iet, **kwargs):
         return iet, {}
 
     @_initialize.register(EntryFunction)
-    def _initialize(iet):
+    def _(iet):
+        # TODO: we need to pick the rank from `comm_shm`, not `comm`,
+        # so that we have nranks == ngpus (as long as the user has launched
+        # the right number of MPI processes per node given the available
+        # number of GPUs per node)
+
         objcomm = None
         for i in iet.parameters:
             if isinstance(i, MPICommObject):
@@ -188,17 +193,19 @@ def initialize(iet, **kwargs):
             call = DefFunction('acc_get_num_devices', device_nvidia)
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
 
-            asdn_then = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
-            asdn_else = Call('acc_set_device_num', [deviceid, device_nvidia])
+            asdn_then = Call('acc_set_device_num', [deviceid, device_nvidia])
+            asdn_else = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
 
             body = [Call('acc_init', [device_nvidia]), Conditional(
-                CondEq(deviceid, -1),
-                List(body=[rank_decl, rank_init, ngpus_init, asdn_then]),
-                asdn_else
+                CondNe(deviceid, -1),
+                asdn_then,
+                List(body=[rank_decl, rank_init, ngpus_init, asdn_else])
             )]
         else:
-            body = [Call('acc_init', [device_nvidia]),
-                    Call('acc_set_device_num', [deviceid, device_nvidia])]
+            body = [Call('acc_init', [device_nvidia]), Conditional(
+                CondNe(deviceid, -1),
+                Call('acc_set_device_num', [deviceid, device_nvidia])
+            )]
 
         init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
                     body=body,

@@ -22,7 +22,7 @@ from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                ParallelTree, Orchestrator, optimize_halospots, mpiize,
                                hoist_prodders, iet_pass)
-from devito.symbolics import CondEq, Byref, ccode
+from devito.symbolics import CondNe, Byref, ccode
 from devito.tools import as_tuple, filter_sorted, timed_pass
 from devito.types import DeviceID, Symbol
 
@@ -330,7 +330,11 @@ def initialize(iet, **kwargs):
 
     @_initialize.register(EntryFunction)
     def _(iet):
-        # A special symbol to identify devices in a multi-device node
+        # TODO: we need to pick the rank from `comm_shm`, not `comm`,
+        # so that we have nranks == ngpus (as long as the user has launched
+        # the right number of MPI processes per node given the available
+        # number of GPUs per node)
+
         objcomm = None
         for i in iet.parameters:
             if isinstance(i, MPICommObject):
@@ -348,16 +352,19 @@ def initialize(iet, **kwargs):
             call = Function('omp_get_num_devices')()
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
 
-            osdd_then = Call('omp_set_default_device', [rank % ngpus])
-            osdd_else = Call('omp_set_default_device', [deviceid])
+            osdd_then = Call('omp_set_default_device', [deviceid])
+            osdd_else = Call('omp_set_default_device', [rank % ngpus])
 
             body = [Conditional(
-                CondEq(deviceid, -1),
-                List(body=[rank_decl, rank_init, ngpus_init, osdd_then]),
-                osdd_else
+                CondNe(deviceid, -1),
+                osdd_then,
+                List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
             )]
         else:
-            body = Call('omp_set_default_device', [deviceid])
+            body = [Conditional(
+                CondNe(deviceid, -1),
+                Call('omp_set_default_device', [deviceid])
+            )]
 
         init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
                     body=body,

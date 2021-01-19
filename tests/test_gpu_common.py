@@ -723,9 +723,9 @@ class TestDeviceScheduling(object):
                 deviceid = i
                 break
         assert deviceid is not None
-        assert deviceid.data == 0
-        assert op.arguments()[deviceid.name] == 0
-        assert op.arguments(deviceid=1)[deviceid.name] == 1
+        assert deviceid.data == -1
+        assert op.arguments()[deviceid.name] == -1
+        assert op.arguments(deviceid=0)[deviceid.name] == 0
 
     def test_api(self):
         self.check_api()

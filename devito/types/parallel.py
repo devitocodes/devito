@@ -14,9 +14,9 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
-from devito.archinfo import get_gpu_info
 from devito.parameters import configuration
-from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered
+from devito.tools import (Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered,
+                          is_integer)
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Symbol
 from devito.types.constant import Constant
@@ -344,6 +344,7 @@ class DeviceID(Constant):
 
     def __new__(cls, *args, **kwargs):
         kwargs['name'] = DeviceID.name
+        kwargs['value'] = -1
         return Constant.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, objcomm, **kwargs):
@@ -361,37 +362,47 @@ class DeviceID(Constant):
         except AttributeError:
             return None
 
-    def _arg_defaults(self, comm=None):
-        # TODO enhancement: use a system-level device pool to utilize unused device
+    def _arg_defaults(self, comm=None, automatic=False):
+        if not automatic:
+            return {self.name: self.data}
 
-        if comm is None:
-            value = self.data
-        else:
-            gpu_info = get_gpu_info()  # Memoized routine, hence not expensive
-            if gpu_info is None:
-                raise ValueError("Unable to detect devices")
+        # TODO enhancement: use a system-level device pool to run on unloaded devices
 
-            # TODO: if an MPI comm is provided, use it to create a sub-comm with
-            # the other ranks on the same physical node and then get a local rank.
-            # This will be used to assign different Devices to different MPI ranks
-            value = comm.rank % gpu_info['ncards']
+        # TODO: use the MPI comm to create a sub-comm with the other ranks on
+        # the same physical node and then get a local rank. This will be used to
+        # assign different Devices to different MPI ranks
+        raise NotImplementedError
 
-        return {self.name: value}
+        # gpu_info = get_gpu_info()  # Memoized routine, hence not expensive
+        # if gpu_info is None:
+        #     raise ValueError("Unable to detect devices")
+
+        # value = comm.rank % gpu_info['ncards']
+
+        # return {self.name: value}
 
     def _arg_values(self, **kwargs):
         try:
-            return {self.name: kwargs[self.name]}
-        except KeyError:
-            if self.comm is None:
-                return self._arg_defaults()
+            v = kwargs[self.name]
+            if is_integer(v):
+                return {self.name: kwargs[self.name]}
+            elif v != 'automatic':
+                raise ValueError("Illegal `%s=%s`" % (self.name, v))
             else:
-                # Get the MPI communicator from the runtime overrides, if any
-                for v in kwargs.values():
-                    try:
-                        return self._arg_defaults(comm=v.grid.comm)
-                    except AttributeError:
-                        pass
-                return self._arg_defaults(comm=self.comm)
+                automatic = True
+        except KeyError:
+            automatic = False
+
+        if self.comm is None:
+            return self._arg_defaults(automatic=automatic)
+        else:
+            # Get the MPI communicator from the runtime overrides, if any
+            for v in kwargs.values():
+                try:
+                    return self._arg_defaults(comm=v.grid.comm, automatic=automatic)
+                except AttributeError:
+                    pass
+            return self._arg_defaults(comm=self.comm, automatic=automatic)
 
     # Pickling support
     # Note: when `objcomm` is unpickled, the carried MPI communicator is
