@@ -346,7 +346,10 @@ class VectorFunction(TensorFunction):
         Gradient of the VectorFunction, creates the gradient TensorFunction.
         """
         func = tens_func(self, self)
-        comps = [[getattr(f, 'd%s' % d.name) for d in self.space_dimensions]
+        comps = [[getattr(f, 'd%s' % d.name)(x0=None if shift is None else
+                                             d + shift[i] * d.spacing if type(shift)
+                                             is tuple else d + shift * d.spacing)
+                  for i, d in enumerate(self.space_dimensions)]
                  for f in self]
         return func._new(comps)
 
