@@ -9,6 +9,10 @@ env:
   ENVHOME: "/home/devito/environments"
 
 on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Run ASV'
   # Trigger the workflow on push to the master branch
   push:
     branches:
