@@ -307,6 +307,8 @@ class VectorFunction(TensorFunction):
         Divergence of the VectorFunction, creates the divergence Function.
         """
         return sum([getattr(self[i], 'd%s' % d.name)(x0=None if shift is None else
+                                                     d + shift[i] * d.spacing if
+                                                     type(shift) is tuple else
                                                      d + shift * d.spacing)
                     for i, d in enumerate(self.space_dimensions)])
 
