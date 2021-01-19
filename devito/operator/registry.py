@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from itertools import product
 
-from devito.archinfo import Platform
+from devito.arch import Platform
 from devito.exceptions import InvalidOperator
 from devito.tools import Singleton
 

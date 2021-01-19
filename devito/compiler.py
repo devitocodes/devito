@@ -12,7 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.archinfo import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
+from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration

@@ -11,10 +11,12 @@ import re
 from devito.logger import warning
 from devito.tools import all_equal, memoized_func
 
-__all__ = ['platform_registry',
-           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',
-           'ARM',
-           'POWER8', 'POWER9']
+__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info',
+           'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
+           'NvidiaDevice', 'AmdDevice',
+           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
+           'AMD', 'ARM', 'POWER8', 'POWER9',  # Other CPU architectures
+           'AMDGPUX', 'NVIDIAX']  # GPUs
 
 
 @memoized_func

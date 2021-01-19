@@ -1,4 +1,4 @@
-from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
+from devito.arch import Cpu64, Intel64, Arm, Power, Device
 from devito.core.cpu import (CPU64NoopOperator, CPU64Operator, CPU64OpenMPOperator,
                              CustomOperator)
 from devito.core.intel import (Intel64Operator, Intel64OpenMPOperator,

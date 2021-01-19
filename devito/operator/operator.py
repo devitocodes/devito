@@ -6,7 +6,7 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 
-from devito.archinfo import platform_registry
+from devito.arch import platform_registry
 from devito.compiler import compiler_registry
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
