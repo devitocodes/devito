@@ -6,7 +6,7 @@ import click
 import os
 from devito import (clear_cache, configuration, info, warning, set_log_level,
                     switchconfig, norm)
-from devito.compiler import IntelCompiler
+from devito.arch.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.operator.profiling import PerformanceSummary
 from devito.tools import all_equal, as_tuple, sweep

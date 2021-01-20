@@ -19,7 +19,7 @@ from devito.parameters import configuration
 from devito.tools import (as_tuple, change_directory, filter_ordered,
                           memoized_meth, make_tempdir)
 
-__all__ = ['GNUCompiler']
+__all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
 def sniff_compiler_version(cc):

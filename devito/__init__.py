@@ -16,9 +16,8 @@ from devito.types.relational import *  # noqa
 from devito.types.tensor import *  # noqa
 
 # Imports required to initialize Devito
-from devito.arch import platform_registry
+from devito.arch import compiler_registry, platform_registry
 from devito.backends import backends_registry, init_backend
-from devito.compiler import compiler_registry
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
 from devito.operator import profiler_registry, operator_registry
 

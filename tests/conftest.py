@@ -9,8 +9,7 @@ from sympy import cos, Symbol  # noqa
 from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # noqa
                     Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
                     SparseTimeFunction)  # noqa
-from devito.arch import Device
-from devito.compiler import sniff_mpi_distro
+from devito.arch import Device, sniff_mpi_distro
 from devito.tools import as_tuple
 
 try:
