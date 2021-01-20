@@ -79,10 +79,10 @@ class DeviceAccizer(DeviceOmpizer):
         'map-update-wait-device': lambda i, j, k:
             (c.Pragma('acc update device(%s%s) async(%s)' % (i, j, k)),
              c.Pragma('acc wait(%s)' % k)),
-        'map-release': lambda i, j:
-            c.Pragma('acc exit data delete(%s%s)' % (i, j)),
-        'map-exit-delete': lambda i, j:
-            c.Pragma('acc exit data delete(%s%s)' % (i, j)),
+        'map-release': lambda i, j, k:
+            c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
+        'map-exit-delete': lambda i, j, k:
+            c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
         'map-pointers': lambda i:
             c.Pragma('acc host_data use_device(%s)' % i)
     })
@@ -100,9 +100,13 @@ class DeviceAccizer(DeviceOmpizer):
         return cls.lang['map-present'](f.name, sections)
 
     @classmethod
-    def _map_delete(cls, f, imask=None):
+    def _map_delete(cls, f, imask=None, devicerm=None):
         sections = cls._make_sections_from_imask(f, imask)
-        return cls.lang['map-exit-delete'](f.name, sections)
+        if devicerm is not None:
+            cond = ' if(%s)' % devicerm.name
+        else:
+            cond = ''
+        return cls.lang['map-exit-delete'](f.name, sections, cond)
 
     @classmethod
     def _map_update_wait_host(cls, f, imask=None, queueid=None):

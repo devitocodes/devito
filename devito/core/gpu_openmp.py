@@ -9,12 +9,11 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, Conditional, ElementalFunction,
-                           EntryFunction, Expression, List, LocalExpression,
-                           ThreadFunction, FindNodes, FindSymbols, MapExprStmts,
-                           Transformer)
+from devito.ir.iet import (Block, Call, Conditional, EntryFunction, Expression,
+                           List, LocalExpression, FindNodes, FindSymbols,
+                           MapExprStmts, Transformer)
 from devito.mpi.distributed import MPICommObject
-from devito.mpi.routines import CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv
+from devito.mpi.routines import IrecvCall, IsendCall
 from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
@@ -24,7 +23,7 @@ from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
                                hoist_prodders, iet_pass)
 from devito.symbolics import CondNe, Byref, ccode
 from devito.tools import as_tuple, filter_sorted, timed_pass
-from devito.types import DeviceID, Symbol
+from devito.types import DeviceID, DeviceRM, Symbol
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
@@ -63,9 +62,9 @@ class DeviceOmpizer(Ompizer):
             c.Pragma('omp target update from(%s%s)' % (i, j)),
         'map-update-device': lambda i, j:
             c.Pragma('omp target update to(%s%s)' % (i, j)),
-        'map-release': lambda i, j:
-            c.Pragma('omp target exit data map(release: %s%s)'
-                     % (i, j)),
+        'map-release': lambda i, j, k:
+            c.Pragma('omp target exit data map(release: %s%s)%s'
+                     % (i, j, k)),
         'map-exit-delete': lambda i, j, k:
             c.Pragma('omp target exit data map(delete: %s%s)%s'
                      % (i, j, k)),
@@ -140,17 +139,22 @@ class DeviceOmpizer(Ompizer):
     _map_update_wait_device = _map_update_device
 
     @classmethod
-    def _map_release(cls, f):
-        return cls.lang['map-release'](f.name, ''.join('[0:%s]' % i
-                                                       for i in cls._map_data(f)))
+    def _map_release(cls, f, devicerm=None):
+        return cls.lang['map-release'](f.name,
+                                       ''.join('[0:%s]' % i for i in cls._map_data(f)),
+                                       (' if(%s)' % devicerm.name) if devicerm else '')
 
     @classmethod
-    def _map_delete(cls, f, imask=None):
+    def _map_delete(cls, f, imask=None, devicerm=None):
         sections = cls._make_sections_from_imask(f, imask)
         # This ugly condition is to avoid a copy-back when, due to
         # domain decomposition, the local size of a Function is 0, which
         # would cause a crash
-        cond = ' if(%s)' % ' && '.join('(%s != 0)' % i for i in cls._map_data(f))
+        items = []
+        if devicerm is not None:
+            items.append(devicerm.name)
+        items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
+        cond = ' if(%s)' % ' && '.join(items)
         return cls.lang['map-exit-delete'](f.name, sections, cond)
 
     @classmethod
@@ -255,7 +259,7 @@ class DeviceOpenMPDataManager(DataManager):
         frees = [self._Parallelizer._map_delete(obj)] + _storage[site].frees
         storage.update(obj, site, allocs=allocs, frees=frees)
 
-    def _map_function_on_high_bw_mem(self, site, obj, storage, read_only=False):
+    def _map_function_on_high_bw_mem(self, site, obj, storage, devicerm, read_only=False):
         """
         Place a Function in the high bandwidth memory.
         """
@@ -263,9 +267,9 @@ class DeviceOpenMPDataManager(DataManager):
 
         if read_only is False:
             free = c.Collection([self._Parallelizer._map_update(obj),
-                                 self._Parallelizer._map_release(obj)])
+                                 self._Parallelizer._map_release(obj, devicerm=devicerm)])
         else:
-            free = self._Parallelizer._map_delete(obj)
+            free = self._Parallelizer._map_delete(obj, devicerm=devicerm)
 
         storage.update(obj, site, allocs=alloc, frees=free)
 
@@ -274,10 +278,13 @@ class DeviceOpenMPDataManager(DataManager):
 
         @singledispatch
         def _map_onmemspace(iet):
-            return iet
+            return iet, {}
 
-        @_map_onmemspace.register(Callable)
+        @_map_onmemspace.register(EntryFunction)
         def _(iet):
+            # Special symbol which gives user code control over data deallocations
+            devicerm = DeviceRM()
+
             # Collect written and read-only symbols
             writes = set()
             reads = set()
@@ -296,26 +303,16 @@ class DeviceOpenMPDataManager(DataManager):
             storage = Storage()
             for i in filter_sorted(writes):
                 if is_on_device(i, self.gpu_fit):
-                    self._map_function_on_high_bw_mem(iet, i, storage)
+                    self._map_function_on_high_bw_mem(iet, i, storage, devicerm)
             for i in filter_sorted(reads - writes):
                 if is_on_device(i, self.gpu_fit):
-                    self._map_function_on_high_bw_mem(iet, i, storage, read_only=True)
+                    self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
 
             iet = self._dump_storage(iet, storage)
 
-            return iet
+            return iet, {'args': devicerm}
 
-        @_map_onmemspace.register(ElementalFunction)
-        @_map_onmemspace.register(ThreadFunction)
-        @_map_onmemspace.register(CopyBuffer)
-        @_map_onmemspace.register(SendRecv)
-        @_map_onmemspace.register(HaloUpdate)
-        def _(iet):
-            return iet
-
-        iet = _map_onmemspace(iet)
-
-        return iet, {}
+        return _map_onmemspace(iet)
 
 
 @iet_pass
