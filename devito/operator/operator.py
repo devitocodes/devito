@@ -713,7 +713,7 @@ class Operator(Callable):
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
-        info("Operator `%s` run in %.2f s" % (self.name,
+        info("Operator `%s` ran in %.2f s" % (self.name,
                                               fround(self._profiler.py_timers['apply'])))
 
         summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
@@ -723,23 +723,24 @@ class Operator(Callable):
             return summary
 
         if summary.globals:
-            indent = " "*2
+            # Note that with MPI enabled, the global performance indicators
+            # represent "cross-rank" performance data
+            metrics = []
 
-            perf("Global performance indicators")
-
-            # With MPI enabled, the 'vanilla' entry contains "cross-rank" performance data
             v = summary.globals.get('vanilla')
             if v is not None:
-                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-                gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-                metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
-                perf("%s* Operator `%s` with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, self.name, fround(v.oi), fround(v.time), metrics))
+                metrics.append("OI=%.2f" % fround(v.oi))
+                metrics.append("%.2f GFlops/s" % fround(v.gflopss))
 
             v = summary.globals.get('fdlike')
             if v is not None:
-                perf("%s* Achieved %.2f FD-GPts/s" % (indent, v.gpointss))
-            perf("Local performance indicators")
+                metrics.append("%.2f GPts/s" % fround(v.gpointss))
+
+            if metrics:
+                perf("Global performance: [%s]" % ', '.join(metrics))
+
+            perf("Local performance:")
+            indent = " "*2
         else:
             indent = ""
 
@@ -747,26 +748,22 @@ class Operator(Callable):
         # thing that will be emitted
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
+            oi = "OI=%.2f" % fround(v.oi)
             gflopss = "%.2f GFlops/s" % fround(v.gflopss)
             gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-            metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
+            metrics = ", ".join(i for i in [oi, gflopss, gpointss] if i is not None)
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
-                name = "%s%s<%s>" % (k.name, rank,
-                                     ",".join("<%s>" % i for i in itershapes))
-                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, name, fround(v.oi), fround(v.time), metrics))
+                itershapes = ",".join("<%s>" % i for i in itershapes)
             elif len(itershapes) == 1:
-                name = "%s%s<%s>" % (k.name, rank, itershapes[0])
-                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, name, fround(v.oi), fround(v.time), metrics))
+                itershapes = itershapes[0]
             else:
-                name = k.name
-                perf("%s* %s%s computed in %.2f s"
-                     % (indent, name, rank, fround(v.time)))
+                itershapes = ""
+            name = "%s%s<%s>" % (k.name, rank, itershapes)
 
+            perf("%s* %s ran in %.2f s [%s]" % (indent, name, fround(v.time), metrics))
             for n, time in summary.subsections.get(k.name, {}).items():
-                perf("%s+ %s computed in %.2f s [%.2f%%]" %
+                perf("%s+ %s ran in %.2f s [%.2f%%]" %
                      (indent*2, n, time, fround(time/v.time*100)))
 
         # Emit performance mode and arguments
