@@ -195,8 +195,12 @@ class ViscoacousticWaveSolver(object):
             # Execute operator and return wavefield and receiver data
             # With Memory variable
             summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, r=r, b=b, vp=vp,
-                                          qp=qp, dt=kwargs.pop('dt', self.dt), **kwargs)
+                                          qp=qp, dt=kwargs.pop('dt', self.dt),
+                                          time_m=0 if self.time_order == 1 else None,
+                                          **kwargs)
         else:
             summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, vp=vp, b=b, qp=qp,
-                                          dt=kwargs.pop('dt', self.dt), **kwargs)
+                                          dt=kwargs.pop('dt', self.dt),
+                                          time_m=0 if self.time_order == 1 else None,
+                                          **kwargs)
         return srca, pa, va, summary

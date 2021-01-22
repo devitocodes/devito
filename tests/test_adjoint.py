@@ -101,14 +101,7 @@ class TestAdjoint(object):
 
         # Run forward and adjoint operators
         rec = solver.forward(save=False)[0]
-
-        if time_order == 1:
-
-            solver.adjoint(rec=rec, srca=srca, time_m=0)
-
-        else:
-
-            solver.adjoint(rec=rec, srca=srca)
+        solver.adjoint(rec=rec, srca=srca)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)
