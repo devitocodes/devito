@@ -28,22 +28,14 @@ class Orchestrator(object):
     each pool performing a certain task (e.g., host-device data transfers).
     """
 
-    _Parallelizer = None
-    """
-    To be specified by the subclasses. This is used to generate IETs for the
-    data transfers between host and device.
-    """
-
-    def __init__(self, sregistry):
+    def __init__(self, parallelizer, sregistry):
+        self.parallelizer = parallelizer
         self.sregistry = sregistry
-
-        if self._Parallelizer is None:
-            raise NotImplementedError
 
     @property
     def _P(self):
-        """Shortcut for self._Parallelizer."""
-        return self._Parallelizer
+        """Shortcut for self.parallelizer."""
+        return self.parallelizer
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(

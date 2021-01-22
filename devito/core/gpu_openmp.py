@@ -224,11 +224,6 @@ class DeviceOmpizer(Ompizer):
             return super()._make_nested_partree(partree)
 
 
-class DeviceOpenMPOrchestrator(Orchestrator):
-
-    _Parallelizer = DeviceOmpizer
-
-
 class DeviceOpenMPDataManager(DataManager):
 
     def __init__(self, parallelizer, sregistry, options):
@@ -628,7 +623,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         sregistry = kwargs['sregistry']
 
         ompizer = cls._Parallelizer(sregistry, options)
-        orchestrator = DeviceOpenMPOrchestrator(sregistry)
+        orchestrator = Orchestrator(cls._Parallelizer, sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),

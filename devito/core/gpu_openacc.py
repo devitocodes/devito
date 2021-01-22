@@ -130,11 +130,6 @@ class DeviceAccizer(DeviceOmpizer):
         return iet, metadata
 
 
-class DeviceOpenACCOrchestrator(Orchestrator):
-
-    _Parallelizer = DeviceAccizer
-
-
 class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
@@ -289,7 +284,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
         sregistry = kwargs['sregistry']
 
         accizer = cls._Parallelizer(sregistry, options)
-        orchestrator = DeviceOpenACCOrchestrator(sregistry)
+        orchestrator = Orchestrator(cls._Parallelizer, sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
