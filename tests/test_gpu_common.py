@@ -3,7 +3,7 @@ import numpy as np
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     SubDimension, SubDomain, TimeFunction, Operator)
-from devito.archinfo import get_gpu_info
+from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes import OpenMPIteration
 from devito.types import Lock, STDThreadArray

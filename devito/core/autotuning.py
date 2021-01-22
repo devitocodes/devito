@@ -3,7 +3,7 @@ from itertools import combinations, product
 from functools import total_ordering
 import resource
 
-from devito.archinfo import KNL, KNL7210
+from devito.arch import KNL, KNL7210
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood

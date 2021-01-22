@@ -12,14 +12,14 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.archinfo import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
+from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_tuple, change_directory, filter_ordered,
                           memoized_meth, make_tempdir)
 
-__all__ = ['GNUCompiler']
+__all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
 def sniff_compiler_version(cc):
