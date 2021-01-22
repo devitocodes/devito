@@ -1,32 +1,28 @@
-from functools import partial, singledispatch
+from functools import singledispatch
 
 import cgen as c
 from sympy import Function
-import numpy as np
 
-from devito.core.cpu import CustomOperator
-from devito.core.operator import OperatorCore
+from devito.core.gpu import (DeviceNoopOperator, DeviceOperator, DeviceCustomOperator,
+                             is_on_device)
 from devito.data import FULL
-from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Conditional, EntryFunction, Expression,
-                           List, LocalExpression, FindNodes, FindSymbols,
+from devito.ir.iet import (Block, Call, Conditional, EntryFunction,
+                           List, LocalExpression, FindNodes,
                            MapExprStmts, Transformer)
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import IrecvCall, IsendCall
-from devito.passes.equations import collect_derivatives, buffering
-from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
-                                    eliminate_arrays, extract_increments, factorize,
-                                    fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
-                               ParallelTree, Orchestrator, optimize_halospots, mpiize,
-                               hoist_prodders, iet_pass)
+from devito.passes.iet import (DataManager, Ompizer, OpenMPIteration, ParallelTree,
+                               Storage, iet_pass)  #TODO: TO BE MOVED...
 from devito.symbolics import CondNe, Byref, ccode
-from devito.tools import as_tuple, filter_sorted, timed_pass
+from devito.tools import filter_sorted
 from devito.types import DeviceID, DeviceRM, Symbol
 
 __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
+
+
+# DeviceOpenMP-specific passes
 
 
 class DeviceOpenMPIteration(OpenMPIteration):
@@ -223,6 +219,21 @@ class DeviceOmpizer(Ompizer):
         else:
             return super()._make_nested_partree(partree)
 
+    @iet_pass
+    def make_gpudirect(self, iet, **kwargs):
+        """
+        Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
+        """
+        mapper = {}
+        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
+            header = c.Pragma('omp target data use_device_ptr(%s)' %
+                              node.arguments[0].name)
+            mapper[node] = Block(header=header, body=node)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
+
 
 class DeviceOpenMPDataManager(DataManager):
 
@@ -368,370 +379,38 @@ def initialize(iet, **kwargs):
     return _initialize(iet)
 
 
-@iet_pass
-def mpi_gpu_direct(iet, **kwargs):
-    """
-    Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
-    """
-    mapper = {}
-    for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
-        header = c.Pragma('omp target data use_device_ptr(%s)' %
-                          node.arguments[0].name)
-        mapper[node] = Block(header=header, body=node)
-
-    iet = Transformer(mapper).visit(iet)
-
-    return iet, {}
+# Operators
 
 
-class DeviceOpenMPNoopOperator(OperatorCore):
-
-    BLOCK_LEVELS = 1
-    """
-    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
-    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
-    """
-
-    CIRE_REPEATS_INV = 2
-    """
-    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
-    """
-
-    CIRE_REPEATS_SOPS = 7
-    """
-    Number of CIRE passes to detect and optimize away redundant sum-of-products.
-    """
-
-    CIRE_MINCOST_INV = 50
-    """
-    Minimum operation count of a Dimension-invariant aliasing expression to be
-    optimized away. Dimension-invariant aliases are lifted outside of one or more
-    invariant loop(s), so they require tensor temporaries that can be potentially
-    very large (e.g., the whole domain in the case of time-invariant aliases).
-    """
-
-    CIRE_MINCOST_SOPS = 10
-    """
-    Minimum operation count of a sum-of-product aliasing expression to be optimized away.
-    """
-
-    PAR_CHUNK_NONAFFINE = 3
-    """
-    Coefficient to adjust the chunk size in non-affine parallel loops.
-    """
+class DeviceOpenMPOperatorMixin(object):
 
     _Parallelizer = DeviceOmpizer
     _DataManager = DeviceOpenMPDataManager
+    _Initializer = initialize
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
-        o = {}
         oo = kwargs['options']
 
-        # Execution modes
-        o['mpi'] = oo.pop('mpi')
-
-        # Strictly unneccesary, but make it clear that this Operator *will*
-        # generate OpenMP code, bypassing any `openmp=False` provided in
-        # input to Operator
-        oo.pop('openmp')
-
-        # Buffering
-        o['buf-async-degree'] = oo.pop('buf-async-degree', None)
-
-        # Blocking
-        o['blockinner'] = oo.pop('blockinner', True)
-        o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
-
-        # CIRE
-        o['min-storage'] = False
-        o['cire-rotate'] = False
-        o['cire-onstack'] = False
-        o['cire-maxpar'] = oo.pop('cire-maxpar', True)
-        o['cire-maxalias'] = oo.pop('cire-maxalias', False)
-        o['cire-repeats'] = {
-            'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
-            'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
-        }
-        o['cire-mincost'] = {
-            'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
-            'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
-        }
-
-        # GPU parallelism
-        o['par-collapse-ncores'] = 1  # Always use a collapse clause
-        o['par-collapse-work'] = 1  # Always use a collapse clause
-        o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
-        o['par-dynamic-work'] = np.inf  # Always use static scheduling
-        o['par-nested'] = np.inf  # Never use nested parallelism
-        o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
-        o['gpu-direct'] = oo.pop('gpu-direct', True)
-        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', None))
-
-        if oo:
-            raise InvalidOperator("Unsupported optimization options: [%s]"
-                                  % ", ".join(list(oo)))
-
-        kwargs['options'].update(o)
+        oo.pop('openmp', None)  # It may or may not have been provided
+        kwargs = super()._normalize_kwargs(**kwargs)
+        oo['openmp'] = True
 
         return kwargs
 
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
 
-        # Distributed-memory parallelism
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
-
-        # GPU parallelism via OpenMP offloading
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_parallel(graph)
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
-
-        # Initialize OpenMP environment
-        initialize(graph)
-
-        return graph
+class DeviceOpenMPNoopOperator(DeviceOpenMPOperatorMixin, DeviceNoopOperator):
+    pass
 
 
-class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
-
-    @classmethod
-    @timed_pass(name='specializing.DSL')
-    def _specialize_dsl(cls, expressions, **kwargs):
-        expressions = collect_derivatives(expressions)
-
-        return expressions
-
-    @classmethod
-    @timed_pass(name='specializing.Clusters')
-    def _specialize_clusters(cls, clusters, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        sregistry = kwargs['sregistry']
-
-        # Toposort+Fusion (the former to expose more fusion opportunities)
-        clusters = fuse(clusters, toposort=True)
-
-        # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, 'invariants', sregistry, options, platform)
-        clusters = Lift().process(clusters)
-
-        # Reduce flops (potential arithmetic alterations)
-        clusters = extract_increments(clusters, sregistry)
-        clusters = cire(clusters, 'sops', sregistry, options, platform)
-        clusters = factorize(clusters)
-        clusters = optimize_pows(clusters)
-
-        # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, sregistry)
-
-        # Lifting may create fusion opportunities, which in turn may enable
-        # further optimizations
-        clusters = fuse(clusters)
-        clusters = eliminate_arrays(clusters)
-
-        return clusters
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-
-        # Distributed-memory parallelism
-        optimize_halospots(graph)
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
-
-        # GPU parallelism via OpenMP offloading
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_parallel(graph)
-
-        # Misc optimizations
-        hoist_prodders(graph)
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
-
-        # Initialize OpenMP environment
-        initialize(graph)
-
-        # TODO: This should be moved right below the `mpiize` pass, but currently calling
-        # `mpi_gpu_direct` before Symbol definitions` block would create Blocks before
-        # creating C variables. That would lead to MPI_Request variables being local to
-        # their blocks. This way, it would generate incorrect C code.
-        if options['gpu-direct']:
-            mpi_gpu_direct(graph)
-
-        return graph
+class DeviceOpenMPOperator(DeviceOpenMPOperatorMixin, DeviceOperator):
+    pass
 
 
-class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
-
-    _Parallelizer = DeviceOmpizer
-    _DataManager = DeviceOpenMPDataManager
-
-    _normalize_kwargs = DeviceOpenMPOperator._normalize_kwargs
-
-    @classmethod
-    def _make_exprs_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-
-        # This callback is used by `buffering` to replace host Functions with
-        # Arrays, used as device buffers for streaming-in and -out of data
-        def callback(f):
-            if not is_on_device(f, options['gpu-fit']):
-                return [f.time_dim]
-            else:
-                return None
-
-        return {
-            'buffering': lambda i: buffering(i, callback, options)
-        }
-
-    @classmethod
-    def _make_clusters_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        sregistry = kwargs['sregistry']
-
-        runs_on_host, reads_if_on_host = make_callbacks(options)
-
-        return {
-            'blocking': Blocking(options).process,
-            'tasking': Tasker(runs_on_host).process,
-            'streaming': Streaming(reads_if_on_host).process,
-            'factorize': factorize,
-            'fuse': fuse,
-            'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
-                                                  options, platform)),
-            'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
-            'cse': lambda i: cse(i, sregistry),
-            'opt-pows': optimize_pows,
-            'topofuse': lambda i: fuse(i, toposort=True)
-        }
+class DeviceOpenMPCustomOperator(DeviceOpenMPOperatorMixin, DeviceCustomOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-
-        ompizer = cls._Parallelizer(sregistry, options)
-        orchestrator = Orchestrator(cls._Parallelizer, sregistry)
-
-        return {
-            'optcomms': partial(optimize_halospots),
-            'openmp': partial(ompizer.make_parallel),
-            'orchestrate': partial(orchestrator.process),
-            'mpi': partial(mpiize, mode=options['mpi']),
-            'prodders': partial(hoist_prodders),
-            'gpu-direct': partial(mpi_gpu_direct)
-        }
-
-    _known_passes = (
-        # DSL
-        'collect-derivs',
-        # Expressions
-        'buffering',
-        # Clusters
-        'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
-        'cire-sops', 'cse', 'opt-pows', 'topofuse',
-        # IET
-        'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
-    )
-    _known_passes_disabled = ('denormals', 'simd', 'openacc')
-    assert not (set(_known_passes) & set(_known_passes_disabled))
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
-
-        # Force-call `mpi` if requested via global option
-        if 'mpi' not in passes and options['mpi']:
-            passes_mapper['mpi'](graph)
-
-        # GPU parallelism via OpenMP offloading
-        if 'openmp' not in passes:
-            passes_mapper['openmp'](graph)
-
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
-
-        # Initialize OpenMP environment
-        initialize(graph)
-
-        return graph
-
-
-# Utils
-
-def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
-    """
-    True if all given Functions are allocated in the device memory, False otherwise.
-
-    Parameters
-    ----------
-    maybe_symbol : Indexed or Function or Node
-        The inspected object. May be a single Indexed or Function, or even an
-        entire piece of IET.
-    gpu_fit : list of Function
-        The Function's which are known to definitely fit in the device memory. This
-        information is given directly by the user through the compiler option
-        `gpu-fit` and is propagated down here through the various stages of lowering.
-    only_writes : bool, optional
-        Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
-        that do not appear on the LHS of at least one Expression. Defaults to False.
-    """
-    try:
-        functions = (maybe_symbol.function,)
-    except AttributeError:
-        assert maybe_symbol.is_Node
-        iet = maybe_symbol
-        functions = set(FindSymbols().visit(iet))
-        if only_writes:
-            expressions = FindNodes(Expression).visit(iet)
-            functions &= {i.write for i in expressions}
-
-    return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
-               for f in functions)
-
-
-def make_callbacks(options):
-    """
-    Options-dependent callbacks used by various compiler passes.
-    """
-
-    def is_on_host(f):
-        return not is_on_device(f, options['gpu-fit'])
-
-    def runs_on_host(c):
-        # The only situation in which a Cluster doesn't get offloaded to
-        # the device is when it writes to a host Function
-        return any(is_on_host(f) for f in c.scope.writes)
-
-    def reads_if_on_host(c):
-        if not runs_on_host(c):
-            return [f for f in c.scope.reads if is_on_host(f)]
-        else:
-            return []
-
-    return runs_on_host, reads_if_on_host
+        mapper = super()._make_iet_passes_mapper(**kwargs)
+        from IPython import embed; embed()
+        return mapper

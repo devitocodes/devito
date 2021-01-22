@@ -2,9 +2,10 @@ from functools import partial, singledispatch
 
 import cgen as c
 
-from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperator,
-                                    DeviceOpenMPCustomOperator, DeviceOpenMPIteration,
-                                    DeviceOmpizer, DeviceOpenMPDataManager, is_on_device)
+from devito.core.gpu import (DeviceNoopOperator, DeviceOperator, DeviceCustomOperator,
+                             is_on_device)
+from devito.core.gpu_openmp import (DeviceOpenMPIteration, DeviceOmpizer,
+                                    DeviceOpenMPDataManager)
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Conditional, EntryFunction, List, LocalExpression,
                            FindSymbols)
@@ -19,8 +20,7 @@ __all__ = ['DeviceOpenACCNoopOperator', 'DeviceOpenACCOperator',
            'DeviceOpenACCCustomOperator']
 
 
-# TODO: currently inhereting from the OpenMP Operators. Ideally, we should/could
-# abstract things away so as to have a separate, language-agnostic superclass
+# DeviceOpenACC-specific passes
 
 
 class DeviceOpenACCIteration(DeviceOpenMPIteration):
@@ -129,6 +129,12 @@ class DeviceAccizer(DeviceOmpizer):
 
         return iet, metadata
 
+    @iet_pass
+    def make_gpudirect(self, iet, **kwargs):
+        # Implicitly handled since acc_malloc is used, hence device pointers
+        # are passed to MPI calls
+        return iet, {}
+
 
 class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
@@ -213,70 +219,35 @@ def initialize(iet, **kwargs):
     return _initialize(iet)
 
 
-class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
+# Operators
+
+
+class DeviceOpenACCOperatorMixin(object):
 
     _Parallelizer = DeviceAccizer
     _DataManager = DeviceOpenACCDataManager
+    _Initializer = initialize
 
     @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
+    def _normalize_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+        oo.pop('openmp', None)
 
-        # Distributed-memory parallelism
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+        kwargs = super()._normalize_kwargs(**kwargs)
+        oo['openacc'] = True
 
-        # Device and host parallelism via OpenACC offloading
-        accizer = cls._Parallelizer(sregistry, options)
-        accizer.make_parallel(graph)
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
-
-        # Initialize OpenACC environment
-        initialize(graph)
-
-        return graph
+        return kwargs
 
 
-class DeviceOpenACCOperator(DeviceOpenMPOperator):
-
-    _Parallelizer = DeviceAccizer
-    _DataManager = DeviceOpenACCDataManager
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-
-        # Distributed-memory parallelism
-        optimize_halospots(graph)
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
-
-        # Device and host parallelism via OpenACC offloading
-        accizer = cls._Parallelizer(sregistry, options)
-        accizer.make_parallel(graph)
-
-        # Misc optimizations
-        hoist_prodders(graph)
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
-
-        # Initialize OpenACC environment
-        initialize(graph)
-
-        return graph
+class DeviceOpenACCNoopOperator(DeviceOpenACCOperatorMixin, DeviceNoopOperator):
+    pass
 
 
-class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOperator):
+class DeviceOpenACCOperator(DeviceOpenACCOperatorMixin, DeviceOperator):
+    pass
 
-    _Parallelizer = DeviceAccizer
-    _DataManager = DeviceOpenACCDataManager
+
+class DeviceOpenACCCustomOperator(DeviceOpenACCOperatorMixin, DeviceCustomOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
@@ -323,6 +294,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
             passes_mapper['mpi'](graph)
 
         # GPU parallelism via OpenACC offloading
+        #TODO: SEE SAME TODO IN OPENMP.... THIS SHOULD GO SOMEHOW...
         if 'openacc' not in passes:
             passes_mapper['openacc'](graph)
 

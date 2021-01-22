@@ -1,6 +1,6 @@
 from devito.arch import Cpu64, Intel64, Arm, Power, Device
 from devito.core.cpu import (CPU64NoopOperator, CPU64Operator, CPU64OpenMPOperator,
-                             CustomOperator)
+                             CPU64CustomOperator)
 from devito.core.intel import (Intel64Operator, Intel64OpenMPOperator,
                                Intel64FSGOperator, Intel64FSGOpenMPOperator)
 from devito.core.arm import ArmOperator, ArmOpenMPOperator
@@ -16,11 +16,12 @@ core_configuration = Parameters('core')
 add_sub_configuration(core_configuration)
 
 # Register CPU Operators
-operator_registry.add(CustomOperator, Cpu64, 'custom', 'C')
-operator_registry.add(CustomOperator, Cpu64, 'custom', 'openmp')
+operator_registry.add(CPU64CustomOperator, Cpu64, 'custom', 'C')
+operator_registry.add(CPU64CustomOperator, Cpu64, 'custom', 'openmp')
 
 operator_registry.add(CPU64NoopOperator, Cpu64, 'noop', 'C')
 operator_registry.add(CPU64NoopOperator, Cpu64, 'noop', 'openmp')
+#TODO: Add CPU64NoopOpenMPOperator
 
 operator_registry.add(CPU64Operator, Cpu64, 'advanced', 'C')
 operator_registry.add(CPU64OpenMPOperator, Cpu64, 'advanced', 'openmp')
@@ -50,7 +51,7 @@ operator_registry.add(DeviceOpenMPOperator, Device, 'advanced', 'openmp')
 operator_registry.add(DeviceOpenACCOperator, Device, 'advanced', 'openacc')
 
 # The following used by backends.backendSelector
-from devito.core.operator import OperatorCore as Operator  # noqa
+from devito.core.operator import CoreOperator as Operator  # noqa
 from devito.types.constant import *  # noqa
 from devito.types.dense import *  # noqa
 from devito.types.sparse import *  # noqa

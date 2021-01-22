@@ -1,23 +1,32 @@
 from devito.core.autotuning import autotune
+from devito.exceptions import InvalidOperator
+from devito.logger import warning
 from devito.parameters import configuration
 from devito.operator import Operator
+from devito.tools import as_tuple, timed_pass
 from devito.types import NThreads
 
-__all__ = ['OperatorCore']
+__all__ = ['CoreOperator', 'CustomOperator']
 
 
-class OperatorCore(Operator):
+class BasicOperator(Operator):
+
+    # The various Operator subclasses are expected to override the following attributes
 
     _Parallelizer = None
     """
     Used to generate shared-memory parallel code by various compiler passes.
-    To be specified by a subclass.
     """
 
     _DataManager = None
     """
     Used to place symbol definitions as well as data allocation, movement, and deletion.
-    To be specified by a subclass.
+    """
+
+    #TODO: TO BE AGGREGATED WITH PARALLELIZER
+    _Initializer = None
+    """
+    Callback to add initialization code for the underlying target-language runtime.
     """
 
     def _autotune(self, args, setup):
@@ -53,3 +62,130 @@ class OperatorCore(Operator):
         else:
             assert len(nthreads) == 1
             return nthreads.pop()
+
+
+class CoreOperator(BasicOperator):
+    pass
+
+
+class CustomOperator(BasicOperator):
+
+    @classmethod
+    def _make_dsl_passes_mapper(cls, **kwargs):
+        return {}
+
+    @classmethod
+    def _make_exprs_passes_mapper(cls, **kwargs):
+        return {}
+
+    @classmethod
+    def _make_clusters_passes_mapper(cls, **kwargs):
+        return {}
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
+        return {}
+
+    _known_passes = ()
+    _known_passes_disabled = ()
+
+    @classmethod
+    def _build(cls, expressions, **kwargs):
+        # Sanity check
+        passes = as_tuple(kwargs['mode'])
+        for i in passes:
+            if i not in cls._known_passes:
+                if i in cls._known_passes_disabled:
+                    warning("Got explicit pass `%s`, but it's unsupported on an "
+                            "Operator of type `%s`" % (i, str(cls)))
+                else:
+                    raise InvalidOperator("Unknown pass `%s`" % i)
+
+        return super()._build(expressions, **kwargs)
+
+    @classmethod
+    @timed_pass(name='specializing.DSL')
+    def _specialize_dsl(cls, expressions, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_dsl_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                expressions = passes_mapper[i](expressions)
+            except KeyError:
+                pass
+
+        return expressions
+
+    @classmethod
+    @timed_pass(name='specializing.Expressions')
+    def _specialize_exprs(cls, expressions, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_exprs_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                expressions = passes_mapper[i](expressions)
+            except KeyError:
+                pass
+
+        return expressions
+
+    @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_clusters_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                clusters = passes_mapper[i](clusters)
+            except KeyError:
+                pass
+
+        return clusters
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        sregistry = kwargs['sregistry']
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                passes_mapper[i](graph)
+            except KeyError:
+                pass
+
+        # Force-call `mpi` if requested via global option
+        if 'mpi' not in passes and options['mpi']:
+            passes_mapper['mpi'](graph)
+
+        # Force-call `openmp` if requested via global option
+        #TODO: ABSTRACT FROM OPENMP!
+        #OVERRIDE AND CHECK THAT IF openmp IN options then force-APPEND it to passes?
+        #SAME STORY WITH MPI, SO THAT openmp GOES AFTER MPI...
+        if 'openmp' not in passes and options['openmp']:
+            passes_mapper['openmp'](graph)
+
+        # Symbol definitions
+        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+
+        # Initialize environment
+        cls._Initializer(graph)
+
+        return graph

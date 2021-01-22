@@ -1,20 +1,30 @@
 from functools import partial
 
-from devito.core.operator import OperatorCore
+from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
-from devito.logger import warning
 from devito.passes.equations import buffering, collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
+from devito.passes.iet import (DataManager, Ompizer, iet_pass, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
-from devito.tools import as_tuple, timed_pass
+from devito.tools import timed_pass
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'CPU64OpenMPOperator',
-           'CustomOperator']
+           'CPU64CustomOperator']
 
 
-class CPU64NoopOperator(OperatorCore):
+# CPU64-specific passes
+
+@iet_pass
+def initialize(iet, **kwargs):
+    """
+    Initialize the environment.
+    """
+    #TODO: TO BE AGGREGATED WITH PARALLELIZER...
+    return iet, {}
+
+
+class CPU64OperatorMixin(object):
 
     BLOCK_LEVELS = 1
     """
@@ -75,7 +85,8 @@ class CPU64NoopOperator(OperatorCore):
     """
 
     _Parallelizer = Ompizer
-    _DataManger = DataManager
+    _DataManager = DataManager
+    _Initializer = initialize
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
@@ -128,6 +139,9 @@ class CPU64NoopOperator(OperatorCore):
 
         return kwargs
 
+
+class CPU64NoopOperator(CPU64OperatorMixin, CoreOperator):
+
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
@@ -149,7 +163,7 @@ class CPU64NoopOperator(OperatorCore):
         return graph
 
 
-class CPU64Operator(CPU64NoopOperator):
+class CPU64Operator(CPU64OperatorMixin, CoreOperator):
 
     @classmethod
     @timed_pass(name='specializing.DSL')
@@ -258,7 +272,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         return graph
 
 
-class CustomOperator(CPU64Operator):
+class CPU64CustomOperator(CPU64OperatorMixin, CustomOperator):
 
     @classmethod
     def _make_dsl_passes_mapper(cls, **kwargs):
@@ -331,98 +345,3 @@ class CustomOperator(CPU64Operator):
     )
     _known_passes_disabled = ('tasking', 'streaming', 'gpu-direct', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))
-
-    @classmethod
-    def _build(cls, expressions, **kwargs):
-        # Sanity check
-        passes = as_tuple(kwargs['mode'])
-        for i in passes:
-            if i not in cls._known_passes:
-                if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
-                else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
-
-        return super()._build(expressions, **kwargs)
-
-    @classmethod
-    @timed_pass(name='specializing.DSL')
-    def _specialize_dsl(cls, expressions, **kwargs):
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_dsl_passes_mapper(**kwargs)
-
-        # Call passes
-        for i in passes:
-            try:
-                expressions = passes_mapper[i](expressions)
-            except KeyError:
-                pass
-
-        return expressions
-
-    @classmethod
-    @timed_pass(name='specializing.Expressions')
-    def _specialize_exprs(cls, expressions, **kwargs):
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_exprs_passes_mapper(**kwargs)
-
-        # Call passes
-        for i in passes:
-            try:
-                expressions = passes_mapper[i](expressions)
-            except KeyError:
-                pass
-
-        return expressions
-
-    @classmethod
-    @timed_pass(name='specializing.Clusters')
-    def _specialize_clusters(cls, clusters, **kwargs):
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_clusters_passes_mapper(**kwargs)
-
-        # Call passes
-        for i in passes:
-            try:
-                clusters = passes_mapper[i](clusters)
-            except KeyError:
-                pass
-
-        return clusters
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
-
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
-
-        # Force-call `mpi` if requested via global option
-        if 'mpi' not in passes and options['mpi']:
-            passes_mapper['mpi'](graph)
-
-        # Force-call `openmp` if requested via global option
-        if 'openmp' not in passes and options['openmp']:
-            passes_mapper['openmp'](graph)
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
-
-        return graph

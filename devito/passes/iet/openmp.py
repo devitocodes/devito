@@ -197,7 +197,7 @@ class ThreadedProdder(Conditional, Prodder):
         Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
 
 
-class Parallelizer(object):
+class Parallelizer(object):  #TODO: More of LanguageGenerator or ...
 
     """
     Base abstract class for the parallelizers -- objects which can manipulate IETs
