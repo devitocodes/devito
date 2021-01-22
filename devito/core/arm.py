@@ -1,6 +1,6 @@
 from devito.core.cpu import CPU64Operator, CPU64OpenMPOperator
-from devito.passes.iet import (DataManager, Ompizer, mpiize,
-                               optimize_halospots, hoist_prodders, relax_incr_dimensions)
+from devito.passes.iet import (mpiize, optimize_halospots, hoist_prodders,
+                               relax_incr_dimensions)
 from devito.tools import timed_pass
 
 __all__ = ['ArmOperator', 'ArmOpenMPOperator']
@@ -24,14 +24,14 @@ class ArmOperator(CPU64Operator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer(sregistry, options)
+        ompizer = cls._Parallelizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._DataManager(sregistry).process(graph)
 
         return graph
 
@@ -57,7 +57,7 @@ class ArmOpenMPOperator(CPU64OpenMPOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer(sregistry, options)
+        ompizer = cls._Parallelizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Shared-memory parallelism
@@ -67,6 +67,6 @@ class ArmOpenMPOperator(CPU64OpenMPOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._DataManager(sregistry).process(graph)
 
         return graph

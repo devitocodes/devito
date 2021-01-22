@@ -424,6 +424,9 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     Coefficient to adjust the chunk size in non-affine parallel loops.
     """
 
+    _Parallelizer = DeviceOmpizer
+    _DataManager = DeviceOpenMPDataManager
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         o = {}
@@ -488,10 +491,10 @@ class DeviceOpenMPNoopOperator(OperatorCore):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer(sregistry, options).make_parallel(graph)
+        cls._Parallelizer(sregistry, options).make_parallel(graph)
 
         # Symbol definitions
-        DeviceOpenMPDataManager(sregistry, options).process(graph)
+        cls._DataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
@@ -550,13 +553,13 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        DeviceOmpizer(sregistry, options).make_parallel(graph)
+        cls._Parallelizer(sregistry, options).make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        DeviceOpenMPDataManager(sregistry, options).process(graph)
+        cls._DataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
@@ -617,7 +620,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
-        ompizer = DeviceOmpizer(sregistry, options)
+        ompizer = cls._Parallelizer(sregistry, options)
         orchestrator = DeviceOpenMPOrchestrator(sregistry)
 
         return {
@@ -669,7 +672,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
                 pass
 
         # Symbol definitions
-        DeviceOpenMPDataManager(sregistry, options).process(graph)
+        cls._DataManager(sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)

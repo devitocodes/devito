@@ -74,6 +74,9 @@ class CPU64NoopOperator(OperatorCore):
     than this threshold.
     """
 
+    _Parallelizer = Ompizer
+    _DataManger = DataManager
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         o = {}
@@ -137,11 +140,11 @@ class CPU64NoopOperator(OperatorCore):
 
         # Shared-memory parallelism
         if options['openmp']:
-            ompizer = Ompizer(sregistry, options)
+            ompizer = cls._Parallelizer(sregistry, options)
             ompizer.make_parallel(graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._DataManager(sregistry).process(graph)
 
         return graph
 
@@ -207,14 +210,14 @@ class CPU64Operator(CPU64NoopOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer(sregistry, options)
+        ompizer = cls._Parallelizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._DataManager(sregistry).process(graph)
 
         return graph
 
@@ -240,7 +243,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = Ompizer(sregistry, options)
+        ompizer = cls._Parallelizer(sregistry, options)
         ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Shared-memory parallelism
@@ -250,7 +253,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._DataManager(sregistry).process(graph)
 
         return graph
 
@@ -303,7 +306,7 @@ class CustomOperator(CPU64Operator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        ompizer = Ompizer(sregistry, options)
+        ompizer = cls._Parallelizer(sregistry, options)
 
         return {
             'denormals': avoid_denormals,
@@ -420,6 +423,6 @@ class CustomOperator(CPU64Operator):
             passes_mapper['openmp'](graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._DataManager(sregistry).process(graph)
 
         return graph

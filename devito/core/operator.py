@@ -8,6 +8,18 @@ __all__ = ['OperatorCore']
 
 class OperatorCore(Operator):
 
+    _Parallelizer = None
+    """
+    Used to generate shared-memory parallel code by various compiler passes.
+    To be specified by a subclass.
+    """
+
+    _DataManager = None
+    """
+    Used to place symbol definitions as well as data allocation, movement, and deletion.
+    To be specified by a subclass.
+    """
+
     def _autotune(self, args, setup):
         if setup in [False, 'off']:
             return args

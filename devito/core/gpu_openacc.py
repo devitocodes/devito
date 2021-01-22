@@ -222,6 +222,9 @@ def initialize(iet, **kwargs):
 
 class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
 
+    _Parallelizer = DeviceAccizer
+    _DataManager = DeviceOpenACCDataManager
+
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
@@ -233,11 +236,11 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # Device and host parallelism via OpenACC offloading
-        accizer = DeviceAccizer(sregistry, options)
+        accizer = cls._Parallelizer(sregistry, options)
         accizer.make_parallel(graph)
 
         # Symbol definitions
-        DeviceOpenACCDataManager(sregistry, options).process(graph)
+        cls._DataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         initialize(graph)
@@ -246,6 +249,9 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
 
 
 class DeviceOpenACCOperator(DeviceOpenMPOperator):
+
+    _Parallelizer = DeviceAccizer
+    _DataManager = DeviceOpenACCDataManager
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -259,14 +265,14 @@ class DeviceOpenACCOperator(DeviceOpenMPOperator):
             mpiize(graph, mode=options['mpi'])
 
         # Device and host parallelism via OpenACC offloading
-        accizer = DeviceAccizer(sregistry, options)
+        accizer = cls._Parallelizer(sregistry, options)
         accizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        DeviceOpenACCDataManager(sregistry, options).process(graph)
+        cls._DataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         initialize(graph)
@@ -276,12 +282,15 @@ class DeviceOpenACCOperator(DeviceOpenMPOperator):
 
 class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOperator):
 
+    _Parallelizer = DeviceAccizer
+    _DataManager = DeviceOpenACCDataManager
+
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
-        accizer = DeviceAccizer(sregistry, options)
+        accizer = cls._Parallelizer(sregistry, options)
         orchestrator = DeviceOpenACCOrchestrator(sregistry)
 
         return {
@@ -332,7 +341,7 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
                 pass
 
         # Symbol definitions
-        DeviceOpenACCDataManager(sregistry, options).process(graph)
+        cls._DataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
         initialize(graph)
