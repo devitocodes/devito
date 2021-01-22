@@ -31,7 +31,7 @@ class ArmOperator(CPU64Operator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._DataManager(sregistry).process(graph)
+        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
 
         return graph
 
@@ -67,6 +67,6 @@ class ArmOpenMPOperator(CPU64OpenMPOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._DataManager(sregistry).process(graph)
+        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
 
         return graph

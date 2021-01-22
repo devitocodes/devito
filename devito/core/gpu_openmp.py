@@ -231,12 +231,13 @@ class DeviceOpenMPOrchestrator(Orchestrator):
 
 class DeviceOpenMPDataManager(DataManager):
 
-    _Parallelizer = DeviceOmpizer
-
-    def __init__(self, sregistry, options):
+    def __init__(self, parallelizer, sregistry, options):
         """
         Parameters
         ----------
+        parallelizer : Parallelizer
+            Used to implement data movement between host and device as well as
+            data mapping, allocation, and deallocation on the device.
         sregistry : SymbolRegistry
             The symbol registry, to quickly access the special symbols that may
             appear in the IET (e.g., `sregistry.threadid`, that is the thread
@@ -248,28 +249,28 @@ class DeviceOpenMPDataManager(DataManager):
               in the device memory. By default, all `Function`s except saved
               `TimeFunction`'s are assumed to fit in the device memory.
         """
-        super().__init__(sregistry)
+        super().__init__(parallelizer, sregistry)
         self.gpu_fit = options['gpu-fit']
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
         _storage = Storage()
         super()._alloc_array_on_high_bw_mem(site, obj, _storage)
 
-        allocs = _storage[site].allocs + [self._Parallelizer._map_alloc(obj)]
-        frees = [self._Parallelizer._map_delete(obj)] + _storage[site].frees
+        allocs = _storage[site].allocs + [self.parallelizer._map_alloc(obj)]
+        frees = [self.parallelizer._map_delete(obj)] + _storage[site].frees
         storage.update(obj, site, allocs=allocs, frees=frees)
 
     def _map_function_on_high_bw_mem(self, site, obj, storage, devicerm, read_only=False):
         """
         Place a Function in the high bandwidth memory.
         """
-        alloc = self._Parallelizer._map_to(obj)
+        alloc = self.parallelizer._map_to(obj)
 
         if read_only is False:
-            free = c.Collection([self._Parallelizer._map_update(obj),
-                                 self._Parallelizer._map_release(obj, devicerm=devicerm)])
+            free = c.Collection([self.parallelizer._map_update(obj),
+                                 self.parallelizer._map_release(obj, devicerm=devicerm)])
         else:
-            free = self._Parallelizer._map_delete(obj, devicerm=devicerm)
+            free = self.parallelizer._map_delete(obj, devicerm=devicerm)
 
         storage.update(obj, site, allocs=alloc, frees=free)
 
@@ -292,7 +293,7 @@ class DeviceOpenMPDataManager(DataManager):
                 if not i.is_Expression:
                     # No-op
                     continue
-                if not any(isinstance(j, self._Parallelizer._Iteration) for j in v):
+                if not any(isinstance(j, self.parallelizer._Iteration) for j in v):
                     # Not an offloaded Iteration tree
                     continue
                 if i.write.is_DiscreteFunction:
@@ -491,10 +492,11 @@ class DeviceOpenMPNoopOperator(OperatorCore):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        cls._Parallelizer(sregistry, options).make_parallel(graph)
+        ompizer = cls._Parallelizer(sregistry, options)
+        ompizer.make_parallel(graph)
 
         # Symbol definitions
-        cls._DataManager(sregistry, options).process(graph)
+        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
@@ -553,16 +555,18 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism via OpenMP offloading
-        cls._Parallelizer(sregistry, options).make_parallel(graph)
+        ompizer = cls._Parallelizer(sregistry, options)
+        ompizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._DataManager(sregistry, options).process(graph)
+        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)
+
         # TODO: This should be moved right below the `mpiize` pass, but currently calling
         # `mpi_gpu_direct` before Symbol definitions` block would create Blocks before
         # creating C variables. That would lead to MPI_Request variables being local to
@@ -574,6 +578,9 @@ class DeviceOpenMPOperator(DeviceOpenMPNoopOperator):
 
 
 class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
+
+    _Parallelizer = DeviceOmpizer
+    _DataManager = DeviceOpenMPDataManager
 
     _normalize_kwargs = DeviceOpenMPOperator._normalize_kwargs
 
@@ -672,7 +679,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
                 pass
 
         # Symbol definitions
-        cls._DataManager(sregistry, options).process(graph)
+        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
 
         # Initialize OpenMP environment
         initialize(graph)

@@ -11,7 +11,6 @@ import cgen as c
 from devito.ir import (List, LocalExpression, PointerCast, FindSymbols,
                        MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.openmp import Ompizer
 from devito.symbolics import ccode
 from devito.tools import as_mapper, flatten
 
@@ -51,18 +50,19 @@ class Storage(OrderedDict):
 
 class DataManager(object):
 
-    _Parallelizer = Ompizer
-
-    def __init__(self, sregistry):
+    def __init__(self, parallelizer, sregistry):
         """
         Parameters
         ----------
+        parallelizer : Parallelizer
+            Used for thread-aware data initialization.
         sregistry : SymbolRegistry
             The symbol registry, to quickly access the special symbols that may
             appear in the IET (e.g., `sregistry.threadid`, that is the thread
             Dimension, used by the DataManager for parallel memory allocation).
         """
         self.sregistry = sregistry
+        self.parallelizer = parallelizer
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
@@ -160,8 +160,8 @@ class DataManager(object):
             # allocs/pallocs
             allocs = flatten(v.allocs)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
-                header = self._Parallelizer._Region._make_header(tid.symbolic_size)
-                init = self._Parallelizer._make_tid(tid)
+                header = self.parallelizer._Region._make_header(tid.symbolic_size)
+                init = self.parallelizer._make_tid(tid)
                 allocs.append(c.Module((header, c.Block([init] + body))))
             if allocs:
                 allocs.append(c.Line())
@@ -169,8 +169,8 @@ class DataManager(object):
             # frees/pfrees
             frees = []
             for tid, body in as_mapper(v.pfrees, itemgetter(0), itemgetter(1)).items():
-                header = self._Parallelizer._Region._make_header(tid.symbolic_size)
-                init = self._Parallelizer._make_tid(tid)
+                header = self.parallelizer._Region._make_header(tid.symbolic_size)
+                init = self.parallelizer._make_tid(tid)
                 frees.append(c.Module((header, c.Block([init] + body))))
             frees.extend(flatten(v.frees))
             if frees:

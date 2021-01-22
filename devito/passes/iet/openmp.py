@@ -197,7 +197,17 @@ class ThreadedProdder(Conditional, Prodder):
         Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
 
 
-class Ompizer(object):
+class Parallelizer(object):
+
+    """
+    Base abstract class for the parallelizers -- objects which can manipulate IETs
+    to implement some form of shared-memory parallelism.
+    """
+
+    pass
+
+
+class Ompizer(Parallelizer):
 
     lang = {
         'simd-for': c.Pragma('omp simd'),
