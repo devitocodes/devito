@@ -173,7 +173,7 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span><span class="p">,</span> <span class="n">lower_exprs</span><span class="p">,</span> <span class="n">generate_implicit_exprs</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="kn">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">clusterize</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">EntryFunction</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="kn">import</span> <span class="n">stree_build</span>
 <span class="kn">from</span> <span class="nn">devito.operator.profiling</span> <span class="kn">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.operator.registry</span> <span class="kn">import</span> <span class="n">operator_selector</span>
@@ -549,9 +549,10 @@
         <span class="c1"># Analyze the IET Sections for C-level profiling</span>
         <span class="n">profiler</span><span class="o">.</span><span class="n">analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
-        <span class="c1"># Wrap the IET with a Callable</span>
+        <span class="c1"># Wrap the IET with an EntryFunction (a special Callable representing</span>
+        <span class="c1"># the entry point of the generated library)</span>
         <span class="n">parameters</span> <span class="o">=</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="n">iet</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">())</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">EntryFunction</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">())</span>
 
         <span class="c1"># Lower IET to a target-specific IET</span>
         <span class="n">graph</span> <span class="o">=</span> <span class="n">Graph</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
