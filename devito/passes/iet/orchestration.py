@@ -58,8 +58,14 @@ class Orchestrator(object):
         return iet
 
     def _make_withlock(self, iet, sync_ops, pieces, root):
+        # Sorting for deterministic code gen
         locks = sorted({s.lock for s in sync_ops}, key=lambda i: i.name)
 
+        # The `min` is used to pick the maximum possible degree of parallelism.
+        # For example, assume there are two locks in the given `sync_ops`, `lock0(i)`
+        # and `lock1(j)`. If, say, `lock0` protects 3 entries of a certain Function
+        # `u`, while `lock1` protects 2 entries of the Function `v`, then there
+        # will never be more than 2 threads in flight concurrently
         npthreads = min(i.size for i in locks)
 
         preactions = []
@@ -77,7 +83,7 @@ class Orchestrator(object):
         postactions.insert(0, BlankLine)
 
         # Turn `iet` into a ThreadFunction so that it can be executed
-        # asynchronously by a child host thread
+        # asynchronously by a pthread in the `npthreads` pool
         name = self.sregistry.make_name(prefix='copy_device_to_host')
         body = List(body=tuple(preactions) + iet.body + tuple(postactions))
         tctx = make_thread_ctx(name, body, root, npthreads, sync_ops, self.sregistry)
