@@ -164,6 +164,19 @@ class Basic(object):
         """
         return
 
+    @property
+    def _C_symbol(self):
+        """
+        The C-level symbol. This may or may not coincide with the symbol used
+        to make up an `Eq`. For example, if `self` provides the C code with
+        a struct, then the _C_symbol will be the symbol representing such struct.
+
+        Returns
+        -------
+        Basic
+        """
+        return self
+
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
@@ -888,6 +901,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return dtype_to_cstr(self.dtype)
 
     @cached_property
+    def _C_symbol(self):
+        return BoundSymbol(name=self._C_name, dtype=self.dtype, function=self.function)
+
+    @cached_property
     def _size_domain(self):
         """Number of points in the domain region."""
         return DimensionTuple(*self.shape, getters=self.dimensions)
@@ -1184,6 +1201,22 @@ class IndexedData(sympy.IndexedBase, Pickable):
     # Pickling support
     _pickle_kwargs = ['label', 'shape', 'function']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class BoundSymbol(Symbol):
+
+    """
+    Wrapper class for Symbols that are bound to a symbolic data object.
+    """
+
+    def __init_finalize__(self, *args, function=None, **kwargs):
+        self._function = function
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def function(self):
+        return self._function
 
 
 class Indexed(sympy.Indexed):

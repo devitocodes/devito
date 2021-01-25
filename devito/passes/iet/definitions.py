@@ -108,8 +108,7 @@ class DataManager(object):
         Allocate an Array of Objects in the low latency memory.
         """
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-        alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
-        decl = "%s%s %s" % (obj.name, shape, alignment)
+        decl = "%s%s" % (obj.name, shape)
 
         storage.update(obj, site, allocs=c.Value(obj._C_typedata, decl))
 
@@ -217,9 +216,12 @@ class DataManager(object):
                 else:
                     objs = [k.parray]
             elif k.is_Call:
-                objs = list(k.arguments)
+                objs = list(k.functions)
                 if k.retobj is not None:
                     objs.append(k.retobj.function)
+            elif k.is_PointerCast:
+                placed.append(k.function)
+                objs = []
 
             for i in objs:
                 if i in placed:
@@ -287,8 +289,8 @@ class DataManager(object):
         need_cast = {i for i in functions if i.is_Tensor}
 
         # Make the generated code less verbose by avoiding unnecessary casts
-        indexed_names = {i.name for i in FindSymbols('indexeds').visit(iet)}
-        need_cast = {i for i in need_cast if i.name in indexed_names or i.is_ArrayBasic}
+        symbol_names = {i.name for i in FindSymbols('free-symbols').visit(iet)}
+        need_cast = {i for i in need_cast if i.name in symbol_names}
 
         casts = tuple(PointerCast(i) for i in iet.parameters if i in need_cast)
         if casts:

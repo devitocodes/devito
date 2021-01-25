@@ -12,7 +12,7 @@ from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
-                          PointerArray, Lock, STDThreadArray, SharedData, Timer)
+                          PointerArray, Lock, PThreadArray, SharedData, Timer)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -209,8 +209,8 @@ def test_lock():
     new_lock.target.shape == f.shape
 
 
-def test_std_thread_array():
-    a = STDThreadArray(name='threads', nthreads_std=4)
+def test_p_thread_array():
+    a = PThreadArray(name='threads', npthreads=4, base_id=2)
 
     pkl_a = pickle.dumps(a)
     new_a = pickle.loads(pkl_a)
@@ -218,12 +218,14 @@ def test_std_thread_array():
     assert a.name == new_a.name
     assert a.dimensions[0].name == new_a.dimensions[0].name
     assert a.size == new_a.size
+    assert a.base_id == new_a.base_id == 2
 
 
 def test_shared_data():
     s = Scalar(name='s')
+    a = Scalar(name='a')
 
-    sdata = SharedData(name='sdata', nthreads_std=2, fields=[s])
+    sdata = SharedData(name='sdata', npthreads=2, fields=[s], dynamic_fields=[a])
 
     pkl_sdata = pickle.dumps(sdata)
     new_sdata = pickle.loads(pkl_sdata)
@@ -232,6 +234,7 @@ def test_shared_data():
     assert sdata.size == new_sdata.size
     assert sdata.fields == new_sdata.fields
     assert sdata.pfields == new_sdata.pfields
+    assert sdata.dynamic_fields == new_sdata.dynamic_fields
 
     ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
 

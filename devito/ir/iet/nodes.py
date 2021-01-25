@@ -16,15 +16,14 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORI
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type)
-from devito.types import Symbol, Indexed
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
-           'DummyExpr', 'BlankLine']
+           'PragmaList', 'DummyExpr', 'BlankLine']
 
 # First-class IET nodes
 
@@ -269,12 +268,13 @@ class Call(ExprStmt, Node):
 
     @property
     def functions(self):
-        retval = tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+        retval = [i.function for i in self.arguments
+                  if isinstance(i, (AbstractFunction, Indexed, LocalObject))]
         if self.base is not None:
-            retval += (self.base.function,)
+            retval.append(self.base.function)
         if self.retobj is not None:
-            retval += (self.retobj.function,)
-        return retval
+            retval.append(self.retobj.function)
+        return tuple(retval)
 
     @property
     def children(self):
@@ -287,7 +287,12 @@ class Call(ExprStmt, Node):
             if isinstance(i, numbers.Number):
                 continue
             elif isinstance(i, AbstractFunction):
-                free.add(i)
+                if i.is_ArrayBasic:
+                    free.add(i)
+                else:
+                    # Always passed by _C_name since what actually needs to be
+                    # provided is the pointer to the corresponding C struct
+                    free.add(i._C_symbol)
             else:
                 free.update(i.free_symbols)
         if self.base is not None:
@@ -665,7 +670,7 @@ class Callable(Node):
 
     @property
     def free_symbols(self):
-        return tuple(self.parameters)
+        return ()
 
     @property
     def defines(self):
@@ -768,10 +773,10 @@ class TimedList(List):
 
     @property
     def free_symbols(self):
-        return (self.timer,)
+        return ()
 
 
-class PointerCast(Node):
+class PointerCast(ExprStmt, Node):
 
     """
     A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
@@ -779,8 +784,9 @@ class PointerCast(Node):
 
     is_PointerCast = True
 
-    def __init__(self, function):
+    def __init__(self, function, obj=None):
         self.function = function
+        self.obj = obj
 
     def __repr__(self):
         return "<PointerCast(%s)>" % self.function
@@ -807,11 +813,11 @@ class PointerCast(Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        if self.function.is_ArrayBasic:
-            sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
-            return (self.function, ) + as_tuple(sizes)
+        f = self.function
+        if f.is_ArrayBasic:
+            return tuple(flatten(s.free_symbols for s in f.symbolic_shape[1:]))
         else:
-            return (self.function,)
+            return ()
 
     @property
     def defines(self):
@@ -821,7 +827,12 @@ class PointerCast(Node):
 class Dereference(ExprStmt, Node):
 
     """
-    A node encapsulating a dereference from a PointerArray to an Array.
+    A node encapsulating a dereference from an object `parray` to another object
+    `array`. Two possibilities are supported:
+
+        * `parray` is a PointerArray and `array` is an Array (default case)
+        * `parray` is an ArrayObject representing a pointer to a C struct while
+          `array` is a field in `parray`.
     """
 
     is_Dereference = True
@@ -844,7 +855,7 @@ class Dereference(ExprStmt, Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        return ((self.array, self.parray) +
+        return ((self.array.indexed.label, self.parray.indexed.label) +
                 tuple(flatten(i.free_symbols for i in self.array.symbolic_shape[1:])) +
                 tuple(self.parray.free_symbols))
 
@@ -1033,6 +1044,29 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class PragmaList(List):
+
+    """
+    A floating sequence of pragmas.
+    """
+
+    def __init__(self, pragmas, functions=None, **kwargs):
+        super().__init__(header=pragmas)
+        self._functions = as_tuple(functions)
+
+    @property
+    def pragmas(self):
+        return self.header
+
+    @property
+    def functions(self):
+        return self._functions
+
+    @property
+    def free_symbols(self):
+        return self._functions
 
 
 class ParallelIteration(Iteration):

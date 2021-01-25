@@ -106,7 +106,7 @@ def test_nested_calls_cgen():
 
 
 @pytest.mark.parametrize('mode,expected', [
-    ('free-symbols', '["f", "x"]'),
+    ('free-symbols', '["f_vec", "x"]'),
     ('symbolics', '["f"]')
 ])
 def test_find_symbols_nested(mode, expected):

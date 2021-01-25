@@ -9,19 +9,18 @@ from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.exceptions import InvalidOperator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Call, Callable, ElementalFunction, Expression,
-                           List, FindNodes, FindSymbols, LocalExpression,
-                           MapExprStmts, Transformer)
+from devito.ir.iet import (Block, Call, Callable, ElementalFunction, EntryFunction,
+                           Expression, List, LocalExpression, ThreadFunction,
+                           FindNodes, FindSymbols, MapExprStmts, Transformer)
 from devito.mpi.distributed import MPICommObject
-from devito.mpi.routines import (CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv,
-                                 MPICallable)
+from devito.mpi.routines import CopyBuffer, HaloUpdate, IrecvCall, IsendCall, SendRecv
 from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows)
 from devito.passes.iet import (DataManager, Storage, Ompizer, OpenMPIteration,
-                               ParallelTree, optimize_halospots, mpiize, hoist_prodders,
-                               iet_pass)
+                               ParallelTree, Orchestrator, optimize_halospots, mpiize,
+                               hoist_prodders, iet_pass)
 from devito.symbolics import Byref, ccode
 from devito.tools import as_tuple, filter_sorted, timed_pass
 from devito.types import Symbol
@@ -220,6 +219,11 @@ class DeviceOmpizer(Ompizer):
             return super()._make_nested_partree(partree)
 
 
+class DeviceOpenMPOrchestrator(Orchestrator):
+
+    _Parallelizer = DeviceOmpizer
+
+
 class DeviceOpenMPDataManager(DataManager):
 
     _Parallelizer = DeviceOmpizer
@@ -301,9 +305,7 @@ class DeviceOpenMPDataManager(DataManager):
             return iet
 
         @_map_onmemspace.register(ElementalFunction)
-        def _(iet):
-            return iet
-
+        @_map_onmemspace.register(ThreadFunction)
         @_map_onmemspace.register(CopyBuffer)
         @_map_onmemspace.register(SendRecv)
         @_map_onmemspace.register(HaloUpdate)
@@ -323,6 +325,10 @@ def initialize(iet, **kwargs):
 
     @singledispatch
     def _initialize(iet):
+        return iet
+
+    @_initialize.register(EntryFunction)
+    def _(iet):
         comm = None
 
         for i in iet.parameters:
@@ -349,11 +355,6 @@ def initialize(iet, **kwargs):
 
             iet = iet._rebuild(body=(init,) + iet.body)
 
-        return iet
-
-    @_initialize.register(ElementalFunction)
-    @_initialize.register(MPICallable)
-    def _(iet):
         return iet
 
     iet = _initialize(iet)
@@ -607,10 +608,12 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         sregistry = kwargs['sregistry']
 
         ompizer = DeviceOmpizer(sregistry, options)
+        orchestrator = DeviceOpenMPOrchestrator(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
             'openmp': partial(ompizer.make_parallel),
+            'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders),
             'gpu-direct': partial(mpi_gpu_direct)
@@ -625,7 +628,7 @@ class DeviceOpenMPCustomOperator(CustomOperator, DeviceOpenMPOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'openmp', 'mpi', 'prodders', 'gpu-direct'
+        'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
     )
     _known_passes_disabled = ('denormals', 'simd', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))

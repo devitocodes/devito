@@ -1,10 +1,10 @@
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
 from devito.symbolics import Literal, Macro
-from devito.tools import flatten
+from devito.tools import flatten, split
 from devito.types import Array, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'compose_nodes',
-           'derive_parameters']
+           'derive_parameters', 'diff_parameters']
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -118,3 +118,22 @@ def derive_parameters(iet, drop_locals=False):
         parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
 
     return parameters
+
+
+def diff_parameters(iet, root):
+    """
+    Derive the parameters of a sub-IET, `iet`, within a Callable, `root`, and
+    split them into two groups:
+
+        * the "read-only" parameters, and
+        * the "dynamic" parameters, whose value changes at some point in `root`.
+    """
+    # TODO: this is currently very rudimentary
+    required = derive_parameters(iet)
+
+    known = (set(root.parameters) |
+             set(i for i in required if i.is_Array and i._mem_shared))
+
+    parameters, dynamic_parameters = split(required, lambda i: i in known)
+
+    return required, parameters, dynamic_parameters
