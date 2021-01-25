@@ -50,7 +50,7 @@ class Storage(OrderedDict):
 
 class DataManager(object):
 
-    def __init__(self, parallelizer, sregistry):
+    def __init__(self, parallelizer, sregistry, *args):
         """
         Parameters
         ----------
@@ -61,8 +61,8 @@ class DataManager(object):
             appear in the IET (e.g., `sregistry.threadid`, that is the thread
             Dimension, used by the DataManager for parallel memory allocation).
         """
-        self.sregistry = sregistry
         self.parallelizer = parallelizer
+        self.sregistry = sregistry
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """

@@ -96,6 +96,7 @@ class CPU64OperatorMixin(object):
         # Execution modes
         o['openmp'] = oo.pop('openmp')
         o['mpi'] = oo.pop('mpi')
+        o['parallel'] = o['openmp']  # Backwards compatibility
 
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
@@ -326,6 +327,7 @@ class CPU64CustomOperator(CPU64OperatorMixin, CustomOperator):
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
             'blocking': partial(relax_incr_dimensions, sregistry=sregistry),
+            'parallel': ompizer.make_parallel,
             'openmp': ompizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),

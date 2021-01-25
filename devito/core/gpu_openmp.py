@@ -409,8 +409,11 @@ class DeviceOpenMPOperator(DeviceOpenMPOperatorMixin, DeviceOperator):
 
 class DeviceOpenMPCustomOperator(DeviceOpenMPOperatorMixin, DeviceCustomOperator):
 
+    _known_passes = DeviceCustomOperator._known_passes + ('openmp',)
+    assert not (set(_known_passes) & set(DeviceCustomOperator._known_passes_disabled))
+
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
         mapper = super()._make_iet_passes_mapper(**kwargs)
-        from IPython import embed; embed()
+        mapper['openmp'] = mapper['parallel']
         return mapper

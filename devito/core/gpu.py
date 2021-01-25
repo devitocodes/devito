@@ -58,6 +58,7 @@ class DeviceOperatorMixin(object):
 
         # Execution modes
         o['mpi'] = oo.pop('mpi')
+        o['parallel'] = True
 
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
@@ -113,8 +114,8 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_parallel(graph)
+        parizer = cls._Parallelizer(sregistry, options)
+        parizer.make_parallel(graph)
 
         # Symbol definitions
         cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
@@ -176,8 +177,8 @@ class DeviceOperator(DeviceOperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_parallel(graph)
+        parizer = cls._Parallelizer(sregistry, options)
+        parizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -192,10 +193,8 @@ class DeviceOperator(DeviceOperatorMixin, CoreOperator):
         # `make_gpudirect` before Symbol definitions` block would create Blocks before
         # creating C variables. That would lead to MPI_Request variables being local to
         # their blocks. This way, it would generate incorrect C code.
-        #TODO: THIS IS ONLY FOR OPENMP... AND NOW THIS METHOD IS SHARED BY OPENACC TOO...
-        # SO WE NEED TO MAKE IT SPECIFIC VIA A HOOK??
         if options['gpu-direct']:
-            ompizer.make_gpudirect(graph)
+            parizer.make_gpudirect(graph)
 
         return graph
 
@@ -260,7 +259,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders),
-            'gpu-direct': partial(parallelizer.make_gpudirect)  #TODO  ONLY OPENMP
+            'gpu-direct': partial(parallelizer.make_gpudirect)
         }
 
     _known_passes = (
@@ -272,46 +271,10 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'openmp', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'  #TODO OPENMP
+        'optcomms', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
     )
-    _known_passes_disabled = ('denormals', 'simd', 'openacc')
+    _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
-
-        # Force-call `mpi` if requested via global option
-        if 'mpi' not in passes and options['mpi']:
-            passes_mapper['mpi'](graph)
-
-        # GPU parallelism via OpenMP offloading
-        #TODO: NEED THAT OPTIONS['OPENMP'] = TRUE (OR OPENACC) HERE SO THAT
-        # WE CAN DELETE THIS METHOD AND JUST REUSE THE ONE IN THE SUPERCLASS
-        #TODO: WE ALSO NEED TO MAKE ALL OF THIS ORTHOGONAL TO OPENMP/OPENACC/CUDA/...
-        if 'openmp' not in passes:
-            passes_mapper['openmp'](graph)
-
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
-
-        # Initialize environment
-        cls._Initializer(graph)
-
-        return graph
 
 
 # Utils

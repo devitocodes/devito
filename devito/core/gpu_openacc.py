@@ -1,4 +1,4 @@
-from functools import partial, singledispatch
+from functools import singledispatch
 
 import cgen as c
 
@@ -251,64 +251,9 @@ class DeviceOpenACCCustomOperator(DeviceOpenACCOperatorMixin, DeviceCustomOperat
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
+        mapper = super()._make_iet_passes_mapper(**kwargs)
+        mapper['openacc'] = mapper['parallel']
+        return mapper
 
-        accizer = cls._Parallelizer(sregistry, options)
-        orchestrator = Orchestrator(cls._Parallelizer, sregistry)
-
-        return {
-            'optcomms': partial(optimize_halospots),
-            'openacc': partial(accizer.make_parallel),
-            'orchestrate': partial(orchestrator.process),
-            'mpi': partial(mpiize, mode=options['mpi']),
-            'prodders': partial(hoist_prodders)
-        }
-
-    _known_passes = (
-        # DSL
-        'collect-derivs',
-        # Expressions
-        'buffering',
-        # Clusters
-        'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
-        'cire-sops', 'cse', 'opt-pows', 'topofuse',
-        # IET
-        'optcomms', 'openacc', 'orchestrate', 'mpi', 'prodders'
-    )
-    _known_passes_disabled = ('openmp', 'denormals', 'simd', 'gpu-direct')
-    assert not (set(_known_passes) & set(_known_passes_disabled))
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
-
-        # Force-call `mpi` if requested via global option
-        if 'mpi' not in passes and options['mpi']:
-            passes_mapper['mpi'](graph)
-
-        # GPU parallelism via OpenACC offloading
-        #TODO: SEE SAME TODO IN OPENMP.... THIS SHOULD GO SOMEHOW...
-        if 'openacc' not in passes:
-            passes_mapper['openacc'](graph)
-
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
-
-        # Initialize OpenACC environment
-        initialize(graph)
-
-        return graph
+    _known_passes = DeviceCustomOperator._known_passes + ('openacc',)
+    assert not (set(_known_passes) & set(DeviceCustomOperator._known_passes_disabled))

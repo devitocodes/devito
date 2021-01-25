@@ -29,6 +29,25 @@ class BasicOperator(Operator):
     Callback to add initialization code for the underlying target-language runtime.
     """
 
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        # Will be populated with dummy values; this method is actually overriden
+        # by the subclasses
+        o = {}
+        oo = kwargs['options']
+
+        # Execution modes
+        o['mpi'] = False
+        o['parallel'] = False
+
+        if oo:
+            raise InvalidOperator("Unrecognized optimization options: [%s]"
+                                  % ", ".join(list(oo)))
+
+        kwargs['options'].update(o)
+
+        return kwargs
+
     def _autotune(self, args, setup):
         if setup in [False, 'off']:
             return args
@@ -84,7 +103,12 @@ class CustomOperator(BasicOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
-        return {}
+        # Dummy values
+        noop = lambda i: i
+        return {
+            'mpi': noop,
+            'parallel': noop
+        }
 
     _known_passes = ()
     _known_passes_disabled = ()
@@ -161,29 +185,26 @@ class CustomOperator(BasicOperator):
         sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
-        # Fetch passes to be called
+        # Run passes
         passes_mapper = cls._make_iet_passes_mapper(**kwargs)
-
-        # Call passes
+        applied = []
         for i in passes:
             try:
+                applied.append(passes_mapper[i])
                 passes_mapper[i](graph)
             except KeyError:
                 pass
 
         # Force-call `mpi` if requested via global option
-        if 'mpi' not in passes and options['mpi']:
+        if passes_mapper['mpi'] not in applied and options['mpi']:
             passes_mapper['mpi'](graph)
 
-        # Force-call `openmp` if requested via global option
-        #TODO: ABSTRACT FROM OPENMP!
-        #OVERRIDE AND CHECK THAT IF openmp IN options then force-APPEND it to passes?
-        #SAME STORY WITH MPI, SO THAT openmp GOES AFTER MPI...
-        if 'openmp' not in passes and options['openmp']:
-            passes_mapper['openmp'](graph)
+        # Parallelism
+        if passes_mapper['parallel'] not in applied and options['parallel']:
+            passes_mapper['parallel'](graph)
 
         # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
 
         # Initialize environment
         cls._Initializer(graph)
