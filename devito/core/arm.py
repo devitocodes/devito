@@ -24,8 +24,8 @@ class ArmOperator(CPU64Operator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer = cls._Parallelizer(sregistry, options)
+        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -57,16 +57,19 @@ class ArmOpenMPOperator(CPU64OpenMPOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer = cls._Parallelizer(sregistry, options)
+        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Shared-memory parallelism
-        ompizer.make_parallel(graph)
+        parizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
         cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+
+        # Initialize the target-language runtime
+        parizer.initialize(graph)
 
         return graph

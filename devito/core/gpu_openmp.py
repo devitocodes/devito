@@ -22,9 +22,6 @@ __all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
            'DeviceOpenMPCustomOperator']
 
 
-# DeviceOpenMP-specific passes
-
-
 class DeviceOpenMPIteration(OpenMPIteration):
 
     @classmethod
@@ -234,6 +231,59 @@ class DeviceOmpizer(Ompizer):
 
         return iet, {}
 
+    @iet_pass
+    def initialize(self, iet, **kwargs):
+
+        @singledispatch
+        def _initialize(iet):
+            return iet, {}
+
+        @_initialize.register(EntryFunction)
+        def _(iet):
+            # TODO: we need to pick the rank from `comm_shm`, not `comm`,
+            # so that we have nranks == ngpus (as long as the user has launched
+            # the right number of MPI processes per node given the available
+            # number of GPUs per node)
+
+            objcomm = None
+            for i in iet.parameters:
+                if isinstance(i, MPICommObject):
+                    objcomm = i
+                    break
+
+            deviceid = DeviceID()
+            if objcomm is not None:
+                rank = Symbol(name='rank')
+                rank_decl = LocalExpression(DummyEq(rank, 0))
+                rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
+
+                ngpus = Symbol(name='ngpus')
+                call = Function('omp_get_num_devices')()
+                ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+                osdd_then = Call('omp_set_default_device', [deviceid])
+                osdd_else = Call('omp_set_default_device', [rank % ngpus])
+
+                body = [Conditional(
+                    CondNe(deviceid, -1),
+                    osdd_then,
+                    List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
+                )]
+            else:
+                body = [Conditional(
+                    CondNe(deviceid, -1),
+                    Call('omp_set_default_device', [deviceid])
+                )]
+
+            init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
+                        body=body,
+                        footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
+            iet = iet._rebuild(body=(init,) + iet.body)
+
+            return iet, {'args': deviceid}
+
+        return _initialize(iet)
+
 
 class DeviceOpenMPDataManager(DataManager):
 
@@ -322,63 +372,6 @@ class DeviceOpenMPDataManager(DataManager):
         return _map_onmemspace(iet)
 
 
-@iet_pass
-def initialize(iet, **kwargs):
-    """
-    Initialize the OpenMP environment.
-    """
-
-    @singledispatch
-    def _initialize(iet):
-        return iet, {}
-
-    @_initialize.register(EntryFunction)
-    def _(iet):
-        # TODO: we need to pick the rank from `comm_shm`, not `comm`,
-        # so that we have nranks == ngpus (as long as the user has launched
-        # the right number of MPI processes per node given the available
-        # number of GPUs per node)
-
-        objcomm = None
-        for i in iet.parameters:
-            if isinstance(i, MPICommObject):
-                objcomm = i
-                break
-
-        deviceid = DeviceID()
-        if objcomm is not None:
-            rank = Symbol(name='rank')
-            rank_decl = LocalExpression(DummyEq(rank, 0))
-            rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
-
-            ngpus = Symbol(name='ngpus')
-            call = Function('omp_get_num_devices')()
-            ngpus_init = LocalExpression(DummyEq(ngpus, call))
-
-            osdd_then = Call('omp_set_default_device', [deviceid])
-            osdd_else = Call('omp_set_default_device', [rank % ngpus])
-
-            body = [Conditional(
-                CondNe(deviceid, -1),
-                osdd_then,
-                List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
-            )]
-        else:
-            body = [Conditional(
-                CondNe(deviceid, -1),
-                Call('omp_set_default_device', [deviceid])
-            )]
-
-        init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
-                    body=body,
-                    footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
-        iet = iet._rebuild(body=(init,) + iet.body)
-
-        return iet, {'args': deviceid}
-
-    return _initialize(iet)
-
-
 # Operators
 
 
@@ -386,7 +379,6 @@ class DeviceOpenMPOperatorMixin(object):
 
     _Parallelizer = DeviceOmpizer
     _DataManager = DeviceOpenMPDataManager
-    _Initializer = initialize
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):

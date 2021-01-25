@@ -20,9 +20,6 @@ __all__ = ['DeviceOpenACCNoopOperator', 'DeviceOpenACCOperator',
            'DeviceOpenACCCustomOperator']
 
 
-# DeviceOpenACC-specific passes
-
-
 class DeviceOpenACCIteration(DeviceOpenMPIteration):
 
     @classmethod
@@ -135,6 +132,63 @@ class DeviceAccizer(DeviceOmpizer):
         # are passed to MPI calls
         return iet, {}
 
+    @iet_pass
+    def initialize(self, iet, **kwargs):
+        """
+        Initialize the OpenACC environment.
+        """
+
+        @singledispatch
+        def _initialize(iet):
+            return iet, {}
+
+        @_initialize.register(EntryFunction)
+        def _(iet):
+            # TODO: we need to pick the rank from `comm_shm`, not `comm`,
+            # so that we have nranks == ngpus (as long as the user has launched
+            # the right number of MPI processes per node given the available
+            # number of GPUs per node)
+
+            objcomm = None
+            for i in iet.parameters:
+                if isinstance(i, MPICommObject):
+                    objcomm = i
+                    break
+
+            deviceid = DeviceID()
+            device_nvidia = Macro('acc_device_nvidia')
+            if objcomm is not None:
+                rank = Symbol(name='rank')
+                rank_decl = LocalExpression(DummyEq(rank, 0))
+                rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
+
+                ngpus = Symbol(name='ngpus')
+                call = DefFunction('acc_get_num_devices', device_nvidia)
+                ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+                asdn_then = Call('acc_set_device_num', [deviceid, device_nvidia])
+                asdn_else = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
+
+                body = [Call('acc_init', [device_nvidia]), Conditional(
+                    CondNe(deviceid, -1),
+                    asdn_then,
+                    List(body=[rank_decl, rank_init, ngpus_init, asdn_else])
+                )]
+            else:
+                body = [Call('acc_init', [device_nvidia]), Conditional(
+                    CondNe(deviceid, -1),
+                    Call('acc_set_device_num', [deviceid, device_nvidia])
+                )]
+
+            init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
+                        body=body,
+                        footer=(c.Comment('End of OpenACC+MPI setup'), c.Line()))
+            iet = iet._rebuild(body=(init,) + iet.body)
+
+            return iet, {'args': deviceid}
+
+        return _initialize(iet)
+
 
 class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 
@@ -161,64 +215,6 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
             storage.update(obj, site, allocs=init, frees=free)
 
 
-@iet_pass
-def initialize(iet, **kwargs):
-    """
-    Initialize the OpenACC environment.
-    """
-
-    @singledispatch
-    def _initialize(iet):
-        return iet, {}
-
-    @_initialize.register(EntryFunction)
-    def _(iet):
-        # TODO: we need to pick the rank from `comm_shm`, not `comm`,
-        # so that we have nranks == ngpus (as long as the user has launched
-        # the right number of MPI processes per node given the available
-        # number of GPUs per node)
-
-        objcomm = None
-        for i in iet.parameters:
-            if isinstance(i, MPICommObject):
-                objcomm = i
-                break
-
-        deviceid = DeviceID()
-        device_nvidia = Macro('acc_device_nvidia')
-        if objcomm is not None:
-            rank = Symbol(name='rank')
-            rank_decl = LocalExpression(DummyEq(rank, 0))
-            rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
-
-            ngpus = Symbol(name='ngpus')
-            call = DefFunction('acc_get_num_devices', device_nvidia)
-            ngpus_init = LocalExpression(DummyEq(ngpus, call))
-
-            asdn_then = Call('acc_set_device_num', [deviceid, device_nvidia])
-            asdn_else = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
-
-            body = [Call('acc_init', [device_nvidia]), Conditional(
-                CondNe(deviceid, -1),
-                asdn_then,
-                List(body=[rank_decl, rank_init, ngpus_init, asdn_else])
-            )]
-        else:
-            body = [Call('acc_init', [device_nvidia]), Conditional(
-                CondNe(deviceid, -1),
-                Call('acc_set_device_num', [deviceid, device_nvidia])
-            )]
-
-        init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
-                    body=body,
-                    footer=(c.Comment('End of OpenACC+MPI setup'), c.Line()))
-        iet = iet._rebuild(body=(init,) + iet.body)
-
-        return iet, {'args': deviceid}
-
-    return _initialize(iet)
-
-
 # Operators
 
 
@@ -226,7 +222,6 @@ class DeviceOpenACCOperatorMixin(object):
 
     _Parallelizer = DeviceAccizer
     _DataManager = DeviceOpenACCDataManager
-    _Initializer = initialize
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):

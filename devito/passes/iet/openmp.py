@@ -547,3 +547,10 @@ class Ompizer(Parallelizer):
         iet = Transformer(mapper).visit(iet)
 
         return iet, {}
+
+    @iet_pass
+    def initialize(self, iet, **kwargs):
+        """
+        Create a new IET where the OpenMP runtime is initialized.
+        """
+        return iet, {}

@@ -13,17 +13,6 @@ __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'CPU64OpenMPOperator',
            'CPU64CustomOperator']
 
 
-# CPU64-specific passes
-
-@iet_pass
-def initialize(iet, **kwargs):
-    """
-    Initialize the environment.
-    """
-    #TODO: TO BE AGGREGATED WITH PARALLELIZER...
-    return iet, {}
-
-
 class CPU64OperatorMixin(object):
 
     BLOCK_LEVELS = 1
@@ -86,7 +75,6 @@ class CPU64OperatorMixin(object):
 
     _Parallelizer = Ompizer
     _DataManager = DataManager
-    _Initializer = initialize
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
@@ -155,8 +143,9 @@ class CPU64NoopOperator(CPU64OperatorMixin, CoreOperator):
 
         # Shared-memory parallelism
         if options['openmp']:
-            ompizer = cls._Parallelizer(sregistry, options)
-            ompizer.make_parallel(graph)
+            parizer = cls._Parallelizer(sregistry, options)
+            parizer.make_parallel(graph)
+            parizer.initialize(graph)
 
         # Symbol definitions
         cls._DataManager(cls._Parallelizer, sregistry).process(graph)
@@ -225,14 +214,17 @@ class CPU64Operator(CPU64OperatorMixin, CoreOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer = cls._Parallelizer(sregistry, options)
+        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
         cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+
+        # Initialize the target-language runtime
+        parizer.initialize(graph)
 
         return graph
 
@@ -257,18 +249,19 @@ class CPU64OpenMPOperator(CPU64Operator):
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph, sregistry=sregistry)
 
-        # SIMD-level parallelism
-        ompizer = cls._Parallelizer(sregistry, options)
-        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
-
-        # Shared-memory parallelism
-        ompizer.make_parallel(graph)
+        # SIMD-level and shared-memory parallelism
+        parizer = cls._Parallelizer(sregistry, options)
+        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
         cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+
+        # Initialize the target-language runtime
+        parizer.initialize(graph)
 
         return graph
 
@@ -321,17 +314,18 @@ class CPU64CustomOperator(CPU64OperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        ompizer = cls._Parallelizer(sregistry, options)
+        parizer = cls._Parallelizer(sregistry, options)
 
         return {
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
             'blocking': partial(relax_incr_dimensions, sregistry=sregistry),
-            'parallel': ompizer.make_parallel,
-            'openmp': ompizer.make_parallel,
+            'parallel': parizer.make_parallel,
+            'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
-            'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
-            'prodders': hoist_prodders
+            'simd': partial(parizer.make_simd, simd_reg_size=platform.simd_reg_size),
+            'prodders': hoist_prodders,
+            'init': parizer.initialize
         }
 
     _known_passes = (

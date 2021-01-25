@@ -23,12 +23,6 @@ class BasicOperator(Operator):
     Used to place symbol definitions as well as data allocation, movement, and deletion.
     """
 
-    #TODO: TO BE AGGREGATED WITH PARALLELIZER
-    _Initializer = None
-    """
-    Callback to add initialization code for the underlying target-language runtime.
-    """
-
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         # Will be populated with dummy values; this method is actually overriden
@@ -206,7 +200,8 @@ class CustomOperator(BasicOperator):
         # Symbol definitions
         cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
 
-        # Initialize environment
-        cls._Initializer(graph)
+        # Initialize the target-language runtime
+        if passes_mapper['init'] not in applied:
+            passes_mapper['init'](graph)
 
         return graph

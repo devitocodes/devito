@@ -121,7 +121,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
         cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
 
         # Initialize the target-language runtime
-        cls._Initializer(graph)
+        parizer.initialize(graph)
 
         return graph
 
@@ -186,8 +186,8 @@ class DeviceOperator(DeviceOperatorMixin, CoreOperator):
         # Symbol definitions
         cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
 
-        # Initialize environment
-        cls._Initializer(graph)
+        # Initialize the target-language runtime
+        parizer.initialize(graph)
 
         # TODO: This should be moved right below the `mpiize` pass, but currently calling
         # `make_gpudirect` before Symbol definitions` block would create Blocks before
@@ -250,16 +250,17 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         options = kwargs['options']
         sregistry = kwargs['sregistry']
 
-        parallelizer = cls._Parallelizer(sregistry, options)
+        parizer = cls._Parallelizer(sregistry, options)
         orchestrator = Orchestrator(cls._Parallelizer, sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
-            'parallel': partial(parallelizer.make_parallel),
+            'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi']),
             'prodders': partial(hoist_prodders),
-            'gpu-direct': partial(parallelizer.make_gpudirect)
+            'gpu-direct': partial(parizer.make_gpudirect),
+            'init': parizer.initialize
         }
 
     _known_passes = (
