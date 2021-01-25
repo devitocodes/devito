@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    SubDimension, SubDomain, TimeFunction, Operator, switchconfig)
+                    SubDimension, SubDomain, TimeFunction, Operator)
 from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes import OpenMPIteration
@@ -732,6 +732,6 @@ class TestDeviceScheduling(object):
     def test_api(self):
         self.check_api()
 
-    @switchconfig(mpi=True)
+    @pytest.mark.parallel(mode=1)
     def test_api_w_mpi(self):
         self.check_api()
