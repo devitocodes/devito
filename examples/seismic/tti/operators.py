@@ -1,6 +1,6 @@
 from sympy import cos, sin, sqrt
 
-from devito import Eq, Operator, Function, TimeFunction, NODE, solve
+from devito import Eq, Operator, Function, TimeFunction, NODE, Inc, solve
 from examples.seismic import PointSource, Receiver
 
 
@@ -526,8 +526,8 @@ def AdjointOperator(model, geometry, space_order=4,
     return Operator(stencils, subs=model.spacing_map, name='AdjointTTI', **kwargs)
 
 
-def BornOperator(model, geometry, space_order=4,
-                 kernel='centered', **kwargs):
+def JacobianOperator(model, geometry, space_order=4,
+                     **kwargs):
     """
     Construct a Linearized Born operator in a TTI media.
     Parameters
@@ -542,15 +542,9 @@ def BornOperator(model, geometry, space_order=4,
     kernel : str, optional
         Type of discretization, centered or staggered.
     """
-    dt = model.grid.time_dim.spacing
+    dt = model.grid.stepping_dim.spacing
     m = model.m
-    vp = model.vp
-
-    time_order = 1 if kernel == 'staggered' else 2
-    if kernel == 'staggered':
-        stagg_u = stagg_v = NODE
-    else:
-        stagg_u = stagg_v = None
+    time_order = 2
 
     # Create source and receiver symbols
     src = Receiver(name='src', grid=model.grid, time_range=geometry.time_axis,
@@ -560,10 +554,10 @@ def BornOperator(model, geometry, space_order=4,
                    npoint=geometry.nrec)
 
     # Create wavefields and a dm field
-    u0 = TimeFunction(name='u0', grid=model.grid, staggered=stagg_u,
-                      save=None, time_order=time_order, space_order=space_order)
-    v0 = TimeFunction(name='v0', grid=model.grid, staggered=stagg_v,
-                      save=None, time_order=time_order, space_order=space_order)
+    u0 = TimeFunction(name='u0', grid=model.grid, save=None, time_order=time_order,
+                      space_order=space_order)
+    v0 = TimeFunction(name='v0', grid=model.grid, save=None, time_order=time_order,
+                      space_order=space_order)
     du = TimeFunction(name="du", grid=model.grid, save=None,
                       time_order=2, space_order=space_order)
     dv = TimeFunction(name="dv", grid=model.grid, save=None,
@@ -571,12 +565,12 @@ def BornOperator(model, geometry, space_order=4,
     dm = Function(name="dm", grid=model.grid, space_order=0)
 
     # FD kernels of the PDE
-    FD_kernel = kernels[(kernel, len(model.shape))]
+    FD_kernel = kernels[('centered', len(model.shape))]
     eqn1 = FD_kernel(model, u0, v0, space_order)
 
     # Linearized source and stencil
-    lin_usrc = 2 * dm * vp**(-3) * u0.dt2
-    lin_vsrc = 2 * dm * vp**(-3) * v0.dt2
+    lin_usrc = -dm * u0.dt2
+    lin_vsrc = -dm * v0.dt2
     eqn2 = FD_kernel(model, du, dv, space_order, qu=lin_usrc, qv=lin_vsrc)
 
     # Construct expression to inject source values, injecting at u0(t+dt)/v0(t+dt)
@@ -592,7 +586,7 @@ def BornOperator(model, geometry, space_order=4,
 
 
 def JacobianAdjOperator(model, geometry, space_order=4,
-                        kernel='centered', save=True, **kwargs):
+                        save=True, **kwargs):
     """
     Construct a linearized JacobianAdjoint modeling Operator in a TTI media.
     Parameters
@@ -607,10 +601,9 @@ def JacobianAdjOperator(model, geometry, space_order=4,
     save : int or Buffer, optional
         Option to store the entire (unrolled) wavefield.
     """
-    dt = model.grid.time_dim.spacing
+    dt = model.grid.stepping_dim.spacing
     m = model.m
     time_order = 2
-    vp = model.vp
 
     # Gradient symbol and wavefield symbols
     u0 = TimeFunction(name='u0', grid=model.grid, save=geometry.nt if save
@@ -618,9 +611,9 @@ def JacobianAdjOperator(model, geometry, space_order=4,
     v0 = TimeFunction(name='v0', grid=model.grid, save=geometry.nt if save
                       else None, time_order=time_order, space_order=space_order)
 
-    du = TimeFunction(name="du", grid=model.grid,
+    du = TimeFunction(name="du", grid=model.grid, save=None,
                       time_order=time_order, space_order=space_order)
-    dv = TimeFunction(name="dv", grid=model.grid,
+    dv = TimeFunction(name="dv", grid=model.grid, save=None,
                       time_order=time_order, space_order=space_order)
 
     dm = Function(name="dm", grid=model.grid)
@@ -629,18 +622,18 @@ def JacobianAdjOperator(model, geometry, space_order=4,
                    npoint=geometry.nrec)
 
     # FD kernels of the PDE
-    FD_kernel = kernels[(kernel, len(model.shape))]
+    FD_kernel = kernels[('centered', len(model.shape))]
     eqn = FD_kernel(model, du, dv, space_order, forward=False)
 
-    dm_update = Eq(dm, dm + 2 * vp**(-3) * (u0.dt2 * du + v0.dt2 * dv))
+    dm_update = Inc(dm, - (u0.dt2 * du + v0.dt2 * dv))
 
     # Add expression for receiver injection
     rec_term = rec.inject(field=du.backward, expr=rec * dt**2 / m)
     rec_term += rec.inject(field=dv.backward, expr=rec * dt**2 / m)
 
     # Substitute spacing terms to reduce flops
-    return Operator([dm_update] + eqn + rec_term, subs=model.spacing_map,
-                    name='TtiJacobianAdjOperator', **kwargs)
+    return Operator(eqn + rec_term + [dm_update], subs=model.spacing_map,
+                    name='GradientTTI', **kwargs)
 
 
 kernels = {('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,

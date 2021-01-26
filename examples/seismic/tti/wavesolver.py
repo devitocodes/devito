@@ -2,7 +2,7 @@
 from devito import Function, TimeFunction, warning
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
-from examples.seismic.tti.operators import BornOperator, JacobianAdjOperator
+from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from pyrevolve import Revolver
@@ -64,18 +64,16 @@ class AnisotropicWaveSolver(object):
                                space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
-    def op_jac(self, kernel='centered'):
+    def op_jac(self):
         """Cached operator for born runs"""
-        return BornOperator(self.model, save=None, geometry=self.geometry,
-                            space_order=self.space_order,
-                            kernel=kernel, **self._kwargs)
+        return JacobianOperator(self.model, save=None, geometry=self.geometry,
+                                space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
-    def op_jacadj(self, kernel='centered', save=True):
+    def op_jacadj(self, save=True):
         """Cached operator for gradient runs"""
         return JacobianAdjOperator(self.model, save=save, geometry=self.geometry,
-                                   space_order=self.space_order,
-                                   kernel=kernel, **self._kwargs)
+                                   space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, v=None, vp=None,
                 epsilon=None, delta=None, theta=None, phi=None,
@@ -220,7 +218,7 @@ class AnisotropicWaveSolver(object):
 
     def jacobian(self, dm, src=None, rec=None, u0=None, v0=None, du=None, dv=None,
                  vp=None, epsilon=None, delta=None, theta=None, phi=None,
-                 save=None, **kwargs):
+                 save=None, kernel='centered', **kwargs):
         """
         Linearized Born modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -249,6 +247,10 @@ class AnisotropicWaveSolver(object):
         phi : Function or float, optional
             The time-constant Azimuth angle (radians).
         """
+        if kernel != 'centered':
+            raise RuntimeError('Only centered kernel is supported for the jacobian')
+
+        dt = kwargs.pop('dt', self.dt)
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
         # Create a new receiver object to store the result
@@ -272,13 +274,13 @@ class AnisotropicWaveSolver(object):
             kwargs.pop('phi', None)
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_jac().apply(dm=dm, u0=u0, v0=v0, du=du, dv=dv, src=src, rec=rec,
-                                      dt=kwargs.pop('dt', self.dt), **kwargs)
+        summary = self.op_jac().apply(dm=dm, u0=u0, v0=v0, du=du, dv=dv, src=src,
+                                      rec=rec, dt=dt, **kwargs)
         return rec, u0, v0, du, dv, summary
 
     def jacobian_adjoint(self, rec, u0, v0, du=None, dv=None, dm=None, vp=None,
                          epsilon=None, delta=None, theta=None, phi=None,
-                         checkpointing=False, **kwargs):
+                         checkpointing=False, kernel='centered', **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
@@ -311,6 +313,9 @@ class AnisotropicWaveSolver(object):
         -------
         Gradient field and performance summary.
         """
+        if kernel != 'centered':
+            raise RuntimeError('Only centered kernel is supported for the jacobian_adj')
+
         dt = kwargs.pop('dt', self.dt)
         # Gradient symbol
         dm = dm or Function(name='dm', grid=self.model.grid)
@@ -336,12 +341,9 @@ class AnisotropicWaveSolver(object):
             cp = DevitoCheckpoint([u0, v0])
             n_checkpoints = None
             wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
-                                         u=u0, v=v0, vp=vp, epsilon=epsilon,
-                                         delta=delta, theta=theta, phi=phi, dt=dt)
+                                         u=u0, v=v0, dt=dt, **kwargs)
             wrap_rev = CheckpointOperator(self.op_jacadj(save=False), u0=u0, v0=v0,
-                                          du=du, dv=dv, vp=vp, epsilon=epsilon,
-                                          delta=delta, theta=theta, phi=phi, rec=rec,
-                                          dt=dt, dm=dm)
+                                          du=du, dv=dv, rec=rec, dm=dm, dt=dt, **kwargs)
 
             # Run forward
             wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
