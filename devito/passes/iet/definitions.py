@@ -242,7 +242,7 @@ class DataManager(object):
                         # first appearence
                         site = iet
                         if i._mem_local:
-                            # If inside a ParallelRegion, make sure we allocate
+                            # If inside a ParallelBlock, make sure we allocate
                             # inside of it
                             for n in v:
                                 if n.is_ParallelBlock:

@@ -8,11 +8,11 @@ from devito.core.gpu import (DeviceNoopOperator, DeviceOperator, DeviceCustomOpe
 from devito.data import FULL
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Call, Conditional, EntryFunction,
-                           List, LocalExpression, FindNodes,
-                           MapExprStmts, Transformer)
+                           List, LocalExpression, FindNodes, ParallelTree,
+                           MapExprStmts, Transformer)  #TODO refactor
 from devito.mpi.distributed import MPICommObject
 from devito.mpi.routines import IrecvCall, IsendCall
-from devito.passes.iet import (DataManager, Ompizer, OpenMPIteration, ParallelTree,
+from devito.passes.iet import (DataManager, Ompizer, OpenMPIteration,
                                Storage, iet_pass)  #TODO: TO BE MOVED...
 from devito.symbolics import CondNe, Byref, ccode
 from devito.tools import filter_sorted
@@ -64,8 +64,9 @@ class DeviceOmpizer(Ompizer):
 
     _Iteration = DeviceOmpIteration
 
-    def __init__(self, sregistry, options, key=None):
-        super().__init__(sregistry, options, key=key)
+    def __init__(self, sregistry, options, platform):
+        super().__init__(sregistry, options, platform)
+
         self.gpu_fit = options['gpu-fit']
         self.par_disabled = options['par-disabled']
 
@@ -216,7 +217,7 @@ class DeviceOmpizer(Ompizer):
             return super()._make_nested_partree(partree)
 
     @iet_pass
-    def make_gpudirect(self, iet, **kwargs):
+    def make_gpudirect(self, iet):
         """
         Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
         """
@@ -231,7 +232,7 @@ class DeviceOmpizer(Ompizer):
         return iet, {}
 
     @iet_pass
-    def initialize(self, iet, **kwargs):
+    def initialize(self, iet):
 
         @singledispatch
         def _initialize(iet):

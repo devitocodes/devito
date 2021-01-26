@@ -107,6 +107,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -114,7 +115,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism
-        parizer = cls._Parallelizer(sregistry, options)
+        parizer = cls._Parallelizer(sregistry, options, platform)
         parizer.make_parallel(graph)
 
         # Symbol definitions
@@ -169,6 +170,7 @@ class DeviceOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -177,7 +179,7 @@ class DeviceOperator(DeviceOperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism
-        parizer = cls._Parallelizer(sregistry, options)
+        parizer = cls._Parallelizer(sregistry, options, platform)
         parizer.make_parallel(graph)
 
         # Misc optimizations
@@ -248,9 +250,10 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Parallelizer(sregistry, options)
+        parizer = cls._Parallelizer(sregistry, options, platform)
         orchestrator = Orchestrator(cls._Parallelizer, sregistry)
 
         return {

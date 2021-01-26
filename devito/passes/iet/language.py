@@ -1,234 +1,131 @@
+from abc import ABC
+
 import numpy as np
 import cgen as c
-from sympy import Or, Max, Not
+from sympy import Or, Max
 
-from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
-                       List, Prodder, ParallelIteration, ParallelBlock, While,
-                       FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED, Transformer,
-                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
-from devito.symbolics import CondEq, DefFunction, INT
-from devito.parameters import configuration
+                       List, ParallelIteration, ParallelBlock, ParallelTree, FindSymbols,
+                       FindNodes, Return, VECTORIZED, Transformer, IsPerfectIteration,
+                       retrieve_iteration_tree, filter_iterations)
+from devito.symbolics import CondEq, INT
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import PointerArray, Symbol, NThreadsMixin
 
-__all__ = ['Ompizer', 'OpenMPIteration', 'ParallelTree']
+__all__ = ['HostPragmaParallelizer', 'DevicePragmaParallelizer']
 
 
-def ncores():
-    return configuration['platform'].cores_physical
+class Constructs(dict):
+
+    def __getitem__(self, k):
+        if k not in self:
+            raise NotImplementedError("Must implement `lang[%s]`" % k)
+        return super().__getitem__(k)
 
 
-def nhyperthreads():
-    return configuration['platform'].threads_per_core
-
-
-class OpenMPRegion(ParallelBlock):
-
-    def __init__(self, body, private=None):
-        # Normalize and sanity-check input. A bit ugly, but it makes everything
-        # much simpler to manage and reconstruct
-        body = as_tuple(body)
-        assert len(body) == 1
-        body = body[0]
-        assert body.is_List
-        if isinstance(body, ParallelTree):
-            partree = body
-        elif body.is_List:
-            assert len(body.body) == 1 and isinstance(body.body[0], ParallelTree)
-            assert len(body.footer) == 0
-            partree = body.body[0]
-            partree = partree._rebuild(prefix=(List(header=body.header,
-                                                    body=partree.prefix)))
-
-        header = OpenMPRegion._make_header(partree.nthreads, private)
-        super(OpenMPRegion, self).__init__(header=header, body=partree)
-
-    @property
-    def partree(self):
-        return self.body[0]
-
-    @property
-    def root(self):
-        return self.partree.root
-
-    @property
-    def nthreads(self):
-        return self.partree.nthreads
-
-    @classmethod
-    def _make_header(cls, nthreads, private=None):
-        private = ('private(%s)' % ','.join(private)) if private else ''
-        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
-
-
-class OpenMPIteration(ParallelIteration):
-
-    def __init__(self, *args, **kwargs):
-        pragmas, kwargs = self._make_header(**kwargs)
-
-        properties = as_tuple(kwargs.pop('properties', None))
-        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
-
-        self.schedule = kwargs.pop('schedule', None)
-        self.parallel = kwargs.pop('parallel', False)
-        self.ncollapse = kwargs.pop('ncollapse', None)
-        self.chunk_size = kwargs.pop('chunk_size', None)
-        self.nthreads = kwargs.pop('nthreads', None)
-        self.reduction = kwargs.pop('reduction', None)
-
-        super(OpenMPIteration, self).__init__(*args, pragmas=pragmas,
-                                              properties=properties, **kwargs)
-
-    @classmethod
-    def _make_header(cls, **kwargs):
-        kwargs.pop('pragmas', None)
-
-        construct = cls._make_construct(**kwargs)
-        clauses = cls._make_clauses(**kwargs)
-        header = c.Pragma(' '.join([construct] + clauses))
-
-        return (header,), kwargs
-
-    @classmethod
-    def _make_construct(cls, parallel=False, **kwargs):
-        if parallel:
-            return 'omp parallel for'
-        else:
-            return 'omp for'
-
-    @classmethod
-    def _make_clauses(cls, ncollapse=None, chunk_size=None, nthreads=None,
-                      reduction=None, schedule=None, **kwargs):
-        clauses = []
-
-        clauses.append('collapse(%d)' % (ncollapse or 1))
-
-        if chunk_size is not False:
-            clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
-                                                chunk_size or 1))
-
-        if nthreads:
-            clauses.append('num_threads(%s)' % nthreads)
-
-        if reduction:
-            args = []
-            for i in reduction:
-                if i.is_Indexed:
-                    f = i.function
-                    bounds = []
-                    for k, d in zip(i.indices, f.dimensions):
-                        if k.is_Number:
-                            bounds.append('[%s]' % k)
-                        else:
-                            # OpenMP expects a range as input of reduction,
-                            # such as reduction(+:f[0:f_vec->size[1]])
-                            bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
-                    args.append('%s%s' % (i.name, ''.join(bounds)))
-                else:
-                    args.append(str(i))
-            clauses.append('reduction(+:%s)' % ','.join(args))
-
-        return clauses
-
-
-class ParallelTree(List):
+class LanguageSpecializer(ABC):
 
     """
-    This class is to group together a parallel for-loop with some setup
-    statements, for example:
-
-        .. code-block:: C
-
-          int chunk_size = ...
-          #pragma omp ... schedule(..., chunk_size)
-          for (int i = ...)
-          {
-            ...
-          }
+    Abstract base class defining a series of methods capable of specializing
+    an IET for a certain target language (e.g., C, C+OpenMP).
     """
 
-    _traversable = ['prefix', 'body']
-
-    def __init__(self, prefix, body, nthreads=None):
-        # Normalize and sanity-check input
-        body = as_tuple(body)
-        assert len(body) == 1 and body[0].is_Iteration
-
-        self.prefix = as_tuple(prefix)
-        self.nthreads = nthreads
-
-        super(ParallelTree, self).__init__(body=body)
-
-    def __getattr__(self, name):
-        if 'body' in self.__dict__:
-            # During unpickling, `__setattr__` calls `__getattr__(..., 'body')`,
-            # which would cause infinite recursion if we didn't check whether
-            # 'body' is present or not
-            return getattr(self.body[0], name)
-        raise AttributeError
-
-    @property
-    def functions(self):
-        return as_tuple(self.nthreads)
-
-    @property
-    def root(self):
-        return self.body[0]
-
-
-class ThreadedProdder(Conditional, Prodder):
-
-    _traversable = []
-
-    def __init__(self, prodder):
-        # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(Ompizer.lang['thread-num'], 0)
-
-        # Prod within a while loop until all communications have completed
-        # In other words, the thread delegated to prodding is entrapped for as long
-        # as it's required
-        prod_until = Not(DefFunction(prodder.name, [i.name for i in prodder.arguments]))
-        then_body = List(header=c.Comment('Entrap thread until comms have completed'),
-                         body=While(prod_until))
-
-        Conditional.__init__(self, condition, then_body)
-        Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
-
-
-class Parallelizer(object):  #TODO: More of LanguageGenerator or ...
-
+    lang = Constructs()
     """
-    Base abstract class for the parallelizers -- objects which can manipulate IETs
-    to implement some form of shared-memory parallelism.
+    Relevant constructs of the target language.
     """
 
-    pass
-
-
-class Ompizer(Parallelizer):
-
-    lang = {
-        'simd-for': c.Pragma('omp simd'),
-        'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
-        'atomic': c.Pragma('omp atomic update'),
-        'thread-num': DefFunction('omp_get_thread_num')
-    }
-    """
-    Shortcuts for the OpenMP language.
-    """
-
-    _Region = OpenMPRegion
-    _Iteration = OpenMPIteration
-
-    def __init__(self, sregistry, options, key=None):
+    def __init__(self, sregistry, platform):
         """
         Parameters
         ----------
         sregistry : SymbolRegistry
-            The symbol registry, to quickly access the special symbols that may
-            appear in the IET (e.g., `sregistry.threadid`, `sregistry.nthreads`).
+            The symbol registry, to access the symbols appearing in an IET.
+        platform : Platform
+            The underlying platform.
+        """
+        self.sregistry = sregistry
+        self.platform = platform
+
+    @iet_pass
+    def initialize(self, iet):
+        """
+        An `iet_pass` which transforms an IET such that the target language
+        runtime is properly initialized.
+        """
+        return iet, {}
+
+
+class Parallelizer(LanguageSpecializer):
+
+    """
+    Specializer capable of generating shared-memory parallel IETs.
+    """
+
+    _Region = ParallelBlock
+    """
+    The IET node type to be used to construct a parallel region.
+    """
+
+    _Iteration = ParallelIteration
+    """
+    The IET node type to be used to construct a parallel Iteration.
+    """
+
+    def __init__(self, key, sregistry, platform):
+        """
+        Parameters
+        ----------
+        key : callable, optional
+            Return True if an Iteration can and should be parallelized, False otherwise.
+        sregistry : SymbolRegistry
+            The symbol registry, to access the symbols appearing in an IET.
+        platform : Platform
+            The underlying platform.
+        """
+        super().__init__(sregistry, platform)
+        if key is not None:
+            self.key = key
+        else:
+            self.key = lambda i: False
+
+    @property
+    def ncores(self):
+        return self.platform.cores_physical
+
+    @property
+    def nhyperthreads(self):
+        return self.platform.threads_per_core
+
+    @iet_pass
+    def make_parallel(self, iet):
+        """
+        An `iet_pass` which transforms an IET for shared-memory parallelism.
+        """
+        return iet, {}
+
+    @iet_pass
+    def make_simd(self, iet):
+        """
+        An `iet_pass` which transforms an IET for SIMD parallelism.
+        """
+        return iet, {}
+
+
+class PragmaParallelizer(Parallelizer):
+
+    """
+    Specializer capable of generating shared-memory parallel IETs using a
+    language based on pragmas.
+    """
+
+    def __init__(self, sregistry, options, platform):
+        """
+        Parameters
+        ----------
+        sregistry : SymbolRegistry
+            The symbol registry, to access the symbols appearing in an IET.
         options : dict
              The optimization options. Accepted: ['par-collapse-ncores',
              'par-collapse-work', 'par-chunk-nonaffine', 'par-dynamic-work', 'par-nested']
@@ -242,21 +139,17 @@ class Ompizer(Parallelizer):
                iteration exceeds this threshold. Otherwise, use static scheduling.
              * 'par-nested': nested parallelism if the number of hyperthreads per core
                is greater than this threshold.
-        key : callable, optional
-            Return True if an Iteration can be parallelized, False otherwise.
+        platform : Platform
+            The underlying platform.
         """
-        self.sregistry = sregistry
+        key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
+        super().__init__(key, sregistry, platform)
 
         self.collapse_ncores = options['par-collapse-ncores']
         self.collapse_work = options['par-collapse-work']
         self.chunk_nonaffine = options['par-chunk-nonaffine']
         self.dynamic_work = options['par-dynamic-work']
         self.nested = options['par-nested']
-
-        if key is not None:
-            self.key = key
-        else:
-            self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
 
     @property
     def nthreads(self):
@@ -276,16 +169,16 @@ class Ompizer(Parallelizer):
 
     def _find_collapsable(self, root, candidates):
         collapsable = []
-        if ncores() >= self.collapse_ncores:
+        if self.ncores >= self.collapse_ncores:
             for n, i in enumerate(candidates[1:], 1):
                 # The Iteration nest [root, ..., i] must be perfect
                 if not IsPerfectIteration(depth=i).visit(root):
                     break
 
-                # The OpenMP specification forbids collapsed loops to use iteration
-                # variables in initializer expressions. E.g., the following is forbidden:
+                # Loops are collapsable only if none of the iteration variables appear
+                # in initializer expressions. For example, the following two loops
+                # cannot be collapsed
                 #
-                # #pragma omp ... collapse(2)
                 # for (i = ... )
                 #   for (j = i ...)
                 #     ...
@@ -294,7 +187,7 @@ class Ompizer(Parallelizer):
                 if any(j.dim in i.symbolic_min.free_symbols for j in candidates[:n]):
                     break
 
-                # Also, we do not want to collapse vectorizable Iterations
+                # Also, we do not want to collapse SIMD-vectorized Iterations
                 if i.is_Vectorized:
                     break
 
@@ -326,10 +219,10 @@ class Ompizer(Parallelizer):
         reduction = [i.output for i in exprs]
         if (all(i.is_Affine for i in collapsed)
                 or all(not i.is_Indexed for i in reduction)):
-            # Introduce reduction clause
+            # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
         else:
-            # Introduce one `omp atomic` pragma for each increment
+            # Make sure the increment is atomic
             mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
 
         partree = Transformer(mapper).visit(partree)
@@ -337,12 +230,9 @@ class Ompizer(Parallelizer):
         return partree
 
     def _make_threaded_prodders(self, partree):
-        mapper = {i: ThreadedProdder(i) for i in FindNodes(Prodder).visit(partree)}
-        partree = Transformer(mapper).visit(partree)
         return partree
 
     def _make_partree(self, candidates, nthreads=None):
-        """Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas."""
         assert candidates
         root = candidates[0]
 
@@ -359,22 +249,22 @@ class Ompizer(Parallelizer):
             else:
                 schedule = 'static'
             if nthreads is None:
-                # pragma omp for ... schedule(..., 1)
+                # pragma ... for ... schedule(..., 1)
                 nthreads = self.nthreads
-                body = OpenMPIteration(schedule=schedule, ncollapse=ncollapse,
+                body = self._Iteration(schedule=schedule, ncollapse=ncollapse,
                                        **root.args)
             else:
-                # pragma omp parallel for ... schedule(..., 1)
-                body = OpenMPIteration(schedule=schedule, parallel=True,
+                # pragma ... parallel for ... schedule(..., 1)
+                body = self._Iteration(schedule=schedule, parallel=True,
                                        ncollapse=ncollapse, nthreads=nthreads,
                                        **root.args)
             prefix = []
         else:
-            # pragma omp for ... schedule(..., expr)
+            # pragma ... for ... schedule(..., expr)
             assert nthreads is None
             nthreads = self.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
-            body = OpenMPIteration(ncollapse=ncollapse, chunk_size=chunk_size,
+            body = self._Iteration(ncollapse=ncollapse, chunk_size=chunk_size,
                                    **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
@@ -423,7 +313,7 @@ class Ompizer(Parallelizer):
 
     def _make_nested_partree(self, partree):
         # Apply heuristic
-        if nhyperthreads() <= self.nested:
+        if self.nhyperthreads <= self.nested:
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,
@@ -468,7 +358,7 @@ class Ompizer(Parallelizer):
         mapper = {}
         parrays = {}
         for tree in retrieve_iteration_tree(iet):
-            # Get the omp-parallelizable Iterations in `tree`
+            # Get the parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
             if not candidates:
                 continue
@@ -487,10 +377,10 @@ class Ompizer(Parallelizer):
             # Atomicize and optimize single-thread prodders
             partree = self._make_threaded_prodders(partree)
 
-            # Wrap within a parallel region, declaring private and shared variables
+            # Wrap within a parallel region
             parregion = self._make_parregion(partree, parrays)
 
-            # Protect the parallel region in case of 0-valued step increments
+            # Protect the parallel region if necessary
             parregion = self._make_guard(parregion, collapsed)
 
             mapper[root] = parregion
@@ -502,22 +392,21 @@ class Ompizer(Parallelizer):
         for n in FindNodes(Dereference).visit(iet):
             args.extend([(n.array, True), n.parray])
 
-        return iet, {'args': args, 'includes': ['omp.h']}
+        return iet, {'args': args, 'includes': [self.lang['header']]}
 
     @iet_pass
     def make_parallel(self, iet):
-        """
-        Create a new IET with shared-memory parallelism via OpenMP pragmas.
-        """
         return self._make_parallel(iet)
 
-    @iet_pass
-    def make_simd(self, iet, **kwargs):
-        """
-        Create a new IET with SIMD parallelism via OpenMP pragmas.
-        """
-        simd_reg_size = kwargs.pop('simd_reg_size')
 
+class HostPragmaParallelizer(PragmaParallelizer):
+
+    @property
+    def simd_reg_size(self):
+        return self.platform.simd_reg_size
+
+    @iet_pass
+    def make_simd(self, iet):
         mapper = {}
         for tree in retrieve_iteration_tree(iet):
             candidates = [i for i in tree if i.is_Parallel]
@@ -528,13 +417,13 @@ class Ompizer(Parallelizer):
                 continue
             candidate = candidates[-1]
 
-            # Construct OpenMP SIMD pragma
+            # Add SIMD pragma
             aligned = [j for j in FindSymbols('symbolics').visit(candidate)
                        if j.is_DiscreteFunction]
             if aligned:
                 simd = self.lang['simd-for-aligned']
                 simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                simd_reg_size))
+                                self.simd_reg_size))
             else:
                 simd = as_tuple(self.lang['simd-for'])
             pragmas = candidate.pragmas + simd
@@ -548,9 +437,7 @@ class Ompizer(Parallelizer):
 
         return iet, {}
 
-    @iet_pass
-    def initialize(self, iet, **kwargs):
-        """
-        Create a new IET where the OpenMP runtime is initialized.
-        """
-        return iet, {}
+
+class DevicePragmaParallelizer(PragmaParallelizer):
+    #TODO: WILL I USE THIS??
+    pass

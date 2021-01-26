@@ -23,7 +23,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
-           'PragmaList', 'DummyExpr', 'BlankLine']
+           'PragmaList', 'DummyExpr', 'BlankLine', 'ParallelTree']
 
 # First-class IET nodes
 
@@ -1085,6 +1085,51 @@ class ParallelBlock(Block):
     """
 
     is_ParallelBlock = True
+
+
+class ParallelTree(List):
+
+    """
+    This class is to group together a parallel for-loop with some setup
+    statements, for example:
+
+        .. code-block:: C
+
+          int chunk_size = ...
+          #pragma parallel for ... schedule(..., chunk_size)
+          for (int i = ...)
+          {
+            ...
+          }
+    """
+
+    _traversable = ['prefix', 'body']
+
+    def __init__(self, prefix, body, nthreads=None):
+        # Normalize and sanity-check input
+        body = as_tuple(body)
+        assert len(body) == 1 and body[0].is_Iteration
+
+        self.prefix = as_tuple(prefix)
+        self.nthreads = nthreads
+
+        super().__init__(body=body)
+
+    def __getattr__(self, name):
+        if 'body' in self.__dict__:
+            # During unpickling, `__setattr__` calls `__getattr__(..., 'body')`,
+            # which would cause infinite recursion if we didn't check whether
+            # 'body' is present or not
+            return getattr(self.body[0], name)
+        raise AttributeError
+
+    @property
+    def functions(self):
+        return as_tuple(self.nthreads)
+
+    @property
+    def root(self):
+        return self.body[0]
 
 
 class SyncSpot(List):

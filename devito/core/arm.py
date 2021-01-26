@@ -24,8 +24,8 @@ class ArmAdvOperator(Cpu64AdvOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        parizer = cls._Parallelizer(sregistry, options)
-        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer.make_simd(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -57,8 +57,8 @@ class ArmAdvOmpOperator(Cpu64AdvOmpOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        parizer = cls._Parallelizer(sregistry, options)
-        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer.make_simd(graph)
 
         # Shared-memory parallelism
         parizer.make_parallel(graph)

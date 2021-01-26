@@ -78,7 +78,8 @@ class DeviceAccizer(DeviceOmpizer):
         'map-exit-delete': lambda i, j, k:
             c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
         'map-pointers': lambda i:
-            c.Pragma('acc host_data use_device(%s)' % i)
+            c.Pragma('acc host_data use_device(%s)' % i),
+        'header': 'openacc.h'
     })
 
     _Iteration = DeviceAccIteration
@@ -116,21 +117,14 @@ class DeviceAccizer(DeviceOmpizer):
     def _map_pointers(cls, functions):
         return cls.lang['map-pointers'](','.join(f.name for f in functions))
 
-    def _make_parallel(self, iet):
-        iet, metadata = super(DeviceAccizer, self)._make_parallel(iet)
-
-        metadata['includes'] = ['openacc.h']
-
-        return iet, metadata
-
     @iet_pass
-    def make_gpudirect(self, iet, **kwargs):
+    def make_gpudirect(self, iet):
         # Implicitly handled since acc_malloc is used, hence device pointers
         # are passed to MPI calls
         return iet, {}
 
     @iet_pass
-    def initialize(self, iet, **kwargs):
+    def initialize(self, iet):
         """
         Initialize the OpenACC environment.
         """

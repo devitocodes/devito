@@ -138,6 +138,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -146,7 +147,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Shared-memory parallelism
         if options['openmp']:
-            parizer = cls._Parallelizer(sregistry, options)
+            parizer = cls._Parallelizer(sregistry, options, platform)
             parizer.make_parallel(graph)
             parizer.initialize(graph)
 
@@ -217,8 +218,8 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level parallelism
-        parizer = cls._Parallelizer(sregistry, options)
-        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer.make_simd(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -253,8 +254,8 @@ class Cpu64AdvOmpOperator(Cpu64AdvOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # SIMD-level and shared-memory parallelism
-        parizer = cls._Parallelizer(sregistry, options)
-        parizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer.make_simd(graph)
         parizer.make_parallel(graph)
 
         # Misc optimizations
@@ -317,7 +318,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Parallelizer(sregistry, options)
+        parizer = cls._Parallelizer(sregistry, options, platform)
 
         return {
             'denormals': avoid_denormals,
@@ -326,7 +327,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
-            'simd': partial(parizer.make_simd, simd_reg_size=platform.simd_reg_size),
+            'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
             'init': parizer.initialize
         }
