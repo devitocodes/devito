@@ -4,12 +4,12 @@ import numpy as np
 
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import Expression, FindNodes, FindSymbols
 from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows)
-from devito.passes.iet import Orchestrator, optimize_halospots, mpiize, hoist_prodders
+from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
+                               is_on_device)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceOperator', 'DeviceCustomOperator']
@@ -282,37 +282,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
 
 # Utils
-
-def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
-    """
-    True if all given Functions are allocated in the device memory, False otherwise.
-
-    Parameters
-    ----------
-    maybe_symbol : Indexed or Function or Node
-        The inspected object. May be a single Indexed or Function, or even an
-        entire piece of IET.
-    gpu_fit : list of Function
-        The Function's which are known to definitely fit in the device memory. This
-        information is given directly by the user through the compiler option
-        `gpu-fit` and is propagated down here through the various stages of lowering.
-    only_writes : bool, optional
-        Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
-        that do not appear on the LHS of at least one Expression. Defaults to False.
-    """
-    try:
-        functions = (maybe_symbol.function,)
-    except AttributeError:
-        assert maybe_symbol.is_Node
-        iet = maybe_symbol
-        functions = set(FindSymbols().visit(iet))
-        if only_writes:
-            expressions = FindNodes(Expression).visit(iet)
-            functions &= {i.write for i in expressions}
-
-    return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
-               for f in functions)
-
 
 def make_callbacks(options):
     """

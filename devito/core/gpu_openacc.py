@@ -2,14 +2,13 @@ from functools import singledispatch
 
 import cgen as c
 
-from devito.core.gpu import (DeviceNoopOperator, DeviceOperator, DeviceCustomOperator,
-                             is_on_device)
-from devito.core.gpu_openmp import DeviceOmpIteration, DeviceOmpizer, DeviceOmpDataManager
+from devito.core.gpu import DeviceNoopOperator, DeviceOperator, DeviceCustomOperator
+from devito.core.gpu_openmp import DeviceOmpDataManager
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Conditional, EntryFunction, List, LocalExpression,
                            FindSymbols)
 from devito.mpi.distributed import MPICommObject
-from devito.passes.iet import iet_pass
+from devito.passes.iet import DeviceOmpizer, DeviceOmpIteration, iet_pass, is_on_device
 from devito.symbolics import Byref, CondNe, DefFunction, Macro
 from devito.tools import prod
 from devito.types import DeviceID, Symbol
@@ -77,8 +76,6 @@ class DeviceAccizer(DeviceOmpizer):
             c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
         'map-exit-delete': lambda i, j, k:
             c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
-        'map-pointers': lambda i:
-            c.Pragma('acc host_data use_device(%s)' % i),
         'header': 'openacc.h'
     })
 
@@ -112,10 +109,6 @@ class DeviceAccizer(DeviceOmpizer):
     def _map_update_wait_device(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.lang['map-update-wait-device'](f.name, sections, queueid)
-
-    @classmethod
-    def _map_pointers(cls, functions):
-        return cls.lang['map-pointers'](','.join(f.name for f in functions))
 
     @iet_pass
     def make_gpudirect(self, iet):

@@ -4,16 +4,19 @@ import numpy as np
 import cgen as c
 from sympy import Or, Max
 
+from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
-                       List, ParallelIteration, ParallelBlock, ParallelTree, FindSymbols,
-                       FindNodes, Return, VECTORIZED, Transformer, IsPerfectIteration,
-                       retrieve_iteration_tree, filter_iterations)
-from devito.symbolics import CondEq, INT
+                       List, ParallelIteration, ParallelBlock, ParallelTree, Prodder,
+                       Block, FindSymbols, FindNodes, Return, VECTORIZED, Transformer,
+                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
+from devito.mpi.routines import IrecvCall, IsendCall
+from devito.symbolics import CondEq, INT, ccode
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import PointerArray, Symbol, NThreadsMixin
 
-__all__ = ['HostPragmaParallelizer', 'DevicePragmaParallelizer']
+__all__ = ['Constructs', 'LanguageSpecializer', 'HostPragmaParallelizer',
+           'DeviceAwarePragmaParallelizer', 'is_on_device']
 
 
 class Constructs(dict):
@@ -71,6 +74,11 @@ class Parallelizer(LanguageSpecializer):
     _Iteration = ParallelIteration
     """
     The IET node type to be used to construct a parallel Iteration.
+    """
+
+    _Prodder = Prodder
+    """
+    The IET node type to be used to construct concurrent prodders.
     """
 
     def __init__(self, key, sregistry, platform):
@@ -230,6 +238,8 @@ class PragmaParallelizer(Parallelizer):
         return partree
 
     def _make_threaded_prodders(self, partree):
+        mapper = {i: self._Prodder(i) for i in FindNodes(Prodder).visit(partree)}
+        partree = Transformer(mapper).visit(partree)
         return partree
 
     def _make_partree(self, candidates, nthreads=None):
@@ -438,6 +448,200 @@ class HostPragmaParallelizer(PragmaParallelizer):
         return iet, {}
 
 
-class DevicePragmaParallelizer(PragmaParallelizer):
-    #TODO: WILL I USE THIS??
-    pass
+class DeviceAwarePragmaParallelizer(PragmaParallelizer):
+
+    def __init__(self, sregistry, options, platform):
+        super().__init__(sregistry, options, platform)
+
+        self.gpu_fit = options['gpu-fit']
+        self.par_disabled = options['par-disabled']
+
+    @classmethod
+    def _make_sections_from_imask(cls, f, imask):
+        datasize = cls._map_data(f)
+        if imask is None:
+            imask = [FULL]*len(datasize)
+        assert len(imask) == len(datasize)
+        sections = []
+        for i, j in zip(imask, datasize):
+            if i is FULL:
+                start, size = 0, j
+            else:
+                try:
+                    start, size = i
+                except TypeError:
+                    start, size = i, 1
+                start = ccode(start)
+            sections.append('[%s:%s]' % (start, size))
+        return ''.join(sections)
+
+    @classmethod
+    def _map_data(cls, f):
+        if f.is_Array:
+            return f.symbolic_shape
+        else:
+            return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
+
+    @classmethod
+    def _map_to(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-enter-to'](f.name, sections)
+
+    _map_to_wait = _map_to
+
+    @classmethod
+    def _map_alloc(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-enter-alloc'](f.name, sections)
+
+    @classmethod
+    def _map_present(cls, f, imask=None):
+        return
+
+    @classmethod
+    def _map_update(cls, f):
+        return cls.lang['map-update'](f.name, ''.join('[0:%s]' % i
+                                                      for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_update_host(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-host'](f.name, sections)
+
+    _map_update_wait_host = _map_update_host
+
+    @classmethod
+    def _map_update_device(cls, f, imask=None, queueid=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.lang['map-update-device'](f.name, sections)
+
+    _map_update_wait_device = _map_update_device
+
+    @classmethod
+    def _map_release(cls, f, devicerm=None):
+        return cls.lang['map-release'](f.name,
+                                       ''.join('[0:%s]' % i for i in cls._map_data(f)),
+                                       (' if(%s)' % devicerm.name) if devicerm else '')
+
+    @classmethod
+    def _map_delete(cls, f, imask=None, devicerm=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        # This ugly condition is to avoid a copy-back when, due to
+        # domain decomposition, the local size of a Function is 0, which
+        # would cause a crash
+        items = []
+        if devicerm is not None:
+            items.append(devicerm.name)
+        items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
+        cond = ' if(%s)' % ' && '.join(items)
+        return cls.lang['map-exit-delete'](f.name, sections, cond)
+
+    def _make_threaded_prodders(self, partree):
+        if isinstance(partree.root, self._Iteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_threaded_prodders(partree)
+
+    def _make_partree(self, candidates, nthreads=None):
+        """
+        Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas
+        for parallelism. In particular:
+
+            * All parallel Iterations not *writing* to a host Function, that
+              is a Function `f` such that ``is_on_device(f) == False`, are offloaded
+              to the device.
+            * The remaining ones, that is those writing to a host Function,
+              are parallelized on the host.
+        """
+        assert candidates
+        root = candidates[0]
+
+        if is_on_device(root, self.gpu_fit, only_writes=True):
+            # The typical case: all written Functions are device Functions, that is
+            # they're mapped in the device memory. Then we offload `root` to the device
+
+            # Get the collapsable Iterations
+            collapsable = self._find_collapsable(root, candidates)
+            ncollapse = 1 + len(collapsable)
+
+            body = self._Iteration(gpu_fit=self.gpu_fit, ncollapse=ncollapse, **root.args)
+            partree = ParallelTree([], body, nthreads=nthreads)
+            collapsed = [partree] + collapsable
+
+            return root, partree, collapsed
+        elif not self.par_disabled:
+            # Resort to host parallelism
+            return super()._make_partree(candidates, nthreads)
+        else:
+            return root, None, None
+
+    def _make_parregion(self, partree, *args):
+        if isinstance(partree.root, self._Iteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_parregion(partree, *args)
+
+    def _make_guard(self, parregion, *args):
+        partrees = FindNodes(ParallelTree).visit(parregion)
+        if any(isinstance(i.root, self._Iteration) for i in partrees):
+            # no-op for now
+            return parregion
+        else:
+            return super()._make_guard(parregion, *args)
+
+    def _make_nested_partree(self, partree):
+        if isinstance(partree.root, self._Iteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_nested_partree(partree)
+
+    @iet_pass
+    def make_gpudirect(self, iet):
+        """
+        Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
+        """
+        mapper = {}
+        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
+            header = c.Pragma('omp target data use_device_ptr(%s)' %
+                              node.arguments[0].name)
+            mapper[node] = Block(header=header, body=node)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
+
+
+# Utils
+
+def is_on_device(maybe_symbol, gpu_fit, only_writes=False):  #TODO: MAKE IT CLASSMETHOD OF DEVICEPARALLELIZER ??
+    """
+    True if all given Functions are allocated in the device memory, False otherwise.
+
+    Parameters
+    ----------
+    maybe_symbol : Indexed or Function or Node
+        The inspected object. May be a single Indexed or Function, or even an
+        entire piece of IET.
+    gpu_fit : list of Function
+        The Function's which are known to definitely fit in the device memory. This
+        information is given directly by the user through the compiler option
+        `gpu-fit` and is propagated down here through the various stages of lowering.
+    only_writes : bool, optional
+        Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
+        that do not appear on the LHS of at least one Expression. Defaults to False.
+    """
+    try:
+        functions = (maybe_symbol.function,)
+    except AttributeError:
+        assert maybe_symbol.is_Node
+        iet = maybe_symbol
+        functions = set(FindSymbols().visit(iet))
+        if only_writes:
+            expressions = FindNodes(Expression).visit(iet)
+            functions &= {i.write for i in expressions}
+
+    return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
+               for f in functions)

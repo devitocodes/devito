@@ -1,16 +1,22 @@
+from functools import singledispatch
+
 import cgen as c
-from sympy import Not
+from sympy import Function, Not
 
 from devito.data import FULL
-from devito.ir import (Conditional, List, Prodder, ParallelIteration, ParallelBlock,
-                       ParallelTree, While, COLLAPSED, FindNodes, Transformer)
-from devito.symbolics import CondEq, DefFunction
+from devito.ir.equations import DummyEq
+from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration, ParallelBlock,
+                       ParallelTree, EntryFunction, LocalExpression, While, COLLAPSED)
+from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.language import (Constructs, HostPragmaParallelizer,
-                                        DevicePragmaParallelizer)
+                                        DeviceAwarePragmaParallelizer)
+from devito.symbolics import Byref, CondEq, CondNe, DefFunction
 from devito.tools import as_tuple
+from devito.types import DeviceID, Symbol
 
-__all__ = ['Ompizer', 'OpenMPIteration', 'OpenMPRegion']
+__all__ = ['Ompizer', 'OpenMPIteration', 'OpenMPRegion',
+           'DeviceOmpizer', 'DeviceOmpIteration']
 
 
 class OpenMPRegion(ParallelBlock):
@@ -52,7 +58,7 @@ class OpenMPRegion(ParallelBlock):
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
-class OpenMPIteration(ParallelIteration):
+class OpenMPIteration(ParallelIteration):  #TODO: HostOmpIteration ???
 
     def __init__(self, *args, **kwargs):
         pragmas, kwargs = self._make_header(**kwargs)
@@ -122,6 +128,25 @@ class OpenMPIteration(ParallelIteration):
         return clauses
 
 
+class DeviceOmpIteration(OpenMPIteration):
+
+    @classmethod
+    def _make_header(cls, **kwargs):
+        header, kwargs = super()._make_header(**kwargs)
+        kwargs.pop('gpu_fit', None)
+
+        return header, kwargs
+
+    @classmethod
+    def _make_construct(cls, **kwargs):
+        return 'omp target teams distribute parallel for'
+
+    @classmethod
+    def _make_clauses(cls, **kwargs):
+        kwargs['chunk_size'] = False
+        return super(DeviceOmpIteration, cls)._make_clauses(**kwargs)
+
+
 class ThreadedProdder(Conditional, Prodder):
 
     _traversable = []
@@ -141,7 +166,7 @@ class ThreadedProdder(Conditional, Prodder):
         Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
 
 
-class Ompizer(HostPragmaParallelizer):
+class OmpizerMixin(object):
 
     lang = Constructs([
         ('simd-for', c.Pragma('omp simd')),
@@ -152,10 +177,87 @@ class Ompizer(HostPragmaParallelizer):
     ])
     #TODO: TRY CONSTRUCTS via make_simd...
 
+
+class Ompizer(OmpizerMixin, HostPragmaParallelizer):
+
     _Region = OpenMPRegion
     _Iteration = OpenMPIteration
+    _Prodder = ThreadedProdder
 
-    def _make_threaded_prodders(self, partree):
-        mapper = {i: ThreadedProdder(i) for i in FindNodes(Prodder).visit(partree)}
-        partree = Transformer(mapper).visit(partree)
-        return partree
+
+class DeviceOmpizer(OmpizerMixin, DeviceAwarePragmaParallelizer):
+
+    lang = Constructs(OmpizerMixin.lang)
+    lang.update({
+        'map-enter-to': lambda i, j:
+            c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
+        'map-enter-alloc': lambda i, j:
+            c.Pragma('omp target enter data map(alloc: %s%s)' % (i, j)),
+        'map-update': lambda i, j:
+            c.Pragma('omp target update from(%s%s)' % (i, j)),
+        'map-update-host': lambda i, j:
+            c.Pragma('omp target update from(%s%s)' % (i, j)),
+        'map-update-device': lambda i, j:
+            c.Pragma('omp target update to(%s%s)' % (i, j)),
+        'map-release': lambda i, j, k:
+            c.Pragma('omp target exit data map(release: %s%s)%s'
+                     % (i, j, k)),
+        'map-exit-delete': lambda i, j, k:
+            c.Pragma('omp target exit data map(delete: %s%s)%s'
+                     % (i, j, k)),
+    })
+
+    _Iteration = DeviceOmpIteration
+
+    @iet_pass
+    def initialize(self, iet):
+
+        @singledispatch
+        def _initialize(iet):
+            return iet, {}
+
+        @_initialize.register(EntryFunction)
+        def _(iet):
+            # TODO: we need to pick the rank from `comm_shm`, not `comm`,
+            # so that we have nranks == ngpus (as long as the user has launched
+            # the right number of MPI processes per node given the available
+            # number of GPUs per node)
+
+            objcomm = None
+            for i in iet.parameters:
+                if isinstance(i, MPICommObject):
+                    objcomm = i
+                    break
+
+            deviceid = DeviceID()
+            if objcomm is not None:
+                rank = Symbol(name='rank')
+                rank_decl = LocalExpression(DummyEq(rank, 0))
+                rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
+
+                ngpus = Symbol(name='ngpus')
+                call = Function('omp_get_num_devices')()
+                ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+                osdd_then = Call('omp_set_default_device', [deviceid])
+                osdd_else = Call('omp_set_default_device', [rank % ngpus])
+
+                body = [Conditional(
+                    CondNe(deviceid, -1),
+                    osdd_then,
+                    List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
+                )]
+            else:
+                body = [Conditional(
+                    CondNe(deviceid, -1),
+                    Call('omp_set_default_device', [deviceid])
+                )]
+
+            init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
+                        body=body,
+                        footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
+            iet = iet._rebuild(body=(init,) + iet.body)
+
+            return iet, {'args': deviceid}
+
+        return _initialize(iet)
