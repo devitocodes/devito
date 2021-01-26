@@ -4,23 +4,20 @@ import cgen as c
 
 from devito.core.gpu import (DeviceNoopOperator, DeviceOperator, DeviceCustomOperator,
                              is_on_device)
-from devito.core.gpu_openmp import (DeviceOpenMPIteration, DeviceOmpizer,
-                                    DeviceOpenMPDataManager)
+from devito.core.gpu_openmp import DeviceOmpIteration, DeviceOmpizer, DeviceOmpDataManager
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Conditional, EntryFunction, List, LocalExpression,
                            FindSymbols)
 from devito.mpi.distributed import MPICommObject
-from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
-                               iet_pass)
+from devito.passes.iet import iet_pass
 from devito.symbolics import Byref, CondNe, DefFunction, Macro
-from devito.tools import as_tuple, prod, timed_pass
+from devito.tools import prod
 from devito.types import DeviceID, Symbol
 
-__all__ = ['DeviceOpenACCNoopOperator', 'DeviceOpenACCOperator',
-           'DeviceOpenACCCustomOperator']
+__all__ = ['DeviceNoopAccOperator', 'DeviceAdvAccOperator', 'DeviceCustomAccOperator']
 
 
-class DeviceOpenACCIteration(DeviceOpenMPIteration):
+class DeviceAccIteration(DeviceOmpIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
@@ -29,7 +26,7 @@ class DeviceOpenACCIteration(DeviceOpenMPIteration):
     @classmethod
     def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
-        clauses = super(DeviceOpenACCIteration, cls)._make_clauses(**kwargs)
+        clauses = super(DeviceAccIteration, cls)._make_clauses(**kwargs)
 
         symbols = FindSymbols().visit(kwargs['nodes'])
 
@@ -84,7 +81,7 @@ class DeviceAccizer(DeviceOmpizer):
             c.Pragma('acc host_data use_device(%s)' % i)
     })
 
-    _Iteration = DeviceOpenACCIteration
+    _Iteration = DeviceAccIteration
 
     @classmethod
     def _map_to_wait(cls, f, imask=None, queueid=None):
@@ -190,7 +187,7 @@ class DeviceAccizer(DeviceOmpizer):
         return _initialize(iet)
 
 
-class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
+class DeviceAccDataManager(DeviceOmpDataManager):
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -218,10 +215,10 @@ class DeviceOpenACCDataManager(DeviceOpenMPDataManager):
 # Operators
 
 
-class DeviceOpenACCOperatorMixin(object):
+class DeviceAccOperatorMixin(object):
 
     _Parallelizer = DeviceAccizer
-    _DataManager = DeviceOpenACCDataManager
+    _DataManager = DeviceAccDataManager
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
@@ -234,15 +231,15 @@ class DeviceOpenACCOperatorMixin(object):
         return kwargs
 
 
-class DeviceOpenACCNoopOperator(DeviceOpenACCOperatorMixin, DeviceNoopOperator):
+class DeviceNoopAccOperator(DeviceAccOperatorMixin, DeviceNoopOperator):
     pass
 
 
-class DeviceOpenACCOperator(DeviceOpenACCOperatorMixin, DeviceOperator):
+class DeviceAdvAccOperator(DeviceAccOperatorMixin, DeviceOperator):
     pass
 
 
-class DeviceOpenACCCustomOperator(DeviceOpenACCOperatorMixin, DeviceCustomOperator):
+class DeviceCustomAccOperator(DeviceAccOperatorMixin, DeviceCustomOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):

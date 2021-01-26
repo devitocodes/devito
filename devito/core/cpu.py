@@ -5,15 +5,15 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import buffering, collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Ompizer, iet_pass, avoid_denormals, mpiize,
+from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
 
-__all__ = ['CPU64NoopOperator', 'CPU64Operator', 'CPU64OpenMPOperator',
-           'CPU64CustomOperator']
+__all__ = ['Cpu64NoopOperator', 'Cpu64AdvOperator', 'Cpu64AdvOmpOperator',
+           'Cpu64CustomOperator']
 
 
-class CPU64OperatorMixin(object):
+class Cpu64OperatorMixin(object):
 
     BLOCK_LEVELS = 1
     """
@@ -129,7 +129,10 @@ class CPU64OperatorMixin(object):
         return kwargs
 
 
-class CPU64NoopOperator(CPU64OperatorMixin, CoreOperator):
+# Modes
+
+
+class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -153,7 +156,7 @@ class CPU64NoopOperator(CPU64OperatorMixin, CoreOperator):
         return graph
 
 
-class CPU64Operator(CPU64OperatorMixin, CoreOperator):
+class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
     @classmethod
     @timed_pass(name='specializing.DSL')
@@ -229,7 +232,7 @@ class CPU64Operator(CPU64OperatorMixin, CoreOperator):
         return graph
 
 
-class CPU64OpenMPOperator(CPU64Operator):
+class Cpu64AdvOmpOperator(Cpu64AdvOperator):
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -266,7 +269,7 @@ class CPU64OpenMPOperator(CPU64Operator):
         return graph
 
 
-class CPU64CustomOperator(CPU64OperatorMixin, CustomOperator):
+class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
     @classmethod
     def _make_dsl_passes_mapper(cls, **kwargs):

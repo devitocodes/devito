@@ -18,11 +18,10 @@ from devito.symbolics import CondNe, Byref, ccode
 from devito.tools import filter_sorted
 from devito.types import DeviceID, DeviceRM, Symbol
 
-__all__ = ['DeviceOpenMPNoopOperator', 'DeviceOpenMPOperator',
-           'DeviceOpenMPCustomOperator']
+__all__ = ['DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceCustomOmpOperator']
 
 
-class DeviceOpenMPIteration(OpenMPIteration):
+class DeviceOmpIteration(OpenMPIteration):
 
     @classmethod
     def _make_header(cls, **kwargs):
@@ -38,7 +37,7 @@ class DeviceOpenMPIteration(OpenMPIteration):
     @classmethod
     def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
-        return super(DeviceOpenMPIteration, cls)._make_clauses(**kwargs)
+        return super(DeviceOmpIteration, cls)._make_clauses(**kwargs)
 
 
 class DeviceOmpizer(Ompizer):
@@ -63,7 +62,7 @@ class DeviceOmpizer(Ompizer):
                      % (i, j, k)),
     })
 
-    _Iteration = DeviceOpenMPIteration
+    _Iteration = DeviceOmpIteration
 
     def __init__(self, sregistry, options, key=None):
         super().__init__(sregistry, options, key=key)
@@ -155,7 +154,7 @@ class DeviceOmpizer(Ompizer):
         raise NotImplementedError
 
     def _make_threaded_prodders(self, partree):
-        if isinstance(partree.root, DeviceOpenMPIteration):
+        if isinstance(partree.root, DeviceOmpIteration):
             # no-op for now
             return partree
         else:
@@ -195,7 +194,7 @@ class DeviceOmpizer(Ompizer):
             return root, None, None
 
     def _make_parregion(self, partree, *args):
-        if isinstance(partree.root, DeviceOpenMPIteration):
+        if isinstance(partree.root, DeviceOmpIteration):
             # no-op for now
             return partree
         else:
@@ -203,14 +202,14 @@ class DeviceOmpizer(Ompizer):
 
     def _make_guard(self, parregion, *args):
         partrees = FindNodes(ParallelTree).visit(parregion)
-        if any(isinstance(i.root, DeviceOpenMPIteration) for i in partrees):
+        if any(isinstance(i.root, DeviceOmpIteration) for i in partrees):
             # no-op for now
             return parregion
         else:
             return super()._make_guard(parregion, *args)
 
     def _make_nested_partree(self, partree):
-        if isinstance(partree.root, DeviceOpenMPIteration):
+        if isinstance(partree.root, DeviceOmpIteration):
             # no-op for now
             return partree
         else:
@@ -285,7 +284,7 @@ class DeviceOmpizer(Ompizer):
         return _initialize(iet)
 
 
-class DeviceOpenMPDataManager(DataManager):
+class DeviceOmpDataManager(DataManager):
 
     def __init__(self, parallelizer, sregistry, options):
         """
@@ -375,10 +374,10 @@ class DeviceOpenMPDataManager(DataManager):
 # Operators
 
 
-class DeviceOpenMPOperatorMixin(object):
+class DeviceOmpOperatorMixin(object):
 
     _Parallelizer = DeviceOmpizer
-    _DataManager = DeviceOpenMPDataManager
+    _DataManager = DeviceOmpDataManager
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
@@ -391,15 +390,15 @@ class DeviceOpenMPOperatorMixin(object):
         return kwargs
 
 
-class DeviceOpenMPNoopOperator(DeviceOpenMPOperatorMixin, DeviceNoopOperator):
+class DeviceNoopOmpOperator(DeviceOmpOperatorMixin, DeviceNoopOperator):
     pass
 
 
-class DeviceOpenMPOperator(DeviceOpenMPOperatorMixin, DeviceOperator):
+class DeviceAdvOmpOperator(DeviceOmpOperatorMixin, DeviceOperator):
     pass
 
 
-class DeviceOpenMPCustomOperator(DeviceOpenMPOperatorMixin, DeviceCustomOperator):
+class DeviceCustomOmpOperator(DeviceOmpOperatorMixin, DeviceCustomOperator):
 
     _known_passes = DeviceCustomOperator._known_passes + ('openmp',)
     assert not (set(_known_passes) & set(DeviceCustomOperator._known_passes_disabled))

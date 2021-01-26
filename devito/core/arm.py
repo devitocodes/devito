@@ -1,12 +1,12 @@
-from devito.core.cpu import CPU64Operator, CPU64OpenMPOperator
+from devito.core.cpu import Cpu64AdvOperator, Cpu64AdvOmpOperator
 from devito.passes.iet import (mpiize, optimize_halospots, hoist_prodders,
                                relax_incr_dimensions)
 from devito.tools import timed_pass
 
-__all__ = ['ArmOperator', 'ArmOpenMPOperator']
+__all__ = ['ArmAdvOperator', 'ArmAdvOmpOperator']
 
 
-class ArmOperator(CPU64Operator):
+class ArmAdvOperator(Cpu64AdvOperator):
 
     @classmethod
     @timed_pass(name='specializing.IET')
@@ -36,7 +36,7 @@ class ArmOperator(CPU64Operator):
         return graph
 
 
-class ArmOpenMPOperator(CPU64OpenMPOperator):
+class ArmAdvOmpOperator(Cpu64AdvOmpOperator):
 
     # Variable set to 4 to avoid nested parallelism on ThunderX2
     PAR_NESTED = 4
