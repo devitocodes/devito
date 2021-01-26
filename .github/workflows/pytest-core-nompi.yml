@@ -35,6 +35,13 @@ jobs:
            pytest-ubuntu-py37-gcc7-noomp,
            pytest-ubuntu-py37-gcc8-omp,
            pytest-ubuntu-py38-gcc9-omp,
+           pytest-ubuntu-py36-gcc49-omp-adjoint,
+           pytest-ubuntu-py37-gcc5-omp-adjoint,
+           pytest-ubuntu-py38-gcc6-omp-adjoint,
+           pytest-ubuntu-py36-gcc7-omp-adjoint,
+           pytest-ubuntu-py37-gcc7-noomp-adjoint,
+           pytest-ubuntu-py37-gcc8-omp-adjoint,
+           pytest-ubuntu-py38-gcc9-omp-adjoint,
            pytest-osx-py37-clang-omp,
            pytest-docker-py36-gcc-omp
         ]
@@ -76,6 +83,48 @@ jobs:
           language: "openmp"
 
         - name: pytest-ubuntu-py38-gcc9-omp
+          python-version: 3.8
+          os: ubuntu-18.04
+          arch: "gcc-9"
+          language: "openmp"
+
+        - name: pytest-ubuntu-py36-gcc49-omp-adjoint
+          python-version: 3.6
+          os: ubuntu-16.04
+          arch: "gcc-4.9"
+          language: "openmp"
+
+        - name: pytest-ubuntu-py37-gcc5-omp-adjoint
+          python-version: 3.7
+          os: ubuntu-18.04
+          arch: "gcc-5"
+          language: "openmp"
+
+        - name: pytest-ubuntu-py38-gcc6-omp-adjoint
+          python-version: 3.8
+          os: ubuntu-18.04
+          arch: "gcc-6"
+          language: "openmp"
+
+        - name: pytest-ubuntu-py36-gcc7-omp-adjoint
+          python-version: 3.6
+          os: ubuntu-18.04
+          arch: "gcc-7"
+          language: "openmp"
+
+        - name: pytest-ubuntu-py37-gcc7-noomp-adjoint
+          python-version: 3.7
+          os: ubuntu-18.04
+          arch: "gcc-7"
+          language: "C"
+
+        - name: pytest-ubuntu-py37-gcc8-omp-adjoint
+          python-version: 3.7
+          os: ubuntu-18.04
+          arch: "gcc-8"
+          language: "openmp"
+
+        - name: pytest-ubuntu-py38-gcc9-omp-adjoint
           python-version: 3.8
           os: ubuntu-18.04
           arch: "gcc-9"
@@ -139,7 +188,12 @@ jobs:
 
     - name: Test with pytest
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} pytest -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
+        if [[ "${{ matrix.name }}" == *"adjoint"* ]]; then
+            SUBSTRING='adjoint'
+        else
+            SUBSTRING='not adjoint'
+        fi
+        ${{ steps.set-run.outputs.RUN_CMD }} pytest -k $SUBSTRING -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'pytest-docker-py36-gcc-omp'
