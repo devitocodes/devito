@@ -36,7 +36,7 @@ class LanguageSpecializer(ABC):
 
     lang = Constructs()
     """
-    Relevant constructs of the target language.
+    The constructs of the target language.
     """
 
     def __init__(self, sregistry, platform):

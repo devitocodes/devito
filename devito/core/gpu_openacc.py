@@ -1,9 +1,8 @@
-from functools import singledispatch
-
 import cgen as c
 
 from devito.core.gpu import DeviceNoopOperator, DeviceOperator, DeviceCustomOperator
 from devito.core.gpu_openmp import DeviceOmpDataManager
+from devito.passes.iet import DeviceAccizer
 from devito.tools import prod
 
 __all__ = ['DeviceNoopAccOperator', 'DeviceAdvAccOperator', 'DeviceCustomAccOperator']

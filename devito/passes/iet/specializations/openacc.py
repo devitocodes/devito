@@ -2,13 +2,14 @@ from functools import singledispatch
 
 import cgen as c
 
-from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Conditional, EntryFunction, List, LocalExpression,
-                           ParallelIteration, FindSymbols)
+from devito.ir import (DummyEq, Call, Conditional, EntryFunction, List, LocalExpression,
+                       ParallelIteration, FindSymbols)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.language import Constructs, DeviceAwarePragmaParallelizer, is_on_device
+from devito.passes.iet.specializations.utils import make_clause_reduction
 from devito.symbolics import Byref, CondNe, DefFunction, Macro
+from devito.tools import as_tuple
 from devito.types import DeviceID, Symbol
 
 __all__ = ['DeviceAccizer']
@@ -16,68 +17,20 @@ __all__ = ['DeviceAccizer']
 
 class DeviceAccIteration(ParallelIteration):
 
-    def __init__(self, *args, **kwargs):
-        pragmas, kwargs = self._make_header(**kwargs)
-
-        properties = as_tuple(kwargs.pop('properties', None))
-        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
-
-        self.schedule = kwargs.pop('schedule', None)
-        self.parallel = kwargs.pop('parallel', False)
-        self.ncollapse = kwargs.pop('ncollapse', None)
-        self.chunk_size = kwargs.pop('chunk_size', None)
-        self.nthreads = kwargs.pop('nthreads', None)
-        self.reduction = kwargs.pop('reduction', None)
-
-        super().__init__(*args, pragmas=pragmas, properties=properties, **kwargs)
-
-    @classmethod
-    def _make_header(cls, **kwargs):
-        kwargs.pop('pragmas', None)
-
-        construct = cls._make_construct(**kwargs)
-        clauses = cls._make_clauses(**kwargs)
-        header = c.Pragma(' '.join([construct] + clauses))
-
-        return (header,), kwargs
-
     @classmethod
     def _make_construct(cls, **kwargs):
         return 'acc parallel loop'
 
     @classmethod
-    def _make_clauses(cls, **kwargs):
+    def _make_clauses(cls, ncollapse=None, reduction=None, **kwargs):
         clauses = []
 
         clauses.append('collapse(%d)' % (ncollapse or 1))
 
-        if chunk_size is not False:
-            clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
-                                                chunk_size or 1))
-
-        if nthreads:
-            clauses.append('num_threads(%s)' % nthreads)
-
         if reduction:
-            args = []
-            for i in reduction:
-                if i.is_Indexed:
-                    f = i.function
-                    bounds = []
-                    for k, d in zip(i.indices, f.dimensions):
-                        if k.is_Number:
-                            bounds.append('[%s]' % k)
-                        else:
-                            # OpenMP expects a range as input of reduction,
-                            # such as reduction(+:f[0:f_vec->size[1]])
-                            bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
-                    args.append('%s%s' % (i.name, ''.join(bounds)))
-                else:
-                    args.append(str(i))
-            clauses.append('reduction(+:%s)' % ','.join(args))
+            clauses.append(make_clause_reduction(reduction))
 
         symbols = FindSymbols().visit(kwargs['nodes'])
-
         deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
         presents = [i.name for i in symbols
                     if (i.is_AbstractFunction and
@@ -93,6 +46,19 @@ class DeviceAccIteration(ParallelIteration):
             clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
 
         return clauses
+
+    @classmethod
+    def _process_kwargs(cls, **kwargs):
+        kwargs = super()._process_kwargs(**kwargs)
+
+        kwargs.pop('gpu_fit', None)
+
+        kwargs.pop('schedule', None)
+        kwargs.pop('parallel', False)
+        kwargs.pop('chunk_size', None)
+        kwargs.pop('nthreads', None)
+
+        return kwargs
 
 
 class DeviceAccizer(DeviceAwarePragmaParallelizer):
@@ -125,7 +91,7 @@ class DeviceAccizer(DeviceAwarePragmaParallelizer):
         ('map-exit-delete', lambda i, j, k:
             c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k))),
         ('header', 'openacc.h')
-    })
+    ])
 
     _Iteration = DeviceAccIteration
 

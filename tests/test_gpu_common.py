@@ -5,7 +5,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     SubDimension, SubDomain, TimeFunction, Operator)
 from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
-from devito.passes import OpenMPIteration
+from devito.passes import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, PThreadArray
 
 from conftest import skipif
@@ -195,16 +195,16 @@ class TestStreaming(object):
 
         op = Operator(Eq(u.forward, u + 1), opt=opt)
 
-        piters = FindNodes(OpenMPIteration).visit(op)
+        piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 0
 
         op = Operator(Eq(u.forward, u + 1), opt=(opt, {'par-disabled': False}))
 
         # Degenerates to host execution with no data movement, since `u` is
         # a host Function
-        piters = FindNodes(OpenMPIteration).visit(op)
+        piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 1
-        assert type(piters.pop()) == OpenMPIteration
+        assert type(piters.pop()) == OmpIteration
 
     def test_tasking_multi_output(self):
         nt = 10

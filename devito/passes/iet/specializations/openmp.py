@@ -3,23 +3,22 @@ from functools import singledispatch
 import cgen as c
 from sympy import Function, Not
 
-from devito.data import FULL
-from devito.ir.equations import DummyEq
-from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration, ParallelBlock,
-                       ParallelTree, EntryFunction, LocalExpression, While, COLLAPSED)
+from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIteration,
+                       ParallelBlock, ParallelTree, EntryFunction, LocalExpression, While)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.language import (Constructs, HostPragmaParallelizer,
                                         DeviceAwarePragmaParallelizer)
+from devito.passes.iet.specializations.utils import make_clause_reduction
 from devito.symbolics import Byref, CondEq, CondNe, DefFunction
 from devito.tools import as_tuple
 from devito.types import DeviceID, Symbol
 
-__all__ = ['Ompizer', 'OpenMPIteration', 'OpenMPRegion',
+__all__ = ['Ompizer', 'OmpIteration', 'OmpRegion',
            'DeviceOmpizer', 'DeviceOmpIteration']
 
 
-class OpenMPRegion(ParallelBlock):
+class OmpRegion(ParallelBlock):
 
     def __init__(self, body, private=None):
         # Normalize and sanity-check input. A bit ugly, but it makes everything
@@ -37,8 +36,8 @@ class OpenMPRegion(ParallelBlock):
             partree = partree._rebuild(prefix=(List(header=body.header,
                                                     body=partree.prefix)))
 
-        header = OpenMPRegion._make_header(partree.nthreads, private)
-        super(OpenMPRegion, self).__init__(header=header, body=partree)
+        header = OmpRegion._make_header(partree.nthreads, private)
+        super().__init__(header=header, body=partree)
 
     @property
     def partree(self):
@@ -58,32 +57,7 @@ class OpenMPRegion(ParallelBlock):
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
-class OpenMPIteration(ParallelIteration):  #TODO: HostOmpIteration ???
-
-    def __init__(self, *args, **kwargs):
-        pragmas, kwargs = self._make_header(**kwargs)
-
-        properties = as_tuple(kwargs.pop('properties', None))
-        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
-
-        self.schedule = kwargs.pop('schedule', None)
-        self.parallel = kwargs.pop('parallel', False)
-        self.ncollapse = kwargs.pop('ncollapse', None)
-        self.chunk_size = kwargs.pop('chunk_size', None)
-        self.nthreads = kwargs.pop('nthreads', None)
-        self.reduction = kwargs.pop('reduction', None)
-
-        super().__init__(*args, pragmas=pragmas, properties=properties, **kwargs)
-
-    @classmethod
-    def _make_header(cls, **kwargs):
-        kwargs.pop('pragmas', None)
-
-        construct = cls._make_construct(**kwargs)
-        clauses = cls._make_clauses(**kwargs)
-        header = c.Pragma(' '.join([construct] + clauses))
-
-        return (header,), kwargs
+class OmpIteration(ParallelIteration):
 
     @classmethod
     def _make_construct(cls, parallel=False, **kwargs):
@@ -107,34 +81,23 @@ class OpenMPIteration(ParallelIteration):  #TODO: HostOmpIteration ???
             clauses.append('num_threads(%s)' % nthreads)
 
         if reduction:
-            args = []
-            for i in reduction:
-                if i.is_Indexed:
-                    f = i.function
-                    bounds = []
-                    for k, d in zip(i.indices, f.dimensions):
-                        if k.is_Number:
-                            bounds.append('[%s]' % k)
-                        else:
-                            # OpenMP expects a range as input of reduction,
-                            # such as reduction(+:f[0:f_vec->size[1]])
-                            bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
-                    args.append('%s%s' % (i.name, ''.join(bounds)))
-                else:
-                    args.append(str(i))
-            clauses.append('reduction(+:%s)' % ','.join(args))
+            clauses.append(make_clause_reduction(reduction))
 
         return clauses
 
-
-class DeviceOmpIteration(OpenMPIteration):
-
     @classmethod
-    def _make_header(cls, **kwargs):
-        header, kwargs = super()._make_header(**kwargs)
-        kwargs.pop('gpu_fit', None)
+    def _process_kwargs(cls, **kwargs):
+        kwargs = super()._process_kwargs(**kwargs)
 
-        return header, kwargs
+        kwargs.pop('schedule', None)
+        kwargs.pop('parallel', False)
+        kwargs.pop('chunk_size', None)
+        kwargs.pop('nthreads', None)
+
+        return kwargs
+
+
+class DeviceOmpIteration(OmpIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
@@ -143,7 +106,15 @@ class DeviceOmpIteration(OpenMPIteration):
     @classmethod
     def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
-        return super(DeviceOmpIteration, cls)._make_clauses(**kwargs)
+        return super()._make_clauses(**kwargs)
+
+    @classmethod
+    def _process_kwargs(cls, **kwargs):
+        kwargs = super()._process_kwargs(**kwargs)
+
+        kwargs.pop('gpu_fit', None)
+
+        return kwargs
 
 
 class ThreadedProdder(Conditional, Prodder):
@@ -179,8 +150,8 @@ class OmpizerMixin(object):
 
 class Ompizer(OmpizerMixin, HostPragmaParallelizer):
 
-    _Region = OpenMPRegion
-    _Iteration = OpenMPIteration
+    _Region = OmpRegion
+    _Iteration = OmpIteration
     _Prodder = ThreadedProdder
 
 

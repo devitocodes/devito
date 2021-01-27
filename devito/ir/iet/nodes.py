@@ -12,7 +12,7 @@ import cgen as c
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq, DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
-                               AFFINE, Property, Forward, detect_io)
+                               AFFINE, COLLAPSED, Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type)
@@ -1076,6 +1076,51 @@ class ParallelIteration(Iteration):
     """
 
     is_ParallelIteration = True
+
+    def __init__(self, *args, **kwargs):
+        pragmas, kwargs, properties = self._make_header(**kwargs)
+        super().__init__(*args, pragmas=pragmas, properties=properties, **kwargs)
+
+    @classmethod
+    def _make_header(cls, **kwargs):
+        construct = cls._make_construct(**kwargs)
+        clauses = cls._make_clauses(**kwargs)
+        header = c.Pragma(' '.join([construct] + clauses))
+
+        # Extract the Iteration Properties
+        properties = cls._process_properties(**kwargs)
+
+        # Drop the unrecognised or unused kwargs
+        kwargs = cls._process_kwargs(**kwargs)
+
+        return (header,), kwargs, properties
+
+    @classmethod
+    def _make_construct(cls, **kwargs):
+        # To be overridden by subclasses
+        raise NotImplementedError
+
+    @classmethod
+    def _make_clauses(cls, **kwargs):
+        return []
+
+    @classmethod
+    def _process_properties(cls, **kwargs):
+        properties = as_tuple(kwargs.get('properties'))
+        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
+
+        return properties
+
+    @classmethod
+    def _process_kwargs(cls, **kwargs):
+        kwargs.pop('pragmas', None)
+        kwargs.pop('properties', None)
+
+        # Recognised clauses
+        kwargs.pop('ncollapse', None)
+        kwargs.pop('reduction', None)
+
+        return kwargs
 
 
 class ParallelBlock(Block):
