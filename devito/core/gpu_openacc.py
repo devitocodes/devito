@@ -6,14 +6,14 @@ from devito.core.gpu_openmp import (DeviceOpenMPNoopOperator, DeviceOpenMPOperat
                                     DeviceOpenMPCustomOperator, DeviceOpenMPIteration,
                                     DeviceOmpizer, DeviceOpenMPDataManager, is_on_device)
 from devito.ir.equations import DummyEq
-from devito.ir.iet import Call, ElementalFunction, List, LocalExpression, FindSymbols
+from devito.ir.iet import (Call, Conditional, EntryFunction, List, LocalExpression,
+                           FindSymbols)
 from devito.mpi.distributed import MPICommObject
-from devito.mpi.routines import MPICallable
 from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
                                iet_pass)
-from devito.symbolics import Byref, DefFunction, Macro
+from devito.symbolics import Byref, CondNe, DefFunction, Macro
 from devito.tools import as_tuple, prod, timed_pass
-from devito.types import Symbol
+from devito.types import DeviceID, Symbol
 
 __all__ = ['DeviceOpenACCNoopOperator', 'DeviceOpenACCOperator',
            'DeviceOpenACCCustomOperator']
@@ -166,52 +166,54 @@ def initialize(iet, **kwargs):
 
     @singledispatch
     def _initialize(iet):
+        return iet, {}
+
+    @_initialize.register(EntryFunction)
+    def _(iet):
         # TODO: we need to pick the rank from `comm_shm`, not `comm`,
         # so that we have nranks == ngpus (as long as the user has launched
         # the right number of MPI processes per node given the available
         # number of GPUs per node)
-        comm = None
+
+        objcomm = None
         for i in iet.parameters:
             if isinstance(i, MPICommObject):
-                comm = i
+                objcomm = i
                 break
 
+        deviceid = DeviceID()
         device_nvidia = Macro('acc_device_nvidia')
-        body = Call('acc_init', [device_nvidia])
-
-        if comm is not None:
+        if objcomm is not None:
             rank = Symbol(name='rank')
             rank_decl = LocalExpression(DummyEq(rank, 0))
-            rank_init = Call('MPI_Comm_rank', [comm, Byref(rank)])
+            rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
 
             ngpus = Symbol(name='ngpus')
             call = DefFunction('acc_get_num_devices', device_nvidia)
             ngpus_init = LocalExpression(DummyEq(ngpus, call))
 
-            devicenum = Symbol(name='devicenum')
-            devicenum_init = LocalExpression(DummyEq(devicenum, rank % ngpus))
+            asdn_then = Call('acc_set_device_num', [deviceid, device_nvidia])
+            asdn_else = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
 
-            set_device_num = Call('acc_set_device_num', [devicenum, device_nvidia])
-
-            body = [rank_decl, rank_init, ngpus_init, devicenum_init,
-                    set_device_num, body]
+            body = [Call('acc_init', [device_nvidia]), Conditional(
+                CondNe(deviceid, -1),
+                asdn_then,
+                List(body=[rank_decl, rank_init, ngpus_init, asdn_else])
+            )]
+        else:
+            body = [Call('acc_init', [device_nvidia]), Conditional(
+                CondNe(deviceid, -1),
+                Call('acc_set_device_num', [deviceid, device_nvidia])
+            )]
 
         init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
                     body=body,
                     footer=(c.Comment('End of OpenACC+MPI setup'), c.Line()))
-
         iet = iet._rebuild(body=(init,) + iet.body)
 
-        return iet
+        return iet, {'args': deviceid}
 
-    @_initialize.register(ElementalFunction)
-    @_initialize.register(MPICallable)
-    def _(iet):
-        return iet
-
-    iet = _initialize(iet)
-
-    return iet, {}
+    return _initialize(iet)
 
 
 class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
@@ -234,8 +236,7 @@ class DeviceOpenACCNoopOperator(DeviceOpenMPNoopOperator):
         DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
-        if options['mpi']:
-            initialize(graph)
+        initialize(graph)
 
         return graph
 
@@ -264,8 +265,7 @@ class DeviceOpenACCOperator(DeviceOpenMPOperator):
         DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
-        if options['mpi']:
-            initialize(graph)
+        initialize(graph)
 
         return graph
 
@@ -331,7 +331,6 @@ class DeviceOpenACCCustomOperator(DeviceOpenMPCustomOperator, DeviceOpenACCOpera
         DeviceOpenACCDataManager(sregistry, options).process(graph)
 
         # Initialize OpenACC environment
-        if options['mpi']:
-            initialize(graph)
+        initialize(graph)
 
         return graph

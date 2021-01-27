@@ -1,9 +1,9 @@
 """
-Support types for the generation of shared-memory parallel code. This module
-contains basic types for threaded code (e.g., special symbols representing
+Support types for the generation of parallel code. This module contains types
+for the generation of threaded code (e.g., special symbols representing
 the number of threads in a parallel region, objects such as locks to
-implement thread synchronization, etc). Most of these objects are used internally
-by the compiler.
+implement thread synchronization, etc) and device code (e.g., a special symbol
+identifying a device attached to a node).
 """
 
 import os
@@ -22,7 +22,7 @@ from devito.types.constant import Constant
 from devito.types.dimension import CustomDimension
 from devito.types.misc import VolatileInt, c_volatile_int_p
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin', 'DeviceID',
            'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
            'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'normalize_syncs']
 
@@ -335,3 +335,26 @@ def normalize_syncs(*args):
             raise ValueError("Incompatible SyncOps")
 
     return syncs
+
+
+class DeviceID(Constant):
+
+    name = 'deviceid'
+
+    def __new__(cls, *args, **kwargs):
+        kwargs['name'] = DeviceID.name
+        kwargs['value'] = -1
+        return Constant.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return np.int32
+
+    def _arg_defaults(self):
+        return {self.name: self.data}
+
+    def _arg_values(self, **kwargs):
+        try:
+            return {self.name: kwargs[self.name]}
+        except KeyError:
+            return self._arg_defaults()
