@@ -2,12 +2,13 @@ from itertools import product
 
 import cgen
 
-from devito.ir.iet import (List, Prodder, FindNodes, Transformer, make_efunc,
-                           compose_nodes, filter_iterations, retrieve_iteration_tree)
+from devito.ir.iet import (Expression, List, Prodder, FindNodes, FindSymbols,
+                           Transformer, make_efunc, compose_nodes, filter_iterations,
+                           retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
 from devito.tools import flatten, is_integer, split
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
+__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
 
 
 @iet_pass
@@ -116,3 +117,34 @@ def relax_incr_dimensions(iet, **kwargs):
     iet = Transformer(mapper).visit(iet)
 
     return iet, {'efuncs': efuncs}
+
+
+def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
+    """
+    True if all given Functions are allocated in the device memory, False otherwise.
+
+    Parameters
+    ----------
+    maybe_symbol : Indexed or Function or Node
+        The inspected object. May be a single Indexed or Function, or even an
+        entire piece of IET.
+    gpu_fit : list of Function
+        The Function's which are known to definitely fit in the device memory. This
+        information is given directly by the user through the compiler option
+        `gpu-fit` and is propagated down here through the various stages of lowering.
+    only_writes : bool, optional
+        Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
+        that do not appear on the LHS of at least one Expression. Defaults to False.
+    """
+    try:
+        functions = (maybe_symbol.function,)
+    except AttributeError:
+        assert maybe_symbol.is_Node
+        iet = maybe_symbol
+        functions = set(FindSymbols().visit(iet))
+        if only_writes:
+            expressions = FindNodes(Expression).visit(iet)
+            functions &= {i.write for i in expressions}
+
+    return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
+               for f in functions)

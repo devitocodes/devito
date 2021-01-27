@@ -4,8 +4,10 @@ import cgen as c
 from sympy import Function, Not
 
 from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, ParallelTree, EntryFunction, LocalExpression, While)
+                       ParallelBlock, ParallelTree, EntryFunction, LocalExpression,
+                       While)
 from devito.mpi.distributed import MPICommObject
+from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.basic import (Constructs, PragmaSimdTransformer,
                                                PragmaShmTransformer,
@@ -16,8 +18,10 @@ from devito.tools import as_tuple
 from devito.types import DeviceID, Symbol
 
 __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
-           'DeviceOmpizer', 'DeviceOmpIteration']
+           'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager']
 
+
+# Parallelizers
 
 class OmpRegion(ParallelBlock):
 
@@ -146,7 +150,6 @@ class OmpizerMixin(object):
         ('thread-num', DefFunction('omp_get_thread_num')),
         ('header', 'omp.h')
     ])
-    #TODO: TRY CONSTRUCTS via make_simd...
 
 
 class SimdOmpizer(OmpizerMixin, PragmaSimdTransformer):
@@ -236,3 +239,9 @@ class DeviceOmpizer(OmpizerMixin, PragmaDeviceAwareTransformer):
             return iet, {'args': deviceid}
 
         return _initialize(iet)
+
+
+# Data manager machinery
+
+class DeviceOmpDataManager(DeviceAwareDataManager):
+    pass

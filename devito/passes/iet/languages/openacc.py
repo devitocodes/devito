@@ -5,16 +5,19 @@ import cgen as c
 from devito.ir import (DummyEq, Call, Conditional, EntryFunction, List, LocalExpression,
                        ParallelIteration, FindSymbols)
 from devito.mpi.distributed import MPICommObject
+from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.basic import (Constructs, PragmaDeviceAwareTransformer,
                                                is_on_device)
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import Byref, CondNe, DefFunction, Macro
-from devito.tools import as_tuple
+from devito.tools import prod
 from devito.types import DeviceID, Symbol
 
-__all__ = ['DeviceAccizer']
+__all__ = ['DeviceAccizer', 'DeviceAccDataManager']
 
+
+# Parallelizers
 
 class DeviceAccIteration(ParallelIteration):
 
@@ -187,3 +190,30 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
             return iet, {'args': deviceid}
 
         return _initialize(iet)
+
+
+# Data manager machinery
+
+class DeviceAccDataManager(DeviceAwareDataManager):
+
+    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Allocate an Array in the high bandwidth memory.
+        """
+        if obj._mem_mapped:
+            # posix_memalign + copy-to-device
+            super()._alloc_array_on_high_bw_mem(site, obj, storage)
+        else:
+            # acc_malloc -- the Array only resides on the device, ie, it never
+            # needs to be accessed on the host
+            assert obj._mem_default
+            size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
+            decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
+            cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
+            size_full = prod(obj.symbolic_shape)
+            alloc = "%s acc_malloc(sizeof(%s[%s]))" % (cast, obj._C_typedata, size_full)
+            init = c.Initializer(decl, alloc)
+
+            free = c.Statement('acc_free(%s)' % obj.name)
+
+            storage.update(obj, site, allocs=init, frees=free)

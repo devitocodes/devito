@@ -12,7 +12,7 @@ from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_p
                                is_on_device)
 from devito.tools import as_tuple, timed_pass
 
-__all__ = ['DeviceNoopOperator', 'DeviceOperator', 'DeviceCustomOperator']
+__all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator']
 
 
 class DeviceOperatorMixin(object):
@@ -127,7 +127,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
         return graph
 
 
-class DeviceOperator(DeviceOperatorMixin, CoreOperator):
+class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
     @classmethod
     @timed_pass(name='specializing.DSL')
@@ -282,6 +282,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
 
 # Utils
+
 
 def make_callbacks(options):
     """
