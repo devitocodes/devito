@@ -5,12 +5,12 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import buffering, collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
+from devito.passes.iet import (DataManager, Ompizer, SimdOmpizer, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
 
-__all__ = ['Cpu64NoopOperator', 'Cpu64AdvOperator', 'Cpu64AdvOmpOperator',
-           'Cpu64CustomOperator']
+__all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
+           'Cpu64AdvOmpOperator', 'Cpu64CustomOperator']
 
 
 class Cpu64OperatorMixin(object):
@@ -73,7 +73,6 @@ class Cpu64OperatorMixin(object):
     than this threshold.
     """
 
-    _Parallelizer = Ompizer
     _DataManager = DataManager
 
     @classmethod
@@ -129,7 +128,7 @@ class Cpu64OperatorMixin(object):
         return kwargs
 
 
-# Modes
+# Mode level
 
 
 class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
@@ -220,42 +219,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # SIMD-level parallelism
         parizer = cls._Parallelizer(sregistry, options, platform)
         parizer.make_simd(graph)
-
-        # Misc optimizations
-        hoist_prodders(graph)
-
-        # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
-
-        # Initialize the target-language runtime
-        parizer.initialize(graph)
-
-        return graph
-
-
-class Cpu64AdvOmpOperator(Cpu64AdvOperator):
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        sregistry = kwargs['sregistry']
-
-        # Flush denormal numbers
-        avoid_denormals(graph)
-
-        # Distributed-memory parallelism
-        optimize_halospots(graph)
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
-
-        # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph, sregistry=sregistry)
-
-        # SIMD-level and shared-memory parallelism
-        parizer = cls._Parallelizer(sregistry, options, platform)
-        parizer.make_simd(graph)
         parizer.make_parallel(graph)
 
         # Misc optimizations
@@ -270,7 +233,59 @@ class Cpu64AdvOmpOperator(Cpu64AdvOperator):
         return graph
 
 
+class Cpu64FsgOperator(Cpu64AdvOperator):
+
+    """
+    Operator with performance optimizations tailored "For small grids" ("Fsg").
+    """
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        kwargs = super()._normalize_kwargs(**kwargs)
+
+        if kwargs['options']['min-storage']:
+            raise InvalidOperator('You should not use `min-storage` with `advanced-fsg '
+                                  ' as they work in opposite directions')
+
+        return kwargs
+
+    @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = fuse(clusters, toposort=True)
+
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, 'invariants', sregistry, options, platform)
+        clusters = Lift().process(clusters)
+
+        # Reduce flops (potential arithmetic alterations)
+        clusters = extract_increments(clusters, sregistry)
+        clusters = cire(clusters, 'sops', sregistry, options, platform)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+
+        # The previous passes may have created fusion opportunities, which in
+        # turn may enable further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters)
+
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, sregistry)
+
+        # Blocking to improve data locality
+        clusters = Blocking(options).process(clusters)
+
+        return clusters
+
+
 class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
+
+    _Parallelizer = Ompizer
 
     @classmethod
     def _make_dsl_passes_mapper(cls, **kwargs):
@@ -345,3 +360,38 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     )
     _known_passes_disabled = ('tasking', 'streaming', 'gpu-direct', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))
+
+
+# Language level
+
+
+class Cpu64COperatorMixin(object):
+    _Parallelizer = SimdOmpizer
+
+
+class Cpu64OmpOperatorMixin(object):
+    _Parallelizer = Ompizer
+
+
+class Cpu64NoopCOperator(Cpu64COperatorMixin, Cpu64NoopOperator):
+    pass
+
+
+class Cpu64NoopOmpOperator(Cpu64OmpOperatorMixin, Cpu64NoopOperator):
+    pass
+
+
+class Cpu64AdvCOperator(Cpu64COperatorMixin, Cpu64AdvOperator):
+    pass
+
+
+class Cpu64AdvOmpOperator(Cpu64OmpOperatorMixin, Cpu64AdvOperator):
+    pass
+
+
+class Cpu64FsgCOperator(Cpu64COperatorMixin, Cpu64FsgOperator):
+    pass
+
+
+class Cpu64FsgOmpOperator(Cpu64OmpOperatorMixin, Cpu64FsgOperator):
+    pass

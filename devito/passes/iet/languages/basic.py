@@ -15,8 +15,8 @@ from devito.passes.iet.engine import iet_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import PointerArray, Symbol, NThreadsMixin
 
-__all__ = ['Constructs', 'LanguageSpecializer', 'HostPragmaParallelizer',
-           'DeviceAwarePragmaParallelizer', 'is_on_device']
+__all__ = ['Constructs', 'LanguageTransformer', 'PragmaSimdTransformer',
+           'PragmaShmTransformer', 'PragmaDeviceAwareTransformer', 'is_on_device']
 
 
 class Constructs(dict):
@@ -27,7 +27,7 @@ class Constructs(dict):
         return super().__getitem__(k)
 
 
-class LanguageSpecializer(ABC):
+class LanguageTransformer(ABC):
 
     """
     Abstract base class defining a series of methods capable of specializing
@@ -37,48 +37,6 @@ class LanguageSpecializer(ABC):
     lang = Constructs()
     """
     The constructs of the target language.
-    """
-
-    def __init__(self, sregistry, platform):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to access the symbols appearing in an IET.
-        platform : Platform
-            The underlying platform.
-        """
-        self.sregistry = sregistry
-        self.platform = platform
-
-    @iet_pass
-    def initialize(self, iet):
-        """
-        An `iet_pass` which transforms an IET such that the target language
-        runtime is properly initialized.
-        """
-        return iet, {}
-
-
-class Parallelizer(LanguageSpecializer):
-
-    """
-    Specializer capable of generating shared-memory parallel IETs.
-    """
-
-    _Region = ParallelBlock
-    """
-    The IET node type to be used to construct a parallel region.
-    """
-
-    _Iteration = ParallelIteration
-    """
-    The IET node type to be used to construct a parallel Iteration.
-    """
-
-    _Prodder = Prodder
-    """
-    The IET node type to be used to construct concurrent prodders.
     """
 
     def __init__(self, key, sregistry, platform):
@@ -92,19 +50,12 @@ class Parallelizer(LanguageSpecializer):
         platform : Platform
             The underlying platform.
         """
-        super().__init__(sregistry, platform)
         if key is not None:
             self.key = key
         else:
             self.key = lambda i: False
-
-    @property
-    def ncores(self):
-        return self.platform.cores_physical
-
-    @property
-    def nhyperthreads(self):
-        return self.platform.threads_per_core
+        self.sregistry = sregistry
+        self.platform = platform
 
     @iet_pass
     def make_parallel(self, iet):
@@ -120,12 +71,88 @@ class Parallelizer(LanguageSpecializer):
         """
         return iet, {}
 
+    @iet_pass
+    def initialize(self, iet):
+        """
+        An `iet_pass` which transforms an IET such that the target language
+        runtime is initialized.
+        """
+        return iet, {}
 
-class PragmaParallelizer(Parallelizer):
+
+class PragmaTransformer(LanguageTransformer):
 
     """
-    Specializer capable of generating shared-memory parallel IETs using a
-    language based on pragmas.
+    Abstract base class for LanguageTransformers that will decorate Iterations
+    as well as manage data allocation with pragmas.
+    """
+
+    pass
+
+
+class PragmaSimdTransformer(PragmaTransformer):
+
+    """
+    Abstract base class for PragmaTransformers capable of emitting SIMD-parallel IETs.
+    """
+
+    @property
+    def simd_reg_size(self):
+        return self.platform.simd_reg_size
+
+    @iet_pass
+    def make_simd(self, iet):
+        mapper = {}
+        for tree in retrieve_iteration_tree(iet):
+            candidates = [i for i in tree if i.is_Parallel]
+
+            # As long as there's an outer level of parallelism, the innermost
+            # PARALLEL Iteration gets vectorized
+            if len(candidates) < 2:
+                continue
+            candidate = candidates[-1]
+
+            # Add SIMD pragma
+            aligned = [j for j in FindSymbols('symbolics').visit(candidate)
+                       if j.is_DiscreteFunction]
+            if aligned:
+                simd = self.lang['simd-for-aligned']
+                simd = as_tuple(simd(','.join([j.name for j in aligned]),
+                                self.simd_reg_size))
+            else:
+                simd = as_tuple(self.lang['simd-for'])
+            pragmas = candidate.pragmas + simd
+
+            # Add VECTORIZED property
+            properties = list(candidate.properties) + [VECTORIZED]
+
+            mapper[candidate] = candidate._rebuild(pragmas=pragmas, properties=properties)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
+
+
+class PragmaShmTransformer(PragmaSimdTransformer):
+
+    """
+    Abstract base class for PragmaTransformers capable of emitting SIMD-parallel
+    and shared-memory-parallel IETs.
+    """
+
+    _Region = ParallelBlock
+    """
+    The IET node type to be used to construct a parallel region.
+    """
+
+    _Iteration = ParallelIteration
+    """
+    The IET node type to be used to construct a parallel Iteration.
+    """
+
+    _Prodder = Prodder
+    """
+    The IET node type to be used to construct concurrent prodders.
     """
 
     def __init__(self, sregistry, options, platform):
@@ -158,6 +185,14 @@ class PragmaParallelizer(Parallelizer):
         self.chunk_nonaffine = options['par-chunk-nonaffine']
         self.dynamic_work = options['par-dynamic-work']
         self.nested = options['par-nested']
+
+    @property
+    def ncores(self):
+        return self.platform.cores_physical
+
+    @property
+    def nhyperthreads(self):
+        return self.platform.threads_per_core
 
     @property
     def nthreads(self):
@@ -409,46 +444,12 @@ class PragmaParallelizer(Parallelizer):
         return self._make_parallel(iet)
 
 
-class HostPragmaParallelizer(PragmaParallelizer):
+class PragmaDeviceAwareTransformer(PragmaShmTransformer):
 
-    @property
-    def simd_reg_size(self):
-        return self.platform.simd_reg_size
-
-    @iet_pass
-    def make_simd(self, iet):
-        mapper = {}
-        for tree in retrieve_iteration_tree(iet):
-            candidates = [i for i in tree if i.is_Parallel]
-
-            # As long as there's an outer level of parallelism, the innermost
-            # PARALLEL Iteration gets vectorized
-            if len(candidates) < 2:
-                continue
-            candidate = candidates[-1]
-
-            # Add SIMD pragma
-            aligned = [j for j in FindSymbols('symbolics').visit(candidate)
-                       if j.is_DiscreteFunction]
-            if aligned:
-                simd = self.lang['simd-for-aligned']
-                simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                self.simd_reg_size))
-            else:
-                simd = as_tuple(self.lang['simd-for'])
-            pragmas = candidate.pragmas + simd
-
-            # Add VECTORIZED property
-            properties = list(candidate.properties) + [VECTORIZED]
-
-            mapper[candidate] = candidate._rebuild(pragmas=pragmas, properties=properties)
-
-        iet = Transformer(mapper).visit(iet)
-
-        return iet, {}
-
-
-class DeviceAwarePragmaParallelizer(PragmaParallelizer):
+    """
+    Abstract base class for PragmaTransformers capable of emitting SIMD-parallel,
+    shared-memory-parallel, and device-parallel IETs.
+    """
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)

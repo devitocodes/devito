@@ -4,5 +4,4 @@ from .mpi import *  # noqa
 from .misc import *  # noqa
 from .definitions import *  # noqa
 from .instrument import *  # noqa
-from .language import *  # noqa
-from .specializations import *  # noqa
+from .languages import *  # noqa

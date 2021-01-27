@@ -6,8 +6,9 @@ from devito.ir import (DummyEq, Call, Conditional, EntryFunction, List, LocalExp
                        ParallelIteration, FindSymbols)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.language import Constructs, DeviceAwarePragmaParallelizer, is_on_device
-from devito.passes.iet.specializations.utils import make_clause_reduction
+from devito.passes.iet.languages.basic import (Constructs, PragmaDeviceAwareTransformer,
+                                               is_on_device)
+from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import Byref, CondNe, DefFunction, Macro
 from devito.tools import as_tuple
 from devito.types import DeviceID, Symbol
@@ -61,7 +62,7 @@ class DeviceAccIteration(ParallelIteration):
         return kwargs
 
 
-class DeviceAccizer(DeviceAwarePragmaParallelizer):
+class DeviceAccizer(PragmaDeviceAwareTransformer):
 
     lang = Constructs([
         ('atomic', c.Pragma('acc atomic update')),

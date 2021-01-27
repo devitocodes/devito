@@ -7,14 +7,15 @@ from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIterat
                        ParallelBlock, ParallelTree, EntryFunction, LocalExpression, While)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.language import (Constructs, HostPragmaParallelizer,
-                                        DeviceAwarePragmaParallelizer)
-from devito.passes.iet.specializations.utils import make_clause_reduction
+from devito.passes.iet.languages.basic import (Constructs, PragmaSimdTransformer,
+                                               PragmaShmTransformer,
+                                               PragmaDeviceAwareTransformer)
+from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import Byref, CondEq, CondNe, DefFunction
 from devito.tools import as_tuple
 from devito.types import DeviceID, Symbol
 
-__all__ = ['Ompizer', 'OmpIteration', 'OmpRegion',
+__all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
            'DeviceOmpizer', 'DeviceOmpIteration']
 
 
@@ -148,14 +149,18 @@ class OmpizerMixin(object):
     #TODO: TRY CONSTRUCTS via make_simd...
 
 
-class Ompizer(OmpizerMixin, HostPragmaParallelizer):
+class SimdOmpizer(OmpizerMixin, PragmaSimdTransformer):
+    pass
+
+
+class Ompizer(OmpizerMixin, PragmaShmTransformer):
 
     _Region = OmpRegion
     _Iteration = OmpIteration
     _Prodder = ThreadedProdder
 
 
-class DeviceOmpizer(OmpizerMixin, DeviceAwarePragmaParallelizer):
+class DeviceOmpizer(OmpizerMixin, PragmaDeviceAwareTransformer):
 
     lang = Constructs(OmpizerMixin.lang)
     lang.update({

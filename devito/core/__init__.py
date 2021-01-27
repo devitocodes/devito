@@ -1,10 +1,12 @@
 from devito.arch import Cpu64, Intel64, Arm, Power, Device
-from devito.core.cpu import (Cpu64NoopOperator, Cpu64AdvOperator, Cpu64AdvOmpOperator,
+from devito.core.cpu import (Cpu64NoopCOperator, Cpu64NoopOmpOperator,
+                             Cpu64AdvCOperator, Cpu64AdvOmpOperator,
+                             Cpu64FsgCOperator, Cpu64FsgOmpOperator,
                              Cpu64CustomOperator)
-from devito.core.intel import (Intel64AdvOperator, Intel64AdvOmpOperator,
-                               Intel64FsgOperator, Intel64FsgOmpOperator)
-from devito.core.arm import ArmAdvOperator, ArmAdvOmpOperator
-from devito.core.power import PowerAdvOperator, PowerAdvOmpOperator
+from devito.core.intel import (Intel64AdvCOperator, Intel64AdvOmpOperator,
+                               Intel64FsgCOperator, Intel64FsgOmpOperator)
+from devito.core.arm import ArmAdvCOperator, ArmAdvOmpOperator
+from devito.core.power import PowerAdvCOperator, PowerAdvOmpOperator
 from devito.core.gpu_openmp import (DeviceNoopOmpOperator, DeviceAdvOmpOperator,
                                     DeviceCustomOmpOperator)
 from devito.core.gpu_openacc import (DeviceNoopAccOperator, DeviceAdvAccOperator,
@@ -19,22 +21,24 @@ add_sub_configuration(core_configuration)
 operator_registry.add(Cpu64CustomOperator, Cpu64, 'custom', 'C')
 operator_registry.add(Cpu64CustomOperator, Cpu64, 'custom', 'openmp')
 
-operator_registry.add(Cpu64NoopOperator, Cpu64, 'noop', 'C')
-operator_registry.add(Cpu64NoopOperator, Cpu64, 'noop', 'openmp')
-#TODO: Add Cpu64NoopOmpOperator
+operator_registry.add(Cpu64NoopCOperator, Cpu64, 'noop', 'C')
+operator_registry.add(Cpu64NoopOmpOperator, Cpu64, 'noop', 'openmp')
 
-operator_registry.add(Cpu64AdvOperator, Cpu64, 'advanced', 'C')
+operator_registry.add(Cpu64AdvCOperator, Cpu64, 'advanced', 'C')
 operator_registry.add(Cpu64AdvOmpOperator, Cpu64, 'advanced', 'openmp')
 
-operator_registry.add(Intel64AdvOperator, Intel64, 'advanced', 'C')
+operator_registry.add(Cpu64FsgCOperator, Cpu64, 'advanced-fsg', 'C')
+operator_registry.add(Cpu64FsgOmpOperator, Cpu64, 'advanced-fsg', 'openmp')
+
+operator_registry.add(Intel64AdvCOperator, Intel64, 'advanced', 'C')
 operator_registry.add(Intel64AdvOmpOperator, Intel64, 'advanced', 'openmp')
-operator_registry.add(Intel64FsgOperator, Intel64, 'advanced-fsg', 'C')
+operator_registry.add(Intel64FsgCOperator, Intel64, 'advanced-fsg', 'C')
 operator_registry.add(Intel64FsgOmpOperator, Intel64, 'advanced-fsg', 'openmp')
 
-operator_registry.add(ArmAdvOperator, Arm, 'advanced', 'C')
+operator_registry.add(ArmAdvCOperator, Arm, 'advanced', 'C')
 operator_registry.add(ArmAdvOmpOperator, Arm, 'advanced', 'openmp')
 
-operator_registry.add(PowerAdvOperator, Power, 'advanced', 'C')
+operator_registry.add(PowerAdvCOperator, Power, 'advanced', 'C')
 operator_registry.add(PowerAdvOmpOperator, Power, 'advanced', 'openmp')
 
 # Register Device Operators

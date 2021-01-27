@@ -1,6 +1,6 @@
-from devito.core.cpu import Cpu64AdvOperator, Cpu64AdvOmpOperator
+from devito.core.cpu import Cpu64AdvCOperator, Cpu64AdvOmpOperator
 
-__all__ = ['PowerAdvOperator', 'PowerAdvOmpOperator']
+__all__ = ['PowerAdvCOperator', 'PowerAdvOmpOperator']
 
-PowerAdvOperator = Cpu64AdvOperator
+PowerAdvCOperator = Cpu64AdvCOperator
 PowerAdvOmpOperator = Cpu64AdvOmpOperator
