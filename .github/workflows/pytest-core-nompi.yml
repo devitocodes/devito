@@ -193,7 +193,7 @@ jobs:
         else
             SUBSTRING='not adjoint'
         fi
-        ${{ steps.set-run.outputs.RUN_CMD }} pytest -k $SUBSTRING -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
+        ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "'${SUBSTRING}'" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'pytest-docker-py36-gcc-omp'
