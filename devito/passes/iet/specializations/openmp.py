@@ -73,8 +73,7 @@ class OpenMPIteration(ParallelIteration):  #TODO: HostOmpIteration ???
         self.nthreads = kwargs.pop('nthreads', None)
         self.reduction = kwargs.pop('reduction', None)
 
-        super(OpenMPIteration, self).__init__(*args, pragmas=pragmas,
-                                              properties=properties, **kwargs)
+        super().__init__(*args, pragmas=pragmas, properties=properties, **kwargs)
 
     @classmethod
     def _make_header(cls, **kwargs):
