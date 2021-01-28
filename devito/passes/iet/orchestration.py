@@ -11,6 +11,7 @@ from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, While,
                            PragmaList, DummyExpr, derive_parameters, make_thread_ctx)
 from devito.ir.support import Forward
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, ListInitializer
 from devito.tools import (as_mapper, as_list, filter_ordered, filter_sorted,
                           is_integer)
@@ -23,19 +24,16 @@ __init__ = ['Orchestrator', 'BusyWait']
 class Orchestrator(object):
 
     """
-    Lower the SyncSpot in IET for efficient asynchronous computation, which
-    boils down to coordinating the main thread and several pools of pthreads,
-    each pool performing a certain task (e.g., host-device data transfers).
+    Lower the SyncSpot in IET for efficient host-device asynchronous computation.
     """
 
-    def __init__(self, parallelizer, sregistry):
-        self.parallelizer = parallelizer
-        self.sregistry = sregistry
+    lang = LangBB
+    """
+    The language used to implement host-device data movements.
+    """
 
-    @property
-    def _P(self):
-        """Shortcut for self.parallelizer."""
-        return self.parallelizer
+    def __init__(self, sregistry):
+        self.sregistry = sregistry
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
@@ -66,9 +64,8 @@ class Orchestrator(object):
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
                      for d in s.target.dimensions]
 
-            update = self._P._map_update_wait_host(s.target, imask, SharedData._field_id)
-            update = List(header=update)
-
+            update = List(header=self.lang._map_update_wait_host(s.target, imask,
+                                                                 SharedData._field_id))
             preactions.append(List(body=[BlankLine, update, DummyExpr(s.handle, 1)]))
             postactions.append(DummyExpr(s.handle, 2))
         preactions.append(BlankLine)
@@ -104,7 +101,7 @@ class Orchestrator(object):
         for s in sync_ops:
             fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
             imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetches.append(self._P._map_to(s.function, imask))
+            fetches.append(self.lang._map_to(s.function, imask))
 
         # Glue together the new IET pieces
         iet = List(header=fetches, body=iet)
@@ -130,19 +127,20 @@ class Orchestrator(object):
 
             # Construct init IET
             imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetch = PragmaList(self._P._map_to(s.function, imask), s.function)
+            fetch = PragmaList(self.lang._map_to(s.function, imask), s.function)
             fetches.append(Conditional(fc_cond, fetch))
 
             # Construct present clauses
             imask = [(s.fetch, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]
-            presents.extend(as_list(self._P._map_present(s.function, imask)))
+            presents.extend(as_list(self.lang._map_present(s.function, imask)))
 
             # Construct prefetch IET
             imask = [(pfc, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]
-            prefetch = PragmaList(self._P._map_to_wait(s.function, imask,
-                                                       SharedData._field_id), s.function)
+            prefetch = PragmaList(self.lang._map_to_wait(s.function, imask,
+                                                         SharedData._field_id),
+                                  s.function)
             prefetches.append(Conditional(pfc_cond, prefetch))
 
         # Turn init IET into a Callable
@@ -197,7 +195,7 @@ class Orchestrator(object):
             else:
                 imask = [(s.fetch, s.size) if d.root is s.dim.root else FULL
                          for d in s.dimensions]
-            deletions.append(self._P._map_delete(s.function, imask))
+            deletions.append(self.lang._map_delete(s.function, imask))
 
         # Glue together the new IET pieces
         iet = List(header=c.Line(), body=iet, footer=[c.Line()] + deletions)

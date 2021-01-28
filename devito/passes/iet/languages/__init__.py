@@ -1,2 +1,1 @@
-from .openmp import *  # noqa
-from .openacc import *  # noqa
+from .targets import *  # noqa

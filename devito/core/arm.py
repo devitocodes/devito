@@ -1,6 +1,6 @@
-from devito.core.cpu import Cpu64AdvOperator, Cpu64COperatorMixin, Cpu64OmpOperatorMixin
-from devito.passes.iet import (mpiize, optimize_halospots, hoist_prodders,
-                               relax_incr_dimensions)
+from devito.core.cpu import Cpu64AdvOperator
+from devito.passes.iet import (CTarget, OmpTarget, mpiize, optimize_halospots,
+                               hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
 
 __all__ = ['ArmAdvCOperator', 'ArmAdvOmpOperator']
@@ -24,7 +24,7 @@ class ArmAdvOperator(Cpu64AdvOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # Parallelism
-        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
 
@@ -32,7 +32,7 @@ class ArmAdvOperator(Cpu64AdvOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+        cls._Target.DataManager(sregistry).process(graph)
 
         # Initialize the target-language runtime
         parizer.initialize(graph)
@@ -40,9 +40,12 @@ class ArmAdvOperator(Cpu64AdvOperator):
         return graph
 
 
-class ArmAdvCOperator(Cpu64COperatorMixin, ArmAdvOperator):
-    pass
+class ArmAdvCOperator(ArmAdvOperator):
+    _Target = CTarget
 
 
-class ArmAdvOmpOperator(Cpu64OmpOperatorMixin, ArmAdvOperator):
-    PAR_NESTED = 4  # Avoid nested parallelism on ThunderX2
+class ArmAdvOmpOperator(ArmAdvOperator):
+    _Target = OmpTarget
+
+    # Avoid nested parallelism on ThunderX2
+    PAR_NESTED = 4

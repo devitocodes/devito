@@ -5,7 +5,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import buffering, collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Ompizer, SimdOmpizer, avoid_denormals, mpiize,
+from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
 
@@ -72,8 +72,6 @@ class Cpu64OperatorMixin(object):
     Use nested parallelism if the number of hyperthreads per core is greater
     than this threshold.
     """
-
-    _DataManager = DataManager
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
@@ -146,12 +144,12 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Shared-memory parallelism
         if options['openmp']:
-            parizer = cls._Parallelizer(sregistry, options, platform)
+            parizer = cls._Target.Parizer(sregistry, options, platform)
             parizer.make_parallel(graph)
             parizer.initialize(graph)
 
         # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+        cls._Target.DataManager(sregistry).process(graph)
 
         return graph
 
@@ -217,7 +215,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         relax_incr_dimensions(graph, sregistry=sregistry)
 
         # Parallelism
-        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
 
@@ -225,7 +223,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry).process(graph)
+        cls._Target.DataManager(sregistry).process(graph)
 
         # Initialize the target-language runtime
         parizer.initialize(graph)
@@ -285,7 +283,7 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
 
 class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
-    _Parallelizer = Ompizer
+    _Target = OmpTarget
 
     @classmethod
     def _make_dsl_passes_mapper(cls, **kwargs):
@@ -333,7 +331,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform)
 
         return {
             'denormals': avoid_denormals,
@@ -365,33 +363,25 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 # Language level
 
 
-class Cpu64COperatorMixin(object):
-    _Parallelizer = SimdOmpizer
+class Cpu64NoopCOperator(Cpu64NoopOperator):
+    _Target = CTarget
 
 
-class Cpu64OmpOperatorMixin(object):
-    _Parallelizer = Ompizer
+class Cpu64NoopOmpOperator(Cpu64NoopOperator):
+    _Target = OmpTarget
 
 
-class Cpu64NoopCOperator(Cpu64COperatorMixin, Cpu64NoopOperator):
-    pass
+class Cpu64AdvCOperator(Cpu64AdvOperator):
+    _Target = CTarget
 
 
-class Cpu64NoopOmpOperator(Cpu64OmpOperatorMixin, Cpu64NoopOperator):
-    pass
+class Cpu64AdvOmpOperator(Cpu64AdvOperator):
+    _Target = OmpTarget
 
 
-class Cpu64AdvCOperator(Cpu64COperatorMixin, Cpu64AdvOperator):
-    pass
+class Cpu64FsgCOperator(Cpu64FsgOperator):
+    _Target = CTarget
 
 
-class Cpu64AdvOmpOperator(Cpu64OmpOperatorMixin, Cpu64AdvOperator):
-    pass
-
-
-class Cpu64FsgCOperator(Cpu64COperatorMixin, Cpu64FsgOperator):
-    pass
-
-
-class Cpu64FsgOmpOperator(Cpu64OmpOperatorMixin, Cpu64FsgOperator):
-    pass
+class Cpu64FsgOmpOperator(Cpu64FsgOperator):
+    _Target = OmpTarget

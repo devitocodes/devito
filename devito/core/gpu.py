@@ -8,9 +8,8 @@ from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows)
-from devito.passes.iet import (DeviceOmpDataManager, DeviceOmpizer, DeviceAccDataManager,
-                               DeviceAccizer, Orchestrator, optimize_halospots, mpiize,
-                               hoist_prodders, is_on_device)
+from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
+                               mpiize, hoist_prodders, is_on_device)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -121,11 +120,11 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism
-        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_parallel(graph)
 
         # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
+        cls._Target.DataManager(sregistry, options).process(graph)
 
         # Initialize the target-language runtime
         parizer.initialize(graph)
@@ -185,14 +184,14 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # GPU parallelism
-        parizer = cls._Parallelizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
+        cls._Target.DataManager(sregistry, options).process(graph)
 
         # Initialize the target-language runtime
         parizer.initialize(graph)
@@ -259,8 +258,8 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Parallelizer(sregistry, options, platform)
-        orchestrator = Orchestrator(cls._Parallelizer, sregistry)
+        parizer = cls._Target.Parizer(sregistry, options, platform)
+        orchestrator = cls._Target.Orchestrator(sregistry)
 
         return {
             'optcomms': partial(optimize_halospots),
@@ -293,8 +292,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
 class DeviceOmpOperatorMixin(object):
 
-    _Parallelizer = DeviceOmpizer
-    _DataManager = DeviceOmpDataManager
+    _Target = DeviceOmpTarget
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
@@ -331,8 +329,7 @@ class DeviceCustomOmpOperator(DeviceOmpOperatorMixin, DeviceCustomOperator):
 
 class DeviceAccOperatorMixin(object):
 
-    _Parallelizer = DeviceAccizer
-    _DataManager = DeviceAccDataManager
+    _Target = DeviceAccTarget
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):

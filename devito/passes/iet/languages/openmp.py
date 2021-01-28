@@ -7,21 +7,21 @@ from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIterat
                        ParallelBlock, ParallelTree, EntryFunction, LocalExpression,
                        While)
 from devito.mpi.distributed import MPICommObject
-from devito.passes.iet.definitions import DeviceAwareDataManager
+from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.langbase import LangBB
+from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
-                                         PragmaDeviceAwareTransformer)
+                                         PragmaDeviceAwareTransformer, PragmaLangBB)
+from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import Byref, CondEq, CondNe, DefFunction
 from devito.tools import as_tuple
 from devito.types import DeviceID, Symbol
 
 __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
-           'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager']
+           'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
+           'OmpDataManager', 'OmpOrchestrator']
 
-
-# Parallelizers
 
 class OmpRegion(ParallelBlock):
 
@@ -141,32 +141,14 @@ class ThreadedProdder(Conditional, Prodder):
         Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
 
 
-class OmpizerMixin(object):
+class OmpBB(PragmaLangBB):
 
-    lang = LangBB([
-        ('simd-for', c.Pragma('omp simd')),
-        ('simd-for-aligned', lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j))),
-        ('atomic', c.Pragma('omp atomic update')),
-        ('thread-num', DefFunction('omp_get_thread_num')),
-        ('header', 'omp.h')
-    ])
-
-
-class SimdOmpizer(OmpizerMixin, PragmaSimdTransformer):
-    pass
-
-
-class Ompizer(OmpizerMixin, PragmaShmTransformer):
-
-    _Region = OmpRegion
-    _Iteration = OmpIteration
-    _Prodder = ThreadedProdder
-
-
-class DeviceOmpizer(OmpizerMixin, PragmaDeviceAwareTransformer):
-
-    lang = LangBB(OmpizerMixin.lang)
-    lang.update({
+    mapper = {
+        'header': 'omp.h',
+        'simd-for': c.Pragma('omp simd'),
+        'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
+        'atomic': c.Pragma('omp atomic update'),
+        'thread-num': DefFunction('omp_get_thread_num'),
         'map-enter-to': lambda i, j:
             c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
@@ -183,9 +165,26 @@ class DeviceOmpizer(OmpizerMixin, PragmaDeviceAwareTransformer):
         'map-exit-delete': lambda i, j, k:
             c.Pragma('omp target exit data map(delete: %s%s)%s'
                      % (i, j, k)),
-    })
+    }
+    mapper.update(CBB.mapper)
 
-    _Iteration = DeviceOmpIteration
+    Region = OmpRegion
+    HostIteration = OmpIteration
+    DeviceIteration = DeviceOmpIteration
+    Prodder = ThreadedProdder
+
+
+class SimdOmpizer(PragmaSimdTransformer):
+    lang = OmpBB
+
+
+class Ompizer(PragmaShmTransformer):
+    lang = OmpBB
+
+
+class DeviceOmpizer(PragmaDeviceAwareTransformer):
+
+    lang = OmpBB
 
     @iet_pass
     def initialize(self, iet):
@@ -241,7 +240,13 @@ class DeviceOmpizer(OmpizerMixin, PragmaDeviceAwareTransformer):
         return _initialize(iet)
 
 
-# Data manager machinery
+class OmpDataManager(DataManager):
+    lang = OmpBB
+
 
 class DeviceOmpDataManager(DeviceAwareDataManager):
-    pass
+    lang = OmpBB
+
+
+class OmpOrchestrator(Orchestrator):
+    lang = OmpBB

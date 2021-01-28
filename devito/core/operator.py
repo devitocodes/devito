@@ -13,14 +13,9 @@ class BasicOperator(Operator):
 
     # The various Operator subclasses are expected to override the following attributes
 
-    _Parallelizer = None
+    _Target = None
     """
-    Used to generate shared-memory parallel code by various compiler passes.
-    """
-
-    _DataManager = None
-    """
-    Used to place symbol definitions as well as data allocation, movement, and deletion.
+    The target language constructor, to be specified by subclasses.
     """
 
     @classmethod
@@ -198,7 +193,7 @@ class CustomOperator(BasicOperator):
             passes_mapper['parallel'](graph)
 
         # Symbol definitions
-        cls._DataManager(cls._Parallelizer, sregistry, options).process(graph)
+        cls._Target.DataManager(sregistry, options).process(graph)
 
         # Initialize the target-language runtime
         if passes_mapper['init'] not in applied:

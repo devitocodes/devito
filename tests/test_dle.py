@@ -8,7 +8,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimen
                     Dimension, SubDimension, Eq, Inc, Operator, info)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
-from devito.passes.iet import OmpRegion
+from devito.passes.iet.languages.openmp import OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar, NThreads, NThreadsNonaffine
 

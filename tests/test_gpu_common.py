@@ -5,7 +5,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     SubDimension, SubDomain, TimeFunction, Operator)
 from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
-from devito.passes import OmpIteration
+from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, PThreadArray
 
 from conftest import skipif

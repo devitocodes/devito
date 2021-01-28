@@ -12,6 +12,7 @@ import cgen as c
 from devito.ir import (EntryFunction, List, LocalExpression, PointerCast, FindSymbols,
                        MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import ccode
 from devito.tools import as_mapper, filter_sorted, flatten
@@ -53,18 +54,19 @@ class Storage(OrderedDict):
 
 class DataManager(object):
 
-    def __init__(self, parallelizer, sregistry, *args):
+    lang = LangBB
+    """
+    The language used to express data allocations, deletions, and host-device movements.
+    """
+
+    def __init__(self, sregistry, *args):
         """
         Parameters
         ----------
-        parallelizer : Parallelizer
-            Used for thread-aware data initialization.
         sregistry : SymbolRegistry
             The symbol registry, to quickly access the special symbols that may
-            appear in the IET (e.g., `sregistry.threadid`, that is the thread
-            Dimension, used by the DataManager for parallel memory allocation).
+            appear in the IET.
         """
-        self.parallelizer = parallelizer
         self.sregistry = sregistry
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
@@ -78,7 +80,7 @@ class DataManager(object):
         Allocate an Array in the low latency memory.
         """
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-        alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
+        alignment = self.lang['aligned'](obj._data_alignment)
         value = "%s%s %s" % (obj.name, shape, alignment)
 
         storage.update(obj, site, allocs=c.POD(obj.dtype, value))
@@ -98,11 +100,10 @@ class DataManager(object):
         decl = c.Value(obj._C_typedata, decl)
 
         shape = "".join("[%s]" % i for i in obj.symbolic_shape)
-        alloc = "posix_memalign((void**)&%s, %d, sizeof(%s%s))"
-        alloc = alloc % (obj.name, obj._data_alignment, obj._C_typedata, shape)
-        alloc = c.Statement(alloc)
+        size = "sizeof(%s%s)" % (obj._C_typedata, shape)
+        alloc = c.Statement(self.lang['alloc-host'](obj.name, obj._data_alignment, size))
 
-        free = c.Statement('free(%s)' % obj.name)
+        free = c.Statement(self.lang['free-host'](obj.name))
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
 
@@ -130,21 +131,16 @@ class DataManager(object):
         decl = "**%s" % obj.name
         decl = c.Value(obj._C_typedata, decl)
 
-        alloc0 = "posix_memalign((void**)&%s, %d, sizeof(%s*)*%s)"
-        alloc0 = alloc0 % (obj.name, obj._data_alignment, obj._C_typedata,
-                           obj.dim.symbolic_size)
-        alloc0 = c.Statement(alloc0)
-
-        free0 = c.Statement('free(%s)' % obj.name)
+        size = 'sizeof(%s*)*%s' % (obj._C_typedata, obj.dim.symbolic_size)
+        alloc0 = c.Statement(self.lang['alloc-host'](obj.name, obj._data_alignment, size))
+        free0 = c.Statement(self.lang['free-host'](obj.name))
 
         # The pointee Array
+        pobj = '%s[%s]' % (obj.name, obj.dim.name)
         shape = "".join("[%s]" % i for i in obj.array.symbolic_shape)
-        alloc1 = "posix_memalign((void**)&%s[%s], %d, sizeof(%s%s))"
-        alloc1 = alloc1 % (obj.name, obj.dim.name, obj._data_alignment, obj._C_typedata,
-                           shape)
-        alloc1 = c.Statement(alloc1)
-
-        free1 = c.Statement('free(%s[%s])' % (obj.name, obj.dim.name))
+        size = "sizeof(%s%s)" % (obj._C_typedata, shape)
+        alloc1 = c.Statement(self.lang['alloc-host'](pobj, obj._data_alignment, size))
+        free1 = c.Statement(self.lang['free-host'](pobj))
 
         if obj.dim is self.sregistry.threadid:
             storage.update(obj, site, allocs=(decl, alloc0), frees=free0,
@@ -163,8 +159,9 @@ class DataManager(object):
             # allocs/pallocs
             allocs = flatten(v.allocs)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
-                header = self.parallelizer._Region._make_header(tid.symbolic_size)
-                init = self.parallelizer._make_tid(tid)
+                header = self.lang.Region._make_header(tid.symbolic_size)
+                init = c.Initializer(c.Value(tid._C_typedata, tid.name),
+                                     self.lang['thread-num'])
                 allocs.append(c.Module((header, c.Block([init] + body))))
             if allocs:
                 allocs.append(c.Line())
@@ -172,8 +169,9 @@ class DataManager(object):
             # frees/pfrees
             frees = []
             for tid, body in as_mapper(v.pfrees, itemgetter(0), itemgetter(1)).items():
-                header = self.parallelizer._Region._make_header(tid.symbolic_size)
-                init = self.parallelizer._make_tid(tid)
+                header = self.lang.Region._make_header(tid.symbolic_size)
+                init = c.Initializer(c.Value(tid._C_typedata, tid.name),
+                                     self.lang['thread-num'])
                 frees.append(c.Module((header, c.Block([init] + body))))
             frees.extend(flatten(v.frees))
             if frees:
@@ -314,17 +312,13 @@ class DataManager(object):
 
 class DeviceAwareDataManager(DataManager):
 
-    def __init__(self, parallelizer, sregistry, options):
+    def __init__(self, sregistry, options):
         """
         Parameters
         ----------
-        parallelizer : Parallelizer
-            Used to implement data movement between host and device as well as
-            data mapping, allocation, and deallocation on the device.
         sregistry : SymbolRegistry
             The symbol registry, to quickly access the special symbols that may
-            appear in the IET (e.g., `sregistry.threadid`, that is the thread
-            Dimension, used by the DataManager for parallel memory allocation).
+            appear in the IET.
         options : dict
             The optimization options.
             Accepted: ['gpu-fit'].
@@ -332,28 +326,28 @@ class DeviceAwareDataManager(DataManager):
               in the device memory. By default, all `Function`s except saved
               `TimeFunction`'s are assumed to fit in the device memory.
         """
-        super().__init__(parallelizer, sregistry)
+        super().__init__(sregistry)
         self.gpu_fit = options['gpu-fit']
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
         _storage = Storage()
         super()._alloc_array_on_high_bw_mem(site, obj, _storage)
 
-        allocs = _storage[site].allocs + [self.parallelizer._map_alloc(obj)]
-        frees = [self.parallelizer._map_delete(obj)] + _storage[site].frees
+        allocs = _storage[site].allocs + [self.lang._map_alloc(obj)]
+        frees = [self.lang._map_delete(obj)] + _storage[site].frees
         storage.update(obj, site, allocs=allocs, frees=frees)
 
     def _map_function_on_high_bw_mem(self, site, obj, storage, devicerm, read_only=False):
         """
         Place a Function in the high bandwidth memory.
         """
-        alloc = self.parallelizer._map_to(obj)
+        alloc = self.lang._map_to(obj)
 
         if read_only is False:
-            free = c.Collection([self.parallelizer._map_update(obj),
-                                 self.parallelizer._map_release(obj, devicerm=devicerm)])
+            free = c.Collection([self.lang._map_update(obj),
+                                 self.lang._map_release(obj, devicerm=devicerm)])
         else:
-            free = self.parallelizer._map_delete(obj, devicerm=devicerm)
+            free = self.lang._map_delete(obj, devicerm=devicerm)
 
         storage.update(obj, site, allocs=alloc, frees=free)
 
@@ -376,7 +370,7 @@ class DeviceAwareDataManager(DataManager):
                 if not i.is_Expression:
                     # No-op
                     continue
-                if not any(isinstance(j, self.parallelizer._Iteration) for j in v):
+                if not any(isinstance(j, self.lang.DeviceIteration) for j in v):
                     # Not an offloaded Iteration tree
                     continue
                 if i.write.is_DiscreteFunction:

@@ -4,19 +4,19 @@ from sympy import Or, Max
 
 from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
-                       List, ParallelIteration, ParallelBlock, ParallelTree, Prodder,
-                       Block, FindSymbols, FindNodes, Return, VECTORIZED, Transformer,
-                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
+                       List, ParallelTree, Prodder, Block, FindSymbols, FindNodes, Return,
+                       VECTORIZED, Transformer, IsPerfectIteration, filter_iterations,
+                       retrieve_iteration_tree)
 from devito.mpi.routines import IrecvCall, IsendCall
 from devito.symbolics import CondEq, INT, ccode
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.langbase import LangTransformer
+from devito.passes.iet.langbase import LangBB, LangTransformer
 from devito.passes.iet.misc import is_on_device
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import PointerArray, Symbol, NThreadsMixin
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
-           'PragmaDeviceAwareTransformer']
+           'PragmaDeviceAwareTransformer', 'PragmaLangBB']
 
 
 class PragmaTransformer(LangTransformer):
@@ -77,21 +77,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     """
     Abstract base class for PragmaTransformers capable of emitting SIMD-parallel
     and shared-memory-parallel IETs.
-    """
-
-    _Region = ParallelBlock
-    """
-    The IET node type to be used to construct a parallel region.
-    """
-
-    _Iteration = ParallelIteration
-    """
-    The IET node type to be used to construct a parallel Iteration.
-    """
-
-    _Prodder = Prodder
-    """
-    The IET node type to be used to construct concurrent prodders.
     """
 
     def __init__(self, sregistry, options, platform):
@@ -186,10 +171,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 collapsable.append(i)
         return collapsable
 
-    @classmethod
-    def _make_tid(cls, tid):
-        return c.Initializer(c.Value(tid._C_typedata, tid.name), cls.lang['thread-num'])
-
     def _make_reductions(self, partree, collapsed):
         if not any(i.is_ParallelAtomic for i in collapsed):
             return partree
@@ -212,7 +193,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         return partree
 
     def _make_threaded_prodders(self, partree):
-        mapper = {i: self._Prodder(i) for i in FindNodes(Prodder).visit(partree)}
+        mapper = {i: self.Prodder(i) for i in FindNodes(Prodder).visit(partree)}
         partree = Transformer(mapper).visit(partree)
         return partree
 
@@ -235,21 +216,21 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             if nthreads is None:
                 # pragma ... for ... schedule(..., 1)
                 nthreads = self.nthreads
-                body = self._Iteration(schedule=schedule, ncollapse=ncollapse,
-                                       **root.args)
+                body = self.HostIteration(schedule=schedule, ncollapse=ncollapse,
+                                          **root.args)
             else:
                 # pragma ... parallel for ... schedule(..., 1)
-                body = self._Iteration(schedule=schedule, parallel=True,
-                                       ncollapse=ncollapse, nthreads=nthreads,
-                                       **root.args)
+                body = self.HostIteration(schedule=schedule, parallel=True,
+                                          ncollapse=ncollapse, nthreads=nthreads,
+                                          **root.args)
             prefix = []
         else:
             # pragma ... for ... schedule(..., expr)
             assert nthreads is None
             nthreads = self.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
-            body = self._Iteration(ncollapse=ncollapse, chunk_size=chunk_size,
-                                   **root.args)
+            body = self.HostIteration(ncollapse=ncollapse, chunk_size=chunk_size,
+                                      **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
             value = INT(Max(niters / (nthreads*self.chunk_nonaffine), 1))
@@ -278,12 +259,14 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                                                         array=i))
             heap_globals.append(Dereference(i, pi))
         if heap_globals:
-            prefix = List(header=self._make_tid(self.threadid),
+            init = c.Initializer(c.Value(self.threadid._C_typedata, self.threadid.name),
+                                 self.lang['thread-num'])
+            prefix = List(header=init,
                           body=heap_globals + list(partree.prefix),
                           footer=c.Line())
             partree = partree._rebuild(prefix=prefix)
 
-        return self._Region(partree)
+        return self.Region(partree)
 
     def _make_guard(self, partree, collapsed):
         # Do not enter the parallel region if the step increment is 0; this
@@ -396,6 +379,87 @@ class PragmaDeviceAwareTransformer(PragmaShmTransformer):
         self.gpu_fit = options['gpu-fit']
         self.par_disabled = options['par-disabled']
 
+    def _make_threaded_prodders(self, partree):
+        if isinstance(partree.root, self.DeviceIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_threaded_prodders(partree)
+
+    def _make_partree(self, candidates, nthreads=None):
+        """
+        Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas
+        for parallelism. In particular:
+
+            * All parallel Iterations not *writing* to a host Function, that
+              is a Function `f` such that `is_on_device(f) == False`, are offloaded
+              to the device.
+            * The remaining ones, that is those writing to a host Function,
+              are parallelized on the host.
+        """
+        assert candidates
+        root = candidates[0]
+
+        if is_on_device(root, self.gpu_fit, only_writes=True):
+            # The typical case: all written Functions are device Functions, that is
+            # they're mapped in the device memory. Then we offload `root` to the device
+
+            # Get the collapsable Iterations
+            collapsable = self._find_collapsable(root, candidates)
+            ncollapse = 1 + len(collapsable)
+
+            body = self.DeviceIteration(gpu_fit=self.gpu_fit, ncollapse=ncollapse,
+                                        **root.args)
+            partree = ParallelTree([], body, nthreads=nthreads)
+            collapsed = [partree] + collapsable
+
+            return root, partree, collapsed
+        elif not self.par_disabled:
+            # Resort to host parallelism
+            return super()._make_partree(candidates, nthreads)
+        else:
+            return root, None, None
+
+    def _make_parregion(self, partree, *args):
+        if isinstance(partree.root, self.DeviceIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_parregion(partree, *args)
+
+    def _make_guard(self, parregion, *args):
+        partrees = FindNodes(ParallelTree).visit(parregion)
+        if any(isinstance(i.root, self.DeviceIteration) for i in partrees):
+            # no-op for now
+            return parregion
+        else:
+            return super()._make_guard(parregion, *args)
+
+    def _make_nested_partree(self, partree):
+        if isinstance(partree.root, self.DeviceIteration):
+            # no-op for now
+            return partree
+        else:
+            return super()._make_nested_partree(partree)
+
+    @iet_pass
+    def make_gpudirect(self, iet):
+        """
+        Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
+        """
+        mapper = {}
+        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
+            header = c.Pragma('omp target data use_device_ptr(%s)' %
+                              node.arguments[0].name)
+            mapper[node] = Block(header=header, body=node)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
+
+
+class PragmaLangBB(LangBB):
+
     @classmethod
     def _make_sections_from_imask(cls, f, imask):
         datasize = cls._map_data(f)
@@ -425,14 +489,14 @@ class PragmaDeviceAwareTransformer(PragmaShmTransformer):
     @classmethod
     def _map_to(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
-        return cls.lang['map-enter-to'](f.name, sections)
+        return cls.mapper['map-enter-to'](f.name, sections)
 
     _map_to_wait = _map_to
 
     @classmethod
     def _map_alloc(cls, f, imask=None):
         sections = cls._make_sections_from_imask(f, imask)
-        return cls.lang['map-enter-alloc'](f.name, sections)
+        return cls.mapper['map-enter-alloc'](f.name, sections)
 
     @classmethod
     def _map_present(cls, f, imask=None):
@@ -440,28 +504,28 @@ class PragmaDeviceAwareTransformer(PragmaShmTransformer):
 
     @classmethod
     def _map_update(cls, f):
-        return cls.lang['map-update'](f.name, ''.join('[0:%s]' % i
-                                                      for i in cls._map_data(f)))
+        return cls.mapper['map-update'](f.name, ''.join('[0:%s]' % i
+                                                        for i in cls._map_data(f)))
 
     @classmethod
     def _map_update_host(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
-        return cls.lang['map-update-host'](f.name, sections)
+        return cls.mapper['map-update-host'](f.name, sections)
 
     _map_update_wait_host = _map_update_host
 
     @classmethod
     def _map_update_device(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
-        return cls.lang['map-update-device'](f.name, sections)
+        return cls.mapper['map-update-device'](f.name, sections)
 
     _map_update_wait_device = _map_update_device
 
     @classmethod
     def _map_release(cls, f, devicerm=None):
-        return cls.lang['map-release'](f.name,
-                                       ''.join('[0:%s]' % i for i in cls._map_data(f)),
-                                       (' if(%s)' % devicerm.name) if devicerm else '')
+        return cls.mapper['map-release'](f.name,
+                                         ''.join('[0:%s]' % i for i in cls._map_data(f)),
+                                         (' if(%s)' % devicerm.name) if devicerm else '')
 
     @classmethod
     def _map_delete(cls, f, imask=None, devicerm=None):
@@ -474,81 +538,4 @@ class PragmaDeviceAwareTransformer(PragmaShmTransformer):
             items.append(devicerm.name)
         items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
         cond = ' if(%s)' % ' && '.join(items)
-        return cls.lang['map-exit-delete'](f.name, sections, cond)
-
-    def _make_threaded_prodders(self, partree):
-        if isinstance(partree.root, self._Iteration):
-            # no-op for now
-            return partree
-        else:
-            return super()._make_threaded_prodders(partree)
-
-    def _make_partree(self, candidates, nthreads=None):
-        """
-        Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas
-        for parallelism. In particular:
-
-            * All parallel Iterations not *writing* to a host Function, that
-              is a Function `f` such that `is_on_device(f) == False`, are offloaded
-              to the device.
-            * The remaining ones, that is those writing to a host Function,
-              are parallelized on the host.
-        """
-        assert candidates
-        root = candidates[0]
-
-        if is_on_device(root, self.gpu_fit, only_writes=True):
-            # The typical case: all written Functions are device Functions, that is
-            # they're mapped in the device memory. Then we offload `root` to the device
-
-            # Get the collapsable Iterations
-            collapsable = self._find_collapsable(root, candidates)
-            ncollapse = 1 + len(collapsable)
-
-            body = self._Iteration(gpu_fit=self.gpu_fit, ncollapse=ncollapse, **root.args)
-            partree = ParallelTree([], body, nthreads=nthreads)
-            collapsed = [partree] + collapsable
-
-            return root, partree, collapsed
-        elif not self.par_disabled:
-            # Resort to host parallelism
-            return super()._make_partree(candidates, nthreads)
-        else:
-            return root, None, None
-
-    def _make_parregion(self, partree, *args):
-        if isinstance(partree.root, self._Iteration):
-            # no-op for now
-            return partree
-        else:
-            return super()._make_parregion(partree, *args)
-
-    def _make_guard(self, parregion, *args):
-        partrees = FindNodes(ParallelTree).visit(parregion)
-        if any(isinstance(i.root, self._Iteration) for i in partrees):
-            # no-op for now
-            return parregion
-        else:
-            return super()._make_guard(parregion, *args)
-
-    def _make_nested_partree(self, partree):
-        if isinstance(partree.root, self._Iteration):
-            # no-op for now
-            return partree
-        else:
-            return super()._make_nested_partree(partree)
-
-    @iet_pass
-    def make_gpudirect(self, iet):
-        """
-        Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
-        """
-        mapper = {}
-        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
-            header = c.Pragma('omp target data use_device_ptr(%s)' %
-                              node.arguments[0].name)
-            mapper[node] = Block(header=header, body=node)
-
-        iet = Transformer(mapper).visit(iet)
-
-        return iet, {}
+        return cls.mapper['map-exit-delete'](f.name, sections, cond)
