@@ -1,5 +1,3 @@
-from abc import ABC
-
 import numpy as np
 import cgen as c
 from sympy import Or, Max
@@ -12,79 +10,19 @@ from devito.ir import (DummyEq, Conditional, Dereference, Expression, Expression
 from devito.mpi.routines import IrecvCall, IsendCall
 from devito.symbolics import CondEq, INT, ccode
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.langbase import LangTransformer
 from devito.passes.iet.misc import is_on_device
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import PointerArray, Symbol, NThreadsMixin
 
-__all__ = ['Constructs', 'LanguageTransformer', 'PragmaSimdTransformer',
-           'PragmaShmTransformer', 'PragmaDeviceAwareTransformer']
+__all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
+           'PragmaDeviceAwareTransformer']
 
 
-class Constructs(dict):
-
-    def __getitem__(self, k):
-        if k not in self:
-            raise NotImplementedError("Must implement `lang[%s]`" % k)
-        return super().__getitem__(k)
-
-
-class LanguageTransformer(ABC):
+class PragmaTransformer(LangTransformer):
 
     """
-    Abstract base class defining a series of methods capable of specializing
-    an IET for a certain target language (e.g., C, C+OpenMP).
-    """
-
-    lang = Constructs()
-    """
-    The constructs of the target language.
-    """
-
-    def __init__(self, key, sregistry, platform):
-        """
-        Parameters
-        ----------
-        key : callable, optional
-            Return True if an Iteration can and should be parallelized, False otherwise.
-        sregistry : SymbolRegistry
-            The symbol registry, to access the symbols appearing in an IET.
-        platform : Platform
-            The underlying platform.
-        """
-        if key is not None:
-            self.key = key
-        else:
-            self.key = lambda i: False
-        self.sregistry = sregistry
-        self.platform = platform
-
-    @iet_pass
-    def make_parallel(self, iet):
-        """
-        An `iet_pass` which transforms an IET for shared-memory parallelism.
-        """
-        return iet, {}
-
-    @iet_pass
-    def make_simd(self, iet):
-        """
-        An `iet_pass` which transforms an IET for SIMD parallelism.
-        """
-        return iet, {}
-
-    @iet_pass
-    def initialize(self, iet):
-        """
-        An `iet_pass` which transforms an IET such that the target language
-        runtime is initialized.
-        """
-        return iet, {}
-
-
-class PragmaTransformer(LanguageTransformer):
-
-    """
-    Abstract base class for LanguageTransformers that will decorate Iterations
+    Abstract base class for LangTransformers that parallelize Iterations
     as well as manage data allocation with pragmas.
     """
 

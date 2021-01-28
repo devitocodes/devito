@@ -7,9 +7,10 @@ from devito.ir import (DummyEq, Call, Conditional, EntryFunction, List, LocalExp
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.languages.basic import (Constructs, PragmaDeviceAwareTransformer,
-                                               is_on_device)
+from devito.passes.iet.langbase import LangBB
+from devito.passes.iet.parpragma import PragmaDeviceAwareTransformer
 from devito.passes.iet.languages.utils import make_clause_reduction
+from devito.passes.iet.misc import is_on_device
 from devito.symbolics import Byref, CondNe, DefFunction, Macro
 from devito.tools import prod
 from devito.types import DeviceID, Symbol
@@ -67,7 +68,7 @@ class DeviceAccIteration(ParallelIteration):
 
 class DeviceAccizer(PragmaDeviceAwareTransformer):
 
-    lang = Constructs([
+    lang = LangBB([
         ('atomic', c.Pragma('acc atomic update')),
         ('map-enter-to', lambda i, j:
             c.Pragma('acc enter data copyin(%s%s)' % (i, j))),

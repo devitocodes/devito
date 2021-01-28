@@ -9,9 +9,9 @@ from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIterat
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.languages.basic import (Constructs, PragmaSimdTransformer,
-                                               PragmaShmTransformer,
-                                               PragmaDeviceAwareTransformer)
+from devito.passes.iet.langbase import LangBB
+from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
+                                         PragmaDeviceAwareTransformer)
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import Byref, CondEq, CondNe, DefFunction
 from devito.tools import as_tuple
@@ -143,7 +143,7 @@ class ThreadedProdder(Conditional, Prodder):
 
 class OmpizerMixin(object):
 
-    lang = Constructs([
+    lang = LangBB([
         ('simd-for', c.Pragma('omp simd')),
         ('simd-for-aligned', lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j))),
         ('atomic', c.Pragma('omp atomic update')),
@@ -165,7 +165,7 @@ class Ompizer(OmpizerMixin, PragmaShmTransformer):
 
 class DeviceOmpizer(OmpizerMixin, PragmaDeviceAwareTransformer):
 
-    lang = Constructs(OmpizerMixin.lang)
+    lang = LangBB(OmpizerMixin.lang)
     lang.update({
         'map-enter-to': lambda i, j:
             c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
