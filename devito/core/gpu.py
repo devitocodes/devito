@@ -8,11 +8,14 @@ from devito.passes.equations import collect_derivatives, buffering
 from devito.passes.clusters import (Blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows)
-from devito.passes.iet import (Orchestrator, optimize_halospots, mpiize, hoist_prodders,
-                               is_on_device)
+from devito.passes.iet import (DeviceOmpDataManager, DeviceOmpizer, DeviceAccDataManager,
+                               DeviceAccizer, Orchestrator, optimize_halospots, mpiize,
+                               hoist_prodders, is_on_device)
 from devito.tools import as_tuple, timed_pass
 
-__all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator']
+__all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
+           'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceCustomOmpOperator',
+           'DeviceNoopAccOperator', 'DeviceAdvAccOperator', 'DeviceCustomAccOperator']
 
 
 class DeviceOperatorMixin(object):
@@ -99,6 +102,9 @@ class DeviceOperatorMixin(object):
         kwargs['options'].update(o)
 
         return kwargs
+
+
+# Mode level
 
 
 class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
@@ -279,6 +285,84 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
+
+
+# Language level
+
+# OpenMP
+
+class DeviceOmpOperatorMixin(object):
+
+    _Parallelizer = DeviceOmpizer
+    _DataManager = DeviceOmpDataManager
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+
+        oo.pop('openmp', None)  # It may or may not have been provided
+        kwargs = super()._normalize_kwargs(**kwargs)
+        oo['openmp'] = True
+
+        return kwargs
+
+
+class DeviceNoopOmpOperator(DeviceOmpOperatorMixin, DeviceNoopOperator):
+    pass
+
+
+class DeviceAdvOmpOperator(DeviceOmpOperatorMixin, DeviceAdvOperator):
+    pass
+
+
+class DeviceCustomOmpOperator(DeviceOmpOperatorMixin, DeviceCustomOperator):
+
+    _known_passes = DeviceCustomOperator._known_passes + ('openmp',)
+    assert not (set(_known_passes) & set(DeviceCustomOperator._known_passes_disabled))
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
+        mapper = super()._make_iet_passes_mapper(**kwargs)
+        mapper['openmp'] = mapper['parallel']
+        return mapper
+
+
+# OpenACC
+
+class DeviceAccOperatorMixin(object):
+
+    _Parallelizer = DeviceAccizer
+    _DataManager = DeviceAccDataManager
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+        oo.pop('openmp', None)
+
+        kwargs = super()._normalize_kwargs(**kwargs)
+        oo['openacc'] = True
+
+        return kwargs
+
+
+class DeviceNoopAccOperator(DeviceAccOperatorMixin, DeviceNoopOperator):
+    pass
+
+
+class DeviceAdvAccOperator(DeviceAccOperatorMixin, DeviceAdvOperator):
+    pass
+
+
+class DeviceCustomAccOperator(DeviceAccOperatorMixin, DeviceCustomOperator):
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
+        mapper = super()._make_iet_passes_mapper(**kwargs)
+        mapper['openacc'] = mapper['parallel']
+        return mapper
+
+    _known_passes = DeviceCustomOperator._known_passes + ('openacc',)
+    assert not (set(_known_passes) & set(DeviceCustomOperator._known_passes_disabled))
 
 
 # Utils

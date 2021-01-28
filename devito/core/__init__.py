@@ -7,10 +7,9 @@ from devito.core.intel import (Intel64AdvCOperator, Intel64AdvOmpOperator,
                                Intel64FsgCOperator, Intel64FsgOmpOperator)
 from devito.core.arm import ArmAdvCOperator, ArmAdvOmpOperator
 from devito.core.power import PowerAdvCOperator, PowerAdvOmpOperator
-from devito.core.gpu_openmp import (DeviceNoopOmpOperator, DeviceAdvOmpOperator,
-                                    DeviceCustomOmpOperator)
-from devito.core.gpu_openacc import (DeviceNoopAccOperator, DeviceAdvAccOperator,
-                                     DeviceCustomAccOperator)
+from devito.core.gpu import (DeviceNoopOmpOperator, DeviceAdvOmpOperator,
+                             DeviceCustomOmpOperator, DeviceNoopAccOperator,
+                             DeviceAdvAccOperator, DeviceCustomAccOperator)
 from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, add_sub_configuration
 
