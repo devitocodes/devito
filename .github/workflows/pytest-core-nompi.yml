@@ -12,7 +12,7 @@ on:
 
 jobs:
   pytest:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }}-${{ matrix.set }}
     runs-on: "${{ matrix.os }}"
 
     env:
@@ -38,6 +38,7 @@ jobs:
            pytest-osx-py37-clang-omp,
            pytest-docker-py36-gcc-omp
         ]
+        set: [base, adjoint]
         include:
         - name: pytest-ubuntu-py36-gcc49-omp
           python-version: 3.6
@@ -93,6 +94,16 @@ jobs:
           arch: "gcc"
           language: "openmp"
 
+        - set: base
+          test-set: 'not adjoint'
+
+        - set: adjoint
+          test-set: 'adjoint'
+
+        exclude:
+        - name: pytest-osx-py37-clang-omp
+          set: adjoint
+
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
@@ -139,7 +150,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} pytest -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
+        ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'pytest-docker-py36-gcc-omp'
