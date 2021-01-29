@@ -187,7 +187,7 @@ class AnisotropicWaveSolver(object):
         Adjoint source, wavefield and performance summary.
         """
         if kernel != 'centered':
-            raise RuntimeError('Only centered kernel is supported for the adjoint')
+            raise ValueError('Only centered kernel is supported for the adjoint')
 
         time_order = 2
         stagg_p = stagg_r = None
@@ -248,7 +248,7 @@ class AnisotropicWaveSolver(object):
             The time-constant Azimuth angle (radians).
         """
         if kernel != 'centered':
-            raise RuntimeError('Only centered kernel is supported for the jacobian')
+            raise ValueError('Only centered kernel is supported for the jacobian')
 
         dt = kwargs.pop('dt', self.dt)
         # Source term is read-only, so re-use the default
@@ -314,7 +314,7 @@ class AnisotropicWaveSolver(object):
         Gradient field and performance summary.
         """
         if kernel != 'centered':
-            raise RuntimeError('Only centered kernel is supported for the jacobian_adj')
+            raise ValueError('Only centered kernel is supported for the jacobian_adj')
 
         dt = kwargs.pop('dt', self.dt)
         # Gradient symbol

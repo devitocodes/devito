@@ -19,7 +19,7 @@ class TestGradient(object):
                                       {'openmp': True})])
     @pytest.mark.parametrize('space_order', [4, 16])
     def test_gradient_checkpointing(self, dtype, opt, space_order):
-        r"""
+        """
         This test ensures that the FWI gradient computed with checkpointing matches
         the one without checkpointing. Note that this test fails with dynamic openmp
         scheduling enabled so this test disables it.
@@ -144,11 +144,13 @@ class TestGradient(object):
         (np.float32, 4, 'OT2', (70, 80), False, setup),
         (np.float64, 4, 'OT2', (70, 80), True, setup),
         (np.float64, 4, 'OT2', (70, 80), False, setup),
+        (np.float32, 4, 'centered', (70, 80), True, tti_setup),
+        (np.float32, 4, 'centered', (70, 80), False, tti_setup),
         (np.float64, 4, 'centered', (70, 80), True, tti_setup),
         (np.float64, 4, 'centered', (70, 80), False, tti_setup),
     ])
     def test_gradientFWI(self, dtype, space_order, kernel, shape, ckp, setup_func):
-        r"""
+        """
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -229,7 +231,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
     def test_gradientJ(self, dtype, shape, kernel, space_order):
-        r"""
+        """
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
         .. math::
