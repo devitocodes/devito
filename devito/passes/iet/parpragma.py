@@ -4,13 +4,12 @@ from sympy import Or, Max
 
 from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
-                       List, ParallelTree, Prodder, Block, FindSymbols, FindNodes, Return,
+                       List, ParallelTree, Prodder, FindSymbols, FindNodes, Return,
                        VECTORIZED, Transformer, IsPerfectIteration, filter_iterations,
                        retrieve_iteration_tree)
-from devito.mpi.routines import IrecvCall, IsendCall
 from devito.symbolics import CondEq, INT, ccode
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.langbase import LangBB, LangTransformer
+from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import PointerArray, Symbol, NThreadsMixin
@@ -366,7 +365,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         return self._make_parallel(iet)
 
 
-class PragmaDeviceAwareTransformer(PragmaShmTransformer):
+class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
 
     """
     Abstract base class for PragmaTransformers capable of emitting SIMD-parallel,
@@ -388,8 +387,7 @@ class PragmaDeviceAwareTransformer(PragmaShmTransformer):
 
     def _make_partree(self, candidates, nthreads=None):
         """
-        Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas
-        for parallelism. In particular:
+        Parallelize the `candidates` Iterations. In particular:
 
             * All parallel Iterations not *writing* to a host Function, that
               is a Function `f` such that `is_on_device(f) == False`, are offloaded
@@ -441,21 +439,6 @@ class PragmaDeviceAwareTransformer(PragmaShmTransformer):
             return partree
         else:
             return super()._make_nested_partree(partree)
-
-    @iet_pass
-    def make_gpudirect(self, iet):
-        """
-        Modify MPI Callables to enable multiple GPUs performing GPU-Direct communication.
-        """
-        mapper = {}
-        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
-            header = c.Pragma('omp target data use_device_ptr(%s)' %
-                              node.arguments[0].name)
-            mapper[node] = Block(header=header, body=node)
-
-        iet = Transformer(mapper).visit(iet)
-
-        return iet, {}
 
 
 class PragmaLangBB(LangBB):

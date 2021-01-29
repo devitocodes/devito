@@ -1,12 +1,10 @@
-from functools import singledispatch
-
 import cgen as c
-from sympy import Function, Not
+from sympy import Not
 
-from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, ParallelTree, EntryFunction, LocalExpression,
-                       While)
-from devito.mpi.distributed import MPICommObject
+from devito.arch import AMDGPUX, NVIDIAX
+from devito.ir import (Block, Call, Conditional, List, Prodder, ParallelIteration,
+                       ParallelBlock, ParallelTree, While, FindNodes, Transformer)
+from devito.mpi.routines import IrecvCall, IsendCall
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
@@ -14,9 +12,8 @@ from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransfo
                                          PragmaDeviceAwareTransformer, PragmaLangBB)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.utils import make_clause_reduction
-from devito.symbolics import Byref, CondEq, CondNe, DefFunction
+from devito.symbolics import CondEq, DefFunction
 from devito.tools import as_tuple
-from devito.types import DeviceID, Symbol
 
 __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
            'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
@@ -144,11 +141,23 @@ class ThreadedProdder(Conditional, Prodder):
 class OmpBB(PragmaLangBB):
 
     mapper = {
+        # Misc
+        'name': 'OpenMP',
         'header': 'omp.h',
+        # Platform mapping
+        AMDGPUX: None,
+        NVIDIAX: None,
+        # Runtime library
+        'init': None,
+        'thread-num': DefFunction('omp_get_thread_num'),
+        'num-devices': lambda args:
+            DefFunction('omp_get_num_devices', args),
+        'set-device': lambda args:
+            Call('omp_set_default_device', args),
+        # Pragmas
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update'),
-        'thread-num': DefFunction('omp_get_thread_num'),
         'map-enter-to': lambda i, j:
             c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
@@ -187,57 +196,16 @@ class DeviceOmpizer(PragmaDeviceAwareTransformer):
     lang = OmpBB
 
     @iet_pass
-    def initialize(self, iet):
+    def make_gpudirect(self, iet):
+        mapper = {}
+        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
+            header = c.Pragma('omp target data use_device_ptr(%s)' %
+                              node.arguments[0].name)
+            mapper[node] = Block(header=header, body=node)
 
-        @singledispatch
-        def _initialize(iet):
-            return iet, {}
+        iet = Transformer(mapper).visit(iet)
 
-        @_initialize.register(EntryFunction)
-        def _(iet):
-            # TODO: we need to pick the rank from `comm_shm`, not `comm`,
-            # so that we have nranks == ngpus (as long as the user has launched
-            # the right number of MPI processes per node given the available
-            # number of GPUs per node)
-
-            objcomm = None
-            for i in iet.parameters:
-                if isinstance(i, MPICommObject):
-                    objcomm = i
-                    break
-
-            deviceid = DeviceID()
-            if objcomm is not None:
-                rank = Symbol(name='rank')
-                rank_decl = LocalExpression(DummyEq(rank, 0))
-                rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
-
-                ngpus = Symbol(name='ngpus')
-                call = Function('omp_get_num_devices')()
-                ngpus_init = LocalExpression(DummyEq(ngpus, call))
-
-                osdd_then = Call('omp_set_default_device', [deviceid])
-                osdd_else = Call('omp_set_default_device', [rank % ngpus])
-
-                body = [Conditional(
-                    CondNe(deviceid, -1),
-                    osdd_then,
-                    List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
-                )]
-            else:
-                body = [Conditional(
-                    CondNe(deviceid, -1),
-                    Call('omp_set_default_device', [deviceid])
-                )]
-
-            init = List(header=c.Comment('Begin of OpenMP+MPI setup'),
-                        body=body,
-                        footer=(c.Comment('End of OpenMP+MPI setup'), c.Line()))
-            iet = iet._rebuild(body=(init,) + iet.body)
-
-            return iet, {'args': deviceid}
-
-        return _initialize(iet)
+        return iet, {}
 
 
 class OmpDataManager(DataManager):

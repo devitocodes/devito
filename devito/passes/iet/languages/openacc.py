@@ -1,20 +1,15 @@
-from functools import singledispatch
-
 import cgen as c
 
-from devito.ir import (DummyEq, Call, Conditional, EntryFunction, List, LocalExpression,
-                       ParallelIteration, FindSymbols)
-from devito.mpi.distributed import MPICommObject
+from devito.arch import AMDGPUX, NVIDIAX
+from devito.ir import Call, ParallelIteration, FindSymbols
 from devito.passes.iet.definitions import DeviceAwareDataManager
-from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import PragmaDeviceAwareTransformer, PragmaLangBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import Byref, CondNe, DefFunction, Macro
+from devito.symbolics import DefFunction, Macro
 from devito.tools import prod
-from devito.types import DeviceID, Symbol
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
@@ -68,7 +63,20 @@ class DeviceAccIteration(ParallelIteration):
 class AccBB(PragmaLangBB):
 
     mapper = {
+        # Misc
+        'name': 'OpenACC',
         'header': 'openacc.h',
+        # Platform mapping
+        AMDGPUX: Macro('acc_device_radeon'),
+        NVIDIAX: Macro('acc_device_nvidia'),
+        # Runtime library
+        'init': lambda args:
+            Call('acc_init', args),
+        'num-devices': lambda args:
+            DefFunction('acc_get_num_devices', args),
+        'set-device': lambda args:
+            Call('acc_set_device_num', args),
+        # Pragmas
         'atomic': c.Pragma('acc atomic update'),
         'map-enter-to': lambda i, j:
             c.Pragma('acc enter data copyin(%s%s)' % (i, j)),
@@ -136,71 +144,11 @@ class AccBB(PragmaLangBB):
 
 
 class DeviceAccizer(PragmaDeviceAwareTransformer):
-
     lang = AccBB
 
-    @iet_pass
-    def make_gpudirect(self, iet):
-        # Implicitly handled since acc_malloc is used, hence device pointers
-        # are passed to MPI calls
-        return iet, {}
-
-    @iet_pass
-    def initialize(self, iet):
-        """
-        Initialize the OpenACC environment.
-        """
-
-        @singledispatch
-        def _initialize(iet):
-            return iet, {}
-
-        @_initialize.register(EntryFunction)
-        def _(iet):
-            # TODO: we need to pick the rank from `comm_shm`, not `comm`,
-            # so that we have nranks == ngpus (as long as the user has launched
-            # the right number of MPI processes per node given the available
-            # number of GPUs per node)
-
-            objcomm = None
-            for i in iet.parameters:
-                if isinstance(i, MPICommObject):
-                    objcomm = i
-                    break
-
-            deviceid = DeviceID()
-            device_nvidia = Macro('acc_device_nvidia')
-            if objcomm is not None:
-                rank = Symbol(name='rank')
-                rank_decl = LocalExpression(DummyEq(rank, 0))
-                rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
-
-                ngpus = Symbol(name='ngpus')
-                call = DefFunction('acc_get_num_devices', device_nvidia)
-                ngpus_init = LocalExpression(DummyEq(ngpus, call))
-
-                asdn_then = Call('acc_set_device_num', [deviceid, device_nvidia])
-                asdn_else = Call('acc_set_device_num', [rank % ngpus, device_nvidia])
-
-                body = [Call('acc_init', [device_nvidia]), Conditional(
-                    CondNe(deviceid, -1),
-                    asdn_then,
-                    List(body=[rank_decl, rank_init, ngpus_init, asdn_else])
-                )]
-            else:
-                body = [Call('acc_init', [device_nvidia]), Conditional(
-                    CondNe(deviceid, -1),
-                    Call('acc_set_device_num', [deviceid, device_nvidia])
-                )]
-
-            init = List(header=c.Comment('Begin of OpenACC+MPI setup'),
-                        body=body,
-                        footer=(c.Comment('End of OpenACC+MPI setup'), c.Line()))
-            iet = iet._rebuild(body=(init,) + iet.body)
-
-            return iet, {'args': deviceid}
-
-        return _initialize(iet)
+    # Note: there is no need to override `make_gpudirect` since acc_malloc is
+    # used to allocate the buffers passed to the various MPI calls, which will
+    # then receive device points
 
 
 class DeviceAccDataManager(DeviceAwareDataManager):

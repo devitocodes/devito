@@ -1,7 +1,15 @@
+from functools import singledispatch
 from abc import ABC
 
-from devito.ir import ParallelBlock, ParallelIteration, Prodder
+import cgen as c
+
+from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIteration,
+                       ParallelBlock, EntryFunction, LocalExpression)
+from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
+from devito.symbolics import Byref, CondNe
+from devito.tools import as_list
+from devito.types import DeviceID, Symbol
 
 __all__ = ['LangBB', 'LangTransformer']
 
@@ -193,3 +201,95 @@ class LangTransformer(ABC):
     @property
     def Prodder(self):
         return self.lang.Region
+
+
+class DeviceAwareMixin(object):
+
+    @iet_pass
+    def initialize(self, iet):
+        """
+        An `iet_pass` which transforms an IET such that the target language
+        runtime is initialized.
+
+        The initialization follows a pattern which is applicable to virtually
+        any target language:
+
+            1. Calling the init function (e.g., `acc_init(...)` for OpenACC)
+            2. Assignment of the target device to a host thread or an MPI rank
+            3. Introduction of user-level symbols (e.g., `deviceid` to allow
+               users to select a specific device)
+
+        Despite not all of these are applicable to all target languages, there
+        is sufficient reuse to implement the logic as a single method.
+        """
+
+        @singledispatch
+        def _initialize(iet):
+            return iet, {}
+
+        @_initialize.register(EntryFunction)
+        def _(iet):
+            # TODO: we need to pick the rank from `comm_shm`, not `comm`,
+            # so that we have nranks == ngpus (as long as the user has launched
+            # the right number of MPI processes per node given the available
+            # number of GPUs per node)
+
+            objcomm = None
+            for i in iet.parameters:
+                if isinstance(i, MPICommObject):
+                    objcomm = i
+                    break
+
+            devicetype = as_list(self.lang[self.platform])
+
+            deviceid = DeviceID()
+            if objcomm is not None:
+                rank = Symbol(name='rank')
+                rank_decl = LocalExpression(DummyEq(rank, 0))
+                rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
+
+                ngpus = Symbol(name='ngpus')
+                call = self.lang['num-devices'](devicetype)
+                ngpus_init = LocalExpression(DummyEq(ngpus, call))
+
+                osdd_then = self.lang['set-device']([deviceid] + devicetype)
+                osdd_else = self.lang['set-device']([rank % ngpus] + devicetype)
+
+                try:
+                    init = [self.lang['init'](devicetype)]
+                except TypeError:
+                    # Not all target languages need to be explicitly initialized
+                    init = []
+
+                body = init + [Conditional(
+                    CondNe(deviceid, -1),
+                    osdd_then,
+                    List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
+                )]
+
+                header = c.Comment('Begin of %s+MPI setup' % self.lang['name'])
+                footer = c.Comment('End of %s+MPI setup' % self.lang['name'])
+            else:
+                body = [Conditional(
+                    CondNe(deviceid, -1),
+                    self.lang['set-device']([deviceid] + devicetype)
+                )]
+
+                header = c.Comment('Begin of %s setup' % self.lang['name'])
+                footer = c.Comment('End of %s setup' % self.lang['name'])
+
+            init = List(header=header, body=body, footer=(footer, c.Line()))
+            iet = iet._rebuild(body=(init,) + iet.body)
+
+            return iet, {'args': deviceid}
+
+        return _initialize(iet)
+
+    @iet_pass
+    def make_gpudirect(self, iet):
+        """
+        An `iet_pass` which transforms an IET modifying all MPI Callables such
+        that device pointers are used in place of host pointers, thus exploiting
+        GPU-direct communication.
+        """
+        return iet, {}
