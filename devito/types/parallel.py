@@ -24,7 +24,8 @@ from devito.types.misc import VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin', 'DeviceID',
            'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
-           'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'normalize_syncs']
+           'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM',
+           'normalize_syncs']
 
 
 class NThreadsMixin(object):
@@ -337,24 +338,40 @@ def normalize_syncs(*args):
     return syncs
 
 
-class DeviceID(Constant):
+class DeviceSymbol(Constant):
 
-    name = 'deviceid'
+    is_PerfKnob = True
 
     def __new__(cls, *args, **kwargs):
-        kwargs['name'] = DeviceID.name
-        kwargs['value'] = -1
+        kwargs['name'] = cls.name
+        kwargs['value'] = cls.__value_setup__(**kwargs)
         return Constant.__new__(cls, *args, **kwargs)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return np.int32
 
-    def _arg_defaults(self):
-        return {self.name: self.data}
+
+class DeviceID(DeviceSymbol):
+
+    name = 'deviceid'
+
+    @classmethod
+    def __value_setup__(cls, **kwargs):
+        return -1
+
+
+class DeviceRM(DeviceSymbol):
+
+    name = 'devicerm'
+
+    @classmethod
+    def __value_setup__(cls, **kwargs):
+        return 1
 
     def _arg_values(self, **kwargs):
         try:
-            return {self.name: kwargs[self.name]}
+            # Enforce 1 or 0
+            return {self.name: int(bool(kwargs[self.name]))}
         except KeyError:
             return self._arg_defaults()

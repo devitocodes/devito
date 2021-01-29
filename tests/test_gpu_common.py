@@ -6,7 +6,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
 from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes import OpenMPIteration
-from devito.types import DeviceID, Lock, PThreadArray
+from devito.types import DeviceID, DeviceRM, Lock, PThreadArray
 
 from conftest import skipif
 
@@ -708,30 +708,48 @@ class TestStreaming(object):
         assert np.all(g.data == 30)
 
 
-class TestDeviceScheduling(object):
+class TestAPI(object):
 
-    def get_deviceid(self, op):
+    def get_param(self, op, param):
         for i in op.parameters:
-            if isinstance(i, DeviceID):
+            if isinstance(i, param):
                 return i
         return None
 
-    def check_api(self):
+    def check_deviceid(self):
         grid = Grid(shape=(6, 6))
 
         u = TimeFunction(name='u', grid=grid, space_order=2, save=10)
 
         op = Operator(Eq(u.forward, u.dx + 1))
 
-        deviceid = self.get_deviceid(op)
+        deviceid = self.get_param(op, DeviceID)
         assert deviceid is not None
         assert deviceid.data == -1
         assert op.arguments()[deviceid.name] == -1
         assert op.arguments(deviceid=0)[deviceid.name] == 0
 
-    def test_api(self):
-        self.check_api()
+    def test_deviceid(self):
+        self.check_deviceid()
 
     @pytest.mark.parallel(mode=1)
-    def test_api_w_mpi(self):
-        self.check_api()
+    def test_deviceid_w_mpi(self):
+        self.check_deviceid()
+
+    def test_devicerm(self):
+        grid = Grid(shape=(6, 6))
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid)
+
+        op = Operator(Eq(u.forward, u.dx + f))
+
+        devicerm = self.get_param(op, DeviceRM)
+        assert devicerm is not None
+        assert devicerm.data == 1  # Always evict, by default
+        assert op.arguments(time_M=2)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=0)[devicerm.name] == 0
+        assert op.arguments(time_M=2, devicerm=1)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=224)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=True)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=False)[devicerm.name] == 0

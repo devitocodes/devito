@@ -63,7 +63,7 @@ class TestCodeGeneration(object):
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
         assert op.body[2].footer[1].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
     @switchconfig(platform='nvidiaX')
     def test_multiple_eqns(self):
@@ -90,8 +90,8 @@ class TestCodeGeneration(object):
                  {'n': f.name})
             assert op.body[2].footer[i+1].contents[1].value ==\
                 ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
-                 {'n': f.name})
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]]) '
+                 'if(devicerm)' % {'n': f.name})
 
     @switchconfig(platform='nvidiaX')
     def test_multiple_loops(self):
@@ -131,8 +131,8 @@ class TestCodeGeneration(object):
                  {'n': f.name})
             assert op.body[2].footer[i+1].contents[1].value ==\
                 ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
-                 {'n': f.name})
+                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]]) '
+                 'if(devicerm)' % {'n': f.name})
 
         # Check `f`
         assert op.body[2].header[0].value ==\
@@ -143,7 +143,7 @@ class TestCodeGeneration(object):
              '[0:f_vec->size[1]][0:f_vec->size[2]])')
         assert op.body[2].footer[1].contents[1].value ==\
             ('omp target exit data map(release: f[0:f_vec->size[0]]'
-             '[0:f_vec->size[1]][0:f_vec->size[2]])')
+             '[0:f_vec->size[1]][0:f_vec->size[2]]) if(devicerm)')
 
         # Check `g` -- note that unlike `f`, this one should be `delete` upon
         # exit, not `from`
@@ -153,7 +153,7 @@ class TestCodeGeneration(object):
         assert op.body[2].footer[4].value ==\
             ('omp target exit data map(delete: g[0:g_vec->size[0]]'
              '[0:g_vec->size[1]][0:g_vec->size[2]])'
-             ' if((g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
+             ' if(devicerm && (g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
              ' && (g_vec->size[2] != 0))')
 
     @switchconfig(platform='nvidiaX')
@@ -207,7 +207,7 @@ class TestCodeGeneration(object):
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
         assert op.body[2].footer[1].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
     @switchconfig(platform='nvidiaX')
     def test_timeparallel_reduction(self):

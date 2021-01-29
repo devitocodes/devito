@@ -31,7 +31,7 @@ class TestCodeGeneration(object):
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
         assert op.body[2].footer[1].contents[1].value ==\
             ('acc exit data delete(u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
     def test_streaming_postponed_deletion(self):
         grid = Grid(shape=(10, 10, 10))
