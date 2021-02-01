@@ -677,8 +677,11 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, -3:] == 0)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    @pytest.mark.parametrize('gpu_fit', [True, False])
-    def test_xcor_from_saved(self, gpu_fit):
+    @pytest.mark.parametrize('opt,gpu_fit', [
+        (('streaming', 'orchestrate'), True),
+        (('streaming', 'orchestrate'), False)
+    ])
+    def test_xcor_from_saved(self, opt, gpu_fit):
         nt = 10
         grid = Grid(shape=(300, 300, 300))
         time_dim = grid.time_dim
@@ -700,8 +703,7 @@ class TestStreaming(object):
         # Assuming nt//period=5, we are computing, over 5 iterations:
         # g = 4*4  [time=8] + 3*3 [time=6] + 2*2 [time=4] + 1*1 [time=2]
         op = Operator([Eq(v.backward, v - 1), Inc(g, usave*(v/2))],
-                      opt=('streaming', 'orchestrate',
-                           {'gpu-fit': usave if gpu_fit else None}))
+                      opt=(opt, {'gpu-fit': usave if gpu_fit else None}))
 
         op.apply(time_M=nt-1)
 
