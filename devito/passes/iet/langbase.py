@@ -242,6 +242,12 @@ class DeviceAwareMixin(object):
 
             devicetype = as_list(self.lang[self.platform])
 
+            try:
+                lang_init = [self.lang['init'](devicetype)]
+            except TypeError:
+                # Not all target languages need to be explicitly initialized
+                lang_init = []
+
             deviceid = DeviceID()
             if objcomm is not None:
                 rank = Symbol(name='rank')
@@ -255,13 +261,7 @@ class DeviceAwareMixin(object):
                 osdd_then = self.lang['set-device']([deviceid] + devicetype)
                 osdd_else = self.lang['set-device']([rank % ngpus] + devicetype)
 
-                try:
-                    init = [self.lang['init'](devicetype)]
-                except TypeError:
-                    # Not all target languages need to be explicitly initialized
-                    init = []
-
-                body = init + [Conditional(
+                body = lang_init + [Conditional(
                     CondNe(deviceid, -1),
                     osdd_then,
                     List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
@@ -270,7 +270,7 @@ class DeviceAwareMixin(object):
                 header = c.Comment('Begin of %s+MPI setup' % self.lang['name'])
                 footer = c.Comment('End of %s+MPI setup' % self.lang['name'])
             else:
-                body = [Conditional(
+                body = lang_init + [Conditional(
                     CondNe(deviceid, -1),
                     self.lang['set-device']([deviceid] + devicetype)
                 )]
