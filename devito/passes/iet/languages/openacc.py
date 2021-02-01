@@ -5,6 +5,7 @@ from devito.ir import Call, ParallelIteration, FindSymbols
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import PragmaDeviceAwareTransformer, PragmaLangBB
+from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
@@ -108,6 +109,7 @@ class AccBB(PragmaLangBB):
         'device-free': lambda i:
             'acc_free(%s)' % i
     }
+    mapper.update(CBB.mapper)
 
     Region = OmpRegion
     HostIteration = OmpIteration  # Host parallelism still goes via OpenMP
