@@ -200,7 +200,7 @@ class LangTransformer(ABC):
 
     @property
     def Prodder(self):
-        return self.lang.Region
+        return self.lang.Prodder
 
 
 class DeviceAwareMixin(object):
