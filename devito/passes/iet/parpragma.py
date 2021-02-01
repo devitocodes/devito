@@ -256,7 +256,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 pi = parrays.setdefault(i, PointerArray(name=self.sregistry.make_name(),
                                                         dimensions=(self.threadid,),
                                                         array=i))
-            heap_globals.append(Dereference(i, pi))
+            heap_globals.append(HeapGlobal(i, pi))
         if heap_globals:
             init = c.Initializer(c.Value(self.threadid._C_typedata, self.threadid.name),
                                  self.lang['thread-num'])
@@ -355,7 +355,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         # The new arguments introduced by this pass
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
-        for n in FindNodes(Dereference).visit(iet):
+        for n in FindNodes(HeapGlobal).visit(iet):
             args.extend([(n.array, True), n.parray])
 
         return iet, {'args': args, 'includes': [self.lang['header']]}
@@ -522,3 +522,9 @@ class PragmaLangBB(LangBB):
         items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
         cond = ' if(%s)' % ' && '.join(items)
         return cls.mapper['map-exit-delete'](f.name, sections, cond)
+
+
+# Utils
+
+class HeapGlobal(Dereference):
+    pass
