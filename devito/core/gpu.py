@@ -280,7 +280,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'orchestrate', 'mpi', 'prodders', 'gpu-direct'
+        'optcomms', 'orchestrate', 'parallel', 'mpi', 'prodders', 'gpu-direct'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
