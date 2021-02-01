@@ -7,6 +7,7 @@ from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
+from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
 from devito.tools import filter_ordered, flatten
 from devito.types.lazy import Evaluable, EvalDerivative
@@ -242,17 +243,16 @@ class Differentiable(sympy.Expr, Evaluable):
 
     def div(self, shift=None):
         space_dims = [d for d in self.dimensions if d.is_Space]
-        return Add(*[getattr(self, 'd%s' % d.name)(x0=None if shift is None else
-                                                   d + shift[i] * d.spacing if type(shift)
-                                                   is tuple else d + shift * d.spacing)
+        shift_x0 = make_shift_x0(shift, (len(space_dims),))
+        return Add(*[getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i))
                      for i, d in enumerate(space_dims)])
 
     def grad(self, shift=None):
         from devito.types.tensor import VectorFunction, VectorTimeFunction
-        comps = [getattr(self, 'd%s' % d.name)(x0=None if shift is None else
-                                               d + shift[i] * d.spacing if type(shift)
-                                               is tuple else d + shift * d.spacing)
-                 for i, d in enumerate(self.dimensions) if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
+        shift_x0 = make_shift_x0(shift, (len(space_dims),))
+        comps = [getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i))
+                 for i, d in enumerate(space_dims)]
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
                         space_order=self.space_order, components=comps, grid=self.grid)

@@ -7,6 +7,7 @@ from sympy.core.decorators import call_highest_priority
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
+from devito.finite_differences.tools import make_shift_x0
 from devito.types.basic import AbstractTensor
 from devito.types.dense import Function, TimeFunction
 from devito.types.utils import NODE
@@ -219,11 +220,12 @@ class TensorFunction(AbstractTensor):
         """
         comps = []
         func = vec_func(self, self)
-        for j, d in enumerate(self.space_dimensions):
+        ndim = len(self.space_dimensions)
+        shift_x0 = make_shift_x0(shift, (ndim, ndim))
+        for i in range(len(self.space_dimensions)):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
-                              (x0=None if shift is None else d + shift[i] * d.spacing
-                               if type(shift) is tuple else d + shift * d.spacing)
-                              for i, d in enumerate(self.space_dimensions)]))
+                              (x0=shift_x0(shift, d, i, j))
+                              for j, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
     @property
@@ -308,10 +310,8 @@ class VectorFunction(TensorFunction):
         """
         Divergence of the VectorFunction, creates the divergence Function.
         """
-        return sum([getattr(self[i], 'd%s' % d.name)(x0=None if shift is None else
-                                                     d + shift[i] * d.spacing if
-                                                     type(shift) is tuple else
-                                                     d + shift * d.spacing)
+        shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
+        return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i))
                     for i, d in enumerate(self.space_dimensions)])
 
     @property
@@ -346,11 +346,11 @@ class VectorFunction(TensorFunction):
         Gradient of the VectorFunction, creates the gradient TensorFunction.
         """
         func = tens_func(self, self)
-        comps = [[getattr(f, 'd%s' % d.name)(x0=None if shift is None else
-                                             d + shift[i] * d.spacing if type(shift)
-                                             is tuple else d + shift * d.spacing)
-                  for i, d in enumerate(self.space_dimensions)]
-                 for f in self]
+        ndim = len(self.space_dimensions)
+        shift_x0 = make_shift_x0(shift, (ndim, ndim))
+        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j))
+                  for j, d in enumerate(self.space_dimensions)]
+                 for i, f in enumerate(self)]
         return func._new(comps)
 
     def outer(self, other):

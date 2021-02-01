@@ -5,7 +5,6 @@ import numpy as np
 from sympy import S, finite_diff_weights, cacheit, sympify
 
 from devito.tools import Tag, as_tuple
-from devito.finite_differences import Differentiable
 
 
 class Transpose(Tag):
@@ -47,6 +46,7 @@ centered = Side('centered', 0)
 def check_input(func):
     @wraps(func)
     def wrapper(expr, *args, **kwargs):
+        from devito.finite_differences import Differentiable
         if expr.is_Number:
             return S.Zero
         elif not isinstance(expr, Differentiable):
@@ -261,3 +261,24 @@ def generate_indices_staggered(func, dim, order, side=None, x0=None):
             ind = [start, start - diff]
 
     return start, tuple(ind)
+
+
+def make_shift_x0(shift, ndim):
+    """
+    Returns a callable that calculates a shifted origin for each derivative
+    of an operation derivatives scheme (given by ndim) given a shift object
+    which can be a None, a float or a tuple with shape equal to ndim
+    """
+    if shift is None:
+        return lambda s, d, i, j: None
+    elif isinstance(shift, float):
+        return lambda s, d, i, j: d + s * d.spacing
+    elif type(shift) is tuple and np.shape(shift) == ndim:
+        if len(ndim) == 1:
+            return lambda s, d, i, j: d + s[j] * d.spacing
+        elif len(ndim) == 2:
+            return lambda s, d, i, j: d + s[i][j] * d.spacing
+        else:
+            raise ValueError("ndim length must be equal to 1 or 2")
+    raise ValueError("shift parameter must be one of the following options: "
+                     "None, float or tuple with shape equal to %s" % (ndim,))
