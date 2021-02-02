@@ -5,7 +5,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     SubDimension, SubDomain, TimeFunction, Operator)
 from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
-from devito.passes import OpenMPIteration
+from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, PThreadArray
 
 from conftest import skipif
@@ -195,16 +195,16 @@ class TestStreaming(object):
 
         op = Operator(Eq(u.forward, u + 1), opt=opt)
 
-        piters = FindNodes(OpenMPIteration).visit(op)
+        piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 0
 
         op = Operator(Eq(u.forward, u + 1), opt=(opt, {'par-disabled': False}))
 
         # Degenerates to host execution with no data movement, since `u` is
         # a host Function
-        piters = FindNodes(OpenMPIteration).visit(op)
+        piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 1
-        assert type(piters.pop()) == OpenMPIteration
+        assert type(piters.pop()) == OmpIteration
 
     def test_tasking_multi_output(self):
         nt = 10
@@ -677,8 +677,11 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, -3:] == 0)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    @pytest.mark.parametrize('gpu_fit', [True, False])
-    def test_xcor_from_saved(self, gpu_fit):
+    @pytest.mark.parametrize('opt,gpu_fit', [
+        (('streaming', 'orchestrate'), True),
+        (('streaming', 'orchestrate'), False)
+    ])
+    def test_xcor_from_saved(self, opt, gpu_fit):
         nt = 10
         grid = Grid(shape=(300, 300, 300))
         time_dim = grid.time_dim
@@ -700,8 +703,7 @@ class TestStreaming(object):
         # Assuming nt//period=5, we are computing, over 5 iterations:
         # g = 4*4  [time=8] + 3*3 [time=6] + 2*2 [time=4] + 1*1 [time=2]
         op = Operator([Eq(v.backward, v - 1), Inc(g, usave*(v/2))],
-                      opt=('streaming', 'orchestrate',
-                           {'gpu-fit': usave if gpu_fit else None}))
+                      opt=(opt, {'gpu-fit': usave if gpu_fit else None}))
 
         op.apply(time_M=nt-1)
 

@@ -4,6 +4,7 @@ import numpy as np
 from conftest import skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, norm, solve
 from devito.data import LEFT
+from devito.exceptions import InvalidOperator
 from devito.ir.iet import FindNodes, Section, retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
@@ -32,6 +33,28 @@ class TestCodeGeneration(object):
         assert op.body[2].footer[1].contents[1].value ==\
             ('acc exit data delete(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
+
+    def test_basic_customop(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1),
+                      platform='nvidiaX', language='openacc', opt='openacc')
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+
+        assert trees[0][1].pragmas[0].value ==\
+            'acc parallel loop collapse(3) present(u)'
+
+        try:
+            Operator(Eq(u.forward, u + 1),
+                     platform='nvidiaX', language='openacc', opt='openmp')
+        except InvalidOperator:
+            assert True
+        except:
+            assert False
 
     def test_streaming_postponed_deletion(self):
         grid = Grid(shape=(10, 10, 10))

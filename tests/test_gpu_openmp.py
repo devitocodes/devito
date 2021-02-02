@@ -5,6 +5,7 @@ from sympy import cos
 from conftest import skipif
 from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
                     Operator, switchconfig, norm)
+from devito.exceptions import InvalidOperator
 from devito.ir.iet import Block, FindNodes, retrieve_iteration_tree
 from devito.mpi.routines import IrecvCall, IsendCall
 from examples.seismic import TimeAxis, RickerSource, Receiver
@@ -64,6 +65,27 @@ class TestCodeGeneration(object):
         assert op.body[2].footer[1].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
+
+    @switchconfig(platform='nvidiaX')
+    def test_basic_customop(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1), language='openmp', opt='openmp')
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+
+        assert trees[0][1].pragmas[0].value ==\
+            'omp target teams distribute parallel for collapse(3)'
+
+        try:
+            Operator(Eq(u.forward, u + 1), language='openmp', opt='openacc')
+        except InvalidOperator:
+            assert True
+        except:
+            assert False
 
     @switchconfig(platform='nvidiaX')
     def test_multiple_eqns(self):

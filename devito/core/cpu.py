@@ -1,20 +1,19 @@
 from functools import partial
 
-from devito.core.operator import OperatorCore
+from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
-from devito.logger import warning
 from devito.passes.equations import buffering, collect_derivatives
 from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays,
                                     extract_increments, factorize, fuse, optimize_pows)
-from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, mpiize,
+from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
-from devito.tools import as_tuple, timed_pass
+from devito.tools import timed_pass
 
-__all__ = ['CPU64NoopOperator', 'CPU64Operator', 'CPU64OpenMPOperator',
-           'CustomOperator']
+__all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
+           'Cpu64AdvOmpOperator', 'Cpu64CustomOperator']
 
 
-class CPU64NoopOperator(OperatorCore):
+class Cpu64OperatorMixin(object):
 
     BLOCK_LEVELS = 1
     """
@@ -82,6 +81,7 @@ class CPU64NoopOperator(OperatorCore):
         # Execution modes
         o['openmp'] = oo.pop('openmp')
         o['mpi'] = oo.pop('mpi')
+        o['parallel'] = o['openmp']  # Backwards compatibility
 
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
@@ -125,10 +125,17 @@ class CPU64NoopOperator(OperatorCore):
 
         return kwargs
 
+
+# Mode level
+
+
+class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
+
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -137,16 +144,17 @@ class CPU64NoopOperator(OperatorCore):
 
         # Shared-memory parallelism
         if options['openmp']:
-            ompizer = Ompizer(sregistry, options)
-            ompizer.make_parallel(graph)
+            parizer = cls._Target.Parizer(sregistry, options, platform)
+            parizer.make_parallel(graph)
+            parizer.initialize(graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._Target.DataManager(sregistry).process(graph)
 
         return graph
 
 
-class CPU64Operator(CPU64NoopOperator):
+class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
     @classmethod
     @timed_pass(name='specializing.DSL')
@@ -206,56 +214,76 @@ class CPU64Operator(CPU64NoopOperator):
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph, sregistry=sregistry)
 
-        # SIMD-level parallelism
-        ompizer = Ompizer(sregistry, options)
-        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        # Parallelism
+        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer.make_simd(graph)
+        parizer.make_parallel(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        DataManager(sregistry).process(graph)
+        cls._Target.DataManager(sregistry).process(graph)
+
+        # Initialize the target-language runtime
+        parizer.initialize(graph)
 
         return graph
 
 
-class CPU64OpenMPOperator(CPU64Operator):
+class Cpu64FsgOperator(Cpu64AdvOperator):
+
+    """
+    Operator with performance optimizations tailored "For small grids" ("Fsg").
+    """
 
     @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
+    def _normalize_kwargs(cls, **kwargs):
+        kwargs = super()._normalize_kwargs(**kwargs)
+
+        if kwargs['options']['min-storage']:
+            raise InvalidOperator('You should not use `min-storage` with `advanced-fsg '
+                                  ' as they work in opposite directions')
+
+        return kwargs
+
+    @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # Flush denormal numbers
-        avoid_denormals(graph)
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = fuse(clusters, toposort=True)
 
-        # Distributed-memory parallelism
-        optimize_halospots(graph)
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, 'invariants', sregistry, options, platform)
+        clusters = Lift().process(clusters)
 
-        # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph, sregistry=sregistry)
+        # Reduce flops (potential arithmetic alterations)
+        clusters = extract_increments(clusters, sregistry)
+        clusters = cire(clusters, 'sops', sregistry, options, platform)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
 
-        # SIMD-level parallelism
-        ompizer = Ompizer(sregistry, options)
-        ompizer.make_simd(graph, simd_reg_size=platform.simd_reg_size)
+        # The previous passes may have created fusion opportunities, which in
+        # turn may enable further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters)
 
-        # Shared-memory parallelism
-        ompizer.make_parallel(graph)
+        # Reduce flops (no arithmetic alterations)
+        clusters = cse(clusters, sregistry)
 
-        # Misc optimizations
-        hoist_prodders(graph)
+        # Blocking to improve data locality
+        clusters = Blocking(options).process(clusters)
 
-        # Symbol definitions
-        DataManager(sregistry).process(graph)
-
-        return graph
+        return clusters
 
 
-class CustomOperator(CPU64Operator):
+class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
+
+    _Target = OmpTarget
 
     @classmethod
     def _make_dsl_passes_mapper(cls, **kwargs):
@@ -303,16 +331,18 @@ class CustomOperator(CPU64Operator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        ompizer = Ompizer(sregistry, options)
+        parizer = cls._Target.Parizer(sregistry, options, platform)
 
         return {
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
             'blocking': partial(relax_incr_dimensions, sregistry=sregistry),
-            'openmp': ompizer.make_parallel,
+            'parallel': parizer.make_parallel,
+            'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),
-            'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
-            'prodders': hoist_prodders
+            'simd': partial(parizer.make_simd),
+            'prodders': hoist_prodders,
+            'init': parizer.initialize
         }
 
     _known_passes = (
@@ -329,97 +359,29 @@ class CustomOperator(CPU64Operator):
     _known_passes_disabled = ('tasking', 'streaming', 'gpu-direct', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
-    @classmethod
-    def _build(cls, expressions, **kwargs):
-        # Sanity check
-        passes = as_tuple(kwargs['mode'])
-        for i in passes:
-            if i not in cls._known_passes:
-                if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
-                else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
 
-        return super()._build(expressions, **kwargs)
+# Language level
 
-    @classmethod
-    @timed_pass(name='specializing.DSL')
-    def _specialize_dsl(cls, expressions, **kwargs):
-        passes = as_tuple(kwargs['mode'])
 
-        # Fetch passes to be called
-        passes_mapper = cls._make_dsl_passes_mapper(**kwargs)
+class Cpu64NoopCOperator(Cpu64NoopOperator):
+    _Target = CTarget
 
-        # Call passes
-        for i in passes:
-            try:
-                expressions = passes_mapper[i](expressions)
-            except KeyError:
-                pass
 
-        return expressions
+class Cpu64NoopOmpOperator(Cpu64NoopOperator):
+    _Target = OmpTarget
 
-    @classmethod
-    @timed_pass(name='specializing.Expressions')
-    def _specialize_exprs(cls, expressions, **kwargs):
-        passes = as_tuple(kwargs['mode'])
 
-        # Fetch passes to be called
-        passes_mapper = cls._make_exprs_passes_mapper(**kwargs)
+class Cpu64AdvCOperator(Cpu64AdvOperator):
+    _Target = CTarget
 
-        # Call passes
-        for i in passes:
-            try:
-                expressions = passes_mapper[i](expressions)
-            except KeyError:
-                pass
 
-        return expressions
+class Cpu64AdvOmpOperator(Cpu64AdvOperator):
+    _Target = OmpTarget
 
-    @classmethod
-    @timed_pass(name='specializing.Clusters')
-    def _specialize_clusters(cls, clusters, **kwargs):
-        passes = as_tuple(kwargs['mode'])
 
-        # Fetch passes to be called
-        passes_mapper = cls._make_clusters_passes_mapper(**kwargs)
+class Cpu64FsgCOperator(Cpu64FsgOperator):
+    _Target = CTarget
 
-        # Call passes
-        for i in passes:
-            try:
-                clusters = passes_mapper[i](clusters)
-            except KeyError:
-                pass
 
-        return clusters
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        sregistry = kwargs['sregistry']
-        passes = as_tuple(kwargs['mode'])
-
-        # Fetch passes to be called
-        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
-
-        # Call passes
-        for i in passes:
-            try:
-                passes_mapper[i](graph)
-            except KeyError:
-                pass
-
-        # Force-call `mpi` if requested via global option
-        if 'mpi' not in passes and options['mpi']:
-            passes_mapper['mpi'](graph)
-
-        # Force-call `openmp` if requested via global option
-        if 'openmp' not in passes and options['openmp']:
-            passes_mapper['openmp'](graph)
-
-        # Symbol definitions
-        DataManager(sregistry).process(graph)
-
-        return graph
+class Cpu64FsgOmpOperator(Cpu64FsgOperator):
+    _Target = OmpTarget
