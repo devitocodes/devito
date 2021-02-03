@@ -457,7 +457,7 @@ class TestCaching(object):
 
             u = Function(name='u', grid=grid, space_order=2)
             u._C_symbol
-            # Both u and u(inds) added to cache
+            # All u, u(inds) and u.function through u._c_symbol added to cache
             assert(len(_SymbolCache) == cache_size + 3)
             del u
             clear_cache()
