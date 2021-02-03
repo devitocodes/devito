@@ -3,7 +3,7 @@ from itertools import combinations, product
 from functools import total_ordering
 import resource
 
-from devito.archinfo import KNL, KNL7210
+from devito.arch import KNL, KNL7210
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
@@ -85,7 +85,7 @@ def autotune(operator, args, level, mode):
         return args, {}
 
     # Use a fresh Timer for auto-tuning
-    timer = Timer('timers', list(operator._profiler._sections))
+    timer = Timer('timers', list(operator._profiler.all_sections))
     at_args.update(timer._arg_values())
 
     # Perform autotuning

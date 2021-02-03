@@ -9,10 +9,10 @@ from sympy import Expr
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
                           frozendict, toposort, is_integer)
-from devito.types import Dimension
+from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
-           'Forward', 'Backward', 'Any']
+           'Forward', 'Backward', 'Any', 'UniteratedInterval']
 
 
 class AbstractInterval(object):
@@ -169,18 +169,17 @@ class Interval(AbstractInterval):
         circumstances, which we explicitly handle here. Ultimately, therefore,
         we return a `size` that is made up of known symbols.
         """
-        if self.dim.is_Custom:
+        if self.dim.is_Custom and isinstance(self.dim.symbolic_min, ModuloDimension):
             # Special case 1)
-            # May be caused by the performance option `cire-rotate=True`
+            # Caused by the performance option `cire-rotate=True`
             d = self.dim.symbolic_min
-            assert d.is_Modulo
             n = d.parent.symbolic_size
 
             # Iteration 0:
             assert is_integer(d.symbolic_min)
             assert is_integer(d.symbolic_incr)
             assert is_integer(self.dim.symbolic_max)
-            assert self.lower == self.upper == 0
+            assert self.lower == self.upper
             npoints = self.dim.symbolic_max - d.symbolic_min + 1
             # Iterations [1, ..., n-1]:
             assert d.symbolic_incr == self.dim.symbolic_max
@@ -459,7 +458,7 @@ class IntervalGroup(PartialOrderTuple):
         for i in self:
             if i.dim is key:
                 return i
-            if key.is_NonlinearDerived and i.dim is key.parent:
+            if key.is_NonlinearDerived and i.dim in key._defines:
                 # NonlinearDerived Dimensions cannot appear in iteration Intervals,
                 # but their parent can
                 return i
@@ -523,6 +522,14 @@ class IterationInterval(object):
     @property
     def offsets(self):
         return self.interval.offsets
+
+    @property
+    def size(self):
+        return self.interval.size
+
+
+UniteratedInterval = IterationInterval(NullInterval(None), Any, {})
+"""A degenerate IterationInterval."""
 
 
 class Space(object):

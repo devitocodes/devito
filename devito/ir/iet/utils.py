@@ -1,13 +1,10 @@
-from collections import OrderedDict
-
-from devito.ir.iet import (Iteration, List, IterationTree, FindSections, FindSymbols,
-                           FindNodes, Section, Expression)
+from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
 from devito.symbolics import Literal, Macro
-from devito.tools import flatten, ReducerMap
+from devito.tools import flatten, split
 from devito.types import Array, LocalObject
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree',
-           'compose_nodes', 'derive_parameters', 'find_affine_trees']
+__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'compose_nodes',
+           'derive_parameters', 'diff_parameters']
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -102,7 +99,7 @@ def derive_parameters(iet, drop_locals=False):
     free_symbols = FindSymbols('free-symbols').visit(iet)
 
     # Filter out function base symbols and use real function objects
-    function_names = [s.name for s in functions]
+    function_names = set(flatten([(s.name, s._C_name) for s in functions]))
     symbols = [s for s in free_symbols if s.name not in function_names]
     symbols = functions + symbols
 
@@ -123,36 +120,20 @@ def derive_parameters(iet, drop_locals=False):
     return parameters
 
 
-def find_affine_trees(iet):
+def diff_parameters(iet, root):
     """
-    Find affine trees. A tree is affine when all of the array accesses are
-    constant/affine functions of the Iteration variables and the Iteration bounds
-    are fixed (but possibly symbolic).
+    Derive the parameters of a sub-IET, `iet`, within a Callable, `root`, and
+    split them into two groups:
 
-    Parameters
-    ----------
-    iet : `Node`
-        The searched tree
-
-    Returns
-    -------
-    list of `Node`
-        Each item in the list is the root of an affine tree
+        * the "read-only" parameters, and
+        * the "dynamic" parameters, whose value changes at some point in `root`.
     """
-    affine = OrderedDict()
-    roots = [i for i in FindNodes(Iteration).visit(iet) if i.dim.is_Time]
-    for root in roots:
-        sections = FindNodes(Section).visit(root)
-        for section in sections:
-            for tree in retrieve_iteration_tree(section):
-                if not all(i.is_Affine for i in tree):
-                    # Non-affine array accesses not supported
-                    break
-                exprs = [i.expr for i in FindNodes(Expression).visit(tree.root)]
-                grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')
-                writeto_dimensions = tuple(i.dim.root for i in tree)
-                if grid.dimensions == writeto_dimensions:
-                    affine.setdefault(section, []).append(tree)
-                else:
-                    break
-    return affine
+    # TODO: this is currently very rudimentary
+    required = derive_parameters(iet)
+
+    known = (set(root.parameters) |
+             set(i for i in required if i.is_Array and i._mem_shared))
+
+    parameters, dynamic_parameters = split(required, lambda i: i in known)
+
+    return required, parameters, dynamic_parameters

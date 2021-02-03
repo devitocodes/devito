@@ -486,8 +486,9 @@ class TestSubDimension(object):
 
 class TestConditionalDimension(object):
 
-    """A collection of tests to check the correct functioning of
-    ConditionalDimensions."""
+    """
+    A collection of tests to check the correct functioning of ConditionalDimensions.
+    """
 
     def test_basic(self):
         nt = 19
@@ -1047,3 +1048,126 @@ class TestConditionalDimension(object):
         assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
+
+
+class TestMashup(object):
+
+    """
+    Check the correct functioning of the compiler in presence of many Dimension types.
+    """
+
+    def test_topofusion_w_subdims_conddims(self):
+        """
+        Check that topological fusion works across guarded Clusters over different
+        iteration spaces and in presence of anti-dependences.
+
+        This test uses both SubDimensions (via SubDomains) and ConditionalDimensions.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, time_order=2)
+        g = TimeFunction(name='g', grid=grid, time_order=2)
+        h = TimeFunction(name='h', grid=grid, time_order=2)
+        fsave = TimeFunction(name='fsave', grid=grid, time_order=2, save=5)
+        gsave = TimeFunction(name='gsave', grid=grid, time_order=2, save=5)
+
+        ctime = ConditionalDimension(name='ctime', parent=time, condition=time > 4)
+
+        eqns = [Eq(f.forward, f + 1),
+                Eq(g.forward, g + 1),
+                Eq(fsave, f.dt2, implicit_dims=[ctime]),
+                Eq(h, f + g, subdomain=grid.interior),
+                Eq(gsave, g.dt2, implicit_dims=[ctime])]
+
+        op = Operator(eqns)
+
+        # Check generated code -- expect the gsave equation to be scheduled together
+        # in the same loop nest with the fsave equation
+        assert len(op._func_table) == 3
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        assert len(exprs) == 2
+        assert exprs[0].write is f
+        assert exprs[1].write is g
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        assert len(exprs) == 3
+        assert exprs[1].write is fsave
+        assert exprs[2].write is gsave
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
+        assert len(exprs) == 1
+        assert exprs[0].write is h
+
+    def test_topofusion_w_subdims_conddims_v2(self):
+        """
+        Like `test_topofusion_w_subdims_conddims` but with more SubDomains,
+        so we expect fewer loop nests.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, time_order=2)
+        g = TimeFunction(name='g', grid=grid, time_order=2)
+        h = TimeFunction(name='h', grid=grid, time_order=2)
+        fsave = TimeFunction(name='fsave', grid=grid, time_order=2, save=5)
+        gsave = TimeFunction(name='gsave', grid=grid, time_order=2, save=5)
+
+        ctime = ConditionalDimension(name='ctime', parent=time, condition=time > 4)
+
+        eqns = [Eq(f.forward, f + 1, subdomain=grid.interior),
+                Eq(g.forward, g + 1, subdomain=grid.interior),
+                Eq(fsave, f.dt2, implicit_dims=[ctime]),
+                Eq(h, f + g, subdomain=grid.interior),
+                Eq(gsave, g.dt2, implicit_dims=[ctime])]
+
+        op = Operator(eqns)
+
+        # Check generated code -- expect the gsave equation to be scheduled together
+        # in the same loop nest with the fsave equation
+        assert len(op._func_table) == 2
+        assert len(FindNodes(Expression).visit(op._func_table['bf0'].root)) == 3
+        assert len(FindNodes(Expression).visit(op._func_table['bf1'].root)) == 2 + 1  # r0
+
+    def test_topofusion_w_subdims_conddims_v3(self):
+        """
+        Like `test_topofusion_w_subdims_conddims_v2` but with an extra anti-dependence,
+        which causes scheduling over more loop nests.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, time_order=2)
+        g = TimeFunction(name='g', grid=grid, time_order=2)
+        h = TimeFunction(name='h', grid=grid, time_order=2)
+        fsave = TimeFunction(name='fsave', grid=grid, time_order=2, save=5)
+        gsave = TimeFunction(name='gsave', grid=grid, time_order=2, save=5)
+
+        ctime = ConditionalDimension(name='ctime', parent=time, condition=time > 4)
+
+        eqns = [Eq(f.forward, f + 1, subdomain=grid.interior),
+                Eq(g.forward, g + 1, subdomain=grid.interior),
+                Eq(fsave, f.dt2, implicit_dims=[ctime]),
+                Eq(h, f.dt2.dx + g, subdomain=grid.interior),
+                Eq(gsave, g.dt2, implicit_dims=[ctime])]
+
+        op = Operator(eqns)
+
+        # Check generated code -- expect the gsave equation to be scheduled together
+        # in the same loop nest with the fsave equation
+        assert len(op._func_table) == 3
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        assert len(exprs) == 2
+        assert exprs[0].write is f
+        assert exprs[1].write is g
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        assert len(exprs) == 3
+        assert exprs[1].write is fsave
+        assert exprs[2].write is gsave
+
+        exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
+        assert len(exprs) == 2
+        assert exprs[1].write is h

@@ -1,8 +1,9 @@
-from ctypes import c_double
+from ctypes import c_int, c_double, c_void_p
 
-from devito.types import CompositeObject
+from devito.types import CompositeObject, LocalObject, Symbol
 
-__all__ = ['Timer']
+__all__ = ['Timer', 'VoidPointer', 'VolatileInt', 'c_volatile_int',
+           'c_volatile_int_p']
 
 
 class Timer(CompositeObject):
@@ -34,3 +35,37 @@ class Timer(CompositeObject):
 
     # Pickling support
     _pickle_args = ['name', 'sections']
+
+
+class VoidPointer(LocalObject):
+
+    dtype = type('void*', (c_void_p,), {})
+
+    def __init__(self, name):
+        self.name = name
+
+    # Pickling support
+    _pickle_args = ['name']
+
+
+class VolatileInt(Symbol):
+
+    @property
+    def _C_typedata(self):
+        return 'volatile int'
+
+    _C_typename = _C_typedata
+
+    @property
+    def _C_ctype(self):
+        return c_volatile_int
+
+
+# ctypes subtypes
+
+class c_volatile_int(c_int):
+    pass
+
+
+class c_volatile_int_p(c_void_p):
+    pass

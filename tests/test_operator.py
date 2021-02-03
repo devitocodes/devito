@@ -261,8 +261,14 @@ class TestCodeGen(object):
 
         op = Operator(Eq(u, u + 1))
 
-        assert isinstance(op.body[2].body[0], TimedList)
-        assert op.body[2].body[0].body[0].is_Section
+        assert op.body[2].body[0].is_Section
+        assert isinstance(op.body[2].body[0].body[0], TimedList)
+        timedlist = op.body[2].body[0].body[0]
+        if configuration['language'] == 'openmp':
+            ompreg = timedlist.body[0]
+            assert ompreg.body[0].dim is grid.time_dim
+        else:
+            timedlist.body[0].dim is grid.time_dim
 
     def test_nested_lowering(self):
         """
@@ -1327,10 +1333,10 @@ class TestDeclarator(object):
         x = Dimension(name="x")
         a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
         init_value = ListInitializer([0, 0])
-        list_initialize = Expression(ClusterizedEq(Eq(a, init_value)))
+        list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value)))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
-        iet = DataManager.place_definitions.__wrapped__(DataManager(None), iet)[0]
+        iet = DataManager.place_definitions.__wrapped__(DataManager(None, None), iet)[0]
         for i in iet.body[0].children:
             assert len(i) == 1
             assert i[0].is_Expression

@@ -3,8 +3,8 @@ from collections import OrderedDict
 from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import SEQUENTIAL, IterationSpace
+                                  NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
+from devito.ir.support import SEQUENTIAL, IterationSpace, UniteratedInterval
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
 from devito.tools import flatten
@@ -16,7 +16,7 @@ def stree_build(clusters):
     """
     Create a ScheduleTree from a ClusterGroup.
     """
-    # ClusterGroup -> Schedule tree
+    # ClusterGroup -> ScheduleTree
     stree = stree_schedule(clusters)
 
     # Add in section nodes
@@ -65,17 +65,21 @@ def stree_schedule(clusters):
         # Add in Expressions
         NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, root)
 
-        # Add in Conditionals
-        drop_guarded = None
-        for k, v in list(mapper.items()):
-            if drop_guarded:
+        # Add in Conditionals and Syncs, which chop down the reuse tree
+        drop = None
+        for k, v in [(UniteratedInterval, stree)] + list(mapper.items()):
+            if drop:
                 mapper.pop(k)
+            if k.dim in c.syncs:
+                node = NodeSync(c.syncs[k.dim])
+                v.last.parent = node
+                node.parent = v
+                drop = True
             if k.dim in c.guards:
                 node = NodeConditional(c.guards[k.dim])
                 v.last.parent = node
                 node.parent = v
-                # Drop nested guarded sub-trees
-                drop_guarded = True
+                drop = True
 
     return stree
 
@@ -135,7 +139,10 @@ def stree_section(stree):
     class Section(object):
         def __init__(self, node):
             self.parent = node.parent
-            self.dim = node.dim
+            try:
+                self.dim = node.dim
+            except AttributeError:
+                self.dim = None
             self.nodes = [node]
 
         def is_compatible(self, node):
@@ -150,18 +157,23 @@ def stree_section(stree):
             if any(p in flatten(s.nodes for s in sections) for p in n.ancestors):
                 # Already within a section
                 continue
-            elif not n.is_Iteration:
+            elif n.is_Sync:
+                # SyncNodes are self-contained
+                sections.append(Section(n))
                 section = None
-            elif n.dim.is_Time and SEQUENTIAL in n.properties:
-                # If n.dim.is_Time, we end up here in 99.9% of the cases.
-                # Sometimes, however, time is a PARALLEL Dimension (e.g.,
-                # think of `norm` Operators)
-                section = None
-            elif section is None or not section.is_compatible(n):
-                section = Section(n)
-                sections.append(section)
+            elif n.is_Iteration:
+                if n.dim.is_Time and SEQUENTIAL in n.properties:
+                    # If n.dim.is_Time, we end up here in 99.9% of the cases.
+                    # Sometimes, however, time is a PARALLEL Dimension (e.g.,
+                    # think of `norm` Operators)
+                    section = None
+                elif section is None or not section.is_compatible(n):
+                    section = Section(n)
+                    sections.append(section)
+                else:
+                    section.nodes.append(n)
             else:
-                section.nodes.append(n)
+                section = None
 
     # Transform the schedule tree by adding in sections
     for i in sections:

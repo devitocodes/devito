@@ -26,6 +26,11 @@
     * `cire-repeats-inv` (int, 1): control detection of dimension-invariants
     * `cire-mincost-inv` (int, 50): minimum cost of a dimension-invariant candidate
     * `cire-onstack` (boolean, False): control scope of temporary arrays (on the heap by default)
+  * Device-specific:
+    * `gpu-fit` (boolean, False): list of saved TimeFunctions that fit in the device memory
+    * `gpu-direct` (boolean, False): generate code for optimized GPU-aware MPI
+    * `par-disabled` (boolean, True): enable/disable parallelism on the host
+
 
 ### Optimization parameters by platform
 
@@ -60,3 +65,11 @@
 | cire-repeats-inv    | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-mincost-inv    | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-onstack        | :heavy_check_mark:  |         :x:        |
+
+* Device-specific
+
+|                     |        CPU          |         GPU        |
+|---------------------|---------------------|--------------------|
+| gpu-fit             |        :x:          | :heavy_check_mark: |
+| gpu-direct          |        :x:          | :heavy_check_mark: |
+| par-disabled        |        :x:          | :heavy_check_mark: |

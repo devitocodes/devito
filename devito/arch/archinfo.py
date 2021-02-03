@@ -11,10 +11,12 @@ import re
 from devito.logger import warning
 from devito.tools import all_equal, memoized_func
 
-__all__ = ['platform_registry',
-           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',
-           'ARM',
-           'POWER8', 'POWER9']
+__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info',
+           'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
+           'NvidiaDevice', 'AmdDevice',
+           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
+           'AMD', 'ARM', 'POWER8', 'POWER9',  # Other CPU architectures
+           'AMDGPUX', 'NVIDIAX']  # GPUs
 
 
 @memoized_func
@@ -138,7 +140,7 @@ def get_gpu_info():
     def filter_real_gpus(gpus):
         def is_real_gpu(gpu):
             return 'virtual' not in gpu['product'].lower()
-        return filter(is_real_gpu, gpus)
+        return list(filter(is_real_gpu, gpus))
 
     # The following functions of the form cmd_gpu_info(...) attempt obtaining GPU
     #   information using 'cmd'
@@ -216,7 +218,7 @@ def get_gpu_info():
 
     # Run homogeneity checks on a list of GPU, return GPU with count if homogeneous,
     #   otherwise None
-    def homogenise_gpus(gpus):
+    def homogenise_gpus(gpu_infos):
         if gpu_infos == []:
             warning('No graphics cards detected')
             return None

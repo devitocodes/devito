@@ -6,9 +6,9 @@ from sympy import S
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import retrieve_terminals, q_constant, q_affine
-from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
-                          filter_sorted, flatten, memoized_meth, memoized_generator)
-from devito.types import Dimension
+from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
+                          memoized_meth, memoized_generator)
+from devito.types import Dimension, DimensionTuple
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
@@ -86,7 +86,7 @@ class IterationInstance(LabeledVector):
                     retval.append(IRREGULAR)
             else:
                 retval.append(IRREGULAR)
-        return EnrichedTuple(*retval, getters=self.findices)
+        return DimensionTuple(*retval, getters=self.findices)
 
     @cached_property
     def aindices(self):
@@ -101,7 +101,7 @@ class IterationInstance(LabeledVector):
                 retval.append(fi)
             else:
                 retval.append(None)
-        return EnrichedTuple(*retval, getters=self.findices)
+        return DimensionTuple(*retval, getters=self.findices)
 
     @property
     def findices(self):

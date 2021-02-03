@@ -2,9 +2,9 @@ from collections import OrderedDict, defaultdict
 
 from devito.ir.support.space import Interval
 from devito.ir.support.stencil import Stencil
-from devito.symbolics import retrieve_indexed, retrieve_terminals
+from devito.symbolics import FunctionFromPointer, retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
-from devito.types import Dimension, ModuloDimension
+from devito.types import Dimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_io']
@@ -50,7 +50,7 @@ def detect_oobs(mapper):
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_DiscreteFunction:
+        if f is None or not (f.is_DiscreteFunction or f.is_Array):
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
@@ -66,30 +66,22 @@ def detect_oobs(mapper):
                 # (/p/ not in /f._size_halo/, typical of indirect
                 # accesses such as A[B[i]])
                 pass
-    return found | {i.parent for i in found if i.is_Derived}
+    return found | set().union(*[i._defines for i in found if i.is_Derived])
 
 
 def build_iterators(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return a mapper ``M' : D -> V``,
-    where D is the set of Dimensions in M, and V is a set of
-    DerivedDimensions. M'[d] provides the sub-iterators along the
-    Dimension `d`.
+    where D is the set of Dimensions in M, and V is a set of DerivedDimensions.
+    M'[d] provides the sub-iterators along the Dimension `d`.
     """
     iterators = OrderedDict()
     for k, v in mapper.items():
-        for d, offs in v.items():
+        for d in v:
             if d.is_Stepping:
-                values = iterators.setdefault(d.parent, [])
-                # Offsets are sorted so that the semantic order (t0, t1, t2)
-                # follows sympy's index ordering (t, t-1, t+1) afer modulo replacement
-                # so that associativity errors are consistent.
-                # This corresponds to sorting offsets {-1, 0, 1} as {0, -1, 1} assigning
-                # -inf to 0.
-                for i in sorted(offs, key=lambda x: -float("inf") if x == 0 else x):
-                    md = ModuloDimension(d, d.root + i, k._time_size, origin=d + i)
-                    if md not in values:
-                        values.append(md)
+                values = iterators.setdefault(d.root, [])
+                if d not in values:
+                    values.append(d)
             elif d.is_Conditional:
                 # There are no iterators associated to a ConditionalDimension
                 continue
@@ -103,10 +95,16 @@ def build_intervals(stencil):
     Given a Stencil, return an iterable of Intervals, one
     for each Dimension in the stencil.
     """
-    mapper = {}
+    mapper = defaultdict(set)
     for d, offs in stencil.items():
-        dim = d.parent if d.is_NonlinearDerived else d
-        mapper.setdefault(dim, set()).update(offs)
+        if d.is_Stepping:
+            mapper[d.root].update(offs)
+        elif d.is_Conditional:
+            mapper[d.parent].update(offs)
+        elif d.is_Modulo:
+            mapper[d.root].update({d.offset - d.root + i for i in offs})
+        else:
+            mapper[d].update(offs)
     return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
 
 
@@ -144,7 +142,7 @@ def detect_io(exprs, relax=False):
     reads = []
     terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
     for i in terminals:
-        candidates = i.free_symbols
+        candidates = set(i.free_symbols)
         try:
             candidates.update({i.function})
         except AttributeError:
@@ -162,7 +160,15 @@ def detect_io(exprs, relax=False):
             f = i.lhs.function
         except AttributeError:
             continue
-        if rule(f):
-            writes.append(f)
+        try:
+            if rule(f):
+                writes.append(f)
+        except AttributeError:
+            # We only end up here after complex IET transformations which make
+            # use of composite types
+            assert isinstance(i.lhs, FunctionFromPointer)
+            f = i.lhs.base.function
+            if rule(f):
+                writes.append(f)
 
     return filter_sorted(reads), filter_sorted(writes)

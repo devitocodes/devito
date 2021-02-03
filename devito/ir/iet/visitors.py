@@ -12,13 +12,14 @@ import cgen as c
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
-from devito.symbolics import ccode, uxreplace
+from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction
+from devito.types import ArrayObject, VoidPointer
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer']
+           'IsPerfectIteration', 'printAST', 'CGen', 'Transformer']
 
 
 class Visitor(GenericVisitor):
@@ -201,16 +202,22 @@ class CGen(Visitor):
 
     def visit_PointerCast(self, o):
         f = o.function
+        if isinstance(o.obj, VoidPointer):
+            obj = o.obj.name
+        elif isinstance(o.obj, ArrayObject):
+            obj = '%s->%s' % (o.obj.name, f._C_name)
+        else:
+            obj = f._C_name
         if f.is_PointerArray:
-            rvalue = '(%s**) %s' % (f._C_typedata, f._C_name)
+            rvalue = '(%s**) %s' % (f._C_typedata, obj)
             lvalue = c.Value(f._C_typedata, '**%s' % f.name)
         else:
             shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
             if f.is_DiscreteFunction:
-                rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
+                rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, obj,
                                                 f._C_field_data)
             else:
-                rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, f._C_name)
+                rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, obj)
             lvalue = c.AlignedAttribute(f._data_alignment,
                                         c.Value(f._C_typedata,
                                                 '(*restrict %s)%s' % (f.name, shape)))
@@ -218,11 +225,15 @@ class CGen(Visitor):
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
-        shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
-        rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name, a1.dim.name)
-        lvalue = c.AlignedAttribute(a0._data_alignment,
-                                    c.Value(a0._C_typedata,
-                                            '(*restrict %s)%s' % (a0.name, shape)))
+        if a1.is_PointerArray:
+            shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
+            rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name, a1.dim.name)
+            lvalue = c.AlignedAttribute(a0._data_alignment,
+                                        c.Value(a0._C_typedata,
+                                                '(*restrict %s)%s' % (a0.name, shape)))
+        else:
+            rvalue = '%s->%s' % (a1.name, a0._C_name)
+            lvalue = c.Value(a0._C_typename, a0._C_name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
@@ -237,10 +248,14 @@ class CGen(Visitor):
         return c.Module(o.header + (c.Collection(body),) + o.footer)
 
     def visit_Section(self, o):
-        header = c.Comment("Begin %s" % o.name)
         body = flatten(self._visit(i) for i in o.children)
-        footer = c.Comment("End %s" % o.name)
-        return c.Module([header] + body + [footer])
+        if o.is_subsection:
+            header = []
+            footer = []
+        else:
+            header = [c.Comment("Begin %s" % o.name)]
+            footer = [c.Comment("End %s" % o.name)]
+        return c.Module(header + body + footer)
 
     def visit_Element(self, o):
         return o.element
@@ -261,19 +276,15 @@ class CGen(Visitor):
 
     def visit_LocalExpression(self, o):
         if o.write.is_Array:
-            ctype = [o.expr.lhs._C_typedata]
-            if o.write.volatile:
-                ctype.insert(0, 'volatile')
-            ctype = ' '.join(ctype)
             lhs = '%s%s' % (
                 o.expr.lhs.name,
                 ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
             )
         else:
-            ctype = o.expr.lhs._C_typedata
             lhs = ccode(o.expr.lhs, dtype=o.dtype)
 
-        return c.Initializer(c.Value(ctype, lhs), ccode(o.expr.rhs, dtype=o.dtype))
+        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
+                             ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):
         return c.Statement(ccode(o.expr))
@@ -334,7 +345,7 @@ class CGen(Visitor):
         condition = ccode(o.condition)
         if o.body:
             body = flatten(self._visit(i) for i in o.children)
-            return c.While(condition, body)
+            return c.While(condition, c.Block(body))
         else:
             # Hack: cgen doesn't support body-less while-loops, i.e. `while(...);`
             return c.Statement('while(%s)' % condition)
@@ -363,7 +374,7 @@ class CGen(Visitor):
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
-        retval = [c.Statement("return 0")]
+        retval = [c.Line(), c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
@@ -376,11 +387,15 @@ class CGen(Visitor):
                 efuncs.extend([i.root.ccode, blankline])
 
         # Header files, extra definitions, ...
-        header = [c.Line(i) for i in o._headers]
+        header = [c.Define(*i) for i in o._headers] + [blankline]
         includes = [c.Include(i, system=(False if i.endswith('.h') else True))
                     for i in o._includes]
         includes += [blankline]
         cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
+        for i in o._func_table.values():
+            if i.local:
+                cdefs.extend([j._C_typedecl for j in i.root.parameters
+                              if j._C_typedecl is not None])
         cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
         if o._compiler.src_ext == 'cpp':
             cdefs += [c.Extern('C', signature)]
@@ -542,13 +557,13 @@ class MapNodes(Visitor):
 
 class FindSymbols(Visitor):
 
-    def quick_str(o):
+    def quick_key(o):
         """
         SymPy's __str__ is horribly slow so we stay away from it for as much
         as we can. A devito.Indexed has its own overridden __str__, which
         relies on memoization, which is acceptable.
         """
-        return str(o) if o.is_Indexed else o.name
+        return (str(o) if o.is_Indexed else o.name, type(o))
 
     class Retval(list):
         def __init__(self, *retvals, node=None):
@@ -560,7 +575,7 @@ class FindSymbols(Visitor):
                 except AttributeError:
                     pass
                 elements.extend(i)
-            elements = filter_sorted(elements, key=FindSymbols.quick_str)
+            elements = filter_sorted(elements, key=FindSymbols.quick_key)
             if node is not None:
                 self.mapper[node] = tuple(elements)
             super().__init__(elements)
@@ -779,33 +794,6 @@ class Transformer(Visitor):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
 
 
-class XSubs(Transformer):
-    """
-    Transformer that performs substitutions on Expressions
-    in a given tree, akin to SymPy's ``subs``.
-
-    Parameters
-    ----------
-    mapper : dict, optional
-        The substitution rules.
-    replacer : callable, optional
-        An ad-hoc function to perform the substitution. Defaults to ``uxreplace``.
-    """
-
-    def __init__(self, mapper=None, replacer=None):
-        super(XSubs, self).__init__()
-        self.replacer = replacer or (lambda i: uxreplace(i, mapper))
-
-    def visit_Conditional(self, o):
-        condition = self.replacer(o.condition)
-        then_body = self._visit(o.then_body)
-        else_body = self._visit(o.else_body)
-        return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
-
-    def visit_Expression(self, o):
-        return o._rebuild(expr=self.replacer(o.expr))
-
-
 # Utils
 
 def printAST(node, verbose=True):
@@ -828,7 +816,7 @@ class MultilineCall(c.Generable):
         if not self.is_indirect:
             tip = "%s(" % self.name
         else:
-            tip = "%s," % self.name
+            tip = "%s%s" % (self.name, ',' if self.arguments else '')
         processed = []
         for i in self.arguments:
             if isinstance(i, (MultilineCall, LambdaCollection)):

@@ -1,12 +1,41 @@
 from devito.core.autotuning import autotune
+from devito.exceptions import InvalidOperator
+from devito.logger import warning
 from devito.parameters import configuration
-from devito.passes import NThreads
 from devito.operator import Operator
+from devito.tools import as_tuple, timed_pass
+from devito.types import NThreads
 
-__all__ = ['OperatorCore']
+__all__ = ['CoreOperator', 'CustomOperator']
 
 
-class OperatorCore(Operator):
+class BasicOperator(Operator):
+
+    # The various Operator subclasses are expected to override the following attributes
+
+    _Target = None
+    """
+    The target language constructor, to be specified by subclasses.
+    """
+
+    @classmethod
+    def _normalize_kwargs(cls, **kwargs):
+        # Will be populated with dummy values; this method is actually overriden
+        # by the subclasses
+        o = {}
+        oo = kwargs['options']
+
+        # Execution modes
+        o['mpi'] = False
+        o['parallel'] = False
+
+        if oo:
+            raise InvalidOperator("Unrecognized optimization options: [%s]"
+                                  % ", ".join(list(oo)))
+
+        kwargs['options'].update(o)
+
+        return kwargs
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:
@@ -41,3 +70,133 @@ class OperatorCore(Operator):
         else:
             assert len(nthreads) == 1
             return nthreads.pop()
+
+
+class CoreOperator(BasicOperator):
+    pass
+
+
+class CustomOperator(BasicOperator):
+
+    @classmethod
+    def _make_dsl_passes_mapper(cls, **kwargs):
+        return {}
+
+    @classmethod
+    def _make_exprs_passes_mapper(cls, **kwargs):
+        return {}
+
+    @classmethod
+    def _make_clusters_passes_mapper(cls, **kwargs):
+        return {}
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
+        # Dummy values
+        noop = lambda i: i
+        return {
+            'mpi': noop,
+            'parallel': noop
+        }
+
+    _known_passes = ()
+    _known_passes_disabled = ()
+
+    @classmethod
+    def _build(cls, expressions, **kwargs):
+        # Sanity check
+        passes = as_tuple(kwargs['mode'])
+        for i in passes:
+            if i not in cls._known_passes:
+                if i in cls._known_passes_disabled:
+                    warning("Got explicit pass `%s`, but it's unsupported on an "
+                            "Operator of type `%s`" % (i, str(cls)))
+                else:
+                    raise InvalidOperator("Unknown pass `%s`" % i)
+
+        return super()._build(expressions, **kwargs)
+
+    @classmethod
+    @timed_pass(name='specializing.DSL')
+    def _specialize_dsl(cls, expressions, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_dsl_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                expressions = passes_mapper[i](expressions)
+            except KeyError:
+                pass
+
+        return expressions
+
+    @classmethod
+    @timed_pass(name='specializing.Expressions')
+    def _specialize_exprs(cls, expressions, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_exprs_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                expressions = passes_mapper[i](expressions)
+            except KeyError:
+                pass
+
+        return expressions
+
+    @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_clusters_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                clusters = passes_mapper[i](clusters)
+            except KeyError:
+                pass
+
+        return clusters
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        sregistry = kwargs['sregistry']
+        passes = as_tuple(kwargs['mode'])
+
+        # Run passes
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
+        applied = []
+        for i in passes:
+            try:
+                applied.append(passes_mapper[i])
+                passes_mapper[i](graph)
+            except KeyError:
+                pass
+
+        # Force-call `mpi` if requested via global option
+        if passes_mapper['mpi'] not in applied and options['mpi']:
+            passes_mapper['mpi'](graph)
+
+        # Parallelism
+        if passes_mapper['parallel'] not in applied and options['parallel']:
+            passes_mapper['parallel'](graph)
+
+        # Symbol definitions
+        cls._Target.DataManager(sregistry, options).process(graph)
+
+        # Initialize the target-language runtime
+        if passes_mapper['init'] not in applied:
+            passes_mapper['init'](graph)
+
+        return graph

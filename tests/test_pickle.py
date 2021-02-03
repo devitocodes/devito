@@ -12,8 +12,10 @@ from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
-                          PointerArray, Timer)
-from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer, DefFunction
+                          PointerArray, Lock, PThreadArray, SharedData, Timer,
+                          DeviceID)
+from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
+                              FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
@@ -105,7 +107,7 @@ def test_array():
     d = Dimension(name='d')
 
     a = Array(name='a', dimensions=grid.dimensions, dtype=np.int32, halo=((1, 1), (2, 2)),
-              padding=((2, 2), (2, 2)), scope='stack', sharing='local')
+              padding=((2, 2), (2, 2)), space='remote', scope='stack', sharing='local')
 
     pkl_a = pickle.dumps(a)
     new_a = pickle.loads(pkl_a)
@@ -115,6 +117,7 @@ def test_array():
     assert new_a.dimensions[1].name == 'y'
     assert new_a.halo == ((1, 1), (2, 2))
     assert new_a.padding == ((2, 2), (2, 2))
+    assert new_a.space == 'remote'
     assert new_a.scope == 'stack'
     assert new_a.sharing == 'local'
 
@@ -158,7 +161,7 @@ def test_conditional_dimension():
 def test_incr_dimension():
     s = Scalar(name='s')
     d = Dimension(name='d')
-    dd = IncrDimension(d, s, 5, 2, name='dd')
+    dd = IncrDimension('dd', d, s, 5, 2)
 
     pkl_dd = pickle.dumps(dd)
     new_dd = pickle.loads(pkl_dd)
@@ -190,6 +193,64 @@ def test_custom_dimension():
 
     assert d.name == new_d.name
     assert d.symbolic_size.name == new_d.symbolic_size.name
+
+
+def test_lock():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    ld = CustomDimension(name='ld', symbolic_size=2)
+    lock = Lock(name='lock', dimensions=ld, target=f)
+
+    pkl_lock = pickle.dumps(lock)
+    new_lock = pickle.loads(pkl_lock)
+
+    lock.name == new_lock.name
+    new_lock.dimensions[0].symbolic_size == ld.symbolic_size
+    new_lock.target.name == f.name
+    new_lock.target.shape == f.shape
+
+
+def test_p_thread_array():
+    a = PThreadArray(name='threads', npthreads=4, base_id=2)
+
+    pkl_a = pickle.dumps(a)
+    new_a = pickle.loads(pkl_a)
+
+    assert a.name == new_a.name
+    assert a.dimensions[0].name == new_a.dimensions[0].name
+    assert a.size == new_a.size
+    assert a.base_id == new_a.base_id == 2
+
+
+def test_shared_data():
+    s = Scalar(name='s')
+    a = Scalar(name='a')
+
+    sdata = SharedData(name='sdata', npthreads=2, fields=[s], dynamic_fields=[a])
+
+    pkl_sdata = pickle.dumps(sdata)
+    new_sdata = pickle.loads(pkl_sdata)
+
+    assert sdata.name == new_sdata.name
+    assert sdata.size == new_sdata.size
+    assert sdata.fields == new_sdata.fields
+    assert sdata.pfields == new_sdata.pfields
+    assert sdata.dynamic_fields == new_sdata.dynamic_fields
+
+    ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
+
+    pkl_ffp = pickle.dumps(ffp)
+    new_ffp = pickle.loads(pkl_ffp)
+
+    assert ffp == new_ffp
+
+    indexed = sdata[0]
+
+    pkl_indexed = pickle.dumps(indexed)
+    new_indexed = pickle.loads(pkl_indexed)
+
+    assert indexed.name == new_indexed.name
+    assert indexed.shape == new_indexed.shape
 
 
 def test_receiver():
@@ -403,6 +464,21 @@ def test_mpi_objects():
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
     assert obj.dtype == new_obj.dtype
+
+
+@skipif(['nompi'])
+@pytest.mark.parallel(mode=[1])
+def test_deviceid():
+    grid = Grid(shape=(4, 4, 4))
+
+    did = DeviceID(grid.distributor._obj_comm)
+
+    pkl_did = pickle.dumps(did)
+    new_did = pickle.loads(pkl_did)
+
+    assert did.name == new_did.name
+    assert did.dtype == new_did.dtype
+    assert did.data == new_did.data
 
 
 @skipif(['nompi'])

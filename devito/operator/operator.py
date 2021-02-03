@@ -6,25 +6,23 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 
-from devito.archinfo import platform_registry
-from devito.compiler import compiler_registry
+from devito.arch import compiler_registry, platform_registry
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
-from devito.ir.equations import LoweredEq
+from devito.ir.equations import LoweredEq, lower_exprs, generate_implicit_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import Callable, MetaCall, derive_parameters, iet_build, iet_lower_dims
+from devito.ir.iet import Callable, EntryFunction, MetaCall, derive_parameters, iet_build
 from devito.ir.stree import stree_build
-from devito.ir.equations.algorithms import lower_exprs, generate_implicit_exprs
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, NThreads, NThreadsNested, NThreadsNonaffine, instrument
+from devito.passes import Graph, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import CustomDimension, Evaluable
+from devito.types import Evaluable
 
 __all__ = ['Operator']
 
@@ -132,7 +130,7 @@ class Operator(Callable):
     refer to the relevant documentation.
     """
 
-    _default_headers = ['#define _POSIX_C_SOURCE 200809L']
+    _default_headers = [('_POSIX_C_SOURCE', '200809L')]
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 
@@ -152,7 +150,7 @@ class Operator(Callable):
         kwargs = cls._normalize_kwargs(**kwargs)
 
         # Create a symbol registry
-        kwargs['sregistry'] = cls._symbol_registry()
+        kwargs['sregistry'] = SymbolRegistry()
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
@@ -167,16 +165,6 @@ class Operator(Callable):
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         return kwargs
-
-    @classmethod
-    def _symbol_registry(cls):
-        # Special symbols an Operator might use
-        nthreads = NThreads(aliases='nthreads0')
-        nthreads_nested = NThreadsNested(aliases='nthreads1')
-        nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
-        threadid = CustomDimension(name='tid', symbolic_size=nthreads)
-
-        return SymbolRegistry(nthreads, nthreads_nested, nthreads_nonaffine, threadid)
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -249,9 +237,20 @@ class Operator(Callable):
         return {'optimizations': kwargs.get('mode', configuration['opt'])}
 
     @classmethod
+    def _specialize_dsl(cls, expressions, **kwargs):
+        """
+        Backend hook for specialization at the DSL level. The input is made of
+        expressions and other higher order objects such as Injection or
+        Interpolation; the expressions are still unevaluated at this stage,
+        meaning that they are still in tensorial form and derivatives aren't
+        expanded yet.
+        """
+        return expressions
+
+    @classmethod
     def _specialize_exprs(cls, expressions, **kwargs):
         """
-        Backend hook for specialization at the Expression level.
+        Backend hook for specialization at the expression level.
         """
         return expressions
 
@@ -273,11 +272,14 @@ class Operator(Callable):
         expressions = generate_implicit_exprs(expressions)
 
         # Specialization is performed on unevaluated expressions
-        expressions = cls._specialize_exprs(expressions, **kwargs)
+        expressions = cls._specialize_dsl(expressions, **kwargs)
 
         # Lower functional DSL
         expressions = flatten([i.evaluate for i in expressions])
         expressions = [j for i in expressions for j in i._flatten]
+
+        # A second round of specialization is performed on nevaluated expressions
+        expressions = cls._specialize_exprs(expressions, **kwargs)
 
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
@@ -367,6 +369,7 @@ class Operator(Callable):
             * Finalize (e.g., symbol definitions, array casts)
         """
         name = kwargs.get("name", "Kernel")
+        sregistry = kwargs['sregistry']
 
         # Build an IET from a ScheduleTree
         iet = iet_build(stree)
@@ -374,12 +377,10 @@ class Operator(Callable):
         # Analyze the IET Sections for C-level profiling
         profiler.analyze(iet)
 
-        # Lower all DerivedDimensions
-        iet = iet_lower_dims(iet)
-
-        # Wrap the IET with a Callable
+        # Wrap the IET with an EntryFunction (a special Callable representing
+        # the entry point of the generated library)
         parameters = derive_parameters(iet, True)
-        iet = Callable(name, iet, 'int', parameters, ())
+        iet = EntryFunction(name, iet, 'int', parameters, ())
 
         # Lower IET to a target-specific IET
         graph = Graph(iet)
@@ -388,7 +389,7 @@ class Operator(Callable):
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
-        instrument(graph, profiler=profiler)
+        instrument(graph, profiler=profiler, sregistry=sregistry)
 
         return graph.root, graph
 
@@ -702,7 +703,7 @@ class Operator(Callable):
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
-        info("Operator `%s` run in %.2f s" % (self.name,
+        info("Operator `%s` ran in %.2f s" % (self.name,
                                               fround(self._profiler.py_timers['apply'])))
 
         summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
@@ -712,28 +713,24 @@ class Operator(Callable):
             return summary
 
         if summary.globals:
-            indent = " "*2
+            # Note that with MPI enabled, the global performance indicators
+            # represent "cross-rank" performance data
+            metrics = []
 
-            perf("Global performance indicators")
-
-            # With MPI enabled, the 'vanilla' entry contains "cross-rank" performance data
             v = summary.globals.get('vanilla')
             if v is not None:
-                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-                gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-                metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
-                perf("%s* Operator `%s` with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, self.name, fround(v.oi), fround(v.time), metrics))
+                metrics.append("OI=%.2f" % fround(v.oi))
+                metrics.append("%.2f GFlops/s" % fround(v.gflopss))
 
             v = summary.globals.get('fdlike')
             if v is not None:
-                if v.gflopss is not None:
-                    perf("%s* Achieved %.2f GFlops/s, %.2f FD-GPts/s" %
-                         (indent, v.gflopss, v.gpointss))
-                else:
-                    perf("%s* Achieved %.2f FD-GPts/s" %
-                         (indent, v.gpointss))
-            perf("Local performance indicators")
+                metrics.append("%.2f GPts/s" % fround(v.gpointss))
+
+            if metrics:
+                perf("Global performance: [%s]" % ', '.join(metrics))
+
+            perf("Local performance:")
+            indent = " "*2
         else:
             indent = ""
 
@@ -741,23 +738,23 @@ class Operator(Callable):
         # thing that will be emitted
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
+            oi = "OI=%.2f" % fround(v.oi)
             gflopss = "%.2f GFlops/s" % fround(v.gflopss)
             gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-            metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
+            metrics = ", ".join(i for i in [oi, gflopss, gpointss] if i is not None)
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
-                name = "%s%s<%s>" % (k.name, rank,
-                                     ",".join("<%s>" % i for i in itershapes))
-                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, name, fround(v.oi), fround(v.time), metrics))
+                itershapes = ",".join("<%s>" % i for i in itershapes)
             elif len(itershapes) == 1:
-                name = "%s%s<%s>" % (k.name, rank, itershapes[0])
-                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, name, fround(v.oi), fround(v.time), metrics))
+                itershapes = itershapes[0]
             else:
-                name = k.name
-                perf("%s* %s%s computed in %.2f s"
-                     % (indent, name, rank, fround(v.time)))
+                itershapes = ""
+            name = "%s%s<%s>" % (k.name, rank, itershapes)
+
+            perf("%s* %s ran in %.2f s [%s]" % (indent, name, fround(v.time), metrics))
+            for n, time in summary.subsections.get(k.name, {}).items():
+                perf("%s+ %s ran in %.2f s [%.2f%%]" %
+                     (indent*2, n, time, fround(time/v.time*100)))
 
         # Emit performance mode and arguments
         perf_args = {}

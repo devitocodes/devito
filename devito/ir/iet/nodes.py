@@ -10,20 +10,20 @@ from collections.abc import Iterable
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.equations import ClusterizedEq
+from devito.ir.equations import ClusterizedEq, DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
-                               AFFINE, Property, Forward, detect_io)
+                               AFFINE, COLLAPSED, Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          validate_type, dtype_to_cstr)
-from devito.types import Symbol, Indexed
-from devito.types.basic import AbstractFunction
+                          validate_type)
+from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda']
+           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
+           'PragmaList', 'DummyExpr', 'BlankLine', 'ParallelTree']
 
 # First-class IET nodes
 
@@ -54,6 +54,7 @@ class Node(Signer):
     is_ExpressionBundle = False
     is_ParallelIteration = False
     is_ParallelBlock = False
+    is_SyncSpot = False
 
     _traversable = []
     """
@@ -267,12 +268,13 @@ class Call(ExprStmt, Node):
 
     @property
     def functions(self):
-        retval = tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+        retval = [i.function for i in self.arguments
+                  if isinstance(i, (AbstractFunction, Indexed, LocalObject))]
         if self.base is not None:
-            retval += (self.base,)
+            retval.append(self.base.function)
         if self.retobj is not None:
-            retval += (self.retobj.function,)
-        return retval
+            retval.append(self.retobj.function)
+        return tuple(retval)
 
     @property
     def children(self):
@@ -285,7 +287,12 @@ class Call(ExprStmt, Node):
             if isinstance(i, numbers.Number):
                 continue
             elif isinstance(i, AbstractFunction):
-                free.add(i)
+                if i.is_ArrayBasic:
+                    free.add(i)
+                else:
+                    # Always passed by _C_name since what actually needs to be
+                    # provided is the pointer to the corresponding C struct
+                    free.add(i._C_symbol)
             else:
                 free.update(i.free_symbols)
         if self.base is not None:
@@ -354,10 +361,10 @@ class Expression(ExprStmt, Node):
         """The Functions read by the Expression."""
         return detect_io(self.expr, relax=True)[0]
 
-    @property
+    @cached_property
     def write(self):
         """The Function written by the Expression."""
-        return self.expr.lhs.function
+        return self.expr.lhs.base.function
 
     @cached_property
     def dimensions(self):
@@ -654,10 +661,8 @@ class Callable(Node):
         self.parameters = as_tuple(parameters)
 
     def __repr__(self):
-        parameters = ",".join(['void*' if i.is_Object else dtype_to_cstr(i.dtype)
-                               for i in self.parameters])
         return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
-                                   parameters)
+                                   ",".join([i._C_typename for i in self.parameters]))
 
     @property
     def functions(self):
@@ -665,7 +670,7 @@ class Callable(Node):
 
     @property
     def free_symbols(self):
-        return tuple(self.parameters)
+        return ()
 
     @property
     def defines(self):
@@ -742,14 +747,21 @@ class TimedList(List):
     def __init__(self, timer, lname, body):
         self._name = lname
         self._timer = timer
-        header = [c.Statement("struct timeval start_%s, end_%s" % (lname, lname)),
-                  c.Statement("gettimeofday(&start_%s, NULL)" % lname)]
-        footer = [c.Statement("gettimeofday(&end_%s, NULL)" % lname),
-                  c.Statement(("%(gn)s->%(ln)s += " +
-                               "(double)(end_%(ln)s.tv_sec-start_%(ln)s.tv_sec)+" +
-                               "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
-                               "/1000000") % {'gn': timer.name, 'ln': lname})]
-        super(TimedList, self).__init__(header, body, footer)
+
+        super().__init__(header=c.Line('START_TIMER(%s)' % lname),
+                         body=body,
+                         footer=c.Line('STOP_TIMER(%s,%s)' % (lname, timer.name)))
+
+    @classmethod
+    def _start_timer_header(cls):
+        return ('START_TIMER(S)', ('struct timeval start_ ## S , end_ ## S ; '
+                                   'gettimeofday(&start_ ## S , NULL);'))
+
+    @classmethod
+    def _stop_timer_header(cls):
+        return ('STOP_TIMER(S,T)', ('gettimeofday(&end_ ## S, NULL); T->S += (double)'
+                                    '(end_ ## S .tv_sec-start_ ## S.tv_sec)+(double)'
+                                    '(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000;'))
 
     @property
     def name(self):
@@ -761,10 +773,10 @@ class TimedList(List):
 
     @property
     def free_symbols(self):
-        return (self.timer,)
+        return ()
 
 
-class PointerCast(Node):
+class PointerCast(ExprStmt, Node):
 
     """
     A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
@@ -772,8 +784,9 @@ class PointerCast(Node):
 
     is_PointerCast = True
 
-    def __init__(self, function):
+    def __init__(self, function, obj=None):
         self.function = function
+        self.obj = obj
 
     def __repr__(self):
         return "<PointerCast(%s)>" % self.function
@@ -800,11 +813,11 @@ class PointerCast(Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        if self.function.is_ArrayBasic:
-            sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
-            return (self.function, ) + as_tuple(sizes)
+        f = self.function
+        if f.is_ArrayBasic:
+            return tuple(flatten(s.free_symbols for s in f.symbolic_shape[1:]))
         else:
-            return (self.function,)
+            return ()
 
     @property
     def defines(self):
@@ -814,7 +827,12 @@ class PointerCast(Node):
 class Dereference(ExprStmt, Node):
 
     """
-    A node encapsulating a dereference from a PointerArray to an Array.
+    A node encapsulating a dereference from an object `parray` to another object
+    `array`. Two possibilities are supported:
+
+        * `parray` is a PointerArray and `array` is an Array (default case)
+        * `parray` is an ArrayObject representing a pointer to a C struct while
+          `array` is a field in `parray`.
     """
 
     is_Dereference = True
@@ -837,7 +855,7 @@ class Dereference(ExprStmt, Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        return ((self.array, self.parray) +
+        return ((self.array.indexed.label, self.parray.indexed.label) +
                 tuple(flatten(i.free_symbols for i in self.array.symbolic_shape[1:])) +
                 tuple(self.parray.free_symbols))
 
@@ -853,6 +871,10 @@ class LocalExpression(Expression):
     """
 
     is_LocalExpression = True
+
+    @cached_property
+    def write(self):
+        return self.expr.lhs.function
 
     @property
     def defines(self):
@@ -957,12 +979,13 @@ class Section(List):
 
     is_Section = True
 
-    def __init__(self, name, body=None):
+    def __init__(self, name, body=None, is_subsection=False):
         super(Section, self).__init__(body=body)
         self.name = name
+        self.is_subsection = is_subsection
 
     def __repr__(self):
-        return "<Section (%d)>" % len(self.body)
+        return "<Section (%s)>" % self.name
 
     @property
     def roots(self):
@@ -1023,6 +1046,29 @@ class Prodder(Call):
         return self._periodic
 
 
+class PragmaList(List):
+
+    """
+    A floating sequence of pragmas.
+    """
+
+    def __init__(self, pragmas, functions=None, **kwargs):
+        super().__init__(header=pragmas)
+        self._functions = as_tuple(functions)
+
+    @property
+    def pragmas(self):
+        return self.header
+
+    @property
+    def functions(self):
+        return self._functions
+
+    @property
+    def free_symbols(self):
+        return self._functions
+
+
 class ParallelIteration(Iteration):
 
     """
@@ -1030,6 +1076,51 @@ class ParallelIteration(Iteration):
     """
 
     is_ParallelIteration = True
+
+    def __init__(self, *args, **kwargs):
+        pragmas, kwargs, properties = self._make_header(**kwargs)
+        super().__init__(*args, pragmas=pragmas, properties=properties, **kwargs)
+
+    @classmethod
+    def _make_header(cls, **kwargs):
+        construct = cls._make_construct(**kwargs)
+        clauses = cls._make_clauses(**kwargs)
+        header = c.Pragma(' '.join([construct] + clauses))
+
+        # Extract the Iteration Properties
+        properties = cls._process_properties(**kwargs)
+
+        # Drop the unrecognised or unused kwargs
+        kwargs = cls._process_kwargs(**kwargs)
+
+        return (header,), kwargs, properties
+
+    @classmethod
+    def _make_construct(cls, **kwargs):
+        # To be overridden by subclasses
+        raise NotImplementedError
+
+    @classmethod
+    def _make_clauses(cls, **kwargs):
+        return []
+
+    @classmethod
+    def _process_properties(cls, **kwargs):
+        properties = as_tuple(kwargs.get('properties'))
+        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
+
+        return properties
+
+    @classmethod
+    def _process_kwargs(cls, **kwargs):
+        kwargs.pop('pragmas', None)
+        kwargs.pop('properties', None)
+
+        # Recognised clauses
+        kwargs.pop('ncollapse', None)
+        kwargs.pop('reduction', None)
+
+        return kwargs
 
 
 class ParallelBlock(Block):
@@ -1041,6 +1132,82 @@ class ParallelBlock(Block):
     is_ParallelBlock = True
 
 
+class ParallelTree(List):
+
+    """
+    This class is to group together a parallel for-loop with some setup
+    statements, for example:
+
+        .. code-block:: C
+
+          int chunk_size = ...
+          #pragma parallel for ... schedule(..., chunk_size)
+          for (int i = ...)
+          {
+            ...
+          }
+    """
+
+    _traversable = ['prefix', 'body']
+
+    def __init__(self, prefix, body, nthreads=None):
+        # Normalize and sanity-check input
+        body = as_tuple(body)
+        assert len(body) == 1 and body[0].is_Iteration
+
+        self.prefix = as_tuple(prefix)
+        self.nthreads = nthreads
+
+        super().__init__(body=body)
+
+    def __getattr__(self, name):
+        if 'body' in self.__dict__:
+            # During unpickling, `__setattr__` calls `__getattr__(..., 'body')`,
+            # which would cause infinite recursion if we didn't check whether
+            # 'body' is present or not
+            return getattr(self.body[0], name)
+        raise AttributeError
+
+    @property
+    def functions(self):
+        return as_tuple(self.nthreads)
+
+    @property
+    def root(self):
+        return self.body[0]
+
+
+class SyncSpot(List):
+
+    """
+    A node representing one or more synchronization operations, e.g., WaitLock,
+    withLock, etc.
+    """
+
+    is_SyncSpot = True
+
+    def __init__(self, sync_ops, body=None):
+        super().__init__(body=body)
+        self.sync_ops = sync_ops
+
+    def __repr__(self):
+        return "<SyncSpot (%s)>" % ",".join(str(i) for i in self.sync_ops)
+
+
+class CBlankLine(List):
+
+    def __init__(self, **kwargs):
+        super().__init__(header=c.Line())
+
+    def __repr__(self):
+        return ""
+
+
+def DummyExpr(*args):
+    return Expression(DummyEq(*args))
+
+
+BlankLine = CBlankLine()
 Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))
 
 
