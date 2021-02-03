@@ -455,10 +455,11 @@ class TestCaching(object):
         for i in range(10):
             assert(len(_SymbolCache) == cache_size)
 
-            Function(name='u', grid=grid, space_order=2)
+            u = Function(name='u', grid=grid, space_order=2)
+            u._C_symbol
             # Both u and u(inds) added to cache
-            assert(len(_SymbolCache) == cache_size + 2)
-
+            assert(len(_SymbolCache) == cache_size + 3)
+            del u
             clear_cache()
 
     def test_clear_cache_with_alive_symbols(self, operate_on_empty_cache,

@@ -1209,12 +1209,12 @@ class BoundSymbol(Symbol):
     Wrapper class for Symbols that are bound to a symbolic data object.
     """
 
-    def __init_finalize__(self, *args, function=None, **kwargs):
-        self._function = function
+    def __new__(cls, *args, function=None, **kwargs):
+        obj = Symbol.__new__(cls, *args, **kwargs)
+        obj._function = function
+        return obj
 
-        super().__init_finalize__(*args, **kwargs)
-
-    @property
+    @cached_property
     def function(self):
         return self._function
 
