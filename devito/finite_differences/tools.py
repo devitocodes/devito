@@ -46,14 +46,11 @@ centered = Side('centered', 0)
 def check_input(func):
     @wraps(func)
     def wrapper(expr, *args, **kwargs):
-        from devito.finite_differences import Differentiable
-        if expr.is_Number:
-            return S.Zero
-        elif not isinstance(expr, Differentiable):
-            raise ValueError("`%s` must be of type Differentiable (found `%s`)"
+        try:
+            return S.Zero if expr.is_Number else func(expr, *args, **kwargs)
+        except AttributeError:
+            raise ValueError("'%s' must be of type Differentiable, not %s"
                              % (expr, type(expr)))
-        else:
-            return func(expr, *args, **kwargs)
     return wrapper
 
 
