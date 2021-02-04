@@ -469,7 +469,7 @@ class TestCaching(object):
         # Both u and u(inds) added to cache
         assert(len(_SymbolCache) == cache_size + 2)
 
-        a = u._C_symbol
+        u._C_symbol
         # Cache size won't change since _C_symbol isn't cached by devito to
         # avoid circular references in the cache
         assert(len(_SymbolCache) == cache_size + 2)
