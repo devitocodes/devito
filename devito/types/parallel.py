@@ -1,31 +1,31 @@
 """
-Support types for the generation of shared-memory parallel code. This module
-contains basic types for threaded code (e.g., special symbols representing
+Support types for the generation of parallel code. This module contains types
+for the generation of threaded code (e.g., special symbols representing
 the number of threads in a parallel region, objects such as locks to
-implement thread synchronization, etc). Most of these objects are used internally
-by the compiler.
+implement thread synchronization, etc) and device code (e.g., a special symbol
+identifying a device attached to a node).
 """
 
 import os
 from collections import defaultdict
-from ctypes import POINTER, c_int, c_void_p
+from ctypes import c_void_p
 
-from cgen import Initializer, Struct, Value
 from cached_property import cached_property
 import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
-                          dtype_to_cstr, filter_ordered)
+from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered
 from devito.types.array import Array, ArrayObject
-from devito.types.basic import Scalar
+from devito.types.basic import Symbol
 from devito.types.constant import Constant
 from devito.types.dimension import CustomDimension
+from devito.types.misc import VolatileInt, c_volatile_int_p
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin',
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin', 'DeviceID',
            'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
-           'Delete', 'STDThreadArray', 'SharedData', 'NThreadsSTD', 'normalize_syncs']
+           'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM',
+           'normalize_syncs']
 
 
 class NThreadsMixin(object):
@@ -82,9 +82,9 @@ class NThreadsNonaffine(NThreads):
     name = 'nthreads_nonaffine'
 
 
-class NThreadsSTD(NThreadsMixin, Constant):
+class NPThreads(NThreadsMixin, Constant):
 
-    name = 'nthreads_std'
+    name = 'npthreads'
 
     @classmethod
     def default_value(cls):
@@ -104,7 +104,7 @@ class ThreadArray(ArrayObject):
         try:
             return as_tuple(kwargs['dimensions']), as_tuple(kwargs['dimensions'])
         except KeyError:
-            nthreads = kwargs['nthreads_std']
+            nthreads = kwargs['npthreads']
             dim = CustomDimension(name='wi', symbolic_size=nthreads)
             return (dim,), (dim,)
 
@@ -120,14 +120,26 @@ class ThreadArray(ArrayObject):
         else:
             return self.dim
 
+    @cached_property
+    def symbolic_base(self):
+        return Symbol(name=self.name, dtype=None)
 
-class STDThreadArray(ThreadArray):
 
-    dtype = type('std::thread', (c_void_p,), {})
+class PThreadArray(ThreadArray):
+
+    dtype = type('pthread_t', (c_void_p,), {})
+
+    def __init_finalize__(self, *args, **kwargs):
+        self.base_id = kwargs.pop('base_id')
+
+        super().__init_finalize__(*args, **kwargs)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return cls.dtype
+
+    # Pickling support
+    _pickle_kwargs = ThreadArray._pickle_kwargs + ['base_id']
 
 
 class SharedData(ThreadArray):
@@ -140,34 +152,29 @@ class SharedData(ThreadArray):
     _field_id = 'id'
     _field_flag = 'flag'
 
+    _symbolic_id = Symbol(name=_field_id, dtype=np.int32)
+    _symbolic_flag = VolatileInt(name=_field_flag)
+
+    def __init_finalize__(self, *args, **kwargs):
+        self.dynamic_fields = tuple(kwargs.pop('dynamic_fields', ()))
+
+        super().__init_finalize__(*args, **kwargs)
+
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        pfields = super().__pfields_setup__(**kwargs)
-        pfields.extend([(cls._field_id, c_int),
-                        (cls._field_flag, c_int)])
-        return pfields
-
-    @cached_property
-    def _C_typedecl(self):
-        fields = []
-        for i, j in self.pfields:
-            if i == self._field_flag:
-                fields.append(Initializer(Value('volatile %s' % ctypes_to_cstr(j), i), 1))
-            else:
-                fields.append(Value(ctypes_to_cstr(j), i))
-        return Struct(self.pname, fields)
-
-    @cached_property
-    def symbolic_base(self):
-        return Scalar(name=self.name, dtype=None)
+        fields = as_list(kwargs.get('fields')) + [cls._symbolic_id, cls._symbolic_flag]
+        return [(i._C_name, i._C_ctype) for i in fields]
 
     @cached_property
     def symbolic_id(self):
-        return Scalar(name='id', dtype=np.int32)
+        return self._symbolic_id
 
     @cached_property
     def symbolic_flag(self):
-        return Scalar(name='flag', dtype=np.int32)
+        return self._symbolic_flag
+
+    # Pickling support
+    _pickle_kwargs = ThreadArray._pickle_kwargs + ['dynamic_fields']
 
 
 class Lock(Array):
@@ -198,8 +205,8 @@ class Lock(Array):
         return self._target
 
     @property
-    def _C_typename(self):
-        return 'volatile %s' % ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
+    def _C_ctype(self):
+        return c_volatile_int_p
 
     @property
     def _C_typedata(self):
@@ -329,3 +336,42 @@ def normalize_syncs(*args):
             raise ValueError("Incompatible SyncOps")
 
     return syncs
+
+
+class DeviceSymbol(Constant):
+
+    is_PerfKnob = True
+
+    def __new__(cls, *args, **kwargs):
+        kwargs['name'] = cls.name
+        kwargs['value'] = cls.__value_setup__(**kwargs)
+        return Constant.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return np.int32
+
+
+class DeviceID(DeviceSymbol):
+
+    name = 'deviceid'
+
+    @classmethod
+    def __value_setup__(cls, **kwargs):
+        return -1
+
+
+class DeviceRM(DeviceSymbol):
+
+    name = 'devicerm'
+
+    @classmethod
+    def __value_setup__(cls, **kwargs):
+        return 1
+
+    def _arg_values(self, **kwargs):
+        try:
+            # Enforce 1 or 0
+            return {self.name: int(bool(kwargs[self.name]))}
+        except KeyError:
+            return self._arg_defaults()

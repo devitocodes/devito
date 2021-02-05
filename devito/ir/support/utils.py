@@ -142,7 +142,7 @@ def detect_io(exprs, relax=False):
     reads = []
     terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
     for i in terminals:
-        candidates = i.free_symbols
+        candidates = set(i.free_symbols)
         try:
             candidates.update({i.function})
         except AttributeError:

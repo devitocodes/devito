@@ -473,6 +473,7 @@ class MPICommObject(Object):
         comm_ptr = MPI._addressof(comm)
         comm_val = self.dtype.from_address(comm_ptr)
         self.value = comm_val
+        self.comm = comm
 
     def _arg_values(self, *args, **kwargs):
         grid = kwargs.get('grid', None)

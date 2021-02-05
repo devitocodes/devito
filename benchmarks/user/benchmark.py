@@ -6,7 +6,7 @@ import click
 import os
 from devito import (clear_cache, configuration, info, warning, set_log_level,
                     switchconfig, norm)
-from devito.compiler import IntelCompiler
+from devito.arch.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.operator.profiling import PerformanceSummary
 from devito.tools import all_equal, as_tuple, sweep
@@ -577,16 +577,17 @@ def get_ob_exec(func):
 
             summary = retval[-1]
             assert isinstance(summary, PerformanceSummary)
-            globals = summary.globals['fdlike']
+            fdlike = summary.globals['fdlike']
+            vanilla = summary.globals['vanilla']
 
             # global: produces one json from rank 0 with global metrics
             # local: produces one json per rank, each rank produces local metrics
             # all: rank 0 produces globals and local, other ranks produce local metrics
             if dump_format == 'global' or dump_format == 'all':
-                self.register(globals.gflopss, measure="gflopss", event="global")
-                self.register(globals.oi, measure="oi", event="global")
-                self.register(globals.gpointss, measure="gpointss", event="global")
-                self.register(globals.time, measure="timings", event="global")
+                self.register(vanilla.gflopss, measure="gflopss", event="global")
+                self.register(vanilla.oi, measure="oi", event="global")
+                self.register(fdlike.gpointss, measure="gpointss", event="global")
+                self.register(fdlike.time, measure="timings", event="global")
 
             if dump_format == 'local' or dump_format == 'all':
                 for key in summary.keys():

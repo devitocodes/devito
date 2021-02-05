@@ -1336,7 +1336,7 @@ class TestDeclarator(object):
         list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value)))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
-        iet = DataManager.place_definitions.__wrapped__(DataManager(None), iet)[0]
+        iet = DataManager.place_definitions.__wrapped__(DataManager(None, None), iet)[0]
         for i in iet.body[0].children:
             assert len(i) == 1
             assert i[0].is_Expression

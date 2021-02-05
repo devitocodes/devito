@@ -87,12 +87,11 @@ class Profiler(object):
             itermaps = [i.ispace.dimension_map for i in bundles]
 
             # Track how many grid points are written within `s`
-            points = []
+            points = set()
             for i in bundles:
-                writes = {e.write for e in i.exprs
-                          if e.is_tensor and e.write.is_TimeFunction}
-                points.append(i.size*len(writes))
-            points = sum(points)
+                if any(e.write.is_TimeFunction for e in i.exprs):
+                    points.add(i.size)
+            points = sum(points, S.Zero)
 
             self._sections[s.name] = SectionData(ops, sops, points, traffic, itermaps)
 
@@ -388,53 +387,30 @@ class PerformanceSummary(OrderedDict):
         Reduce the following performance data:
 
             * ops
-            * points
             * traffic
 
-        over a global "wrapping" timer.
+        over a given global timing.
         """
         if not self.input:
             return
 
         ops = sum(v.ops for v in self.input.values())
-        points = sum(v.points for v in self.input.values())
         traffic = sum(v.traffic for v in self.input.values())
 
         gflops = float(ops)/10**9
-        gpoints = float(points)/10**9
         gflopss = gflops/time
-        gpointss = gpoints/time
         oi = float(ops/traffic)
 
-        self.globals['vanilla'] = PerfEntry(time, gflopss, gpointss, oi, None, None)
+        self.globals['vanilla'] = PerfEntry(time, gflopss, None, oi, None, None)
 
     def add_glb_fdlike(self, points, time):
         """
-        Add "finite-difference-like" performance metrics, that is GPoints/s and
-        GFlops/s as if the code looked like a trivial n-D jacobi update
-
-            .. code-block:: c
-
-              for t = t_m to t_M
-                for x = 0 to x_size
-                  for y = 0 to y_size
-                    u[t+1, x, y] = f(...)
+        Add the typical GPoints/s finite-difference metric.
         """
         gpoints = float(points)/10**9
         gpointss = gpoints/time
 
-        if self.input:
-            traffic = sum(v.traffic for v in self.input.values())
-            ops = sum(v.ops for v in self.input.values())
-
-            gflops = float(ops)/10**9
-            gflopss = gflops/time
-            oi = float(ops/traffic)
-        else:
-            gflopss = None
-            oi = None
-
-        self.globals['fdlike'] = PerfEntry(time, gflopss, gpointss, oi, None, None)
+        self.globals['fdlike'] = PerfEntry(time, None, gpointss, None, None, None)
 
     @property
     def gflopss(self):

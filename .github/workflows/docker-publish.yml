@@ -48,7 +48,7 @@ jobs:
           push: true
           tags: |
             devitocodes/devito:cpu-latest
-            'devitocodes/devito:cpu-${{ github.event.release.tag_name }}'
+            devitocodes/devito:cpu-${{ github.event.release.tag_name }}
 
   deploy-docker-gpu:
     runs-on: [self-hosted, gpu, docker]
@@ -90,7 +90,7 @@ jobs:
           push: true
           tags: |
             devitocodes/devito:gpu-latest
-            'devitocodes/devito:gpu-${{ github.event.release.tag_name }}'
+            devitocodes/devito:gpu-${{ github.event.release.tag_name }}
 
   # Comment out 'cpu-latest' until next release
   test-cpu-image:

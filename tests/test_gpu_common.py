@@ -3,10 +3,10 @@ import numpy as np
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     SubDimension, SubDomain, TimeFunction, Operator)
-from devito.archinfo import get_gpu_info
+from devito.arch import get_gpu_info
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
-from devito.passes import OpenMPIteration
-from devito.types import Lock, STDThreadArray
+from devito.passes.iet.languages.openmp import OmpIteration
+from devito.types import DeviceID, DeviceRM, Lock, PThreadArray
 
 from conftest import skipif
 
@@ -57,7 +57,6 @@ class Bundle(SubDomain):
         return {x: ('middle', 0, 0), y: ('middle', 0, 0), z: ('middle', 0, 0)}
 
 
-@skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
 class TestStreaming(object):
 
     def test_tasking_in_isolation(self):
@@ -113,14 +112,16 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op)) == 4
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
-        assert len(op._func_table) == 1
+        assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 7
-        assert str(exprs[0]) == 'const int time = sdata0->time;'
-        assert str(exprs[1]) == 'int id = sdata0->id;'
-        assert str(exprs[2]) == 'lock0[0] = 1;'
-        assert exprs[3].write is u
-        assert exprs[4].write is v
+        assert len(exprs) == 19
+        assert str(exprs[12]) == 'int id = sdata0->id;'
+        assert str(exprs[13]) == 'const int time = sdata0->time;'
+        assert str(exprs[14]) == 'lock0[0] = 1;'
+        assert exprs[15].write is u
+        assert exprs[16].write is v
+        assert str(exprs[17]) == 'lock0[0] = 2;'
+        assert str(exprs[18]) == 'sdata0->flag = 1;'
 
         op.apply(time_M=nt-2)
 
@@ -169,14 +170,14 @@ class TestStreaming(object):
         assert str(body.body[2]) == 'sdata1[wi1].time = time;'
         assert str(body.body[3]) == 'lock1[0] = 0;'  # Set-lock
         assert str(body.body[4]) == 'sdata1[wi1].flag = 2;'
-        assert len(op._func_table) == 2
+        assert len(op._func_table) == 4
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 6
-        assert str(exprs[2]) == 'lock0[0] = 1;'
-        assert exprs[3].write is u
+        assert len(exprs) == 18
+        assert str(exprs[14]) == 'lock0[0] = 1;'
+        assert exprs[15].write is u
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host1'].root)
-        assert str(exprs[2]) == 'lock1[0] = 1;'
-        assert exprs[3].write is v
+        assert str(exprs[14]) == 'lock1[0] = 1;'
+        assert exprs[15].write is v
 
         op.apply(time_M=nt-2)
 
@@ -194,16 +195,16 @@ class TestStreaming(object):
 
         op = Operator(Eq(u.forward, u + 1), opt=opt)
 
-        piters = FindNodes(OpenMPIteration).visit(op)
+        piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 0
 
         op = Operator(Eq(u.forward, u + 1), opt=(opt, {'par-disabled': False}))
 
         # Degenerates to host execution with no data movement, since `u` is
         # a host Function
-        piters = FindNodes(OpenMPIteration).visit(op)
+        piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 1
-        assert type(piters.pop()) == OpenMPIteration
+        assert type(piters.pop()) == OmpIteration
 
     def test_tasking_multi_output(self):
         nt = 10
@@ -234,12 +235,12 @@ class TestStreaming(object):
         for i in range(3):
             assert 'lock0[t' in str(sections[1].body[0].body[0].body[6 + i])  # Set-lock
         assert str(sections[1].body[0].body[0].body[9]) == 'sdata0[wi0].flag = 2;'
-        assert len(op1._func_table) == 1
+        assert len(op1._func_table) == 2
         exprs = FindNodes(Expression).visit(op1._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 13
+        assert len(exprs) == 25
         for i in range(3):
-            assert 'lock0[t' in str(exprs[5 + i])
-        assert exprs[8].write is usave
+            assert 'lock0[t' in str(exprs[17 + i])
+        assert exprs[20].write is usave
 
         op0.apply(time_M=nt-2)
         op1.apply(time_M=nt-2, u=u1, usave=usave1)
@@ -269,6 +270,7 @@ class TestStreaming(object):
         assert str(sections[1].body[0].body[0].body[0].body[0]) ==\
             'while(lock0[t1] == 0);'
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_simple(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -288,6 +290,7 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 28)
         assert np.all(u.data[1] == 36)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_two_buffers(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -309,6 +312,7 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_multi_input(self):
         nt = 100
         grid = Grid(shape=(10, 10))
@@ -332,6 +336,7 @@ class TestStreaming(object):
 
         assert np.all(grad.data == grad1.data)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_postponed_deletion(self):
         nt = 10
         grid = Grid(shape=(10, 10, 10))
@@ -357,6 +362,7 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(v.data == v1.data)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_with_host_loop(self):
         grid = Grid(shape=(10, 10, 10))
 
@@ -368,10 +374,11 @@ class TestStreaming(object):
 
         op = Operator(eqns, opt=('streaming', 'orchestrate'))
 
-        assert len(op._func_table) == 2
+        assert len(op._func_table) == 3
         assert 'init_device0' in op._func_table
         assert 'prefetch_host_to_device0' in op._func_table
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_composite_streaming_tasking(self):
         nt = 10
         grid = Grid(shape=(10, 10, 10))
@@ -396,7 +403,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 4
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1
-        threads = [i for i in symbols if isinstance(i, STDThreadArray)]
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size == 1
         assert threads[1].size.data == 2
@@ -428,7 +435,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 5
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1
-        threads = [i for i in symbols if isinstance(i, STDThreadArray)]
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 1
         assert threads[0].size.data == 1
 
@@ -466,11 +473,11 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 7
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 2
-        threads = [i for i in symbols if isinstance(i, STDThreadArray)]
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.data == 1
         assert threads[1].size.data == 1
-        assert len(op1._func_table) == 2  # usave and vsave eqns are in two diff efuncs
+        assert len(op1._func_table) == 4  # usave and vsave eqns are in two diff efuncs
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
@@ -480,6 +487,7 @@ class TestStreaming(object):
         assert np.all(usave.data == usave1.data)
         assert np.all(vsave.data == vsave1.data)
 
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_composite_full(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -584,7 +592,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate'))
 
         # Check generated code
-        assert len(op._func_table) == 2  # usave and vsave eqns are in separate tasks
+        assert len(op._func_table) == 4  # usave and vsave eqns are in separate tasks
 
         op.apply(time_M=nt-1)
 
@@ -635,9 +643,8 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
 
         # We just check the generated code here
-        locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
-        assert len(locks) == 1
-        assert len(op._func_table) == 1
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
+        assert len(op._func_table) == 2
 
     def test_save_w_subdims(self):
         nt = 10
@@ -669,8 +676,12 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, :3] == 0)
             assert np.all(usave.data[i, :, -3:] == 0)
 
-    @pytest.mark.parametrize('gpu_fit', [True, False])
-    def test_xcor_from_saved(self, gpu_fit):
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
+    @pytest.mark.parametrize('opt,gpu_fit', [
+        (('streaming', 'orchestrate'), True),
+        (('streaming', 'orchestrate'), False)
+    ])
+    def test_xcor_from_saved(self, opt, gpu_fit):
         nt = 10
         grid = Grid(shape=(300, 300, 300))
         time_dim = grid.time_dim
@@ -692,9 +703,55 @@ class TestStreaming(object):
         # Assuming nt//period=5, we are computing, over 5 iterations:
         # g = 4*4  [time=8] + 3*3 [time=6] + 2*2 [time=4] + 1*1 [time=2]
         op = Operator([Eq(v.backward, v - 1), Inc(g, usave*(v/2))],
-                      opt=('streaming', 'orchestrate',
-                           {'gpu-fit': usave if gpu_fit else None}))
+                      opt=(opt, {'gpu-fit': usave if gpu_fit else None}))
 
         op.apply(time_M=nt-1)
 
         assert np.all(g.data == 30)
+
+
+class TestAPI(object):
+
+    def get_param(self, op, param):
+        for i in op.parameters:
+            if isinstance(i, param):
+                return i
+        return None
+
+    def check_deviceid(self):
+        grid = Grid(shape=(6, 6))
+
+        u = TimeFunction(name='u', grid=grid, space_order=2, save=10)
+
+        op = Operator(Eq(u.forward, u.dx + 1))
+
+        deviceid = self.get_param(op, DeviceID)
+        assert deviceid is not None
+        assert deviceid.data == -1
+        assert op.arguments()[deviceid.name] == -1
+        assert op.arguments(deviceid=0)[deviceid.name] == 0
+
+    def test_deviceid(self):
+        self.check_deviceid()
+
+    @pytest.mark.parallel(mode=1)
+    def test_deviceid_w_mpi(self):
+        self.check_deviceid()
+
+    def test_devicerm(self):
+        grid = Grid(shape=(6, 6))
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid)
+
+        op = Operator(Eq(u.forward, u.dx + f))
+
+        devicerm = self.get_param(op, DeviceRM)
+        assert devicerm is not None
+        assert devicerm.data == 1  # Always evict, by default
+        assert op.arguments(time_M=2)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=0)[devicerm.name] == 0
+        assert op.arguments(time_M=2, devicerm=1)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=224)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=True)[devicerm.name] == 1
+        assert op.arguments(time_M=2, devicerm=False)[devicerm.name] == 0
