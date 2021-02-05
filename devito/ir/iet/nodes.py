@@ -11,8 +11,9 @@ import cgen as c
 
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq, DummyEq
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
-                               AFFINE, COLLAPSED, Property, Forward, detect_io)
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+                               PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
+                               Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type)
@@ -508,8 +509,12 @@ class Iteration(Node):
         return PARALLEL_IF_ATOMIC in self.properties
 
     @property
+    def is_ParallelPrivate(self):
+        return PARALLEL_IF_PVT in self.properties
+
+    @property
     def is_ParallelRelaxed(self):
-        return self.is_Parallel or self.is_ParallelAtomic
+        return any([self.is_Parallel, self.is_ParallelAtomic, self.is_ParallelPrivate])
 
     @property
     def is_Vectorized(self):

@@ -23,7 +23,14 @@ equals to 0 (i.e., the distance vector is '='). This is stronger than PARALLEL.
 """
 
 PARALLEL_IF_ATOMIC = Property('parallel_if_atomic')
-"""A parallel Dimension with local reductions. This is weaker than PARALLEL."""
+"""
+A parallel Dimension that requires atomic reductions. This is weaker than PARALLEL.
+"""
+
+PARALLEL_IF_PVT = Property('parallel_if_private')
+"""
+A parallel Dimension that requires thread-private Arrays. This is weaker than PARALLEL.
+"""
 
 COLLAPSED = lambda i: Property('collapsed', i)
 """Collapsed Dimensions."""
