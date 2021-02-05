@@ -4,7 +4,7 @@ import sympy
 import pytest
 
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
-from devito import Grid, Function, TimeFunction, Dimension, Eq
+from devito import Grid, Function, TimeFunction, Dimension, Eq, div, grad
 from devito.types import NODE
 
 
@@ -248,3 +248,58 @@ def test_partial_devito_tens(func1):
     for i in range(3):
         for j in range(3):
             assert f3[i, j] == sum(f2[i, k] * f1[j, k] for k in range(3))
+
+
+@pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
+                                         (tuple([tuple([.5]*3)]*3), 3)])
+def test_shifted_grad_of_vector(shift, ndim):
+    grid = Grid(tuple([11]*ndim))
+    f = VectorFunction(name="f", grid=grid, space_order=4)
+    gf = grad(f, shift=shift).evaluate
+
+    ref = []
+    for i in range(len(grid.dimensions)):
+        for j, d in enumerate(grid.dimensions):
+            x0 = (None if shift is None else d + shift[i][j] * d.spacing if
+                  type(shift) is tuple else d + shift * d.spacing)
+            ge = getattr(f[i], 'd%s' % d.name)(x0=x0)
+            ref.append(ge.evaluate)
+
+    for i, d in enumerate(gf):
+        assert d == ref[i]
+
+
+@pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3), ((.5, .5, .5), 3)])
+def test_shifted_div_of_vector(shift, ndim):
+    grid = Grid(tuple([11]*ndim))
+    v = VectorFunction(name="f", grid=grid, space_order=4)
+    df = div(v, shift=shift).evaluate
+    ref = 0
+
+    for i, d in enumerate(grid.dimensions):
+        x0 = (None if shift is None else d + shift[i] * d.spacing if
+              type(shift) is tuple else d + shift * d.spacing)
+        ref += getattr(v[i], 'd%s' % d.name)(x0=x0)
+
+    assert df == ref.evaluate
+
+
+@pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
+                                         (tuple([tuple([.5]*3)]*3), 3)])
+def test_shifted_div_of_tensor(shift, ndim):
+    grid = Grid(tuple([11]*ndim))
+    f = TensorFunction(name="f", grid=grid, space_order=4)
+    df = div(f, shift=shift).evaluate
+
+    ref = []
+    for i, a in enumerate(grid.dimensions):
+        elems = []
+        for j, d in reversed(list(enumerate(grid.dimensions))):
+            x0 = (None if shift is None else d + shift[i][j] * d.spacing if
+                  type(shift) is tuple else d + shift * d.spacing)
+            ge = getattr(f[i, j], 'd%s' % d.name)(x0=x0)
+            elems.append(ge.evaluate)
+        ref.append(sum(elems))
+
+    for i, d in enumerate(df):
+        assert d == ref[i]
