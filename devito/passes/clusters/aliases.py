@@ -13,8 +13,8 @@ from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
 from devito.tools import flatten, split
-from devito.types import (Array, Eq, Scalar, ModuloDimension, ShiftedDimension,
-                          CustomDimension)
+from devito.types import (Array, Eq, Scalar, ModuloDimension, CustomDimension,
+                          IncrDimension)
 
 __all__ = ['cire']
 
@@ -539,13 +539,25 @@ def make_schedule(cluster, aliases, in_writeto, options):
             intervals.append(interval)
 
             if i.dim.is_Incr:
-                # Suitable ShiftedDimensions must be used to avoid OOB accesses.
-                # E.g., r[xs][ys][z] => both `xs` and `ys` must start at 0,
-                # not at `x0_blk0`
+                # Suitable IncrDimensions must be used to avoid OOB accesses.
+                # E.g., r[xs][ys][z] => both `xs` and `ys` must be initialized such
+                # that all accesses are within bounds. This requires traversing the
+                # hierarchy of IncrDimensions to set `xs` (`ys`) in a way that
+                # consecutive blocks access consecutive regions in `r` (e.g.,
+                # `xs=x0_blk1-x0_blk0` with `blocklevels=2`; `xs=0` with
+                # `blocklevels=1`, that is it degenerates in this case)
                 try:
                     d = dmapper[i.dim]
                 except KeyError:
-                    d = dmapper[i.dim] = ShiftedDimension(i.dim, name="%ss" % i.dim.name)
+                    dd = i.dim.parent
+                    assert dd.is_Incr
+                    if dd.parent.is_Incr:
+                        # An IncrDimension in between IncrDimensions
+                        m = i.dim.symbolic_min - i.dim.parent.symbolic_min
+                    else:
+                        m = 0
+                    d = dmapper[i.dim] = IncrDimension("%ss" % i.dim.name, i.dim, m,
+                                                       dd.symbolic_size, 1, dd.step)
                 sub_iterators[i.dim] = d
             else:
                 d = i.dim

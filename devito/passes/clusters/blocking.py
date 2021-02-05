@@ -69,13 +69,14 @@ class Blocking(Queue):
         name = self.template % (d.name, self.nblocked[d], '%d')
 
         bd = IncrDimension(name % 0, d, d.symbolic_min, d.symbolic_max)
+        size = bd.step
         block_dims = [bd]
 
         for i in range(1, self.levels):
-            bd = IncrDimension(name % i, bd, bd, bd + bd.step - 1)
+            bd = IncrDimension(name % i, bd, bd, bd + bd.step - 1, size=size)
             block_dims.append(bd)
 
-        bd = IncrDimension(d.name, bd, bd, bd + bd.step - 1, 1)
+        bd = IncrDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=size)
         block_dims.append(bd)
 
         processed = []
