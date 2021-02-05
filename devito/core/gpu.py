@@ -72,7 +72,6 @@ class DeviceOperatorMixin(object):
         # CIRE
         o['min-storage'] = False
         o['cire-rotate'] = False
-        o['cire-onstack'] = False
         o['cire-maxpar'] = oo.pop('cire-maxpar', True)
         o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-repeats'] = {

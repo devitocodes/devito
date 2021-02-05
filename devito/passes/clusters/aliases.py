@@ -695,8 +695,6 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
     """
     Turn a Schedule into a sequence of Clusters.
     """
-    onstack = options['cire-onstack']
-
     clusters = []
     subs = {}
     for alias, writeto, ispace, aliaseds, indicess in schedule:
@@ -723,12 +721,8 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
         parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
         sharing = 'shared' if set(parallel) == set(writeto.itdimensions) else 'local'
 
-        # The memory region of the Array. On the heap, unless the user has
-        # explicitly requested allocation on the stack
-        scope = 'stack' if onstack else 'heap'
-
         array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
-                      dtype=cluster.dtype, scope=scope, sharing=sharing)
+                      dtype=cluster.dtype, sharing=sharing)
 
         indices = []
         for i in writeto:

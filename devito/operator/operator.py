@@ -781,7 +781,7 @@ class Operator(Callable):
         """
         The amount of data, in bytes, used by the Operator. This is provided as
         symbolic expressions, one symbolic expression for each memory scope (external,
-        stack, heap).
+        heap).
         """
         roots = [self] + [i.root for i in self._func_table.values()]
         functions = [i for i in derive_parameters(roots) if i.is_Function]
@@ -796,11 +796,7 @@ class Operator(Callable):
         heap = sum(reduce(mul, i, 1) for i in heap)*self._dtype().itemsize
         summary['heap'] = heap
 
-        stack = [i.symbolic_shape for i in functions if i._mem_stack]
-        stack = sum(reduce(mul, i, 1) for i in stack)*self._dtype().itemsize
-        summary['stack'] = stack
-
-        summary['total'] = external + heap + stack
+        summary['total'] = external + heap
 
         return summary
 
