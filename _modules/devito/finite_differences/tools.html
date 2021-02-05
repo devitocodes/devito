@@ -167,7 +167,6 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">finite_diff_weights</span><span class="p">,</span> <span class="n">cacheit</span><span class="p">,</span> <span class="n">sympify</span>
 
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">as_tuple</span>
-<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span>
 
 
 <span class="k">class</span> <span class="nc">Transpose</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
@@ -209,13 +208,11 @@
 <span class="k">def</span> <span class="nf">check_input</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
     <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
     <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
-        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Differentiable</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` must be of type Differentiable (found `</span><span class="si">%s</span><span class="s2">`)&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span> <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Number</span> <span class="k">else</span> <span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39; must be of type Differentiable, not </span><span class="si">%s</span><span class="s2">&quot;</span>
                              <span class="o">%</span> <span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">)))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">wrapper</span>
 
 
@@ -423,6 +420,27 @@
             <span class="n">ind</span> <span class="o">=</span> <span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">start</span> <span class="o">-</span> <span class="n">diff</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">start</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">make_shift_x0</span><span class="p">(</span><span class="n">shift</span><span class="p">,</span> <span class="n">ndim</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a callable that calculates a shifted origin for each derivative</span>
+<span class="sd">    of an operation derivatives scheme (given by ndim) given a shift object</span>
+<span class="sd">    which can be a None, a float or a tuple with shape equal to ndim</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">shift</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="kc">None</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">shift</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">d</span> <span class="o">+</span> <span class="n">s</span> <span class="o">*</span> <span class="n">d</span><span class="o">.</span><span class="n">spacing</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">shift</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">tuple</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">shift</span><span class="p">)</span> <span class="o">==</span> <span class="n">ndim</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ndim</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">d</span> <span class="o">+</span> <span class="n">s</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">d</span><span class="o">.</span><span class="n">spacing</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">ndim</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">d</span> <span class="o">+</span> <span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">d</span><span class="o">.</span><span class="n">spacing</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ndim length must be equal to 1 or 2&quot;</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;shift parameter must be one of the following options: &quot;</span>
+                     <span class="s2">&quot;None, float or tuple with shape equal to </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ndim</span><span class="p">,))</span>
 </pre></div>
 
            </div>
