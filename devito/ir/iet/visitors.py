@@ -297,6 +297,9 @@ class CGen(Visitor):
         else:
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect)
 
+    def visit_Break(self, o):
+        return c.Statement("break")
+
     def visit_Conditional(self, o):
         then_body = c.Block(self._visit(o.then_body))
         if o.else_body:
