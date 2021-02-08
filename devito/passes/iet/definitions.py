@@ -231,7 +231,7 @@ class DataManager(object):
                 try:
                     if i.is_LocalObject:
                         # LocalObject's get placed as close as possible to
-                        # their first appearence
+                        # their first occurrence
                         site = iet
                         for n in v:
                             if i in refmap[n]:
@@ -239,25 +239,16 @@ class DataManager(object):
                             site = n
                         self._alloc_object_on_low_lat_mem(site, i, storage)
                     elif i.is_Array:
-                        # Array's get placed as far as possible from their
-                        # first appearence
-                        site = iet
-                        if i._mem_local:
-                            # If inside a ParallelBlock, make sure we allocate
-                            # inside of it
-                            for n in v:
-                                if n.is_ParallelBlock:
-                                    site = n
-                                    break
+                        # Arrays get placed at the top of the IET
                         if i._mem_heap:
-                            self._alloc_array_on_high_bw_mem(site, i, storage)
+                            self._alloc_array_on_high_bw_mem(iet, i, storage)
                         else:
-                            self._alloc_array_on_low_lat_mem(site, i, storage)
+                            self._alloc_array_on_low_lat_mem(iet, i, storage)
                     elif i.is_ObjectArray:
-                        # ObjectArray's get placed at the top of the IET
+                        # ObjectArrays get placed at the top of the IET
                         self._alloc_object_array_on_low_lat_mem(iet, i, storage)
                     elif i.is_PointerArray:
-                        # PointerArray's get placed at the top of the IET
+                        # PointerArrays get placed at the top of the IET
                         self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
                 except AttributeError:
                     # E.g., a generic SymPy expression

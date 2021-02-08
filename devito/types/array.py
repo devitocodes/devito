@@ -69,10 +69,6 @@ class Array(ArrayBasic):
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack'.
         Defaults to 'heap'. This may not have an impact on certain platforms.
-    sharing : str, optional
-        Control data sharing. Allowed values: 'shared', 'local'. Defaults to 'shared'.
-        'shared' means that in a multi-threaded context the Array is shared by all
-        threads. 'local', instead, means the Array is thread-private.
 
     Warnings
     --------
@@ -94,9 +90,6 @@ class Array(ArrayBasic):
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack']
-
-        self._sharing = kwargs.get('sharing', 'shared')
-        assert self._sharing in ['shared', 'local']
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -148,10 +141,6 @@ class Array(ArrayBasic):
         return self._scope
 
     @property
-    def sharing(self):
-        return self._sharing
-
-    @property
     def _mem_default(self):
         return self._space == 'default'
 
@@ -175,21 +164,13 @@ class Array(ArrayBasic):
     def _mem_heap(self):
         return self._scope == 'heap'
 
-    @property
-    def _mem_local(self):
-        return self._sharing == 'local'
-
-    @property
-    def _mem_shared(self):
-        return self._sharing == 'shared'
-
     @cached_property
     def free_symbols(self):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
     # Pickling support
     _pickle_kwargs = AbstractFunction._pickle_kwargs +\
-        ['dimensions', 'space', 'scope', 'sharing']
+        ['dimensions', 'space', 'scope']
 
 
 class ArrayObject(ArrayBasic):

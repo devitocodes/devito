@@ -5,10 +5,10 @@ from itertools import groupby
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (SEQUENTIAL, PARALLEL, ROUNDABLE, DataSpace, Forward,
-                       IterationInstance, IterationSpace, Interval, IntervalGroup,
-                       LabeledVector, Scope, detect_accesses, build_intervals,
-                       normalize_properties)
+from devito.ir import (SEQUENTIAL, PARALLEL, PARALLEL_IF_PVT, ROUNDABLE, DataSpace,
+                       Forward, IterationInstance, IterationSpace, Interval,
+                       IntervalGroup, LabeledVector, Scope, detect_accesses,
+                       build_intervals, normalize_properties)
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
@@ -714,15 +714,11 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
         # (e.g., MPI's comp/comm overlap does that)
         dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
 
+        # The halo must be set according to the size of writeto space
         halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
-        # The data sharing mode of the Array. It can safely be `shared` only if
-        # all of the PARALLEL `cluster` Dimensions appear in `writeto`
-        parallel = [d for d, v in cluster.properties.items() if PARALLEL in v]
-        sharing = 'shared' if set(parallel) == set(writeto.itdimensions) else 'local'
-
-        array = Array(name=sregistry.make_name(), dimensions=dimensions, halo=halo,
-                      dtype=cluster.dtype, sharing=sharing)
+        array = Array(name=sregistry.make_name(), dimensions=dimensions,
+                      halo=halo, dtype=cluster.dtype)
 
         indices = []
         for i in writeto:
@@ -753,11 +749,13 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
                  for k, v in accesses.items() if k}
         dspace = DataSpace(cluster.dspace.intervals, parts)
 
-        # Drop parallelism if using ModuloDimensions (due to rotations)
+        # Drop or weaken parallelism if necessary
         properties = dict(cluster.properties)
         for d, v in cluster.properties.items():
             if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                 properties[d] = normalize_properties(v, {SEQUENTIAL})
+            elif d not in writeto.dimensions:
+                properties[d] = normalize_properties(v, {PARALLEL_IF_PVT})
 
         # Finally, build the `alias` Cluster
         clusters.append(cluster.rebuild(exprs=expression, ispace=ispace,

@@ -3,7 +3,7 @@ from sympy import Not
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Block, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, ParallelTree, While, FindNodes, Transformer)
+                       ParallelBlock, While, FindNodes, Transformer)
 from devito.mpi.routines import IrecvCall, IsendCall
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
@@ -13,7 +13,6 @@ from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransfo
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import CondEq, DefFunction
-from devito.tools import as_tuple
 
 __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
            'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
@@ -21,37 +20,6 @@ __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
 
 
 class OmpRegion(ParallelBlock):
-
-    def __init__(self, body, private=None):
-        # Normalize and sanity-check input. A bit ugly, but it makes everything
-        # much simpler to manage and reconstruct
-        body = as_tuple(body)
-        assert len(body) == 1
-        body = body[0]
-        assert body.is_List
-        if isinstance(body, ParallelTree):
-            partree = body
-        elif body.is_List:
-            assert len(body.body) == 1 and isinstance(body.body[0], ParallelTree)
-            assert len(body.footer) == 0
-            partree = body.body[0]
-            partree = partree._rebuild(prefix=(List(header=body.header,
-                                                    body=partree.prefix)))
-
-        header = OmpRegion._make_header(partree.nthreads, private)
-        super().__init__(header=header, body=partree)
-
-    @property
-    def partree(self):
-        return self.body[0]
-
-    @property
-    def root(self):
-        return self.partree.root
-
-    @property
-    def nthreads(self):
-        return self.partree.nthreads
 
     @classmethod
     def _make_header(cls, nthreads, private=None):

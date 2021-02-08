@@ -127,8 +127,7 @@ def diff_parameters(iet, root):
     # TODO: this is currently very rudimentary
     required = derive_parameters(iet)
 
-    known = (set(root.parameters) |
-             set(i for i in required if i.is_Array and i._mem_shared))
+    known = set(root.parameters) | set(i for i in required if i.is_Array)
 
     parameters, dynamic_parameters = split(required, lambda i: i in known)
 
