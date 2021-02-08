@@ -7,11 +7,12 @@ import sympy
 from devito.exceptions import InvalidOperator
 from devito.ir.support import Any, Backward, Forward, IterationSpace
 from devito.ir.clusters.analysis import analyze
-from devito.ir.clusters.cluster import Cluster, ClusterGroup
+from devito.ir.clusters.cluster import Cluster, ClusterGroup, Guard
 from devito.ir.clusters.queue import Queue, QueueStateful
 from devito.parameters import configuration
 from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import DefaultOrderedDict, as_mapper, flatten, is_integer, timed_pass
+from devito.tools import (DefaultOrderedDict, as_mapper, flatten, frozendict,
+                          is_integer, timed_pass)
 from devito.types import ModuloDimension
 
 __all__ = ['clusterize']
@@ -183,14 +184,15 @@ def guard(clusters):
             # Chain together all conditions from all expressions in `c`
             guards = {}
             for cd in cds:
-                condition = guards.setdefault(cd.parent, [])
+                condition = []
                 for e in exprs:
                     try:
                         condition.append(e.conditionals[cd])
                         break
                     except KeyError:
                         pass
-            guards = {d: sympy.And(*v, evaluate=False) for d, v in guards.items()}
+                condition = sympy.And(*condition, evaluate=False)
+                guards[cd.parent] = Guard(condition, cd.brk)
 
             # Construct a guarded Cluster
             processed.append(c.rebuild(exprs=exprs, guards=guards))
