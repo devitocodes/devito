@@ -1681,19 +1681,21 @@ class TestAliases(object):
         impact the shape of the created temporaries as well as the surrounding loop
         nests.
         """
-        grid = Grid(shape=(10, 10, 10))
+        grid = Grid(shape=(20, 20, 20))
 
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid, space_order=2)
         u1 = TimeFunction(name="u", grid=grid, space_order=2)
         u2 = TimeFunction(name="u", grid=grid, space_order=2)
 
-        f.data[:] = 0.0012
-        u.data[:] = 1.3
-        u1.data[:] = 1.3
-        u2.data[:] = 1.3
+        f.data_with_halo[:] =\
+            np.linspace(-10, 10, f.data_with_halo.size).reshape(*f.shape_with_halo)
+        u.data_with_halo[:] =\
+            np.linspace(-3, 3, u.data_with_halo.size).reshape(*u.shape_with_halo)
+        u1.data_with_halo[:] = u.data_with_halo[:]
+        u2.data_with_halo[:] = u.data_with_halo[:]
 
-        eq = Eq(u.forward, u.dx.dx.dx + f*u.dy.dy)
+        eq = Eq(u.forward, u.dx.dx + f*u.dy.dy)
 
         op0 = Operator(eq, opt='noop')
         op1 = Operator(eq, opt=('advanced', {'blocklevels': 2, 'cire-rotate': rotate}))
@@ -1708,11 +1710,11 @@ class TestAliases(object):
 
         # Check numerical output
         op0.apply(time_M=2)
-        op1.apply(time_M=2, u=u1)
-        op2.apply(time_M=2, u=u2)
+        op1.apply(time_M=2, u=u1, x0_blk1_size=2, y0_blk1_size=2)
+        op2.apply(time_M=2, u=u2, x0_blk1_size=2, y0_blk1_size=2)
         expected = norm(u)
-        assert np.isclose(expected, norm(u1), rtol=1e-6)
-        assert np.isclose(expected, norm(u2), rtol=1e-6)
+        assert np.isclose(expected, norm(u1), rtol=1e-5)
+        assert np.isclose(expected, norm(u2), rtol=1e-5)
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_arrays_enforced_on_stack(self, rotate):
