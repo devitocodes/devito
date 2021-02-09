@@ -13,7 +13,7 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
-           'dimensions', 'ModuloDimension', 'IncrDimension', 'ShiftedDimension']
+           'dimensions', 'ModuloDimension', 'IncrDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -103,7 +103,6 @@ class Dimension(ArgProvider):
     is_Stepping = False
     is_Modulo = False
     is_Incr = False
-    is_Shifted = False
 
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
@@ -1018,6 +1017,8 @@ class IncrDimension(DerivedDimension):
     step : expr-like, optional
         The distance between two consecutive points. Defaults to the
         symbolic size.
+    size : expr-like, optional
+        The symbolic size of the Dimension. Defaults to `_max-_min+1`.
 
     Notes
     -----
@@ -1027,11 +1028,16 @@ class IncrDimension(DerivedDimension):
     is_Incr = True
     is_PerfKnob = True
 
-    def __init_finalize__(self, name, parent, _min, _max, step=None):
+    def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
         super().__init_finalize__(name, parent)
         self._min = _min
         self._max = _max
         self._step = step
+        self._size = size
+
+    @property
+    def size(self):
+        return self._size
 
     @cached_property
     def step(self):
@@ -1042,8 +1048,16 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def symbolic_size(self):
-        # The size must be given as a function of the parent's symbols
-        return self.symbolic_max - self.symbolic_min + 1
+        if self.size is not None:
+            # Make sure we return a symbolic object as the provided size might
+            # be for example a pure int
+            try:
+                return sympy.Number(self.size)
+            except (TypeError, ValueError):
+                return self._size
+        else:
+            # The size must be given as a function of the parent's symbols
+            return self.symbolic_max - self.symbolic_min + 1
 
     @cached_property
     def symbolic_min(self):
@@ -1135,22 +1149,7 @@ class IncrDimension(DerivedDimension):
 
     # Pickling support
     _pickle_args = ['name', 'parent', 'symbolic_min', 'symbolic_max']
-    _pickle_kwargs = ['step']
-
-
-class ShiftedDimension(IncrDimension):
-
-    """
-    A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.
-    """
-
-    is_Shifted = True
-
-    def __new__(cls, d, name):
-        return super().__new__(cls, name, d, 0, d.symbolic_size - 1, step=1)
-
-    _pickle_args = ['parent', 'name']
-    _pickle_kwargs = []
+    _pickle_kwargs = ['step', 'size']
 
 
 class CustomDimension(BasicDimension):
