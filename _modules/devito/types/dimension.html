@@ -175,7 +175,7 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;DefaultDimension&#39;</span><span class="p">,</span>
            <span class="s1">&#39;CustomDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;ModuloDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;IncrDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ShiftedDimension&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;ModuloDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;IncrDimension&#39;</span><span class="p">]</span>
 
 
 <span class="n">Thickness</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Thickness&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
@@ -265,7 +265,6 @@
     <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Modulo</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Incr</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_Shifted</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="n">_C_typename</span> <span class="o">=</span> <span class="s1">&#39;const </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">dtype_to_cstr</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
     <span class="n">_C_typedata</span> <span class="o">=</span> <span class="n">_C_typename</span>
@@ -1180,6 +1179,8 @@
 <span class="sd">    step : expr-like, optional</span>
 <span class="sd">        The distance between two consecutive points. Defaults to the</span>
 <span class="sd">        symbolic size.</span>
+<span class="sd">    size : expr-like, optional</span>
+<span class="sd">        The symbolic size of the Dimension. Defaults to `_max-_min+1`.</span>
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
@@ -1189,11 +1190,16 @@
     <span class="n">is_Incr</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_PerfKnob</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">_min</span><span class="p">,</span> <span class="n">_max</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">_min</span><span class="p">,</span> <span class="n">_max</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_min</span> <span class="o">=</span> <span class="n">_min</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_max</span> <span class="o">=</span> <span class="n">_max</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_step</span> <span class="o">=</span> <span class="n">step</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_size</span> <span class="o">=</span> <span class="n">size</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1204,8 +1210,16 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># The size must be given as a function of the parent&#39;s symbols</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Make sure we return a symbolic object as the provided size might</span>
+            <span class="c1"># be for example a pure int</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Number</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># The size must be given as a function of the parent&#39;s symbols</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">+</span> <span class="mi">1</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1297,22 +1311,7 @@
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">]</span></div>
-
-
-<div class="viewcode-block" id="ShiftedDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ShiftedDimension">[docs]</a><span class="k">class</span> <span class="nc">ShiftedDimension</span><span class="p">(</span><span class="n">IncrDimension</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">is_Shifted</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-
-    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span></div>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="CustomDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.CustomDimension">[docs]</a><span class="k">class</span> <span class="nc">CustomDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>

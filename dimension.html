@@ -447,6 +447,7 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 <li><p><strong>_max</strong> (<em>expr-like</em>) – The maximum point of the Dimension.</p></li>
 <li><p><strong>step</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
 symbolic size.</p></li>
+<li><p><strong>size</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The symbolic size of the Dimension. Defaults to <cite>_max-_min+1</cite>.</p></li>
 </ul>
 </dd>
 </dl>
@@ -484,13 +485,6 @@ modulo buffered iteration, use SteppingDimension instead.</p>
 compiler to implement modulo iteration along a TimeDimension. For example,
 <cite>t0</cite>’s <cite>origin</cite> may be <cite>t + 0</cite> (where <cite>t</cite> is a SteppingDimension), <cite>t1</cite>’s
 <cite>origin</cite> will then be <cite>t + 1</cite> and so on.</p>
-</dd></dl>
-
-<dl class="py class">
-<dt id="devito.types.dimension.ShiftedDimension">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.dimension.</code><code class="sig-name descname">ShiftedDimension</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">d</span></em>, <em class="sig-param"><span class="n">name</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ShiftedDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ShiftedDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.IncrDimension" title="devito.types.dimension.IncrDimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.IncrDimension</span></code></a></p>
-<p>A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.</p>
 </dd></dl>
 
 <dl class="py class">
