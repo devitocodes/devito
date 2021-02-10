@@ -3,6 +3,7 @@ from functools import reduce
 from operator import mul
 import mmap
 import os
+import sys
 
 import numpy as np
 import ctypes
@@ -128,6 +129,10 @@ class PosixAllocator(MemoryAllocator):
     @classmethod
     def initialize(cls):
         handle = find_library('c')
+
+        if handle is None and os.name == "posix" and sys.platform == "darwin":
+            handle = '/usr/lib/libc.dylib'
+
         if handle is not None:
             cls.lib = ctypes.CDLL(handle)
 
