@@ -109,10 +109,6 @@ def derive_parameters(iet, drop_locals=False):
     # Drop globally-visible objects
     parameters = [p for p in parameters if not isinstance(p, (Literal, Macro))]
 
-    # Drop all local Arrays residing on the stack
-    parameters = [p for p in parameters
-                  if not (isinstance(p, Array) and p._mem_stack and p._mem_local)]
-
     # Maybe filter out all other compiler-generated objects
     if drop_locals:
         parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
@@ -131,8 +127,7 @@ def diff_parameters(iet, root):
     # TODO: this is currently very rudimentary
     required = derive_parameters(iet)
 
-    known = (set(root.parameters) |
-             set(i for i in required if i.is_Array and i._mem_shared))
+    known = set(root.parameters) | set(i for i in required if i.is_Array)
 
     parameters, dynamic_parameters = split(required, lambda i: i in known)
 

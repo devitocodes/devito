@@ -723,6 +723,14 @@ class IsPerfectIteration(Visitor):
         nomore = nomore or len(o.children) > 1
         return all(self._visit(i, found=found, nomore=nomore) for i in o.children)
 
+    def visit_While(self, o, **kwargs):
+        return False
+
+    def visit_HaloSpot(self, o, found=False, **kwargs):
+        if not found:
+            return False
+        return all(self._visit(i, found=found, nomore=True) for i in o.children)
+
     def visit_List(self, o, found=False, nomore=False):
         nomore = nomore or (found and (len(o.children) > 1) or o.header or o.footer)
         return all(self._visit(i, found=found, nomore=nomore) for i in o.children)

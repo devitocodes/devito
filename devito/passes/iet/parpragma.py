@@ -42,13 +42,18 @@ class PragmaSimdTransformer(PragmaTransformer):
     def make_simd(self, iet):
         mapper = {}
         for tree in retrieve_iteration_tree(iet):
-            candidates = [i for i in tree if i.is_Parallel]
+            candidates = [i for i in tree if i.is_ParallelRelaxed]
 
             # As long as there's an outer level of parallelism, the innermost
             # PARALLEL Iteration gets vectorized
             if len(candidates) < 2:
                 continue
             candidate = candidates[-1]
+
+            # Only fully-parallel Iterations will be SIMD-ized (ParallelRelaxed
+            # might not be enough then)
+            if not candidate.is_Parallel:
+                continue
 
             # Add SIMD pragma
             aligned = [j for j in FindSymbols('symbolics').visit(candidate)
@@ -170,8 +175,8 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 collapsable.append(i)
         return collapsable
 
-    def _make_reductions(self, partree, collapsed):
-        if not any(i.is_ParallelAtomic for i in collapsed):
+    def _make_reductions(self, partree):
+        if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
         # Collect expressions inducing reductions
@@ -179,8 +184,8 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         exprs = [i for i in exprs if i.is_Increment and not i.is_ForeignExpression]
 
         reduction = [i.output for i in exprs]
-        if (all(i.is_Affine for i in collapsed)
-                or all(not i.is_Indexed for i in reduction)):
+        if all(i.is_Affine for i in partree.collapsed) or \
+           all(not i.is_Indexed for i in reduction):
             # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
         else:
@@ -238,41 +243,42 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         # Create a ParallelTree
         partree = ParallelTree(prefix, body, nthreads=nthreads)
 
-        collapsed = [partree] + collapsable
-
-        return root, partree, collapsed
+        return root, partree
 
     def _make_parregion(self, partree, parrays):
-        arrays = [i for i in FindSymbols().visit(partree) if i.is_Array]
+        if not any(i.is_ParallelPrivate for i in partree.collapsed):
+            return self.Region(partree)
 
-        # Detect thread-private arrays on the heap and "map" them to shared
-        # vector-expanded (one entry per thread) Arrays
-        heap_private = [i for i in arrays if i._mem_heap and i._mem_local]
-        heap_globals = []
-        for i in heap_private:
+        # Vector-expand all written Arrays within `partree`, since at least
+        # one of the parallelized Iterations requires thread-private Arrays
+        # E.g. a(x, y) -> b(tid, x, y), where `tid` is the ThreadID Dimension
+        exprs = FindNodes(Expression).visit(partree)
+        warrays = [i.write for i in exprs if i.write.is_Array]
+        vexpandeds = []
+        for i in warrays:
             if i in parrays:
                 pi = parrays[i]
             else:
                 pi = parrays.setdefault(i, PointerArray(name=self.sregistry.make_name(),
                                                         dimensions=(self.threadid,),
                                                         array=i))
-            heap_globals.append(HeapGlobal(i, pi))
-        if heap_globals:
+            vexpandeds.append(VExpanded(i, pi))
+        if vexpandeds:
             init = c.Initializer(c.Value(self.threadid._C_typedata, self.threadid.name),
                                  self.lang['thread-num'])
             prefix = List(header=init,
-                          body=heap_globals + list(partree.prefix),
+                          body=vexpandeds + list(partree.prefix),
                           footer=c.Line())
             partree = partree._rebuild(prefix=prefix)
 
         return self.Region(partree)
 
-    def _make_guard(self, partree, collapsed):
+    def _make_guard(self, partree):
         # Do not enter the parallel region if the step increment is 0; this
         # would raise a `Floating point exception (core dumped)` in some OpenMP
         # implementations. Note that using an OpenMP `if` clause won't work
-        cond = [CondEq(i.step, 0) for i in collapsed if isinstance(i.step, Symbol)]
-        cond = Or(*cond)
+        cond = Or(*[CondEq(i.step, 0) for i in partree.collapsed
+                    if isinstance(i.step, Symbol)])
         if cond != False:  # noqa: `cond` may be a sympy.False which would be == False
             partree = List(body=[Conditional(cond, Return()), partree])
         return partree
@@ -312,7 +318,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 continue
 
             # Introduce nested parallelism
-            subroot, subpartree, _ = self._make_partree(candidates, self.nthreads_nested)
+            subroot, subpartree = self._make_partree(candidates, self.nthreads_nested)
 
             mapper[subroot] = subpartree
 
@@ -330,7 +336,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 continue
 
             # Outer parallelism
-            root, partree, collapsed = self._make_partree(candidates)
+            root, partree = self._make_partree(candidates)
             if partree is None or root in mapper:
                 continue
 
@@ -338,7 +344,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             partree = self._make_nested_partree(partree)
 
             # Handle reductions
-            partree = self._make_reductions(partree, collapsed)
+            partree = self._make_reductions(partree)
 
             # Atomicize and optimize single-thread prodders
             partree = self._make_threaded_prodders(partree)
@@ -347,7 +353,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             parregion = self._make_parregion(partree, parrays)
 
             # Protect the parallel region if necessary
-            parregion = self._make_guard(parregion, collapsed)
+            parregion = self._make_guard(parregion)
 
             mapper[root] = parregion
 
@@ -355,7 +361,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         # The new arguments introduced by this pass
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
-        for n in FindNodes(HeapGlobal).visit(iet):
+        for n in FindNodes(VExpanded).visit(iet):
             args.extend([(n.array, True), n.parray])
 
         return iet, {'args': args, 'includes': [self.lang['header']]}
@@ -409,14 +415,13 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
             body = self.DeviceIteration(gpu_fit=self.gpu_fit, ncollapse=ncollapse,
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
-            collapsed = [partree] + collapsable
 
-            return root, partree, collapsed
+            return root, partree
         elif not self.par_disabled:
             # Resort to host parallelism
             return super()._make_partree(candidates, nthreads)
         else:
-            return root, None, None
+            return root, None
 
     def _make_parregion(self, partree, *args):
         if isinstance(partree.root, self.DeviceIteration):
@@ -526,5 +531,5 @@ class PragmaLangBB(LangBB):
 
 # Utils
 
-class HeapGlobal(Dereference):
+class VExpanded(Dereference):
     pass

@@ -93,7 +93,6 @@ class Cpu64OperatorMixin(object):
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
         o['cire-rotate'] = oo.pop('cire-rotate', False)
-        o['cire-onstack'] = oo.pop('cire-onstack', False)
         o['cire-maxpar'] = oo.pop('cire-maxpar', False)
         o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-repeats'] = {

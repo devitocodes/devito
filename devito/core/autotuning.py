@@ -1,7 +1,6 @@
 from collections import OrderedDict
 from itertools import combinations, product
 from functools import total_ordering
-import resource
 
 from devito.arch import KNL, KNL7210
 from devito.ir import Backward, retrieve_iteration_tree
@@ -118,17 +117,6 @@ def autotune(operator, args, level, mode):
             # Drop run if not at least one block per thread
             if not configuration['develop-mode'] and nblocks_per_thread.subs(at_args) < 1:
                 continue
-
-            # Make sure we remain within stack bounds, otherwise skip run
-            try:
-                stack_footprint = operator._mem_summary['stack']
-                if int(stack_footprint.subs(at_args)) > options['stack_limit']:
-                    continue
-            except TypeError:
-                warning("could not determine stack size; skipping run %s" % str(i))
-                continue
-            except AttributeError:
-                assert stack_footprint == 0
 
             # Run the Operator
             operator.cfunction(*list(at_args.values()))
@@ -372,7 +360,6 @@ options = {
     'squeezer': 4,
     'blocksize-l0': (8, 16, 24, 32, 64, 96, 128),
     'blocksize-l1': (8, 16, 32),
-    'stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
 """Autotuning options."""
 

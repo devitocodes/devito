@@ -188,7 +188,6 @@ class Lock(Array):
         self._target = kwargs.pop('target', None)
 
         kwargs['scope'] = 'stack'
-        kwargs['sharing'] = 'shared'
         super().__init_finalize__(*args, **kwargs)
 
     def __padding_setup__(self, **kwargs):
