@@ -132,12 +132,16 @@ class PosixAllocator(MemoryAllocator):
 
         # Special case: on MacOS Big Sur any code that attempts to check
         # for dynamic library presence by looking for a file at a path
-        # will fail. For this case, a static path is defined.
+        # will fail. For this case, a static path is provided.
         if handle is None and os.name == "posix" and sys.platform == "darwin":
             handle = '/usr/lib/libc.dylib'
 
         if handle is not None:
-            cls.lib = ctypes.CDLL(handle)
+            try:
+                cls.lib = ctypes.CDLL(handle)
+            except OSError:
+                raise RuntimeError("Couldn't find `libc`'s `posix_memalign` to "
+                                   "allocate memory")
 
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():
