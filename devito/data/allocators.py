@@ -130,6 +130,9 @@ class PosixAllocator(MemoryAllocator):
     def initialize(cls):
         handle = find_library('c')
 
+        # Special case: on MacOS Big Sur any code that attempts to check
+        # for dynamic library presence by looking for a file at a path
+        # will fail. For this case, a static path is defined.
         if handle is None and os.name == "posix" and sys.platform == "darwin":
             handle = '/usr/lib/libc.dylib'
 
