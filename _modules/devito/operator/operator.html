@@ -943,7 +943,7 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The amount of data, in bytes, used by the Operator. This is provided as</span>
 <span class="sd">        symbolic expressions, one symbolic expression for each memory scope (external,</span>
-<span class="sd">        stack, heap).</span>
+<span class="sd">        heap).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">roots</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
         <span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">roots</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Function</span><span class="p">]</span>
@@ -958,11 +958,7 @@
         <span class="n">heap</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">heap</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
         <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;heap&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">heap</span>
 
-        <span class="n">stack</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">]</span>
-        <span class="n">stack</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
-        <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;stack&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">stack</span>
-
-        <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;total&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">external</span> <span class="o">+</span> <span class="n">heap</span> <span class="o">+</span> <span class="n">stack</span>
+        <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;total&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">external</span> <span class="o">+</span> <span class="n">heap</span>
 
         <span class="k">return</span> <span class="n">summary</span>
 
