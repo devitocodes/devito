@@ -140,8 +140,7 @@ class PosixAllocator(MemoryAllocator):
             try:
                 cls.lib = ctypes.CDLL(handle)
             except OSError:
-                raise RuntimeError("Couldn't find `libc`'s `posix_memalign` to "
-                                   "allocate memory")
+                cls.lib = None
 
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():
