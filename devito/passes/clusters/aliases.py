@@ -365,7 +365,7 @@ def collect(exprs, ignore_collected, options):
             bases.append(tuple(base))
             offsets.append(LabeledVector(offset))
 
-        if indexeds and len(bases) == len(indexeds):
+        if not indexeds or len(bases) == len(indexeds):
             found.append(Candidate(expr, indexeds, bases, offsets))
 
     # Create groups of aliasing expressions
@@ -701,44 +701,57 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
         if all(i not in chosen for i in aliaseds):
             continue
 
-        # The Dimensions defining the shape of Array
-        # Note: with SubDimensions, we may have the following situation:
-        #
-        # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
-        #   r[zi] = ...
-        #
-        # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll need
-        # as much room as in `zi`'s parent to avoid going OOB
-        # Aside from ugly generated code, the reason we do not rather shift the
-        # indices is that it prevents future passes to transform the loop bounds
-        # (e.g., MPI's comp/comm overlap does that)
-        dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
+        # Basic info to create the temporary that will hold the alias
+        name = sregistry.make_name()
+        dtype = cluster.dtype
 
-        # The halo must be set according to the size of writeto space
-        halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
+        if writeto:
+            # The Dimensions defining the shape of Array
+            # Note: with SubDimensions, we may have the following situation:
+            #
+            # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
+            #   r[zi] = ...
+            #
+            # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll need
+            # as much room as in `zi`'s parent to avoid going OOB
+            # Aside from ugly generated code, the reason we do not rather shift the
+            # indices is that it prevents future passes to transform the loop bounds
+            # (e.g., MPI's comp/comm overlap does that)
+            dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
 
-        array = Array(name=sregistry.make_name(), dimensions=dimensions,
-                      halo=halo, dtype=cluster.dtype)
+            # The halo must be set according to the size of writeto space
+            halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
-        indices = []
-        for i in writeto:
-            try:
-                # E.g., `xs`
-                sub_iterators = writeto.sub_iterators[i.dim]
-                assert len(sub_iterators) == 1
-                indices.append(sub_iterators[0])
-            except KeyError:
-                # E.g., `z` -- a non-shifted Dimension
-                indices.append(i.dim - i.lower)
+            # The indices used to write into the Array
+            indices = []
+            for i in writeto:
+                try:
+                    # E.g., `xs`
+                    sub_iterators = writeto.sub_iterators[i.dim]
+                    assert len(sub_iterators) == 1
+                    indices.append(sub_iterators[0])
+                except KeyError:
+                    # E.g., `z` -- a non-shifted Dimension
+                    indices.append(i.dim - i.lower)
 
-        expression = Eq(array[indices], alias)
+            obj = Array(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
+            expression = Eq(obj[indices], alias)
 
-        # Create the substitution rules so that we can use the newly created
-        # temporary in place of the aliasing expressions
+            callback = lambda idx: obj[idx]
+        else:
+            # Degenerate case: scalar expression
+            assert writeto.size == 0
+
+            obj = Scalar(name=name, dtype=dtype)
+            expression = Eq(obj, alias)
+
+            callback = lambda idx: obj
+
+        # Create the substitution rules for the aliasing expressions
         for aliased, indices in zip(aliaseds, indicess):
-            subs[aliased] = array[indices]
+            subs[aliased] = callback(indices)
             if aliased in chosen:
-                subs[chosen[aliased]] = array[indices]
+                subs[chosen[aliased]] = callback(indices)
             else:
                 # Perhaps part of a composite alias ?
                 pass

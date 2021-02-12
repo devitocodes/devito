@@ -122,7 +122,8 @@ def make_is_time_invariant(context):
                 elif isinstance(i, Dimension):
                     # Go on with the search, as `i` is not a time dimension
                     pass
-                elif not i.function.is_DiscreteFunction:
+                elif not (i.function.is_DiscreteFunction or
+                          i.function.is_Symbol and i.function.is_const):
                     # It didn't come from the outside and it's not in `mapper`, so
                     # cannot determine if time-invariant; assume time-varying then
                     return False
