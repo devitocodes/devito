@@ -1801,6 +1801,22 @@ class TestAliases(object):
         # * rtol=1e-7 OK if DEVITO_SAFE_MATH=1
         assert np.isclose(norm(p), norm(p1), rtol=1e-6)
 
+    def test_grouping_fallback_v2(self):
+        """
+        MFE for issue #1586.
+        """
+        grid = Grid(shape=(20, 20, 20))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eqn = Eq(u.forward, (2*f*f*u.dy).dy + (3*f*u.dy).dy)
+
+        op = Operator(eqn, opt=('advanced', {'openmp': False, 'cire-maxalias': True}))
+
+        arrays = [i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array]
+        assert len(arrays) == 1
+
 
 # Acoustic
 class TestIsoAcoustic(object):

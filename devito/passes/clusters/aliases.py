@@ -432,11 +432,13 @@ def collect(exprs, ignore_collected, options):
             groups, remainder = split(groups, lambda g: len(g) > smallest)
             if groups:
                 queue.append(remainder)
-            else:
+            elif len(remainder) > 1:
                 # No luck with the heuristic, e.g. there are two groups
                 # and both have same `len`
                 queue.append(fallback[1:])
                 groups = [fallback.pop(0)]
+            else:
+                break
 
         for g in groups:
             c = g.pivot
