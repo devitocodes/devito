@@ -12,7 +12,7 @@ from devito.ir import (SEQUENTIAL, PARALLEL, PARALLEL_IF_PVT, ROUNDABLE, DataSpa
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
-from devito.tools import flatten, split
+from devito.tools import as_tuple, flatten, split
 from devito.types import (Array, Eq, Scalar, ModuloDimension, CustomDimension,
                           IncrDimension)
 
@@ -176,8 +176,8 @@ class Callbacks(object):
         raise NotImplementedError
 
     @classmethod
-    def selector(cls, min_cost, cost, naliases):
-        raise NotImplementedError
+    def selector(cls, min_cost, cost):
+        return cost // min_cost
 
 
 class CallbacksInvariants(Callbacks):
@@ -210,10 +210,6 @@ class CallbacksInvariants(Callbacks):
     @classmethod
     def in_writeto(cls, max_par, dim, cluster):
         return PARALLEL in cluster.properties[dim]
-
-    @classmethod
-    def selector(cls, min_cost, cost, naliases):
-        return cost >= min_cost and naliases >= 1
 
 
 class CallbacksSOPS(Callbacks):
@@ -283,10 +279,6 @@ class CallbacksSOPS(Callbacks):
     @classmethod
     def in_writeto(cls, max_par, dim, cluster):
         return max_par and PARALLEL in cluster.properties[dim]
-
-    @classmethod
-    def selector(cls, min_cost, cost, naliases):
-        return cost >= min_cost and naliases > 1
 
 
 callbacks_mapper = {
@@ -476,14 +468,33 @@ def choose(exprs, aliases, selector):
     """
     Use a cost model to select the aliases that are worth optimizing.
     """
-    retained = AliasMapper(aliases)
+    # Pass 1: a set of aliasing expressions is optimizable only if its cost
+    # exceeds the mode's threshold
+    candidates = OrderedDict()
     others = []
-    chosen = OrderedDict()
     for e in exprs:
-        aliaseds = aliases.get(e.rhs)
-        naliases = len(aliaseds)
+        naliases = len(aliases.get(e.rhs))
         cost = estimate_cost(e, True)*naliases
-        if selector(cost, naliases):
+        score = selector(cost)
+        if score > 0:
+            candidates[e] = score
+        else:
+            others.append(e)
+
+    # Pass 2: a set of aliasing expressions is optimizable if and only if it survived
+    # Pass 1 above *and* the tradeoff between operation count and working set increase
+    # is favorable
+    owset = wset(others)
+    retained = AliasMapper(aliases)
+    chosen = OrderedDict()
+    others = []
+    for e in exprs:
+        try:
+            score = candidates[e]
+        except KeyError:
+            score = 0
+        if score > 1 or \
+           score == 1 and max(len(wset(e)), 1) > len(wset(e) & owset):
             chosen[e.rhs] = e.lhs
         else:
             others.append(e)
@@ -1041,6 +1052,9 @@ class AliasMapper(OrderedDict):
                 return
 
 
+# Utils
+
+
 def make_rotations_table(d, v):
     """
     All possible rotations of `range(v+1)`.
@@ -1078,3 +1092,11 @@ def maybe_coeff_key(grid, expr):
         return True
     indexeds = [i for i in expr.free_symbols if i.is_Indexed]
     return any(not set(grid.dimensions) <= set(i.function.dimensions) for i in indexeds)
+
+
+def wset(exprs):
+    """
+    Extract the working set out of a set of equations.
+    """
+    return {i.function for i in flatten([e.free_symbols for e in as_tuple(exprs)])
+            if i.function.is_AbstractFunction}

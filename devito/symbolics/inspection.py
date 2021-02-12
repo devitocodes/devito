@@ -79,7 +79,7 @@ def estimate_cost(exprs, estimate=False):
             * Powers with integer exponent `n>0` count as n-1 ops (as if
               it were a chain of multiplications).
     """
-    trascendentals_cost = {sin: 50, cos: 50, exp: 50, log: 50}
+    trascendentals_cost = {sin: 100, cos: 100, exp: 100, log: 100}
     pow_cost = 50
     div_cost = 25
 

@@ -164,9 +164,9 @@ def test_pow_to_mul(expr, expected):
     ('Eq(t0, 2.*t0*t1*t2 + t0*fa[x+1])', 5, False),
     ('Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0)', 7, False),
     ('[Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0), Eq(t0, cos(t1*t2))]', 9, False),
-    ('Eq(t0, cos(fa*fb))', 51, True),
-    ('Eq(t0, cos(fa[x]*fb[x]))', 51, True),
-    ('Eq(t0, cos(t1*t2))', 51, True),
+    ('Eq(t0, cos(fa*fb))', 101, True),
+    ('Eq(t0, cos(fa[x]*fb[x]))', 101, True),
+    ('Eq(t0, cos(t1*t2))', 101, True),
     ('Eq(t0, cos(c*c))', 2, True),  # `cos(...constants...)` counts as 1
     ('Eq(t0, t1**3)', 2, True),
     ('Eq(t0, t1**4)', 3, True),
@@ -706,9 +706,9 @@ class TestAliases(object):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
 
-        u = TimeFunction(name='u', grid=grid, space_order=2)
-        u1 = TimeFunction(name="u1", grid=grid, space_order=2)
-        u2 = TimeFunction(name="u2", grid=grid, space_order=2)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name="u1", grid=grid, space_order=4)
+        u2 = TimeFunction(name="u2", grid=grid, space_order=4)
 
         u.data_with_halo[:] = 1.42
         u1.data_with_halo[:] = 1.42
@@ -726,8 +726,8 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(op1)) == 1
-        self.check_array(arrays[1], ((1, 0), (0, 0), (0, 0)), (xs+1, ys, zs))
-        self.check_array(arrays[0], ((1, 0), (0, 0)), (ys+1, zs))
+        self.check_array(arrays[1], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
+        self.check_array(arrays[0], ((2, 2), (0, 0)), (ys+4, zs))
 
         # Check that `advanced-fsg` + `min-storage` is incompatible
         try:
@@ -1300,7 +1300,7 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
-    def test_hoisting_scalar_divs(self):
+    def test_hoisting_iso_ot4_akin(self):
         """
         Test that scalar divisions are hoisted out of the inner loops if requested.
         """
@@ -1313,16 +1313,29 @@ class TestAliases(object):
         # The Eq implements an OT2 iso-acoustic stencil
         pde = m * u.dt2 - u.laplace
         eq = Eq(u.forward, solve(pde, u.forward))
-        op = Operator(eq, opt=('advanced', {'cire-mincost-inv': 25}))
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
-        assert op._profiler._sections['section1'].sops == 33
+
+        op = Operator(eq, opt=('advanced', {'openmp': False}))
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
+        assert op._profiler._sections['section0'].sops == 40
 
         # The Eq implements an OT4 iso-acoustic stencil
         pde = m * u.dt2 - u.laplace - s**2/12 * u.biharmonic(1/m)
         eq = Eq(u.forward, solve(pde, u.forward))
-        op = Operator(eq, opt=('advanced', {'cire-mincost-inv': 25}))
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 2
-        assert op._profiler._sections['section1'].sops == 97
+
+        op0 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-mincost-inv': 25}))
+        assert len([i for i in FindSymbols().visit(op0) if i.is_Array]) == 2
+        assert op0._profiler._sections['section1'].sops == 109
+
+        op1 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True,
+                                             'cire-mincost-inv': 25}))
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 4
+        assert op1._profiler._sections['section1'].sops == 94
+
+        op2 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True,
+                                             'cire-mincost-inv': 25}),
+                       subs={i: 0.5 for i in grid.spacing_symbols})
+        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 2
+        assert op2._profiler._sections['section1'].sops == 57
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_drop_redundants_after_fusion(self, rotate):
@@ -1608,15 +1621,15 @@ class TestAliases(object):
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('expr,exp_arrays,exp_ops', [
         ('f.dx.dx + g.dx.dx',
-         (1, 1, 2, (1, 0)), (46, 40, 49, (11, 7))),
+         (1, 1, 2, (1, 0)), (46, 40, 49, 17)),
         ('v.dx.dx + p.dx.dx',
          (2, 2, 2, (0, 2)), (61, 49, 49, 25)),
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
-         (3, 3, 4, (5, 2)), (217, 199, 208, (25, 7, 62))),
+         (3, 3, 4, (0, 3)), (217, 199, 208, 94)),
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx',
          (1, 1, 2, (0, 1)), (50, 44, 53, 19)),
         ('g*(f.dx.dx + g.dx.dx)',
-         (1, 1, 2, (1, 0)), (47, 41, 50, (11, 8))),
+         (1, 1, 2, (1, 0)), (47, 41, 50, (17, 1))),
     ])
     def test_sum_of_nested_derivatives(self, expr, exp_arrays, exp_ops):
         """
@@ -1683,8 +1696,8 @@ class TestAliases(object):
         grid = Grid(shape=(10, 10, 10))
 
         f = Function(name='f', grid=grid)
-        u = TimeFunction(name='u', grid=grid, space_order=2)
-        u1 = TimeFunction(name="u", grid=grid, space_order=2)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name="u", grid=grid, space_order=4)
 
         f.data[:] = 0.0012
         u.data[:] = 1.3
@@ -1716,9 +1729,9 @@ class TestAliases(object):
         grid = Grid(shape=(20, 20, 20))
 
         f = Function(name='f', grid=grid)
-        u = TimeFunction(name='u', grid=grid, space_order=2)
-        u1 = TimeFunction(name="u", grid=grid, space_order=2)
-        u2 = TimeFunction(name="u", grid=grid, space_order=2)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name="u", grid=grid, space_order=4)
+        u2 = TimeFunction(name="u", grid=grid, space_order=4)
 
         f.data_with_halo[:] =\
             np.linspace(-10, 10, f.data_with_halo.size).reshape(*f.shape_with_halo)
