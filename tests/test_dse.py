@@ -1302,7 +1302,7 @@ class TestAliases(object):
 
     def test_hoisting_iso_ot4_akin(self):
         """
-        Test that scalar divisions are hoisted out of the inner loops if requested.
+        Test hoisting of time invariant sub-expressions in iso-acoustic-like kernels.
         """
         grid = Grid(shape=(3, 3, 3))
         s = grid.time_dim.spacing
@@ -1336,6 +1336,32 @@ class TestAliases(object):
                        subs={i: 0.5 for i in grid.spacing_symbols})
         assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 2
         assert op2._profiler._sections['section1'].sops == 57
+
+    def test_hoisting_scalar_divs(self):
+        """
+        Test that scalar divisions are hoisted out of the inner loops if requested.
+        """
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=4)
+        m = Function(name='m', grid=grid, space_order=4)
+
+        # The Eq implements an OT2 iso-acoustic stencil
+        pde = m * u.dt2 - u.laplace
+        eq = Eq(u.forward, solve(pde, u.forward))
+
+        op0 = Operator(eq, opt=('cire-divs', 'lift', {'openmp': False}))
+        # On GPUs we don't need to specify cire-divs
+        op1 = Operator(eq, platform='nvidiaX', language='openacc')
+
+        for op, ops, nexprs in [(op0, 54, 5), (op1, 34, 6)]:
+            assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
+            assert op._profiler._sections['section0'].sops == ops
+            exprs = FindNodes(Expression).visit(op)
+            assert len(exprs) == nexprs
+            assert all(e.is_scalar for e in exprs[:-1])
+            assert op.body[-1].body[0].is_ExpressionBundle
+            assert op.body[-1].body[-1].is_Iteration
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_drop_redundants_after_fusion(self, rotate):

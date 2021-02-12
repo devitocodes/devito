@@ -91,7 +91,7 @@ def cire(cluster, mode, sregistry, options, platform):
     # The main CIRE loop
     processed = []
     context = cluster.exprs
-    for n in reversed(range(repeats[mode])):
+    for n in reversed(range(repeats.get(mode, 1))):
         # Get the callbacks
         extract, ignore_collected, in_writeto, selector =\
             callbacks_mapper[mode](context, n, options)
@@ -154,7 +154,7 @@ class Callbacks(object):
         max_par = options['cire-maxpar']
         max_alias = options['cire-maxalias']
 
-        min_cost = min_cost[cls.mode]
+        min_cost = min_cost.get(cls.mode)
         if callable(min_cost):
             min_cost = min_cost(n)
 
@@ -185,14 +185,19 @@ class CallbacksInvariants(Callbacks):
     mode = 'invariants'
 
     @classmethod
-    def extract(cls, n, context, min_cost, max_alias, cluster, sregistry):
-        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
-
+    def _extract_rule(cls, context, min_cost, cluster):
         exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
         rule0 = lambda e: not e.free_symbols & exclude
         rule1 = make_is_time_invariant(context)
         rule2 = lambda e: estimate_cost(e, True) >= min_cost
-        rule = lambda e: rule0(e) and rule1(e) and rule2(e)
+
+        return lambda e: rule0(e) and rule1(e) and rule2(e)
+
+    @classmethod
+    def extract(cls, n, context, min_cost, max_alias, cluster, sregistry):
+        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+
+        rule = cls._extract_rule(context, min_cost, cluster)
 
         extracted = []
         mapper = OrderedDict()
@@ -210,6 +215,20 @@ class CallbacksInvariants(Callbacks):
     @classmethod
     def in_writeto(cls, max_par, dim, cluster):
         return PARALLEL in cluster.properties[dim]
+
+
+class CallbacksDivs(CallbacksInvariants):
+
+    mode = 'divs'
+
+    @classmethod
+    def _extract_rule(cls, context, min_cost, cluster):
+        return lambda e: (e.is_Pow and e.exp.is_Integer and e.exp < 0 and
+                          all(i.function.is_const for i in e.base.free_symbols))
+
+    @classmethod
+    def selector(cls, min_cost, cost):
+        return int(cost > 0)
 
 
 class CallbacksSOPS(Callbacks):
@@ -283,6 +302,7 @@ class CallbacksSOPS(Callbacks):
 
 callbacks_mapper = {
     CallbacksInvariants.mode: CallbacksInvariants,
+    CallbacksDivs.mode: CallbacksDivs,
     CallbacksSOPS.mode: CallbacksSOPS
 }
 
