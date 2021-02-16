@@ -242,7 +242,6 @@ def solve(eq, target, **kwargs):
         # Try first linear solver
         try:
             sol = list(sympy.linsolve([eval_t(e)], [t]))
-            print(eval_t(e), sol)
             sols.append(sol[0][0])
         except ValueError:
             warning("Equation is not affine w.r.t the target, falling back to standard"
