@@ -123,9 +123,9 @@ class DataManager(object):
             * The pointer array `obj`;
             * The pointee Array `obj.array`
 
-        If the pointer array is defined over `sregistry.threadid`, that it a thread
+        If the pointer array is defined over `sregistry.threadid`, that is a thread
         Dimension, then each `obj.array` slice is allocated and freed individually
-        by the logically-owning thread.
+        by the owner thread.
         """
         # The pointer array
         decl = "**%s" % obj.name
@@ -211,11 +211,11 @@ class DataManager(object):
                     continue
                 objs = [k.write]
             elif k.is_Dereference:
-                placed.append(k.array)
-                if k.parray in placed:
+                placed.append(k.pointee)
+                if k.pointer in placed:
                     objs = []
                 else:
-                    objs = [k.parray]
+                    objs = [k.pointer]
             elif k.is_Call:
                 objs = list(k.functions)
                 if k.retobj is not None:

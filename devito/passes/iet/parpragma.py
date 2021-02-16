@@ -362,7 +362,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         # The new arguments introduced by this pass
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
         for n in FindNodes(VExpanded).visit(iet):
-            args.extend([(n.array, True), n.parray])
+            args.extend([(n.pointee, True), n.pointer])
 
         return iet, {'args': args, 'includes': [self.lang['header']]}
 
