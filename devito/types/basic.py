@@ -908,6 +908,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _C_symbol(self):
         return BoundSymbol(name=self._C_name, dtype=self.dtype, function=self.function)
 
+    def _make_pointer(self):
+        """Generate a symbolic pointer to self."""
+        raise NotImplementedError
+
     @cached_property
     def _size_domain(self):
         """Number of points in the domain region."""
