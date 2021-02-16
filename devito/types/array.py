@@ -15,7 +15,6 @@ __all__ = ['Array', 'ArrayObject', 'PointerArray']
 class ArrayBasic(AbstractFunction):
 
     is_ArrayBasic = True
-    is_Tensor = True
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

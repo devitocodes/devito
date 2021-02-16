@@ -632,6 +632,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     is_Matrix = False
 
     is_AbstractFunction = True
+    is_Tensor = True
 
     # SymPy default assumptions
     is_real = True
