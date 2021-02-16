@@ -29,7 +29,7 @@ Offset = namedtuple('Offset', 'left right')
 class Basic(object):
 
     """
-    Three relevant types inherit from this class:
+    Four relevant types inherit from this class:
 
         * AbstractSymbol: represents a scalar; may carry data; may be used
                           to build equations.
@@ -467,6 +467,7 @@ class Scalar(Symbol, ArgProvider):
 
 
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
+
     """
     Base class for vector and tensor valued functions. It inherits from and
     mimicks the behavior of a sympy.ImmutableDenseMatrix.
@@ -580,6 +581,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
 
 class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
+
     """
     Base class for tensor symbols, cached by both SymPy and Devito. It inherits
     from and mimicks the behaviour of a sympy.Function.
@@ -623,6 +625,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
                                          interpolators.
 
     """
+
     # Sympy attributes, explicitly say these are not Matrices
     is_MatrixLike = False
     is_Matrix = False
@@ -1020,14 +1023,24 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return self.__class__.__base__
 
 
-# Objects belonging to the Devito API not involving data, such as data structures
-# that need to be passed to external libraries
-
-
 class AbstractObject(Basic, sympy.Basic, Pickable):
 
     """
-    Symbol representing a generic pointer object.
+    Base class for pointers to objects with derived type.
+
+    The hierarchy is structured as follows
+
+                         AbstractObject
+                                |
+                 ---------------------------------
+                 |                               |
+              Object                       LocalObject
+                 |
+          CompositeObject
+
+    Warnings
+    --------
+    AbstractObjects are created and managed directly by Devito.
     """
 
     is_AbstractObject = True
@@ -1077,7 +1090,7 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
 class Object(AbstractObject, ArgProvider):
 
     """
-    Symbol representing a generic pointer object, provided by an outer scope.
+    Pointer to object with derived type, provided by an outer scope.
     """
 
     is_Object = True
@@ -1116,8 +1129,8 @@ class Object(AbstractObject, ArgProvider):
 class CompositeObject(Object):
 
     """
-    Symbol representing a pointer to a composite type (e.g., a C struct),
-    provided by an outer scope.
+    Pointer to object with composite type (e.g., a C struct), provided
+    by an outer scope.
     """
 
     _dtype_cache = {}
@@ -1163,7 +1176,7 @@ class CompositeObject(Object):
 class LocalObject(AbstractObject):
 
     """
-    Symbol representing a generic pointer object, defined in the local scope.
+    Pointer to object with derived type, defined in the local scope.
     """
 
     is_LocalObject = True
