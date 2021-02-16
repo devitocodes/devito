@@ -128,7 +128,7 @@ def estimate_cost(exprs, estimate=False):
                             flops += 0
                         elif op.exp.is_Integer:
                             # Natural pows a**b are estimated as b-1 Muls
-                            flops += op.exp - 1
+                            flops += int(op.exp) - 1
                         else:
                             flops += pow_cost
                     else:
