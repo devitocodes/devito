@@ -10,7 +10,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
                     first_derivative, solve, transpose)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
-from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
+from devito.ir import (Cluster, Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
@@ -427,7 +427,10 @@ class TestAliases(object):
         for i, e in enumerate(list(expected)):
             expected[i] = eval(e)
 
-        aliases = collect(exprs, lambda i: False, {'min-storage': False})
+        cluster = Cluster(exprs, exprs[0].ispace, exprs[0].dspace)
+        extracted = {i.rhs: i.lhs for i in exprs}
+
+        aliases = collect(cluster, extracted, lambda i: False, {'min-storage': False})
 
         assert len(aliases) == len(expected)
         assert all(i in expected for i in aliases)
@@ -1588,8 +1591,8 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 6
         assert len(FindNodes(VExpanded).visit(op1._func_table['bf0'])) == 2
-        self.check_array(arrays[0], ((3, 3),), (zs+6,))
-        self.check_array(arrays[1], ((6, 6), (6, 6), (6, 6)), (xs+12, ys+12, zs+12))
+        self.check_array(arrays[4], ((3, 3),), (zs+6,))
+        self.check_array(arrays[5], ((6, 6), (6, 6), (6, 6)), (xs+12, ys+12, zs+12))
 
         # Check numerical output
         op0(time_M=1)
@@ -1651,7 +1654,7 @@ class TestAliases(object):
         ('v.dx.dx + p.dx.dx',
          (2, 2, 2, (0, 2)), (61, 49, 49, 25)),
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
-         (3, 3, 4, (0, 3)), (217, 199, 208, 94)),
+         (3, 3, 4, (0, 3)), (217, 199, 208, 76)),
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx',
          (1, 1, 2, (0, 1)), (50, 44, 53, 19)),
         ('g*(f.dx.dx + g.dx.dx)',
@@ -1700,14 +1703,14 @@ class TestAliases(object):
         assert len(FindNodes(VExpanded).visit(op4._func_table['bf0'])) == exp_sops
 
         # Check numerical output
-        op0(time_M=1)
+        op0(time_M=20)
         exp_v = norm(v)
         for n, op in enumerate([op1, op2, op3, op4]):
             v1 = TimeFunction(name="v", grid=grid, space_order=4)
             v1.data_with_halo[:] = 1.2
 
-            summary = op(time_M=1, v=v1)
-            assert np.isclose(exp_v, norm(v1), atol=1e-11, rtol=1e-8)
+            summary = op(time_M=20, v=v1)
+            assert np.isclose(exp_v, norm(v1), atol=1e-11, rtol=1e-6)
 
             # Also check against expected operation count to make sure
             # all redundancies have been detected correctly
@@ -1880,8 +1883,8 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 3
         assert len(FindNodes(VExpanded).visit(op1._func_table['bf0'])) == 2
-        self.check_array(arrays[0], ((4, 4),), (zs+8,))  # On purpose w/o `rotate`
-        self.check_array(arrays[1], ((4, 4), (0, 0)), (ys+8, zs), rotate)
+        self.check_array(arrays[1], ((4, 4),), (zs+8,))  # On purpose w/o `rotate`
+        self.check_array(arrays[2], ((4, 4), (0, 0)), (ys+8, zs), rotate)
 
         # Check numerical output
         op0.apply(time_M=2)
@@ -2052,8 +2055,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 102
-        assert np.isclose(summary[('section1', None)].oi, 1.610, atol=0.001)
+        assert summary[('section1', None)].ops == 103
+        assert np.isclose(summary[('section1', None)].oi, 1.625, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -2111,7 +2114,7 @@ class TestTTIv2(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 203), (12, 395)
+        (4, 211), (12, 419)
     ])
     def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
