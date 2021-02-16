@@ -27,7 +27,7 @@ from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
-__all__ = ['Function', 'TimeFunction', 'SubFunction']
+__all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
@@ -1454,3 +1454,99 @@ class SubFunction(Function):
         return self._parent
 
     _pickle_kwargs = Function._pickle_kwargs + ['parent']
+
+
+class TempFunction(DiscreteFunction):
+
+    is_TempFunction = True
+
+    def __init_finalize__(self, *args, **kwargs):
+        super().__init_finalize__(*args, **kwargs)
+
+        self._pointer_dim = kwargs.get('pointer_dim')
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        pointer_dim = kwargs.get('pointer_dim')
+        dimensions = as_tuple(kwargs['dimensions'])
+        if pointer_dim not in dimensions:
+            # This is a bit hacky but it does work around duplicate dimensions when
+            # it gets to pickling
+            dimensions = as_tuple(pointer_dim) + dimensions
+        return dimensions, dimensions
+
+    def __halo_setup__(self, **kwargs):
+        pointer_dim = kwargs.get('pointer_dim')
+        dimensions = as_tuple(kwargs['dimensions'])
+        halo = as_tuple(kwargs.get('halo'))
+        if halo is None:
+            halo = tuple((0, 0) for _ in dimensions)
+        if pointer_dim is not None:
+            halo = ((0, 0),) + halo
+        return halo
+
+    @property
+    def data(self):
+        # Any attempt at allocating data by the user should fail miserably
+        raise TypeError("TempFunction cannot allocate data")
+
+    data_domain = data
+    data_with_halo = data
+    data_ro_domain = data
+    data_ro_with_halo = data
+
+    @property
+    def pointer_dim(self):
+        return self._pointer_dim
+
+    @property
+    def dim(self):
+        return self.pointer_dim
+
+    @property
+    def shape(self):
+        return self.symbolic_shape
+
+    shape_with_halo = shape
+    shpe_allocated = shape
+
+    def make(self, shape, initializer=None):
+        """
+        Create a Function which can be used to override this TempFunction
+        in a call to `op.apply(...)`.
+
+        Parameters
+        ----------
+        shape : tuple of ints
+            Shape of the domain region in grid points.
+        initializer : callable or any object exposing the buffer interface, optional
+            Data initializer. If a callable is provided, data is allocated lazily.
+        """
+        # Sanity check
+        if len(shape) != self.ndim:
+            raise ValueError("`shape` must contain %d integers, not %d"
+                             % (self.ndim, len(shape)))
+
+        return Function(name=self.name, dtype=self.dtype, dimensions=self.dimensions,
+                        shape=shape, halo=self.halo, initializer=initializer)
+
+    def _make_pointer(self, dim):
+        return TempFunction(name='p%s' % self.name, dtype=self.dtype, pointer_dim=dim,
+                            dimensions=self.dimensions, halo=self.halo)
+
+    def _arg_defaults(self, alias=None):
+        raise RuntimeError("TempFunction does not have default arguments ")
+
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            if isinstance(new, DiscreteFunction):
+                # Set new values and re-derive defaults
+                return new._arg_defaults().reduce_all()
+            else:
+                raise InvalidArgument("Illegal runtime value for `%s`" % self.name)
+        else:
+            raise InvalidArgument("TempFunction `%s` lacks override" % self.name)
+
+    # Pickling support
+    _pickle_kwargs = DiscreteFunction._pickle_kwargs + ['dimensions', 'pointer_dim']
