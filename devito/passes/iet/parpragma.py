@@ -12,7 +12,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
 from devito.tools import as_tuple, is_integer, prod
-from devito.types import PointerArray, Symbol, NThreadsMixin
+from devito.types import Symbol, NThreadsMixin
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
            'PragmaDeviceAwareTransformer', 'PragmaLangBB']
@@ -252,17 +252,17 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         # Vector-expand all written Arrays within `partree`, since at least
         # one of the parallelized Iterations requires thread-private Arrays
         # E.g. a(x, y) -> b(tid, x, y), where `tid` is the ThreadID Dimension
-        exprs = FindNodes(Expression).visit(partree)
-        warrays = [i.write for i in exprs if i.write.is_Array]
+        writes = [i.write for i in FindNodes(Expression).visit(partree)]
         vexpandeds = []
-        for i in warrays:
-            if i in parrays:
+        for i in writes:
+            if not (i.is_Array or i.is_TempFunction):
+                continue
+            elif i in parrays:
                 pi = parrays[i]
             else:
-                pi = parrays.setdefault(i, PointerArray(name=self.sregistry.make_name(),
-                                                        dimensions=(self.threadid,),
-                                                        array=i))
+                pi = parrays.setdefault(i, i._make_pointer(dim=self.threadid))
             vexpandeds.append(VExpanded(i, pi))
+
         if vexpandeds:
             init = c.Initializer(c.Value(self.threadid._C_typedata, self.threadid.name),
                                  self.lang['thread-num'])

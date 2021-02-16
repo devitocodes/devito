@@ -8,7 +8,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
                     Dimension, SubDimension, Grid, Operator, norm, grad, div, dimensions,
                     switchconfig, configuration, centered, first_derivative, solve,
                     transpose)
-from devito.exceptions import InvalidOperator
+from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (DummyEq, Expression, Iteration, FindNodes, FindSymbols,
                        ParallelIteration, retrieve_iteration_tree)
@@ -1786,6 +1786,69 @@ class TestAliases(object):
         expected = norm(u)
         assert np.isclose(expected, norm(u1), rtol=1e-5)
         assert np.isclose(expected, norm(u2), rtol=1e-5)
+
+    def test_ftemps_option(self):
+        """
+        Test the compiler option `cire-ftemps=True`. This will make CIRE use
+        TempFunctions, rather than Arrays, to create temporaries, thus giving
+        control over allocation and deallocation to the user.
+        """
+        grid = Grid(shape=(30, 30, 30))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        nthreads = 2
+        x0_blk0_size = 8
+        y0_blk0_size = 8
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u1 = TimeFunction(name="u", grid=grid, space_order=3)
+        u2 = TimeFunction(name="u", grid=grid, space_order=3)
+
+        f.data_with_halo[:] = 1.
+        u.data_with_halo[:] = 0.32
+        u1.data_with_halo[:] = 0.32
+        u2.data_with_halo[:] = 0.32
+
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mincost-sops': 1,
+                                              'cire-ftemps': True}))
+        op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'cire-mincost-sops': 1,
+                                                  'cire-ftemps': True}))
+
+        op0(time_M=1, nthreads=nthreads)
+
+        # TempFunctions expect an override
+        try:
+            op1(time_M=1, u=u1)
+        except InvalidArgument:
+            assert True
+        except:
+            assert False
+
+        # Prepare to run op1
+        cfuncs = [i for i in op1.input if i.is_TempFunction]
+        shape = [nthreads, x0_blk0_size, y0_blk0_size, grid.shape[-1]]
+        ofuncs = [i.make(shape) for i in cfuncs]
+        kwargs = {i.name: i for i in ofuncs}
+
+        # Check numerical output of op1
+        op1(time_M=1, u=u1, nthreads=nthreads, **kwargs)
+        assert np.allclose(u.data, u1.data, rtol=10e-8)
+
+        # Prepare to run op2
+        cfuncs = [i for i in op2.input if i.is_TempFunction]
+        ofuncs = [i.make(grid.shape) for i in cfuncs]
+        assert all(i.shape_with_halo == (32, 32, 32) for i in ofuncs)
+        kwargs = {i.name: i for i in ofuncs}
+
+        # Check numerical output of op2
+        op2(time_M=1, u=u2, **kwargs)
+        assert np.allclose(u.data, u1.data, rtol=10e-8)
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_grouping_fallback(self, rotate):

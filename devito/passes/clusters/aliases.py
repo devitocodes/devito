@@ -13,8 +13,8 @@ from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
 from devito.tools import as_tuple, flatten, split
-from devito.types import (Array, Eq, Scalar, ModuloDimension, CustomDimension,
-                          IncrDimension)
+from devito.types import (Array, TempFunction, Eq, Scalar, ModuloDimension,
+                          CustomDimension, IncrDimension)
 
 __all__ = ['cire']
 
@@ -728,6 +728,14 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
     """
     Turn a Schedule into a sequence of Clusters.
     """
+    ftemps = options['cire-ftemps']
+
+    if ftemps:
+        make = TempFunction
+    else:
+        # Typical case -- the user does *not* "see" the CIRE-created temporaries
+        make = Array
+
     clusters = []
     subs = {}
     for alias, writeto, ispace, aliaseds, indicess in schedule:
@@ -767,7 +775,7 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
                     # E.g., `z` -- a non-shifted Dimension
                     indices.append(i.dim - i.lower)
 
-            obj = Array(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
+            obj = make(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
             expression = Eq(obj[indices], alias)
 
             callback = lambda idx: obj[idx]
