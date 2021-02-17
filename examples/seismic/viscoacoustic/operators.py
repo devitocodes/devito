@@ -81,12 +81,11 @@ def sls_1st_order(model, geometry, p, **kwargs):
     rho = 1. / b
 
     # Bulk modulus
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     # Memory variable.
-    r = TimeFunction(name="r", grid=model.grid, staggered=NODE,
-                     save=geometry.nt if save else None,
-                     time_order=1, space_order=space_order)
+    r = TimeFunction(name="r", grid=model.grid, time_order=1, space_order=space_order,
+                     save=geometry.nt if save else None, staggered=NODE)
 
     if forward:
 
@@ -131,6 +130,7 @@ def sls_2nd_order(model, geometry, p, **kwargs):
     """
     forward = kwargs.get('forward', True)
     space_order = p.space_order
+    save = kwargs.get('save', False)
     s = model.grid.stepping_dim.spacing
     b = model.b
     vp = model.vp
@@ -150,8 +150,11 @@ def sls_2nd_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
+    # Bulk modulus
+    bm = rho * vp * vp
+
     r = TimeFunction(name="r", grid=model.grid, time_order=2, space_order=space_order,
-                     staggered=NODE)
+                     save=geometry.nt if save else None, staggered=NODE)
 
     if forward:
 
@@ -159,7 +162,7 @@ def sls_2nd_order(model, geometry, p, **kwargs):
             s * (1. / t_s) * r
         u_r = Eq(r.forward, damp * pde_r)
 
-        pde_p = 2. * p - damp * p.backward + s * s * vp * vp * (1. + tt) * rho * \
+        pde_p = 2. * p - damp * p.backward + s * s * bm * (1. + tt) * \
             div(b * grad(p, shift=.5), shift=-.5) - s * s * vp * vp * r.forward
         u_p = Eq(p.forward, damp * pde_p)
 
@@ -209,7 +212,7 @@ def ren_1st_order(model, geometry, p, **kwargs):
     eta = (vp * vp) / (w0 * qp)
 
     # Bulk modulus
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     if forward:
 
@@ -217,7 +220,7 @@ def ren_1st_order(model, geometry, p, **kwargs):
         pde_v = v - s * b * grad(p)
         u_v = Eq(v.forward, damp * pde_v)
 
-        pde_p = p - s * vp * vp * rho * div(v.forward) + \
+        pde_p = p - s * bm * div(v.forward) + \
             s * ((vp * vp * rho) / (w0 * qp)) * div(b * grad(p, shift=.5), shift=-.5)
         u_p = Eq(p.forward, damp * pde_p)
 
@@ -264,7 +267,7 @@ def ren_2nd_order(model, geometry, p, **kwargs):
     eta = (vp * vp) / (w0 * qp)
 
     # Bulk modulus
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     if forward:
 
@@ -316,7 +319,7 @@ def deng_1st_order(model, geometry, p, **kwargs):
     rho = 1. / b
 
     # Bulk modulus
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     if forward:
 
@@ -324,7 +327,7 @@ def deng_1st_order(model, geometry, p, **kwargs):
         pde_v = v - s * b * grad(p)
         u_v = Eq(v.forward, damp * pde_v)
 
-        pde_p = p - s * vp * vp * rho * div(v.forward) - s * (w0 / qp) * p
+        pde_p = p - s * bm * div(v.forward) - s * (w0 / qp) * p
         u_p = Eq(p.forward, damp * pde_p)
 
         return [u_v, u_p]
@@ -367,7 +370,7 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     if forward:
 
