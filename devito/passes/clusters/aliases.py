@@ -12,7 +12,7 @@ from devito.ir import (SEQUENTIAL, PARALLEL, PARALLEL_IF_PVT, ROUNDABLE, DataSpa
 from devito.passes.clusters.utils import cluster_pass, make_is_time_invariant
 from devito.symbolics import (compare_ops, estimate_cost, q_constant, q_terminalop,
                               retrieve_indexed, search, uxreplace)
-from devito.tools import flatten, split
+from devito.tools import as_tuple, flatten, split
 from devito.types import (Array, Eq, Scalar, ModuloDimension, CustomDimension,
                           IncrDimension)
 
@@ -91,7 +91,7 @@ def cire(cluster, mode, sregistry, options, platform):
     # The main CIRE loop
     processed = []
     context = cluster.exprs
-    for n in reversed(range(repeats[mode])):
+    for n in reversed(range(repeats.get(mode, 1))):
         # Get the callbacks
         extract, ignore_collected, in_writeto, selector =\
             callbacks_mapper[mode](context, n, options)
@@ -154,7 +154,7 @@ class Callbacks(object):
         max_par = options['cire-maxpar']
         max_alias = options['cire-maxalias']
 
-        min_cost = min_cost[cls.mode]
+        min_cost = min_cost.get(cls.mode)
         if callable(min_cost):
             min_cost = min_cost(n)
 
@@ -176,8 +176,8 @@ class Callbacks(object):
         raise NotImplementedError
 
     @classmethod
-    def selector(cls, min_cost, cost, naliases):
-        raise NotImplementedError
+    def selector(cls, min_cost, cost):
+        return cost // min_cost
 
 
 class CallbacksInvariants(Callbacks):
@@ -185,14 +185,19 @@ class CallbacksInvariants(Callbacks):
     mode = 'invariants'
 
     @classmethod
-    def extract(cls, n, context, min_cost, max_alias, cluster, sregistry):
-        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
-
+    def _extract_rule(cls, context, min_cost, cluster):
         exclude = {i.source.indexed for i in cluster.scope.d_flow.independent()}
         rule0 = lambda e: not e.free_symbols & exclude
         rule1 = make_is_time_invariant(context)
         rule2 = lambda e: estimate_cost(e, True) >= min_cost
-        rule = lambda e: rule0(e) and rule1(e) and rule2(e)
+
+        return lambda e: rule0(e) and rule1(e) and rule2(e)
+
+    @classmethod
+    def extract(cls, n, context, min_cost, max_alias, cluster, sregistry):
+        make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+
+        rule = cls._extract_rule(context, min_cost, cluster)
 
         extracted = []
         mapper = OrderedDict()
@@ -211,9 +216,19 @@ class CallbacksInvariants(Callbacks):
     def in_writeto(cls, max_par, dim, cluster):
         return PARALLEL in cluster.properties[dim]
 
+
+class CallbacksDivs(CallbacksInvariants):
+
+    mode = 'divs'
+
     @classmethod
-    def selector(cls, min_cost, cost, naliases):
-        return cost >= min_cost and naliases >= 1
+    def _extract_rule(cls, context, min_cost, cluster):
+        return lambda e: (e.is_Pow and e.exp.is_Integer and e.exp < 0 and
+                          all(i.function.is_const for i in e.base.free_symbols))
+
+    @classmethod
+    def selector(cls, min_cost, cost):
+        return int(cost > 0)
 
 
 class CallbacksSOPS(Callbacks):
@@ -284,13 +299,10 @@ class CallbacksSOPS(Callbacks):
     def in_writeto(cls, max_par, dim, cluster):
         return max_par and PARALLEL in cluster.properties[dim]
 
-    @classmethod
-    def selector(cls, min_cost, cost, naliases):
-        return cost >= min_cost and naliases > 1
-
 
 callbacks_mapper = {
     CallbacksInvariants.mode: CallbacksInvariants,
+    CallbacksDivs.mode: CallbacksDivs,
     CallbacksSOPS.mode: CallbacksSOPS
 }
 
@@ -365,7 +377,7 @@ def collect(exprs, ignore_collected, options):
             bases.append(tuple(base))
             offsets.append(LabeledVector(offset))
 
-        if indexeds and len(bases) == len(indexeds):
+        if not indexeds or len(bases) == len(indexeds):
             found.append(Candidate(expr, indexeds, bases, offsets))
 
     # Create groups of aliasing expressions
@@ -440,11 +452,13 @@ def collect(exprs, ignore_collected, options):
             groups, remainder = split(groups, lambda g: len(g) > smallest)
             if groups:
                 queue.append(remainder)
-            else:
+            elif len(remainder) > 1:
                 # No luck with the heuristic, e.g. there are two groups
                 # and both have same `len`
                 queue.append(fallback[1:])
                 groups = [fallback.pop(0)]
+            else:
+                break
 
         for g in groups:
             c = g.pivot
@@ -476,14 +490,33 @@ def choose(exprs, aliases, selector):
     """
     Use a cost model to select the aliases that are worth optimizing.
     """
-    retained = AliasMapper(aliases)
+    # Pass 1: a set of aliasing expressions is optimizable only if its cost
+    # exceeds the mode's threshold
+    candidates = OrderedDict()
     others = []
-    chosen = OrderedDict()
     for e in exprs:
-        aliaseds = aliases.get(e.rhs)
-        naliases = len(aliaseds)
+        naliases = len(aliases.get(e.rhs))
         cost = estimate_cost(e, True)*naliases
-        if selector(cost, naliases):
+        score = selector(cost)
+        if score > 0:
+            candidates[e] = score
+        else:
+            others.append(e)
+
+    # Pass 2: a set of aliasing expressions is optimizable if and only if it survived
+    # Pass 1 above *and* the tradeoff between operation count and working set increase
+    # is favorable
+    owset = wset(others)
+    retained = AliasMapper(aliases)
+    chosen = OrderedDict()
+    others = []
+    for e in exprs:
+        try:
+            score = candidates[e]
+        except KeyError:
+            score = 0
+        if score > 1 or \
+           score == 1 and max(len(wset(e)), 1) > len(wset(e) & owset):
             chosen[e.rhs] = e.lhs
         else:
             others.append(e)
@@ -701,44 +734,57 @@ def lower_schedule(cluster, schedule, chosen, sregistry, options):
         if all(i not in chosen for i in aliaseds):
             continue
 
-        # The Dimensions defining the shape of Array
-        # Note: with SubDimensions, we may have the following situation:
-        #
-        # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
-        #   r[zi] = ...
-        #
-        # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll need
-        # as much room as in `zi`'s parent to avoid going OOB
-        # Aside from ugly generated code, the reason we do not rather shift the
-        # indices is that it prevents future passes to transform the loop bounds
-        # (e.g., MPI's comp/comm overlap does that)
-        dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
+        # Basic info to create the temporary that will hold the alias
+        name = sregistry.make_name()
+        dtype = cluster.dtype
 
-        # The halo must be set according to the size of writeto space
-        halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
+        if writeto:
+            # The Dimensions defining the shape of Array
+            # Note: with SubDimensions, we may have the following situation:
+            #
+            # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
+            #   r[zi] = ...
+            #
+            # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll need
+            # as much room as in `zi`'s parent to avoid going OOB
+            # Aside from ugly generated code, the reason we do not rather shift the
+            # indices is that it prevents future passes to transform the loop bounds
+            # (e.g., MPI's comp/comm overlap does that)
+            dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
 
-        array = Array(name=sregistry.make_name(), dimensions=dimensions,
-                      halo=halo, dtype=cluster.dtype)
+            # The halo must be set according to the size of writeto space
+            halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
-        indices = []
-        for i in writeto:
-            try:
-                # E.g., `xs`
-                sub_iterators = writeto.sub_iterators[i.dim]
-                assert len(sub_iterators) == 1
-                indices.append(sub_iterators[0])
-            except KeyError:
-                # E.g., `z` -- a non-shifted Dimension
-                indices.append(i.dim - i.lower)
+            # The indices used to write into the Array
+            indices = []
+            for i in writeto:
+                try:
+                    # E.g., `xs`
+                    sub_iterators = writeto.sub_iterators[i.dim]
+                    assert len(sub_iterators) == 1
+                    indices.append(sub_iterators[0])
+                except KeyError:
+                    # E.g., `z` -- a non-shifted Dimension
+                    indices.append(i.dim - i.lower)
 
-        expression = Eq(array[indices], alias)
+            obj = Array(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
+            expression = Eq(obj[indices], alias)
 
-        # Create the substitution rules so that we can use the newly created
-        # temporary in place of the aliasing expressions
+            callback = lambda idx: obj[idx]
+        else:
+            # Degenerate case: scalar expression
+            assert writeto.size == 0
+
+            obj = Scalar(name=name, dtype=dtype)
+            expression = Eq(obj, alias)
+
+            callback = lambda idx: obj
+
+        # Create the substitution rules for the aliasing expressions
         for aliased, indices in zip(aliaseds, indicess):
-            subs[aliased] = array[indices]
+            subs[aliased] = callback(indices)
             if aliased in chosen:
-                subs[chosen[aliased]] = array[indices]
+                subs[chosen[aliased]] = callback(indices)
             else:
                 # Perhaps part of a composite alias ?
                 pass
@@ -1028,6 +1074,9 @@ class AliasMapper(OrderedDict):
                 return
 
 
+# Utils
+
+
 def make_rotations_table(d, v):
     """
     All possible rotations of `range(v+1)`.
@@ -1065,3 +1114,11 @@ def maybe_coeff_key(grid, expr):
         return True
     indexeds = [i for i in expr.free_symbols if i.is_Indexed]
     return any(not set(grid.dimensions) <= set(i.function.dimensions) for i in indexeds)
+
+
+def wset(exprs):
+    """
+    Extract the working set out of a set of equations.
+    """
+    return {i.function for i in flatten([e.free_symbols for e in as_tuple(exprs)])
+            if i.function.is_AbstractFunction}
