@@ -144,10 +144,10 @@ class TestGradient(object):
         (np.float32, 4, 'OT2', (70, 80), False, setup),
         (np.float64, 4, 'OT2', (70, 80), True, setup),
         (np.float64, 4, 'OT2', (70, 80), False, setup),
-        (np.float32, 4, 'centered', (70, 80), True, tti_setup),
-        (np.float32, 4, 'centered', (70, 80), False, tti_setup),
-        (np.float64, 4, 'centered', (70, 80), True, tti_setup),
-        (np.float64, 4, 'centered', (70, 80), False, tti_setup),
+        (np.float32, 4, 'centered', (50, 60), True, tti_setup),
+        (np.float32, 4, 'centered', (50, 60), False, tti_setup),
+        (np.float64, 4, 'centered', (50, 60), True, tti_setup),
+        (np.float64, 4, 'centered', (50, 60), False, tti_setup),
     ])
     def test_gradientFWI(self, dtype, space_order, kernel, shape, ckp, setup_func):
         """
@@ -167,7 +167,7 @@ class TestGradient(object):
         """
         spacing = tuple(10. for _ in shape)
         wave = setup_func(shape=shape, spacing=spacing, dtype=dtype,
-                          kernel=kernel, space_order=space_order, nbl=40)
+                          kernel=kernel, tn=400.0, space_order=space_order, nbl=40)
 
         vel0 = Function(name='vel0', grid=wave.model.grid, space_order=space_order)
         smooth(vel0, wave.model.vp)

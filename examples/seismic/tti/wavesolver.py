@@ -222,6 +222,7 @@ class AnisotropicWaveSolver(object):
         """
         Linearized Born modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
+
         Parameters
         ----------
         src : SparseTimeFunction or array_like, optional
@@ -285,6 +286,7 @@ class AnisotropicWaveSolver(object):
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
         Jacobian adjoint on an input data.
+
         Parameters
         ----------
         rec : SparseTimeFunction

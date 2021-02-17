@@ -530,6 +530,7 @@ def JacobianOperator(model, geometry, space_order=4,
                      **kwargs):
     """
     Construct a Linearized Born operator in a TTI media.
+
     Parameters
     ----------
     model : Model
@@ -590,6 +591,7 @@ def JacobianAdjOperator(model, geometry, space_order=4,
                         save=True, **kwargs):
     """
     Construct a linearized JacobianAdjoint modeling Operator in a TTI media.
+
     Parameters
     ----------
     model : Model

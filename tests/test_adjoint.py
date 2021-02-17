@@ -124,11 +124,11 @@ class TestAdjoint(object):
         ('layers', (40, 50, 30), 'OT2', 8, acoustic_setup),
         ('layers', (40, 50, 30), 'OT2', 4, acoustic_setup),
         # 2D TTI tests with varying space orders
-        ('layers-tti', (30, 35), 'centered', 8, tti_setup),
-        ('layers-tti', (30, 35), 'centered', 4, tti_setup),
+        ('layers-tti', (20, 25), 'centered', 8, tti_setup),
+        ('layers-tti', (20, 25), 'centered', 4, tti_setup),
         # 3D TTI tests with varying space orders
-        ('layers-tti', (30, 35, 40), 'centered', 8, tti_setup),
-        ('layers-tti', (30, 35, 40), 'centered', 4, tti_setup),
+        ('layers-tti', (20, 25, 30), 'centered', 8, tti_setup),
+        ('layers-tti', (20, 25, 30), 'centered', 4, tti_setup),
     ])
     def test_adjoint_J(self, mkey, shape, kernel, space_order, setup_func):
         """
