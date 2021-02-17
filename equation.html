@@ -178,7 +178,7 @@
 <p>User API to specify equations.</p>
 <dl class="py class">
 <dt id="devito.types.equation.Eq">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.equation.</code><code class="sig-name descname">Eq</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">lhs</span></em>, <em class="sig-param"><span class="n">rhs</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">subdomain</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">coefficients</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">implicit_dims</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Eq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.equation.Eq" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></code><code class="sig-name descname"><span class="pre">Eq</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomain</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Eq"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.Eq" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.lazy.Evaluable</span></code></p>
 <p>An equal relation between two objects, the left-hand side and the
 right-hand side.</p>
@@ -219,14 +219,14 @@ constructing an Operator.</p></li>
 (e.g., <code class="docutils literal notranslate"><span class="pre">a[i]</span> <span class="pre">=</span> <span class="pre">b[i]*c</span></code>).</p>
 <dl class="py attribute">
 <dt id="devito.types.equation.Eq.evaluate">
-<code class="sig-name descname">evaluate</code><a class="headerlink" href="#devito.types.equation.Eq.evaluate" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">evaluate</span></code><a class="headerlink" href="#devito.types.equation.Eq.evaluate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Evaluate the Equation or system of Equations.</p>
 <p>The RHS of the Equation is evaluated at the indices of the LHS if required.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.equation.Eq.func">
-<em class="property">property </em><code class="sig-name descname">func</code><a class="headerlink" href="#devito.types.equation.Eq.func" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">func</span></code><a class="headerlink" href="#devito.types.equation.Eq.func" title="Permalink to this definition">¶</a></dt>
 <dd><p>The top-level function in an expression.</p>
 <p>The following should hold for all objects:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">x</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
@@ -249,13 +249,13 @@ constructing an Operator.</p></li>
 
 <dl class="py method">
 <dt id="devito.types.equation.Eq.subdomain">
-<em class="property">property </em><code class="sig-name descname">subdomain</code><a class="headerlink" href="#devito.types.equation.Eq.subdomain" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">subdomain</span></code><a class="headerlink" href="#devito.types.equation.Eq.subdomain" title="Permalink to this definition">¶</a></dt>
 <dd><p>The SubDomain in which the Eq is defined.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.equation.Eq.xreplace">
-<code class="sig-name descname">xreplace</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">rules</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Eq.xreplace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.equation.Eq.xreplace" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">xreplace</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rules</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Eq.xreplace"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.Eq.xreplace" title="Permalink to this definition">¶</a></dt>
 <dd><p>Replace occurrences of objects within the expression.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -321,7 +321,7 @@ but xreplace does:</p>
 
 <dl class="py class">
 <dt id="devito.types.equation.Inc">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.equation.</code><code class="sig-name descname">Inc</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">lhs</span></em>, <em class="sig-param"><span class="n">rhs</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">subdomain</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">coefficients</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">implicit_dims</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Inc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.equation.Inc" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></code><code class="sig-name descname"><span class="pre">Inc</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomain</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Inc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.Inc" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.types.equation.Eq" title="devito.types.equation.Eq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.equation.Eq</span></code></a></p>
 <p>An increment relation between two objects, the left-hand side and the
 right-hand side.</p>
@@ -360,7 +360,7 @@ programming language (e.g., <code class="docutils literal notranslate"><span cla
 
 <dl class="py function">
 <dt id="devito.types.equation.solve">
-<code class="sig-prename descclassname">devito.types.equation.</code><code class="sig-name descname">solve</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">eq</span></em>, <em class="sig-param"><span class="n">target</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#solve"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.equation.solve" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></code><code class="sig-name descname"><span class="pre">solve</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eq</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#solve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.solve" title="Permalink to this definition">¶</a></dt>
 <dd><p>Algebraically rearrange an Eq w.r.t. a given symbol.</p>
 <p>This is a wrapper around <code class="docutils literal notranslate"><span class="pre">sympy.solve</span></code>.</p>
 <dl class="field-list simple">

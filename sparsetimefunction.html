@@ -193,7 +193,7 @@
 <h1>SparseTimeFunction<a class="headerlink" href="#sparsetimefunction" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
 <dt id="devito.types.SparseTimeFunction">
-<em class="property">class </em><code class="sig-prename descclassname">devito.types.</code><code class="sig-name descname">SparseTimeFunction</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SparseTimeFunction" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">devito.types.</span></code><code class="sig-name descname"><span class="pre">SparseTimeFunction</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseTimeFunction" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.sparse.AbstractSparseTimeFunction</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.sparse.SparseFunction</span></code></p>
 <p>Tensor symbol representing a space- and time-varying sparse array in symbolic
 equations.</p>
@@ -258,7 +258,7 @@ to take advantage of the memory hierarchy in a NUMA architecture. Refer to
 uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the symbolic object.</p>
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.data">
-<em class="property">property </em><code class="sig-name descname">data</code><a class="headerlink" href="#devito.types.SparseTimeFunction.data" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">data</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.data" title="Permalink to this definition">¶</a></dt>
 <dd><p>The domain data values, as a numpy.ndarray.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -269,7 +269,7 @@ instead.</p>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.data_domain">
-<em class="property">property </em><code class="sig-name descname">data_domain</code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_domain" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">data_domain</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_domain" title="Permalink to this definition">¶</a></dt>
 <dd><p>The domain data values.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -281,19 +281,19 @@ get back. If you only need to look at the values, use
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.data_ro_domain">
-<em class="property">property </em><code class="sig-name descname">data_ro_domain</code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_ro_domain" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">data_ro_domain</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_ro_domain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Read-only view of the domain data values.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.data_ro_with_halo">
-<em class="property">property </em><code class="sig-name descname">data_ro_with_halo</code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_ro_with_halo" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">data_ro_with_halo</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_ro_with_halo" title="Permalink to this definition">¶</a></dt>
 <dd><p>Read-only view of the domain+outhalo data values.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.data_with_halo">
-<em class="property">property </em><code class="sig-name descname">data_with_halo</code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_with_halo" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">data_with_halo</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.data_with_halo" title="Permalink to this definition">¶</a></dt>
 <dd><p>The domain+outhalo data values.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -304,25 +304,25 @@ get back. If you only need to look at the values, use
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.dimensions">
-<em class="property">property </em><code class="sig-name descname">dimensions</code><a class="headerlink" href="#devito.types.SparseTimeFunction.dimensions" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">dimensions</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.dimensions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Tuple of Dimensions representing the object indices.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.dtype">
-<em class="property">property </em><code class="sig-name descname">dtype</code><a class="headerlink" href="#devito.types.SparseTimeFunction.dtype" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">dtype</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.dtype" title="Permalink to this definition">¶</a></dt>
 <dd><p>The data type of the object.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.grid">
-<em class="property">property </em><code class="sig-name descname">grid</code><a class="headerlink" href="#devito.types.SparseTimeFunction.grid" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">grid</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.grid" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Grid on which the discretization occurred.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.gridpoints">
-<em class="property">property </em><code class="sig-name descname">gridpoints</code><a class="headerlink" href="#devito.types.SparseTimeFunction.gridpoints" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">gridpoints</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.gridpoints" title="Permalink to this definition">¶</a></dt>
 <dd><p>The <em>reference</em> grid point corresponding to each sparse point.</p>
 <p class="rubric">Notes</p>
 <p>When using MPI, this property refers to the <em>physically</em> owned
@@ -331,7 +331,7 @@ sparse points.</p>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.guard">
-<code class="sig-name descname">guard</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">offset</span><span class="o">=</span><span class="default_value">0</span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseTimeFunction.guard" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">guard</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseTimeFunction.guard" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate guarded expressions, that is expressions that are evaluated
 by an Operator only if certain conditions are met.  The introduced
 condition, here, is that all grid points in the support of a sparse
@@ -349,7 +349,7 @@ If not specified, defaults to <code class="docutils literal notranslate"><span c
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.inject">
-<code class="sig-name descname">inject</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">field</span></em>, <em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="n">offset</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">u_t</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">p_t</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.inject" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">inject</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">field</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.inject"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.inject" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate equations injecting an arbitrary expression into a field.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -366,7 +366,7 @@ If not specified, defaults to <code class="docutils literal notranslate"><span c
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.interpolate">
-<code class="sig-name descname">interpolate</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">expr</span></em>, <em class="sig-param"><span class="n">offset</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">u_t</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">p_t</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">increment</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">interpolate</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">increment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.interpolate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.interpolate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate equations interpolating an arbitrary expression into <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -383,13 +383,13 @@ If not specified, defaults to <code class="docutils literal notranslate"><span c
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.name">
-<em class="property">property </em><code class="sig-name descname">name</code><a class="headerlink" href="#devito.types.SparseTimeFunction.name" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">name</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.name" title="Permalink to this definition">¶</a></dt>
 <dd><p>The name of the object.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt id="devito.types.SparseTimeFunction.shape">
-<code class="sig-name descname">shape</code><a class="headerlink" href="#devito.types.SparseTimeFunction.shape" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">shape</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.shape" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shape of the domain region. The domain constitutes the area of the
 data written to by an Operator.</p>
 <p class="rubric">Notes</p>
@@ -398,13 +398,13 @@ data written to by an Operator.</p>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.space_order">
-<em class="property">property </em><code class="sig-name descname">space_order</code><a class="headerlink" href="#devito.types.SparseTimeFunction.space_order" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">space_order</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.space_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>The space order.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.SparseTimeFunction.time_order">
-<em class="property">property </em><code class="sig-name descname">time_order</code><a class="headerlink" href="#devito.types.SparseTimeFunction.time_order" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">time_order</span></code><a class="headerlink" href="#devito.types.SparseTimeFunction.time_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>The time order.</p>
 </dd></dl>
 
