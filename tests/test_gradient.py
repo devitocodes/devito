@@ -140,10 +140,10 @@ class TestGradient(object):
         assert(np.allclose(grad_u.data, grad_uv.data, rtol=tolerance, atol=tolerance))
 
     @pytest.mark.parametrize('dtype, space_order, kernel, shape, ckp, setup_func', [
-        (np.float32, 4, 'OT2', (70, 80), True, setup),
-        (np.float32, 4, 'OT2', (70, 80), False, setup),
-        (np.float64, 4, 'OT2', (70, 80), True, setup),
-        (np.float64, 4, 'OT2', (70, 80), False, setup),
+        (np.float32, 4, 'OT2', (50, 60), True, setup),
+        (np.float32, 4, 'OT2', (50, 60), False, setup),
+        (np.float64, 4, 'OT2', (50, 60), True, setup),
+        (np.float64, 4, 'OT2', (50, 60), False, setup),
         (np.float32, 4, 'centered', (50, 60), True, tti_setup),
         (np.float32, 4, 'centered', (50, 60), False, tti_setup),
         (np.float64, 4, 'centered', (50, 60), True, tti_setup),
