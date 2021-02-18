@@ -17,53 +17,68 @@ presets = {
 
 
 class TestAdjoint(object):
-
-    @pytest.mark.parametrize('mkey, shape, kernel, space_order, setup_func', [
+    @pytest.mark.parametrize('mkey, shape, kernel, space_order, time_order, setup_func', [
         # 1 tests with varying time and space orders
-        ('layers', (60, ), 'OT2', 12, acoustic_setup),
-        ('layers', (60, ), 'OT2', 8, acoustic_setup),
-        ('layers', (60, ), 'OT4', 4, acoustic_setup),
+        ('layers', (60, ), 'OT2', 12, 2, acoustic_setup),
+        ('layers', (60, ), 'OT2', 8, 2, acoustic_setup),
+        ('layers', (60, ), 'OT4', 4, 2, acoustic_setup),
         # 2D tests with varying time and space orders
-        ('layers', (60, 70), 'OT2', 12, acoustic_setup),
-        ('layers', (60, 70), 'OT2', 8, acoustic_setup),
-        ('layers', (60, 70), 'OT2', 4, acoustic_setup),
-        ('layers', (60, 70), 'OT4', 2, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 12, 2, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 8, 2, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 4, 2, acoustic_setup),
+        ('layers', (60, 70), 'OT4', 2, 2, acoustic_setup),
         # 3D tests with varying time and space orders
-        ('layers', (60, 70, 80), 'OT2', 8, acoustic_setup),
-        ('layers', (60, 70, 80), 'OT2', 6, acoustic_setup),
-        ('layers', (60, 70, 80), 'OT2', 4, acoustic_setup),
-        ('layers', (60, 70, 80), 'OT4', 2, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 6, 2, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 4, 2, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
         # Constant model in 2D and 3D
-        ('constant', (60, 70), 'OT2', 10, acoustic_setup),
-        ('constant', (60, 70, 80), 'OT2', 8, acoustic_setup),
-        ('constant', (60, 70), 'OT2', 4, acoustic_setup),
-        ('constant', (60, 70, 80), 'OT4', 2, acoustic_setup),
+        ('constant', (60, 70), 'OT2', 10, 2, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
+        ('constant', (60, 70), 'OT2', 4, 2, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
         # 2D TTI tests with varying space orders
-        ('layers-tti', (30, 35), 'centered', 8, tti_setup),
-        ('layers-tti', (30, 35), 'centered', 4, tti_setup),
+        ('layers-tti', (30, 35), 'centered', 8, 2, tti_setup),
+        ('layers-tti', (30, 35), 'centered', 4, 2, tti_setup),
         # 3D TTI tests with varying space orders
-        ('layers-tti', (30, 35, 40), 'centered', 8, tti_setup),
-        ('layers-tti', (30, 35, 40), 'centered', 4, tti_setup),
-        # 2D SLS Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (20, 25), 'sls', 4, viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25), 'sls', 2, viscoacoustic_setup),
-        # 3D SLS Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (20, 25, 20), 'sls', 4, viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25, 20), 'sls', 2, viscoacoustic_setup),
-        # 2D Ren Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (20, 25), 'ren', 4, viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25), 'ren', 2, viscoacoustic_setup),
-        # 3D Ren Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (20, 25, 20), 'ren', 4, viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25, 20), 'ren', 2, viscoacoustic_setup),
-        # 2D Deng Mcmechan Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 4, viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 2, viscoacoustic_setup),
-        # 3D Deng Mcmechan Viscoacoustic tests with varying space orders
-        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 4, viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 2, viscoacoustic_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 4, 2, tti_setup),
+        # 2D SLS Viscoacoustic tests with varying space and equation orders
+        ('layers-viscoacoustic', (20, 25), 'sls', 4, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 2, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 4, 2, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 2, 2, viscoacoustic_setup),
+        # 3D SLS Viscoacoustic tests with varying space and equation orders
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 4, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 2, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 4, 2, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 2, 2, viscoacoustic_setup),
+        # 2D Ren Viscoacoustic tests with varying space and equation orders
+        ('layers-viscoacoustic', (20, 25), 'ren', 4, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'ren', 2, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'ren', 4, 2, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'ren', 2, 2, viscoacoustic_setup),
+        # 3D Ren Viscoacoustic tests with varying space and equation orders
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 4, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 2, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 4, 2, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'ren', 2, 2, viscoacoustic_setup),
+        # 2D Deng Mcmechan Viscoacoustic tests with varying space and equation orders
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 4, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 2, 1, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 4, 2, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'deng_mcmechan', 2, 2, viscoacoustic_setup),
+        # 3D Deng Mcmechan Viscoacoustic tests with varying space and equation orders
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 4, 1, \
+            viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 2, 1, \
+            viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 4, 2, \
+            viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'deng_mcmechan', 2, 2, \
+            viscoacoustic_setup),
     ])
-    def test_adjoint_F(self, mkey, shape, kernel, space_order, setup_func):
+    def test_adjoint_F(self, mkey, shape, kernel, space_order, time_order, setup_func):
         """
         Adjoint test for the forward modeling operator.
         The forward modeling operator F generates a shot record (measurements)
@@ -76,7 +91,7 @@ class TestAdjoint(object):
         # Create solver from preset
         solver = setup_func(shape=shape, spacing=[15. for _ in shape],
                             kernel=kernel, nbl=10, tn=tn,
-                            space_order=space_order,
+                            space_order=space_order, time_order=time_order,
                             **(presets[mkey]), dtype=np.float64)
 
         # Create adjoint receiver symbol
