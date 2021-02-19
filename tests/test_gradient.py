@@ -1,4 +1,3 @@
-
 import numpy as np
 import pytest
 from numpy import linalg
@@ -8,6 +7,7 @@ from devito.parameters import switchconfig
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic.acoustic.operators import iso_stencil
 from examples.seismic import Receiver, demo_model, setup_geometry
+from examples.seismic.tti import tti_setup
 
 
 class TestGradient(object):
@@ -19,7 +19,7 @@ class TestGradient(object):
                                       {'openmp': True})])
     @pytest.mark.parametrize('space_order', [4, 16])
     def test_gradient_checkpointing(self, dtype, opt, space_order):
-        r"""
+        """
         This test ensures that the FWI gradient computed with checkpointing matches
         the one without checkpointing. Note that this test fails with dynamic openmp
         scheduling enabled so this test disables it.
@@ -139,13 +139,18 @@ class TestGradient(object):
         assert(np.allclose(grad_u.data, grad_v.data, rtol=tolerance, atol=tolerance))
         assert(np.allclose(grad_u.data, grad_uv.data, rtol=tolerance, atol=tolerance))
 
-    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-    @pytest.mark.parametrize('space_order', [4])
-    @pytest.mark.parametrize('kernel', ['OT2'])
-    @pytest.mark.parametrize('shape', [(70, 80)])
-    @pytest.mark.parametrize('checkpointing', [True, False])
-    def test_gradientFWI(self, dtype, shape, kernel, space_order, checkpointing):
-        r"""
+    @pytest.mark.parametrize('dtype, space_order, kernel, shape, ckp, setup_func', [
+        (np.float32, 4, 'OT2', (50, 60), True, setup),
+        (np.float32, 4, 'OT2', (50, 60), False, setup),
+        (np.float64, 4, 'OT2', (50, 60), True, setup),
+        (np.float64, 4, 'OT2', (50, 60), False, setup),
+        (np.float32, 4, 'centered', (50, 60), True, tti_setup),
+        (np.float32, 4, 'centered', (50, 60), False, tti_setup),
+        (np.float64, 4, 'centered', (50, 60), True, tti_setup),
+        (np.float64, 4, 'centered', (50, 60), False, tti_setup),
+    ])
+    def test_gradientFWI(self, dtype, space_order, kernel, shape, ckp, setup_func):
+        """
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -161,19 +166,21 @@ class TestGradient(object):
         with F the Forward modelling operator.
         """
         spacing = tuple(10. for _ in shape)
-        wave = setup(shape=shape, spacing=spacing, dtype=dtype,
-                     kernel=kernel, space_order=space_order,
-                     nbl=40)
+        wave = setup_func(shape=shape, spacing=spacing, dtype=dtype,
+                          kernel=kernel, tn=400.0, space_order=space_order, nbl=40)
 
-        v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
-        smooth(v0, wave.model.vp)
+        vel0 = Function(name='vel0', grid=wave.model.grid, space_order=space_order)
+        smooth(vel0, wave.model.vp)
         v = wave.model.vp.data
-        dm = dtype(wave.model.vp.data**(-2) - v0.data**(-2))
+        dm = dtype(wave.model.vp.data**(-2) - vel0.data**(-2))
         # Compute receiver data for the true velocity
-        rec, _, _ = wave.forward()
+        rec = wave.forward()[0]
 
         # Compute receiver data and full wavefield for the smooth velocity
-        rec0, u0, _ = wave.forward(vp=v0, save=True)
+        if setup_func is setup:
+            rec0, u0, _ = wave.forward(vp=vel0, save=True)
+        else:
+            rec0, u0, v0, _ = wave.forward(vp=vel0, save=True)
 
         # Objective function value
         F0 = .5*linalg.norm(rec0.data - rec.data)**2
@@ -183,8 +190,13 @@ class TestGradient(object):
                             time_range=wave.geometry.time_axis,
                             coordinates=wave.geometry.rec_positions)
 
-        gradient, _ = wave.jacobian_adjoint(residual, u0, vp=v0,
-                                            checkpointing=checkpointing)
+        if setup_func is setup:
+            gradient, _ = wave.jacobian_adjoint(residual, u0, vp=vel0,
+                                                checkpointing=ckp)
+        else:
+            gradient, _ = wave.jacobian_adjoint(residual, u0, v0, vp=vel0,
+                                                checkpointing=ckp)
+
         G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
 
         # FWI Gradient test
@@ -194,8 +206,8 @@ class TestGradient(object):
         for i in range(0, 7):
             # Add the perturbation to the model
             def initializer(data):
-                data[:] = np.sqrt(v0.data**2 * v**2 /
-                                  ((1 - H[i]) * v**2 + H[i] * v0.data**2))
+                data[:] = np.sqrt(vel0.data**2 * v**2 /
+                                  ((1 - H[i]) * v**2 + H[i] * vel0.data**2))
             vloc = Function(name='vloc', grid=wave.model.grid, space_order=space_order,
                             initializer=initializer)
             # Data for the new model
@@ -219,13 +231,12 @@ class TestGradient(object):
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
     def test_gradientJ(self, dtype, shape, kernel, space_order):
-        r"""
+        """
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
         .. math::
             F(m0 + h dm) = F(m0) + \O(h) \\
             F(m0 + h dm) = F(m0) + J dm + \O(h^2) \\
-
         with F the Forward modelling operator.
         """
         spacing = tuple(15. for _ in shape)
@@ -237,15 +248,12 @@ class TestGradient(object):
         smooth(v0, wave.model.vp)
         v = wave.model.vp.data
         dm = dtype(wave.model.vp.data**(-2) - v0.data**(-2))
-        linrec = Receiver(name='rec', grid=wave.model.grid,
-                          time_range=wave.geometry.time_axis,
-                          coordinates=wave.geometry.rec_positions)
 
         # Compute receiver data and full wavefield for the smooth velocity
         rec, _, _ = wave.forward(vp=v0, save=False)
 
         # Gradient: J dm
-        Jdm, _, _, _ = wave.jacobian(dm, rec=linrec, vp=v0)
+        Jdm, _, _, _ = wave.jacobian(dm, vp=v0)
         # FWI Gradient test
         H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
         error1 = np.zeros(7)
@@ -271,7 +279,7 @@ class TestGradient(object):
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
         info('1st order error, Phi(m0+dm)-Phi(m0) with slope: %s compared to 1' % (p1[0]))
         info(r'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>with slope:'
-             ' %s comapred to 2' % (p2[0]))
+             ' %s compared to 2' % (p2[0]))
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 

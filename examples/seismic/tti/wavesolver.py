@@ -1,8 +1,11 @@
 # coding: utf-8
-from devito import TimeFunction, warning
+from devito import Function, TimeFunction, warning
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
+from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
+from pyrevolve import Revolver
 
 
 class AnisotropicWaveSolver(object):
@@ -59,6 +62,18 @@ class AnisotropicWaveSolver(object):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=None, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
+
+    @memoized_meth
+    def op_jac(self):
+        """Cached operator for born runs"""
+        return JacobianOperator(self.model, save=None, geometry=self.geometry,
+                                space_order=self.space_order, **self._kwargs)
+
+    @memoized_meth
+    def op_jacadj(self, save=True):
+        """Cached operator for gradient runs"""
+        return JacobianAdjOperator(self.model, save=save, geometry=self.geometry,
+                                   space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, v=None, vp=None,
                 epsilon=None, delta=None, theta=None, phi=None,
@@ -172,7 +187,7 @@ class AnisotropicWaveSolver(object):
         Adjoint source, wavefield and performance summary.
         """
         if kernel != 'centered':
-            raise RuntimeError('Only centered kernel is supported for the adjoint')
+            raise ValueError('Only centered kernel is supported for the adjoint')
 
         time_order = 2
         stagg_p = stagg_r = None
@@ -200,3 +215,143 @@ class AnisotropicWaveSolver(object):
         summary = self.op_adj().apply(srca=srca, rec=rec, p=p, r=r,
                                       dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, p, r, summary
+
+    def jacobian(self, dm, src=None, rec=None, u0=None, v0=None, du=None, dv=None,
+                 vp=None, epsilon=None, delta=None, theta=None, phi=None,
+                 save=None, kernel='centered', **kwargs):
+        """
+        Linearized Born modelling function that creates the necessary
+        data objects for running an adjoint modelling operator.
+
+        Parameters
+        ----------
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec : SparseTimeFunction or array_like, optional
+            The interpolated receiver data.
+        u : TimeFunction, optional
+            The computed background wavefield first component.
+        v : TimeFunction, optional
+            The computed background wavefield second component.
+        du : TimeFunction, optional
+            The computed perturbed wavefield first component.
+        dv : TimeFunction, optional
+            The computed perturbed wavefield second component.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
+        """
+        if kernel != 'centered':
+            raise ValueError('Only centered kernel is supported for the jacobian')
+
+        dt = kwargs.pop('dt', self.dt)
+        # Source term is read-only, so re-use the default
+        src = src or self.geometry.src
+        # Create a new receiver object to store the result
+        rec = rec or self.geometry.rec
+
+        # Create the forward wavefields u, v du and dv if not provided
+        u0 = u0 or TimeFunction(name='u0', grid=self.model.grid,
+                                time_order=2, space_order=self.space_order)
+        v0 = v0 or TimeFunction(name='v0', grid=self.model.grid,
+                                time_order=2, space_order=self.space_order)
+        du = du or TimeFunction(name='du', grid=self.model.grid,
+                                time_order=2, space_order=self.space_order)
+        dv = dv or TimeFunction(name='dv', grid=self.model.grid,
+                                time_order=2, space_order=self.space_order)
+
+        # Pick vp and Thomsen parameters from model unless explicitly provided
+        kwargs.update(self.model.physical_params(
+            vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
+        )
+        if self.model.dim < 3:
+            kwargs.pop('phi', None)
+
+        # Execute operator and return wavefield and receiver data
+        summary = self.op_jac().apply(dm=dm, u0=u0, v0=v0, du=du, dv=dv, src=src,
+                                      rec=rec, dt=dt, **kwargs)
+        return rec, u0, v0, du, dv, summary
+
+    def jacobian_adjoint(self, rec, u0, v0, du=None, dv=None, dm=None, vp=None,
+                         epsilon=None, delta=None, theta=None, phi=None,
+                         checkpointing=False, kernel='centered', **kwargs):
+        """
+        Gradient modelling function for computing the adjoint of the
+        Linearized Born modelling function, ie. the action of the
+        Jacobian adjoint on an input data.
+
+        Parameters
+        ----------
+        rec : SparseTimeFunction
+            Receiver data.
+        u0 : TimeFunction
+            The computed background wavefield.
+        v0 : TimeFunction, optional
+            The computed background wavefield.
+        du : Function or float
+            The computed perturbed wavefield.
+        dv : Function or float
+            The computed perturbed wavefield.
+        dm : Function, optional
+            Stores the gradient field.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
+        Returns
+        -------
+        Gradient field and performance summary.
+        """
+        if kernel != 'centered':
+            raise ValueError('Only centered kernel is supported for the jacobian_adj')
+
+        dt = kwargs.pop('dt', self.dt)
+        # Gradient symbol
+        dm = dm or Function(name='dm', grid=self.model.grid)
+
+        # Create the perturbation wavefields if not provided
+        du = du or TimeFunction(name='du', grid=self.model.grid,
+                                time_order=2, space_order=self.space_order)
+        dv = dv or TimeFunction(name='dv', grid=self.model.grid,
+                                time_order=2, space_order=self.space_order)
+
+        # Pick vp and Thomsen parameters from model unless explicitly provided
+        kwargs.update(self.model.physical_params(
+            vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
+        )
+        if self.model.dim < 3:
+            kwargs.pop('phi', None)
+
+        if checkpointing:
+            u0 = TimeFunction(name='u0', grid=self.model.grid,
+                              time_order=2, space_order=self.space_order)
+            v0 = TimeFunction(name='v0', grid=self.model.grid,
+                              time_order=2, space_order=self.space_order)
+            cp = DevitoCheckpoint([u0, v0])
+            n_checkpoints = None
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
+                                         u=u0, v=v0, dt=dt, **kwargs)
+            wrap_rev = CheckpointOperator(self.op_jacadj(save=False), u0=u0, v0=v0,
+                                          du=du, dv=dv, rec=rec, dm=dm, dt=dt, **kwargs)
+
+            # Run forward
+            wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
+            wrp.apply_forward()
+            summary = wrp.apply_reverse()
+        else:
+            summary = self.op_jacadj().apply(rec=rec, dm=dm, u0=u0, v0=v0, du=du, dv=dv,
+                                             dt=dt, **kwargs)
+        return dm, summary
