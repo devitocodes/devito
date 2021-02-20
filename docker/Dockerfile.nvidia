@@ -46,7 +46,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.0/extras/CUPTI
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.2/extras/CUPTI
 ARG MPI_VER=3
 
 # nvidia-container-runtime
