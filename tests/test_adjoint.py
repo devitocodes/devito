@@ -19,30 +19,30 @@ presets = {
 class TestAdjoint(object):
     @pytest.mark.parametrize('mkey, shape, kernel, space_order, time_order, setup_func', [
         # 1 tests with varying time and space orders
-        ('layers', (60, ), 'OT2', 12, 2, acoustic_setup),
-        ('layers', (60, ), 'OT2', 8, 2, acoustic_setup),
-        ('layers', (60, ), 'OT4', 4, 2, acoustic_setup),
-        # 2D tests with varying time and space orders
-        ('layers', (60, 70), 'OT2', 12, 2, acoustic_setup),
-        ('layers', (60, 70), 'OT2', 8, 2, acoustic_setup),
-        ('layers', (60, 70), 'OT2', 4, 2, acoustic_setup),
-        ('layers', (60, 70), 'OT4', 2, 2, acoustic_setup),
-        # 3D tests with varying time and space orders
-        ('layers', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
-        ('layers', (60, 70, 80), 'OT2', 6, 2, acoustic_setup),
-        ('layers', (60, 70, 80), 'OT2', 4, 2, acoustic_setup),
-        ('layers', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
-        # Constant model in 2D and 3D
-        ('constant', (60, 70), 'OT2', 10, 2, acoustic_setup),
-        ('constant', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
-        ('constant', (60, 70), 'OT2', 4, 2, acoustic_setup),
-        ('constant', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
-        # 2D TTI tests with varying space orders
-        ('layers-tti', (30, 35), 'centered', 8, 2, tti_setup),
-        ('layers-tti', (30, 35), 'centered', 4, 2, tti_setup),
-        # 3D TTI tests with varying space orders
-        ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
-        ('layers-tti', (30, 35, 40), 'centered', 4, 2, tti_setup),
+        # ('layers', (60, ), 'OT2', 12, 2, acoustic_setup),
+        # ('layers', (60, ), 'OT2', 8, 2, acoustic_setup),
+        # ('layers', (60, ), 'OT4', 4, 2, acoustic_setup),
+        # # 2D tests with varying time and space orders
+        # ('layers', (60, 70), 'OT2', 12, 2, acoustic_setup),
+        # ('layers', (60, 70), 'OT2', 8, 2, acoustic_setup),
+        # ('layers', (60, 70), 'OT2', 4, 2, acoustic_setup),
+        # ('layers', (60, 70), 'OT4', 2, 2, acoustic_setup),
+        # # 3D tests with varying time and space orders
+        # ('layers', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
+        # ('layers', (60, 70, 80), 'OT2', 6, 2, acoustic_setup),
+        # ('layers', (60, 70, 80), 'OT2', 4, 2, acoustic_setup),
+        # ('layers', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
+        # # Constant model in 2D and 3D
+        # ('constant', (60, 70), 'OT2', 10, 2, acoustic_setup),
+        # ('constant', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
+        # ('constant', (60, 70), 'OT2', 4, 2, acoustic_setup),
+        # ('constant', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
+        # # 2D TTI tests with varying space orders
+        # ('layers-tti', (30, 35), 'centered', 8, 2, tti_setup),
+        # ('layers-tti', (30, 35), 'centered', 4, 2, tti_setup),
+        # # 3D TTI tests with varying space orders
+        # ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
+        # ('layers-tti', (30, 35, 40), 'centered', 4, 2, tti_setup),
         # 2D SLS Viscoacoustic tests with varying space and equation orders
         ('layers-viscoacoustic', (20, 25), 'sls', 4, 1, viscoacoustic_setup),
         ('layers-viscoacoustic', (20, 25), 'sls', 2, 1, viscoacoustic_setup),
@@ -129,6 +129,12 @@ class TestAdjoint(object):
         # 3D TTI tests with varying space orders
         ('layers-tti', (20, 25, 30), 'centered', 8, tti_setup),
         ('layers-tti', (20, 25, 30), 'centered', 4, tti_setup),
+        # 2D viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25), 'sls', 8, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 4, viscoacoustic_setup),
+        # 3D viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25, 30), 'sls', 8, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 30), 'sls', 4, viscoacoustic_setup),
     ])
     def test_adjoint_J(self, mkey, shape, kernel, space_order, setup_func):
         """
@@ -155,12 +161,19 @@ class TestAdjoint(object):
         # Compute initial born perturbation from m - m0
         dm = (solver.model.vp.data**(-2) - model0.vp.data**(-2))
 
-        du = solver.jacobian(dm, vp=model0.vp)[0]
+        if setup_func is viscoacoustic_setup:
+            du = solver.jacobian(dm, vp=model0.vp, qp=model0.qp, b=model0.b)[0]
+        else:
+            du = solver.jacobian(dm, vp=model0.vp)[0]
 
         # Compute the full bg field(s) & gradient from initial perturbation
         if setup_func is acoustic_setup:
             u0 = solver.forward(save=True, vp=model0.vp)[1]
             im, _ = solver.jacobian_adjoint(du, u0, vp=model0.vp)
+        elif setup_func is viscoacoustic_setup:
+            u0 = solver.forward(save=True, vp=model0.vp, qp=model0.qp, b=model0.b)[1]
+            im, _ = solver.jacobian_adjoint(du, u0, vp=model0.vp, qp=model0.qp,
+                                            b=model0.b)
         else:
             u0, v0 = solver.forward(save=True, vp=model0.vp)[1:-1]
             im, _ = solver.jacobian_adjoint(du, u0, v0, vp=model0.vp)

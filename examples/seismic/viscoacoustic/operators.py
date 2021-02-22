@@ -1,8 +1,8 @@
 import sympy as sp
 import numpy as np
 
-from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, NODE,
-                    div, grad)
+from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, Function, NODE,
+                    div, grad, Inc)
 from examples.seismic import PointSource, Receiver
 
 
@@ -117,7 +117,7 @@ def sls_1st_order(model, geometry, p, **kwargs):
         return [u_r, u_v, u_p]
 
 
-def sls_2nd_order(model, geometry, p, **kwargs):
+def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     """
     Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
 
@@ -137,6 +137,7 @@ def sls_2nd_order(model, geometry, p, **kwargs):
     damp = model.damp
     qp = model.qp
     f0 = geometry._f0
+    q = kwargs.get('q', 0)
 
     # The stress relaxation parameter
     t_s = (sp.sqrt(1.+1./qp**2)-1./qp)/f0
@@ -153,8 +154,9 @@ def sls_2nd_order(model, geometry, p, **kwargs):
     # Bulk modulus
     bm = rho * vp * vp
 
-    r = TimeFunction(name="r", grid=model.grid, time_order=2, space_order=space_order,
-                     save=geometry.nt if save else None, staggered=NODE)
+    r = r or TimeFunction(name="r", grid=model.grid, time_order=2,
+                          space_order=space_order, save=geometry.nt if save else None,
+                          staggered=NODE)
 
     if forward:
 
@@ -163,7 +165,8 @@ def sls_2nd_order(model, geometry, p, **kwargs):
         u_r = Eq(r.forward, damp * pde_r)
 
         pde_p = 2. * p - damp * p.backward + s * s * bm * (1. + tt) * \
-            div(b * grad(p, shift=.5), shift=-.5) - s * s * vp * vp * r.forward
+            div(b * grad(p, shift=.5), shift=-.5) - s * s * vp * vp * \
+            r.forward + s * s * vp * vp * q
         u_p = Eq(p.forward, damp * pde_p)
 
         return [u_r, u_p]
@@ -541,6 +544,101 @@ def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, 
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + srcrec, subs=model.spacing_map, name='Adjoint', **kwargs)
+
+
+def GradientOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
+                     save=True, **kwargs):
+    """
+    Construct a gradient operator in an acoustic media.
+
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    save : int or Buffer, optional
+        Option to store the entire (unrolled) wavefield.
+    kernel : selects a visco-acoustic equation from the options below:
+        sls (Standard Linear Solid) :
+        1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
+        viscoacoustic equation
+        2nd order - Bai et al. (2014) viscoacoustic equation
+        ren - Ren et al. (2014) viscoacoustic equation
+        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        Defaults to sls 2nd order.
+    """
+    # Gradient symbol and wavefield symbols
+    grad = Function(name='grad', grid=model.grid)
+    p = TimeFunction(name='p', grid=model.grid, save=geometry.nt if save
+                     else None, time_order=2, space_order=space_order,
+                     staggered=NODE)
+    pa = TimeFunction(name='pa', grid=model.grid, save=None,
+                      time_order=time_order, space_order=space_order, staggered=NODE)
+
+    # Equations kernels
+    eq_kernel = kernels[kernel]
+    eqn = eq_kernel(model, geometry, pa, forward=False, save=save, **kwargs)
+
+    gradient_update = Inc(grad, - p.dt2 * pa)
+
+    # Add expression for receiver injection
+    _, recterm = src_rec(pa, model, geometry, forward=False)
+
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn + recterm + [gradient_update], subs=model.spacing_map,
+                    name='Gradient', **kwargs)
+
+
+def BornOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **kwargs):
+    """
+    Construct an Linearized Born operator in an acoustic media.
+
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    kernel : str, optional
+        Type of discretization, centered or shifted.
+    """
+    # Create wavefields and a dm field
+    p = TimeFunction(name='p', grid=model.grid, save=None,
+                     time_order=time_order, space_order=space_order, staggered=NODE)
+    P = TimeFunction(name='P', grid=model.grid, save=None,
+                     time_order=time_order, space_order=space_order, staggered=NODE)
+    rp = TimeFunction(name="rp", grid=model.grid, save=None,
+                      time_order=time_order, space_order=space_order, staggered=NODE)
+    rP = TimeFunction(name="rP", grid=model.grid, save=None,
+                      time_order=time_order, space_order=space_order, staggered=NODE)
+    dm = Function(name='dm', grid=model.grid, space_order=0)
+
+    # Equations kernels
+    eq_kernel = kernels[kernel]
+    eqn1 = eq_kernel(model, geometry, p, r=rp, **kwargs)
+
+    s = model.grid.stepping_dim.spacing
+
+    q = -dm * (p.forward - 2 * p + p.backward) / (s * s)
+
+    eqn2 = eq_kernel(model, geometry, P, r=rP, q=q, **kwargs)
+
+    # Add source term expression for p
+    src_term, _ = src_rec(p, model, geometry)
+
+    # Create receiver interpolation expression from P
+    _, rec_term = src_rec(P, model, geometry)
+
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn1 + src_term + rec_term + eqn2, subs=model.spacing_map,
+                    name='Born', **kwargs)
 
 
 kernels = {'sls': sls, 'ren': ren, 'deng_mcmechan': deng_mcmechan}

@@ -8,6 +8,7 @@ from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as
 from examples.seismic.acoustic.operators import iso_stencil
 from examples.seismic import Receiver, demo_model, setup_geometry
 from examples.seismic.tti import tti_setup
+from examples.seismic.viscoacoustic import viscoacoustic_setup
 
 
 class TestGradient(object):
@@ -148,6 +149,10 @@ class TestGradient(object):
         (np.float32, 4, 'centered', (50, 60), False, tti_setup),
         (np.float64, 4, 'centered', (50, 60), True, tti_setup),
         (np.float64, 4, 'centered', (50, 60), False, tti_setup),
+        (np.float32, 4, 'sls', (50, 60), True, viscoacoustic_setup),
+        (np.float32, 4, 'sls', (50, 60), False, viscoacoustic_setup),
+        (np.float64, 4, 'sls', (50, 60), True, viscoacoustic_setup),
+        (np.float64, 4, 'sls', (50, 60), False, viscoacoustic_setup),
     ])
     def test_gradientFWI(self, dtype, space_order, kernel, shape, ckp, setup_func):
         """
@@ -226,11 +231,13 @@ class TestGradient(object):
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
-    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-    @pytest.mark.parametrize('space_order', [4])
-    @pytest.mark.parametrize('kernel', ['OT2'])
-    @pytest.mark.parametrize('shape', [(70, 80)])
-    def test_gradientJ(self, dtype, shape, kernel, space_order):
+    @pytest.mark.parametrize('dtype, space_order, kernel, shape, spacing, setup_func', [
+        (np.float32, 4, 'OT2', (70, 80), (15., 15.), setup),
+        (np.float64, 4, 'OT2', (70, 80), (15., 15.), setup),
+        (np.float32, 4, 'sls', (70, 80), (20., 20.), viscoacoustic_setup),
+        (np.float64, 4, 'sls', (70, 80), (20., 20.), viscoacoustic_setup),
+    ])
+    def test_gradientJ(self, dtype, space_order, kernel, shape, spacing, setup_func):
         """
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
@@ -239,10 +246,9 @@ class TestGradient(object):
             F(m0 + h dm) = F(m0) + J dm + \O(h^2) \\
         with F the Forward modelling operator.
         """
-        spacing = tuple(15. for _ in shape)
-        wave = setup(shape=shape, spacing=spacing, dtype=dtype,
-                     kernel=kernel, space_order=space_order,
-                     tn=1000., nbl=10+space_order/2)
+        wave = setup_func(shape=shape, spacing=spacing, dtype=dtype,
+                          kernel=kernel, space_order=space_order,
+                          tn=1000., nbl=10+space_order/2)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)
@@ -250,7 +256,7 @@ class TestGradient(object):
         dm = dtype(wave.model.vp.data**(-2) - v0.data**(-2))
 
         # Compute receiver data and full wavefield for the smooth velocity
-        rec, _, _ = wave.forward(vp=v0, save=False)
+        rec = wave.forward(vp=v0, save=False)[0]
 
         # Gradient: J dm
         Jdm, _, _, _ = wave.jacobian(dm, vp=v0)

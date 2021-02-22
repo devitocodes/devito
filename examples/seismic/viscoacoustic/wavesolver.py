@@ -1,7 +1,11 @@
-from devito import VectorTimeFunction, TimeFunction, NODE
+from devito import VectorTimeFunction, TimeFunction, Function, NODE
 from devito.tools import memoized_meth
 from examples.seismic import PointSource
-from examples.seismic.viscoacoustic.operators import (ForwardOperator, AdjointOperator)
+from examples.seismic.viscoacoustic.operators import (
+    ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+)
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
+from pyrevolve import Revolver
 
 
 class ViscoacousticWaveSolver(object):
@@ -56,6 +60,20 @@ class ViscoacousticWaveSolver(object):
         return AdjointOperator(self.model, save=None, geometry=self.geometry,
                                space_order=self.space_order, kernel=self.kernel,
                                time_order=self.time_order, **self._kwargs)
+
+    @memoized_meth
+    def op_grad(self, save=True):
+        """Cached operator for gradient runs"""
+        return GradientOperator(self.model, save=save, geometry=self.geometry,
+                                space_order=self.space_order, kernel=self.kernel,
+                                time_order=self.time_order, **self._kwargs)
+
+    @memoized_meth
+    def op_born(self):
+        """Cached operator for born runs"""
+        return BornOperator(self.model, save=None, geometry=self.geometry,
+                            space_order=self.space_order, kernel=self.kernel,
+                            time_order=self.time_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, v=None, r=None, p=None, qp=None, b=None,
                 vp=None, save=None, **kwargs):
@@ -204,3 +222,136 @@ class ViscoacousticWaveSolver(object):
                                           time_m=0 if self.time_order == 1 else None,
                                           **kwargs)
         return srca, pa, va, summary
+
+    def jacobian_adjoint(self, rec, p, pa=None, grad=None, vp=None, qp=None, b=None,
+                         r=None, checkpointing=False, **kwargs):
+        """
+        Gradient modelling function for computing the adjoint of the
+        Linearized Born modelling function, ie. the action of the
+        Jacobian adjoint on an input data.
+
+        Parameters
+        ----------
+        rec : SparseTimeFunction
+            Receiver data.
+        p : TimeFunction
+            Full wavefield `p` (created with save=True).
+        pa : TimeFunction, optional
+            Stores the computed wavefield.
+        grad : Function, optional
+            Stores the gradient field.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+        r : TimeFunction, optional
+            The computed memory variable.
+
+        Returns
+        -------
+        Gradient field and performance summary.
+        """
+        dt = kwargs.pop('dt', self.dt)
+        # Gradient symbol
+        grad = grad or Function(name='grad', grid=self.model.grid)
+
+        # Create the forward wavefield
+        pa = pa or TimeFunction(name='pa', grid=self.model.grid,
+                                time_order=self.time_order, space_order=self.space_order)
+
+        b = b or self.model.b
+        qp = qp or self.model.qp
+
+        # Pick vp from model unless explicitly provided
+        vp = vp or self.model.vp
+
+        if checkpointing:
+            p = TimeFunction(name='p', grid=self.model.grid,
+                             time_order=self.time_order, space_order=self.space_order)
+
+            r = TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
+                             space_order=self.space_order, staggered=NODE)
+
+            cp = DevitoCheckpoint([p, r])
+            n_checkpoints = None
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False),
+                                         src=self.geometry.src, p=p, r=r, vp=vp,
+                                         qp=qp, b=b, dt=dt)
+            wrap_rev = CheckpointOperator(self.op_grad(save=False), p=p, pa=pa,
+                                          vp=vp, qp=qp, b=b, rec=rec, dt=dt,
+                                          grad=grad)
+
+            # Run forward
+            wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
+            wrp.apply_forward()
+            summary = wrp.apply_reverse()
+        else:
+            # Memory variable:
+            r = TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
+                             space_order=self.space_order, staggered=NODE,
+                             save=self.geometry.nt)
+
+            summary = self.op_grad().apply(rec=rec, grad=grad, pa=pa, p=p, vp=vp,
+                                           r=r, qp=qp, b=b, dt=dt, **kwargs)
+
+        return grad, summary
+
+    def jacobian(self, dmin, src=None, rec=None, p=None, P=None, vp=None, qp=None,
+                 b=None, rp=None, rP=None, **kwargs):
+        """
+        Linearized Born modelling function that creates the necessary
+        data objects for running an adjoint modelling operator.
+
+        Parameters
+        ----------
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec : SparseTimeFunction or array_like, optional
+            The interpolated receiver data.
+        p : TimeFunction, optional
+            The forward wavefield.
+        P : TimeFunction, optional
+            The linearized wavefield.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+        rp : TimeFunction, optional
+            The computed memory variable.
+        rP : TimeFunction, optional
+            The computed memory variable.
+        """
+        # Source term is read-only, so re-use the default
+        src = src or self.geometry.src
+        # Create a new receiver object to store the result
+        rec = rec or self.geometry.rec
+
+        # Create the forward wavefields u and U if not provided
+        p = p or TimeFunction(name='p', grid=self.model.grid,
+                              time_order=self.time_order, space_order=self.space_order)
+        P = P or TimeFunction(name='P', grid=self.model.grid,
+                              time_order=self.time_order, space_order=self.space_order)
+
+        # Memory variable:
+        rp = TimeFunction(name='rp', grid=self.model.grid, time_order=self.time_order,
+                          space_order=self.space_order, staggered=NODE)
+        # Memory variable:
+        rP = TimeFunction(name='rP', grid=self.model.grid, time_order=self.time_order,
+                          space_order=self.space_order, staggered=NODE)
+
+        b = b or self.model.b
+        qp = qp or self.model.qp
+
+        # Pick vp from model unless explicitly provided
+        vp = vp or self.model.vp
+
+        # Execute operator and return wavefield and receiver data
+        summary = self.op_born().apply(dm=dmin, p=p, P=P, src=src, rec=rec, rp=rp,
+                                       rP=rP, qp=qp, b=b, vp=vp,
+                                       dt=kwargs.pop('dt', self.dt), **kwargs)
+
+        return rec, p, P, summary
