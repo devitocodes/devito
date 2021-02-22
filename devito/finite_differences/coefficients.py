@@ -3,7 +3,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
-from devito.tools import filter_ordered, as_tuple
+from devito.tools import filter_ordered, as_tuple, frozendict
 from devito.symbolics.search import retrieve_dimensions
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
@@ -243,8 +243,10 @@ def default_rules(obj, functions):
 
         subs = {}
 
+        mapper = frozendict({dim: index})
+
         indices, x0 = generate_indices(function, dim,
-                                       fd_order, side=None)
+                                       fd_order, side=None, x0=mapper)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
@@ -257,10 +259,12 @@ def default_rules(obj, functions):
     # Determine which 'rules' are missing
     sym = get_sym(functions)
     terms = obj.find(sym)
+    # DEBUG: Only seem to have two terms here?
     args_present = filter_ordered(term.args[1:] for term in terms)
 
     subs = obj.substitutions
     if subs:
+        # .index is not including function offset correctly
         args_provided = [(i.deriv_order, i.function, i.index)
                          for i in subs.coefficients]
     else:
@@ -273,6 +277,8 @@ def default_rules(obj, functions):
 
     rules = {}
     for i in not_provided:
+        # DEBUG: For every not provided, generates a set of rules and appends to
+        # DEBUG: existing dictionary
         rules = {**rules, **generate_subs(*i)}
 
     return rules

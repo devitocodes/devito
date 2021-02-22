@@ -3,7 +3,7 @@ import sympy as sp
 import pytest
 
 from devito import (Grid, Function, TimeFunction, Eq, Coefficient, Substitutions,
-                    Dimension, solve, Operator)
+                    Dimension, solve, Operator, NODE)
 from devito.finite_differences import Differentiable
 from devito.tools import as_tuple
 
@@ -119,6 +119,83 @@ class TestSC(object):
 
         assert expected == str(eq.evaluate.lhs)
 
+    # FIXME: Needs to test several grid spacings and dimensions
+    @pytest.mark.parametrize('order', [1, 2, 6, 8])
+    @pytest.mark.parametrize('extent', [1., 10., 100.])
+    @pytest.mark.parametrize('conf', [{'l': 'NODE', 'r1': 'x', 'r2': None},
+                                      {'l': 'NODE', 'r1': 'y', 'r2': None},
+                                      {'l': 'NODE', 'r1': '(x, y)', 'r2': None},
+                                      {'l': 'x', 'r1': 'NODE', 'r2': None},
+                                      {'l': 'y', 'r1': 'NODE', 'r2': None},
+                                      {'l': '(x, y)', 'r1': 'NODE', 'r2': None},
+                                      {'l': 'NODE', 'r1': 'x', 'r2': 'y'}])
+    def test_default_rules_equation(self, order, extent, conf):
+        """
+        Test that equations containing default symbolic coefficients evaluate to
+        the same expressions as standard coefficients for the same function.
+        """
+        def function_setup(name, grid, order, stagger):
+            x, y = grid.dimensions
+            if stagger == 'NODE':
+                staggered = NODE
+            elif stagger == 'x':
+                staggered = x
+            elif stagger == 'y':
+                staggered = y
+            elif stagger == '(x, y)':
+                staggered = (x, y)
+            else:
+                raise ValueError("Invalid stagger in configuration")
+
+            f_std = Function(name=name+'std', grid=grid, space_order=order,
+                             staggered=staggered)
+            f_sym = Function(name=name+'sym', grid=grid, space_order=order,
+                             staggered=staggered, coefficients='symbolic')
+
+            return f_std, f_sym
+
+        def get_eq(u, a, b, conf):
+            if conf['l'] == 'x' or conf['r1'] == 'x':
+                a_deriv = a.dx
+            elif conf['l'] == 'y' or conf['r1'] == 'y':
+                a_deriv = a.dy
+            elif conf['l'] == '(x, y)' or conf['r1'] == '(x, y)':
+                a_deriv = a.dx + a.dy
+            else:
+                raise ValueError("Invalid configuration")
+
+            if conf['r2'] == 'y':
+                b_deriv = b.dy
+            elif conf['r2'] == '(x, y)':
+                b_deriv = b.dx + b.dy
+            elif conf['r2'] is None:
+                b_deriv = 0.
+            else:
+                raise ValueError("Invalid configuration")
+
+            return Eq(u, a_deriv + b_deriv)
+
+        grid = Grid(shape=(11, 11), extent=(extent, extent))
+
+        # Set up functions as specified
+        u_std, u_sym = function_setup('u', grid, order, conf['l'])
+        a_std, a_sym = function_setup('a', grid, order, conf['r1'])
+        a_std.data[::2, ::2] = 1.
+        a_sym.data[::2, ::2] = 1.
+        if conf['r2'] is not None:
+            b_std, b_sym = function_setup('b', grid, order, conf['r2'])
+            b_std.data[::2, ::2] = 1.
+            b_sym.data[::2, ::2] = 1.
+        else:
+            b_std, b_sym = 0., 0.
+
+        eq_std = get_eq(u_std, a_std, b_std, conf)
+        eq_sym = get_eq(u_sym, a_sym, b_sym, conf)
+
+        Operator([eq_std, eq_sym])()
+
+        assert np.all(np.isclose(u_std.data - u_sym.data, 0.0, atol=1e-5, rtol=0))
+
     @pytest.mark.parametrize('order', [2, 4, 6])
     def test_staggered_array(self, order):
         """Test custom coefficients provided as an array on a staggered grid"""
@@ -138,6 +215,7 @@ class TestSC(object):
 
         eq_f = Eq(f, f.dx2, coefficients=Substitutions(coeffs_f))
         eq_g = Eq(g, g.dx2, coefficients=Substitutions(coeffs_g))
+        # Evaluate and check against one another?
 
         Operator([eq_f, eq_g])()
 
