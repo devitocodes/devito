@@ -1457,6 +1457,33 @@ class SubFunction(Function):
 
 class TempFunction(DiscreteFunction):
 
+    """
+    Tensor symbol used to store an intermediate sub-expression extracted from
+    one or more symbolic equations.
+
+    Users should not instantiate this class directly. TempFunctions may be created
+    by Devito to store intermediate sub-expressions ("temporary values") when the
+    user supplies the `cire-ftemps` option to an Operator.
+
+    Unlike other DiscreteFunction types, TempFunctions do not carry data directly.
+    However, they can generate Functions to override the TempFunction at Operator
+    application time (see the Examples section below).
+
+    TempFunctions are useful if the user wants to retain control over the allocation
+    and deletion of temporary storage (by default, instead, Devito uses Arrays, which
+    are allocated and deallocated upon entering and exiting C-land, respectively).
+
+    Examples
+    --------
+    The `make` method makes the TempFunction create a new Function. For more info,
+    refer to TempFunction.make.__doc__.
+
+    >>> op = Operator(...)
+    >>> cfuncs = [i for i in op.input if i.is_TempFunction]
+    >>> kwargs = {i.name: i.make(grid.shape) for i in cfuncs}
+    >>> op.apply(..., **kwargs)
+    """
+
     is_TempFunction = True
 
     def __init_finalize__(self, *args, **kwargs):
