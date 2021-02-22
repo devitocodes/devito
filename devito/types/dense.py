@@ -75,7 +75,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # Data-related properties and data initialization
         self._data = None
         self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
-        self._allocator = kwargs.get('allocator', default_allocator())
+        self._allocator = kwargs.get('allocator') or default_allocator()
         initializer = kwargs.get('initializer')
         if initializer is None or callable(initializer):
             # Initialization postponed until the first access to .data
@@ -1478,10 +1478,12 @@ class TempFunction(DiscreteFunction):
     The `make` method makes the TempFunction create a new Function. For more info,
     refer to TempFunction.make.__doc__.
 
-    >>> op = Operator(...)
-    >>> cfuncs = [i for i in op.input if i.is_TempFunction]
-    >>> kwargs = {i.name: i.make(grid.shape) for i in cfuncs}
-    >>> op.apply(..., **kwargs)
+      .. code-block:: python
+
+        op = Operator(...)
+        cfuncs = [i for i in op.input if i.is_TempFunction]
+        kwargs = {i.name: i.make(grid.shape) for i in cfuncs}
+        op.apply(..., **kwargs)
     """
 
     is_TempFunction = True
@@ -1536,7 +1538,7 @@ class TempFunction(DiscreteFunction):
     shape_with_halo = shape
     shpe_allocated = shape
 
-    def make(self, shape, initializer=None):
+    def make(self, shape, initializer=None, allocator=None):
         """
         Create a Function which can be used to override this TempFunction
         in a call to `op.apply(...)`.
@@ -1547,6 +1549,10 @@ class TempFunction(DiscreteFunction):
             Shape of the domain region in grid points.
         initializer : callable or any object exposing the buffer interface, optional
             Data initializer. If a callable is provided, data is allocated lazily.
+        allocator : MemoryAllocator, optional
+            Controller for memory allocation. To be used, for example, when one wants
+            to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+            `default_allocator.__doc__` for more information.
         """
         # Sanity check
         if len(shape) != self.ndim:
@@ -1554,7 +1560,8 @@ class TempFunction(DiscreteFunction):
                              % (self.ndim, len(shape)))
 
         return Function(name=self.name, dtype=self.dtype, dimensions=self.dimensions,
-                        shape=shape, halo=self.halo, initializer=initializer)
+                        shape=shape, halo=self.halo, initializer=initializer,
+                        allocator=allocator)
 
     def _make_pointer(self, dim):
         return TempFunction(name='p%s' % self.name, dtype=self.dtype, pointer_dim=dim,
