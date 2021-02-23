@@ -428,13 +428,15 @@ def compute_local_indices(f, dims, ispace, scope):
     loc_indices = {}
     for d in dims:
         try:
-            func = max if ispace.is_forward(d.root) else min
+            func = Max if ispace.is_forward(d.root) else Min
         except KeyError:
             raise HaloSchemeException("Don't know how to build a HaloScheme as `%s` "
                                       "doesn't appear in `%s`" % (d, ispace))
-        candidates = [i[d] for i in scope.getreads(f) if not is_integer(i[d])]
         if d.is_Stepping:
-            loc_indices[d] = func(candidates, key=lambda i: i.origin - d)
+            candidates = {i[d].origin - d: i[d] for i in scope.getreads(f)
+                          if not is_integer(i[d])}
         else:
-            loc_indices[d] = func(candidates, key=lambda i: i-d)
+            candidates = {i[d] - d: i[d] for i in scope.getreads(f)
+                          if not is_integer(i[d])}
+        loc_indices[d] = candidates[func(*candidates.keys())]
     return loc_indices
