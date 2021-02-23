@@ -119,7 +119,6 @@ class TestSC(object):
 
         assert expected == str(eq.evaluate.lhs)
 
-    # FIXME: Needs to test several grid spacings and dimensions
     @pytest.mark.parametrize('order', [1, 2, 6, 8])
     @pytest.mark.parametrize('extent', [1., 10., 100.])
     @pytest.mark.parametrize('conf', [{'l': 'NODE', 'r1': 'x', 'r2': None},
@@ -147,9 +146,9 @@ class TestSC(object):
             else:
                 raise ValueError("Invalid stagger in configuration")
 
-            f_std = Function(name=name+'std', grid=grid, space_order=order,
+            f_std = Function(name=name, grid=grid, space_order=order,
                              staggered=staggered)
-            f_sym = Function(name=name+'sym', grid=grid, space_order=order,
+            f_sym = Function(name=name, grid=grid, space_order=order,
                              staggered=staggered, coefficients='symbolic')
 
             return f_std, f_sym
@@ -192,7 +191,13 @@ class TestSC(object):
         eq_std = get_eq(u_std, a_std, b_std, conf)
         eq_sym = get_eq(u_sym, a_sym, b_sym, conf)
 
-        Operator([eq_std, eq_sym])()
+        evaluated_std = eq_std.evaluate.evalf(_PRECISION)
+        evaluated_sym = eq_sym.evaluate.evalf(_PRECISION)
+
+        assert str(evaluated_std) == str(evaluated_sym)
+
+        Operator(eq_std)()
+        Operator(eq_sym)()
 
         assert np.all(np.isclose(u_std.data - u_sym.data, 0.0, atol=1e-5, rtol=0))
 

@@ -259,7 +259,6 @@ def default_rules(obj, functions):
     # Determine which 'rules' are missing
     sym = get_sym(functions)
     terms = obj.find(sym)
-    # DEBUG: Only seem to have two terms here?
     args_present = filter_ordered(term.args[1:] for term in terms)
 
     subs = obj.substitutions
@@ -277,8 +276,6 @@ def default_rules(obj, functions):
 
     rules = {}
     for i in not_provided:
-        # DEBUG: For every not provided, generates a set of rules and appends to
-        # DEBUG: existing dictionary
         rules = {**rules, **generate_subs(*i)}
 
     return rules
