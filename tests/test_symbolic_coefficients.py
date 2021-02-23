@@ -128,7 +128,7 @@ class TestSC(object):
                                       {'l': 'y', 'r1': 'NODE', 'r2': None},
                                       {'l': '(x, y)', 'r1': 'NODE', 'r2': None},
                                       {'l': 'NODE', 'r1': 'x', 'r2': 'y'}])
-    def test_default_rules_equation(self, order, extent, conf):
+    def test_default_rules_vs_standard(self, order, extent, conf):
         """
         Test that equations containing default symbolic coefficients evaluate to
         the same expressions as standard coefficients for the same function.
@@ -200,6 +200,28 @@ class TestSC(object):
         Operator(eq_sym)()
 
         assert np.all(np.isclose(u_std.data - u_sym.data, 0.0, atol=1e-5, rtol=0))
+
+    @pytest.mark.parametrize('so, expected', [(1, '-f(x)/h_x + f(x + h_x)/h_x'),
+                                              (4, '-9*f(x)/(8*h_x) + f(x - h_x)'
+                                                  '/(24*h_x) + 9*f(x + h_x)/(8*h_x)'
+                                                  ' - f(x + 2*h_x)/(24*h_x)'),
+                                              (6, '-75*f(x)/(64*h_x)'
+                                                  ' - 3*f(x - 2*h_x)/(640*h_x)'
+                                                  ' + 25*f(x - h_x)/(384*h_x)'
+                                                  ' + 75*f(x + h_x)/(64*h_x)'
+                                                  ' - 25*f(x + 2*h_x)/(384*h_x)'
+                                                  ' + 3*f(x + 3*h_x)/(640*h_x)')])
+    def test_default_rules_vs_string(self, so, expected):
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+        f = Function(name='f', grid=grid, space_order=so, staggered=NODE,
+                     coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=so, staggered=x,
+                     coefficients='symbolic')
+        eq = Eq(g, f.dx)
+        print(eq.evaluate.rhs)
+        print(expected)
+        assert str(eq.evaluate.rhs) == expected
 
     @pytest.mark.parametrize('order', [2, 4, 6])
     def test_staggered_array(self, order):
