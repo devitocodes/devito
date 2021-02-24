@@ -96,6 +96,13 @@ class ThreadID(CustomDimension):
     def __new__(cls, nthreads):
         return CustomDimension.__new__(cls, name='tid', symbolic_size=nthreads)
 
+    @property
+    def nthreads(self):
+        return self.symbolic_size
+
+    _pickle_args = []
+    _pickle_kwargs = ['nthreads']
+
 
 class ThreadArray(ArrayObject):
 

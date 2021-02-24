@@ -13,7 +13,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID)
+                          DeviceID, ThreadID)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -452,6 +452,22 @@ def test_mpi_objects():
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
     assert obj.dtype == new_obj.dtype
+
+
+def test_threadid():
+    grid = Grid(shape=(4, 4, 4))
+    f = TimeFunction(name='f', grid=grid)
+    op = Operator(Eq(f.forward, f + 1.), openmp=True)
+
+    tid = ThreadID(op.nthreads)
+
+    pkl_tid = pickle.dumps(tid)
+    new_tid = pickle.loads(pkl_tid)
+
+    assert tid.name == new_tid.name
+    assert tid.nthreads.name == new_tid.nthreads.name
+    assert tid.symbolic_min.name == new_tid.symbolic_min.name
+    assert tid.symbolic_max.name == new_tid.symbolic_max.name
 
 
 @skipif(['nompi'])
