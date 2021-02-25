@@ -26,6 +26,8 @@ thereof.
 
 ## About Devito
 
+TEST
+
 Devito provides a functional language to implement sophisticated operators that
 can be made up of multiple stencil computations, boundary conditions, sparse
 operations (e.g., interpolation), and much more.  A typical use case is
