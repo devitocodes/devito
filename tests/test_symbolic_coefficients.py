@@ -212,6 +212,10 @@ class TestSC(object):
                                                   ' - 25*f(x + 2*h_x)/(384*h_x)'
                                                   ' + 3*f(x + 3*h_x)/(640*h_x)')])
     def test_default_rules_vs_string(self, so, expected):
+        """
+        Test that default_rules generates correct symbolic expressions when used
+        with staggered grids.
+        """
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
         f = Function(name='f', grid=grid, space_order=so, staggered=NODE,
@@ -219,9 +223,25 @@ class TestSC(object):
         g = Function(name='g', grid=grid, space_order=so, staggered=x,
                      coefficients='symbolic')
         eq = Eq(g, f.dx)
-        print(eq.evaluate.rhs)
-        print(expected)
         assert str(eq.evaluate.rhs) == expected
+
+    @pytest.mark.parametrize('so', [1, 4, 6])
+    @pytest.mark.parametrize('offset', [1, -1])
+    def test_default_rules_deriv_offset(self, so, offset):
+        """
+        Test that default_rules generates correct derivatives when derivatives
+        are evaluated at offset x0.
+        """
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+        h_x = x.spacing
+        f_std = Function(name='f', grid=grid, space_order=so)
+        f_sym = Function(name='f', grid=grid, space_order=so, coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=so)
+
+        eval_std = str(Eq(g, f_std.dx(x0=x+offset*h_x/2)).evaluate.evalf(_PRECISION))
+        eval_sym = str(Eq(g, f_sym.dx(x0=x+offset*h_x/2)).evaluate.evalf(_PRECISION))
+        assert eval_std == eval_sym
 
     @pytest.mark.parametrize('order', [2, 4, 6])
     def test_staggered_array(self, order):
@@ -242,7 +262,6 @@ class TestSC(object):
 
         eq_f = Eq(f, f.dx2, coefficients=Substitutions(coeffs_f))
         eq_g = Eq(g, g.dx2, coefficients=Substitutions(coeffs_g))
-        # Evaluate and check against one another?
 
         Operator([eq_f, eq_g])()
 
