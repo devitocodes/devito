@@ -43,9 +43,13 @@ class TestAdjoint(object):
         # 2D TTI tests with varying space orders
         ('layers-tti', (30, 35), 'centered', 8, 2, tti_setup),
         ('layers-tti', (30, 35), 'centered', 4, 2, tti_setup),
+        ('layers-tti', (30, 35), 'staggered', 8, 1, tti_setup),
+        ('layers-tti', (30, 35), 'staggered', 4, 1, tti_setup),
         # 3D TTI tests with varying space orders
         ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
         ('layers-tti', (30, 35, 40), 'centered', 4, 2, tti_setup),
+        ('layers-tti', (30, 35, 40), 'staggered', 8, 1, tti_setup),
+        ('layers-tti', (30, 35, 40), 'staggered', 4, 1, tti_setup),
         # 2D SLS Viscoacoustic tests with varying space and equation orders
         ('layers-viscoacoustic', (20, 25), 'sls', 4, 1, viscoacoustic_setup),
         ('layers-viscoacoustic', (20, 25), 'sls', 2, 1, viscoacoustic_setup),
@@ -129,9 +133,13 @@ class TestAdjoint(object):
         # 2D TTI tests with varying space orders
         ('layers-tti', (20, 25), 'centered', 8, tti_setup),
         ('layers-tti', (20, 25), 'centered', 4, tti_setup),
+        ('layers-tti', (20, 25), 'staggered', 8, tti_setup),
+        ('layers-tti', (20, 25), 'staggered', 4, tti_setup),
         # 3D TTI tests with varying space orders
         ('layers-tti', (20, 25, 30), 'centered', 8, tti_setup),
         ('layers-tti', (20, 25, 30), 'centered', 4, tti_setup),
+        ('layers-tti', (20, 25, 30), 'staggered', 8, tti_setup),
+        ('layers-tti', (20, 25, 30), 'staggered', 4, tti_setup),
         # 2D viscoacoustic tests with varying space orders
         ('layers-viscoacoustic', (20, 25), 'sls', 8, viscoacoustic_setup),
         ('layers-viscoacoustic', (20, 25), 'sls', 4, viscoacoustic_setup),
