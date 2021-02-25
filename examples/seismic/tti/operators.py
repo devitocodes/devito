@@ -341,7 +341,7 @@ def particle_velocity_fields(model, space_order):
     return vx, vz, vy
 
 
-def kernel_staggered_2d(model, u, v, space_order):
+def kernel_staggered_2d(model, u, v, space_order, forward=True):
     """
     TTI finite difference. The equation solved is:
 
@@ -360,25 +360,41 @@ def kernel_staggered_2d(model, u, v, space_order):
     # Staggered setup
     vx, vz, _ = particle_velocity_fields(model, space_order)
 
-    # Stencils
-    phdx = costheta * u.dx - sintheta * u.dy
-    u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
+    if forward:
+        # Stencils
+        phdx = costheta * u.dx - sintheta * u.dy
+        u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-    pvdz = sintheta * v.dx + costheta * v.dy
-    u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
+        pvdz = sintheta * v.dx + costheta * v.dy
+        u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-    dvx = costheta * vx.forward.dx - sintheta * vx.forward.dy
-    dvz = sintheta * vz.forward.dx + costheta * vz.forward.dy
+        dvx = costheta * vx.forward.dx - sintheta * vx.forward.dy
+        dvz = sintheta * vz.forward.dx + costheta * vz.forward.dy
 
-    # u and v equations
-    pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)))
+        # u and v equations
+        pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)))
+        ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * dvx + delta * dvz)))
+    else:
+        # Stencils
+        phdx = (costheta*(epsilon*u).dx - sintheta*(epsilon*u).dy +
+                costheta*(delta*v).dx - sintheta*(delta*v).dy)
+        u_vx = Eq(vx.backward, dampl * vx + dampl * s * phdx)
 
-    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * dvx + delta * dvz)))
+        pvdz = (sintheta*(delta*u).dx + costheta*(delta*u).dy +
+                sintheta*v.dx + costheta*v.dy)
+        u_vz = Eq(vz.backward, dampl * vz + dampl * s * pvdz)
+
+        dvx = costheta * vx.backward.dx - sintheta * vx.backward.dy
+        dvz = sintheta * vz.backward.dx + costheta * vz.backward.dy
+
+        # u and v equations
+        pv_eq = Eq(v.backward, dampl * (v + s / m * dvz))
+        ph_eq = Eq(u.backward, dampl * (u + s / m * dvx))
 
     return [u_vx, u_vz] + [pv_eq, ph_eq]
 
 
-def kernel_staggered_3d(model, u, v, space_order):
+def kernel_staggered_3d(model, u, v, space_order, forward=True):
     """
     TTI finite difference. The equation solved is:
 
@@ -397,32 +413,65 @@ def kernel_staggered_3d(model, u, v, space_order):
     x, y, z = model.grid.dimensions
     # Staggered setup
     vx, vz, vy = particle_velocity_fields(model, space_order)
-    # Stencils
-    phdx = (costheta * cosphi * u.dx +
-            costheta * sinphi * u.dyc -
-            sintheta * u.dzc)
-    u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-    phdy = -sinphi * u.dxc + cosphi * u.dy
-    u_vy = Eq(vy.forward, dampl * vy - dampl * s * phdy)
+    if forward:
+        # Stencils
+        phdx = (costheta * cosphi * u.dx +
+                costheta * sinphi * u.dyc -
+                sintheta * u.dzc)
+        u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-    pvdz = (sintheta * cosphi * v.dxc +
-            sintheta * sinphi * v.dyc +
-            costheta * v.dz)
-    u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
+        phdy = -sinphi * u.dxc + cosphi * u.dy
+        u_vy = Eq(vy.forward, dampl * vy - dampl * s * phdy)
 
-    dvx = (costheta * cosphi * vx.forward.dx +
-           costheta * sinphi * vx.forward.dyc -
-           sintheta * vx.forward.dzc)
-    dvy = -sinphi * vy.forward.dxc + cosphi * vy.forward.dy
-    dvz = (sintheta * cosphi * vz.forward.dxc +
-           sintheta * sinphi * vz.forward.dyc +
-           costheta * vz.forward.dz)
-    # u and v equations
-    pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)))
+        pvdz = (sintheta * cosphi * v.dxc +
+                sintheta * sinphi * v.dyc +
+                costheta * v.dz)
+        u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * (dvx + dvy) +
-                                                delta * dvz)))
+        dvx = (costheta * cosphi * vx.forward.dx +
+               costheta * sinphi * vx.forward.dyc -
+               sintheta * vx.forward.dzc)
+        dvy = -sinphi * vy.forward.dxc + cosphi * vy.forward.dy
+        dvz = (sintheta * cosphi * vz.forward.dxc +
+               sintheta * sinphi * vz.forward.dyc +
+               costheta * vz.forward.dz)
+        # u and v equations
+        pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)))
+
+        ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * (dvx + dvy) +
+                                                    delta * dvz)))
+    else:
+        # Stencils
+        phdx = (costheta * cosphi * (epsilon*u).dx +
+                costheta * sinphi * (epsilon*u).dyc -
+                sintheta * (epsilon*u).dzc) + (costheta * cosphi * (delta*v).dx +
+                                               costheta * sinphi * (delta*v).dyc -
+                                               sintheta * (delta*v).dzc)
+        u_vx = Eq(vx.backward, dampl * vx + dampl * s * phdx)
+
+        phdy = (-sinphi * (epsilon*u).dxc + cosphi * (epsilon*u).dy -
+                sinphi * (delta*v).dxc + cosphi * (delta*v).dy)
+        u_vy = Eq(vy.backward, dampl * vy + dampl * s * phdy)
+
+        pvdz = (sintheta * cosphi * (delta*u).dxc +
+                sintheta * sinphi * (delta*u).dyc +
+                costheta * (delta*u).dz) + (sintheta * cosphi * v.dxc +
+                                            sintheta * sinphi * v.dyc +
+                                            costheta * v.dz)
+        u_vz = Eq(vz.backward, dampl * vz + dampl * s * pvdz)
+
+        dvx = (costheta * cosphi * vx.backward.dx +
+               costheta * sinphi * vx.backward.dyc -
+               sintheta * vx.backward.dzc)
+        dvy = -sinphi * vy.backward.dxc + cosphi * vy.backward.dy
+        dvz = (sintheta * cosphi * vz.backward.dxc +
+               sintheta * sinphi * vz.backward.dyc +
+               costheta * vz.backward.dz)
+        # u and v equations
+        pv_eq = Eq(v.backward, dampl * (v + s / m * dvz))
+
+        ph_eq = Eq(u.backward, dampl * (u + s / m * (dvx + dvy)))
 
     return [u_vx, u_vy, u_vz] + [pv_eq, ph_eq]
 
@@ -482,7 +531,7 @@ def ForwardOperator(model, geometry, space_order=4,
 
 
 def AdjointOperator(model, geometry, space_order=4,
-                    **kwargs):
+                    kernel='centered', **kwargs):
     """
     Construct an adjoint modelling operator in an tti media.
 
@@ -495,17 +544,23 @@ def AdjointOperator(model, geometry, space_order=4,
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
+    kernel : str, optional
+        Type of discretization, centered or shifted
     """
 
     dt = model.grid.time_dim.spacing
     m = model.m
-    time_order = 2
+    time_order = 1 if kernel == 'staggered' else 2
+    if kernel == 'staggered':
+        stagg_p = stagg_r = NODE
+    else:
+        stagg_p = stagg_r = None
 
     # Create symbols for forward wavefield, source and receivers
-    p = TimeFunction(name='p', grid=model.grid, save=None, time_order=time_order,
-                     space_order=space_order)
-    r = TimeFunction(name='r', grid=model.grid, save=None, time_order=time_order,
-                     space_order=space_order)
+    p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p, save=None,
+                     time_order=time_order, space_order=space_order)
+    r = TimeFunction(name='r', grid=model.grid, staggered=stagg_r, save=None,
+                     time_order=time_order, space_order=space_order)
     srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
                        npoint=geometry.nsrc)
     rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
@@ -527,7 +582,7 @@ def AdjointOperator(model, geometry, space_order=4,
 
 
 def JacobianOperator(model, geometry, space_order=4,
-                     **kwargs):
+                     kernel='centered', **kwargs):
     """
     Construct a Linearized Born operator in a TTI media.
 
@@ -545,7 +600,11 @@ def JacobianOperator(model, geometry, space_order=4,
     """
     dt = model.grid.stepping_dim.spacing
     m = model.m
-    time_order = 2
+    time_order = 1 if kernel == 'staggered' else 2
+    if kernel == 'staggered':
+        stagg_p = stagg_r = NODE
+    else:
+        stagg_p = stagg_r = None
 
     # Create source and receiver symbols
     src = Receiver(name='src', grid=model.grid, time_range=geometry.time_axis,
@@ -555,18 +614,18 @@ def JacobianOperator(model, geometry, space_order=4,
                    npoint=geometry.nrec)
 
     # Create wavefields and a dm field
-    u0 = TimeFunction(name='u0', grid=model.grid, save=None, time_order=time_order,
-                      space_order=space_order)
-    v0 = TimeFunction(name='v0', grid=model.grid, save=None, time_order=time_order,
-                      space_order=space_order)
-    du = TimeFunction(name="du", grid=model.grid, save=None,
-                      time_order=2, space_order=space_order)
-    dv = TimeFunction(name="dv", grid=model.grid, save=None,
-                      time_order=2, space_order=space_order)
+    u0 = TimeFunction(name='u0', grid=model.grid, staggered=stagg_r, save=None,
+                      time_order=time_order, space_order=space_order)
+    v0 = TimeFunction(name='v0', grid=model.grid, staggered=stagg_r, save=None,
+                      time_order=time_order, space_order=space_order)
+    du = TimeFunction(name='du', grid=model.grid, staggered=stagg_r, save=None,
+                      time_order=time_order, space_order=space_order)
+    dv = TimeFunction(name='dv', grid=model.grid, staggered=stagg_r, save=None,
+                      time_order=time_order, space_order=space_order)
     dm = Function(name="dm", grid=model.grid, space_order=0)
 
     # FD kernels of the PDE
-    FD_kernel = kernels[('centered', len(model.shape))]
+    FD_kernel = kernels[(kernel, len(model.shape))]
     eqn1 = FD_kernel(model, u0, v0, space_order)
 
     # Linearized source and stencil
@@ -588,7 +647,7 @@ def JacobianOperator(model, geometry, space_order=4,
 
 
 def JacobianAdjOperator(model, geometry, space_order=4,
-                        save=True, **kwargs):
+                        save=True, kernel='centered', **kwargs):
     """
     Construct a linearized JacobianAdjoint modeling Operator in a TTI media.
 
@@ -603,20 +662,28 @@ def JacobianAdjOperator(model, geometry, space_order=4,
         Space discretization order.
     save : int or Buffer, optional
         Option to store the entire (unrolled) wavefield.
+    kernel : str, optional
+        Type of discretization, centered or staggered.
     """
     dt = model.grid.stepping_dim.spacing
     m = model.m
-    time_order = 2
+    time_order = 1 if kernel == 'staggered' else 2
+    if kernel == 'staggered':
+        stagg_p = stagg_r = NODE
+    else:
+        stagg_p = stagg_r = None
 
     # Gradient symbol and wavefield symbols
     u0 = TimeFunction(name='u0', grid=model.grid, save=geometry.nt if save
-                      else None, time_order=time_order, space_order=space_order)
+                      else None, staggered=stagg_p, time_order=time_order,
+                      space_order=space_order)
     v0 = TimeFunction(name='v0', grid=model.grid, save=geometry.nt if save
-                      else None, time_order=time_order, space_order=space_order)
+                      else None, staggered=stagg_r, time_order=time_order,
+                      space_order=space_order)
 
-    du = TimeFunction(name="du", grid=model.grid, save=None,
+    du = TimeFunction(name="du", grid=model.grid, staggered=stagg_p, save=None,
                       time_order=time_order, space_order=space_order)
-    dv = TimeFunction(name="dv", grid=model.grid, save=None,
+    dv = TimeFunction(name="dv", grid=model.grid, staggered=stagg_r, save=None,
                       time_order=time_order, space_order=space_order)
 
     dm = Function(name="dm", grid=model.grid)
@@ -625,7 +692,7 @@ def JacobianAdjOperator(model, geometry, space_order=4,
                    npoint=geometry.nrec)
 
     # FD kernels of the PDE
-    FD_kernel = kernels[('centered', len(model.shape))]
+    FD_kernel = kernels[(kernel, len(model.shape))]
     eqn = FD_kernel(model, du, dv, space_order, forward=False)
 
     dm_update = Inc(dm, - (u0.dt2 * du + v0.dt2 * dv))

@@ -187,11 +187,15 @@ class AnisotropicWaveSolver(object):
         -------
         Adjoint source, wavefield and performance summary.
         """
-        if kernel != 'centered':
-            raise ValueError('Only centered kernel is supported for the adjoint')
+        if kernel == 'staggered':
+            time_order = 1
+            dims = self.model.space_dimensions
+            stagg_p = (-dims[-1])
+            stagg_r = (-dims[0], -dims[1]) if self.model.grid.dim == 3 else (-dims[0])
+        else:
+            time_order = 2
+            stagg_p = stagg_r = None
 
-        time_order = 2
-        stagg_p = stagg_r = None
         # Source term is read-only, so re-use the default
         srca = srca or self.geometry.new_src(name='srca', src_type=None)
 
@@ -206,6 +210,13 @@ class AnisotropicWaveSolver(object):
                              time_order=time_order,
                              space_order=self.space_order)
 
+        if kernel == 'staggered':
+            vx, vz, vy = particle_velocity_fields(self.model, self.space_order)
+            kwargs["vx"] = vx
+            kwargs["vz"] = vz
+            if vy is not None:
+                kwargs["vy"] = vy
+
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
@@ -213,7 +224,9 @@ class AnisotropicWaveSolver(object):
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj().apply(srca=srca, rec=rec, p=p, r=r,
-                                      dt=kwargs.pop('dt', self.dt), **kwargs)
+                                      dt=kwargs.pop('dt', self.dt),
+                                      time_m=0 if time_order == 1 else None,
+                                      **kwargs)
         return srca, p, r, summary
 
     def jacobian(self, dm, src=None, rec=None, u0=None, v0=None, du=None, dv=None,
@@ -249,8 +262,14 @@ class AnisotropicWaveSolver(object):
         phi : Function or float, optional
             The time-constant Azimuth angle (radians).
         """
-        if kernel != 'centered':
-            raise ValueError('Only centered kernel is supported for the jacobian')
+        if kernel == 'staggered':
+            time_order = 1
+            dims = self.model.space_dimensions
+            stagg_p = (-dims[-1])
+            stagg_r = (-dims[0], -dims[1]) if self.model.grid.dim == 3 else (-dims[0])
+        else:
+            time_order = 2
+            stagg_p = stagg_r = None
 
         dt = kwargs.pop('dt', self.dt)
         # Source term is read-only, so re-use the default
@@ -259,14 +278,21 @@ class AnisotropicWaveSolver(object):
         rec = rec or self.geometry.rec
 
         # Create the forward wavefields u, v du and dv if not provided
-        u0 = u0 or TimeFunction(name='u0', grid=self.model.grid,
-                                time_order=2, space_order=self.space_order)
-        v0 = v0 or TimeFunction(name='v0', grid=self.model.grid,
-                                time_order=2, space_order=self.space_order)
-        du = du or TimeFunction(name='du', grid=self.model.grid,
-                                time_order=2, space_order=self.space_order)
-        dv = dv or TimeFunction(name='dv', grid=self.model.grid,
-                                time_order=2, space_order=self.space_order)
+        u0 = u0 or TimeFunction(name='u0', grid=self.model.grid, staggered=stagg_p,
+                                time_order=time_order, space_order=self.space_order)
+        v0 = v0 or TimeFunction(name='v0', grid=self.model.grid, staggered=stagg_r,
+                                time_order=time_order, space_order=self.space_order)
+        du = du or TimeFunction(name='du', grid=self.model.grid, staggered=stagg_p,
+                                time_order=time_order, space_order=self.space_order)
+        dv = dv or TimeFunction(name='dv', grid=self.model.grid, staggered=stagg_r,
+                                time_order=time_order, space_order=self.space_order)
+
+        if kernel == 'staggered':
+            vx, vz, vy = particle_velocity_fields(self.model, self.space_order)
+            kwargs["vx"] = vx
+            kwargs["vz"] = vz
+            if vy is not None:
+                kwargs["vy"] = vy
 
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
@@ -317,18 +343,31 @@ class AnisotropicWaveSolver(object):
         -------
         Gradient field and performance summary.
         """
-        if kernel != 'centered':
-            raise ValueError('Only centered kernel is supported for the jacobian_adj')
+        if kernel == 'staggered':
+            time_order = 1
+            dims = self.model.space_dimensions
+            stagg_p = (-dims[-1])
+            stagg_r = (-dims[0], -dims[1]) if self.model.grid.dim == 3 else (-dims[0])
+        else:
+            time_order = 2
+            stagg_p = stagg_r = None
 
         dt = kwargs.pop('dt', self.dt)
         # Gradient symbol
         dm = dm or Function(name='dm', grid=self.model.grid)
 
         # Create the perturbation wavefields if not provided
-        du = du or TimeFunction(name='du', grid=self.model.grid,
-                                time_order=2, space_order=self.space_order)
-        dv = dv or TimeFunction(name='dv', grid=self.model.grid,
-                                time_order=2, space_order=self.space_order)
+        du = du or TimeFunction(name='du', grid=self.model.grid, staggered=stagg_p,
+                                time_order=time_order, space_order=self.space_order)
+        dv = dv or TimeFunction(name='dv', grid=self.model.grid, staggered=stagg_r,
+                                time_order=time_order, space_order=self.space_order)
+
+        if kernel == 'staggered':
+            vx, vz, vy = particle_velocity_fields(self.model, self.space_order)
+            kwargs["vx"] = vx
+            kwargs["vz"] = vz
+            if vy is not None:
+                kwargs["vy"] = vy
 
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
@@ -337,16 +376,17 @@ class AnisotropicWaveSolver(object):
             kwargs.pop('phi', None)
 
         if checkpointing:
-            u0 = TimeFunction(name='u0', grid=self.model.grid,
-                              time_order=2, space_order=self.space_order)
-            v0 = TimeFunction(name='v0', grid=self.model.grid,
-                              time_order=2, space_order=self.space_order)
+            u0 = TimeFunction(name='u0', grid=self.model.grid, staggered=stagg_p,
+                              time_order=time_order, space_order=self.space_order)
+            v0 = TimeFunction(name='v0', grid=self.model.grid, staggered=stagg_r,
+                              time_order=time_order, space_order=self.space_order)
             cp = DevitoCheckpoint([u0, v0])
             n_checkpoints = None
             wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
                                          u=u0, v=v0, dt=dt, **kwargs)
             wrap_rev = CheckpointOperator(self.op_jacadj(save=False), u0=u0, v0=v0,
-                                          du=du, dv=dv, rec=rec, dm=dm, dt=dt, **kwargs)
+                                          du=du, dv=dv, rec=rec, dm=dm, dt=dt,
+                                          time_m=0 if time_order == 1 else None, **kwargs)
 
             # Run forward
             wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
@@ -354,5 +394,6 @@ class AnisotropicWaveSolver(object):
             summary = wrp.apply_reverse()
         else:
             summary = self.op_jacadj().apply(rec=rec, dm=dm, u0=u0, v0=v0, du=du, dv=dv,
+                                             time_m=0 if time_order == 1 else None,
                                              dt=dt, **kwargs)
         return dm, summary
