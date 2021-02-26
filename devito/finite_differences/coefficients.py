@@ -187,6 +187,7 @@ class Substitutions(object):
             dim = i.dimension
             index = i.index
             weights = i.weights
+            print(deriv_order, function, dim, index, weights)
 
             if isinstance(weights, np.ndarray):
                 fd_order = len(weights)-1
@@ -203,6 +204,7 @@ class Substitutions(object):
             # passed as a dictionary of the form {pos: w} (or something similar).
             if isinstance(weights, np.ndarray):
                 for j in range(len(weights)):
+                    # Index here is incorrect. Need to pull it from elsewhere
                     subs.update({function._coeff_symbol
                                  (indices[j], deriv_order,
                                   function, index): weights[j]})
@@ -224,6 +226,33 @@ class Substitutions(object):
         rules = {}
         for i in self.coefficients:
             rules.update(generate_subs(i))
+        return rules
+
+    def update_rules(self, obj):
+        """Update the specified rules to reflect staggering in an equation"""
+        # Determine which 'rules' are expected
+        sym = get_sym(self._function_list)
+        terms = obj.find(sym)
+        args_expected = filter_ordered(term.args[1:] for term in terms)
+        args_expected_dim = [(arg[0], arg[1], retrieve_dimensions(arg[2])[0])
+                             for arg in args_expected]
+
+        # Modify dictionary keys where expected index does not match index in rules
+        rules = self._rules.copy()  # Get a copy to modify, to preserve base rules
+        for rule in self._rules:
+            rule_arg = rule.args[1:]
+            rule_arg_dim = (rule_arg[0], rule_arg[1],
+                            retrieve_dimensions(rule_arg[2])[0])
+            if rule_arg_dim in args_expected_dim and rule_arg not in args_expected:
+                # Rule matches expected in terms of dimensions, but index is
+                # mismatched (due to staggering of equation)
+
+                # Find index in args_expected_dim
+                pos = args_expected_dim.index(rule_arg_dim)
+                # Replace key in rules with one using modified index taken from
+                # the expected
+                replacement = rule.args[:-1] + (args_expected[pos][-1],)
+                rules[sym(*replacement)] = rules.pop(rule)
 
         return rules
 
@@ -257,8 +286,11 @@ def default_rules(obj, functions):
         return subs
 
     # Determine which 'rules' are missing
+    print("Functions", functions)
     sym = get_sym(functions)
+    print("Sym", sym)
     terms = obj.find(sym)
+    print("Terms", terms)
     args_present = filter_ordered(term.args[1:] for term in terms)
 
     subs = obj.substitutions
@@ -271,7 +303,18 @@ def default_rules(obj, functions):
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))
-    not_provided = [i for i in args_present if i not in frozenset(args_provided)]
+    print("Args present", args_present)
+    print("Args provided", args_provided)
+
+    # Need to compare dimensions,, not indices, then take the index from
+    # args_present to pass to generate_subs()
+    args_pres_dim = [(arg[0], arg[1], retrieve_dimensions(arg[2])[0])
+                     for arg in args_present]
+    args_prov_dim = [(arg[0], arg[1], retrieve_dimensions(arg[2])[0])
+                     for arg in args_provided]
+
+    not_provided = [args_present[i] for i in range(len(args_present))
+                    if args_pres_dim[i] not in frozenset(args_prov_dim)]
 
     rules = {}
     for i in not_provided:

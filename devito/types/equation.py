@@ -97,7 +97,9 @@ class Eq(sympy.Eq, Evaluable):
             # all rules to be expunged during this procress.
             rules = default_rules(eq, eq._symbolic_functions)
             try:
-                eq = eq.xreplace({**eq.substitutions.rules, **rules})
+                eq = eq.xreplace(rules)
+                custom_rules = eq.substitutions.update_rules(eq)
+                eq = eq.xreplace(custom_rules)
             except AttributeError:
                 if bool(rules):
                     eq = eq.xreplace(rules)
