@@ -8,7 +8,8 @@ from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer)
-from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
+from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
+                           retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
 from devito.types import Array
 
@@ -900,6 +901,27 @@ class TestConditionalDimension(object):
             F[i] = i if i < stop_value else stop_value
 
         assert np.all(f.data == F)
+
+    def test_grouping(self):
+        """
+        Test that Clusters over the same set of ConditionalDimensions fall within
+        the same Conditional. This is a follow up to issue #1610.
+        """
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+        cond = ConditionalDimension(name='cond', parent=time, condition=time < 5)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        # We use a SubDomain only to keep the two Eqs separated
+        eqns = [Eq(u.forward, u + 1, subdomain=grid.interior),
+                Eq(u.forward, u.dx.dx + 1., implicit_dims=[cond])]
+
+        op = Operator(eqns, opt=('advanced-fsg', {'cire-mincost-sops': 1}))
+
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 1
+        assert len(retrieve_iteration_tree(conds[0].then_body)) == 2
 
     def test_stepping_dim_in_condition_lowering(self):
         """

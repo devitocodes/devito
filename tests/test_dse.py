@@ -5,13 +5,13 @@ from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, Grid, Operator, norm, grad, div, dimensions,
-                    switchconfig, configuration, centered, first_derivative, solve,
-                    transpose)
+                    Dimension, SubDimension, ConditionalDimension, Grid, Operator, norm,
+                    grad, div, dimensions, switchconfig, configuration, centered,
+                    first_derivative, solve, transpose)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
-from devito.ir import (DummyEq, Expression, Iteration, FindNodes, FindSymbols,
-                       ParallelIteration, retrieve_iteration_tree)
+from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
+                       FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
 from devito.passes.iet.parpragma import VExpanded
@@ -1907,6 +1907,27 @@ class TestAliases(object):
 
         arrays = [i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 1
+
+    def test_contraction_with_conditional(self):
+        """
+        MFE for issue #1610.
+        """
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+        cond = ConditionalDimension(name='cond', parent=time, condition=time < 5)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4, save=10)
+
+        u.data_with_halo[:] = 1.42
+
+        eqn = Eq(u.forward, u.dy.dy + 1., implicit_dims=[cond])
+
+        op = Operator(eqn, opt=('advanced', {'cire-mincost-sops': 1, 'openmp': True}))
+
+        op.apply(time=8)
+
+        assert len(FindNodes(Conditional).visit(op)) == 1
+        assert np.all(u.data[6:] == 1.42)
 
 
 # Acoustic
