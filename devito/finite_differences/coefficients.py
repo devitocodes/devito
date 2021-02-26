@@ -187,7 +187,6 @@ class Substitutions(object):
             dim = i.dimension
             index = i.index
             weights = i.weights
-            print(deriv_order, function, dim, index, weights)
 
             if isinstance(weights, np.ndarray):
                 fd_order = len(weights)-1
@@ -286,11 +285,8 @@ def default_rules(obj, functions):
         return subs
 
     # Determine which 'rules' are missing
-    print("Functions", functions)
     sym = get_sym(functions)
-    print("Sym", sym)
     terms = obj.find(sym)
-    print("Terms", terms)
     args_present = filter_ordered(term.args[1:] for term in terms)
 
     subs = obj.substitutions
@@ -303,8 +299,6 @@ def default_rules(obj, functions):
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))
-    print("Args present", args_present)
-    print("Args provided", args_provided)
 
     # Need to compare dimensions,, not indices, then take the index from
     # args_present to pass to generate_subs()

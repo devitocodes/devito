@@ -243,6 +243,64 @@ class TestSC(object):
         eval_sym = str(Eq(g, f_sym.dx(x0=x+offset*h_x/2)).evaluate.evalf(_PRECISION))
         assert eval_std == eval_sym
 
+    @pytest.mark.parametrize('so, expected', [(2, '1.0*f(x) + 1.0*f(x + h_x)'),
+                                              (4, '1.0*f(x) + 1.0*f(x - h_x) '
+                                                  '+ 1.0*f(x + h_x) + 1.0*f(x + 2*h_x)'),
+                                              (6, '1.0*f(x) + 1.0*f(x - 2*h_x)'
+                                                  ' + 1.0*f(x - h_x) + 1.0*f(x + h_x)'
+                                                  ' + 1.0*f(x + 2*h_x)'
+                                                  ' + 1.0*f(x + 3*h_x)')])
+    def test_custom_coefficients_staggered_eq(self, so, expected):
+        """Test custom coefficients for staggered equations"""
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+        f = Function(name='f', grid=grid, space_order=so, staggered=NODE,
+                     coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=so, staggered=x,
+                     coefficients='symbolic')
+        weights = np.ones(so+1)
+        coeffs = Coefficient(1, f, x, weights)
+        eq = Eq(g, f.dx, coefficients=Substitutions(coeffs))
+        assert str(eq.evaluate.rhs) == expected
+
+    @pytest.mark.parametrize('so, expected', [(2, '1.0*f(x) + 1.0*f(x + h_x)'
+                                                  ' - g(x)/h_x + g(x + h_x)/h_x'),
+                                              (4, '1.0*f(x) + 1.0*f(x - h_x)'
+                                                  ' + 1.0*f(x + h_x) + 1.0*f(x + 2*h_x)'
+                                                  ' - 9*g(x)/(8*h_x)'
+                                                  ' + g(x - h_x)/(24*h_x)'
+                                                  ' + 9*g(x + h_x)/(8*h_x)'
+                                                  ' - g(x + 2*h_x)/(24*h_x)'),
+                                              (6, '1.0*f(x) + 1.0*f(x - 2*h_x)'
+                                                  ' + 1.0*f(x - h_x)'
+                                                  ' + 1.0*f(x + h_x)'
+                                                  ' + 1.0*f(x + 2*h_x)'
+                                                  ' + 1.0*f(x + 3*h_x)'
+                                                  ' - 75*g(x)/(64*h_x)'
+                                                  ' - 3*g(x - 2*h_x)/(640*h_x)'
+                                                  ' + 25*g(x - h_x)/(384*h_x)'
+                                                  ' + 75*g(x + h_x)/(64*h_x)'
+                                                  ' - 25*g(x + 2*h_x)/(384*h_x)'
+                                                  ' + 3*g(x + 3*h_x)/(640*h_x)')])
+    def test_custom_default_combo(self, so, expected):
+        """
+        Test that staggered equations containing a mixture of default and custom
+        coefficients evaluate as expected.
+        """
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+        f = Function(name='f', grid=grid, space_order=so, staggered=NODE,
+                     coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=so, staggered=NODE,
+                     coefficients='symbolic')
+        h = Function(name='h', grid=grid, space_order=so, staggered=x,
+                     coefficients='symbolic')
+
+        weights = np.ones(so+1)
+        coeffs = Coefficient(1, f, x, weights)
+        eq = Eq(h, f.dx + g.dx, coefficients=Substitutions(coeffs))
+        assert str(eq.evaluate.rhs) == expected
+
     @pytest.mark.parametrize('order', [2, 4, 6])
     def test_staggered_array(self, order):
         """Test custom coefficients provided as an array on a staggered grid"""
