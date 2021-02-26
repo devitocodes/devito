@@ -6,7 +6,7 @@ import pickle
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator)
+                    TimeDimension, SteppingDimension, Operator, MPI)
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
@@ -468,6 +468,28 @@ def test_threadid():
     assert tid.nthreads.name == new_tid.nthreads.name
     assert tid.symbolic_min.name == new_tid.symbolic_min.name
     assert tid.symbolic_max.name == new_tid.symbolic_max.name
+
+
+@skipif(['nompi'])
+@pytest.mark.parallel(mode=[2])
+def test_mpi_grid():
+    grid = Grid(shape=(4, 4, 4))
+
+    pkl_grid = pickle.dumps(grid)
+    new_grid = pickle.loads(pkl_grid)
+
+    assert grid.distributor.comm.size == 2
+    assert new_grid.distributor.comm.size == 1  # Using cloned MPI_COMM_SELF
+    assert grid.distributor.shape == (2, 4, 4)
+    assert new_grid.distributor.shape == (4, 4, 4)
+
+    # Same as before but only one rank calls `loads`. We make sure this
+    # won't cause any hanging (this was an issue in the past when we're
+    # using MPI_COMM_WORLD at unpickling
+    if MPI.COMM_WORLD.rank == 1:
+        new_grid = pickle.loads(pkl_grid)
+        assert new_grid.distributor.comm.size == 1
+    MPI.COMM_WORLD.Barrier()
 
 
 @skipif(['nompi'])

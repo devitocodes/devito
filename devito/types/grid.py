@@ -5,7 +5,7 @@ from sympy import prod
 from math import floor
 
 from devito.data import LEFT, RIGHT
-from devito.mpi import Distributor
+from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.constant import Constant
@@ -297,7 +297,7 @@ class Grid(ArgProvider):
     def __setstate__(self, state):
         for k, v in state.items():
             setattr(self, k, v)
-        self._distributor = Distributor(self.shape, self.dimensions)
+        self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
 class SubDomain(object):
