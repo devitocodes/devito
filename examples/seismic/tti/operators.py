@@ -614,11 +614,11 @@ def JacobianOperator(model, geometry, space_order=4,
                    npoint=geometry.nrec)
 
     # Create wavefields and a dm field
-    u0 = TimeFunction(name='u0', grid=model.grid, staggered=stagg_r, save=None,
+    u0 = TimeFunction(name='u0', grid=model.grid, staggered=stagg_p, save=None,
                       time_order=time_order, space_order=space_order)
     v0 = TimeFunction(name='v0', grid=model.grid, staggered=stagg_r, save=None,
                       time_order=time_order, space_order=space_order)
-    du = TimeFunction(name='du', grid=model.grid, staggered=stagg_r, save=None,
+    du = TimeFunction(name='du', grid=model.grid, staggered=stagg_p, save=None,
                       time_order=time_order, space_order=space_order)
     dv = TimeFunction(name='dv', grid=model.grid, staggered=stagg_r, save=None,
                       time_order=time_order, space_order=space_order)
