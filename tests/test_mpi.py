@@ -1720,6 +1720,32 @@ class TestOperatorAdvanced(object):
 
         assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
 
+    @pytest.mark.parallel(mode=1)
+    def test_haloupdate_issue_1613(self):
+        """
+        Test the HaloScheme construction and generation when using u.dt2.
+
+        This stems from issue #1613.
+        """
+        configuration['mpi'] = True
+
+        grid = Grid(shape=(10, 10))
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2)
+
+        eqns = [Eq(u.forward, u.dt2 + u.dx)]
+
+        op = Operator(eqns)
+
+        # The loc_indices must be along `t` (ie `t0`)
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+        dims = [i for i in calls[0].arguments if isinstance(i, Dimension)]
+        assert len(dims) == 1
+        assert dims[0].is_Modulo
+        assert dims[0].origin is t
+
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
     def test_cire(self):
         """

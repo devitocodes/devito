@@ -63,15 +63,8 @@ class HaloScheme(object):
     """
 
     def __init__(self, exprs, ispace):
-        # Derive halo exchanges
-        self._mapper = {}
-        scope = Scope(exprs)
-        for f, (halos, local) in classify(scope).items():
-            if halos:
-                loc_indices = compute_local_indices(f, local, ispace, scope)
-                self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices),
-                                                  frozenset(halos))
-        self._mapper = frozendict(self._mapper)
+        # Derive the halo exchanges
+        self._mapper = frozendict(classify(exprs, ispace))
 
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions.
         # These should be honored in the derivation of the `omapper`
@@ -347,11 +340,13 @@ class HaloScheme(object):
         return HaloScheme.build(fmapper, self.honored)
 
 
-def classify(scope):
+def classify(exprs, ispace):
     """
-    Produce the mapper ``Function -> ([Halo], [fixed])``, which describes
-    the necessary halo exchanges in the given Scope.
+    Produce the mapper ``Function -> HaloSchemeEntry``, which describes the
+    necessary halo exchanges in the given Scope.
     """
+    scope = Scope(exprs)
+
     mapper = {}
     for f, r in scope.reads.items():
         if not f.is_DiscreteFunction:
@@ -377,7 +372,11 @@ def classify(scope):
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
                 else:
-                    v[d] = NONE
+                    v[(d, i.aindices[d])] = NONE
+
+            # Does `i` actually require a halo exchange?
+            if not any(hl is STENCIL for hl in v.values()):
+                continue
 
             # Derive diagonal halo exchanges from the previous analysis
             combs = list(product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions)))
@@ -391,13 +390,15 @@ def classify(scope):
             for j, hl in v.items():
                 halo_labels[j].add(hl)
 
+        if not halo_labels:
+            continue
+
         # Distinguish between Dimensions requiring a halo exchange and those which don't
-        halos, local = mapper.setdefault(f, ([], []))
-        for i, hl in halo_labels.items():
+        up_loc_indices, halos = defaultdict(list), []
+        for (d, s), hl in halo_labels.items():
             try:
                 hl.remove(IDENTITY)
             except KeyError:
-                # Currently the IDENTITY information isn't exploited
                 pass
             if not hl:
                 continue
@@ -405,38 +406,27 @@ def classify(scope):
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
             elif hl.pop() is STENCIL:
-                halos.append(Halo(*i))
+                halos.append(Halo(d, s))
             else:
-                local.append(i)
+                up_loc_indices[d].append(s)
+
+        # Process the loc_indices. Consider:
+        # 1) u[t+1, x] = f(u[t, x])   => shift == 1
+        # 2) u[t-1, x] = f(u[t, x])   => shift == 1
+        # 3) u[t+1, x] = f(u[t+1, x]) => shift == 0
+        # In the first and second cases, the x-halo should be inserted at `t`,
+        # while in the last case it should be inserted at `t+1`.
+        loc_indices = {}
+        for d, aindices in up_loc_indices.items():
+            try:
+                func = Max if ispace.is_forward(d.root) else Min
+            except KeyError:
+                raise HaloSchemeException("Don't know how to build a HaloScheme as `%s` "
+                                          "doesn't appear in `%s`" % (d, ispace))
+            candidates = [i for i in aindices if not is_integer(i)]
+            candidates = {(i.origin if d.is_Stepping else i) - d: i for i in candidates}
+            loc_indices[d] = candidates[func(*candidates.keys())]
+
+        mapper[f] = HaloSchemeEntry(frozendict(loc_indices), frozenset(halos))
 
     return mapper
-
-
-def compute_local_indices(f, dims, ispace, scope):
-    """
-    Map the Dimensions in ``dims`` to the local indices necessary
-    to perform a halo exchange, as described in HaloScheme.__doc__.
-
-    Examples
-    --------
-    1) u[t+1, x] = f(u[t, x])   => shift == 1
-    2) u[t-1, x] = f(u[t, x])   => shift == 1
-    3) u[t+1, x] = f(u[t+1, x]) => shift == 0
-    In the first and second cases, the x-halo should be inserted at `t`,
-    while in the last case it should be inserted at `t+1`.
-    """
-    loc_indices = {}
-    for d in dims:
-        try:
-            func = Max if ispace.is_forward(d.root) else Min
-        except KeyError:
-            raise HaloSchemeException("Don't know how to build a HaloScheme as `%s` "
-                                      "doesn't appear in `%s`" % (d, ispace))
-        if d.is_Stepping:
-            candidates = {i[d].origin - d: i[d] for i in scope.getreads(f)
-                          if not is_integer(i[d])}
-        else:
-            candidates = {i[d] - d: i[d] for i in scope.getreads(f)
-                          if not is_integer(i[d])}
-        loc_indices[d] = candidates[func(*candidates.keys())]
-    return loc_indices
