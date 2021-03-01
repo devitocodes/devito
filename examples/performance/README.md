@@ -56,7 +56,7 @@
 
 |                     |        CPU          |         GPU        |
 |---------------------|---------------------|--------------------|
-| minstorage          | :heavy_check_mark:  |         :x:        |
+| min-storage         | :heavy_check_mark:  |         :x:        |
 | cire-rotate         | :heavy_check_mark:  |         :x:        |
 | cire-maxpar         | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-maxalias       | :heavy_check_mark:  | :heavy_check_mark: |
