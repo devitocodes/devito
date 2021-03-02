@@ -72,7 +72,15 @@ class Data(np.ndarray):
         return obj
 
     def __del__(self):
-        if self._memfree_args is None:
+        if getattr(self, "_memfree_args", None) is None:
+            # NOTE: The need for `getattr`, in place of `self._memfree_args`, was
+            # suggested for the first time in issue #1184. However, it appears
+            # that even though, as described in the issue, we initialize the
+            # attribute in `__array_finalize__`, an AttributeError exception may
+            # still be raised in some obscure situations. Our best explanation
+            # so far is that this is due to (un)pickling (as often used in a
+            # Dask/Distributed context), which may (re)create a Data object
+            # without going through `__array_finalize__`
             return
         self._allocator.free(*self._memfree_args)
         self._memfree_args = None
