@@ -22,12 +22,19 @@ try:
     mpi4py.rc(initialize=False, finalize=False)
     from mpi4py import MPI  # noqa
 
+    # Devito can be used in two main ways: as a software or as a library. In the
+    # latter case, it's likely MPI will be initialized and finalized by the
+    # overarching application. So we track who initialized MPI to avoid double
+    # finalization
+    init_by_devito = False
+
     # From the `atexit` documentation: "At normal program termination [...]
     # all functions registered are in last in, first out order.". So, MPI.Finalize
-    # will be called only at the very end, after all cloned communicators
-    # will have been freed
+    # will be called only at the very end and only if necessary, after all cloned
+    # communicators will have been freed
     def cleanup():
-        if MPI.Is_initialized():
+        global init_by_devito
+        if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
             MPI.Finalize()
     atexit.register(cleanup)
 except ImportError:
@@ -180,6 +187,8 @@ class Distributor(AbstractDistributor):
             # First time we enter here, we make sure MPI is initialized
             if not MPI.Is_initialized():
                 MPI.Init()
+                global init_by_devito
+                init_by_devito = True
 
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
