@@ -1109,6 +1109,28 @@ class TestConditionalDimension(object):
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
 
+    def test_affiness(self):
+        """
+        Test for issue #1616.
+        """
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled)
+
+        eqns = [Eq(u.forward, u + 1.), Eq(usave, u)]
+
+        op = Operator(eqns)
+
+        iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim is not time]
+        assert all(i.is_Affine for i in iterations)
+
 
 class TestMashup(object):
 

@@ -9,7 +9,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import Iteration, FindNodes
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     Vector, AFFINE, IRREGULAR)
+                                     Vector, AFFINE, REGULAR, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.types import Scalar, Array
@@ -534,15 +534,15 @@ class TestDependenceAnalysis(object):
         ('u[x+1,c,s]', (AFFINE, AFFINE, IRREGULAR)),
         ('u[x+1,c,sc]', (AFFINE, AFFINE, AFFINE)),
         ('u[x+1,c+1,sc*sc]', (AFFINE, AFFINE, AFFINE)),
-        ('u[x*x+1,y,z]', (IRREGULAR, AFFINE, AFFINE)),
+        ('u[x*x+1,y,z]', (REGULAR, AFFINE, AFFINE)),
         ('u[x*y,y,z]', (IRREGULAR, AFFINE, AFFINE)),
-        ('u[x + z,x + y,z*z]', (IRREGULAR, IRREGULAR, IRREGULAR)),
+        ('u[x + z,x + y,z*z]', (IRREGULAR, IRREGULAR, REGULAR)),
         ('u[x+1,u[2,2,2],z-1]', (AFFINE, IRREGULAR, AFFINE)),
         ('u[y,x,z]', (IRREGULAR, IRREGULAR, AFFINE)),
     ])
     def test_index_mode_detection(self, indexed, expected):
         """
-        Test detection of IterationInstance access modes (AFFINE vs IRREGULAR).
+        Test detection of IterationInstance access modes (AFFINE, REGULAR, IRREGULAR).
 
         Proper detection of access mode is a prerequisite to any sort of
         data dependence analysis.
@@ -569,9 +569,10 @@ class TestDependenceAnalysis(object):
         ('Eq(ti0[x,y,z], ti0[x-1,y,z+1])', 'flow,carried,x,regular'),
         ('Eq(ti0[x,y,z], ti0[x+1,y+2,z])', 'anti,carried,x,regular'),
         ('Eq(ti0[x,y,z], ti0[x,y+2,z-3])', 'anti,carried,y,regular'),
-        ('Eq(ti0[x,y,z], ti0[fa[x],y,z])', 'all,carried,x,irregular'),
-        ('Eq(ti0[x,y,z], ti0[fa[x],y,fa[z]])', 'all,carried,x,irregular'),
-        ('Eq(ti0[x,fa[y],z], ti0[x,y,z])', 'all,carried,y,irregular'),
+        ('Eq(ti0[x,y,z], ti0[fa[x],y,z])', 'all,carried,x,regular'),
+        ('Eq(ti0[x,y,z], ti0[fa[x],y,fa[z]])', 'all,carried,x,regular'),
+        ('Eq(ti0[x,y,z], ti0[fa[y],y,z])', 'all,carried,x,irregular'),
+        ('Eq(ti0[x,fa[y],z], ti0[x,y,z])', 'all,carried,y,regular'),
         ('Eq(ti0[x,y,z], ti0[x-1,fa[y],z])', 'flow,carried,x,regular'),
     ])
     def test_single_eq(self, expr, expected, ti0, ti1, fa, grid):
