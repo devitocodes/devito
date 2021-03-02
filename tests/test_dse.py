@@ -1929,6 +1929,21 @@ class TestAliases(object):
         assert len(FindNodes(Conditional).visit(op)) == 1
         assert np.all(u.data[6:] == 1.42)
 
+    def test_hoisting_pow_one(self):
+        """
+        MFE for issues #1614.
+        """
+        grid = Grid(shape=(10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eqn = Eq(u.forward, u*f**1.0)
+
+        op = Operator(eqn)
+
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
+
 
 # Acoustic
 class TestIsoAcoustic(object):
