@@ -9,7 +9,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFu
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer)
 from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
-from devito.symbolics import indexify, retrieve_functions
+from devito.symbolics import indexify, retrieve_functions, IntDiv
 from devito.types import Array
 
 
@@ -622,6 +622,18 @@ class TestConditionalDimension(object):
         assert dx2 == [usave[time_subsampled - 1, x, y],
                        usave[time_subsampled + 1, x, y],
                        usave[time_subsampled, x, y]]
+
+    def test_issue_1592(self):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+        time_sub = ConditionalDimension('t_sub', parent=time, factor=2)
+        v = TimeFunction(name="v", grid=grid, space_order=4, time_dim=time_sub, save=5)
+        w = Function(name="w", grid=grid, space_order=4)
+        Operator(Eq(w, v.dx))(time=6)
+        op = Operator(Eq(v.forward, v.dx))
+        op.apply(time=6)
+        exprs = FindNodes(Expression).visit(op)
+        assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, 2) + 1
 
     def test_subsampled_fd(self):
         """

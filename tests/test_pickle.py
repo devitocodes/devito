@@ -6,14 +6,14 @@ import pickle
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator)
+                    TimeDimension, SteppingDimension, Operator, MPI)
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID)
+                          DeviceID, ThreadID)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -452,6 +452,44 @@ def test_mpi_objects():
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
     assert obj.dtype == new_obj.dtype
+
+
+def test_threadid():
+    grid = Grid(shape=(4, 4, 4))
+    f = TimeFunction(name='f', grid=grid)
+    op = Operator(Eq(f.forward, f + 1.), openmp=True)
+
+    tid = ThreadID(op.nthreads)
+
+    pkl_tid = pickle.dumps(tid)
+    new_tid = pickle.loads(pkl_tid)
+
+    assert tid.name == new_tid.name
+    assert tid.nthreads.name == new_tid.nthreads.name
+    assert tid.symbolic_min.name == new_tid.symbolic_min.name
+    assert tid.symbolic_max.name == new_tid.symbolic_max.name
+
+
+@skipif(['nompi'])
+@pytest.mark.parallel(mode=[2])
+def test_mpi_grid():
+    grid = Grid(shape=(4, 4, 4))
+
+    pkl_grid = pickle.dumps(grid)
+    new_grid = pickle.loads(pkl_grid)
+
+    assert grid.distributor.comm.size == 2
+    assert new_grid.distributor.comm.size == 1  # Using cloned MPI_COMM_SELF
+    assert grid.distributor.shape == (2, 4, 4)
+    assert new_grid.distributor.shape == (4, 4, 4)
+
+    # Same as before but only one rank calls `loads`. We make sure this
+    # won't cause any hanging (this was an issue in the past when we're
+    # using MPI_COMM_WORLD at unpickling
+    if MPI.COMM_WORLD.rank == 1:
+        new_grid = pickle.loads(pkl_grid)
+        assert new_grid.distributor.comm.size == 1
+    MPI.COMM_WORLD.Barrier()
 
 
 @skipif(['nompi'])
