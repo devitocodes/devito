@@ -1,6 +1,5 @@
 # Runner information:
-# Standard NC24_Promo (24 vcpus, 224 GiB memory)
-# NVIDIA Tesla K80, Intel Xeon E5-2690 v3 (Haswell)
+# TODO: Summarize runner hardware for each config here
 
 name: CI-gpu
 
@@ -9,74 +8,24 @@ env:
   RESOURCE_GROUP: CI-gpu
 
 on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  # Push-button activation
   workflow_dispatch:
     inputs:
       tags:
         description: 'Run GPU tests'
-  # Trigger the workflow on push to the master branch
-  push:
-    branches:
-      - master
 
 jobs:
-  # Start the self-hosted runner and start runner app
-  start-runners:
-    name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
-
-    strategy:
-      # Prevent all build to stop if a single one fails
-      fail-fast: false
-
-      matrix:
-        name: [
-          start-runner-omp,
-          start-runner-acc
-        ]
-        include:
-        - name: start-runner-omp
-          vm_name: gpu-runner-04
-
-        - name: start-runner-acc
-          vm_name: gpu-runner-02
-
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v2.3.2
-
-    - name: start VM
-      env:
-        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
-        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
-        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
-        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\startVM.ps1'"
-        -servicePrincipal $SP_APPID
-        -servicePrincipalSecret $SP_SECRET
-        -servicePrincipalTenantId $TENANT_ID
-        -azureSubscriptionName $SUB_ID
-        -resourceGroupName $RESOURCE_GROUP
-        -vmName ${{ matrix.vm_name }}
-
-    - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n ${{ matrix.vm_name }} --query publicIps -o tsv)
-      id: host
-
-    - name: start actions runner app
-      uses: fifsky/ssh-action@master
-      with:
-        command: |
-          #!/bin/bash
-          nohup actions-runner/run.sh >/dev/null 2>&1 &
-        host: ${{ steps.host.outputs.action_host }}
-        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        args: "-tt"
 
   build:
     name: ${{ matrix.name }}
-    needs: start-runners
     runs-on: ${{ matrix.tags }}
 
     env:
@@ -86,21 +35,24 @@ jobs:
       OMPI_CC: ${{ matrix.arch }}
 
     strategy:
-      # Prevent all build to stop if a single one fails
+      # Prevent all build from terminating if one fails
       fail-fast: false
 
       matrix:
         name: [
-          pytest-gpu-omp,
-          pytest-gpu-acc
+          # NOTE: We can re-instate this as a 'failing' build
+          # as soon as the hardware is ready
+          #pytest-gpu-omp,
+          pytest-gpu-acc,
+          pytest-gpu-aomp
         ]
         include:
-        - name: pytest-gpu-omp
-          test_file: "tests/test_gpu_openmp.py"
-          arch: "clang"
-          platform: "nvidiaX"
-          language: "openmp"
-          tags: ["self-hosted", "gpu", "openmp"]
+        #- name: pytest-gpu-omp
+          #test_file: "tests/test_gpu_openmp.py"
+          #arch: "clang"
+          #platform: "nvidiaX"
+          #language: "openmp"
+          #tags: ["self-hosted", "gpu", "openmp"]
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
@@ -109,9 +61,31 @@ jobs:
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
 
+        - name: pytest-gpu-aomp
+          test_file: "TODO"
+          arch: "TODO"
+          platform: "TODO"
+          language: "TODO"
+          tags: ["self-hosted", "gpu", "aomp"]
+
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
+
+    # TODO: Below needs fixing. Suggest creating suitable matrix
+    # entries to load appropriate paths etc. from local files.
+    # See asv.yml for an example. Note that there may now be a nice action
+    # available for doing this so that would be worth looking into.
+    - name: Set VIRTUAL_ENV
+      run: |
+        echo "VIRTUAL_ENV=$ENVHOME/something" >> $GITHUB_ENV
+        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
+
+    # NOTE: Depending on above step is modified this may or may not
+    # need changing
+    - name: Set PATH
+      run: |
+        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
 
     - name: Install dependencies
       run: |
@@ -120,6 +94,9 @@ jobs:
 
     - name: Test with pytest
       run: |
+        # NOTE: Maybe we want to change the below to print
+        # output of nvidia-smi and amd equivalent on each machine?
+        # It's simply to ensure gpu driver has not broken
         if [ "${{ matrix.name }}" == 'pytest-gpu-acc' ]; then
           pgaccelinfo
         fi
@@ -147,45 +124,3 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
-
-  # Deallocate runners
-  stop-runners:
-    name: ${{ matrix.name }}
-    if: ${{ always() }}
-    needs: build
-    runs-on: ubuntu-latest
-
-    strategy:
-      # Prevent all build to stop if a single one fails
-      fail-fast: false
-
-      matrix:
-        name: [
-          stop-runner-omp,
-          stop-runner-acc
-        ]
-        include:
-        - name: stop-runner-omp
-          vm_name: gpu-runner-04
-
-        - name: stop-runner-acc
-          vm_name: gpu-runner-02
-
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v2.3.2
-
-    - name: stop VM
-      env:
-        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
-        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
-        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
-        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\stopVM.ps1'"
-        -servicePrincipal $SP_APPID
-        -servicePrincipalSecret $SP_SECRET
-        -servicePrincipalTenantId $TENANT_ID
-        -azureSubscriptionName $SUB_ID
-        -resourceGroupName $RESOURCE_GROUP
-        -vmName ${{ matrix.vm_name }}
