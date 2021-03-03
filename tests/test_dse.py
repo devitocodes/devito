@@ -1831,9 +1831,8 @@ class TestAliases(object):
             assert False
 
         # Prepare to run op1
-        cfuncs = [i for i in op1.input if i.is_TempFunction]
         shape = [nthreads, x0_blk0_size, y0_blk0_size, grid.shape[-1]]
-        ofuncs = [i.make(shape) for i in cfuncs]
+        ofuncs = [i.make(shape) for i in op1.temporaries]
         kwargs = {i.name: i for i in ofuncs}
 
         # Check numerical output of op1
@@ -1841,8 +1840,7 @@ class TestAliases(object):
         assert np.allclose(u.data, u1.data, rtol=10e-8)
 
         # Prepare to run op2
-        cfuncs = [i for i in op2.input if i.is_TempFunction]
-        ofuncs = [i.make(grid.shape) for i in cfuncs]
+        ofuncs = [i.make(grid.shape) for i in op2.temporaries]
         assert all(i.shape_with_halo == (32, 32, 32) for i in ofuncs)
         kwargs = {i.name: i for i in ofuncs}
 

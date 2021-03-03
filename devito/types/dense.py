@@ -1501,6 +1501,10 @@ class TempFunction(DiscreteFunction):
             # This is a bit hacky but it does work around duplicate dimensions when
             # it gets to pickling
             dimensions = as_tuple(pointer_dim) + dimensions
+
+        # Sanity check
+        assert not any(d.is_NonlinearDerived for d in dimensions)
+
         return dimensions, dimensions
 
     def __halo_setup__(self, **kwargs):
