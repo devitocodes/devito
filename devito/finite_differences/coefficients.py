@@ -3,7 +3,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
-from devito.tools import filter_ordered, as_tuple, frozendict
+from devito.tools import filter_ordered, as_tuple
 from devito.symbolics.search import retrieve_dimensions
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
@@ -243,7 +243,7 @@ def default_rules(obj, functions):
 
         subs = {}
 
-        mapper = frozendict({dim: index})
+        mapper = {dim: index}
 
         indices, x0 = generate_indices(function, dim,
                                        fd_order, side=None, x0=mapper)
@@ -263,7 +263,6 @@ def default_rules(obj, functions):
 
     subs = obj.substitutions
     if subs:
-        # .index is not including function offset correctly
         args_provided = [(i.deriv_order, i.function, i.index)
                          for i in subs.coefficients]
     else:
