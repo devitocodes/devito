@@ -1,5 +1,7 @@
 # Runner information:
-# TODO: Summarize runner hardware for each config here
+# OpenACC on NVidia runs on `sarlaac`
+# OpenACC on AMD runs on `nexu`
+# OpenMP on NVidia runs on `bantha`
 
 name: CI-gpu
 
@@ -35,7 +37,7 @@ jobs:
       OMPI_CC: ${{ matrix.arch }}
 
     strategy:
-      # Prevent all build from terminating if one fails
+      # Prevent all builds from terminating if one fails
       fail-fast: false
 
       matrix:
@@ -43,12 +45,14 @@ jobs:
           # NOTE: We can re-instate this as a 'failing' build
           # as soon as the hardware is ready
           #pytest-gpu-omp,
-          pytest-gpu-acc,
-          pytest-gpu-aomp
+          pytest-gpu-acc
+          # pytest-gpu-aomp
         ]
         include:
         #- name: pytest-gpu-omp
           #test_file: "tests/test_gpu_openmp.py"
+          #env_file: "devito-ci-nvidia-openmp.env"
+          #test_drive_cmd: "nvidia-smi"
           #arch: "clang"
           #platform: "nvidiaX"
           #language: "openmp"
@@ -56,36 +60,31 @@ jobs:
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
+          env_file: "devito-ci-nvidia-openacc.env"
+          test_drive_cmd: "nvidia-smi"
           arch: "pgcc"
           platform: "nvidiaX"
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
 
-        - name: pytest-gpu-aomp
-          test_file: "TODO"
-          arch: "TODO"
-          platform: "TODO"
-          language: "TODO"
-          tags: ["self-hosted", "gpu", "aomp"]
+        # - name: pytest-gpu-aomp
+        #   test_file: "tests_gpu_aomp.py"
+        #   env_file: "devito-ci-amd-openmp.py"
+        #   test_drive_cmd: "TODO"
+        #   arch: "aomp"
+        #   platform: "amdgpuX"
+        #   language: "openmp"
+        #   tags: ["self-hosted", "gpu", "aomp"]
 
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
 
-    # TODO: Below needs fixing. Suggest creating suitable matrix
-    # entries to load appropriate paths etc. from local files.
-    # See asv.yml for an example. Note that there may now be a nice action
-    # available for doing this so that would be worth looking into.
-    - name: Set VIRTUAL_ENV
+    - name: Set environment
       run: |
-        echo "VIRTUAL_ENV=$ENVHOME/something" >> $GITHUB_ENV
-        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
-
-    # NOTE: Depending on above step is modified this may or may not
-    # need changing
-    - name: Set PATH
-      run: |
-        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
+        source $HOME/${{ matrix.env_file }}
+        echo "PATH=$PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
     - name: Install dependencies
       run: |
@@ -94,12 +93,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        # NOTE: Maybe we want to change the below to print
-        # output of nvidia-smi and amd equivalent on each machine?
-        # It's simply to ensure gpu driver has not broken
-        if [ "${{ matrix.name }}" == 'pytest-gpu-acc' ]; then
-          pgaccelinfo
-        fi
+        ${{ matrix.test_drive_cmd }}
         pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_gpu_common.py
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
 
