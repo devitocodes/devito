@@ -203,7 +203,6 @@ class Substitutions(object):
             # passed as a dictionary of the form {pos: w} (or something similar).
             if isinstance(weights, np.ndarray):
                 for j in range(len(weights)):
-                    # Index here is incorrect. Need to pull it from elsewhere
                     subs.update({function._coeff_symbol
                                  (indices[j], deriv_order,
                                   function, index): weights[j]})
@@ -300,7 +299,7 @@ def default_rules(obj, functions):
     # been provided twice?
     args_provided = list(set(args_provided))
 
-    # Need to compare dimensions,, not indices, then take the index from
+    # Need to compare dimensions, not indices, then take the index from
     # args_present to pass to generate_subs()
     args_pres_dim = [(arg[0], arg[1], retrieve_dimensions(arg[2])[0])
                      for arg in args_present]
