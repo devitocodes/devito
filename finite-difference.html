@@ -301,7 +301,7 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 <li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – Dimensions w.r.t which the derivative is taken</p></li>
 <li><p><strong>order</strong> (<em>Int</em>) – Order of the finite-difference scheme</p></li>
 <li><p><strong>side</strong> (<em>Side</em>) – Side of the scheme, (centered, left, right)</p></li>
-<li><p><strong>x0</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>Expr</em><em> or </em><em>Number</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
+<li><p><strong>x0</strong> (<em>Dict of {Dimension: Dimension</em><em> or </em><em>Expr</em><em> or </em><em>Number}</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
