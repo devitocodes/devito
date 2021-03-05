@@ -85,7 +85,7 @@ def estimate_cost(exprs, estimate=False):
 
     try:
         # Is it a plain symbol/array ?
-        if exprs.is_AbstractFunction or exprs.is_AbstractSymbol:
+        if exprs.is_Atom or exprs.is_Indexed or exprs.is_AbstractFunction:
             return 0
     except AttributeError:
         pass
