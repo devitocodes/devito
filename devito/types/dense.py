@@ -1537,19 +1537,26 @@ class TempFunction(DiscreteFunction):
 
     @property
     def shape(self):
-        return self.symbolic_shape
+        domain = [i.symbolic_size for i in self.dimensions]
+        return DimensionTuple(*domain, getters=self.dimensions)
 
-    shape_with_halo = shape
-    shpe_allocated = shape
+    @property
+    def shape_with_halo(self):
+        domain = self.shape
+        halo = [sympy.Add(*i, evaluate=False) for i in self._size_halo]
+        ret = tuple(sum(i) for i in zip(domain, halo))
+        return DimensionTuple(*ret, getters=self.dimensions)
 
-    def make(self, shape, initializer=None, allocator=None):
+    shpe_allocated = DiscreteFunction.symbolic_shape
+
+    def make(self, shape=None, initializer=None, allocator=None, **kwargs):
         """
         Create a Function which can be used to override this TempFunction
         in a call to `op.apply(...)`.
 
         Parameters
         ----------
-        shape : tuple of ints
+        shape : tuple of ints, optional
             Shape of the domain region in grid points.
         initializer : callable or any object exposing the buffer interface, optional
             Data initializer. If a callable is provided, data is allocated lazily.
@@ -1557,11 +1564,27 @@ class TempFunction(DiscreteFunction):
             Controller for memory allocation. To be used, for example, when one wants
             to take advantage of the memory hierarchy in a NUMA architecture. Refer to
             `default_allocator.__doc__` for more information.
+        **kwargs
+            Mapper of Operator overrides. Used to automatically derive the shape
+            if not explicitly provided.
         """
-        # Sanity check
-        if len(shape) != self.ndim:
+        if shape is None:
+            if len(kwargs) == 0:
+                raise ValueError("Either `shape` or `kwargs` (Operator overrides) "
+                                 "must be provided.")
+            shape = []
+            for n, i in enumerate(self.shape):
+                v = i.subs(kwargs)
+                if not v.is_Integer:
+                    raise ValueError("Couldn't resolve `shape[%d]=%s` with the given "
+                                     "kwargs (obtained: `%s`)" % (n, i, v))
+                shape.append(int(v))
+            shape = tuple(shape)
+        elif len(shape) != self.ndim:
             raise ValueError("`shape` must contain %d integers, not %d"
                              % (self.ndim, len(shape)))
+        elif not all(is_integer(i) for i in shape):
+            raise ValueError("`shape` must contain integers (got `%s`)" % str(shape))
 
         return Function(name=self.name, dtype=self.dtype, dimensions=self.dimensions,
                         shape=shape, halo=self.halo, initializer=initializer,
