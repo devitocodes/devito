@@ -1,10 +1,10 @@
-from collections import Iterable, OrderedDict
+from collections import Iterable
 
 from devito.symbolics import retrieve_terminals, uxreplace
 from devito.tools import flatten, timed_pass
-from devito.types import Dimension, Symbol
+from devito.types import Symbol
 
-__all__ = ['cluster_pass', 'makeit_ssa', 'make_is_time_invariant']
+__all__ = ['cluster_pass', 'makeit_ssa']
 
 
 class cluster_pass(object):
@@ -86,51 +86,3 @@ def makeit_ssa(exprs):
         else:
             processed.append(e.func(e.lhs, rhs))
     return processed
-
-
-def make_is_time_invariant(context):
-    """
-    Given an ordered list of expressions, returns a callable that finds out whether
-    a given expression is time invariant or not.
-    """
-    dimensions = set().union(*[e.dimensions for e in context])
-    if len([i for i in dimensions if i.is_Time]) == 0:
-        # No concept of time in the provided set of expressions
-        return lambda i: False
-
-    mapper = OrderedDict([(i.lhs, i) for i in makeit_ssa(context)])
-
-    def is_time_invariant(mapper, expr):
-        if any(isinstance(i, Dimension) and i.is_Time for i in expr.free_symbols):
-            return False
-
-        queue = [expr.rhs if expr.is_Equality else expr]
-        seen = set()
-        while queue:
-            item = queue.pop()
-            nodes = set()
-            for i in retrieve_terminals(item):
-                if i in seen:
-                    # Already inspected, nothing more can be inferred
-                    continue
-                elif any(isinstance(j, Dimension) and j.is_Time for j in i.free_symbols):
-                    # Definitely not time-invariant
-                    return False
-                elif i in mapper:
-                    # Go on with the search
-                    nodes.add(i)
-                elif isinstance(i, Dimension):
-                    # Go on with the search, as `i` is not a time dimension
-                    pass
-                elif not (i.function.is_DiscreteFunction or
-                          i.function.is_Symbol and i.function.is_const):
-                    # It didn't come from the outside and it's not in `mapper`, so
-                    # cannot determine if time-invariant; assume time-varying then
-                    return False
-                seen.add(i)
-            queue.extend([mapper[i].rhs for i in nodes])
-        return True
-
-    callback = lambda i: is_time_invariant(mapper, i)
-
-    return callback

@@ -10,7 +10,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
                     first_derivative, solve, transpose)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
-from devito.ir import (Cluster, Conditional, DummyEq, Expression, Iteration, FindNodes,
+from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
@@ -427,10 +427,10 @@ class TestAliases(object):
         for i, e in enumerate(list(expected)):
             expected[i] = eval(e)
 
-        cluster = Cluster(exprs, exprs[0].ispace, exprs[0].dspace)
         extracted = {i.rhs: i.lhs for i in exprs}
+        ispace = exprs[0].ispace
 
-        aliases = collect(cluster, extracted, lambda i: False, {'min-storage': False})
+        aliases = collect(extracted, ispace, lambda i: False, False)
 
         assert len(aliases) == len(expected)
         assert all(i in expected for i in aliases)
@@ -598,7 +598,7 @@ class TestAliases(object):
             return sqrt(f**2 + 1.)
 
         # Leads to 3D aliases despite the potential contraction along x and y
-        eqn = Eq(u.forward, u*(func(f) + func(f[x, y, z-1])))
+        eqn = Eq(u.forward, u*func(f) + u*func(f[x, y, z-1]))
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
@@ -692,8 +692,8 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(op1._func_table['bf0'])) == 2
-        self.check_array(arrays[0], ((1, 1), (0, 0)), (ys+2, zs), rotate)
-        self.check_array(arrays[1], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
+        self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
+        self.check_array(arrays[1], ((1, 1), (0, 0)), (ys+2, zs), rotate)
 
         # Check numerical output
         op0(time_M=1)
@@ -729,8 +729,8 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(op1)) == 1
-        self.check_array(arrays[1], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
-        self.check_array(arrays[0], ((2, 2), (0, 0)), (ys+4, zs))
+        self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
+        self.check_array(arrays[1], ((2, 2), (0, 0)), (ys+4, zs))
 
         # Check that `advanced-fsg` + `min-storage` is incompatible
         try:
@@ -816,8 +816,8 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(op1._func_table['bf0'])) == 2
-        self.check_array(arrays[0], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
-        self.check_array(arrays[1], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
+        self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
+        self.check_array(arrays[1], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
 
         # Check numerical output
         op0(time_M=1)
@@ -964,71 +964,26 @@ class TestAliases(object):
         op1(time_M=1, u=u1)
         assert np.all(u.data == u1.data)
 
-    def test_composite(self):
+    def test_take_largest_derivative(self):
         """
-        Check that composite alias are optimized away through "smaller" aliases.
-
-        Examples
-        --------
-        Instead of the following:
-
-            t0 = a[x, y]
-            t1 = b[x, y]
-            t2 = a[x+1, y+1]*b[x, y]
-            out = t0 + t1 + t2  # pseudocode
-
-        We should get:
-
-            t0 = a[x, y]
-            t1 = b[x, y]
-            out = t0 + t1 + t0[x+1,y+1]*t1[x, y]  # pseudocode
+        Check that CIRE is able to automatically schedule the largest degree
+        derivative in a case with many nested derivatives.
         """
-        grid = Grid(shape=(3, 3))
-        x, y = grid.dimensions  # noqa
+        grid = Grid(shape=(4, 4, 4))
 
-        g = Function(name='g', grid=grid)
-        u = TimeFunction(name='u', grid=grid)
-        u1 = TimeFunction(name='u1', grid=grid)
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
 
-        g.data[:] = 2.
-        u.data[:] = 1.
-        u1.data[:] = 1.
+        eq = Eq(u.forward, f**2*sin(f)*u.dy.dy.dy.dy.dy)
 
-        expr = (cos(g)*cos(g) +
-                sin(g)*sin(g) +
-                sin(g)*cos(g) +
-                sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
+        op = Operator(eq, opt=('cire-sops'))
 
-        op0 = Operator(Eq(u.forward, expr), opt='noop')
-        op1 = Operator(Eq(u.forward, expr), opt=('advanced', {'cire-mincost-sops': 1}))
+        assert op._profiler._sections['section0'].sops == 84
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
 
-        # Check code generation
-        # We expect two temporary Arrays, one for `cos(g)` and one for `sin(g)`
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
-        assert len(arrays) == 2
-        assert all(i._mem_heap and not i._mem_external for i in arrays)
-
-        # Check numerical output
-        op0(time_M=1)
-        op1(time_M=1, u=u1)
-        assert np.allclose(u.data, u1.data, rtol=10e-7)
-
-    @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
-    def test_nested_invariants(self):
+    def test_nested_invariants_v1(self):
         """
-        Check that nested aliases are optimized away through "smaller" aliases.
-
-        Examples
-        --------
-        Given the expression
-
-            sqrt(cos(a[x, y]))
-
-        We should get
-
-            t0 = cos(a[x,y])
-            t1 = sqrt(t0)
-            out = t1  # pseudocode
+        Check that nested aliases are optimized away.
         """
         grid = Grid(shape=(3, 3))
         x, y = grid.dimensions  # noqa
@@ -1038,10 +993,50 @@ class TestAliases(object):
 
         op = Operator(Eq(u.forward, u + sin(cos(g)) + sin(cos(g[x+1, y+1]))))
 
-        # We expect two temporary Arrays: `r1 = cos(g)` and `r2 = sqrt(r1)`
+        # We expect one temporary Array: `r0 = sin(cos(g))`
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 1
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+    def test_nested_invariants_v2(self):
+        """
+        Check that nested aliases are optimized away.
+        """
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions  # noqa
+        h_x, h_y = grid.spacing_symbols
+
+        u = TimeFunction(name='u', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator(Eq(u.forward, u + (1 + cos(g))/h_x + (1 + cos(g[x+1, y+1]))/h_y))
+
+        # We expect one temporary Array: `r0 = cos(g)`
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 1
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+    def test_nested_invariants_v3(self):
+        """
+        Check that nested aliases are optimized away.
+        """
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions  # noqa
+        h_x, h_y = grid.spacing_symbols
+
+        u = TimeFunction(name='u', grid=grid)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator(Eq(u.forward, (u*sin(f) + 1)*cos(g)*sin(g)))
+
+        # We expect two temporary Arrays: `r0 = sin(f)` and `r1 = cos(g)*sin(g)`
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
+        # Also make sure the inner `sin` has been correctly replaced
+        exprs = FindNodes(Expression).visit(op)
+        assert len(exprs[-1].expr.find(sin)) == 0
 
     @switchconfig(profiling='advanced')
     def test_twin_sops(self):
@@ -1214,10 +1209,43 @@ class TestAliases(object):
         op1(time_M=1, u=u1)
         assert np.all(u.data == u1.data)
 
-    def test_catch_largest_invariant(self):
+    def test_catch_best_invariant_v1(self):
         """
-        Make sure the largest time-invariant sub-expressions are extracted
-        such that their operation count exceeds a certain threshold.
+        Make sure the best time-invariant sub-expressions are extracted.
+        """
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions  # noqa
+
+        g = Function(name='g', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+        u1 = TimeFunction(name='u1', grid=grid)
+
+        g.data[:] = 2.
+        u.data[:] = 1.
+        u1.data[:] = 1.
+
+        expr = (cos(g)*cos(g) +
+                sin(g)*sin(g) +
+                sin(g)*cos(g) +
+                sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
+
+        op0 = Operator(Eq(u.forward, expr), opt='noop')
+        op1 = Operator(Eq(u.forward, expr))
+
+        # Check code generation
+        # We expect two temporary Arrays, one for each trascendental function
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+        # Check numerical output
+        op0(time_M=1)
+        op1(time_M=1, u=u1)
+        assert np.allclose(u.data, u1.data, rtol=10e-7)
+
+    def test_catch_best_invariant_v2(self):
+        """
+        Make sure the best time-invariant sub-expressions are extracted.
         """
         grid = Grid((10, 10))
 
@@ -1245,6 +1273,48 @@ class TestAliases(object):
         tmp_exprs = exprs[2:4]
         assert all(e.write in arrays for e in tmp_exprs)
         assert all(e.write._mem_heap and not e.write._mem_external for e in tmp_exprs)
+
+    def test_compound_invariants(self):
+        """
+        Check that compound time-invariant aliases are optimized away.
+        """
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+        u1 = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        f.data[:] = 1.4
+        g.data[:] = 2.1
+        u.data[:] = 1.3
+        u1.data[:] = 1.3
+        v.data[:] = 1.7
+        v1.data[:] = 1.7
+
+        eqn = Eq(u.forward, (cos(f)*sin(g)*u +
+                             cos(g)*sin(f)*v +
+                             cos(f[x+1, y+1])*sin(g[x+1, y+1])*u[t, x+1, y+1]))
+
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn)
+
+        # Check code generation
+        # We expect two temporary Arrays, one for cos(f)*sin(g) and one for cos(g)*sin(f)
+        # Old versions of devito would have used four Arrays, respectively for cos(f),
+        # cos(g), sin(f), sin(g)
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+        # Check numerical output
+        op0(time_M=1)
+        op1(time_M=1, u=u1, v=v1)
+        assert np.allclose(u.data, u1.data, rtol=10e-7)
 
     def test_catch_duplicate_from_different_clusters(self):
         """
@@ -1278,8 +1348,6 @@ class TestAliases(object):
     def test_hoisting_if_coupled(self):
         """
         Test that coupled aliases are successfully hoisted out of the time loop.
-        This test also checks the correct behaviour of the Operator opt-option
-        ``cire-repeats-inv``.
         """
         grid = Grid((10, 10))
 
@@ -1294,8 +1362,7 @@ class TestAliases(object):
         eqns = [Eq(e.forward, e + 1),
                 Eq(f.forward, f*subexpr0 - f*subexpr1 + e.forward.dx)]
 
-        op = Operator(eqns, opt=('advanced', {'cire-repeats-inv': 2,
-                                              'cire-mincost-inv': 28}))
+        op = Operator(eqns, opt=('advanced', {'cire-mincost-inv': 28}))
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
@@ -1325,17 +1392,15 @@ class TestAliases(object):
         pde = m * u.dt2 - u.laplace - s**2/12 * u.biharmonic(1/m)
         eq = Eq(u.forward, solve(pde, u.forward))
 
-        op0 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-mincost-inv': 25}))
+        op0 = Operator(eq, opt=('advanced', {'openmp': False}))
         assert len([i for i in FindSymbols().visit(op0) if i.is_Array]) == 2
         assert op0._profiler._sections['section1'].sops == 109
 
-        op1 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True,
-                                             'cire-mincost-inv': 25}))
+        op1 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True}))
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 4
         assert op1._profiler._sections['section1'].sops == 94
 
-        op2 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True,
-                                             'cire-mincost-inv': 25}),
+        op2 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True}),
                        subs={i: 0.5 for i in grid.spacing_symbols})
         assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 2
         assert op2._profiler._sections['section1'].sops == 57
@@ -1401,7 +1466,7 @@ class TestAliases(object):
         op = Operator(eqns, opt=('advanced', {'cire-rotate': rotate}))
 
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 2
+        assert len(arrays) == 3
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
     def test_full_shape_big_temporaries(self):
@@ -1488,7 +1553,7 @@ class TestAliases(object):
         # all redundancies have been detected correctly
         assert summary[('section0', None)].ops == 115
 
-    @pytest.mark.parametrize('so_ops', [(4, 39), (8, 79)])
+    @pytest.mark.parametrize('so_ops', [(4, 33), (8, 69)])
     @pytest.mark.parametrize('rotate', [False, True])
     @switchconfig(profiling='advanced')
     def test_tti_adjoint_akin(self, so_ops, rotate):
@@ -1589,10 +1654,10 @@ class TestAliases(object):
         # Check code generation
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
-        assert len(arrays) == 6
+        assert len(arrays) == 4
         assert len(FindNodes(VExpanded).visit(op1._func_table['bf0'])) == 2
-        self.check_array(arrays[4], ((3, 3),), (zs+6,))
-        self.check_array(arrays[5], ((6, 6), (6, 6), (6, 6)), (xs+12, ys+12, zs+12))
+        self.check_array(arrays[2], ((6, 6), (6, 6), (6, 6)), (xs+12, ys+12, zs+12))
+        self.check_array(arrays[3], ((3, 3),), (zs+6,))
 
         # Check numerical output
         op0(time_M=1)
@@ -1601,7 +1666,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary[('section1', None)].ops == 92
+        assert summary[('section1', None)].ops == 80
 
     @pytest.mark.parametrize('rotate', [False, True])
     @switchconfig(profiling='advanced')
@@ -1650,7 +1715,7 @@ class TestAliases(object):
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('expr,exp_arrays,exp_ops', [
         ('f.dx.dx + g.dx.dx',
-         (1, 1, 2, (1, 0)), (46, 40, 49, 17)),
+         (1, 1, 2, (0, 1)), (46, 40, 49, 17)),
         ('v.dx.dx + p.dx.dx',
          (2, 2, 2, (0, 2)), (61, 49, 49, 25)),
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
@@ -1658,7 +1723,7 @@ class TestAliases(object):
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx',
          (1, 1, 2, (0, 1)), (50, 44, 53, 19)),
         ('g*(f.dx.dx + g.dx.dx)',
-         (1, 1, 2, (1, 0)), (47, 41, 50, (17, 1))),
+         (1, 1, 2, (0, 1)), (47, 41, 50, 18)),
     ])
     def test_sum_of_nested_derivatives(self, expr, exp_arrays, exp_ops):
         """
@@ -1716,6 +1781,29 @@ class TestAliases(object):
             # all redundancies have been detected correctly
             for i, exp in enumerate(as_tuple(exp_ops[n])):
                 assert summary[('section%d' % i, None)].ops == exp
+
+    @pytest.mark.xfail(reason="Cannot deal with multi-level aliases yet")
+    def test_derivatives_from_different_levels(self):
+        """
+        Test catching of derivatives nested at different levels of the
+        expression tree.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+        v1 = TimeFunction(name="v", grid=grid, space_order=4)
+
+        f.data_with_halo[:] = 0.5
+        v.data_with_halo[:] = 1.2
+        v1.data_with_halo[:] = 1.2
+
+        eqn = Eq(v.forward, f*(1 + v).dx + 2*f*((1 + v).dx + f))
+
+        op = Operator(eqn, opt=('advanced', {'cire-mincost-sops': 3}))
+
+        # Check code generation
+        assert len([i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array])
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_maxpar_option(self, rotate):
@@ -1883,8 +1971,8 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
         assert len(arrays) == 3
         assert len(FindNodes(VExpanded).visit(op1._func_table['bf0'])) == 2
-        self.check_array(arrays[1], ((4, 4),), (zs+8,))  # On purpose w/o `rotate`
-        self.check_array(arrays[2], ((4, 4), (0, 0)), (ys+8, zs), rotate)
+        self.check_array(arrays[1], ((4, 4), (0, 0)), (ys+8, zs), rotate)
+        self.check_array(arrays[2], ((4, 4),), (zs+8,))  # On purpose w/o `rotate`
 
         # Check numerical output
         op0.apply(time_M=2)
@@ -1948,7 +2036,6 @@ class TestAliases(object):
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
 
 
-# Acoustic
 class TestIsoAcoustic(object):
 
     def run_acoustic_forward(self, opt=None):
@@ -2055,8 +2142,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 103
-        assert np.isclose(summary[('section1', None)].oi, 1.625, atol=0.001)
+        assert summary[('section1', None)].ops == 91
+        assert np.isclose(summary[('section1', None)].oi, 1.524, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd(kernel='centered')
@@ -2074,12 +2161,12 @@ class TestTTI(object):
         #   Arrays are defined globally and passed as arguments to bf0
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         extra_arrays = 0 if configuration['language'] == 'openmp' else 2
-        assert len(arrays) == 5 + extra_arrays
+        assert len(arrays) == 4 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         arrays = [i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array]
-        assert len(arrays) == 7
+        assert len(arrays) == 6
         assert all(not i._mem_external for i in arrays)
-        assert len([i for i in arrays if i._mem_heap]) == 7
+        assert len([i for i in arrays if i._mem_heap]) == 6
         vexpanded = 2 if configuration['language'] == 'openmp' else 0
         assert len(FindNodes(VExpanded).visit(op._func_table['bf0'])) == vexpanded
 
@@ -2102,7 +2189,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 173), (16, 307)
+        (8, 153), (16, 271)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)

@@ -26,16 +26,6 @@ class DeviceOperatorMixin(object):
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
     """
 
-    CIRE_REPEATS_INV = 2
-    """
-    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
-    """
-
-    CIRE_REPEATS_SOPS = 7
-    """
-    Number of CIRE passes to detect and optimize away redundant sum-of-products.
-    """
-
     CIRE_MINCOST_INV = 50
     """
     Minimum operation count of a Dimension-invariant aliasing expression to be
@@ -76,10 +66,6 @@ class DeviceOperatorMixin(object):
         o['cire-maxpar'] = oo.pop('cire-maxpar', True)
         o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-ftemps'] = oo.pop('cire-ftemps', False)
-        o['cire-repeats'] = {
-            'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
-            'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
-        }
         o['cire-mincost'] = {
             'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
             'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
