@@ -1805,11 +1805,13 @@ class TestAliases(object):
         u = TimeFunction(name='u', grid=grid, space_order=3)
         u1 = TimeFunction(name="u", grid=grid, space_order=3)
         u2 = TimeFunction(name="u", grid=grid, space_order=3)
+        u3 = TimeFunction(name="u", grid=grid, space_order=3)
 
         f.data_with_halo[:] = 1.
         u.data_with_halo[:] = 0.32
         u1.data_with_halo[:] = 0.32
         u2.data_with_halo[:] = 0.32
+        u3.data_with_halo[:] = 0.32
 
         eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                              (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
@@ -1823,18 +1825,13 @@ class TestAliases(object):
         op0(time_M=1, nthreads=nthreads)
 
         # TempFunctions expect an override
-        try:
+        with pytest.raises(InvalidArgument):
             op1(time_M=1, u=u1)
-        except InvalidArgument:
-            assert True
-        except:
-            assert False
 
         # Prepare to run op1
         shape = [nthreads, x0_blk0_size, y0_blk0_size, grid.shape[-1]]
         ofuncs = [i.make(shape) for i in op1.temporaries]
         kwargs = {i.name: i for i in ofuncs}
-
         # Check numerical output of op1
         op1(time_M=1, u=u1, nthreads=nthreads, **kwargs)
         assert np.allclose(u.data, u1.data, rtol=10e-8)
@@ -1843,10 +1840,17 @@ class TestAliases(object):
         ofuncs = [i.make(grid.shape) for i in op2.temporaries]
         assert all(i.shape_with_halo == (32, 32, 32) for i in ofuncs)
         kwargs = {i.name: i for i in ofuncs}
-
         # Check numerical output of op2
         op2(time_M=1, u=u2, **kwargs)
-        assert np.allclose(u.data, u1.data, rtol=10e-8)
+        assert np.allclose(u.data, u2.data, rtol=10e-8)
+
+        # Again op2, but now with automatically derived shape
+        ofuncs = [i.make(**u3._arg_values()) for i in op2.temporaries]
+        assert all(i.shape_with_halo == (32, 32, 32) for i in ofuncs)
+        kwargs = {i.name: i for i in ofuncs}
+        # Check numerical output of op2
+        op2(time_M=1, u=u3, **kwargs)
+        assert np.allclose(u.data, u3.data, rtol=10e-8)
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_grouping_fallback(self, rotate):
