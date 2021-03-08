@@ -2177,7 +2177,7 @@ class TestTTI(object):
         assert np.isclose(summary[('section1', None)].oi, 1.524, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
-        op = wavesolver.op_fwd(kernel='centered')
+        op = wavesolver.op_fwd()
         block_dims = [i for i in op.dimensions if i.is_Incr]
         assert len(block_dims) == 4
         x, x0_blk0, y, y0_blk0 = block_dims
