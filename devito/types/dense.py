@@ -1514,7 +1514,7 @@ class TempFunction(DiscreteFunction):
         if halo is None:
             halo = tuple((0, 0) for _ in dimensions)
         if pointer_dim is not None:
-            halo = ((0, 0),) + halo
+            halo = ((0, 0),) + as_tuple(halo)
         return halo
 
     @property
@@ -1547,7 +1547,7 @@ class TempFunction(DiscreteFunction):
         ret = tuple(sum(i) for i in zip(domain, halo))
         return DimensionTuple(*ret, getters=self.dimensions)
 
-    shpe_allocated = DiscreteFunction.symbolic_shape
+    shape_allocated = DiscreteFunction.symbolic_shape
 
     def make(self, shape=None, initializer=None, allocator=None, **kwargs):
         """
