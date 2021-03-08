@@ -227,8 +227,14 @@ def get_gpu_info():
                 gpu_info = {}
                 match = re.match(r'GPU *[0-9]*\: ([\w]*) (.*) \(', line)
                 if match:
-                    gpu_info['architecture'] = match.group(1)
-                    gpu_info['product'] = match.group(2)
+                    if match.group(1) == 'Graphics':
+                        gpu_info['architecture'] = 'unspecified'
+                    else:
+                        gpu_info['architecture'] = match.group(1)
+                    if match.group(2) == 'Device':
+                        gpu_info['product'] = 'unspecified'
+                    else:
+                        gpu_info['product'] = match.group(2)
                     gpu_info['vendor'] = 'NVIDIA'
                     gpu_infos.append(gpu_info)
 
@@ -239,7 +245,7 @@ def get_gpu_info():
     def homogenise_gpus(gpu_infos):
         if gpu_infos == []:
             warning('No graphics cards detected')
-            return None
+            return {}
 
         # Check must ignore physical IDs as they may differ
         for gpu_info in gpu_infos:
@@ -251,7 +257,7 @@ def get_gpu_info():
 
         warning('Different models of graphics cards detected')
 
-        return None
+        return {}
 
     # Obtain textual gpu info and delegate parsing to helper functions
 
