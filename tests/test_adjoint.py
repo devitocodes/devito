@@ -133,13 +133,9 @@ class TestAdjoint(object):
         # 2D TTI tests with varying space orders
         ('layers-tti', (20, 25), 'centered', 8, tti_setup),
         ('layers-tti', (20, 25), 'centered', 4, tti_setup),
-        ('layers-tti', (20, 25), 'staggered', 8, tti_setup),
-        ('layers-tti', (20, 25), 'staggered', 4, tti_setup),
         # 3D TTI tests with varying space orders
         ('layers-tti', (20, 25, 30), 'centered', 8, tti_setup),
         ('layers-tti', (20, 25, 30), 'centered', 4, tti_setup),
-        ('layers-tti', (20, 25, 30), 'staggered', 8, tti_setup),
-        ('layers-tti', (20, 25, 30), 'staggered', 4, tti_setup),
         # 2D viscoacoustic tests with varying space orders
         ('layers-viscoacoustic', (20, 25), 'sls', 8, viscoacoustic_setup),
         ('layers-viscoacoustic', (20, 25), 'sls', 4, viscoacoustic_setup),
