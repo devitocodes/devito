@@ -13,8 +13,9 @@ from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halosp
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
-           'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceCustomOmpOperator',
-           'DeviceNoopAccOperator', 'DeviceAdvAccOperator', 'DeviceCustomAccOperator']
+           'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceFsgOmpOperator',
+           'DeviceCustomOmpOperator', 'DeviceNoopAccOperator', 'DeviceAdvAccOperator',
+           'DeviceFsgAccOperator', 'DeviceCustomAccOperator']
 
 
 class DeviceOperatorMixin(object):
@@ -207,6 +208,17 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         return graph
 
 
+class DeviceFsgOperator(DeviceAdvOperator):
+
+    """
+    Operator with performance optimizations tailored "For small grids" ("Fsg").
+    """
+
+    # Note: currently mimics DeviceAdvOperator. Will see if this will change
+    # in the future
+    pass
+
+
 class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
     @classmethod
@@ -315,6 +327,10 @@ class DeviceAdvOmpOperator(DeviceOmpOperatorMixin, DeviceAdvOperator):
     pass
 
 
+class DeviceFsgOmpOperator(DeviceOmpOperatorMixin, DeviceFsgOperator):
+    pass
+
+
 class DeviceCustomOmpOperator(DeviceOmpOperatorMixin, DeviceCustomOperator):
 
     _known_passes = DeviceCustomOperator._known_passes + ('openmp',)
@@ -349,6 +365,10 @@ class DeviceNoopAccOperator(DeviceAccOperatorMixin, DeviceNoopOperator):
 
 
 class DeviceAdvAccOperator(DeviceAccOperatorMixin, DeviceAdvOperator):
+    pass
+
+
+class DeviceFsgAccOperator(DeviceAccOperatorMixin, DeviceFsgOperator):
     pass
 
 

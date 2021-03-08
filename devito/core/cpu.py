@@ -10,7 +10,8 @@ from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, mpiize,
 from devito.tools import timed_pass
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
-           'Cpu64AdvOmpOperator', 'Cpu64CustomOperator']
+           'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
+           'Cpu64CustomOperator']
 
 
 class Cpu64OperatorMixin(object):

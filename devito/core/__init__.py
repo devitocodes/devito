@@ -7,9 +7,10 @@ from devito.core.intel import (Intel64AdvCOperator, Intel64AdvOmpOperator,
                                Intel64FsgCOperator, Intel64FsgOmpOperator)
 from devito.core.arm import ArmAdvCOperator, ArmAdvOmpOperator
 from devito.core.power import PowerAdvCOperator, PowerAdvOmpOperator
-from devito.core.gpu import (DeviceNoopOmpOperator, DeviceAdvOmpOperator,
-                             DeviceCustomOmpOperator, DeviceNoopAccOperator,
-                             DeviceAdvAccOperator, DeviceCustomAccOperator)
+from devito.core.gpu import (DeviceNoopOmpOperator, DeviceNoopAccOperator,
+                             DeviceAdvOmpOperator, DeviceAdvAccOperator,
+                             DeviceFsgOmpOperator, DeviceFsgAccOperator,
+                             DeviceCustomOmpOperator, DeviceCustomAccOperator)
 from devito.operator.registry import operator_registry
 from devito.parameters import Parameters, add_sub_configuration
 
@@ -52,6 +53,10 @@ operator_registry.add(DeviceNoopAccOperator, Device, 'noop', 'openacc')
 operator_registry.add(DeviceAdvOmpOperator, Device, 'advanced', 'C')
 operator_registry.add(DeviceAdvOmpOperator, Device, 'advanced', 'openmp')
 operator_registry.add(DeviceAdvAccOperator, Device, 'advanced', 'openacc')
+
+operator_registry.add(DeviceFsgOmpOperator, Device, 'advanced-fsg', 'C')
+operator_registry.add(DeviceFsgOmpOperator, Device, 'advanced-fsg', 'openmp')
+operator_registry.add(DeviceFsgAccOperator, Device, 'advanced-fsg', 'openacc')
 
 # The following used by backends.backendSelector
 from devito.core.operator import CoreOperator as Operator  # noqa
