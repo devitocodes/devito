@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from devito.logger import info
-from devito import norm, configuration
+from devito import norm
 from examples.seismic.viscoacoustic import ViscoacousticWaveSolver
 from examples.seismic import demo_model, setup_geometry, seismic_args
 
@@ -36,7 +36,6 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     return (summary.gflopss, summary.oi, summary.timings, [rec, p, v])
 
 
-@pytest.mark.skipif(configuration['language'] == 'openacc', reason="see issue #1560")
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [
     ('sls', 2, 684.385, 1e-2),
     ('sls', 1, 18.774, 1e-2),
@@ -50,7 +49,6 @@ def test_viscoacoustic(kernel, time_order, normrec, atol):
     assert np.isclose(norm(rec), normrec, atol=atol, rtol=0)
 
 
-@pytest.mark.skipif(configuration['language'] == 'openacc', reason="see issue #1560")
 @pytest.mark.parametrize('ndim', [2, 3])
 @pytest.mark.parametrize('kernel', ['sls', 'ren', 'deng_mcmechan'])
 @pytest.mark.parametrize('time_order', [1, 2])
