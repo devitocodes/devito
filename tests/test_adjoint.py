@@ -19,30 +19,30 @@ presets = {
 class TestAdjoint(object):
     @pytest.mark.parametrize('mkey, shape, kernel, space_order, time_order, setup_func', [
         # 1 tests with varying time and space orders
-        # ('layers', (60, ), 'OT2', 12, 2, acoustic_setup),
-        # ('layers', (60, ), 'OT2', 8, 2, acoustic_setup),
-        # ('layers', (60, ), 'OT4', 4, 2, acoustic_setup),
-        # # 2D tests with varying time and space orders
-        # ('layers', (60, 70), 'OT2', 12, 2, acoustic_setup),
-        # ('layers', (60, 70), 'OT2', 8, 2, acoustic_setup),
-        # ('layers', (60, 70), 'OT2', 4, 2, acoustic_setup),
-        # ('layers', (60, 70), 'OT4', 2, 2, acoustic_setup),
-        # # 3D tests with varying time and space orders
-        # ('layers', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
-        # ('layers', (60, 70, 80), 'OT2', 6, 2, acoustic_setup),
-        # ('layers', (60, 70, 80), 'OT2', 4, 2, acoustic_setup),
-        # ('layers', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
-        # # Constant model in 2D and 3D
-        # ('constant', (60, 70), 'OT2', 10, 2, acoustic_setup),
-        # ('constant', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
-        # ('constant', (60, 70), 'OT2', 4, 2, acoustic_setup),
-        # ('constant', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
-        # # 2D TTI tests with varying space orders
-        # ('layers-tti', (30, 35), 'centered', 8, 2, tti_setup),
-        # ('layers-tti', (30, 35), 'centered', 4, 2, tti_setup),
-        # # 3D TTI tests with varying space orders
-        # ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
-        # ('layers-tti', (30, 35, 40), 'centered', 4, 2, tti_setup),
+        ('layers', (60, ), 'OT2', 12, 2, acoustic_setup),
+        ('layers', (60, ), 'OT2', 8, 2, acoustic_setup),
+        ('layers', (60, ), 'OT4', 4, 2, acoustic_setup),
+        # 2D tests with varying time and space orders
+        ('layers', (60, 70), 'OT2', 12, 2, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 8, 2, acoustic_setup),
+        ('layers', (60, 70), 'OT2', 4, 2, acoustic_setup),
+        ('layers', (60, 70), 'OT4', 2, 2, acoustic_setup),
+        # 3D tests with varying time and space orders
+        ('layers', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 6, 2, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT2', 4, 2, acoustic_setup),
+        ('layers', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
+        # Constant model in 2D and 3D
+        ('constant', (60, 70), 'OT2', 10, 2, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
+        ('constant', (60, 70), 'OT2', 4, 2, acoustic_setup),
+        ('constant', (60, 70, 80), 'OT4', 2, 2, acoustic_setup),
+        # 2D TTI tests with varying space orders
+        ('layers-tti', (30, 35), 'centered', 8, 2, tti_setup),
+        ('layers-tti', (30, 35), 'centered', 4, 2, tti_setup),
+        # 3D TTI tests with varying space orders
+        ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 4, 2, tti_setup),
         # 2D SLS Viscoacoustic tests with varying space and equation orders
         ('layers-viscoacoustic', (20, 25), 'sls', 4, 1, viscoacoustic_setup),
         ('layers-viscoacoustic', (20, 25), 'sls', 2, 1, viscoacoustic_setup),
