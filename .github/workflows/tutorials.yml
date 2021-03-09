@@ -95,7 +95,7 @@ jobs:
 
     - name: Performance notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance/00_overview.ipynb
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance/01_gpu.ipynb
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'tutos-docker-gcc-py36'
