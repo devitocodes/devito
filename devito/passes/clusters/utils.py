@@ -1,6 +1,6 @@
 from collections import Iterable
 
-from devito.symbolics import retrieve_terminals, uxreplace
+from devito.symbolics import uxreplace
 from devito.tools import flatten, timed_pass
 from devito.types import Symbol
 

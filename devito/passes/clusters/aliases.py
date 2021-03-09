@@ -92,7 +92,7 @@ def cire(clusters, mode, sregistry, options, platform):
     for c in clusters:
         # We don't care about sparse Clusters. Their computational cost is
         # negligible and processing all of them would only increase compilation
-        # time and potentially make the generated code more chaotic 
+        # time and potentially make the generated code more chaotic
         if not c.is_dense:
             processed.append(c)
             continue
@@ -156,13 +156,9 @@ class Cire(object):
             mapper = self._extract(exprs, context, n)
 
             # Search aliasing expressions
-            found = collect(mapper.extracted, ispace,
-                            self._ignore_collected, self._opt_minstorage)
-            if not found:
-                continue
+            found = collect(mapper.extracted, ispace, self._opt_minstorage)
 
             # Choose the aliasing expressions with a good flops/memory trade-off
-            #TODO: squash selector inside choose??
             exprs, chosen, pscore = choose(found, exprs, mapper, self._selector)
             aliases.update(chosen)
             score += pscore
@@ -184,14 +180,11 @@ class Cire(object):
     def _extract(self, exprs, context, n):
         raise NotImplementedError
 
-    def _ignore_collected(self, group):
-        raise NotImplementedError
-
     def _in_writeto(self, dim, cluster):
         raise NotImplementedError
 
-    def _selector(self, cost):
-        return cost // self._opt_mincost
+    def _selector(self, e, naliases):
+        return estimate_cost(e, True)*naliases // self._opt_mincost
 
 
 class CireInvariants(Cire):
@@ -221,9 +214,6 @@ class CireInvariants(Cire):
                     mapper.add(i, self._make_symbol)
 
         return mapper
-
-    def _ignore_collected(self, group):
-        return False
 
     def _in_writeto(self, dim, cluster):
         return PARALLEL in cluster.properties[dim]
@@ -265,9 +255,8 @@ class CireInvariantsDivs(CireInvariants):
         return (e.is_Pow and e.exp.is_Integer and e.exp < 0 and
                 all(i.function.is_const for i in e.base.free_symbols))
 
-    def _selector(self, cost):
-        #TODO: DROP ME?
-        return int(cost > 0)
+    def _selector(self, e, naliases):
+        return 1
 
 
 class CireSOPS(Cire):
@@ -317,12 +306,14 @@ class CireSOPS(Cire):
 
         return mapper
 
-    def _ignore_collected(self, group):
-        #TODO: STILL USEFUL????
-        return len(group) <= 1
-
     def _in_writeto(self, dim, cluster):
         return self._opt_maxpar and PARALLEL in cluster.properties[dim]
+
+    def _selector(self, e, naliases):
+        if naliases <= 1:
+            return 0
+        else:
+            return super()._selector(e, naliases)
 
 
 modes = {
@@ -333,7 +324,7 @@ modes = {
 }
 
 
-def collect(extracted, ispace, ignore_collected, min_storage):
+def collect(extracted, ispace, min_storage):
     """
     Find groups of aliasing expressions.
 
@@ -421,10 +412,6 @@ def collect(extracted, ispace, ignore_collected, min_storage):
             group.append(u)
             unseen.remove(u)
         group = Group(group)
-
-        # Apply callback to heuristically discard groups
-        if ignore_collected(group):
-            continue
 
         if min_storage:
             k = group.dimensions_translated
@@ -515,20 +502,25 @@ def choose(aliases, exprs, mapper, selector):
     the aliases with a bad flops/memory trade-off, inject them into the original
     expressions.
     """
+    tot = 0
+    retained = AliasMapper()
+
     # Pass 1: a set of aliasing expressions is retained only if its cost
     # exceeds the mode's threshold
     candidates = OrderedDict()
     aliaseds = []
     others = []
     for e, v in aliases.items():
-        naliases = len(v.aliaseds)
-        cost = estimate_cost(e, True)*naliases
-        score = selector(cost)
+        score = selector(e, len(v.aliaseds))
         if score > 0:
             candidates[e] = score
             aliaseds.extend(v.aliaseds)
         else:
             others.append(e)
+
+    # Do not waste time if unneccesary
+    if not candidates:
+        return exprs, retained, tot
 
     # Project the candidate aliases into exprs to determine what the new
     # working set would be
@@ -538,8 +530,6 @@ def choose(aliases, exprs, mapper, selector):
     # Pass 2: a set of aliasing expressions is retained only if the tradeoff
     # between operation count reduction and working set increase is favorable
     owset = wset(others + templated)
-    tot = 0
-    retained = AliasMapper()
     for e, v in aliases.items():
         try:
             score = candidates[e]
@@ -549,6 +539,10 @@ def choose(aliases, exprs, mapper, selector):
            score == 1 and max(len(wset(e)), 1) > len(wset(e) & owset):
             retained[e] = v
             tot += score
+
+    # Do not waste time if unneccesary
+    if not retained:
+        return exprs, retained, tot
 
     # Substitute the chosen aliasing sub-expressions
     mapper = {k: v for k, v in mapper.items() if v.free_symbols & set(retained.aliaseds)}
