@@ -16,14 +16,21 @@ SEQUENTIAL = Property('sequential')
 PARALLEL = Property('parallel')
 """A fully parallel Dimension."""
 
+PARALLEL_IF_ATOMIC = Property('parallel_if_atomic')
+"""
+A parallel Dimension that requires atomic reductions. This is weaker than PARALLEL.
+"""
+
+PARALLEL_IF_PVT = Property('parallel_if_private')
+"""
+A parallel Dimension that requires thread-private Arrays. This is weaker than PARALLEL.
+"""
+
 PARALLEL_INDEP = Property('parallel=')
 """
 A fully parallel Dimension, where all dependences have dependence distance
-equals to 0 (i.e., the distance vector is '='). This is stronger than PARALLEL.
+equals to 0 (i.e., the distance vector is '=').
 """
-
-PARALLEL_IF_ATOMIC = Property('parallel_if_atomic')
-"""A parallel Dimension with local reductions. This is weaker than PARALLEL."""
 
 COLLAPSED = lambda i: Property('collapsed', i)
 """Collapsed Dimensions."""
@@ -55,9 +62,11 @@ def normalize_properties(*args):
         return args[0]
 
     if any(SEQUENTIAL in p for p in args):
-        drop = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC}
+        drop = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
     elif any(PARALLEL_IF_ATOMIC in p for p in args):
         drop = {PARALLEL, PARALLEL_INDEP}
+    elif any(PARALLEL_IF_PVT in p for p in args):
+        drop = {PARALLEL}
     elif any(PARALLEL_INDEP not in p for p in args):
         drop = {PARALLEL_INDEP}
     else:

@@ -31,21 +31,22 @@ RUN apt-get update -y && \
         nodejs \
         liblapack-dev  \
         libblas-dev \
+        libibverbs-dev \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super && \
     wget -q -P /app/ \
-         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9_20.9_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-20-9-cuda-multi_20.9_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/20.9/nvhpc-2020_20.9_amd64.deb && \
+         https://developer.download.nvidia.com/hpc-sdk/21.2/nvhpc-21-2_21.2_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.2/nvhpc-21-2-cuda-multi_21.2_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.2/nvhpc-2021_21.2_amd64.deb && \
     apt-get install -y -q \
-         /app/nvhpc-20-9_20.9_amd64.deb \
-         /app/nvhpc-20-9-cuda-multi_20.9_amd64.deb \
-         /app/nvhpc-2020_20.9_amd64.deb && \
+         /app/nvhpc-21-2_21.2_amd64.deb \
+         /app/nvhpc-21-2-cuda-multi_21.2_amd64.deb \
+         /app/nvhpc-2021_21.2_amd64.deb && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
     rm -rf /var/lib/apt/lists/*
 
-ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2020
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2020/cuda/11.0/extras/CUPTI
+ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.2/extras/CUPTI
 ARG MPI_VER=3
 
 # nvidia-container-runtime
@@ -56,13 +57,15 @@ ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf
+    echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_CUPTI/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf    
     
 # Compiler, CUDA, and Library paths
 ENV CUDA_HOME $HPCSDK_HOME/cuda
 ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
 ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
-ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
@@ -138,8 +141,12 @@ ENV APP_HOME=/app
 RUN mkdir -p /app && \
     groupadd -r app && \
     useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
-    chown -R app:app $APP_HOME
-
+    chown -R app:app $APP_HOME && \
+    chown app:app /docker-entrypoint.sh && \
+    chown app:app /print-defaults && \
+    chown app:app /tests && \
+    chown app:app /jupyter
+    
 # Change to the app user.
 USER app
 WORKDIR /app

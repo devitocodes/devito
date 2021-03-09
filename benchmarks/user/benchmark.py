@@ -285,6 +285,8 @@ def run(problem, **kwargs):
 @benchmark.command(name='run-jit-backdoor')
 @option_simulation
 @option_performance
+@click.option('--dump-norms', is_flag=True, default=False,
+              help='Display norms of written fields')
 def cli_run_jit_backdoor(problem, **kwargs):
     """`click` interface for the `run_jit_backdoor` mode."""
     run_jit_backdoor(problem, **kwargs)
@@ -324,7 +326,15 @@ def run_jit_backdoor(problem, **kwargs):
     def _run_jit_backdoor():
         return run_op(solver, 'forward', autotune=autotune)
 
-    return _run_jit_backdoor()
+    retval = _run_jit_backdoor()
+
+    dumpnorms = kwargs.pop('dump_norms')
+    if dumpnorms:
+        for i in retval[:-1]:
+            if isinstance(i, DiscreteFunction):
+                info("'%s': %f" % (i.name, norm(i)))
+
+    return retval
 
 
 @benchmark.command(name='test')

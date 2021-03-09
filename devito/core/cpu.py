@@ -93,7 +93,6 @@ class Cpu64OperatorMixin(object):
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
         o['cire-rotate'] = oo.pop('cire-rotate', False)
-        o['cire-onstack'] = oo.pop('cire-onstack', False)
         o['cire-maxpar'] = oo.pop('cire-maxpar', False)
         o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-repeats'] = {
@@ -320,6 +319,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
+            'cire-divs': lambda i: cire(i, 'divs', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
             'topofuse': lambda i: fuse(i, toposort=True)
@@ -351,8 +351,8 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         # Expressions
         'buffering',
         # Clusters
-        'blocking', 'topofuse', 'fuse', 'factorize', 'cire-sops', 'cse',
-        'lift', 'opt-pows',
+        'blocking', 'topofuse', 'fuse', 'factorize', 'cire-sops', 'cire-divs',
+        'cse', 'lift', 'opt-pows',
         # IET
         'denormals', 'optcomms', 'openmp', 'mpi', 'simd', 'prodders',
     )

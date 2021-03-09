@@ -4,8 +4,8 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import (PARALLEL, IterationSpace, DataSpace, Scope,
-                               detect_io, normalize_properties)
+from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, IterationSpace, DataSpace,
+                               Scope, detect_io, normalize_properties)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
 from devito.types import normalize_syncs
@@ -192,12 +192,13 @@ class Cluster(object):
             * Only DiscreteFunctions are written and only affine index functions
               are used (e.g., `a[x+1, y-2]` is OK, while `a[b[x], y-2]` is not)
         """
-        # Hopefully it's got a unique Grid and all Dimensions are PARALLEL.
-        # This is a quick and easy check so we try it first
+        # Hopefully it's got a unique Grid and all Dimensions are PARALLEL (or
+        # at most PARALLEL_IF_PVT). This is a quick and easy check so we try it first
         try:
+            pset = {PARALLEL, PARALLEL_IF_PVT}
             grid = self.grid
             for d in grid.dimensions:
-                if not any(PARALLEL in v for k, v in self.properties.items()
+                if not any(pset & v for k, v in self.properties.items()
                            if d in k._defines):
                     raise ValueError
             return True

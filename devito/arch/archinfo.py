@@ -216,12 +216,34 @@ def get_gpu_info():
                 gpu_infos.append(gpu_info)
         return filter_real_gpus(gpu_infos)
 
+    def nvidiasmi_gpu_info(text):
+        lines = text.replace('\\n', '\n').replace('b\'', '')
+        lines = lines.splitlines()
+
+        gpu_infos = []
+        for line in lines:
+            gpu_info = {}
+            if 'GPU' in line:
+                gpu_info = {}
+                match = re.match(r'GPU *[0-9]*\: ([\w]*) (.*) \(', line)
+                if match:
+                    gpu_info['architecture'] = match.group(1)
+                    gpu_info['product'] = match.group(2)
+                    gpu_info['vendor'] = 'NVIDIA'
+                    gpu_infos.append(gpu_info)
+
+        return gpu_infos
+
     # Run homogeneity checks on a list of GPU, return GPU with count if homogeneous,
     #   otherwise None
     def homogenise_gpus(gpu_infos):
         if gpu_infos == []:
             warning('No graphics cards detected')
             return None
+
+        # Check must ignore physical IDs as they may differ
+        for gpu_info in gpu_infos:
+            gpu_info.pop('physicalid', None)
 
         if all_equal(gpu_infos):
             gpu_infos[0]['ncards'] = len(gpu_infos)
@@ -234,7 +256,20 @@ def get_gpu_info():
     # Obtain textual gpu info and delegate parsing to helper functions
 
     try:
-        # First try is with detailed command lshw
+        # First try is with nvidia-smi, which can have more info about NVIDIA cards
+        info_cmd = ['nvidia-smi', '-L']
+        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+        raw_info = str(proc.stdout.read())
+
+        # Parse the information for all the devices listed with nvidia-smi
+        gpu_infos = nvidiasmi_gpu_info(raw_info)
+        return homogenise_gpus(gpu_infos)
+
+    except OSError:
+        pass
+
+    try:
+        # Second try is with detailed command lshw
         info_cmd = ['lshw', '-C', 'video']
         proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
         raw_info = str(proc.stdout.read())
@@ -246,7 +281,7 @@ def get_gpu_info():
         pass
 
     try:
-        # Second try is with lspci, which is more readable and less detailed than lshw
+        # Third try is with lspci, which is more readable and less detailed than lshw
         info_cmd = ['lspci']
         proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
         raw_info = str(proc.stdout.read())

@@ -18,7 +18,7 @@ class TestGPUInfo(object):
     def test_get_gpu_info(self):
         info = get_gpu_info()
         try:
-            assert 'tesla' in info['architecture'].lower()
+            assert info['architecture'].lower() in ['tesla', 'geforce', 'unspecified']
         except TypeError:
             # There might be than one GPUs, but for now we don't care
             # as we're not really exploiting this info yet...
@@ -33,7 +33,7 @@ class TestCodeGeneration(object):
         """
         grid = Grid(shape=(10, 10, 10))
 
-        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
 
         eq = Eq(u.forward, u.dy.dy)
 
@@ -518,8 +518,8 @@ class TestStreaming(object):
         bundle0 = Bundle()
         grid = Grid(shape=(4, 4, 4), subdomains=bundle0)
 
-        u = TimeFunction(name='u', grid=grid, space_order=2)
-        u1 = TimeFunction(name='u', grid=grid, space_order=2)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u', grid=grid, space_order=4)
         usave = TimeFunction(name='usave', grid=grid, save=nt)
         usave1 = TimeFunction(name='usave', grid=grid, save=nt)
 

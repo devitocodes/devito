@@ -13,7 +13,7 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
-           'dimensions', 'ModuloDimension', 'IncrDimension', 'ShiftedDimension']
+           'dimensions', 'ModuloDimension', 'IncrDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -103,7 +103,6 @@ class Dimension(ArgProvider):
     is_Stepping = False
     is_Modulo = False
     is_Incr = False
-    is_Shifted = False
 
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
@@ -635,30 +634,42 @@ class SubDimension(DerivedDimension):
                 self._offset_left.extreme is other._offset_left.extreme and
                 self._offset_right.extreme is other._offset_right.extreme)
 
+    @property
+    def _arg_names(self):
+        return tuple(k.name for k, _ in self.thickness) + self.parent._arg_names
+
     def _arg_defaults(self, grid=None, **kwargs):
+        return {}
+
+    def _arg_values(self, args, interval, grid, **kwargs):
+        # Allow override of thickness values to disable BCs
+        # However, arguments from the user are considered global
+        # So overriding the thickness to a nonzero value should not cause
+        # boundaries to exist between ranks where they did not before
+        requested_ltkn, requested_rtkn = (
+            kwargs.get(k.name, v) for k, v in self.thickness
+        )
+
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
             if self.local:
                 # dimension is of type ``left``/right`` - compute the 'offset'
                 # and then add 1 to get the appropriate thickness
-                ltkn = grid.distributor.glb_to_loc(self.root,
-                                                   self.thickness.left[1]-1, LEFT)
-                rtkn = grid.distributor.glb_to_loc(self.root,
-                                                   self.thickness.right[1]-1, RIGHT)
+                ltkn = grid.distributor.glb_to_loc(self.root, requested_ltkn-1, LEFT)
+                rtkn = grid.distributor.glb_to_loc(self.root, requested_rtkn-1, RIGHT)
                 ltkn = ltkn+1 if ltkn is not None else 0
                 rtkn = rtkn+1 if rtkn is not None else 0
             else:
                 # dimension is of type ``middle``
-                ltkn = grid.distributor.glb_to_loc(self.root, self.thickness.left[1],
+                ltkn = grid.distributor.glb_to_loc(self.root, requested_ltkn,
                                                    LEFT) or 0
-                rtkn = grid.distributor.glb_to_loc(self.root, self.thickness.right[1],
+                rtkn = grid.distributor.glb_to_loc(self.root, requested_rtkn,
                                                    RIGHT) or 0
-            return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
         else:
-            return {k.name: v for k, v in self.thickness}
+            ltkn = requested_ltkn
+            rtkn = requested_rtkn
 
-    def _arg_values(self, args, interval, grid, **kwargs):
-        return self._arg_defaults(grid=grid, **kwargs)
+        return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 
     # Pickling support
     _pickle_args = DerivedDimension._pickle_args +\
@@ -1018,6 +1029,8 @@ class IncrDimension(DerivedDimension):
     step : expr-like, optional
         The distance between two consecutive points. Defaults to the
         symbolic size.
+    size : expr-like, optional
+        The symbolic size of the Dimension. Defaults to `_max-_min+1`.
 
     Notes
     -----
@@ -1027,11 +1040,16 @@ class IncrDimension(DerivedDimension):
     is_Incr = True
     is_PerfKnob = True
 
-    def __init_finalize__(self, name, parent, _min, _max, step=None):
+    def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
         super().__init_finalize__(name, parent)
         self._min = _min
         self._max = _max
         self._step = step
+        self._size = size
+
+    @property
+    def size(self):
+        return self._size
 
     @cached_property
     def step(self):
@@ -1042,8 +1060,16 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def symbolic_size(self):
-        # The size must be given as a function of the parent's symbols
-        return self.symbolic_max - self.symbolic_min + 1
+        if self.size is not None:
+            # Make sure we return a symbolic object as the provided size might
+            # be for example a pure int
+            try:
+                return sympy.Number(self.size)
+            except (TypeError, ValueError):
+                return self._size
+        else:
+            # The size must be given as a function of the parent's symbols
+            return self.symbolic_max - self.symbolic_min + 1
 
     @cached_property
     def symbolic_min(self):
@@ -1135,22 +1161,7 @@ class IncrDimension(DerivedDimension):
 
     # Pickling support
     _pickle_args = ['name', 'parent', 'symbolic_min', 'symbolic_max']
-    _pickle_kwargs = ['step']
-
-
-class ShiftedDimension(IncrDimension):
-
-    """
-    A special unit-step IncrDimension with min=0 and max=parent.symbolic_size-1.
-    """
-
-    is_Shifted = True
-
-    def __new__(cls, d, name):
-        return super().__new__(cls, name, d, 0, d.symbolic_size - 1, step=1)
-
-    _pickle_args = ['parent', 'name']
-    _pickle_kwargs = []
+    _pickle_kwargs = ['step', 'size']
 
 
 class CustomDimension(BasicDimension):

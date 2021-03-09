@@ -132,6 +132,28 @@ class TestDistributor(object):
         value = obj._arg_defaults()[obj.name]
         assert all(getattr(value._obj, k) == v for k, v in mapper.items())
 
+    @pytest.mark.parallel(mode=[4])
+    def test_custom_topology(self):
+        grid = Grid(shape=(15, 15))
+        f = Function(name='f', grid=grid)
+
+        # Default topology, computed by Devito
+        distributor = grid.distributor
+        assert distributor.topology == (2, 2)
+        expected = [(8, 8), (8, 7), (7, 8), (7, 7)]
+        assert f.shape == expected[distributor.myrank]
+        assert f.size_global == 225
+
+        # Now with a custom topology
+        grid2 = Grid(shape=(15, 15), topology=(4, 1))
+        f2 = Function(name='f', grid=grid2)
+
+        distributor = grid2.distributor
+        assert distributor.topology == (4, 1)
+        expected = [(4, 15), (4, 15), (4, 15), (3, 15)]
+        assert f2.shape == expected[distributor.myrank]
+        assert f2.size_global == f.size_global
+
 
 class TestFunction(object):
 

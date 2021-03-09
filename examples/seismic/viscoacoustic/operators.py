@@ -55,6 +55,8 @@ def sls_1st_order(model, geometry, p, **kwargs):
     p : TimeFunction
         Pressure field.
     """
+    forward = kwargs.get('forward', True)
+    space_order = p.space_order
     save = kwargs.get('save', False)
     s = model.grid.stepping_dim.spacing
     b = model.b
@@ -79,24 +81,40 @@ def sls_1st_order(model, geometry, p, **kwargs):
     rho = 1. / b
 
     # Bulk modulus
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     # Memory variable.
-    r = TimeFunction(name="r", grid=model.grid, staggered=NODE,
-                     save=geometry.nt if save else None,
-                     time_order=1)
+    r = TimeFunction(name="r", grid=model.grid, time_order=1, space_order=space_order,
+                     save=geometry.nt if save else None, staggered=NODE)
 
-    # Define PDE
-    pde_v = v - s * b * grad(p)
-    u_v = Eq(v.forward, damp * pde_v)
+    if forward:
 
-    pde_r = r - s * (1. / t_s) * r - s * (1. / t_s) * tt * bm * div(v.forward)
-    u_r = Eq(r.forward, damp * pde_r)
+        # Define PDE
+        pde_v = v - s * b * grad(p)
+        u_v = Eq(v.forward, damp * pde_v)
 
-    pde_p = p - s * bm * (tt + 1.) * div(v.forward) - s * r.forward
-    u_p = Eq(p.forward, damp * pde_p)
+        pde_r = r - s * (1. / t_s) * r - s * (1. / t_s) * tt * bm * div(v.forward)
+        u_r = Eq(r.forward, damp * pde_r)
 
-    return [u_v, u_r, u_p]
+        pde_p = p - s * bm * (tt + 1.) * div(v.forward) - s * r.forward
+        u_p = Eq(p.forward, damp * pde_p)
+
+        return [u_v, u_r, u_p]
+
+    else:
+
+        # Define PDE
+        pde_r = r - s * (1. / t_s) * r - s * p
+        u_r = Eq(r.backward, damp * pde_r)
+
+        pde_v = v + s * grad(bm * (1. + tt) * p) + s * \
+            grad((1. / t_s) * bm * tt * r.backward)
+        u_v = Eq(v.backward, damp * pde_v)
+
+        pde_p = p + s * div(b * v.backward)
+        u_p = Eq(p.backward, damp * pde_p)
+
+        return [u_r, u_v, u_p]
 
 
 def sls_2nd_order(model, geometry, p, **kwargs):
@@ -112,6 +130,7 @@ def sls_2nd_order(model, geometry, p, **kwargs):
     """
     forward = kwargs.get('forward', True)
     space_order = p.space_order
+    save = kwargs.get('save', False)
     s = model.grid.stepping_dim.spacing
     b = model.b
     vp = model.vp
@@ -131,8 +150,11 @@ def sls_2nd_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
+    # Bulk modulus
+    bm = rho * vp * vp
+
     r = TimeFunction(name="r", grid=model.grid, time_order=2, space_order=space_order,
-                     staggered=NODE)
+                     save=geometry.nt if save else None, staggered=NODE)
 
     if forward:
 
@@ -140,7 +162,7 @@ def sls_2nd_order(model, geometry, p, **kwargs):
             s * (1. / t_s) * r
         u_r = Eq(r.forward, damp * pde_r)
 
-        pde_p = 2. * p - damp * p.backward + s * s * vp * vp * (1. + tt) * rho * \
+        pde_p = 2. * p - damp * p.backward + s * s * bm * (1. + tt) * \
             div(b * grad(p, shift=.5), shift=-.5) - s * s * vp * vp * r.forward
         u_p = Eq(p.forward, damp * pde_p)
 
@@ -170,6 +192,7 @@ def ren_1st_order(model, geometry, p, **kwargs):
     p : TimeFunction
         Pressure field.
     """
+    forward = kwargs.get('forward', True)
     s = model.grid.stepping_dim.spacing
     f0 = geometry._f0
     vp = model.vp
@@ -186,15 +209,33 @@ def ren_1st_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    # Define PDE
-    pde_v = v - s * b * grad(p)
-    u_v = Eq(v.forward, damp * pde_v)
+    eta = (vp * vp) / (w0 * qp)
 
-    pde_p = p - s * vp * vp * rho * div(v.forward) + \
-        s * ((vp * vp * rho) / (w0 * qp)) * div(b * grad(p, shift=.5), shift=-.5)
-    u_p = Eq(p.forward, damp * pde_p)
+    # Bulk modulus
+    bm = rho * vp * vp
 
-    return [u_v, u_p]
+    if forward:
+
+        # Define PDE
+        pde_v = v - s * b * grad(p)
+        u_v = Eq(v.forward, damp * pde_v)
+
+        pde_p = p - s * bm * div(v.forward) + \
+            s * ((vp * vp * rho) / (w0 * qp)) * div(b * grad(p, shift=.5), shift=-.5)
+        u_p = Eq(p.forward, damp * pde_p)
+
+        return [u_v, u_p]
+
+    else:
+
+        pde_v = v + s * grad(bm * p)
+        u_v = Eq(v.backward, pde_v * damp)
+
+        pde_p = p + s * div(b * grad(rho * eta * p, shift=.5), shift=-.5) + \
+            s * div(b * v.backward)
+        u_p = Eq(p.backward, pde_p * damp)
+
+        return [u_v, u_p]
 
 
 def ren_2nd_order(model, geometry, p, **kwargs):
@@ -226,7 +267,7 @@ def ren_2nd_order(model, geometry, p, **kwargs):
     eta = (vp * vp) / (w0 * qp)
 
     # Bulk modulus
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     if forward:
 
@@ -260,6 +301,7 @@ def deng_1st_order(model, geometry, p, **kwargs):
     p : TimeFunction
         Pressure field.
     """
+    forward = kwargs.get('forward', True)
     s = model.grid.stepping_dim.spacing
     f0 = geometry._f0
     vp = model.vp
@@ -276,14 +318,29 @@ def deng_1st_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    # Define PDE
-    pde_v = v - s * b * grad(p)
-    u_v = Eq(v.forward, damp * pde_v)
+    # Bulk modulus
+    bm = rho * vp * vp
 
-    pde_p = p - s * vp * vp * rho * div(v.forward) - s * (w0 / qp) * p
-    u_p = Eq(p.forward, damp * pde_p)
+    if forward:
 
-    return [u_v, u_p]
+        # Define PDE
+        pde_v = v - s * b * grad(p)
+        u_v = Eq(v.forward, damp * pde_v)
+
+        pde_p = p - s * bm * div(v.forward) - s * (w0 / qp) * p
+        u_p = Eq(p.forward, damp * pde_p)
+
+        return [u_v, u_p]
+
+    else:
+
+        pde_v = v + s * grad(bm * p)
+        u_v = Eq(v.backward, pde_v * damp)
+
+        pde_p = p + s * div(b * v.backward) - s * (w0 / qp) * p
+        u_p = Eq(p.backward, pde_p * damp)
+
+        return [u_v, u_p]
 
 
 def deng_2nd_order(model, geometry, p, **kwargs):
@@ -313,7 +370,7 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    bm = rho * (vp * vp)
+    bm = rho * vp * vp
 
     if forward:
 
@@ -468,12 +525,17 @@ def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, 
         deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
+    if time_order == 1:
+        va = VectorTimeFunction(name="va", grid=model.grid, save=None,
+                                time_order=time_order, space_order=space_order)
+        kwargs.update({'v': va})
+
     pa = TimeFunction(name="pa", grid=model.grid, save=None, time_order=time_order,
                       space_order=space_order, staggered=NODE)
 
     # Equations kernels
     eq_kernel = kernels[kernel]
-    eqn = eq_kernel(model, geometry, pa, forward=False)
+    eqn = eq_kernel(model, geometry, pa, forward=False, **kwargs)
 
     srcrec = src_rec(pa, model, geometry, forward=False)
 

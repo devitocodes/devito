@@ -79,7 +79,7 @@ def estimate_cost(exprs, estimate=False):
             * Powers with integer exponent `n>0` count as n-1 ops (as if
               it were a chain of multiplications).
     """
-    trascendentals_cost = {sin: 50, cos: 50, exp: 50, log: 50}
+    trascendentals_cost = {sin: 100, cos: 100, exp: 100, log: 100}
     pow_cost = 50
     div_cost = 25
 
@@ -128,7 +128,7 @@ def estimate_cost(exprs, estimate=False):
                             flops += 0
                         elif op.exp.is_Integer:
                             # Natural pows a**b are estimated as b-1 Muls
-                            flops += op.exp - 1
+                            flops += int(op.exp) - 1
                         else:
                             flops += pow_cost
                     else:

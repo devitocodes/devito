@@ -3,6 +3,7 @@ from functools import reduce
 from operator import mul
 import mmap
 import os
+import sys
 
 import numpy as np
 import ctypes
@@ -128,8 +129,18 @@ class PosixAllocator(MemoryAllocator):
     @classmethod
     def initialize(cls):
         handle = find_library('c')
+
+        # Special case: on MacOS Big Sur any code that attempts to check
+        # for dynamic library presence by looking for a file at a path
+        # will fail. For this case, a static path is provided.
+        if handle is None and os.name == "posix" and sys.platform == "darwin":
+            handle = '/usr/lib/libc.dylib'
+
         if handle is not None:
-            cls.lib = ctypes.CDLL(handle)
+            try:
+                cls.lib = ctypes.CDLL(handle)
+            except OSError:
+                cls.lib = None
 
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():

@@ -11,8 +11,9 @@ import cgen as c
 
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq, DummyEq
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
-                               AFFINE, COLLAPSED, Property, Forward, detect_io)
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+                               PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
+                               Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type)
@@ -508,8 +509,12 @@ class Iteration(Node):
         return PARALLEL_IF_ATOMIC in self.properties
 
     @property
+    def is_ParallelPrivate(self):
+        return PARALLEL_IF_PVT in self.properties
+
+    @property
     def is_ParallelRelaxed(self):
-        return self.is_Parallel or self.is_ParallelAtomic
+        return any([self.is_Parallel, self.is_ParallelAtomic, self.is_ParallelPrivate])
 
     @property
     def is_Vectorized(self):
@@ -1122,14 +1127,13 @@ class ParallelIteration(Iteration):
 
         return kwargs
 
-
-class ParallelBlock(Block):
-
-    """
-    A sequence of Nodes, wrapped in a parallel block {...}.
-    """
-
-    is_ParallelBlock = True
+    @cached_property
+    def collapsed(self):
+        ret = [self]
+        for i in range(self.ncollapsed - 1):
+            ret.append(ret[i].nodes[0])
+        assert all(i.is_Iteration for i in ret)
+        return tuple(ret)
 
 
 class ParallelTree(List):
@@ -1175,6 +1179,54 @@ class ParallelTree(List):
     @property
     def root(self):
         return self.body[0]
+
+
+class ParallelBlock(Block):
+
+    """
+    A sequence of Nodes, wrapped in a parallel block {...}.
+    """
+
+    is_ParallelBlock = True
+
+    def __init__(self, body, private=None):
+        # Normalize and sanity-check input. A bit ugly, but it makes everything
+        # much simpler to manage and reconstruct
+        body = as_tuple(body)
+        assert len(body) == 1
+        body = body[0]
+        assert body.is_List
+        if isinstance(body, ParallelTree):
+            partree = body
+        elif body.is_List:
+            assert len(body.body) == 1 and isinstance(body.body[0], ParallelTree)
+            assert len(body.footer) == 0
+            partree = body.body[0]
+            partree = partree._rebuild(prefix=(List(header=body.header,
+                                                    body=partree.prefix)))
+
+        header = self._make_header(partree.nthreads, private)
+        super().__init__(header=header, body=partree)
+
+    @classmethod
+    def _make_header(cls, nthreads, private=None):
+        return None
+
+    @property
+    def partree(self):
+        return self.body[0]
+
+    @property
+    def root(self):
+        return self.partree.root
+
+    @property
+    def nthreads(self):
+        return self.partree.nthreads
+
+    @property
+    def collapsed(self):
+        return self.partree.collapsed
 
 
 class SyncSpot(List):

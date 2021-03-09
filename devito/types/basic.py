@@ -1203,16 +1203,25 @@ class IndexedData(sympy.IndexedBase, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class BoundSymbol(Symbol):
+class BoundSymbol(AbstractSymbol):
 
     """
     Wrapper class for Symbols that are bound to a symbolic data object.
+
+    Notes
+    -----
+    By deliberately inheriting from AbstractSymbol, a BoundSymbol won't be
+    in the devito cache. This will avoid cycling references in the cache
+    (e.g., an entry for a Function `u(x)` and an entry for `u._C_symbol` with
+    the latter's key including `u(x)`). This is totally fine. The BoundSymbol
+    is tied to a specific Function; once the Function gets out of scope, the
+    BoundSymbol will also become a garbage collector candidate.
     """
 
-    def __init_finalize__(self, *args, function=None, **kwargs):
-        self._function = function
-
-        super().__init_finalize__(*args, **kwargs)
+    def __new__(cls, *args, function=None, **kwargs):
+        obj = AbstractSymbol.__new__(cls, *args, **kwargs)
+        obj._function = function
+        return obj
 
     @property
     def function(self):

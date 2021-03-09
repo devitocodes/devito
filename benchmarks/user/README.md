@@ -169,8 +169,6 @@ emit more performance metrics.
 
 ## Tips
 
-* The 'O3' mode has been found to be particularly beneficial in TTI Operators,
-  by resulting in significant reductions in operation count.
 * The most powerful MPI mode is called "full", and is activated setting
   `DEVITO_MPI=full` instead of `DEVITO_MPI=1`. The "full" mode supports
   computation/communication overlap.
@@ -188,18 +186,17 @@ The isotropic acoustic wave forward Operator in a `512**3` grid, space order
 ```
 python benchmark.py run -P acoustic -d 512 512 512 -so 12 --tn 100
 ```
-Like before, but with a specific optimization mode (O2) selected and auto-tuning
-in `basic` mode:
+Like before, but with auto-tuning in `basic` mode:
 ```
-python benchmark.py run -P acoustic -bm O2 -d 512 512 512 -so 12 -a basic --tn 100
+python benchmark.py run -P acoustic -d 512 512 512 -so 12 -a basic --tn 100
 ```
 It is also possible to run a TTI forward operator -- here in a 512x402x890
 grid:
 ```
-python benchmark.py run -P tti -bm O3 -d 512 402 890 -so 12 -a basic --tn 100
+python benchmark.py run -P tti -d 512 402 890 -so 12 -a basic --tn 100
 ```
-Do not forget to pin processes, especially on NUMA systems; below, we do so with
-`numactl` on a dual-socket system.
+Do not forget to pin processes, especially on NUMA systems; below, we use
+`numactl` to pin processes and threads to one specific NUMA domain.
 ```
 numactl --cpubind=0 --membind=0 python benchmark.py ...
 ```
