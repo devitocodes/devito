@@ -127,9 +127,10 @@ class Grid(ArgProvider):
                                      distributor=self._distributor, counter=counter)
         self._subdomains = subdomains
 
-        origin = as_tuple(origin or tuple(0. for _ in self.shape))
-        self._origin = tuple(Constant(name='o_%s' % d.name, value=v, dtype=self.dtype)
-                             for d, v in zip(self.dimensions, origin))
+        self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
+        self._origin_symbols = tuple(Constant(name='o_%s' % d.name, value=v,
+                                              dtype=self.dtype)
+                                     for d, v in zip(self.dimensions, self.origin))
 
         # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
@@ -167,9 +168,21 @@ class Grid(ArgProvider):
         return self._origin
 
     @property
+    def origin_symbols(self):
+        """Symbols representing the grid origin in each SpaceDimension."""
+        return self._origin_symbols
+
+    @property
     def origin_map(self):
-        """Map between origin symbols and their values"""
-        return {o: o.data for o in self.origin}
+        """Map between origin symbols and their values."""
+        return dict(zip(self.origin_symbols, self.origin))
+
+    @property
+    def origin_offset(self):
+        """Offset of the local (per-process) origin from the domain origin."""
+        grid_origin = [min(i) for i in self.distributor.glb_numb]
+        assert len(grid_origin) == len(self.spacing)
+        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
 
     @property
     def dimensions(self):
@@ -221,13 +234,6 @@ class Grid(ArgProvider):
     def spacing_map(self):
         """Map between spacing symbols and their values for each SpaceDimension."""
         return dict(zip(self.spacing_symbols, self.spacing))
-
-    @property
-    def origin_offset(self):
-        """Offset of the local (per-process) origin from the domain origin."""
-        grid_origin = [min(i) for i in self.distributor.glb_numb]
-        assert len(grid_origin) == len(self.spacing)
-        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
 
     @property
     def shape(self):
