@@ -28,7 +28,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt install mpich -y
+        sudo apt-get update && sudo apt install mpich -y
         pip3 install --upgrade pip
         pip3 install -r requirements-mpi.txt
         pip3 install -e .[extras]

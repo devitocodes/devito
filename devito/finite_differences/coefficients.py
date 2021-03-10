@@ -243,8 +243,10 @@ def default_rules(obj, functions):
 
         subs = {}
 
+        mapper = {dim: index}
+
         indices, x0 = generate_indices(function, dim,
-                                       fd_order, side=None)
+                                       fd_order, side=None, x0=mapper)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 

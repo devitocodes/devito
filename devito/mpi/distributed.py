@@ -22,12 +22,19 @@ try:
     mpi4py.rc(initialize=False, finalize=False)
     from mpi4py import MPI  # noqa
 
+    # Devito can be used in two main ways: as a software or as a library. In the
+    # latter case, it's likely MPI will be initialized and finalized by the
+    # overarching application. So we track who initialized MPI to avoid double
+    # finalization
+    init_by_devito = False
+
     # From the `atexit` documentation: "At normal program termination [...]
     # all functions registered are in last in, first out order.". So, MPI.Finalize
-    # will be called only at the very end, after all cloned communicators
-    # will have been freed
+    # will be called only at the very end and only if necessary, after all cloned
+    # communicators will have been freed
     def cleanup():
-        if MPI.Is_initialized():
+        global init_by_devito
+        if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
             MPI.Finalize()
     atexit.register(cleanup)
 except ImportError:
@@ -173,13 +180,15 @@ class Distributor(AbstractDistributor):
         MPI.COMM_WORLD.
     """
 
-    def __init__(self, shape, dimensions, input_comm=None):
+    def __init__(self, shape, dimensions, input_comm=None, topology=None):
         super(Distributor, self).__init__(shape, dimensions)
 
         if configuration['mpi']:
             # First time we enter here, we make sure MPI is initialized
             if not MPI.Is_initialized():
                 MPI.Init()
+                global init_by_devito
+                init_by_devito = True
 
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
@@ -189,14 +198,17 @@ class Distributor(AbstractDistributor):
                     self._input_comm.Free()
             atexit.register(cleanup)
 
-            # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
-            # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
-            # * topology[0] >= topology[1] >= topology[2]
-            # * topology[0] * topology[1] * topology[2] == self._input_comm.size
-            # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
-            # some properties through our own wrapper (e.g., OpenMPI v3 does not
-            # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
-            self._topology = compute_dims(self._input_comm.size, len(shape))
+            if topology is None:
+                # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
+                # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
+                # * topology[0] >= topology[1] >= topology[2]
+                # * topology[0] * topology[1] * topology[2] == self._input_comm.size
+                # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
+                # some properties through our own wrapper (e.g., OpenMPI v3 does not
+                # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
+                self._topology = compute_dims(self._input_comm.size, len(shape))
+            else:
+                self._topology = topology
 
             if self._input_comm is not input_comm:
                 # By default, Devito arranges processes into a cartesian topology.
