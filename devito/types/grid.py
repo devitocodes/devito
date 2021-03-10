@@ -111,7 +111,7 @@ class Grid(ArgProvider):
             # Create the spatial dimensions and constant spacing symbols
             assert(self.dim <= 3)
             dim_names = self._default_dimensions[:self.dim]
-            dim_spacing = tuple(self._const(name='h_%s' % n, value=v, dtype=self.dtype)
+            dim_spacing = tuple(Constant(name='h_%s' % n, value=v, dtype=self.dtype)
                                 for n, v in zip(dim_names, self.spacing))
             self._dimensions = tuple(SpaceDimension(name=n, spacing=s)
                                      for n, s in zip(dim_names, dim_spacing))
@@ -128,7 +128,7 @@ class Grid(ArgProvider):
         self._subdomains = subdomains
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
-        self._origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
+        self._origin = tuple(Constant(name='o_%s' % d.name, value=v, dtype=self.dtype)
                              for d, v in zip(self.dimensions, origin))
 
         # Sanity check
@@ -136,12 +136,13 @@ class Grid(ArgProvider):
 
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            spacing = self._const(name='dt', dtype=self.dtype)
-            self._time_dim = self._make_time_dim(spacing)
-            self._stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
+            spacing = Constant(name='dt', dtype=self.dtype)
+            self._time_dim = TimeDimension(name='time', spacing=spacing)
+            self._stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
         elif isinstance(time_dimension, TimeDimension):
             self._time_dim = time_dimension
-            self._stepping_dim = self._make_stepping_dim(self.time_dim)
+            self._stepping_dim = SteppingDimension(name='%s_s' % self.time_dim.name,
+                                                   parent=self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
@@ -257,21 +258,6 @@ class Grid(ArgProvider):
     def is_distributed(self, dim):
         """True if ``dim`` is a distributed Dimension, False otherwise."""
         return any(dim is d for d in self.distributor.dimensions)
-
-    @property
-    def _const(self):
-        """The type to be used to create constant symbols."""
-        return Constant
-
-    def _make_stepping_dim(self, time_dim, name=None):
-        """Create a SteppingDimension for this Grid."""
-        if name is None:
-            name = '%s_s' % time_dim.name
-        return SteppingDimension(name=name, parent=time_dim)
-
-    def _make_time_dim(self, spacing):
-        """Create a TimeDimension for this Grid."""
-        return TimeDimension(name='time', spacing=spacing)
 
     @memoized_meth
     def _arg_defaults(self):
