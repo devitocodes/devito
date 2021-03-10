@@ -127,6 +127,8 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     ----------
     p : TimeFunction
         Pressure field.
+    r : TimeFunction
+        Memory variable.
     """
     forward = kwargs.get('forward', True)
     space_order = p.space_order
