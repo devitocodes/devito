@@ -122,6 +122,15 @@ class Dimension(ArgProvider):
             return BasicDimension.__new__(cls, *args, **kwargs)
 
     @classmethod
+    def class_key(cls):
+        """
+        Overrides sympy.Symbol.class_key such that Dimensions always
+        preceed other symbols when printed (e.g. x + h_x, not h_x + x).
+        """
+        a, b, c = super().class_key()
+        return a, b - 1, c
+
+    @classmethod
     def __dtype_setup__(cls, **kwargs):
         # Unlike other Symbols, Dimensions can only be integers
         return np.int32
