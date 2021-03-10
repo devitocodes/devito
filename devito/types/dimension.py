@@ -1213,7 +1213,7 @@ class CustomDimension(BasicDimension):
         if self.is_Derived:
             return self.parent.spacing
         else:
-            return self.spacing
+            return self._spacing
 
     @cached_property
     def _defines(self):
