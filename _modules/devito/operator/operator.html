@@ -571,6 +571,10 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">ret</span><span class="p">))</span>
 
     <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">temporaries</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TempFunction</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">objects</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Object</span><span class="p">)</span>
 

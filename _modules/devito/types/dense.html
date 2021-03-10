@@ -189,7 +189,7 @@
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">AbstractFunction</span><span class="p">,</span> <span class="n">Size</span>
 <span class="kn">from</span> <span class="nn">devito.types.utils</span> <span class="kn">import</span> <span class="n">Buffer</span><span class="p">,</span> <span class="n">DimensionTuple</span><span class="p">,</span> <span class="n">NODE</span><span class="p">,</span> <span class="n">CELL</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SubFunction&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SubFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;TempFunction&#39;</span><span class="p">]</span>
 
 
 <span class="n">RegionMeta</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;RegionMeta&#39;</span><span class="p">,</span> <span class="s1">&#39;offset size&#39;</span><span class="p">)</span>
@@ -214,7 +214,6 @@
 
     <span class="n">is_Input</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_DiscreteFunction</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># A `Distributor` to handle domain decomposition (only relevant for MPI)</span>
@@ -238,7 +237,7 @@
         <span class="c1"># Data-related properties and data initialization</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first-touch&#39;</span><span class="p">])</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;allocator&#39;</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;allocator&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">default_allocator</span><span class="p">()</span>
         <span class="n">initializer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;initializer&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">initializer</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">callable</span><span class="p">(</span><span class="n">initializer</span><span class="p">):</span>
             <span class="c1"># Initialization postponed until the first access to .data</span>
@@ -1616,6 +1615,163 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span>
 
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">TempFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tensor symbol used to store an intermediate sub-expression extracted from</span>
+<span class="sd">    one or more symbolic equations.</span>
+
+<span class="sd">    Users should not instantiate this class directly. TempFunctions may be created</span>
+<span class="sd">    by Devito to store intermediate sub-expressions (&quot;temporary values&quot;) when the</span>
+<span class="sd">    user supplies the `cire-ftemps` option to an Operator.</span>
+
+<span class="sd">    Unlike other DiscreteFunction types, TempFunctions do not carry data directly.</span>
+<span class="sd">    However, they can generate Functions to override the TempFunction at Operator</span>
+<span class="sd">    application time (see the Examples section below).</span>
+
+<span class="sd">    TempFunctions are useful if the user wants to retain control over the allocation</span>
+<span class="sd">    and deletion of temporary storage (by default, instead, Devito uses Arrays, which</span>
+<span class="sd">    are allocated and deallocated upon entering and exiting C-land, respectively).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    The `make` method makes the TempFunction create a new Function. For more info,</span>
+<span class="sd">    refer to TempFunction.make.__doc__.</span>
+
+<span class="sd">      .. code-block:: python</span>
+
+<span class="sd">        op = Operator(...)</span>
+<span class="sd">        cfuncs = [i for i in op.input if i.is_TempFunction]</span>
+<span class="sd">        kwargs = {i.name: i.make(grid.shape) for i in cfuncs}</span>
+<span class="sd">        op.apply(..., **kwargs)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_TempFunction</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pointer_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;pointer_dim&#39;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">pointer_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;pointer_dim&#39;</span><span class="p">)</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dimensions&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">pointer_dim</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">:</span>
+            <span class="c1"># This is a bit hacky but it does work around duplicate dimensions when</span>
+            <span class="c1"># it gets to pickling</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">pointer_dim</span><span class="p">)</span> <span class="o">+</span> <span class="n">dimensions</span>
+
+        <span class="c1"># Sanity check</span>
+        <span class="k">assert</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">is_NonlinearDerived</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">dimensions</span>
+
+    <span class="k">def</span> <span class="nf">__halo_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">pointer_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;pointer_dim&#39;</span><span class="p">)</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dimensions&#39;</span><span class="p">])</span>
+        <span class="n">halo</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;halo&#39;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">halo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">halo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pointer_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">halo</span> <span class="o">=</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),)</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">halo</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">halo</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Any attempt at allocating data by the user should fail miserably</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;TempFunction cannot allocate data&quot;</span><span class="p">)</span>
+
+    <span class="n">data_domain</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">data_with_halo</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">data_ro_domain</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">data_ro_with_halo</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">pointer_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pointer_dim</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pointer_dim</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">domain</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">DimensionTuple</span><span class="p">(</span><span class="o">*</span><span class="n">domain</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">domain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">halo</span> <span class="o">=</span> <span class="p">[</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size_halo</span><span class="p">]</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">domain</span><span class="p">,</span> <span class="n">halo</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">DimensionTuple</span><span class="p">(</span><span class="o">*</span><span class="n">ret</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="n">shape_allocated</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">symbolic_shape</span>
+
+    <span class="k">def</span> <span class="nf">make</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">initializer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">allocator</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a Function which can be used to override this TempFunction</span>
+<span class="sd">        in a call to `op.apply(...)`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        shape : tuple of ints, optional</span>
+<span class="sd">            Shape of the domain region in grid points.</span>
+<span class="sd">        initializer : callable or any object exposing the buffer interface, optional</span>
+<span class="sd">            Data initializer. If a callable is provided, data is allocated lazily.</span>
+<span class="sd">        allocator : MemoryAllocator, optional</span>
+<span class="sd">            Controller for memory allocation. To be used, for example, when one wants</span>
+<span class="sd">            to take advantage of the memory hierarchy in a NUMA architecture. Refer to</span>
+<span class="sd">            `default_allocator.__doc__` for more information.</span>
+<span class="sd">        **kwargs</span>
+<span class="sd">            Mapper of Operator overrides. Used to automatically derive the shape</span>
+<span class="sd">            if not explicitly provided.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either `shape` or `kwargs` (Operator overrides) &quot;</span>
+                                 <span class="s2">&quot;must be provided.&quot;</span><span class="p">)</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t resolve `shape[</span><span class="si">%d</span><span class="s2">]=</span><span class="si">%s</span><span class="s2">` with the given &quot;</span>
+                                     <span class="s2">&quot;kwargs (obtained: `</span><span class="si">%s</span><span class="s2">`)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+                <span class="n">shape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`shape` must contain </span><span class="si">%d</span><span class="s2"> integers, not </span><span class="si">%d</span><span class="s2">&quot;</span>
+                             <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)))</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`shape` must contain integers (got `</span><span class="si">%s</span><span class="s2">`)&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">shape</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span>
+                        <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">halo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">halo</span><span class="p">,</span> <span class="n">initializer</span><span class="o">=</span><span class="n">initializer</span><span class="p">,</span>
+                        <span class="n">allocator</span><span class="o">=</span><span class="n">allocator</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_make_pointer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">TempFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">pointer_dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span>
+                            <span class="n">dimensions</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">halo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">halo</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;TempFunction does not have default arguments &quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">DiscreteFunction</span><span class="p">):</span>
+                <span class="c1"># Set new values and re-derive defaults</span>
+                <span class="k">return</span> <span class="n">new</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">()</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal runtime value for `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;TempFunction `</span><span class="si">%s</span><span class="s2">` lacks override&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;pointer_dim&#39;</span><span class="p">]</span>
 </pre></div>
 
            </div>
