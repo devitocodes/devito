@@ -625,10 +625,10 @@ def test_full_model():
                       np.linalg.norm(new_time_range.time_values))
 
     # Test Class Constant pickling
-    pkl_origin = pickle.dumps(model.grid.origin)
+    pkl_origin = pickle.dumps(model.grid.origin_symbols)
     new_origin = pickle.loads(pkl_origin)
 
-    for a, b in zip(model.grid.origin, new_origin):
+    for a, b in zip(model.grid.origin_symbols, new_origin):
         assert a.compare(b) == 0
 
     # Test Class TimeDimension pickling

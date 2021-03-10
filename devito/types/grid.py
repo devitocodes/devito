@@ -1,14 +1,16 @@
 from collections import namedtuple
+from math import floor
 
 import numpy as np
 from sympy import prod
-from math import floor
+from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
+from devito.logger import warning
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
-from devito.types.constant import Constant
+from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
@@ -111,8 +113,8 @@ class Grid(ArgProvider):
             # Create the spatial dimensions and constant spacing symbols
             assert(self.dim <= 3)
             dim_names = self._default_dimensions[:self.dim]
-            dim_spacing = tuple(Constant(name='h_%s' % n, value=v, dtype=self.dtype)
-                                for n, v in zip(dim_names, self.spacing))
+            dim_spacing = tuple(Scalar(name='h_%s' % n, dtype=self.dtype, is_const=True)
+                                for n in dim_names)
             self._dimensions = tuple(SpaceDimension(name=n, spacing=s)
                                      for n, s in zip(dim_names, dim_spacing))
         else:
@@ -128,16 +130,16 @@ class Grid(ArgProvider):
         self._subdomains = subdomains
 
         self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
-        self._origin_symbols = tuple(Constant(name='o_%s' % d.name, value=v,
-                                              dtype=self.dtype)
-                                     for d, v in zip(self.dimensions, self.origin))
+        self._origin_symbols = tuple(Scalar(name='o_%s' % d.name, dtype=dtype,
+                                            is_const=True)
+                                     for d in self.dimensions)
 
         # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
 
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            spacing = Constant(name='dt', dtype=self.dtype)
+            spacing = Scalar(name='dt', dtype=dtype, is_const=True)
             self._time_dim = TimeDimension(name='time', spacing=spacing)
             self._stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
         elif isinstance(time_dimension, TimeDimension):
@@ -265,20 +267,66 @@ class Grid(ArgProvider):
         """True if ``dim`` is a distributed Dimension, False otherwise."""
         return any(dim is d for d in self.distributor.dimensions)
 
+    @cached_property
+    def _arg_names(self):
+        ret = [i.name for i in self.origin_map]
+        for i in self.spacing_map:
+            try:
+                ret.append(i.name)
+            except AttributeError:
+                # E.g., {n*h_x: v} (the case of ConditionalDimension)
+                ret.extend([a.name for a in i.free_symbols])
+        return tuple(ret)
+
     @memoized_meth
     def _arg_defaults(self):
         """A map of default argument values defined by this Grid."""
         args = ReducerMap()
 
+        # Dimensions size
         for k, v in self.dimension_map.items():
             args.update(k._arg_defaults(_min=0, size=v.loc))
 
+        # Dimensions spacing
+        try:
+            args.update({k.name: v for k, v in self.spacing_map.items()})
+        except AttributeError:
+            # See issue #1524
+            # We check whether we're in the special case {n*h_x: v, ...}, which is
+            # typical of space sub-sampling, otherwise we give up and resort to the
+            # user supllying an override
+            mapper = {}
+            for k, v in self.spacing_map.items():
+                if k.is_Symbol:
+                    mapper[k.name] = v
+                elif k.is_Mul:
+                    try:
+                        a, b = k.args
+                        mapper[b.name] = v/self.dtype(a)
+                    except (AttributeError, ValueError):
+                        continue
+            if len(mapper) != len(self.spacing_map):
+                warning("Unable to provide a default value for spacing from grid")
+            args.update(mapper)
+
+        # Grid origin
+        args.update({k.name: v for k, v in self.origin_map.items()})
+
+        # MPI-related objects
         if self.distributor.is_parallel:
             distributor = self.distributor
             args[distributor._obj_comm.name] = distributor._obj_comm.value
             args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
 
         return args
+
+    def _arg_values(self, **kwargs):
+        values = dict(self._arg_defaults())
+
+        # Override spacing and origin if necessary
+        values.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
+
+        return values
 
     def __getstate__(self):
         state = self.__dict__.copy()

@@ -456,6 +456,7 @@ class Operator(Callable):
             raise ValueError("Multiple Grids found")
         try:
             grid = grids.pop()
+            args.update(grid._arg_values(**kwargs))
         except KeyError:
             grid = None
 
@@ -517,8 +518,16 @@ class Operator(Callable):
     @cached_property
     def _known_arguments(self):
         """The arguments that can be passed to ``apply`` when running the Operator."""
-        ret = set.union(*[set(i._arg_names) for i in self.input + self.dimensions])
-        return tuple(sorted(ret))
+        ret = set()
+        for i in self.input:
+            ret.update(i._arg_names)
+            try:
+                ret.update(i.grid._arg_names)
+            except AttributeError:
+                pass
+        for d in self.dimensions:
+            ret.update(d._arg_names)
+        return frozenset(ret)
 
     def _autotune(self, args, setup):
         """Auto-tuning to improve runtime performance."""

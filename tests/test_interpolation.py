@@ -468,7 +468,7 @@ def test_position(shape):
                                               num=nrec)
     rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
-    ox_g, oy_g, oz_g = tuple(o.dtype(o.data+100.) for o in model.grid.origin)
+    ox_g, oy_g, oz_g = tuple(o + 100. for o in model.grid.origin)
 
     rec1, u1, _ = solver.forward(save=False, src=src, rec=rec2,
                                  o_x=ox_g, o_y=oy_g, o_z=oz_g)

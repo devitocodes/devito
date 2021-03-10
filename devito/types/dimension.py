@@ -6,7 +6,7 @@ from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
-from devito.logger import debug, warning
+from devito.logger import debug
 from devito.tools import Pickable, dtype_to_cstr, is_integer, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
@@ -247,6 +247,8 @@ class Dimension(ArgProvider):
         **kwargs
             Dictionary of user-provided argument overrides.
         """
+        values = {}
+
         # Fetch user input and convert into rank-local values
         glb_minv = kwargs.pop(self.min_name, None)
         glb_maxv = kwargs.pop(self.max_name, kwargs.pop(self.name, None))
@@ -270,20 +272,13 @@ class Dimension(ArgProvider):
             except (AttributeError, TypeError):
                 pass
 
-        args = {self.min_name: loc_minv, self.max_name: loc_maxv}
+        values[self.min_name] = loc_minv
+        values[self.max_name] = loc_maxv
 
-        # Maybe override spacing
-        if grid is not None:
-            try:
-                spacing_map = {k.name: v for k, v in grid.spacing_map.items()}
-                args[self.spacing.name] = spacing_map[self.spacing.name]
-            except KeyError:
-                pass
-            except AttributeError:
-                # See issue #1524
-                warning("Unable to override spacing")
+        if self.spacing.name in kwargs:
+            values[self.spacing.name] = kwargs.pop(self.spacing.name)
 
-        return args
+        return values
 
     def _arg_check(self, args, size, interval):
         """

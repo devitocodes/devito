@@ -466,6 +466,15 @@ class Scalar(Symbol, ArgProvider):
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('dtype', np.float32)
 
+    def _arg_defaults(self):
+        return {}
+
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            return {self.name: kwargs.pop(self.name)}
+        else:
+            return {}
+
 
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 

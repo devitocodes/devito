@@ -384,7 +384,7 @@ class TestFD(object):
         # Creates subsampled spatial dimensions and according grid
         dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
                       for d in u.grid.dimensions])
-        grid2 = Grid((6, 6), dimensions=dims)
+        grid2 = Grid((6, 6), dimensions=dims, extent=(10, 10))
         u2 = TimeFunction(name='u2', grid=grid2, save=nt, space_order=1)
         for i in range(nt):
             for j in range(u2.data_with_halo.shape[2]):

@@ -2067,6 +2067,32 @@ class TestOperatorAdvanced(object):
         assert np.isclose(norm(u), 23.70654, atol=1e-5, rtol=0)
         assert np.isclose(norm(v), 21.14994, atol=1e-5, rtol=0)
 
+    @pytest.mark.parallel(mode=2)
+    def test_overriding_from_different_grid(self):
+        """
+        MFE for issue #1629.
+        """
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=3, thickness_right=3)
+        yi = SubDimension.middle(name='yi', parent=y, thickness_left=3, thickness_right=3)
+        u = TimeFunction(name='u', grid=grid, space_order=2, time_order=0)
+
+        eqn = Eq(u.forward, u + 1).subs({x: xi, y: yi})
+        op = Operator(eqn)
+
+        grid2 = Grid(shape=(10, 10), dimensions=(x, y))
+        u2 = TimeFunction(name='u', grid=grid2, space_order=2, time_order=0)
+
+        op.apply(time_M=0, u=u2)
+        assert np.all(u2.data[0, 3:-3, 3:-3] == 1.)
+
+        grid3 = Grid(shape=(10, 10))
+        u3 = TimeFunction(name='u', grid=grid3, space_order=2, time_order=0)
+
+        op.apply(time_M=0, u=u3)
+        assert np.all(u3.data[0, 3:-3, 3:-3] == 1.)
+
 
 def gen_serial_norms(shape, so):
     """
