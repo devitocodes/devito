@@ -27,7 +27,7 @@ from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
-__all__ = ['Function', 'TimeFunction', 'SubFunction']
+__all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
@@ -52,7 +52,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     is_Input = True
     is_DiscreteFunction = True
-    is_Tensor = True
 
     def __init_finalize__(self, *args, **kwargs):
         # A `Distributor` to handle domain decomposition (only relevant for MPI)
@@ -76,7 +75,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # Data-related properties and data initialization
         self._data = None
         self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
-        self._allocator = kwargs.get('allocator', default_allocator())
+        self._allocator = kwargs.get('allocator') or default_allocator()
         initializer = kwargs.get('initializer')
         if initializer is None or callable(initializer):
             # Initialization postponed until the first access to .data
@@ -1454,3 +1453,160 @@ class SubFunction(Function):
         return self._parent
 
     _pickle_kwargs = Function._pickle_kwargs + ['parent']
+
+
+class TempFunction(DiscreteFunction):
+
+    """
+    Tensor symbol used to store an intermediate sub-expression extracted from
+    one or more symbolic equations.
+
+    Users should not instantiate this class directly. TempFunctions may be created
+    by Devito to store intermediate sub-expressions ("temporary values") when the
+    user supplies the `cire-ftemps` option to an Operator.
+
+    Unlike other DiscreteFunction types, TempFunctions do not carry data directly.
+    However, they can generate Functions to override the TempFunction at Operator
+    application time (see the Examples section below).
+
+    TempFunctions are useful if the user wants to retain control over the allocation
+    and deletion of temporary storage (by default, instead, Devito uses Arrays, which
+    are allocated and deallocated upon entering and exiting C-land, respectively).
+
+    Examples
+    --------
+    The `make` method makes the TempFunction create a new Function. For more info,
+    refer to TempFunction.make.__doc__.
+
+      .. code-block:: python
+
+        op = Operator(...)
+        cfuncs = [i for i in op.input if i.is_TempFunction]
+        kwargs = {i.name: i.make(grid.shape) for i in cfuncs}
+        op.apply(..., **kwargs)
+    """
+
+    is_TempFunction = True
+
+    def __init_finalize__(self, *args, **kwargs):
+        super().__init_finalize__(*args, **kwargs)
+
+        self._pointer_dim = kwargs.get('pointer_dim')
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        pointer_dim = kwargs.get('pointer_dim')
+        dimensions = as_tuple(kwargs['dimensions'])
+        if pointer_dim not in dimensions:
+            # This is a bit hacky but it does work around duplicate dimensions when
+            # it gets to pickling
+            dimensions = as_tuple(pointer_dim) + dimensions
+
+        # Sanity check
+        assert not any(d.is_NonlinearDerived for d in dimensions)
+
+        return dimensions, dimensions
+
+    def __halo_setup__(self, **kwargs):
+        pointer_dim = kwargs.get('pointer_dim')
+        dimensions = as_tuple(kwargs['dimensions'])
+        halo = as_tuple(kwargs.get('halo'))
+        if halo is None:
+            halo = tuple((0, 0) for _ in dimensions)
+        if pointer_dim is not None:
+            halo = ((0, 0),) + as_tuple(halo)
+        return halo
+
+    @property
+    def data(self):
+        # Any attempt at allocating data by the user should fail miserably
+        raise TypeError("TempFunction cannot allocate data")
+
+    data_domain = data
+    data_with_halo = data
+    data_ro_domain = data
+    data_ro_with_halo = data
+
+    @property
+    def pointer_dim(self):
+        return self._pointer_dim
+
+    @property
+    def dim(self):
+        return self.pointer_dim
+
+    @property
+    def shape(self):
+        domain = [i.symbolic_size for i in self.dimensions]
+        return DimensionTuple(*domain, getters=self.dimensions)
+
+    @property
+    def shape_with_halo(self):
+        domain = self.shape
+        halo = [sympy.Add(*i, evaluate=False) for i in self._size_halo]
+        ret = tuple(sum(i) for i in zip(domain, halo))
+        return DimensionTuple(*ret, getters=self.dimensions)
+
+    shape_allocated = DiscreteFunction.symbolic_shape
+
+    def make(self, shape=None, initializer=None, allocator=None, **kwargs):
+        """
+        Create a Function which can be used to override this TempFunction
+        in a call to `op.apply(...)`.
+
+        Parameters
+        ----------
+        shape : tuple of ints, optional
+            Shape of the domain region in grid points.
+        initializer : callable or any object exposing the buffer interface, optional
+            Data initializer. If a callable is provided, data is allocated lazily.
+        allocator : MemoryAllocator, optional
+            Controller for memory allocation. To be used, for example, when one wants
+            to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+            `default_allocator.__doc__` for more information.
+        **kwargs
+            Mapper of Operator overrides. Used to automatically derive the shape
+            if not explicitly provided.
+        """
+        if shape is None:
+            if len(kwargs) == 0:
+                raise ValueError("Either `shape` or `kwargs` (Operator overrides) "
+                                 "must be provided.")
+            shape = []
+            for n, i in enumerate(self.shape):
+                v = i.subs(kwargs)
+                if not v.is_Integer:
+                    raise ValueError("Couldn't resolve `shape[%d]=%s` with the given "
+                                     "kwargs (obtained: `%s`)" % (n, i, v))
+                shape.append(int(v))
+            shape = tuple(shape)
+        elif len(shape) != self.ndim:
+            raise ValueError("`shape` must contain %d integers, not %d"
+                             % (self.ndim, len(shape)))
+        elif not all(is_integer(i) for i in shape):
+            raise ValueError("`shape` must contain integers (got `%s`)" % str(shape))
+
+        return Function(name=self.name, dtype=self.dtype, dimensions=self.dimensions,
+                        shape=shape, halo=self.halo, initializer=initializer,
+                        allocator=allocator)
+
+    def _make_pointer(self, dim):
+        return TempFunction(name='p%s' % self.name, dtype=self.dtype, pointer_dim=dim,
+                            dimensions=self.dimensions, halo=self.halo)
+
+    def _arg_defaults(self, alias=None):
+        raise RuntimeError("TempFunction does not have default arguments ")
+
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            if isinstance(new, DiscreteFunction):
+                # Set new values and re-derive defaults
+                return new._arg_defaults().reduce_all()
+            else:
+                raise InvalidArgument("Illegal runtime value for `%s`" % self.name)
+        else:
+            raise InvalidArgument("TempFunction `%s` lacks override" % self.name)
+
+    # Pickling support
+    _pickle_kwargs = DiscreteFunction._pickle_kwargs + ['dimensions', 'pointer_dim']

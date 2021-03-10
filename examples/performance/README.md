@@ -21,6 +21,7 @@
     * `cire-rotate` (boolean, False): smaller working set size, fewer parallel dimensions
     * `cire-maxpar` (boolean, False): bigger working set size, more parallelism
     * `cire-maxalias` (boolean, False): bigger working set size, better flop count
+    * `cire-ftemps` (boolean, False): give user control over the allocated temporaries
     * `cire-repeats-sops` (int, 5): control detection of sum-of-products
     * `cire-mincost-sops` (int, 10): minimum cost of a sum-of-product candidate
     * `cire-repeats-inv` (int, 1): control detection of dimension-invariants
@@ -59,6 +60,7 @@
 | cire-rotate         | :heavy_check_mark:  |         :x:        |
 | cire-maxpar         | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-maxalias       | :heavy_check_mark:  | :heavy_check_mark: |
+| cire-ftemps         | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-repeats-sops   | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-mincost-sops   | :heavy_check_mark:  | :heavy_check_mark: |
 | cire-repeats-inv    | :heavy_check_mark:  | :heavy_check_mark: |

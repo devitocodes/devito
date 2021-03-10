@@ -23,7 +23,8 @@ A parallel Dimension that requires atomic reductions. This is weaker than PARALL
 
 PARALLEL_IF_PVT = Property('parallel_if_private')
 """
-A parallel Dimension that requires thread-private Arrays. This is weaker than PARALLEL.
+A parallel Dimension that requires all compiler-generated AbstractFunctions be
+privatized at the thread level. This is weaker than PARALLEL.
 """
 
 PARALLEL_INDEP = Property('parallel=')

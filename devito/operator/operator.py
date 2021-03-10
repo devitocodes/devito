@@ -409,6 +409,10 @@ class Operator(Callable):
         return tuple(filter_ordered(ret))
 
     @cached_property
+    def temporaries(self):
+        return tuple(i for i in self.input if i.is_TempFunction)
+
+    @cached_property
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
 

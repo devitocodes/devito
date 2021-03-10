@@ -832,41 +832,36 @@ class PointerCast(ExprStmt, Node):
 class Dereference(ExprStmt, Node):
 
     """
-    A node encapsulating a dereference from an object `parray` to another object
-    `array`. Two possibilities are supported:
+    A node encapsulating a dereference from a `pointer` to a `pointee`.
+    The following cases are supported:
 
-        * `parray` is a PointerArray and `array` is an Array (default case)
-        * `parray` is an ArrayObject representing a pointer to a C struct while
-          `array` is a field in `parray`.
+        * `pointer` is a PointerArray and `pointee` is an Array (typical case).
+        * `pointer` is an ArrayObject representing a pointer to a C struct while
+          `pointee` is a field in `pointer`.
     """
 
     is_Dereference = True
 
-    def __init__(self, array, parray):
-        self.array = array
-        self.parray = parray
+    def __init__(self, pointee, pointer):
+        self.pointee = pointee
+        self.pointer = pointer
 
     def __repr__(self):
-        return "<Dereference(%s,%s)>" % (self.array, self.parray)
+        return "<Dereference(%s,%s)>" % (self.pointee, self.pointer)
 
     @property
     def functions(self):
-        return (self.array, self.parray)
+        return (self.pointee, self.pointer)
 
     @property
     def free_symbols(self):
-        """
-        The symbols required by the PointerCast.
-
-        This may include DiscreteFunctions as well as Dimensions.
-        """
-        return ((self.array.indexed.label, self.parray.indexed.label) +
-                tuple(flatten(i.free_symbols for i in self.array.symbolic_shape[1:])) +
-                tuple(self.parray.free_symbols))
+        return ((self.pointee.indexed.label, self.pointer.indexed.label) +
+                tuple(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:])) +
+                tuple(self.pointer.free_symbols))
 
     @property
     def defines(self):
-        return (self.array,)
+        return (self.pointee,)
 
 
 class LocalExpression(Expression):
