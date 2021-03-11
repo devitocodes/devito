@@ -293,9 +293,6 @@ class AbstractSparseFunction(DiscreteFunction):
             for i, s in zip(mapper[k].indices, v.shape):
                 args.update(i._arg_defaults(_min=0, size=s))
 
-        # Add MPI-related data structures
-        args.update(self.grid._arg_defaults())
-
         return args
 
     def _eval_at(self, func):
@@ -317,8 +314,6 @@ class AbstractSparseFunction(DiscreteFunction):
                     for i, s in zip(k.indices, v.shape):
                         size = s - sum(k._size_nodomain[i])
                         values.update(i._arg_defaults(size=size))
-                # Add value overrides associated with the Grid
-                values.update(self.grid._arg_defaults())
         else:
             values = self._arg_defaults(alias=self).reduce_all()
 

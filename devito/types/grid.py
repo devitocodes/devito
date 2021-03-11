@@ -269,7 +269,9 @@ class Grid(ArgProvider):
 
     @cached_property
     def _arg_names(self):
-        ret = [i.name for i in self.origin_map]
+        ret = []
+        ret.append(self.time_dim.spacing.name)
+        ret.extend([i.name for i in self.origin_map])
         for i in self.spacing_map:
             try:
                 ret.append(i.name)
