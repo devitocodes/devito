@@ -519,7 +519,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2'), (4, 'full')])
+                                (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -555,7 +555,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
     @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap'),
-                                (8, 'overlap2'), (8, 'full')])
+                                (8, 'overlap2'), (8, 'diag2'), (8, 'full')])
     def test_trivial_eq_3d(self):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
@@ -1770,7 +1770,7 @@ class TestOperatorAdvanced(object):
         assert dims[0].is_Modulo
         assert dims[0].origin is t
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap2', True)])
     def test_cire(self):
         """
         Check correctness when the DSE extracts aliases and places them
@@ -1809,7 +1809,7 @@ class TestOperatorAdvanced(object):
 
         assert u0_norm == u1_norm
 
-    @pytest.mark.parallel(mode=[(4, 'overlap2', True)])
+    @pytest.mark.parallel(mode=[(4, 'overlap2', True), (4, 'diag2')])
     def test_cire_with_shifted_diagonal_halo_touch(self):
         """
         Like ``test_cire`` but now the diagonal halos required to compute
@@ -2197,7 +2197,7 @@ class TestIsotropicAcoustic(object):
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
-    @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
+    @pytest.mark.parallel(mode=[(8, 'diag2', True), (8, 'full', True)])
     @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self):
         """
