@@ -6,7 +6,11 @@ from devito.symbolics import uxreplace
 from devito.tools import timed_pass
 from devito.types import IncrDimension
 
-__all__ = ['Blocking']
+from devito.ir.support import SEQUENTIAL, PARALLEL, Interval
+from devito.logger import warning
+from devito.symbolics import xreplace_indices
+
+__all__ = ['Blocking', 'Skewing']
 
 
 class Blocking(Queue):
@@ -161,3 +165,110 @@ def decompose(ispace, d, block_dims):
     directions.update({bd: ispace.directions[d] for bd in block_dims})
 
     return IterationSpace(intervals, sub_iterators, directions)
+
+
+class Skewing(Queue):
+
+    def __init__(self, options):
+
+        self.nskewed = Counter()
+
+        super(Skewing, self).__init__()
+
+    @timed_pass(name='skewing')
+    def process(self, clusters):
+        processed = super(Skewing, self).process(clusters)
+
+        return processed
+
+    def _process_fdta(self, clusters, level, prefix=None):
+
+        return super(Skewing, self)._process_fdta(clusters, level, prefix)
+
+    def callback(self, clusters, prefix):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+
+        processed = []
+        for c in clusters:
+            if PARALLEL in c.properties[d] and not d.symbolic_incr.is_Symbol:
+                ispace, exprs = skew(c.ispace, c.exprs, c.properties, d)
+                processed.append(c.rebuild(exprs=exprs, ispace=ispace,
+                                           properties=c.properties))
+            else:
+                processed.append(c)
+
+        return processed
+
+
+def skew(ispace, exprs, properties, d):
+
+    """
+    Create a new IterationSpace and skew expressions
+    Skew the accesses along a SEQUENTIAL Dimension.
+    Reference:
+    https://link.springer.com/article/10.1007%2FBF01407876
+    Example:
+
+    Transform
+
+    for i = 2, n-1
+        for j = 2, m-1
+            a[i,j] = (a[a-1,j] + a[i,j-1] + a[i+1,j] + a[i,j+1]) / 4
+        end for
+    end for
+
+    to
+
+    for i = 2, n-1
+        for j = 2+i, m-1+i
+            a[i,j-i] = (a[a-1,j-i] + a[i,j-1-i] + a[i+1,j-i] + a[i,j+1-i]) / 4
+        end for
+    end for
+    """
+
+    # What dimensions should we skew against?
+    # e.g. SEQUENTIAL Dimensions (Usually time in FD solvers, but not only limited
+    # to this)
+    # What dimensions should be skewed?
+    # e.g. PARALLEL dimensions (x, y, z) but not blocking ones (x_blk0, y_blk0)
+    # Iterate over the iteration space and assign dimensions to skew or skewable
+    # depending on their properties
+
+    skew_dims, skewable = [], []
+    skewable.append(d)
+
+    for dim in ispace.intervals.dimensions:
+        if SEQUENTIAL in properties[dim] and not dim.symbolic_incr.is_Symbol:
+            skew_dims.append(dim)
+
+    if len(skew_dims) > 1:
+        raise warning("More than 1 dimensions that can be skewed.\
+                    Skewing the first in the list")
+    elif len(skew_dims) == 0:
+        # No dimensions to skew against -> nothing to do, return
+        return ispace, exprs
+
+    # Skew dim will not be none here:
+    # Initializing a default skewed dim index position in loop
+    skew_dim = skew_dims.pop()  # Skew first one
+
+    mapper, intervals, processed = {}, [], []
+
+    for i in ispace.intervals:
+        # Skew a dim if nested under skew_dim and is prefix:
+        if ispace.intervals.index(skew_dim) < ispace.intervals.index(i) and i.dim == d:
+            mapper[i.dim] = i.dim - skew_dim
+            intervals.append(Interval(i.dim, skew_dim, skew_dim))
+        # Do not touch otherwise
+        else:
+            intervals.append(i)
+
+        processed = xreplace_indices(exprs, mapper)
+
+    ispace = IterationSpace(intervals, ispace.sub_iterators,
+                            ispace.directions)
+
+    return ispace, processed

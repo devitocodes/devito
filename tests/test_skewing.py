@@ -94,8 +94,8 @@ class TestAutotuningWithSkewing(object):
         f = TimeFunction(name='f', grid=grid)
 
         eqn = Eq(f.forward, f + 1)
-        op = Operator(eqn, opt=('blocking', 'skewing', {'openmp': False,
-                                                        'blockinner': True}))
+        op = Operator(eqn, opt=('blocking', 'skewing',
+                                {'openmp': False, 'blockinner': True}))
 
         # Run with whatever `configuration` says (by default, basic+preemptive)
         op(time_M=0, autotune=True)
@@ -210,7 +210,7 @@ class TestAutotuningWithSkewing(object):
         u = TimeFunction(name='u', grid=grid, space_order=2)
 
         op = Operator(Eq(u.forward, u + 1), opt=('blocking', 'skewing',
-                      {'openmp': False, 'blocklevels': 2}))
+                                                 {'openmp': False, 'blocklevels': 2}))
 
         # 'basic' mode
         op.apply(time_M=0, autotune='basic')
@@ -234,7 +234,8 @@ class TestAutotuningWithSkewing(object):
 
         v = TimeFunction(name='v', grid=grid)
 
-        op = Operator(Eq(v.forward, v + 1), opt=('blocking', 'skewing', {'openmp': True}))
+        op = Operator(Eq(v.forward, v + 1), opt=('blocking', 'skewing',
+                                                 {'openmp': True}))
         op.apply(time_M=0, autotune='max')
         assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
         assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
@@ -246,8 +247,7 @@ class TestDSEWithSkewing(object):
     This class contains tests mainly inherited from test_dse.py
     Aims to test interoperability for skewing and prior dse passes
     """
-    @pytest.mark.parametrize('opt, expected', (['skewing', 2], ['advanced', 2]))
-    def test_time_dependent_split(self, opt, expected):
+    def test_time_dependent_split(self):
         grid = Grid(shape=(10, 10))
         u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=3)
         v = TimeFunction(name='v', grid=grid, time_order=2, space_order=0, save=3)
@@ -256,10 +256,11 @@ class TestDSEWithSkewing(object):
         # a full one over x.y for v
         eq = [Eq(u.forward, 2 + grid.time_dim),
               Eq(v.forward, u.forward.dx + u.forward.dy + 1)]
-        op = Operator(eq, opt=opt)
+        op = Operator(eq, opt=('blocking', 'skewing',
+                               {'openmp': True}))
 
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == expected
+        assert len(trees) == 2
         op()
 
         assert np.allclose(u.data[2, :, :], 3.0)
@@ -279,8 +280,8 @@ class TestDLEWithSkewing(object):
     def test_cache_blocking_structure(self, blockinner, exp_calls, exp_iters):
         # Check code structure
         _, op = _new_operator2((10, 31, 45), time_order=2,
-                               opt=('blocking', 'skewing', {'blockinner': blockinner,
-                                    'par-collapse-ncores': 1}))
+                               opt=('blocking', 'skewing',
+                                    {'blockinner': blockinner, 'par-collapse-ncores': 1}))
         calls = FindNodes(Call).visit(op)
         assert len(calls) == exp_calls
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
@@ -295,8 +296,9 @@ class TestDLEWithSkewing(object):
 
         # Check presence of openmp pragmas at the right place
         _, op = _new_operator2((10, 31, 45), time_order=2,
-                               opt=('blocking', 'skewing', {'openmp': True,
-                                    'blockinner': blockinner, 'par-collapse-ncores': 1}))
+                               opt=('blocking', 'skewing',
+                                    {'openmp': True, 'blockinner': blockinner,
+                                     'par-collapse-ncores': 1}))
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 1
         tree = trees[0]
@@ -311,43 +313,6 @@ class TestDLEWithSkewing(object):
         expected_guarded = tree[:2+blockinner]
         assert len(conds) == len(expected_guarded)
         assert all(i.lhs == j.step for i, j in zip(conds, expected_guarded))
-
-    @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45),
-                                       (45, 31, 45)])
-    @pytest.mark.parametrize("time_order", [2])
-    @pytest.mark.parametrize("blockshape", [2, (3, 3), (9, 20), (2, 9, 11), (7, 15, 23)])
-    @pytest.mark.parametrize("blockinner", [False, True])
-    def test_cache_blocking_time_loop_skewed(self, shape, time_order, blockshape,
-                                             blockinner):
-        wo_blocking, wo_op = _new_operator2(shape, time_order, opt='noop')
-
-        w_blocking, w_op = _new_operator2(shape, time_order, blockshape,
-                                          opt=(('blocking', 'skewing'),
-                                               {'blockinner': blockinner}))
-
-        assert np.equal(wo_blocking.data, w_blocking.data).all()
-
-    @pytest.mark.parametrize("shape,blockshape", [
-                            ((25, 25, 46), (25, 25, 46)),
-                            ((25, 25, 46), (7, 25, 46)),
-                            ((25, 25, 46), (25, 25, 7)),
-                            ((25, 25, 46), (25, 7, 46)),
-                            ((25, 25, 46), (5, 25, 7)),
-                            ((25, 25, 46), (10, 3, 46)),
-                            ((25, 25, 46), (25, 7, 11)),
-                            ((25, 25, 46), (8, 2, 4)),
-                            ((25, 25, 46), (2, 4, 8)),
-                            ((25, 25, 46), (4, 8, 2)),
-                            ((25, 46), (25, 7)),
-                            ((25, 46), (7, 46))
-    ])
-    def test_cache_blocking_edge_cases(self, shape, blockshape):
-        time_order = 2
-        wo_blocking, _ = _new_operator2(shape, time_order, opt='noop')
-        w_blocking, _ = _new_operator2(shape, time_order, blockshape,
-                                       opt=(('blocking', 'skewing'),
-                                            {'blockinner': True}))
-        assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
 class TestCodeGenSkew(object):
@@ -373,18 +338,31 @@ class TestCodeGenSkew(object):
         v = TimeFunction(name='v', grid=grid)  # noqa
         eqn = eval(expr)
         # List comprehension would need explicit locals/globals mappings to eval
-        op = Operator(eqn, opt=('skewing'))
+        op = Operator(eqn, opt=('blocking', 'skewing'))
 
         iters = FindNodes(Iteration).visit(op)
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 1
         time_iter = time_iter[0]
 
-        assert (iters[1].symbolic_min == (x.symbolic_min + time))
-        assert (iters[1].symbolic_max == (x.symbolic_max + time))
-        assert (iters[2].symbolic_min == (y.symbolic_min + time))
-        assert (iters[2].symbolic_max == (y.symbolic_max + time))
-        assert (iters[3].symbolic_min == (z.symbolic_min + time))
-        assert (iters[3].symbolic_max == (z.symbolic_max + time))
-        skewed = [i.expr for i in FindNodes(Expression).visit(op)]
-        assert str(skewed[0]).replace(' ', '') == expected
+        for i in ['bf0']:
+            assert i in op._func_table
+            iters = FindNodes(Iteration).visit(op._func_table[i].root)
+            assert len(iters) == 5
+            assert iters[0].dim.parent is x
+            assert iters[1].dim.parent is y
+            assert iters[4].dim is z
+            assert iters[2].dim.parent is iters[0].dim
+            assert iters[3].dim.parent is iters[1].dim
+
+            assert (iters[2].symbolic_min == (iters[0].dim + time))
+            assert (iters[2].symbolic_max == (iters[0].dim + time +
+                                              iters[0].dim.symbolic_incr - 1))
+            assert (iters[3].symbolic_min == (iters[1].dim + time))
+            assert (iters[3].symbolic_max == (iters[1].dim + time +
+                                              iters[1].dim.symbolic_incr - 1))
+
+            assert (iters[4].symbolic_min == (iters[4].dim.symbolic_min + time))
+            assert (iters[4].symbolic_max == (iters[4].dim.symbolic_max + time))
+            skewed = [i.expr for i in FindNodes(Expression).visit(op._func_table[i].root)]
+            assert str(skewed[0]).replace(' ', '') == expected

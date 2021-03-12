@@ -5,4 +5,3 @@ from .factorization import *  # noqa
 from .blocking import *  # noqa
 from .asynchrony import *  # noqa
 from .misc import *  # noqa
-from .temporal import * # noqa

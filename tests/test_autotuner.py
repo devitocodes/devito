@@ -130,7 +130,8 @@ def test_mixed_blocking_w_skewing(openmp, expected):
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.), opt=('blocking', 'skewing', {'openmp': openmp}))
+    op = Operator(Eq(f.forward, f + 1.), opt=('blocking', 'skewing',
+                                              {'openmp': openmp}))
     op.apply(time=0, autotune=True)
     assert op._state['autotuning'][0]['runs'] == 6
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
