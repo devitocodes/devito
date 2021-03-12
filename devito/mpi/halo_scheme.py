@@ -421,8 +421,8 @@ def classify(exprs, ispace):
             try:
                 func = Max if ispace.is_forward(d.root) else Min
             except KeyError:
-                raise HaloSchemeException("Don't know how to build a HaloScheme as `%s` "
-                                          "doesn't appear in `%s`" % (d, ispace))
+                # Max or Min is the same since `d` isn't an `ispace` Dimension
+                func = Max
             candidates = [i for i in aindices if not is_integer(i)]
             candidates = {(i.origin if d.is_Stepping else i) - d: i for i in candidates}
             loc_indices[d] = candidates[func(*candidates.keys())]
