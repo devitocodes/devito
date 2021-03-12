@@ -101,20 +101,11 @@ def parallel(item):
         if isinstance(m, int):
             nprocs = m
             scheme = 'basic'
-            restrain = False
         else:
             if len(m) == 2:
                 nprocs, scheme = m
-                restrain = False
-            elif len(m) == 3:
-                nprocs, scheme, restrain = m
             else:
                 raise ValueError("Can't run test: unexpected mode `%s`" % m)
-
-        if restrain and os.environ.get('MPI_RESTRAIN', False):
-            # A computationally expensive test that would take too long to
-            # run on the current machine
-            continue
 
         pyversion = sys.executable
         # Only spew tracebacks on rank 0.

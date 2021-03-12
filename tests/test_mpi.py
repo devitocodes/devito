@@ -1616,7 +1616,7 @@ class TestOperatorAdvanced(object):
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full', True)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full')])
     def test_coupled_eqs_mixed_dims(self):
         """
         Test an Operator that computes coupled equations over partly disjoint sets
@@ -1770,7 +1770,7 @@ class TestOperatorAdvanced(object):
         assert dims[0].is_Modulo
         assert dims[0].origin is t
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap2', True)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap2')])
     def test_cire(self):
         """
         Check correctness when the DSE extracts aliases and places them
@@ -1809,7 +1809,7 @@ class TestOperatorAdvanced(object):
 
         assert u0_norm == u1_norm
 
-    @pytest.mark.parallel(mode=[(4, 'overlap2', True), (4, 'diag2')])
+    @pytest.mark.parallel(mode=[(4, 'overlap2'), (4, 'diag2')])
     def test_cire_with_shifted_diagonal_halo_touch(self):
         """
         Like ``test_cire`` but now the diagonal halos required to compute
@@ -1879,7 +1879,7 @@ class TestOperatorAdvanced(object):
         # or both, once issue #1438 is fixed
         assert np.allclose(p.data, p1.data, rtol=10e-11)
 
-    @pytest.mark.parallel(mode=[(4, 'full', True)])
+    @pytest.mark.parallel(mode=[(4, 'full')])
     def test_staggering(self):
         """
         Test MPI in presence of staggered grids.
@@ -2192,12 +2192,12 @@ class TestIsotropicAcoustic(object):
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('nd', [1, 2, 3])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag', True), (4, 'overlap', True),
-                                (4, 'overlap2', True), (4, 'full', True)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
+                                (4, 'overlap2'), (4, 'full')])
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
-    @pytest.mark.parallel(mode=[(8, 'diag2', True), (8, 'full', True)])
+    @pytest.mark.parallel(mode=[(8, 'diag2'), (8, 'full')])
     @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self):
         """
