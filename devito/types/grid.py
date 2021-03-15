@@ -6,7 +6,6 @@ from sympy import prod
 from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
-from devito.logger import warning
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
@@ -227,15 +226,35 @@ class Grid(ArgProvider):
         spacing = (np.array(self.extent) / (np.array(self.shape) - 1)).astype(self.dtype)
         return as_tuple(spacing)
 
-    @property
+    @cached_property
     def spacing_symbols(self):
-        """Symbols representing the grid spacing in each SpaceDimension"""
-        return as_tuple(d.spacing for d in self.dimensions)
+        """Symbols representing the grid spacing in each SpaceDimension."""
+        return as_tuple(d.root.spacing for d in self.dimensions)
 
-    @property
+    @cached_property
     def spacing_map(self):
         """Map between spacing symbols and their values for each SpaceDimension."""
-        return dict(zip(self.spacing_symbols, self.spacing))
+        mapper = {}
+        for d, s in zip(self.dimensions, self.spacing):
+            # Special case subsampling: `Grid.dimensions` -> (xb, yb, zb)` where
+            # `xb, yb, zb` are ConditionalDimensions whose parents are SpaceDimensions
+            if d.is_Conditional:
+                try:
+                    a, b = d.spacing.args
+                    mapper[b] = s/self.dtype(a)
+                    continue
+                except (AttributeError, ValueError):
+                    pass
+
+            # Typical case: `Grid.dimensions` -> (x, y, z)` where `x, y, z` are
+            # the SpaceDimensions
+            if d.is_Space:
+                mapper[d.spacing] = s
+                continue
+
+            raise RuntimeError("Unable to build `spacing_map` for `%s`" % self)
+
+        return mapper
 
     @property
     def shape(self):
@@ -290,26 +309,7 @@ class Grid(ArgProvider):
             args.update(k._arg_defaults(_min=0, size=v.loc))
 
         # Dimensions spacing
-        try:
-            args.update({k.name: v for k, v in self.spacing_map.items()})
-        except AttributeError:
-            # See issue #1524
-            # We check whether we're in the special case {n*h_x: v, ...}, which is
-            # typical of space sub-sampling, otherwise we give up and resort to the
-            # user supllying an override
-            mapper = {}
-            for k, v in self.spacing_map.items():
-                if k.is_Symbol:
-                    mapper[k.name] = v
-                elif k.is_Mul:
-                    try:
-                        a, b = k.args
-                        mapper[b.name] = v/self.dtype(a)
-                    except (AttributeError, ValueError):
-                        continue
-            if len(mapper) != len(self.spacing_map):
-                warning("Unable to provide a default value for spacing from grid")
-            args.update(mapper)
+        args.update({k.name: v for k, v in self.spacing_map.items()})
 
         # Grid origin
         args.update({k.name: v for k, v in self.origin_map.items()})
