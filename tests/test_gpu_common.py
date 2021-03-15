@@ -19,7 +19,7 @@ class TestGPUInfo(object):
         info = get_gpu_info()
         try:
             assert info['architecture'].lower() in ['tesla', 'geforce', 'unspecified']
-        except TypeError:
+        except KeyError:
             # There might be than one GPUs, but for now we don't care
             # as we're not really exploiting this info yet...
             pass
