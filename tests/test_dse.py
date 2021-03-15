@@ -5,9 +5,9 @@ from cached_property import cached_property
 
 from conftest import skipif, EVAL  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, ConditionalDimension, Grid, Operator, norm,
-                    grad, div, dimensions, switchconfig, configuration, centered,
-                    first_derivative, solve, transpose)
+                    Dimension, SubDimension, ConditionalDimension, DefaultDimension, Grid,
+                    Operator, norm, grad, div, dimensions, switchconfig, configuration,
+                    centered, first_derivative, solve, transpose)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
@@ -1315,6 +1315,37 @@ class TestAliases(object):
         op0(time_M=1)
         op1(time_M=1, u=u1, v=v1)
         assert np.allclose(u.data, u1.data, rtol=10e-7)
+
+    def test_space_invariant(self):
+        """
+        Unlike most cases, here a sub-expression is invariant w.r.t. space, but
+        not to time and/or frequency.
+        """
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        time = grid.time_dim
+
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=8)
+
+        f = DefaultDimension(name="f", default_value=10)
+        freq = Function(name="freq", dimensions=(f,), shape=(10,))
+        uf = Function(name="uf", dimensions=(f, x, y), shape=(10, 401, 401))
+
+        pde = Eq(u.forward, 2*u - u.backward + u.laplace)
+        df = Inc(uf, 2*u*cos(time*freq))
+
+        op = Operator([pde, df])
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+        assert len(trees[0]) == 3  # time, x, y
+        assert len(trees[1]) == 2  # time, f
+        assert trees[1][0].dim is time
+        assert trees[1][1].dim is f
+        assert len(trees[2]) == 1
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 1
+        assert len(trees[0]) == 4  # f-blocked, f, x, y
 
     def test_catch_duplicate_from_different_clusters(self):
         """
