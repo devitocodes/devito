@@ -1,5 +1,7 @@
 from functools import partial
 
+import numpy as np
+
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import buffering, collect_derivatives
@@ -88,7 +90,10 @@ class Cpu64OperatorMixin(object):
         o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-ftemps'] = oo.pop('cire-ftemps', False)
         o['cire-mincost'] = {
-            'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            'invariants': {
+                'scalar': np.inf,
+                'tensor': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            },
             'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
         }
 
@@ -307,7 +312,6 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
-            'cire-divs': lambda i: cire(i, 'divs', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
             'topofuse': lambda i: fuse(i, toposort=True)
@@ -339,8 +343,8 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         # Expressions
         'buffering',
         # Clusters
-        'blocking', 'topofuse', 'fuse', 'factorize', 'cire-sops', 'cire-divs',
-        'cse', 'lift', 'opt-pows',
+        'blocking', 'topofuse', 'fuse', 'factorize', 'cire-sops', 'cse', 'lift',
+        'opt-pows',
         # IET
         'denormals', 'optcomms', 'openmp', 'mpi', 'simd', 'prodders',
     )

@@ -67,7 +67,10 @@ class DeviceOperatorMixin(object):
         o['cire-maxalias'] = oo.pop('cire-maxalias', False)
         o['cire-ftemps'] = oo.pop('cire-ftemps', False)
         o['cire-mincost'] = {
-            'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            'invariants': {
+                'scalar': 1,
+                'tensor': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            },
             'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
         }
 
@@ -140,7 +143,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
-        clusters = cire(clusters, 'divs', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
@@ -246,7 +248,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
-            'cire-divs': lambda i: cire(i, 'divs', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
             'topofuse': lambda i: fuse(i, toposort=True)
@@ -278,7 +279,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'buffering',
         # Clusters
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
-        'cire-sops', 'cire-divs', 'cse', 'opt-pows', 'topofuse',
+        'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
         'optcomms', 'orchestrate', 'parallel', 'mpi', 'prodders', 'gpu-direct'
     )

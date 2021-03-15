@@ -83,7 +83,7 @@ def cire(clusters, mode, sregistry, options, platform):
     """
     if mode == 'invariants':
         space = ('inv-basic', 'inv-compound')
-    elif mode in ('sops', 'divs'):
+    elif mode in ('sops',):
         space = (mode,)
     else:
         assert False, "Unknown CIRE mode `%s`" % mode
@@ -141,7 +141,7 @@ class Cire(object):
         self.sregistry = sregistry
 
         self._opt_minstorage = options['min-storage']
-        self._opt_mincost = options['cire-mincost'].get(self.optname, 1)
+        self._opt_mincost = options['cire-mincost'][self.optname]
         self._opt_maxpar = options['cire-maxpar']
         self._opt_maxalias = options['cire-maxalias']
 
@@ -184,7 +184,7 @@ class Cire(object):
         raise NotImplementedError
 
     def _selector(self, e, naliases):
-        return estimate_cost(e, True)*naliases // self._opt_mincost
+        raise NotImplementedError
 
 
 class CireInvariants(Cire):
@@ -218,6 +218,14 @@ class CireInvariants(Cire):
     def _in_writeto(self, dim, cluster):
         return PARALLEL in cluster.properties[dim]
 
+    def _selector(self, e, naliases):
+        if all(i.function.is_Symbol for i in e.free_symbols):
+            # E.g., `dt**(-2)`
+            mincost = self._opt_mincost['scalar']
+        else:
+            mincost = self._opt_mincost['tensor']
+        return estimate_cost(e, True)*naliases // mincost
+
 
 class CireInvariantsBasic(CireInvariants):
 
@@ -247,18 +255,6 @@ class CireInvariantsCompound(CireInvariants):
         return mapper
 
 
-class CireInvariantsDivs(CireInvariants):
-
-    mode = 'divs'
-
-    def _rule(self, e):
-        return (e.is_Pow and e.exp.is_Integer and e.exp < 0 and
-                all(i.function.is_const for i in e.base.free_symbols))
-
-    def _selector(self, e, naliases):
-        return 1
-
-
 class CireSOPS(Cire):
 
     optname = 'sops'
@@ -273,10 +269,9 @@ class CireSOPS(Cire):
         # Forbid CIRE involving Dimension-independent dependencies, e.g.:
         # r0 = ...
         # u[x, y] = ... r0*a[x, y] ...
-        # NOTE: if one uses the DSL in a conventional way and if one sticks to
-        # the default compilation pipelines where CSE always happens after CIRE,
-        # then `exclude` will always be empty. However, for coverage of all possible
-        # cases, we track these potential dependencies explicitly
+        # NOTE: if one uses the DSL in a conventional way and sticks to the default
+        # compilation pipelines where CSE always happens after CIRE, then `exclude`
+        # will always be empty
         exclude = {i.source.indexed for i in context[None].scope.d_flow.independent()}
 
         mapper = Uxmapper()
@@ -313,13 +308,12 @@ class CireSOPS(Cire):
         if naliases <= 1:
             return 0
         else:
-            return super()._selector(e, naliases)
+            return estimate_cost(e, True)*naliases // self._opt_mincost
 
 
 modes = {
     CireInvariantsBasic.mode: CireInvariantsBasic,
     CireInvariantsCompound.mode: CireInvariantsCompound,
-    CireInvariantsDivs.mode: CireInvariantsDivs,
     CireSOPS.mode: CireSOPS
 }
 
