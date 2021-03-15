@@ -8,7 +8,7 @@ from devito.logger import warning
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'add_sub_configuration', 'switchconfig']
+           'switchconfig']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -143,15 +143,13 @@ class Parameters(OrderedDict, Signer):
     def _signature_items(self):
         # Note: we are discarding some vars that do not affect the C level
         # code in order to avoid recompiling when such vars are modified
-        items = sorted((k, v) for k, v in self.items() if self._impact_jit[k])
-        return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
+        return tuple(str(sorted((k, v) for k, v in self.items() if self._impact_jit[k])))
 
 
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
     'DEVITO_PLATFORM': 'platform',
     'DEVITO_PROFILING': 'profiling',
-    'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_OPT': 'opt',
     'DEVITO_MPI': 'mpi',
@@ -178,8 +176,8 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
                        env_vars_deprecated=env_vars_deprecated):
     # Populate `configuration` with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
-        # It is important to configure `platform`, `compiler` and `backend` in this order
-        process_order = filter_ordered(['platform', 'compiler', 'backend'] +
+        # It is important to configure `platform`, `compiler`, and the rest, in this order
+        process_order = filter_ordered(['platform', 'compiler'] +
                                        list(env_vars_mapper.values()))
         queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
         unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))
@@ -229,17 +227,6 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
             configuration.update(k, keys)
 
     configuration.initialize()
-
-
-def add_sub_configuration(sub_configuration, sub_env_vars_mapper=None,
-                          sub_env_vars_deprecated=None):
-    init_configuration(sub_configuration, sub_env_vars_mapper or {},
-                       sub_env_vars_deprecated or {})
-    # For use from within a backend (i.e., inside Devito)
-    setattr(configuration, sub_configuration.name, sub_configuration)
-    # For use in user code, when the backend is a runtime choice and some
-    # options are in common between the supported backends
-    setattr(configuration, 'backend', sub_configuration)
 
 
 class switchconfig(object):
