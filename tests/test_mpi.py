@@ -11,6 +11,7 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
+from devito.mpi.routines import HaloUpdateCall
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -1061,6 +1062,29 @@ class TestCodeGeneration(object):
             assert np.allclose(h.data_ro_domain[0, 5:], [4.4, 4.4, 4.4, 3.4, 3.1], rtol=R)
 
     @pytest.mark.parallel(mode=1)
+    @switchconfig(autopadding=True)
+    def test_process_but_avoid_haloupdate_along_replicated(self):
+        dx = Dimension(name='dx')
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        c = Function(name='c', grid=grid, dimensions=(x, dx), shape=(10, 5))
+
+        cases = [
+            Eq(u.forward, (u.dx*c).dx + 1),
+            Eq(u.forward, (u.dx*c[x, 0]).dx + 1)
+        ]
+
+        for eq in cases:
+            op = Operator(eq, opt=('advanced', {'cire-mincost-sops': 1}))
+
+            calls = [i for i in FindNodes(Call).visit(op)
+                     if isinstance(i, HaloUpdateCall)]
+            assert len(calls) == 1
+            assert calls[0].arguments[0] is u
+
+    @pytest.mark.parallel(mode=1)
     def test_conditional_dimension(self):
         """
         Test the case of Functions in the condition of a ConditionalDimension.
@@ -1719,6 +1743,32 @@ class TestOperatorAdvanced(object):
             f.data[:, :] = fo.data[:, :]
 
         assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
+
+    @pytest.mark.parallel(mode=1)
+    def test_haloupdate_issue_1613(self):
+        """
+        Test the HaloScheme construction and generation when using u.dt2.
+
+        This stems from issue #1613.
+        """
+        configuration['mpi'] = True
+
+        grid = Grid(shape=(10, 10))
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2)
+
+        eqns = [Eq(u.forward, u.dt2 + u.dx)]
+
+        op = Operator(eqns)
+
+        # The loc_indices must be along `t` (ie `t0`)
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+        dims = [i for i in calls[0].arguments if isinstance(i, Dimension)]
+        assert len(dims) == 1
+        assert dims[0].is_Modulo
+        assert dims[0].origin is t
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
     def test_cire(self):

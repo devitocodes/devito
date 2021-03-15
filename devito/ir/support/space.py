@@ -12,7 +12,7 @@ from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
-           'Forward', 'Backward', 'Any', 'UniteratedInterval']
+           'Forward', 'Backward', 'Any']
 
 
 class AbstractInterval(object):
@@ -526,10 +526,6 @@ class IterationInterval(object):
     @property
     def size(self):
         return self.interval.size
-
-
-UniteratedInterval = IterationInterval(NullInterval(None), Any, {})
-"""A degenerate IterationInterval."""
 
 
 class Space(object):

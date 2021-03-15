@@ -48,7 +48,7 @@ class TestCodeGeneration(object):
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u + 1))
+        op = Operator(Eq(u.forward, u + 1), language='openmp')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
@@ -65,6 +65,10 @@ class TestCodeGeneration(object):
         assert op.body[2].footer[1].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
+
+        # Currently, advanced-fsg mode == advanced mode
+        op1 = Operator(Eq(u.forward, u + 1), language='openmp', opt='advanced-fsg')
+        assert str(op) == str(op1)
 
     @switchconfig(platform='nvidiaX')
     def test_basic_customop(self):
