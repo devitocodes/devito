@@ -117,6 +117,14 @@ class Grid(ArgProvider):
             self._dimensions = tuple(SpaceDimension(name=n, spacing=s)
                                      for n, s in zip(dim_names, dim_spacing))
         else:
+            # Sanity check
+            for d in dimensions:
+                if not d.is_Space:
+                    raise ValueError("Cannot create Grid with Dimension `%s` "
+                                     "since it's not a SpaceDimension" % d)
+                if d.is_Derived and not d.is_Conditional:
+                    raise ValueError("Cannot create Grid with derived Dimension `%s` "
+                                     "of type `%s`" % (d, type(d)))
             self._dimensions = dimensions
 
         self._distributor = Distributor(self.shape, self.dimensions, comm, topology)
@@ -236,23 +244,17 @@ class Grid(ArgProvider):
         """Map between spacing symbols and their values for each SpaceDimension."""
         mapper = {}
         for d, s in zip(self.dimensions, self.spacing):
-            # Special case subsampling: `Grid.dimensions` -> (xb, yb, zb)` where
-            # `xb, yb, zb` are ConditionalDimensions whose parents are SpaceDimensions
             if d.is_Conditional:
-                try:
-                    a, b = d.spacing.args
-                    mapper[b] = s/self.dtype(a)
-                    continue
-                except (AttributeError, ValueError):
-                    pass
-
-            # Typical case: `Grid.dimensions` -> (x, y, z)` where `x, y, z` are
-            # the SpaceDimensions
-            if d.is_Space:
+                # Special case subsampling: `Grid.dimensions` -> (xb, yb, zb)`
+                # where `xb, yb, zb` are ConditionalDimensions whose parents
+                # are SpaceDimensions
+                mapper[d.root.spacing] = s/self.dtype(d.factor)
+            elif d.is_Space:
+                # Typical case: `Grid.dimensions` -> (x, y, z)` where `x, y, z` are
+                # the SpaceDimensions
                 mapper[d.spacing] = s
-                continue
-
-            raise RuntimeError("Unable to build `spacing_map` for `%s`" % self)
+            else:
+                assert False
 
         return mapper
 
