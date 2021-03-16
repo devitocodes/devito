@@ -399,6 +399,13 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 </pre></div>
 </div>
 <dl class="py method">
+<dt id="devito.types.dimension.Dimension.class_key">
+<em class="property"><span class="pre">classmethod</span> </em><code class="sig-name descname"><span class="pre">class_key</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#Dimension.class_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.dimension.Dimension.class_key" title="Permalink to this definition">¶</a></dt>
+<dd><p>Overrides sympy.Symbol.class_key such that Dimensions always
+preceed other symbols when printed (e.g. x + h_x, not h_x + x).</p>
+</dd></dl>
+
+<dl class="py method">
 <dt id="devito.types.dimension.Dimension.spacing">
 <em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">spacing</span></code><a class="headerlink" href="#devito.types.dimension.Dimension.spacing" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol representing the physical spacing along the Dimension.</p>

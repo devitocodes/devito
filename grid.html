@@ -315,13 +315,19 @@ conventions for defining the coordinate space in 2D are:</p>
 <dl class="py method">
 <dt id="devito.types.Grid.origin_map">
 <em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">origin_map</span></code><a class="headerlink" href="#devito.types.Grid.origin_map" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map between origin symbols and their values</p>
+<dd><p>Map between origin symbols and their values.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt id="devito.types.Grid.origin_offset">
 <em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">origin_offset</span></code><a class="headerlink" href="#devito.types.Grid.origin_offset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Offset of the local (per-process) origin from the domain origin.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="devito.types.Grid.origin_symbols">
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">origin_symbols</span></code><a class="headerlink" href="#devito.types.Grid.origin_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbols representing the grid origin in each SpaceDimension.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -342,16 +348,16 @@ conventions for defining the coordinate space in 2D are:</p>
 <dd><p>Spacing between grid points in m.</p>
 </dd></dl>
 
-<dl class="py method">
+<dl class="py attribute">
 <dt id="devito.types.Grid.spacing_map">
-<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">spacing_map</span></code><a class="headerlink" href="#devito.types.Grid.spacing_map" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">spacing_map</span></code><a class="headerlink" href="#devito.types.Grid.spacing_map" title="Permalink to this definition">¶</a></dt>
 <dd><p>Map between spacing symbols and their values for each SpaceDimension.</p>
 </dd></dl>
 
-<dl class="py method">
+<dl class="py attribute">
 <dt id="devito.types.Grid.spacing_symbols">
-<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">spacing_symbols</span></code><a class="headerlink" href="#devito.types.Grid.spacing_symbols" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbols representing the grid spacing in each SpaceDimension</p>
+<code class="sig-name descname"><span class="pre">spacing_symbols</span></code><a class="headerlink" href="#devito.types.Grid.spacing_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbols representing the grid spacing in each SpaceDimension.</p>
 </dd></dl>
 
 <dl class="py method">

@@ -168,7 +168,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="kn">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="kn">import</span> <span class="n">InvalidArgument</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">debug</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">dtype_to_cstr</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">memoized_meth</span>
 <span class="kn">from</span> <span class="nn">devito.types.args</span> <span class="kn">import</span> <span class="n">ArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">DataSymbol</span><span class="p">,</span> <span class="n">Scalar</span>
@@ -282,6 +282,15 @@
             <span class="k">return</span> <span class="n">BasicDimension</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">BasicDimension</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Dimension.class_key"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension.class_key">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">class_key</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Overrides sympy.Symbol.class_key such that Dimensions always</span>
+<span class="sd">        preceed other symbols when printed (e.g. x + h_x, not h_x + x).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">class_key</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span></div>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__dtype_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -423,20 +432,7 @@
             <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
                 <span class="k">pass</span>
 
-        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">loc_minv</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">loc_maxv</span><span class="p">}</span>
-
-        <span class="c1"># Maybe override spacing</span>
-        <span class="k">if</span> <span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">spacing_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">grid</span><span class="o">.</span><span class="n">spacing_map</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
-                <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">spacing_map</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-                <span class="k">pass</span>
-            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-                <span class="c1"># See issue #1524</span>
-                <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Unable to override spacing&quot;</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">args</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">loc_minv</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">loc_maxv</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">interval</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -1366,7 +1362,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spacing</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
