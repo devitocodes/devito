@@ -293,9 +293,6 @@ class AbstractSparseFunction(DiscreteFunction):
             for i, s in zip(mapper[k].indices, v.shape):
                 args.update(i._arg_defaults(_min=0, size=s))
 
-        # Add MPI-related data structures
-        args.update(self.grid._arg_defaults())
-
         return args
 
     def _eval_at(self, func):
@@ -317,8 +314,6 @@ class AbstractSparseFunction(DiscreteFunction):
                     for i, s in zip(k.indices, v.shape):
                         size = s - sum(k._size_nodomain[i])
                         values.update(i._arg_defaults(size=size))
-                # Add value overrides associated with the Grid
-                values.update(self.grid._arg_defaults())
         else:
             values = self._arg_defaults(alias=self).reduce_all()
 
@@ -567,8 +562,9 @@ class SparseFunction(AbstractSparseFunction):
         """
         symbols = [Scalar(name='pos%s' % d, dtype=self.dtype)
                    for d in self.grid.dimensions]
-        return OrderedDict([(c - o, p) for p, c, o in
-                            zip(symbols, self._coordinate_symbols, self.grid.origin)])
+        return OrderedDict([(c - o, p) for p, c, o in zip(symbols,
+                                                          self._coordinate_symbols,
+                                                          self.grid.origin_symbols)])
 
     @cached_property
     def _point_increments(self):
@@ -587,14 +583,14 @@ class SparseFunction(AbstractSparseFunction):
         """Symbol for each grid index according to the coordinates."""
         return tuple([INT(FLOOR((c - o) / i.spacing))
                       for c, o, i in zip(self._coordinate_symbols,
-                                         self.grid.origin,
+                                         self.grid.origin_symbols,
                                          self.grid.dimensions[:self.grid.dim])])
 
     def _coordinate_bases(self, field_offset):
         """Symbol for the base coordinates of the reference grid point."""
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
                       for c, o, idx, i, of in zip(self._coordinate_symbols,
-                                                  self.grid.origin,
+                                                  self.grid.origin_symbols,
                                                   self._coordinate_indices,
                                                   self.grid.dimensions[:self.grid.dim],
                                                   field_offset)])
@@ -624,8 +620,8 @@ class SparseFunction(AbstractSparseFunction):
             raise ValueError("No coordinates attached to this SparseFunction")
         ret = []
         for coords in self.coordinates.data._local:
-            ret.append(tuple(int(np.floor(c - o.data)/i.spacing.data) for c, o, i in
-                             zip(coords, self.grid.origin, self.grid.dimensions)))
+            ret.append(tuple(int(np.floor(c - o)/s) for c, o, s in
+                             zip(coords, self.grid.origin, self.grid.spacing)))
         return tuple(ret)
 
     def guard(self, expr=None, offset=0):

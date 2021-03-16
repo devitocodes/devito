@@ -6,7 +6,7 @@ from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
-from devito.logger import debug, warning
+from devito.logger import debug
 from devito.tools import Pickable, dtype_to_cstr, is_integer, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
@@ -120,6 +120,15 @@ class Dimension(ArgProvider):
             return BasicDimension(*args, **kwargs)
         else:
             return BasicDimension.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def class_key(cls):
+        """
+        Overrides sympy.Symbol.class_key such that Dimensions always
+        preceed other symbols when printed (e.g. x + h_x, not h_x + x).
+        """
+        a, b, c = super().class_key()
+        return a, b - 1, c
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -261,20 +270,7 @@ class Dimension(ArgProvider):
             except (AttributeError, TypeError):
                 pass
 
-        args = {self.min_name: loc_minv, self.max_name: loc_maxv}
-
-        # Maybe override spacing
-        if grid is not None:
-            try:
-                spacing_map = {k.name: v for k, v in grid.spacing_map.items()}
-                args[self.spacing.name] = spacing_map[self.spacing.name]
-            except KeyError:
-                pass
-            except AttributeError:
-                # See issue #1524
-                warning("Unable to override spacing")
-
-        return args
+        return {self.min_name: loc_minv, self.max_name: loc_maxv}
 
     def _arg_check(self, args, size, interval):
         """
@@ -1204,7 +1200,7 @@ class CustomDimension(BasicDimension):
         if self.is_Derived:
             return self.parent.spacing
         else:
-            return self.spacing
+            return self._spacing
 
     @cached_property
     def _defines(self):

@@ -589,7 +589,7 @@ class TestConditionalDimension(object):
         u2[x, y] = u[2*x, 2*y]
         """
         nt = 19
-        grid = Grid(shape=(12, 12))
+        grid = Grid(shape=(11, 11))
         time = grid.time_dim
 
         u = TimeFunction(name='u', grid=grid, save=nt)
@@ -606,7 +606,7 @@ class TestConditionalDimension(object):
         op = Operator(eqns)
         op.apply(time_M=nt-2)
         # Verify that u2[x,y]= u[2*x, 2*y]
-        assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
+        assert np.allclose(u.data[:-1, 0::2, 0::2], u2.data[:-1, :, :])
 
     def test_time_subsampling_fd(self):
         nt = 19
@@ -640,7 +640,7 @@ class TestConditionalDimension(object):
         """
         Test that the FD shortcuts are handled correctly with ConditionalDimensions
         """
-        grid = Grid(shape=(21, 21))
+        grid = Grid(shape=(11, 11))
         time = grid.time_dim
         # Creates subsampled spatial dimensions and accordine grid
         dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
@@ -654,13 +654,13 @@ class TestConditionalDimension(object):
         # Verify that u2 contains subsampled fd values
         assert np.all(u2.data[0, :, :] == 2.)
         assert np.all(u2.data[1, 0, 0] == 0.)
-        assert np.all(u2.data[1, -1, -1] == -40.)
-        assert np.all(u2.data[1, 0, -1] == -20.)
-        assert np.all(u2.data[1, -1, 0] == -20.)
+        assert np.all(u2.data[1, -1, -1] == -20.)
+        assert np.all(u2.data[1, 0, -1] == -10.)
+        assert np.all(u2.data[1, -1, 0] == -10.)
         assert np.all(u2.data[1, 1:-1, 0] == 0.)
         assert np.all(u2.data[1, 0, 1:-1] == 0.)
-        assert np.all(u2.data[1, 1:-1, -1] == -20.)
-        assert np.all(u2.data[1, -1, 1:-1] == -20.)
+        assert np.all(u2.data[1, 1:-1, -1] == -10.)
+        assert np.all(u2.data[1, -1, 1:-1] == -10.)
         assert np.all(u2.data[1, 1:4, 1:4] == 0.)
 
     # This test generates an openmp loop form which makes older gccs upset

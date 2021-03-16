@@ -358,8 +358,9 @@ class TestCaching(object):
 
     def test_grid_objs(self):
         """
-        Test that two different Grids use different Symbols/Dimensions. This is
-        because objects such as spacing and origin are Constants carrying a value.
+        Test that two different Grids use the same Symbols/Dimensions if possible
+        (i.e., if already in cache). This is because objects such as spacing and origin
+        are Scalars, which carry no value.
         """
         grid0 = Grid(shape=(4, 4))
         x0, y0 = grid0.dimensions
@@ -369,12 +370,12 @@ class TestCaching(object):
         x1, y1 = grid1.dimensions
         ox1, oy1 = grid1.origin
 
-        assert x0 is not x1
-        assert y0 is not y1
-        assert x0.spacing is not x1.spacing
-        assert y0.spacing is not y1.spacing
-        assert ox0 is not ox1
-        assert oy0 is not oy1
+        assert x0 is x1
+        assert y0 is y1
+        assert x0.spacing is x1.spacing
+        assert y0.spacing is y1.spacing
+        assert ox0 is ox1
+        assert oy0 is oy1
 
     def test_symbol_aliasing(self):
         """Test to assert that our aliasing cache isn't defeated by sympys

@@ -1,14 +1,15 @@
 from collections import namedtuple
+from math import floor
 
 import numpy as np
 from sympy import prod
-from math import floor
+from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
-from devito.types.constant import Constant
+from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
@@ -111,11 +112,19 @@ class Grid(ArgProvider):
             # Create the spatial dimensions and constant spacing symbols
             assert(self.dim <= 3)
             dim_names = self._default_dimensions[:self.dim]
-            dim_spacing = tuple(self._const(name='h_%s' % n, value=v, dtype=self.dtype)
-                                for n, v in zip(dim_names, self.spacing))
+            dim_spacing = tuple(Scalar(name='h_%s' % n, dtype=self.dtype, is_const=True)
+                                for n in dim_names)
             self._dimensions = tuple(SpaceDimension(name=n, spacing=s)
                                      for n, s in zip(dim_names, dim_spacing))
         else:
+            # Sanity check
+            for d in dimensions:
+                if not d.is_Space:
+                    raise ValueError("Cannot create Grid with Dimension `%s` "
+                                     "since it's not a SpaceDimension" % d)
+                if d.is_Derived and not d.is_Conditional:
+                    raise ValueError("Cannot create Grid with derived Dimension `%s` "
+                                     "of type `%s`" % (d, type(d)))
             self._dimensions = dimensions
 
         self._distributor = Distributor(self.shape, self.dimensions, comm, topology)
@@ -127,21 +136,23 @@ class Grid(ArgProvider):
                                      distributor=self._distributor, counter=counter)
         self._subdomains = subdomains
 
-        origin = as_tuple(origin or tuple(0. for _ in self.shape))
-        self._origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
-                             for d, v in zip(self.dimensions, origin))
+        self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
+        self._origin_symbols = tuple(Scalar(name='o_%s' % d.name, dtype=dtype,
+                                            is_const=True)
+                                     for d in self.dimensions)
 
         # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
 
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            spacing = self._const(name='dt', dtype=self.dtype)
-            self._time_dim = self._make_time_dim(spacing)
-            self._stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
+            spacing = Scalar(name='dt', dtype=dtype, is_const=True)
+            self._time_dim = TimeDimension(name='time', spacing=spacing)
+            self._stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
         elif isinstance(time_dimension, TimeDimension):
             self._time_dim = time_dimension
-            self._stepping_dim = self._make_stepping_dim(self.time_dim)
+            self._stepping_dim = SteppingDimension(name='%s_s' % self.time_dim.name,
+                                                   parent=self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
@@ -166,9 +177,21 @@ class Grid(ArgProvider):
         return self._origin
 
     @property
+    def origin_symbols(self):
+        """Symbols representing the grid origin in each SpaceDimension."""
+        return self._origin_symbols
+
+    @property
     def origin_map(self):
-        """Map between origin symbols and their values"""
-        return {o: o.data for o in self.origin}
+        """Map between origin symbols and their values."""
+        return dict(zip(self.origin_symbols, self.origin))
+
+    @property
+    def origin_offset(self):
+        """Offset of the local (per-process) origin from the domain origin."""
+        grid_origin = [min(i) for i in self.distributor.glb_numb]
+        assert len(grid_origin) == len(self.spacing)
+        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
 
     @property
     def dimensions(self):
@@ -211,22 +234,29 @@ class Grid(ArgProvider):
         spacing = (np.array(self.extent) / (np.array(self.shape) - 1)).astype(self.dtype)
         return as_tuple(spacing)
 
-    @property
+    @cached_property
     def spacing_symbols(self):
-        """Symbols representing the grid spacing in each SpaceDimension"""
-        return as_tuple(d.spacing for d in self.dimensions)
+        """Symbols representing the grid spacing in each SpaceDimension."""
+        return as_tuple(d.root.spacing for d in self.dimensions)
 
-    @property
+    @cached_property
     def spacing_map(self):
         """Map between spacing symbols and their values for each SpaceDimension."""
-        return dict(zip(self.spacing_symbols, self.spacing))
+        mapper = {}
+        for d, s in zip(self.dimensions, self.spacing):
+            if d.is_Conditional:
+                # Special case subsampling: `Grid.dimensions` -> (xb, yb, zb)`
+                # where `xb, yb, zb` are ConditionalDimensions whose parents
+                # are SpaceDimensions
+                mapper[d.root.spacing] = s/self.dtype(d.factor)
+            elif d.is_Space:
+                # Typical case: `Grid.dimensions` -> (x, y, z)` where `x, y, z` are
+                # the SpaceDimensions
+                mapper[d.spacing] = s
+            else:
+                assert False
 
-    @property
-    def origin_offset(self):
-        """Offset of the local (per-process) origin from the domain origin."""
-        grid_origin = [min(i) for i in self.distributor.glb_numb]
-        assert len(grid_origin) == len(self.spacing)
-        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
+        return mapper
 
     @property
     def shape(self):
@@ -258,35 +288,49 @@ class Grid(ArgProvider):
         """True if ``dim`` is a distributed Dimension, False otherwise."""
         return any(dim is d for d in self.distributor.dimensions)
 
-    @property
-    def _const(self):
-        """The type to be used to create constant symbols."""
-        return Constant
-
-    def _make_stepping_dim(self, time_dim, name=None):
-        """Create a SteppingDimension for this Grid."""
-        if name is None:
-            name = '%s_s' % time_dim.name
-        return SteppingDimension(name=name, parent=time_dim)
-
-    def _make_time_dim(self, spacing):
-        """Create a TimeDimension for this Grid."""
-        return TimeDimension(name='time', spacing=spacing)
+    @cached_property
+    def _arg_names(self):
+        ret = []
+        ret.append(self.time_dim.spacing.name)
+        ret.extend([i.name for i in self.origin_map])
+        for i in self.spacing_map:
+            try:
+                ret.append(i.name)
+            except AttributeError:
+                # E.g., {n*h_x: v} (the case of ConditionalDimension)
+                ret.extend([a.name for a in i.free_symbols])
+        return tuple(ret)
 
     @memoized_meth
     def _arg_defaults(self):
         """A map of default argument values defined by this Grid."""
         args = ReducerMap()
 
+        # Dimensions size
         for k, v in self.dimension_map.items():
             args.update(k._arg_defaults(_min=0, size=v.loc))
 
+        # Dimensions spacing
+        args.update({k.name: v for k, v in self.spacing_map.items()})
+
+        # Grid origin
+        args.update({k.name: v for k, v in self.origin_map.items()})
+
+        # MPI-related objects
         if self.distributor.is_parallel:
             distributor = self.distributor
             args[distributor._obj_comm.name] = distributor._obj_comm.value
             args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
 
         return args
+
+    def _arg_values(self, **kwargs):
+        values = dict(self._arg_defaults())
+
+        # Override spacing and origin if necessary
+        values.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
+
+        return values
 
     def __getstate__(self):
         state = self.__dict__.copy()
