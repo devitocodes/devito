@@ -20,7 +20,7 @@ from devito.operator import Operator  # noqa
 # Other stuff exposed to the user
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
-from devito.mpi import MPI  # noqa
+from devito.mpi import MPI, mpi_registry  # noqa
 
 # Imports required to initialize Devito
 from devito.arch import compiler_registry, platform_registry
@@ -55,7 +55,7 @@ configuration.add('language', 'C', [0, 1, 'C', 'openmp', 'openacc'],
 
 # MPI mode (0 => disabled, 1 == basic)
 preprocessor = lambda i: bool(i) if isinstance(i, int) else i
-configuration.add('mpi', 0, [0, 1, 'basic', 'diag', 'overlap', 'overlap2', 'full'],
+configuration.add('mpi', 0, [0, 1] + list(mpi_registry),
                   preprocessor=preprocessor, callback=reinit_compiler)
 
 # Should Devito run a first-touch Operator upon data allocation?
