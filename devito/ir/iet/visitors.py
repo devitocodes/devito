@@ -218,9 +218,9 @@ class CGen(Visitor):
                                                 f._C_field_data)
             else:
                 rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, obj)
-            lvalue = c.AlignedAttribute(f._data_alignment,
-                                        c.Value(f._C_typedata,
-                                                '(*restrict %s)%s' % (f.name, shape)))
+            lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (f.name, shape))
+            if o.alignment:
+                lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
         return c.Initializer(lvalue, rvalue)
 
     def visit_Dereference(self, o):
