@@ -184,7 +184,6 @@ class Substitutions(object):
 
             deriv_order = i.deriv_order
             function = i.function
-            dim = i.dimension
             index = i.index
             weights = i.weights
 
@@ -195,7 +194,7 @@ class Substitutions(object):
 
             subs = {}
 
-            indices, x0 = generate_indices(function, dim, fd_order, side=None)
+            symbolic_indices = tuple([index for index in range(fd_order+1)])
 
             # NOTE: This implementation currently assumes that indices are ordered
             # according to their position in the FD stencil. This may not be the
@@ -204,7 +203,7 @@ class Substitutions(object):
             if isinstance(weights, np.ndarray):
                 for j in range(len(weights)):
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order,
+                                 (symbolic_indices[j], deriv_order,
                                   function, index): weights[j]})
             else:
                 shape = weights.shape
@@ -213,7 +212,7 @@ class Substitutions(object):
                     idx = list(x)
                     idx[-1] = j
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, index):
+                                 (symbolic_indices[j], deriv_order, function, index):
                                      weights[as_tuple(idx)]})
 
             return subs
@@ -230,9 +229,7 @@ class Substitutions(object):
 
 def default_rules(obj, functions):
 
-    def generate_subs(deriv_order, function, index):
-        dim = retrieve_dimensions(index)[0]
-
+    def generate_subs(deriv_order, function, dim, mapper):
         if dim.is_Time:
             fd_order = function.time_order
         elif dim.is_Space:
@@ -243,16 +240,16 @@ def default_rules(obj, functions):
 
         subs = {}
 
-        mapper = {dim: index}
+        indices, _ = generate_indices(function, dim,
+                                      fd_order, side=None)
 
-        indices, x0 = generate_indices(function, dim,
-                                       fd_order, side=None, x0=mapper)
+        symbolic_indices = tuple([index for index in range(fd_order+1)])
 
-        coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+        coeffs = sympy.finite_diff_weights(deriv_order, indices, mapper[dim])[-1][-1]
 
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
-                        (indices[j], deriv_order, function, index): coeffs[j]})
+                        (symbolic_indices[j], deriv_order, function, dim): coeffs[j]})
 
         return subs
 
@@ -263,7 +260,7 @@ def default_rules(obj, functions):
 
     subs = obj.substitutions
     if subs:
-        args_provided = [(i.deriv_order, i.function, i.index)
+        args_provided = [(i.deriv_order, i.function, i.dimension)
                          for i in subs.coefficients]
     else:
         args_provided = []
@@ -273,9 +270,16 @@ def default_rules(obj, functions):
     args_provided = list(set(args_provided))
     not_provided = [i for i in args_present if i not in frozenset(args_provided)]
 
+    # Extract x0 from expr and create a mapper
+    mapper = {retrieve_dimensions(obj.lhs.indices_ref[d])[0]:
+              retrieve_dimensions(obj.lhs.indices_ref[d])[0]
+              - obj.rhs.indices_ref[d] + obj.lhs.indices_ref[d]
+              for d in obj.lhs.dimensions
+              if obj.lhs.indices_ref[d] is not obj.rhs.indices_ref[d]}
+
     rules = {}
     for i in not_provided:
-        rules = {**rules, **generate_subs(*i)}
+        rules = {**rules, **generate_subs(*i, mapper)}
 
     return rules
 
