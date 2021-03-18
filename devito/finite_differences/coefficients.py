@@ -214,7 +214,6 @@ class Substitutions(object):
                     subs.update({function._coeff_symbol
                                  (symbolic_indices[j], deriv_order, function, index):
                                      weights[as_tuple(idx)]})
-
             return subs
 
         # Figure out when symbolic coefficients can be replaced
@@ -249,7 +248,8 @@ def default_rules(obj, functions):
 
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
-                        (symbolic_indices[j], deriv_order, function, dim): coeffs[j]})
+                        (symbolic_indices[j], deriv_order,
+                         function.function, dim): coeffs[j]})
 
         return subs
 
@@ -260,7 +260,7 @@ def default_rules(obj, functions):
 
     subs = obj.substitutions
     if subs:
-        args_provided = [(i.deriv_order, i.function, i.dimension)
+        args_provided = [(i.deriv_order, i.function.function, i.dimension)
                          for i in subs.coefficients]
     else:
         args_provided = []

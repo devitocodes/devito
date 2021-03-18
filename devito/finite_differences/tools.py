@@ -5,6 +5,7 @@ import numpy as np
 from sympy import S, finite_diff_weights, cacheit, sympify
 
 from devito.tools import Tag, as_tuple
+from devito.symbolics.search import retrieve_dimensions
 
 
 class Transpose(Tag):
@@ -140,7 +141,8 @@ def generate_fd_shortcuts(dims, so, to=0):
 
 
 def symbolic_weights(function, deriv_order, indices, dim):
-    return [function._coeff_symbol(indices[j], deriv_order, function, dim)
+    return [function._coeff_symbol(indices[j], deriv_order, function.function,
+            retrieve_dimensions(dim)[0])
             for j in range(0, len(indices))]
 
 
