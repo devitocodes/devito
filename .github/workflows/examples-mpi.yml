@@ -38,7 +38,7 @@ jobs:
       # We can use the same env as for asv here
     - name: Set VIRTUAL_ENV
       run: |
-        echo "VIRTUAL_ENV=$ENVHOME/asv" >> $GITHUB_ENV
+        echo "VIRTUAL_ENV=$ENVHOME/devito-ci-examples-mpi" >> $GITHUB_ENV
         echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
     - name: Set PATH
       run: |
