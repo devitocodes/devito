@@ -249,13 +249,16 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     # first order fd that is a lot better
     if deriv_order == 1 and fd_order == 2 and not symbolic:
         fd_order = 1
-    # Stencil positions
-    indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:
-        c = symbolic_weights(expr, deriv_order, indices, x0)
+        # No x0 given if symbolic. Stencil is not truncated by stagger
+        indices, x0 = generate_indices(expr, dim, fd_order)
+        # Integer indices for symbolic weights
+        symbolic_indices = tuple([index for index in range(fd_order+1)])
+        c = symbolic_weights(expr, deriv_order, symbolic_indices, x0)
     else:
+        indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
         c = numeric_weights(deriv_order, indices, x0)
 
     return indices_weights_to_fd(expr, dim, indices, c, matvec=matvec.val)
