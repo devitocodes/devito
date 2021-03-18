@@ -216,4 +216,4 @@ class TestMPI(object):
     @skipif('nodevice')
     @pytest.mark.parallel(mode=2)
     def test_mpi_iso_acoustic(self):
-        TestOperator().iso_acoustic(opt=None)
+        TestOperator().iso_acoustic(opt=('blocking', {'blocklevels': 0}))
