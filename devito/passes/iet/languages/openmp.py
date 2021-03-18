@@ -3,7 +3,7 @@ from sympy import Not
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Block, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, While, FindNodes, Transformer)
+                       ParallelBlock, PointerCast, While, FindNodes, Transformer)
 from devito.mpi.routines import IrecvCall, IsendCall
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
@@ -151,6 +151,13 @@ class OmpBB(PragmaLangBB):
     Prodder = ThreadedProdder
 
 
+class DeviceOmpBB(OmpBB):
+
+    # NOTE: Work around clang>=10 issue concerning offloading arrays declared
+    # with an `__attribute__(aligned(...))` qualifier
+    PointerCast = lambda *args: PointerCast(*args, alignment=False)
+
+
 class SimdOmpizer(PragmaSimdTransformer):
     lang = OmpBB
 
@@ -161,7 +168,7 @@ class Ompizer(PragmaShmTransformer):
 
 class DeviceOmpizer(PragmaDeviceAwareTransformer):
 
-    lang = OmpBB
+    lang = DeviceOmpBB
 
     @iet_pass
     def make_gpudirect(self, iet):
@@ -181,8 +188,8 @@ class OmpDataManager(DataManager):
 
 
 class DeviceOmpDataManager(DeviceAwareDataManager):
-    lang = OmpBB
+    lang = DeviceOmpBB
 
 
 class OmpOrchestrator(Orchestrator):
-    lang = OmpBB
+    lang = DeviceOmpBB

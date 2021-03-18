@@ -66,10 +66,15 @@ class Node(Signer):
 
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
-        argnames = inspect.getfullargspec(cls.__init__).args
+        argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
+        try:
+            defaults = dict(zip(argnames[-len(defaultvalues):], defaultvalues))
+        except TypeError:
+            # No default kwarg values
+            defaults = {}
         obj._args = {k: v for k, v in zip(argnames[1:], args)}
         obj._args.update(kwargs.items())
-        obj._args.update({k: None for k in argnames[1:] if k not in obj._args})
+        obj._args.update({k: defaults.get(k) for k in argnames[1:] if k not in obj._args})
         return obj
 
     def _rebuild(self, *args, **kwargs):
@@ -789,9 +794,10 @@ class PointerCast(ExprStmt, Node):
 
     is_PointerCast = True
 
-    def __init__(self, function, obj=None):
+    def __init__(self, function, obj=None, alignment=True):
         self.function = function
         self.obj = obj
+        self.alignment = alignment
 
     def __repr__(self):
         return "<PointerCast(%s)>" % self.function
