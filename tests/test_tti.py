@@ -2,11 +2,10 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from devito import TimeFunction
+from devito import TimeFunction, Function
 from devito.logger import log
-from examples.seismic import SeismicModel, AcquisitionGeometry
-from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic.tti import AnisotropicWaveSolver
+from examples.seismic.acoustic import acoustic_setup
+from examples.seismic.tti import tti_setup
 
 
 @pytest.mark.parametrize('shape, so, rot', [
@@ -22,32 +21,23 @@ def test_tti(shape, so, rot):
     origin = [0. for _ in shape]
     spacing = [20. for _ in shape]
     vp = 1.5 * np.ones(shape)
-    nrec = shape[0]
     rot_val = .01*np.ones(shape) if rot else np.zeros(shape)
 
-    # Constant model for true velocity
-    model = SeismicModel(origin=origin, shape=shape, vp=vp,
-                         spacing=spacing, nbl=0, space_order=so,
-                         epsilon=np.zeros(shape), delta=np.zeros(shape),
-                         theta=rot_val, phi=rot_val, bcs="damp")
+    # Create acoustic solver from preset
+    acoustic = acoustic_setup(origin=origin, shape=shape, spacing=spacing,
+                              vp=vp, nbl=0, tn=350., space_order=so,
+                              preset='constant-isotropic')
 
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    # Create tti solver from preset
+    solver_tti = tti_setup(origin=origin, shape=shape, spacing=spacing,
+                           vp=vp, nbl=0, tn=350., space_order=so,
+                           preset='constant-tti')
 
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
-    rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
+    dt = solver_tti.model.critical_dt
+    geometry = solver_tti.geometry
+    acoustic.geometry.resample(dt)
 
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=350., src_type='Ricker', f0=0.01)
-
-    acoustic = AcousticWaveSolver(model, geometry, space_order=so)
-    rec, u1, _ = acoustic.forward(save=False)
-
-    # Solvers
-    solver_tti = AnisotropicWaveSolver(model, geometry, space_order=so)
+    rec, u1, _ = acoustic.forward(save=False, dt=dt)
 
     # zero src
     src = geometry.src
@@ -58,17 +48,32 @@ def test_tti(shape, so, rot):
     indlast = [(last + 1) % 3, last % 3, (last-1) % 3]
 
     # Create new wavefield object restart forward computation
-    u = TimeFunction(name='u', grid=model.grid, time_order=2, space_order=so)
+    u = TimeFunction(name='u', grid=acoustic.model.grid, time_order=2, space_order=so)
     u.data[0:3, :] = u1.data[indlast, :]
-    acoustic.forward(save=False, u=u, time_M=10, src=src)
+    acoustic.forward(save=False, u=u, time_M=10, src=src, dt=dt)
 
-    utti = TimeFunction(name='u', grid=model.grid, time_order=to, space_order=so)
-    vtti = TimeFunction(name='v', grid=model.grid, time_order=to, space_order=so)
+    utti = TimeFunction(name='u', grid=solver_tti.model.grid, time_order=to,
+                        space_order=so)
+    vtti = TimeFunction(name='v', grid=solver_tti.model.grid, time_order=to,
+                        space_order=so)
 
     utti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
     vtti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
 
-    solver_tti.forward(u=utti, v=vtti, time_M=10, src=src)
+    epsilon = Function(name='epsilon', grid=solver_tti.model.grid, space_order=so)
+    epsilon.data[:] = np.zeros(shape)
+
+    delta = Function(name='delta', grid=solver_tti.model.grid, space_order=so)
+    delta.data[:] = np.zeros(shape)
+
+    theta = Function(name='theta', grid=solver_tti.model.grid, space_order=so)
+    theta.data[:] = rot_val[:]
+
+    phi = Function(name='phi', grid=solver_tti.model.grid, space_order=so)
+    phi.data[:] = rot_val[:]
+
+    solver_tti.forward(u=utti, v=vtti, epsilon=epsilon, delta=delta,
+                       theta=theta, phi=phi, time_M=10, src=src, dt=dt)
 
     normal_u = u.data[:]
     normal_utti = .5 * utti.data[:]
