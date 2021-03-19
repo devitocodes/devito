@@ -239,12 +239,29 @@ def default_rules(obj, functions):
 
         subs = {}
 
+        # Indices should use an x0 based on function stagger
+        # Coeffs wants to know where deriv is to be evaluated
+        x0 = {dim: function.indices_ref[dim]}
+        print("x0 for indices", x0)
         indices, _ = generate_indices(function, dim,
-                                      fd_order, side=None)
+                                      fd_order, side=None,
+                                      x0=x0)
+        print("Indices")
+        print(indices)
 
-        symbolic_indices = tuple([index for index in range(fd_order+1)])
+        if fd_order < 2:
+            symbolic_indices = tuple(range(3))
+        else:
+            symbolic_indices = tuple([index for index in range(fd_order+1)])
+        print("Mapper")
+        print(mapper)
 
-        coeffs = sympy.finite_diff_weights(deriv_order, indices, mapper[dim])[-1][-1]
+        if mapper is not None:
+            coeffs = sympy.finite_diff_weights(deriv_order, indices, mapper[dim])[-1][-1]
+        else:
+            coeffs = sympy.finite_diff_weights(deriv_order, indices, dim)[-1][-1]
+        print("Coeffs")
+        print(coeffs)
 
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
@@ -270,12 +287,12 @@ def default_rules(obj, functions):
     args_provided = list(set(args_provided))
     not_provided = [i for i in args_present if i not in frozenset(args_provided)]
 
-    # Extract x0 from expr and create a mapper
-    mapper = {retrieve_dimensions(obj.lhs.indices_ref[d])[0]:
-              retrieve_dimensions(obj.lhs.indices_ref[d])[0]
-              - obj.rhs.indices_ref[d] + obj.lhs.indices_ref[d]
-              for d in obj.lhs.dimensions
-              if obj.lhs.indices_ref[d] is not obj.rhs.indices_ref[d]}
+    # Extract evaluation position from expr and create a mapper
+    try:
+        mapper = {d: obj.lhs.indices_ref[d] for d in obj.rhs.dimensions}
+
+    except AttributeError:
+        mapper = None
 
     rules = {}
     for i in not_provided:

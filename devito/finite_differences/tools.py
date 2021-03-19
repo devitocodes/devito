@@ -141,6 +141,8 @@ def generate_fd_shortcuts(dims, so, to=0):
 
 
 def symbolic_weights(function, deriv_order, indices, dim):
+    print("Indices for symbolic weights")
+    print(indices)
     return [function._coeff_symbol(indices[j], deriv_order, function.function,
             retrieve_dimensions(dim)[0])
             for j in range(0, len(indices))]
@@ -257,7 +259,12 @@ def generate_indices_staggered(func, dim, order, side=None, x0=None):
     else:
         ind = [start + i * diff for i in range(-order//2, order//2+1)]
         if order < 2:
-            ind = [start, start - diff]
+            # Symbolic coefficients use an additional index to cope with forward
+            # or backward stagger in first order
+            if func.coefficients == 'symbolic':
+                ind = [start - diff, start, start + diff]
+            else:
+                ind = [start, start - diff]
 
     return start, tuple(ind)
 

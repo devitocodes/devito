@@ -256,7 +256,12 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
         # User should set staggered coefficients manually
         indices, x0 = generate_indices(expr, dim, fd_order)
         # Integer indices for symbolic weights
-        symbolic_indices = tuple([index for index in range(fd_order+1)])
+        if fd_order < 2:
+            # For order 1, additional weights are needed to deal with forward
+            # and backward differences
+            symbolic_indices = tuple(range(3))
+        else:
+            symbolic_indices = tuple([index for index in range(fd_order+1)])
         c = symbolic_weights(expr, deriv_order, symbolic_indices, x0)
     else:
         indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
