@@ -60,9 +60,14 @@ class Coefficient(object):
                 raise ValueError("Number of FD weights provided does not "
                                  "match the functions space_order")
         elif dimension.is_Space:
-            if wl != function.space_order:
-                raise ValueError("Number of FD weights provided does not "
-                                 "match the functions space_order")
+            if function.staggered is not None and function.space_order < 2:
+                if wl - 1 != function.space_order:
+                    raise ValueError("Number of FD weights provided does not "
+                                     "match the functions space_order")
+            else:
+                if wl != function.space_order:
+                    raise ValueError("Number of FD weights provided does not "
+                                     "match the functions space_order")
 
         self._deriv_order = deriv_order
         self._function = function
@@ -246,22 +251,19 @@ def default_rules(obj, functions):
         indices, _ = generate_indices(function, dim,
                                       fd_order, side=None,
                                       x0=x0)
-        print("Indices")
-        print(indices)
+        print("Indices", indices)
 
         if fd_order < 2:
             symbolic_indices = tuple(range(3))
         else:
             symbolic_indices = tuple([index for index in range(fd_order+1)])
-        print("Mapper")
-        print(mapper)
+        print("Mapper", mapper)
 
         if mapper is not None:
             coeffs = sympy.finite_diff_weights(deriv_order, indices, mapper[dim])[-1][-1]
         else:
             coeffs = sympy.finite_diff_weights(deriv_order, indices, dim)[-1][-1]
-        print("Coeffs")
-        print(coeffs)
+        print("Coeffs", coeffs)
 
         for j in range(len(coeffs)):
             subs.update({function._coeff_symbol
@@ -287,11 +289,15 @@ def default_rules(obj, functions):
     args_provided = list(set(args_provided))
     not_provided = [i for i in args_present if i not in frozenset(args_provided)]
 
+    print("Args present", args_present)
+    print("Args provided", args_provided)
+    print("Args not provided", not_provided)
+
     # Extract evaluation position from expr and create a mapper
     try:
         mapper = {d: obj.lhs.indices_ref[d] for d in obj.rhs.dimensions}
 
-    except AttributeError:
+    except (AttributeError, KeyError):
         mapper = None
 
     rules = {}
