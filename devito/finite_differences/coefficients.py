@@ -294,6 +294,8 @@ def default_rules(obj, functions):
     print("Args not provided", not_provided)
 
     # Extract evaluation position from expr and create a mapper
+    # FIXME: Need to be able to force this to specified values
+    # FIXME: This is necessary to deal with offset derivatives
     try:
         mapper = {d: obj.lhs.indices_ref[d] for d in obj.rhs.dimensions}
 

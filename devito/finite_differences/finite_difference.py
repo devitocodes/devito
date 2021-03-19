@@ -254,7 +254,11 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     if symbolic:
         # No x0 given if symbolic. Stencil length not altered by staggering
         # User should set staggered coefficients manually
+        print("x0 supplied to generic_derivative", x0)
+        print("Indices in generic derivative (test)")
+        print(generate_indices(expr, dim, fd_order, x0))
         indices, x0 = generate_indices(expr, dim, fd_order)
+
         # Integer indices for symbolic weights
         if fd_order < 2:
             # For order 1, additional weights are needed to deal with forward
