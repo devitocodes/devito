@@ -539,7 +539,6 @@ class TestDependenceAnalysis(object):
         ('u[x + z,x + y,z*z]', (IRREGULAR, IRREGULAR, REGULAR)),
         ('u[x+1,u[2,2,2],z-1]', (AFFINE, IRREGULAR, AFFINE)),
         ('u[y,x,z]', (IRREGULAR, IRREGULAR, AFFINE)),
-        ('u[x-time, y-time, z]', (IRREGULAR, IRREGULAR, AFFINE)),
     ])
     def test_index_mode_detection(self, indexed, expected):
         """
@@ -550,7 +549,6 @@ class TestDependenceAnalysis(object):
         """
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions  # noqa
-        time = grid.time_dim  # noqa
 
         sx = SubDimension.middle('sx', x, 1, 1)  # noqa
 

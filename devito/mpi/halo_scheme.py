@@ -429,31 +429,4 @@ def classify(exprs, ispace):
 
         mapper[f] = HaloSchemeEntry(frozendict(loc_indices), frozenset(halos))
 
-def compute_local_indices(f, dims, ispace, scope):
-    """
-    Map the Dimensions in ``dims`` to the local indices necessary
-    to perform a halo exchange, as described in HaloScheme.__doc__.
-
-    Examples
-    --------
-    1) u[t+1, x] = f(u[t, x])   => shift == 1
-    2) u[t-1, x] = f(u[t, x])   => shift == 1
-    3) u[t+1, x] = f(u[t+1, x]) => shift == 0
-    In the first and second cases, the x-halo should be inserted at `t`,
-    while in the last case it should be inserted at `t+1`.
-    """
-    loc_indices = {}
-    for d in dims:
-        try:
-            func = Max if ispace.is_forward(d.root) else Min
-        except KeyError:
-            raise HaloSchemeException("Don't know how to build a HaloScheme as `%s` "
-                                      "doesn't appear in `%s`" % (d, ispace))
-        if d.is_Stepping:
-            candidates = {i[d].origin - d: i[d] for i in scope.getreads(f)
-                          if not is_integer(i[d])}
-        else:
-            candidates = {i[d] - d: i[d] for i in scope.getreads(f)
-                          if not is_integer(i[d])}
-        loc_indices[d] = candidates[func(*candidates.keys())]
-    return loc_indices
+    return mapper

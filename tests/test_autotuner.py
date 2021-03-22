@@ -142,9 +142,10 @@ def test_mixed_blocking_w_skewing(openmp, expected):
         assert 'nthreads' not in op._state['autotuning'][0]['tuned']
 
 
-def test_tti_aggressive():
+@pytest.mark.parametrize('opt', ['advanced', ('blocking', 'skewing')])
+def test_tti_aggressive(opt):
     from test_dse import TestTTI
-    wave_solver = TestTTI().tti_operator(opt='advanced')
+    wave_solver = TestTTI().tti_operator(opt=opt)
     op = wave_solver.op_fwd(kernel='centered')
     op.apply(time=0, autotune='aggressive', dt=0.1)
     assert op._state['autotuning'][0]['runs'] == 30
@@ -262,13 +263,14 @@ def test_multiple_blocking():
     assert len(op._state['autotuning'][0]['tuned']) == 5
 
 
-def test_hierarchical_blocking():
+@pytest.mark.parametrize('opt', ['blocking', ('blocking', 'skewing')])
+def test_hierarchical_blocking(opt):
     grid = Grid(shape=(64, 64, 64))
 
     u = TimeFunction(name='u', grid=grid, space_order=2)
 
-    op = Operator(Eq(u.forward, u + 1), opt=('blocking', {'openmp': False,
-                                                          'blocklevels': 2}))
+    op = Operator(Eq(u.forward, u + 1), opt=(opt, {'openmp': False,
+                                                   'blocklevels': 2}))
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
@@ -284,7 +286,8 @@ def test_hierarchical_blocking():
 
 
 @switchconfig(platform='cpu64-dummy')  # To fix the core count
-def test_multiple_threads():
+@pytest.mark.parametrize('opt', ['blocking', ('blocking', 'skewing')])
+def test_multiple_threads(opt):
     """
     Test autotuning when different ``num_threads`` for a given OpenMP parallel
     region are attempted.
@@ -293,7 +296,8 @@ def test_multiple_threads():
 
     v = TimeFunction(name='v', grid=grid)
 
-    op = Operator(Eq(v.forward, v + 1), opt=('blocking', {'openmp': True}))
+    op = Operator(Eq(v.forward, v + 1), opt=(opt, {'openmp': True}))
+
     op.apply(time_M=0, autotune='max')
     assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1

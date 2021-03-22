@@ -7,7 +7,6 @@ from devito.tools import timed_pass
 from devito.types import IncrDimension
 
 from devito.ir.support import SEQUENTIAL, PARALLEL, Interval
-from devito.logger import warning
 from devito.symbolics import xreplace_indices
 
 __all__ = ['Blocking', 'Skewing']
@@ -169,23 +168,41 @@ def decompose(ispace, d, block_dims):
 
 class Skewing(Queue):
 
-    def __init__(self, options):
+    """
+    Rebuild clusters with skewed expressions and skewed IterationSpace.
 
-        self.nskewed = Counter()
+    Notes
+    -----
+    This transformation is applying Loop skewing to derive the
+    wavefront method of execution of nested loops.  Loop skewing is
+    a simple transformation of loop bounds and is combined with loop
+    interchanging to generate the wavefront [1]_.
 
-        super(Skewing, self).__init__()
+    .. [1] Wolfe, Michael. "Loops skewing: The wavefront method revisited."
+    International Journal of Parallel Programming 15.4 (1986): 279-293.
 
-    @timed_pass(name='skewing')
-    def process(self, clusters):
-        processed = super(Skewing, self).process(clusters)
+    Examples:
 
-        return processed
+    .. code-block:: python
 
-    def _process_fdta(self, clusters, level, prefix=None):
+        for i = 2, n-1
+            for j = 2, m-1
+                a[i,j] = (a[a-1,j] + a[i,j-1] + a[i+1,j] + a[i,j+1]) / 4
+            end for
+        end for
 
-        return super(Skewing, self)._process_fdta(clusters, level, prefix)
+        to
+
+        for i = 2, n-1
+            for j = 2+i, m-1+i
+                a[i,j-i] = (a[a-1,j-i] + a[i,j-1-i] + a[i+1,j-i] + a[i,j+1-i]) / 4
+            end for
+        end for
+
+    """
 
     def callback(self, clusters, prefix):
+
         if not prefix:
             return clusters
 
@@ -193,82 +210,39 @@ class Skewing(Queue):
 
         processed = []
         for c in clusters:
-            if PARALLEL in c.properties[d] and not d.symbolic_incr.is_Symbol:
-                ispace, exprs = skew(c.ispace, c.exprs, c.properties, d)
-                processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                           properties=c.properties))
-            else:
-                processed.append(c)
+            # Explore skewing possibilities only in case dimension d is parallel and
+            # is not incrementing by a Symbol. Symbol increments are encountered in
+            # blocked (or tiled) loops where symbols are used as increments to help
+            # parametrize the block shape. We do not apply skewing to these loops.
+            if PARALLEL not in c.properties[d] or d.symbolic_incr.is_Symbol:
+                return clusters
+
+            mapper, intervals = {}, []
+            skew_dim = None
+
+            for n, i in enumerate(c.ispace):
+                # Identify a skew_dim and its position
+                if (SEQUENTIAL in c.properties[i.dim] and
+                   not i.dim.symbolic_incr.is_Symbol):
+                    skew_dim = i.dim
+                    intervals.append(i)
+                # Since we are here, prefix is skewable and nested under a
+                # SEQUENTIAL loop. Do not skew innermost loop
+                # TODO: In case of subdomains or perfect loops nests with more
+                # than one clusters this should be fixed, cause a loop will be
+                # skewed in one cluster but not in other
+                elif (i.dim is d and i.dim is not c.ispace[-1].dim and
+                        skew_dim is not None):
+                    mapper[i.dim] = i.dim - skew_dim
+                    intervals.append(Interval(i.dim, skew_dim, skew_dim))
+                # End-up here if dimensions is neither skewable or skewed against
+                else:
+                    intervals.append(i)
+
+            exprs = xreplace_indices(c.exprs, mapper)
+            ispace = IterationSpace(intervals, c.ispace.sub_iterators,
+                                    c.ispace.directions)
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace,
+                                       properties=c.properties))
 
         return processed
-
-
-def skew(ispace, exprs, properties, d):
-
-    """
-    Create a new IterationSpace and skew expressions
-    Skew the accesses along a SEQUENTIAL Dimension.
-    Reference:
-    https://link.springer.com/article/10.1007%2FBF01407876
-    Example:
-
-    Transform
-
-    for i = 2, n-1
-        for j = 2, m-1
-            a[i,j] = (a[a-1,j] + a[i,j-1] + a[i+1,j] + a[i,j+1]) / 4
-        end for
-    end for
-
-    to
-
-    for i = 2, n-1
-        for j = 2+i, m-1+i
-            a[i,j-i] = (a[a-1,j-i] + a[i,j-1-i] + a[i+1,j-i] + a[i,j+1-i]) / 4
-        end for
-    end for
-    """
-
-    # What dimensions should we skew against?
-    # e.g. SEQUENTIAL Dimensions (Usually time in FD solvers, but not only limited
-    # to this)
-    # What dimensions should be skewed?
-    # e.g. PARALLEL dimensions (x, y, z) but not blocking ones (x_blk0, y_blk0)
-    # Iterate over the iteration space and assign dimensions to skew or skewable
-    # depending on their properties
-
-    skew_dims, skewable = [], []
-    skewable.append(d)
-
-    for dim in ispace.intervals.dimensions:
-        if SEQUENTIAL in properties[dim] and not dim.symbolic_incr.is_Symbol:
-            skew_dims.append(dim)
-
-    if len(skew_dims) > 1:
-        raise warning("More than 1 dimensions that can be skewed.\
-                    Skewing the first in the list")
-    elif len(skew_dims) == 0:
-        # No dimensions to skew against -> nothing to do, return
-        return ispace, exprs
-
-    # Skew dim will not be none here:
-    # Initializing a default skewed dim index position in loop
-    skew_dim = skew_dims.pop()  # Skew first one
-
-    mapper, intervals, processed = {}, [], []
-
-    for i in ispace.intervals:
-        # Skew a dim if nested under skew_dim and is prefix:
-        if ispace.intervals.index(skew_dim) < ispace.intervals.index(i) and i.dim == d:
-            mapper[i.dim] = i.dim - skew_dim
-            intervals.append(Interval(i.dim, skew_dim, skew_dim))
-        # Do not touch otherwise
-        else:
-            intervals.append(i)
-
-        processed = xreplace_indices(exprs, mapper)
-
-    ispace = IterationSpace(intervals, ispace.sub_iterators,
-                            ispace.directions)
-
-    return ispace, processed

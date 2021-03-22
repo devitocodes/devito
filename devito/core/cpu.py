@@ -5,8 +5,8 @@ import numpy as np
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import buffering, collect_derivatives
-from devito.passes.clusters import (Blocking, Lift, cire, cse, eliminate_arrays, fuse,
-                                    extract_increments, factorize, optimize_pows, Skewing)
+from devito.passes.clusters import (Blocking, Skewing, Lift, cire, cse, eliminate_arrays,
+                                    fuse, extract_increments, factorize, optimize_pows)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
@@ -307,7 +307,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         return {
             'blocking': Blocking(options).process,
-            'skewing': Skewing(options).process,
+            'skewing': Skewing().process,
             'factorize': factorize,
             'fuse': fuse,
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
@@ -315,7 +315,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
-            'topofuse': lambda i: fuse(i, toposort=True),
+            'topofuse': lambda i: fuse(i, toposort=True)
         }
 
     @classmethod

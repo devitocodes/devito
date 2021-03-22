@@ -242,7 +242,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
         return {
             'blocking': Blocking(options).process,
-            'skewing': Skewing(options).process,
+            'skewing': Skewing().process,
             'tasking': Tasker(runs_on_host).process,
             'streaming': Streaming(reads_if_on_host).process,
             'factorize': factorize,
