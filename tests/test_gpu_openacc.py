@@ -7,6 +7,9 @@ from devito.data import LEFT
 from devito.exceptions import InvalidOperator
 from devito.ir.iet import FindNodes, Section, retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
+from examples.seismic.acoustic import acoustic_setup
+from examples.seismic.tti import tti_setup
+from examples.seismic.viscoacoustic import viscoacoustic_setup
 
 
 class TestCodeGeneration(object):
@@ -176,6 +179,19 @@ class TestOperator(object):
         op(time=time_range.num-1, dt=dt)
 
         assert np.isclose(norm(rec), 490.56, atol=1e-2, rtol=0)
+
+
+class TestAdjoint(object):
+
+    @skipif('nodevice')
+    @pytest.mark.parametrize('mkey, shape, kernel, so, to, setup_func', [
+        ('layers', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
+        ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'sls', 4, 1, viscoacoustic_setup),
+    ])
+    def test_adjoint_F(self, mkey, shape, kernel, so, to, setup_func):
+        from test_adjoint import TestAdjoint
+        TestAdjoint().test_adjoint_F(mkey, shape, kernel, so, to, setup_func)
 
 
 class TestMPI(object):
