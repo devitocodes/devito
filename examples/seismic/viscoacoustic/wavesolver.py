@@ -267,9 +267,10 @@ class ViscoacousticWaveSolver(object):
             summary = wrp.apply_reverse()
         else:
             # Memory variable:
-            r = TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
-                             space_order=self.space_order, staggered=NODE,
-                             save=self.geometry.nt)
+            r = r or TimeFunction(name="r", grid=self.model.grid,
+                                  time_order=self.time_order,
+                                  space_order=self.space_order, staggered=NODE,
+                                  save=self.geometry.nt)
 
             summary = self.op_grad().apply(rec=rec, grad=grad, pa=pa, p=p, r=r, dt=dt,
                                            **kwargs)
@@ -313,11 +314,13 @@ class ViscoacousticWaveSolver(object):
                               staggered=NODE)
 
         # Memory variable:
-        rp = TimeFunction(name='rp', grid=self.model.grid, time_order=self.time_order,
-                          space_order=self.space_order, staggered=NODE)
+        rp = rp or TimeFunction(name='rp', grid=self.model.grid,
+                                time_order=self.time_order,
+                                space_order=self.space_order, staggered=NODE)
         # Memory variable:
-        rP = TimeFunction(name='rP', grid=self.model.grid, time_order=self.time_order,
-                          space_order=self.space_order, staggered=NODE)
+        rP = rP or TimeFunction(name='rP', grid=self.model.grid,
+                                time_order=self.time_order,
+                                space_order=self.space_order, staggered=NODE)
 
         model = model or self.model
         # Pick vp and physical parameters from model unless explicitly provided
