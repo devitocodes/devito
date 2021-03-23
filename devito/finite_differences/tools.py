@@ -247,6 +247,10 @@ def generate_indices_staggered(func, dim, order, side=None, x0=None):
         ind0 = func.indices_ref[dim]
     except AttributeError:
         ind0 = start
+    if func.coefficients == 'symbolic' and order >= 2:
+        print("These ones are symbolic")
+        ind = [ind0 + i*diff for i in range(-order//2, order//2+1)]
+        return start, tuple(ind)
     if start != ind0:
         ind = [start - diff/2 - i * diff for i in range(0, order//2)][::-1]
         ind += [start + diff/2 + i * diff for i in range(0, order//2)]
