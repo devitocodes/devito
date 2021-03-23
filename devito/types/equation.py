@@ -5,7 +5,7 @@ from sympy.solvers.solveset import linear_coeffs
 
 from cached_property import cached_property
 
-from devito.finite_differences import default_rules
+from devito.finite_differences import all_rules
 from devito.logger import warning
 from devito.tools import as_tuple
 from devito.types.lazy import Evaluable
@@ -95,9 +95,9 @@ class Eq(sympy.Eq, Evaluable):
         if eq._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
-            rules = default_rules(eq, eq._symbolic_functions)
+            rules = all_rules(eq, eq._symbolic_functions)
             try:
-                eq = eq.xreplace({**eq.substitutions.rules, **rules})
+                eq = eq.xreplace(rules)
             except AttributeError:
                 if bool(rules):
                     eq = eq.xreplace(rules)

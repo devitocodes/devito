@@ -6,7 +6,7 @@ from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
 from devito.symbolics.search import retrieve_dimensions
 
-__all__ = ['Coefficient', 'Substitutions', 'default_rules']
+__all__ = ['Coefficient', 'Substitutions', 'default_rules', 'all_rules']
 
 
 class Coefficient(object):
@@ -227,6 +227,34 @@ class Substitutions(object):
 
         return rules
 
+    def update_rules(self, obj):
+        """Update the specified rules to reflect staggering in an equation"""
+        # Determine which 'rules' are expected
+        sym = get_sym(self._function_list)
+        terms = obj.find(sym)
+        args_expected = filter_ordered(term.args[1:] for term in terms)
+        args_expected_dim = [(arg[0], arg[1], retrieve_dimensions(arg[2])[0])
+                             for arg in args_expected]
+
+        # Modify dictionary keys where expected index does not match index in rules
+        rules = self._rules.copy()  # Get a copy to modify, to preserve base rules
+        for rule in self._rules:
+            rule_arg = rule.args[1:]
+            rule_arg_dim = (rule_arg[0], rule_arg[1],
+                            retrieve_dimensions(rule_arg[2])[0])
+            if rule_arg_dim in args_expected_dim and rule_arg not in args_expected:
+                # Rule matches expected in terms of dimensions, but index is
+                # mismatched (due to staggering of equation)
+
+                # Find index in args_expected_dim
+                pos = args_expected_dim.index(rule_arg_dim)
+                # Replace key in rules with one using modified index taken from
+                # the expected
+                replacement = rule.args[:-1] + (args_expected[pos][-1],)
+                rules[sym(*replacement)] = rules.pop(rule)
+
+        return rules
+
 
 def default_rules(obj, functions):
 
@@ -262,9 +290,10 @@ def default_rules(obj, functions):
     args_present = filter_ordered(term.args[1:] for term in terms)
 
     subs = obj.substitutions
+
     if subs:
-        args_provided = [(i.deriv_order, i.function, i.index)
-                         for i in subs.coefficients]
+        # Check against the updated rules when determining rules the user has provided
+        args_provided = filter_ordered(rule.args[1:] for rule in subs.update_rules(obj))
     else:
         args_provided = []
 
@@ -289,3 +318,17 @@ def get_sym(functions):
             pass
     # Shouldn't arrive here
     raise TypeError("Failed to retreive symbol")
+
+
+def all_rules(obj, functions):
+    """Return all substitution rules for an Eq"""
+    # Default rules
+    d_rules = default_rules(obj, functions)
+    # User rules
+    subs = obj.substitutions
+    if subs:
+        u_rules = subs.update_rules(obj)
+    else:
+        u_rules = {}
+
+    return {**d_rules, **u_rules}
