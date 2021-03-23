@@ -1,7 +1,7 @@
 from collections import Counter
 
 from devito.ir.clusters import Queue
-from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
+from devito.ir.support import TILABLE, SKEWED, IntervalGroup, IterationSpace
 from devito.symbolics import uxreplace
 from devito.tools import timed_pass
 from devito.types import IncrDimension
@@ -85,13 +85,14 @@ class Blocking(Queue):
         processed = []
         for c in clusters:
             if TILABLE in c.properties[d]:
-                ispace = decompose(c.ispace, d, block_dims)
+                ispace = decompose(c.ispace, d, block_dims, c.properties)
 
                 # Use the innermost IncrDimension in place of `d`
                 exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
                 # The new Cluster properties
                 properties = dict(c.properties)
+
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
 
@@ -106,15 +107,20 @@ class Blocking(Queue):
         return processed
 
 
-def decompose(ispace, d, block_dims):
+def decompose(ispace, d, block_dims, properties):
     """
     Create a new IterationSpace in which the `d` Interval is decomposed
     into a hierarchy of Intervals over ``block_dims``.
     """
     # Create the new Intervals
+
     intervals = []
     for i in ispace:
-        if i.dim is d:
+        if i.dim is d and SKEWED in properties[i.dim]:
+            # Do not propagate intervals, in case of SKEWED dims
+            intervals.extend([i.switch(bd).zero() for bd in block_dims[:-1]])
+            intervals.append(i.switch(block_dims[-1]))
+        elif i.dim is d:
             intervals.append(i.switch(block_dims[0]))
             intervals.extend([i.switch(bd).zero() for bd in block_dims[1:]])
         else:
@@ -125,6 +131,7 @@ def decompose(ispace, d, block_dims):
     # `xbb, xb, xi`; then we decompose the relation as two relations, `(t, xbb, y)`
     # and `(xbb, xb, xi)`
     relations = [block_dims]
+
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
 
@@ -220,6 +227,9 @@ class Skewing(Queue):
             mapper, intervals = {}, []
             skew_dim = None
 
+            relations = c.ispace.intervals.relations
+
+            properties = {k: v for k, v in c.properties.items()}
             for n, i in enumerate(c.ispace):
                 # Identify a skew_dim and its position
                 if (SEQUENTIAL in c.properties[i.dim] and
@@ -235,14 +245,17 @@ class Skewing(Queue):
                         skew_dim is not None):
                     mapper[i.dim] = i.dim - skew_dim
                     intervals.append(Interval(i.dim, skew_dim, skew_dim))
+                    properties[d].update({SKEWED})
                 # End-up here if dimensions is neither skewable or skewed against
                 else:
                     intervals.append(i)
+
+            intervals = IntervalGroup(intervals, relations=relations)
 
             exprs = xreplace_indices(c.exprs, mapper)
             ispace = IterationSpace(intervals, c.ispace.sub_iterators,
                                     c.ispace.directions)
             processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                       properties=c.properties))
+                                       properties=properties))
 
         return processed
