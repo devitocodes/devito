@@ -149,7 +149,7 @@ def numeric_weights(deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
 
-def generate_indices(func, dim, order, side=None, x0=None):
+def generate_indices(func, dim, order, side=None, x0=None, symbolic=False):
     """
     Indices for the finite-difference scheme
 
@@ -165,6 +165,8 @@ def generate_indices(func, dim, order, side=None, x0=None):
         Side of the scheme, (centered, left, right)
     x0: Dict of {Dimension: Dimension or Expr or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
+    symbolic: bool
+        Override standard indices generation for symbolic coefficients
 
     Returns
     -------
@@ -172,7 +174,8 @@ def generate_indices(func, dim, order, side=None, x0=None):
     """
     # If staggered finited difference
     if func.is_Staggered and not dim.is_Time:
-        x0, ind = generate_indices_staggered(func, dim, order, side=side, x0=x0)
+        x0, ind = generate_indices_staggered(func, dim, order, side=side, x0=x0,
+                                             symbolic=symbolic)
     else:
         x0 = (x0 or {dim: dim}).get(dim, dim)
         # Check if called from first_derivative()
@@ -220,7 +223,7 @@ def generate_indices_cartesian(dim, order, side, x0):
     return tuple(ind)
 
 
-def generate_indices_staggered(func, dim, order, side=None, x0=None):
+def generate_indices_staggered(func, dim, order, side=None, x0=None, symbolic=False):
     """
     Indices for the finite-difference scheme on a staggered grid
 
@@ -236,6 +239,8 @@ def generate_indices_staggered(func, dim, order, side=None, x0=None):
         Side of the scheme, (centered, left, right)
     x0: Dict of {Dimension: Dimension or Expr or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
+    symbolic: bool
+        Override standard indices generation for symbolic coefficients
 
     Returns
     -------
@@ -247,7 +252,7 @@ def generate_indices_staggered(func, dim, order, side=None, x0=None):
         ind0 = func.indices_ref[dim]
     except AttributeError:
         ind0 = start
-    if func.coefficients == 'symbolic' and order >= 2:
+    if symbolic and order >= 2:
         ind = [ind0 + i*diff for i in range(-order//2, order//2+1)]
         return start, tuple(ind)
     if start != ind0:

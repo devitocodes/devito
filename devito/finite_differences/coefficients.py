@@ -274,7 +274,8 @@ def default_rules(obj, functions):
         mapper = {dim: index}
 
         indices, x0 = generate_indices(function, dim,
-                                       fd_order, side=None, x0=mapper)
+                                       fd_order, side=None, x0=mapper,
+                                       symbolic=True)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
