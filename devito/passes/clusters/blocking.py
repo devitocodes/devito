@@ -180,8 +180,8 @@ class Skewing(Queue):
 
     Notes
     -----
-    This transformation is applying Loop skewing to derive the
-    wavefront method of execution of nested loops.  Loop skewing is
+    This transformation is applying loop skewing to derive the
+    wavefront method of execution of nested loops. Loop skewing is
     a simple transformation of loop bounds and is combined with loop
     interchanging to generate the wavefront [1]_.
 
@@ -195,16 +195,14 @@ class Skewing(Queue):
         for i = 2, n-1
             for j = 2, m-1
                 a[i,j] = (a[a-1,j] + a[i,j-1] + a[i+1,j] + a[i,j+1]) / 4
-            end for
-        end for
 
-        to
+    to
+
+    .. code-block:: python
 
         for i = 2, n-1
             for j = 2+i, m-1+i
                 a[i,j-i] = (a[a-1,j-i] + a[i,j-1-i] + a[i+1,j-i] + a[i,j+1-i]) / 4
-            end for
-        end for
 
     """
 
