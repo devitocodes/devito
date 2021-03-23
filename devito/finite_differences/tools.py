@@ -140,7 +140,7 @@ def generate_fd_shortcuts(dims, so, to=0):
 
 
 def symbolic_weights(function, deriv_order, indices, dim):
-    return [function._coeff_symbol(indices[j], deriv_order, function, dim)
+    return [function._coeff_symbol(indices[j], deriv_order, function.function, dim)
             for j in range(0, len(indices))]
 
 
