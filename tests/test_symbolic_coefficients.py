@@ -452,3 +452,91 @@ class TestSC(object):
         Operator([eq_f, eq_g])(t_m=0, t_M=1)
 
         assert np.allclose(f.data[-1], -g.data[-1], atol=1e-7)
+
+    @pytest.mark.parametrize('order, expected', [(2, '1.0*f(t, x) + 1.0*f(t, x - h_x)'
+                                                     ' + 1.0*f(t, x + h_x)'
+                                                     ' - f(t, x - h_x)/(2*h_x)'
+                                                     ' + f(t, x + h_x)/(2*h_x)'),
+                                                 (4, '1.0*f(t, x) + 1.0*f(t, x - 2*h_x)'
+                                                     ' + 1.0*f(t, x - h_x)'
+                                                     ' + 1.0*f(t, x + h_x)'
+                                                     ' + 1.0*f(t, x + 2*h_x)'
+                                                     ' + f(t, x - 2*h_x)/(12*h_x)'
+                                                     ' - 2*f(t, x - h_x)/(3*h_x)'
+                                                     ' + 2*f(t, x + h_x)/(3*h_x)'
+                                                     ' - f(t, x + 2*h_x)/(12*h_x)'),
+                                                 (6, '1.0*f(t, x) + 1.0*f(t, x - 3*h_x)'
+                                                     ' + 1.0*f(t, x - 2*h_x)'
+                                                     ' + 1.0*f(t, x - h_x)'
+                                                     ' + 1.0*f(t, x + h_x)'
+                                                     ' + 1.0*f(t, x + 2*h_x)'
+                                                     ' + 1.0*f(t, x + 3*h_x)'
+                                                     ' - f(t, x - 3*h_x)/(60*h_x)'
+                                                     ' + 3*f(t, x - 2*h_x)/(20*h_x)'
+                                                     ' - 3*f(t, x - h_x)/(4*h_x)'
+                                                     ' + 3*f(t, x + h_x)/(4*h_x)'
+                                                     ' - 3*f(t, x + 2*h_x)/(20*h_x)'
+                                                     ' + f(t, x + 3*h_x)/(60*h_x)')])
+    def test_some_substitutions(self, order, expected):
+        """
+        Test that equations where only some derivatives have substitutions evaluate
+        correctly.
+        """
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+
+        f = TimeFunction(name='f', grid=grid, space_order=order, coefficients='symbolic')
+
+        weights = np.ones(order+1)
+        coeffs = Coefficient(2, f, x, weights)
+
+        eq = Eq(f.dx + f.dx2, 0, coefficients=Substitutions(coeffs))
+
+        assert str(eq.evaluate.lhs) == expected
+
+    @pytest.mark.parametrize('order, expected', [(2, '1.0*f(t - dt, x)'
+                                                     ' + 1.0*f(t - dt, x - h_x)'
+                                                     ' + 1.0*f(t - dt, x + h_x)'
+                                                     ' + 1.0*f(t + dt, x)'
+                                                     ' + 1.0*f(t + dt, x - h_x)'
+                                                     ' + 1.0*f(t + dt, x + h_x)'),
+                                                 (4, '1.0*f(t - dt, x)'
+                                                     ' + 1.0*f(t - dt, x - 2*h_x)'
+                                                     ' + 1.0*f(t - dt, x - h_x)'
+                                                     ' + 1.0*f(t - dt, x + h_x)'
+                                                     ' + 1.0*f(t - dt, x + 2*h_x)'
+                                                     ' + 1.0*f(t + dt, x)'
+                                                     ' + 1.0*f(t + dt, x - 2*h_x)'
+                                                     ' + 1.0*f(t + dt, x - h_x)'
+                                                     ' + 1.0*f(t + dt, x + h_x)'
+                                                     ' + 1.0*f(t + dt, x + 2*h_x)'),
+                                                 (6, '1.0*f(t - dt, x)'
+                                                     ' + 1.0*f(t - dt, x - 3*h_x)'
+                                                     ' + 1.0*f(t - dt, x - 2*h_x)'
+                                                     ' + 1.0*f(t - dt, x - h_x)'
+                                                     ' + 1.0*f(t - dt, x + h_x)'
+                                                     ' + 1.0*f(t - dt, x + 2*h_x)'
+                                                     ' + 1.0*f(t - dt, x + 3*h_x)'
+                                                     ' + 1.0*f(t + dt, x)'
+                                                     ' + 1.0*f(t + dt, x - 3*h_x)'
+                                                     ' + 1.0*f(t + dt, x - 2*h_x)'
+                                                     ' + 1.0*f(t + dt, x - h_x)'
+                                                     ' + 1.0*f(t + dt, x + h_x)'
+                                                     ' + 1.0*f(t + dt, x + 2*h_x)'
+                                                     ' + 1.0*f(t + dt, x + 3*h_x)')])
+    def test_forward_backward_timestep(self, order, expected):
+        """
+        Test to ensure that substitutions are applied to derivatives taken at both
+        forward and backward timesteps.
+        """
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+
+        f = TimeFunction(name='f', grid=grid, space_order=order, coefficients='symbolic')
+
+        weights = np.ones(order+1)
+        coeffs = Coefficient(1, f, x, weights)
+
+        eq = Eq(f.forward.dx + f.backward.dx, 0, coefficients=Substitutions(coeffs))
+
+        assert str(eq.evaluate.lhs) == expected
