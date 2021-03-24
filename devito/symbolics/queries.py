@@ -4,8 +4,8 @@ from devito.tools import as_tuple, is_integer
 
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
-           'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_constant', 'q_affine',
-           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine',
+           'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
+           'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine',
            'q_dimension']
 
 
@@ -70,10 +70,6 @@ def q_terminalop(expr, depth=0):
         return all(q_leaf(i) for i in expr.args)
     else:
         return False
-
-
-def q_sum_of_product(expr, depth=1):
-    return q_leaf(expr) or q_terminalop(expr, depth)
 
 
 def q_indirect(expr):

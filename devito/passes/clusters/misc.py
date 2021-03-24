@@ -31,7 +31,8 @@ class Lift(Queue):
             # No iteration space to be lifted from
             return clusters
 
-        hope_invariant = {i.dim for i in prefix}
+        hope_invariant = prefix[-1].dim._defines
+        outer = set().union(*[i.dim._defines for i in prefix[:-1]])
 
         lifted = []
         processed = []
@@ -69,10 +70,8 @@ class Lift(Queue):
             #
             # In 1) and 2) lifting is infeasible; in 3) the statement can be lifted
             # outside the `i` loop as `r`'s write-to region contains both `x` and `y`
-            writes = set(c.scope.writes)
-            reads = set().union(*[i.scope.reads for i in impacted])
-            if any(set(i.dimensions) != set(ispace.intervals.dimensions)
-                   for i in writes & reads):
+            crossed = {d for d in c.used_dimensions if d not in outer}
+            if not all(crossed <= set(i.dimensions) for i in c.scope.writes):
                 processed.append(c)
                 continue
 

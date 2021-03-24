@@ -1842,12 +1842,12 @@ class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('opt_options', [
-        {'cire-repeats-sops': 9, 'cire-rotate': True},  # Issue #1490 (rotating registers)
-        {'min-storage': True},                          # Issue #1491 (min-storage option)
+        {'cire-rotate': True},  # Issue #1490
+        {'min-storage': True},  # Issue #1491
     ])
     def test_cire_options(self, opt_options):
         """
-        MFEs for several issues tracked on GitHub.
+        MFEs for issues #1490 and #1491.
         """
         grid = Grid(shape=(128, 128, 128), dtype=np.float64)
 

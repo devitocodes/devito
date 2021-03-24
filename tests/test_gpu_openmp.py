@@ -194,19 +194,19 @@ class TestCodeGeneration(object):
         op = Operator(eqn)
 
         assert len(op.body[2].header) == 7
-        assert str(op.body[2].header[0]) == 'float (*r1)[y_size][z_size];'
+        assert str(op.body[2].header[0]) == 'float (*r0)[y_size][z_size];'
         assert op.body[2].header[1].text ==\
-            'posix_memalign((void**)&r1, 64, sizeof(float[x_size][y_size][z_size]))'
+            'posix_memalign((void**)&r0, 64, sizeof(float[x_size][y_size][z_size]))'
         assert op.body[2].header[2].value ==\
-            ('omp target enter data map(alloc: r1[0:x_size][0:y_size][0:z_size])'
+            ('omp target enter data map(alloc: r0[0:x_size][0:y_size][0:z_size])'
              '')
 
         assert len(op.body[2].footer) == 6
         assert str(op.body[2].footer[0]) == ''
         assert op.body[2].footer[1].value ==\
-            ('omp target exit data map(delete: r1[0:x_size][0:y_size][0:z_size])'
+            ('omp target exit data map(delete: r0[0:x_size][0:y_size][0:z_size])'
              ' if((x_size != 0) && (y_size != 0) && (z_size != 0))')
-        assert op.body[2].footer[2].text == 'free(r1)'
+        assert op.body[2].footer[2].text == 'free(r0)'
 
     @switchconfig(platform='nvidiaX')
     def test_function_wo(self):

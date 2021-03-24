@@ -142,9 +142,13 @@ def decompose(ispace, d, block_dims):
                 else:
                     relations.append([i.dim, bd])
         elif n > ispace.intervals.index(d):
-            # All other non-Incr, subsequent Dimensions must follow the block Dimensions
+            # The non-Incr subsequent Dimensions must follow the block Dimensions
             for bd in block_dims:
                 relations.append([bd, i.dim])
+        else:
+            # All other Dimensions must precede the block Dimensions
+            for bd in block_dims:
+                relations.append([i.dim, bd])
 
     intervals = IntervalGroup(intervals, relations=relations)
 

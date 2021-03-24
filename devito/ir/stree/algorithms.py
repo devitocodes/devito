@@ -2,7 +2,7 @@ from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import SEQUENTIAL, IterationSpace
+from devito.ir.support import SEQUENTIAL, IterationSpace, normalize_properties
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
 from devito.tools import Bunch, DefaultOrderedDict, flatten
@@ -54,9 +54,12 @@ def stree_schedule(clusters):
 
             d = it0.dim
 
-            # The reused sub-trees might acquire some new sub-iterators
+            # The reused sub-trees might acquire new sub-iterators as well as
+            # new properties
             mapper[it0].top.ispace = IterationSpace.union(mapper[it0].top.ispace,
                                                           c.ispace.project([d]))
+            mapper[it0].top.properties = normalize_properties(mapper[it0].top.properties,
+                                                              c.properties[it0.dim])
 
             # Different guards or syncops cannot be further nested
             if c.guards.get(d) != prev.guards.get(d) or \
