@@ -136,7 +136,7 @@ class AnisotropicWaveSolver(object):
 
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
@@ -188,7 +188,7 @@ class AnisotropicWaveSolver(object):
 
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
@@ -240,7 +240,7 @@ class AnisotropicWaveSolver(object):
 
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
 
@@ -292,7 +292,7 @@ class AnisotropicWaveSolver(object):
 
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
 

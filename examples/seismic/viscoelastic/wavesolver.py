@@ -98,7 +98,7 @@ class ViscoelasticWaveSolver(object):
 
         model = model or self.model
         # Pick physical parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,

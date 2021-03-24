@@ -107,7 +107,7 @@ class AcousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec=rec, u=u,
@@ -145,7 +145,7 @@ class AcousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj().apply(srca=srca, rec=rec, v=v,
@@ -186,7 +186,7 @@ class AcousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         if checkpointing:
             u = TimeFunction(name='u', grid=self.model.grid,
@@ -238,7 +238,7 @@ class AcousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec,

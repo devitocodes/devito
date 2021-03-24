@@ -129,7 +129,7 @@ class ViscoacousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp and physical parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
@@ -190,7 +190,7 @@ class ViscoacousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp and physical parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
         if self.kernel == 'sls':
@@ -244,7 +244,7 @@ class ViscoacousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp and physical parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         if checkpointing:
             p = TimeFunction(name='p', grid=self.model.grid,
@@ -269,8 +269,7 @@ class ViscoacousticWaveSolver(object):
             # Memory variable:
             r = r or TimeFunction(name="r", grid=self.model.grid,
                                   time_order=self.time_order,
-                                  space_order=self.space_order, staggered=NODE,
-                                  save=self.geometry.nt)
+                                  space_order=self.space_order, staggered=NODE)
 
             summary = self.op_grad().apply(rec=rec, grad=grad, pa=pa, p=p, r=r, dt=dt,
                                            **kwargs)
@@ -324,7 +323,7 @@ class ViscoacousticWaveSolver(object):
 
         model = model or self.model
         # Pick vp and physical parameters from model unless explicitly provided
-        kwargs.update(model.physical_params(model=model, **kwargs))
+        kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_born().apply(dm=dmin, p=p, P=P, src=src, rec=rec, rp=rp, rP=rP,
