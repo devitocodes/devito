@@ -5,7 +5,7 @@ import numpy as np
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import buffering, collect_derivatives
-from devito.passes.clusters import (Blocking, Skewing, Lift, cire, cse, eliminate_arrays,
+from devito.passes.clusters import (blocking, Lift, cire, cse, eliminate_arrays,
                                     fuse, extract_increments, factorize, optimize_pows)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
@@ -82,6 +82,7 @@ class Cpu64OperatorMixin(object):
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+        o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
@@ -170,7 +171,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         clusters = Lift().process(clusters)
 
         # Blocking to improve data locality
-        clusters = Blocking(options).process(clusters)
+        clusters = blocking(clusters, options)
 
         # Reduce flops (potential arithmetic alterations)
         clusters = extract_increments(clusters, sregistry)
@@ -268,7 +269,7 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
         clusters = cse(clusters, sregistry)
 
         # Blocking to improve data locality
-        clusters = Blocking(options).process(clusters)
+        clusters = blocking(clusters, options)
 
         return clusters
 
@@ -306,8 +307,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         sregistry = kwargs['sregistry']
 
         return {
-            'blocking': Blocking(options).process,
-            'skewing': Skewing().process,
+            'blocking': lambda i: blocking(i, options),
             'factorize': factorize,
             'fuse': fuse,
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,

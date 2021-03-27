@@ -9,7 +9,18 @@ from devito.types import IncrDimension
 from devito.ir.support import SEQUENTIAL, PARALLEL, Interval
 from devito.symbolics import xreplace_indices
 
-__all__ = ['Blocking', 'Skewing']
+__all__ = ['blocking']
+
+
+@timed_pass(name='blocking')
+def blocking(clusters, options):
+
+    processed = Blocking(options).process(clusters)
+
+    if options['skewing']:
+        processed = Skewing().process(processed)
+
+    return processed
 
 
 class Blocking(Queue):
@@ -19,6 +30,7 @@ class Blocking(Queue):
     def __init__(self, options):
         self.inner = bool(options['blockinner'])
         self.levels = options['blocklevels']
+        self.skewing = options['skewing']
 
         self.nblocked = Counter()
 
@@ -27,26 +39,11 @@ class Blocking(Queue):
     def _make_key_hook(self, cluster, level):
         return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
 
-    @timed_pass(name='blocking')
     def process(self, clusters):
-        # Preprocess: heuristic: drop TILABLE from innermost Dimensions to
-        # maximize vectorization
-        processed = []
-        for c in clusters:
-            ntilable = len([i for i in c.properties.values() if TILABLE in i])
-            ntilable -= int(not self.inner)
-            if ntilable <= 1:
-                properties = {k: v - {TILABLE} for k, v in c.properties.items()}
-                processed.append(c.rebuild(properties=properties))
-            elif not self.inner:
-                d = c.itintervals[-1].dim
-                properties = dict(c.properties)
-                properties[d] = properties[d] - {TILABLE}
-                processed.append(c.rebuild(properties=properties))
-            else:
-                processed.append(c)
 
-        processed = super(Blocking, self).process(processed)
+        processed = preprocess(clusters, self.inner)
+        if self.levels > 0:
+            processed = super(Blocking, self).process(processed)
 
         return processed
 
@@ -105,6 +102,27 @@ class Blocking(Queue):
         self.nblocked[d] += int(any(TILABLE in c.properties[d] for c in clusters))
 
         return processed
+
+
+def preprocess(clusters, inner):
+    # Preprocess: heuristic: drop TILABLE from innermost Dimensions to
+    # maximize vectorization
+    processed = []
+    for c in clusters:
+        ntilable = len([i for i in c.properties.values() if TILABLE in i])
+        ntilable -= int(not inner)
+        if ntilable <= 1:
+            properties = {k: v - {TILABLE} for k, v in c.properties.items()}
+            processed.append(c.rebuild(properties=properties))
+        elif not inner:
+            d = c.itintervals[-1].dim
+            properties = dict(c.properties)
+            properties[d] = properties[d] - {TILABLE}
+            processed.append(c.rebuild(properties=properties))
+        else:
+            processed.append(c)
+
+    return processed
 
 
 def decompose(ispace, d, block_dims, properties):

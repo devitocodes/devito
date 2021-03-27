@@ -30,7 +30,7 @@ class TestCodeGenSkew(object):
         v = TimeFunction(name='v', grid=grid)  # noqa
         eqn = eval(expr)
         # List comprehension would need explicit locals/globals mappings to eval
-        op = Operator(eqn, opt=('skewing', 'blocking'))
+        op = Operator(eqn, opt=('blocking', {'skewing': True}))
         iters = FindNodes(Iteration).visit(op)
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 1
@@ -77,7 +77,7 @@ class TestCodeGenSkew(object):
         v = Function(name='v', grid=grid)  # noqa
         eqn = eval(expr)
         # List comprehension would need explicit locals/globals mappings to eval
-        op = Operator(eqn, opt=('blocking', 'skewing'))
+        op = Operator(eqn, opt=('blocking', {'skewing': True}))
 
         iters = FindNodes(Iteration).visit(op)
         time_iter = [i for i in iters if i.dim.is_Time]
@@ -114,7 +114,7 @@ class TestCodeGenSkew(object):
         v = TimeFunction(name='v', grid=grid)  # noqa
         eqn = eval(expr)
         # List comprehension would need explicit locals/globals mappings to eval
-        op = Operator(eqn, opt=('skewing'))
+        op = Operator(eqn, opt=('blocking', {'blocklevels': 0, 'skewing': True}))
 
         iters = FindNodes(Iteration).visit(op)
 

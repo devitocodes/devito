@@ -5,7 +5,7 @@ import numpy as np
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives, buffering
-from devito.passes.clusters import (Blocking, Lift, Skewing, Streaming, Tasker, cire, cse,
+from devito.passes.clusters import (blocking, Lift, Streaming, Tasker, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
@@ -241,8 +241,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         runs_on_host, reads_if_on_host = make_callbacks(options)
 
         return {
-            'blocking': Blocking(options).process,
-            'skewing': Skewing().process,
+            'blocking': lambda i: blocking(i, options),
             'tasking': Tasker(runs_on_host).process,
             'streaming': Streaming(reads_if_on_host).process,
             'factorize': factorize,

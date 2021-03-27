@@ -43,7 +43,10 @@ TILABLE = Property('tilable')
 """A fully parallel Dimension that would benefit from tiling (or "blocking")."""
 
 SKEWED = Property('skewed')
-"""A fully parallel Dimension that has been skewed."""
+"""
+A fully parallel Dimension that has been skewed. This property is attached
+when a Dimension has been skewed.
+"""
 
 ROUNDABLE = Property('roundable')
 """
