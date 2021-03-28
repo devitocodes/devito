@@ -233,11 +233,12 @@ class Skewing(Queue):
 
         processed = []
         for c in clusters:
-            # Explore skewing possibilities only in case dimension d is parallel and
-            # is not incrementing by a Symbol. Symbol increments are encountered in
-            # blocked (or tiled) loops where symbols are used as increments to help
-            # parametrize the block shape. We do not apply skewing to these loops.
-            if PARALLEL not in c.properties[d] or d.symbolic_incr.is_Symbol:
+            # Explore skewing possibilities only in case dimension d is parallel,
+            # not innermost and is not incrementing by a Symbol. Symbol increments
+            # are encountered in blocked (tiled) loops where symbols are used as
+            # increments to help parametrize the block shape.
+            if (PARALLEL not in c.properties[d] or d.symbolic_incr.is_Symbol
+               or d is c.ispace[-1].dim):
                 return clusters
 
             mapper, intervals = {}, []
@@ -251,18 +252,22 @@ class Skewing(Queue):
                 if (SEQUENTIAL in c.properties[i.dim] and
                    not i.dim.symbolic_incr.is_Symbol):
                     skew_dim = i.dim
-                    intervals.append(i)
-                # Since we are here, prefix is skewable and nested under a
-                # SEQUENTIAL loop. Do not skew innermost loop
-                # TODO: In case of subdomains or perfect loops nests with more
-                # than one clusters this should be fixed, cause a loop will be
-                # skewed in one cluster but not in other
-                elif (i.dim is d and i.dim is not c.ispace[-1].dim and
-                        skew_dim is not None):
-                    mapper[i.dim] = i.dim - skew_dim
+            if not skew_dim:
+                # return if no skewing dimension found
+                return clusters
+
+            # TODO: In case of subdomains or perfect loops nests with more
+            # than one clusters this should be fixed, cause a loop will be
+            # skewed in one cluster but not in other
+
+            # Since we are here, prefix is skewable and nested under a
+            # SEQUENTIAL loop.
+            mapper[d] = d - skew_dim
+            properties[d].update({SKEWED})
+
+            for i in c.ispace:
+                if i.dim is d:
                     intervals.append(Interval(i.dim, skew_dim, skew_dim))
-                    properties[d].update({SKEWED})
-                # End-up here if dimensions is neither skewable or skewed against
                 else:
                     intervals.append(i)
 
