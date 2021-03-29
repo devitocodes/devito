@@ -18,7 +18,7 @@ def blocking(clusters, options):
     processed = Blocking(options).process(clusters)
 
     if options['skewing']:
-        processed = Skewing().process(processed)
+        processed = Skewing(options).process(processed)
 
     return processed
 
@@ -30,8 +30,6 @@ class Blocking(Queue):
     def __init__(self, options):
         self.inner = bool(options['blockinner'])
         self.levels = options['blocklevels']
-        self.skewing = options['skewing']
-
         self.nblocked = Counter()
 
         super(Blocking, self).__init__()
@@ -224,6 +222,11 @@ class Skewing(Queue):
 
     """
 
+    def __init__(self, options):
+        self.skewinner = bool(options['skewinner'])
+
+        super(Skewing, self).__init__()
+
     def callback(self, clusters, prefix):
 
         if not prefix:
@@ -237,8 +240,10 @@ class Skewing(Queue):
             # not innermost and is not incrementing by a Symbol. Symbol increments
             # are encountered in blocked (tiled) loops where symbols are used as
             # increments to help parametrize the block shape.
-            if (PARALLEL not in c.properties[d] or d.symbolic_incr.is_Symbol
-               or d is c.ispace[-1].dim):
+            if (PARALLEL not in c.properties[d] or d.symbolic_incr.is_Symbol):
+                return clusters
+
+            if d is c.ispace[-1].dim and self.skewinner is False:
                 return clusters
 
             mapper, intervals = {}, []
@@ -255,10 +260,6 @@ class Skewing(Queue):
             if not skew_dim:
                 # return if no skewing dimension found
                 return clusters
-
-            # TODO: In case of subdomains or perfect loops nests with more
-            # than one clusters this should be fixed, cause a loop will be
-            # skewed in one cluster but not in other
 
             # Since we are here, prefix is skewable and nested under a
             # SEQUENTIAL loop.
