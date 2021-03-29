@@ -5,7 +5,7 @@ import numpy as np
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives, buffering
-from devito.passes.clusters import (blocking, Lift, Streaming, Tasker, cire, cse,
+from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, cire, cse,
                                     eliminate_arrays, extract_increments, factorize,
                                     fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,

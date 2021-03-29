@@ -1,7 +1,7 @@
 from collections import Counter
 
 from devito.ir.clusters import Queue
-from devito.ir.support import TILABLE, SKEWED, IntervalGroup, IterationSpace
+from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
 from devito.symbolics import uxreplace
 from devito.tools import timed_pass
 from devito.types import IncrDimension
@@ -80,14 +80,13 @@ class Blocking(Queue):
         processed = []
         for c in clusters:
             if TILABLE in c.properties[d]:
-                ispace = decompose(c.ispace, d, block_dims, c.properties)
+                ispace = decompose(c.ispace, d, block_dims)
 
                 # Use the innermost IncrDimension in place of `d`
                 exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
                 # The new Cluster properties
                 properties = dict(c.properties)
-
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
 
@@ -123,20 +122,15 @@ def preprocess(clusters, inner):
     return processed
 
 
-def decompose(ispace, d, block_dims, properties):
+def decompose(ispace, d, block_dims):
     """
     Create a new IterationSpace in which the `d` Interval is decomposed
     into a hierarchy of Intervals over ``block_dims``.
     """
     # Create the new Intervals
-
     intervals = []
     for i in ispace:
-        if i.dim is d and SKEWED in properties[i.dim]:
-            # Do not propagate intervals, in case of SKEWED dims
-            intervals.extend([i.switch(bd).zero() for bd in block_dims[:-1]])
-            intervals.append(i.switch(block_dims[-1]))
-        elif i.dim is d:
+        if i.dim is d:
             intervals.append(i.switch(block_dims[0]))
             intervals.extend([i.switch(bd).zero() for bd in block_dims[1:]])
         else:
@@ -264,7 +258,6 @@ class Skewing(Queue):
             # Since we are here, prefix is skewable and nested under a
             # SEQUENTIAL loop.
             mapper[d] = d - skew_dim
-            properties[d].update({SKEWED})
 
             for i in c.ispace:
                 if i.dim is d:
