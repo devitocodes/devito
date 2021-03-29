@@ -54,6 +54,11 @@ class DeviceOperatorMixin(object):
     Coefficient to adjust the chunk size in non-affine parallel loops.
     """
 
+    GPU_FIT = 'all-fallback'
+    """
+    Assuming all functions fit into the gpu memory.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         o = {}
@@ -93,7 +98,7 @@ class DeviceOperatorMixin(object):
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
         o['gpu-direct'] = oo.pop('gpu-direct', True)
-        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', None))
+        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -103,6 +108,12 @@ class DeviceOperatorMixin(object):
 
         return kwargs
 
+    @classmethod
+    def _normalize_gpu_fit(cls, **kwargs):
+        if any(i in kwargs['mode'] for i in ['tasking', 'streaming']):
+            return None
+        else:
+            return cls.GPU_FIT
 
 # Mode level
 
