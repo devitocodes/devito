@@ -113,7 +113,7 @@ def run_with_advisor(path, output, name, exec_args):
     ]
     advisor_flops = [
         '-collect tripcounts',
-        '-enable-cache-simulation',
+        '--no-enable-cache-simulation', # Switch to '-enable-cache-simulation' for a CARM roofline `https://software.intel.com/content/www/us/en/develop/articles/integrated-roofline-model-with-intel-advisor.html`  # noqa
         '-flop',
         '-start-paused',
     ]
