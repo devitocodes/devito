@@ -61,7 +61,7 @@ jobs:
           test_file: "tests/test_gpu_openacc.py"
           env_file: "devito-ci-nvidia-openacc.env"
           test_drive_cmd: "nvidia-smi"
-          arch: "pgcc"
+          arch: "nvcc"
           platform: "nvidiaX"
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
