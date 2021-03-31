@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from devito import TimeFunction, Function
+from devito import TimeFunction
 from devito.logger import log
+from examples.seismic.model import SeismicModel
 from examples.seismic.acoustic import acoustic_setup
 from examples.seismic.tti import tti_setup
 
@@ -60,20 +61,11 @@ def test_tti(shape, so, rot):
     utti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
     vtti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
 
-    epsilon = Function(name='epsilon', grid=solver_tti.model.grid, space_order=so)
-    epsilon.data[:] = np.zeros(shape)
+    model = SeismicModel(space_order=so, vp=vp, origin=origin, shape=shape,
+                         spacing=spacing, nbl=0, epsilon=np.zeros(shape),
+                         delta=np.zeros(shape), theta=rot_val, phi=rot_val, bcs="damp")
 
-    delta = Function(name='delta', grid=solver_tti.model.grid, space_order=so)
-    delta.data[:] = np.zeros(shape)
-
-    theta = Function(name='theta', grid=solver_tti.model.grid, space_order=so)
-    theta.data[:] = rot_val[:]
-
-    phi = Function(name='phi', grid=solver_tti.model.grid, space_order=so)
-    phi.data[:] = rot_val[:]
-
-    solver_tti.forward(u=utti, v=vtti, epsilon=epsilon, delta=delta,
-                       theta=theta, phi=phi, time_M=10, src=src, dt=dt)
+    solver_tti.forward(u=utti, v=vtti, model=model, time_M=10, src=src, dt=dt)
 
     normal_u = u.data[:]
     normal_utti = .5 * utti.data[:]

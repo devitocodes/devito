@@ -67,6 +67,16 @@ class ViscoelasticWaveSolver(object):
             The computed memory variable.
         model : Model, optional
             Object containing the physical parameters.
+        lam : Function, optional
+            The time-constant first Lame parameter rho * (vp**2 - 2 * vs **2).
+        mu : Function, optional
+            The Shear modulus (rho * vs*2).
+        qp : Function, optional
+            The P-wave quality factor (dimensionless).
+        qs : Function, optional
+            The S-wave quality factor (dimensionless).
+        b : Function, optional
+            The time-constant inverse density (1/rho=1 for water).
         save : bool, optional
             Whether or not to save the entire (unrolled) wavefield.
 

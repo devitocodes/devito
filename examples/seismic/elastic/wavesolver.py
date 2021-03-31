@@ -59,6 +59,12 @@ class ElasticWaveSolver(object):
             The computed symmetric stress tensor.
         model : Model, optional
             Object containing the physical parameters.
+        lam : Function, optional
+            The time-constant first Lame parameter `rho * (vp**2 - 2 * vs **2)`.
+        mu : Function, optional
+            The Shear modulus `(rho * vs*2)`.
+        b : Function, optional
+            The time-constant inverse density (b=1 for water).
         save : bool, optional
             Whether or not to save the entire (unrolled) wavefield.
 

@@ -92,6 +92,16 @@ class AnisotropicWaveSolver(object):
             The computed wavefield second component.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
         save : bool, optional
             Whether or not to save the entire (unrolled) wavefield.
         kernel : str, optional
@@ -162,6 +172,16 @@ class AnisotropicWaveSolver(object):
             The computed wavefield second component.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
 
         Returns
         -------
@@ -218,6 +238,16 @@ class AnisotropicWaveSolver(object):
             The computed perturbed wavefield second component.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
         """
         if kernel != 'centered':
             raise ValueError('Only centered kernel is supported for the jacobian')
@@ -272,6 +302,16 @@ class AnisotropicWaveSolver(object):
             Stores the gradient field.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
 
         Returns
         -------

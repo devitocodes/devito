@@ -88,6 +88,8 @@ class AcousticWaveSolver(object):
             Stores the computed wavefield.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
         save : bool, optional
             Whether or not to save the entire (unrolled) wavefield.
 
@@ -131,6 +133,8 @@ class AcousticWaveSolver(object):
             The computed wavefield.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
 
         Returns
         -------
@@ -171,6 +175,8 @@ class AcousticWaveSolver(object):
             Stores the gradient field.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
 
         Returns
         -------
@@ -224,6 +230,8 @@ class AcousticWaveSolver(object):
             The linearized wavefield.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

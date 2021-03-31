@@ -90,11 +90,17 @@ class ViscoacousticWaveSolver(object):
         v : VectorTimeFunction, optional
             The computed particle velocity.
         r : TimeFunction, optional
-            The computed memory variable.
+            The computed attenuation memory variable.
         p : TimeFunction, optional
             Stores the computed wavefield.
         model : Model, optional
             Object containing the physical parameters.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+        vp : Function or float, optional
+            The time-constant velocity.
         save : bool, optional
             Whether or not to save the entire (unrolled) wavefield.
 
@@ -161,9 +167,15 @@ class ViscoacousticWaveSolver(object):
         pa : TimeFunction, optional
             Stores the computed wavefield.
         r : TimeFunction, optional
-            The computed memory variable.
+            The computed attenuation memory variable.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
 
         Returns
         -------
@@ -225,9 +237,15 @@ class ViscoacousticWaveSolver(object):
         grad : Function, optional
             Stores the gradient field.
         r : TimeFunction, optional
-            The computed memory variable.
+            The computed attenuation memory variable.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
 
         Returns
         -------
@@ -293,11 +311,17 @@ class ViscoacousticWaveSolver(object):
         P : TimeFunction, optional
             The linearized wavefield.
         rp : TimeFunction, optional
-            The computed memory variable.
+            The computed attenuation memory variable.
         rP : TimeFunction, optional
-            The computed memory variable.
+            The computed attenuation memory variable.
         model : Model, optional
             Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

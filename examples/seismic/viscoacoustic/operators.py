@@ -84,7 +84,7 @@ def sls_1st_order(model, geometry, p, **kwargs):
     # Bulk modulus
     bm = rho * vp**2
 
-    # Memory variable.
+    # Attenuation Memory variable.
     r = TimeFunction(name="r", grid=model.grid, time_order=1, space_order=space_order,
                      save=save_t, staggered=NODE)
 
@@ -129,7 +129,7 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     p : TimeFunction
         Pressure field.
     r : TimeFunction
-        Memory variable.
+        Attenuation Memory variable.
     """
     forward = kwargs.get('forward', True)
     space_order = p.space_order
@@ -158,6 +158,7 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     # Bulk modulus
     bm = rho * vp**2
 
+    # Attenuation Memory variable.
     r = r or TimeFunction(name="r", grid=model.grid, time_order=2,
                           space_order=space_order, save=save_t, staggered=NODE)
 
@@ -215,7 +216,7 @@ def ren_1st_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    eta = (vp**2) / (w0 * qp)
+    eta = vp**2 / (w0 * qp)
 
     # Bulk modulus
     bm = rho * vp**2
@@ -270,7 +271,7 @@ def ren_2nd_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    eta = (vp**2) / (w0 * qp)
+    eta = vp**2 / (w0 * qp)
 
     # Bulk modulus
     bm = rho * vp**2
