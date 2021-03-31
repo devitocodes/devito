@@ -44,19 +44,19 @@ jobs:
         name: [
           # NOTE: We can re-instate this as a 'failing' build
           # as soon as the hardware is ready
-          #pytest-gpu-omp,
+          pytest-gpu-omp,
           pytest-gpu-acc
           # pytest-gpu-aomp
         ]
         include:
-        #- name: pytest-gpu-omp
-          #test_file: "tests/test_gpu_openmp.py"
-          #env_file: "devito-ci-nvidia-openmp.env"
-          #test_drive_cmd: "nvidia-smi"
-          #arch: "clang"
-          #platform: "nvidiaX"
-          #language: "openmp"
-          #tags: ["self-hosted", "gpu", "openmp"]
+        - name: pytest-gpu-omp
+          test_file: "tests/test_gpu_openmp.py"
+          env_file: "devito-ci-nvidia-openmp.env"
+          test_drive_cmd: "nvidia-smi"
+          arch: "clang"
+          platform: "nvidiaX"
+          language: "openmp"
+          tags: ["self-hosted", "gpu", "openmp"]
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"

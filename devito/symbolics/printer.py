@@ -5,6 +5,7 @@ Utilities to turn SymPy objects into C strings.
 import numpy as np
 
 from mpmath.libmp import prec_to_dps, to_str
+from sympy.printing.precedence import precedence
 from sympy.printing.ccode import C99CodePrinter
 
 __all__ = ['ccode']
@@ -60,6 +61,17 @@ class CodePrinter(C99CodePrinter):
             return '%d.0/%d.0' % (p, q)
         else:
             return '%d.0F/%d.0F' % (p, q)
+
+    def _print_Pow(self, expr):
+        # Need to override because of issue #1627
+        # E.g., (Pow(h_x, -1) AND h_x.dtype == np.float32) => 1.0F/h_x
+        try:
+            if expr.exp == -1 and self.dtype == np.float32:
+                PREC = precedence(expr)
+                return '1.0F/%s' % self.parenthesize(expr.base, PREC)
+        except AttributeError:
+            pass
+        return super()._print_Pow(expr)
 
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""

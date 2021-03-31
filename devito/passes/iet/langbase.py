@@ -4,7 +4,7 @@ from abc import ABC
 import cgen as c
 
 from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, EntryFunction, LocalExpression)
+                       ParallelBlock, PointerCast, EntryFunction, LocalExpression)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe
@@ -34,27 +34,13 @@ class LangBB(object, metaclass=LangMeta):
     Abstract base class for Language Building Blocks.
     """
 
-    # Note: below dummy values are used, so a subclass should override them
-
+    # NOTE: a subclass may want to override the values below, which represent
+    # IET node types used in the various lowering and/or transformation passes
     Region = ParallelBlock
-    """
-    The IET node type to be used to construct a parallel region.
-    """
-
     HostIteration = ParallelIteration
-    """
-    The IET node type to be used to construct a host-parallel Iteration.
-    """
-
     DeviceIteration = ParallelIteration
-    """
-    The IET node type to be used to construct a device-parallel Iteration.
-    """
-
     Prodder = Prodder
-    """
-    The IET node type to be used to construct asynchronous prodders.
-    """
+    PointerCast = PointerCast
 
     @classmethod
     def _map_to(cls, f, imask=None, queueid=None):

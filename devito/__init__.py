@@ -3,21 +3,28 @@ from itertools import product
 # Import the global `configuration` dict
 from devito.parameters import *  # noqa
 
-# API imports
-from devito.base import *  # noqa
+# DSL imports
+from devito.types import NODE, CELL, Buffer  # noqa
+from devito.types.caching import _SymbolCache, CacheManager  # noqa
+from devito.types.constant import *  # noqa
+from devito.types.dimension import *  # noqa
+from devito.types.dense import *  # noqa
+from devito.types.equation import *  # noqa
+from devito.types.grid import *  # noqa
+from devito.types.relational import *  # noqa
+from devito.types.sparse import *  # noqa
+from devito.types.tensor import *  # noqa
+from devito.finite_differences import *  # noqa
+from devito.operator import Operator  # noqa
+
+# Other stuff exposed to the user
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
-from devito.finite_differences import *  # noqa
-from devito.mpi import MPI  # noqa
-from devito.types import _SymbolCache, NODE, CELL, Buffer, SubDomain, SubDomainSet  # noqa
-from devito.types.dimension import *  # noqa
-from devito.types.equation import *  # noqa
-from devito.types.relational import *  # noqa
-from devito.types.tensor import *  # noqa
+from devito.mpi import MPI, mpi_registry  # noqa
 
 # Imports required to initialize Devito
 from devito.arch import compiler_registry, platform_registry
-from devito.backends import backends_registry, init_backend
+from devito.core import *   # noqa
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
 from devito.operator import profiler_registry, operator_registry
 
@@ -35,13 +42,11 @@ def reinit_compiler(val):
                                        mpi=configuration['mpi'])
 
 
-# Setup target platform, compiler, and backend
+# Setup target platform and compiler
 configuration.add('platform', 'cpu64', list(platform_registry),
                   callback=lambda i: platform_registry[i]())
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
-configuration.add('backend', 'core', list(backends_registry),
-                  callback=init_backend)
 
 # Setup language for shared-memory parallelism
 preprocessor = lambda i: {0: 'C', 1: 'openmp'}.get(i, i)  # Handles DEVITO_OPENMP deprec
@@ -50,7 +55,7 @@ configuration.add('language', 'C', [0, 1, 'C', 'openmp', 'openacc'],
 
 # MPI mode (0 => disabled, 1 == basic)
 preprocessor = lambda i: bool(i) if isinstance(i, int) else i
-configuration.add('mpi', 0, [0, 1, 'basic', 'diag', 'overlap', 'overlap2', 'full'],
+configuration.add('mpi', 0, [0, 1] + list(mpi_registry),
                   preprocessor=preprocessor, callback=reinit_compiler)
 
 # Should Devito run a first-touch Operator upon data allocation?
@@ -110,7 +115,7 @@ configuration.add('opt-options', {}, deprecate='dle-options')
 # Setup Operator profiling
 configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
 
-# Initialize `configuration`. This will also trigger the backend initialization
+# Initialize `configuration`
 init_configuration()
 
 # Expose a mechanism to clean up the symbol caches (SymPy's, Devito's)
@@ -129,8 +134,7 @@ def mode_performance():
     also employs suitable NUMA strategies for memory allocation.
     """
     configuration['develop-mode'] = False
-    configuration['autotuning'] = ['aggressive',
-                                   at_default_mode[configuration['backend']]]
+    configuration['autotuning'] = 'aggressive'
     # With the autotuner in `aggressive` mode, a more aggressive blocking strategy
     # which also tiles the innermost loop) is beneficial
     configuration['opt-options']['blockinner'] = True

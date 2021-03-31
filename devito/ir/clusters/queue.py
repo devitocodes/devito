@@ -1,10 +1,10 @@
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from itertools import groupby
 
 from devito.ir.support import Scope
 from devito.tools import as_tuple, flatten
 
-__all__ = ['Queue', 'QueueStateful']
+__all__ = ['Queue', 'QueueStateful', 'Context']
 
 
 class Queue(object):
@@ -35,7 +35,7 @@ class Queue(object):
     def _make_key_hook(self, element, level):
         return ()
 
-    def _process_fdta(self, clusters, level, prefix=None):
+    def _process_fdta(self, clusters, level, prefix=None, **kwargs):
         """
         fdta -> First Divide Then Apply
         """
@@ -50,14 +50,14 @@ class Queue(object):
                 processed.extend(list(g))
             else:
                 # Recursion
-                processed.extend(self._process_fdta(list(g), level + 1, pfx))
+                processed.extend(self._process_fdta(list(g), level + 1, pfx, **kwargs))
 
         # Apply callback
-        processed = self.callback(processed, prefix)
+        processed = self.callback(processed, prefix, **kwargs)
 
         return processed
 
-    def _process_fatd(self, clusters, level):
+    def _process_fatd(self, clusters, level, **kwargs):
         """
         fatd -> First Apply Then Divide
         """
@@ -72,7 +72,7 @@ class Queue(object):
                 # Apply callback
                 _clusters = self.callback(list(g), pfx)
                 # Recursion
-                processed.extend(self._process_fatd(_clusters, level + 1))
+                processed.extend(self._process_fatd(_clusters, level + 1, **kwargs))
 
         return processed
 
@@ -117,3 +117,24 @@ class QueueStateful(Queue):
             for i in prefix:
                 properties[i.dim].update(v.get(i.dim, set()))
         return properties
+
+
+class Context(Queue):
+
+    def __init__(self, target):
+        super().__init__()
+        self.target = target
+
+    def process(self, clusters):
+        mapper = OrderedDict()
+        mapper[None] = self.target
+        self._process_fdta(clusters, 1, mapper=mapper)
+        return mapper
+
+    def callback(self, clusters, prefix, mapper=None):
+        assert mapper is not None
+
+        if self.target in clusters:
+            mapper[tuple(prefix)] = tuple(clusters)
+
+        return clusters
