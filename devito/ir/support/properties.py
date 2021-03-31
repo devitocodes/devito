@@ -42,6 +42,9 @@ VECTORIZED = Property('vector-dim')
 TILABLE = Property('tilable')
 """A fully parallel Dimension that would benefit from tiling (or "blocking")."""
 
+SKEWABLE = Property('skewable')
+"""A fully parallel Dimension that would benefit from wavefront/skewed tiling."""
+
 ROUNDABLE = Property('roundable')
 """
 A Dimension whose upper limit may be rounded up to a multiple of the SIMD

@@ -96,7 +96,7 @@ class TestCodeGenSkew(object):
     '''
     Test code generation with skewing only
     '''
-    @pytest.mark.parametrize('expr, expected, skewing, skewinner', [
+    @pytest.mark.parametrize('expr, expected, skewing, blockinner', [
         (['Eq(u.forward, u + 1)',
           'Eq(u[t1,x-time+1,y-time+1,z+1],u[t0,x-time+1,y-time+1,z+1]+1)', True, False]),
         (['Eq(u.forward, v + 1)',
@@ -109,7 +109,7 @@ class TestCodeGenSkew(object):
           'Eq(u[t0,x-time+1,y-time+1,z-time+1],v[t0,x-time+1,y-time+1,z-time+1]+1)',
           True, True]),
     ])
-    def test_skewing_codegen(self, expr, expected, skewing, skewinner):
+    def test_skewing_codegen(self, expr, expected, skewing, blockinner):
         """Tests code generation on skewed indices."""
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
@@ -120,7 +120,7 @@ class TestCodeGenSkew(object):
         eqn = eval(expr)
         # List comprehension would need explicit locals/globals mappings to eval
         op = Operator(eqn, opt=('blocking', {'blocklevels': 0, 'skewing': skewing,
-                                             'skewinner': skewinner}))
+                                             'blockinner': blockinner}))
 
         iters = FindNodes(Iteration).visit(op)
 
@@ -132,21 +132,21 @@ class TestCodeGenSkew(object):
 
         skewed = [i.expr for i in FindNodes(Expression).visit(op)]
 
-        if skewing and not skewinner:
+        if skewing and not blockinner:
             assert (iters[1].symbolic_min == (iters[1].dim.symbolic_min + time))
             assert (iters[1].symbolic_max == (iters[1].dim.symbolic_max + time))
             assert (iters[2].symbolic_min == (iters[2].dim.symbolic_min + time))
             assert (iters[2].symbolic_max == (iters[2].dim.symbolic_max + time))
             assert (iters[3].symbolic_min == (iters[3].dim.symbolic_min))
             assert (iters[3].symbolic_max == (iters[3].dim.symbolic_max))
-        elif skewing and skewinner:
+        elif skewing and blockinner:
             assert (iters[1].symbolic_min == (iters[1].dim.symbolic_min + time))
             assert (iters[1].symbolic_max == (iters[1].dim.symbolic_max + time))
             assert (iters[2].symbolic_min == (iters[2].dim.symbolic_min + time))
             assert (iters[2].symbolic_max == (iters[2].dim.symbolic_max + time))
             assert (iters[3].symbolic_min == (iters[3].dim.symbolic_min + time))
             assert (iters[3].symbolic_max == (iters[3].dim.symbolic_max + time))
-        elif not skewing and not skewinner:
+        elif not skewing and not blockinner:
             assert (iters[1].symbolic_min == (iters[1].dim.symbolic_min))
             assert (iters[1].symbolic_max == (iters[1].dim.symbolic_max))
             assert (iters[2].symbolic_min == (iters[2].dim.symbolic_min))

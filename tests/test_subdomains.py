@@ -161,7 +161,7 @@ class TestSubdomains(object):
 
     @pytest.mark.parametrize('opt', ['advanced', 'blocking',
                                      ('blocking', {'skewing': True}),
-                                     ('blocking', {'skewing': True, 'skewinner': True})])
+                                     ('blocking', {'skewing': True, 'blockinner': True})])
     def test_iterate_NDomains(self, opt):
         """
         Test that a set of subdomains are iterated upon correctly.
@@ -369,7 +369,7 @@ class TestSubdomains(object):
 
     @pytest.mark.parametrize('opt', ['advanced', 'blocking',
                                      ('blocking', {'skewing': True}),
-                                     ('blocking', {'skewing': True, 'skewinner': True})])
+                                     ('blocking', {'skewing': True, 'blockinner': True})])
     def test_multi_sets_eq(self, opt):
         """
         Check functionality for when multiple subdomain sets are present, each

@@ -1,11 +1,11 @@
 from collections import Counter
 
 from devito.ir.clusters import Queue
-from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
+from devito.ir.support import (SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
+                               IterationSpace)
 from devito.symbolics import uxreplace
 from devito.types import IncrDimension
 
-from devito.ir.support import SEQUENTIAL, PARALLEL, Interval
 from devito.symbolics import xreplace_indices
 
 __all__ = ['blocking']
@@ -25,7 +25,10 @@ def blocking(clusters, options):
         * `blocklevels` (int, 1): 1 => classic loop blocking; 2 for two-level hierarchical
            blocking
         * `skewing` (boolean, False): enable loop skewing
-        * `skewinner` (boolean, False): ebanble loop skewing for the innermost loop
+
+    Notes
+    ------
+    In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed
     """
 
     clusters = preprocess(clusters, options)
@@ -100,9 +103,14 @@ class Blocking(Queue):
                 exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
                 # The new Cluster properties
+                # TILABLE property is dropped after the blocking.
+                # SKEWABLE is dropped as well only from the new
+                # block dimensions.
                 properties = dict(c.properties)
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
+                properties.update({bd: c.properties[d] - {SKEWABLE} for bd in
+                                   block_dims[:-1]})
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            properties=properties))
@@ -231,7 +239,7 @@ class Skewing(Queue):
     """
 
     def __init__(self, options):
-        self.skewinner = bool(options['skewinner'])
+        self.skewinner = bool(options['blockinner'])
 
         super(Skewing, self).__init__()
 
@@ -241,17 +249,11 @@ class Skewing(Queue):
 
         d = prefix[-1].dim
 
-        # Return in case d is incrementing by a Symbol. Symbol increments
-        # are encountered in blocked (tiled) loops to help parametrize the
-        # block shape.
-        if d.symbolic_incr.is_Symbol:
-            return clusters
-
         processed = []
         for c in clusters:
-            # Explore skewing possibilities only in case d is parallel,
-            # not innermost
-            if PARALLEL not in c.properties[d]:
+            # Explore skewing possibilities only in case d is SKEWABLE
+            # and not innermost
+            if SKEWABLE not in c.properties[d]:
                 return clusters
 
             if d is c.ispace[-1].dim and not self.skewinner:

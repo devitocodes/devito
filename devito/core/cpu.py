@@ -83,7 +83,6 @@ class Cpu64OperatorMixin(object):
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
         o['skewing'] = oo.pop('skewing', False)
-        o['skewinner'] = oo.pop('skewinner', False)
 
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
