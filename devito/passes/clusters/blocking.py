@@ -3,7 +3,6 @@ from collections import Counter
 from devito.ir.clusters import Queue
 from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
 from devito.symbolics import uxreplace
-from devito.tools import timed_pass
 from devito.types import IncrDimension
 
 from devito.ir.support import SEQUENTIAL, PARALLEL, Interval
@@ -12,9 +11,24 @@ from devito.symbolics import xreplace_indices
 __all__ = ['blocking']
 
 
-@timed_pass(name='blocking')
 def blocking(clusters, options):
+    """
+    Loop blocking to improve data locality.
 
+    Parameters
+    ----------
+    cluster : Cluster
+        Input Cluster, subject of the optimization pass.
+    options : dict
+        The optimization options.
+        * `blockinner` (boolean, False): enable/disable loop blocking along innermost loop
+        * `blocklevels` (int, 1): 1 => classic loop blocking; 2 for two-level hierarchical
+           blocking
+        * `skewing` (boolean, False): enable loop skewing
+        * `skewinner` (boolean, False): ebanble loop skewing for the innermost loop
+    """
+
+    clusters = preprocess(clusters, options)
     processed = Blocking(options).process(clusters)
 
     if options['skewing']:
@@ -30,6 +44,7 @@ class Blocking(Queue):
     def __init__(self, options):
         self.inner = bool(options['blockinner'])
         self.levels = options['blocklevels']
+
         self.nblocked = Counter()
 
         super(Blocking, self).__init__()
@@ -38,12 +53,11 @@ class Blocking(Queue):
         return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
 
     def process(self, clusters):
-
-        processed = preprocess(clusters, self.inner)
-        if self.levels > 0:
-            processed = super(Blocking, self).process(processed)
-
-        return processed
+        if self.levels < 1:
+            return clusters
+        else:
+            processed = super(Blocking, self).process(clusters)
+            return processed
 
     def _process_fdta(self, clusters, level, prefix=None):
         # Truncate recursion in case of TILABLE, non-perfect sub-nests, as
@@ -101,9 +115,10 @@ class Blocking(Queue):
         return processed
 
 
-def preprocess(clusters, inner):
+def preprocess(clusters, options):
     # Preprocess: heuristic: drop TILABLE from innermost Dimensions to
     # maximize vectorization
+    inner = bool(options['blockinner'])
     processed = []
     for c in clusters:
         ntilable = len([i for i in c.properties.values() if TILABLE in i])
@@ -141,7 +156,6 @@ def decompose(ispace, d, block_dims):
     # `xbb, xb, xi`; then we decompose the relation as two relations, `(t, xbb, y)`
     # and `(xbb, xb, xi)`
     relations = [block_dims]
-
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
 
@@ -186,7 +200,7 @@ def decompose(ispace, d, block_dims):
 class Skewing(Queue):
 
     """
-    Rebuild clusters with skewed expressions and skewed IterationSpace.
+    Construct a new sequence of clusters with skewed expressions and iteration spaces.
 
     Notes
     -----
@@ -222,55 +236,51 @@ class Skewing(Queue):
         super(Skewing, self).__init__()
 
     def callback(self, clusters, prefix):
-
         if not prefix:
             return clusters
 
         d = prefix[-1].dim
 
+        # Return in case d is incrementing by a Symbol. Symbol increments
+        # are encountered in blocked (tiled) loops to help parametrize the
+        # block shape.
+        if d.symbolic_incr.is_Symbol:
+            return clusters
+
         processed = []
         for c in clusters:
-            # Explore skewing possibilities only in case dimension d is parallel,
-            # not innermost and is not incrementing by a Symbol. Symbol increments
-            # are encountered in blocked (tiled) loops where symbols are used as
-            # increments to help parametrize the block shape.
-            if (PARALLEL not in c.properties[d] or d.symbolic_incr.is_Symbol):
+            # Explore skewing possibilities only in case d is parallel,
+            # not innermost
+            if PARALLEL not in c.properties[d]:
                 return clusters
 
-            if d is c.ispace[-1].dim and self.skewinner is False:
+            if d is c.ispace[-1].dim and not self.skewinner:
                 return clusters
 
-            mapper, intervals = {}, []
             skew_dim = None
-
-            relations = c.ispace.intervals.relations
-
-            properties = {k: v for k, v in c.properties.items()}
-            for n, i in enumerate(c.ispace):
-                # Identify a skew_dim and its position
-                if (SEQUENTIAL in c.properties[i.dim] and
-                   not i.dim.symbolic_incr.is_Symbol):
+            # Search for a skew_dim candidate
+            for i in c.ispace:
+                if SEQUENTIAL in c.properties[i.dim]:
                     skew_dim = i.dim
+                    continue
             if not skew_dim:
                 # return if no skewing dimension found
                 return clusters
 
             # Since we are here, prefix is skewable and nested under a
             # SEQUENTIAL loop.
-            mapper[d] = d - skew_dim
-
+            intervals = []
             for i in c.ispace:
                 if i.dim is d:
-                    intervals.append(Interval(i.dim, skew_dim, skew_dim))
+                    intervals.append(Interval(d, skew_dim, skew_dim))
                 else:
                     intervals.append(i)
-
-            intervals = IntervalGroup(intervals, relations=relations)
-
-            exprs = xreplace_indices(c.exprs, mapper)
+            intervals = IntervalGroup(intervals, relations=c.ispace.relations)
             ispace = IterationSpace(intervals, c.ispace.sub_iterators,
                                     c.ispace.directions)
+
+            exprs = xreplace_indices(c.exprs, {d: d - skew_dim})
             processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                       properties=properties))
+                                       properties=c.properties))
 
         return processed
