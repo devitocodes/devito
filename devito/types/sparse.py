@@ -279,7 +279,6 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         raise NotImplementedError
 
-    @memoized_meth
     def _arg_defaults(self, alias=None):
         key = alias or self
         mapper = {self: key}
@@ -1349,16 +1348,6 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         self.scatter_result = None
         self.scattered_data = None
-
-        # Because AbstractSparseFunction._arg_defaults caches the values of the
-        # above arrays, we also need to wipe out our per-object cache
-        try:
-            # Names are mangled to prevent this kind of tomfoolery
-            # So instead of clearing __cache we do this
-            # https://dbader.org/blog/meaning-of-underscores-in-python
-            del self._memoized_meth__cache_meth
-        except AttributeError:
-            pass
 
     @property
     def dt(self):

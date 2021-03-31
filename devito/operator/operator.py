@@ -490,9 +490,6 @@ class Operator(Callable):
                 # User-provided floats/ndarray obviously do not have `_arg_as_ctype`
                 args.update(p._arg_as_ctype(args, alias=p))
 
-        # Add in any backend-specific argument
-        args.update(kwargs.pop('backend', {}))
-
         # Execute autotuning and adjust arguments accordingly
         args = self._autotune(args, kwargs.pop('autotune', configuration['autotuning']))
 
