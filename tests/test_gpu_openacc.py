@@ -179,7 +179,7 @@ class TestOperator(object):
     @skipif('nodevice')
     @pytest.mark.parametrize('blocklevels', [0, 1])
     def test_iso_acoustic(self, blocklevels):
-        TestOperator().iso_acoustic(opt=('blocking', {'blocklevels': blocklevels}))
+        TestOperator().iso_acoustic(opt=('advanced', {'blocklevels': blocklevels}))
 
 
 class TestMPI(object):
