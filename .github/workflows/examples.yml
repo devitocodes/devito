@@ -15,6 +15,11 @@ jobs:
     name: Examples with conda install
     runs-on: ubuntu-latest
 
+    defaults:
+      # Default for conda env
+      run:
+        shell: bash -l {0}
+
     env:
       DEVITO_ARCH: gcc-7
       DEVITO_LANGUAGE: "openmp"
@@ -34,22 +39,17 @@ jobs:
       with:
        activate-environment: devito
        environment-file: environment-dev.yml
-       python-version: 3.7
        auto-activate-base: false
 
     - name: Install dependencies
-      # See setup-miniconda README, necessary to activate environment
-      shell: bash -l {0}
       run: |
         pip install -e .
         pip install matplotlib
 
     - name: Tests in examples
-      shell: bash -l {0}
       run: py.test --cov --cov-config=.coveragerc --cov-report=xml examples/
 
     - name: Seismic acoustic examples
-      shell: bash -l {0}
       run: |
         python examples/seismic/acoustic/acoustic_example.py --full
         python examples/seismic/acoustic/acoustic_example.py --full --checkpointing
@@ -62,7 +62,6 @@ jobs:
         python examples/seismic/viscoacoustic/viscoacoustic_example.py -k deng_mcmechan
 
     - name: Seismic tti examples
-      shell: bash -l {0}
       run: |
         python examples/seismic/tti/tti_example.py -a basic
         python examples/seismic/tti/tti_example.py -a basic --noazimuth
@@ -70,18 +69,15 @@ jobs:
         python examples/seismic/tti/tti_example.py --full -so 12
 
     - name: Seismic elastic examples
-      shell: bash -l {0}
       run: |
         python examples/seismic/elastic/elastic_example.py
         python examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Linear algebra example
-      shell: bash -l {0}
       run: |
         python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec
 
     - name: CFD examples
-      shell: bash -l {0}
       run: |
         python examples/cfd/example_diffusion.py
 
