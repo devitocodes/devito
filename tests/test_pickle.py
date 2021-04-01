@@ -516,19 +516,18 @@ def test_compilerfunction():
     assert new_pcf.ndim == cf.ndim + 1
 
 
-@skipif(['nompi'])
-@pytest.mark.parallel(mode=[1])
 def test_deviceid():
-    grid = Grid(shape=(4, 4, 4))
-
-    did = DeviceID(grid.distributor._obj_comm)
+    did = DeviceID()
 
     pkl_did = pickle.dumps(did)
     new_did = pickle.loads(pkl_did)
+    # TODO: this will be extend when we'll support DeviceID
+    # for multi-node multi-gpu execution, when DeviceID will have
+    # to pick its default value from an MPI communicator attached
+    # to the runtime arguments
 
     assert did.name == new_did.name
     assert did.dtype == new_did.dtype
-    assert did.data == new_did.data
 
 
 @skipif(['nompi'])

@@ -727,7 +727,6 @@ class TestAPI(object):
 
         deviceid = self.get_param(op, DeviceID)
         assert deviceid is not None
-        assert deviceid.data == -1
         assert op.arguments()[deviceid.name] == -1
         assert op.arguments(deviceid=0)[deviceid.name] == 0
 
@@ -748,8 +747,7 @@ class TestAPI(object):
 
         devicerm = self.get_param(op, DeviceRM)
         assert devicerm is not None
-        assert devicerm.data == 1  # Always evict, by default
-        assert op.arguments(time_M=2)[devicerm.name] == 1
+        assert op.arguments(time_M=2)[devicerm.name] == 1  # Always evict by default
         assert op.arguments(time_M=2, devicerm=0)[devicerm.name] == 0
         assert op.arguments(time_M=2, devicerm=1)[devicerm.name] == 1
         assert op.arguments(time_M=2, devicerm=224)[devicerm.name] == 1

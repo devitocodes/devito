@@ -191,6 +191,7 @@ class ViscoacousticWaveSolver(object):
                                           time_order=self.time_order,
                                           space_order=self.space_order)
             kwargs.update({k.name: k for k in va})
+            kwargs['time_m'] = 0
 
         pa = pa or TimeFunction(name="pa", grid=self.model.grid,
                                 time_order=self.time_order, space_order=self.space_order,
@@ -209,14 +210,10 @@ class ViscoacousticWaveSolver(object):
             # Execute operator and return wavefield and receiver data
             # With Memory variable
             summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, r=r,
-                                          dt=kwargs.pop('dt', self.dt),
-                                          time_m=0 if self.time_order == 1 else None,
-                                          **kwargs)
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
         else:
             summary = self.op_adj().apply(src=srca, rec=rec, pa=pa,
-                                          dt=kwargs.pop('dt', self.dt),
-                                          time_m=0 if self.time_order == 1 else None,
-                                          **kwargs)
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, pa, va, summary
 
     def jacobian_adjoint(self, rec, p, pa=None, grad=None, r=None, model=None,

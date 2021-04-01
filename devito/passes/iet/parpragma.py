@@ -12,7 +12,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
 from devito.tools import as_tuple, is_integer, prod
-from devito.types import Symbol, NThreadsMixin
+from devito.types import Symbol, NThreadsBase
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
            'PragmaDeviceAwareTransformer', 'PragmaLangBB']
@@ -360,7 +360,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         iet = Transformer(mapper).visit(iet)
 
         # The new arguments introduced by this pass
-        args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
+        args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsBase))]
         for n in FindNodes(VExpanded).visit(iet):
             args.extend([(n.pointee, True), n.pointer])
 

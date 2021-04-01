@@ -64,7 +64,7 @@ class BasicOperator(Operator):
 
     @property
     def nthreads(self):
-        nthreads = [i for i in self.input if type(i).__base__ is NThreads]
+        nthreads = [i for i in self.input if isinstance(i, NThreads)]
         if len(nthreads) == 0:
             return 1
         else:

@@ -118,7 +118,7 @@ class Graph(object):
                         continue
 
                     if efunc is self.root and not (a.is_Input or a.is_Object):
-                        # Temporaries (ie, Scalars, Arrays) *cannot* be args in `root`
+                        # Temporaries (ie, Symbol, Arrays) *cannot* be args in `root`
                         continue
 
                     processed.append(a)
