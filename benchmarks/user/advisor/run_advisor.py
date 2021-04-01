@@ -112,9 +112,11 @@ def run_with_advisor(path, output, name, exec_args):
         '-start-paused',  # The generated code will enable/disable Advisor on a loop basis
     ]
     advisor_flops = [
-        '-collect tripcounts',
-        '-enable-cache-simulation',
-        '-flop',
+        '--collect=tripcounts',
+        '--enable-cache-simulation', # Switch to '-enable-cache-simulation' for a CARM roofline `https://software.intel.com/content/www/us/en/develop/articles/integrated-roofline-model-with-intel-advisor.html`  # noqa
+        '--flop',
+        '--stacks',
+        '--collect=map',
         '-start-paused',
     ]
     py_cmd = [sys.executable, str(path)] + exec_args.split()
