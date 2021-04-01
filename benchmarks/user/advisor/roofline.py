@@ -1,5 +1,8 @@
 """
-Generate a roofline for the Intel Advisor ``project`` and generate a JSON file containing all the information to generate a roofline plot of the results obtained with an Advisor roofline analysis. The JSON can be therefore used flexibly.
+Generate a roofline for the Intel Advisor ``project`` and generate a JSON file
+containing all the necessary information to generate a roofline plot of the
+results obtained with an Advisor roofline analysis.
+The JSON can be therefore used flexibly.
 
 This module has been partly extracted from the examples directory of Intel Advisor 2018.
 """
@@ -57,7 +60,8 @@ plt.style.use('seaborn-darkgrid')
                    'the most time consuming loop.')
 @click.option('--th', default=0, help='Percentage threshold (e.g. 95) such that loops '
                                       'under this value in execution time consumed will '
-                                      'not be displayed/collected. Only valid for --top-loops.')
+                                      'not be displayed/collected.'
+                                      'Only valid for --top-loops.')
 def roofline(name, project, scale, precision, mode, th):
     pd.options.display.max_rows = 20
 
@@ -173,7 +177,7 @@ def roofline(name, project, scale, precision, mode, th):
                            'incidence': row.percent_weight}
                           for _, row in top_df.iterrows()]
         roofline_data['top-loops'] = top_loops_data
-    elif mode == 'all': #json dumping only
+    elif mode == 'all':  # JSON dumping only
         max_self_time = df.self_time.max()
         top_df = df[(max_self_time / df.self_time < 10) &
                     (max_self_time / df.self_time >= 1) & (df.percent_weight >= th)]
@@ -198,7 +202,6 @@ def roofline(name, project, scale, precision, mode, th):
     plt.savefig('%s.png' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
     figpath = os.path.realpath(__file__).split(os.path.basename(__file__))[0]
     log('Figure saved in %s%s.png.' % (figpath, name))
-
 
     # Save the JSON file
     with open('%s.json' % name, 'w') as f:
