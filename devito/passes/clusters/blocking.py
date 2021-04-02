@@ -17,7 +17,7 @@ def blocking(clusters, options):
 
     Parameters
     ----------
-    clusters : Cluster
+    clusters : tuple of Clusters
         Input Clusters, subject of the optimization pass.
     options : dict
         The optimization options.
@@ -32,7 +32,6 @@ def blocking(clusters, options):
     ------
     In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed.
     """
-
     clusters = preprocess(clusters, options)
     processed = Blocking(options).process(clusters)
 
