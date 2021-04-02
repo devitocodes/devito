@@ -169,7 +169,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="kn">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">Distributor</span><span class="p">,</span> <span class="n">MPI</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">memoized_meth</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span>
 <span class="kn">from</span> <span class="nn">devito.types.args</span> <span class="kn">import</span> <span class="n">ArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">Scalar</span>
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">Function</span>
@@ -463,7 +463,6 @@
                 <span class="n">ret</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">a</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">])</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
-    <span class="nd">@memoized_meth</span>
     <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;A map of default argument values defined by this Grid.&quot;&quot;&quot;</span>
         <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">()</span>

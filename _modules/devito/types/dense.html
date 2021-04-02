@@ -953,9 +953,6 @@
         <span class="sd">&quot;&quot;&quot;Tuple of argument names introduced by this function.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,)</span>
 
-    <span class="c1"># NOTE: This _arg_defaults, unlike many others, cannot be memoized</span>
-    <span class="c1"># since it leads to halo&#39;s not being updated when required. See</span>
-    <span class="c1"># test_mpi: test_haloupdate_multi_op</span>
     <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A map of default argument values defined by this symbol.</span>
