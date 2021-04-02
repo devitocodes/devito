@@ -131,3 +131,5 @@ are facing issues or just trying it out, join the
 
 ## Interactive jupyter notebooks
 The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/master) jupyterhub. 
+
+DROP ME
