@@ -7,7 +7,7 @@ from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.mpi import Distributor, MPI
-from devito.tools import ReducerMap, as_tuple, memoized_meth
+from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -301,7 +301,6 @@ class Grid(ArgProvider):
                 ret.extend([a.name for a in i.free_symbols])
         return tuple(ret)
 
-    @memoized_meth
     def _arg_defaults(self):
         """A map of default argument values defined by this Grid."""
         args = ReducerMap()
