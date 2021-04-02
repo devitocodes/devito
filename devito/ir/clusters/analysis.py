@@ -165,9 +165,6 @@ class Tiling(Detector):
     Detect the TILABLE Dimensions.
     """
 
-    def process(self, elements):
-        return self._process_fdta(elements, 1)
-
     def _callback(self, clusters, d, prefix):
         # A Dimension is TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
@@ -200,9 +197,6 @@ class Skewing(Detector):
     """
     Detect the SKEWABLE Dimensions.
     """
-
-    def process(self, elements):
-        return self._process_fdta(elements, 1)
 
     def _callback(self, clusters, d, prefix):
         # A Dimension is SKEWABLE in case it is TILABLE

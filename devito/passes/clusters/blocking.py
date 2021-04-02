@@ -24,9 +24,8 @@ def blocking(clusters, options):
         * `blockinner` (boolean, False): enable/disable loop blocking along the
            innermost loop.
         * `blocklevels` (int, 1): 1 => classic loop blocking; 2 for two-level
-           hierarchical
-           blocking.
-        * `skewing` (boolean, False): enable loop skewing.
+           hierarchical blocking.
+        * `skewing` (boolean, False): enable/disable loop skewing.
 
     Notes
     ------
@@ -60,8 +59,7 @@ class Blocking(Queue):
         if self.levels < 1:
             return clusters
         else:
-            processed = super(Blocking, self).process(clusters)
-            return processed
+            return super(Blocking, self).process(clusters)
 
     def _process_fdta(self, clusters, level, prefix=None):
         # Truncate recursion in case of TILABLE, non-perfect sub-nests, as
@@ -251,15 +249,12 @@ class Skewing(Queue):
 
         processed = []
         for c in clusters:
-            # Explore skewing possibilities only in case d is SKEWABLE
-            # and not innermost
             if SKEWABLE not in c.properties[d]:
                 return clusters
 
             if d is c.ispace[-1].dim and not self.skewinner:
                 return clusters
 
-            # Search for a skew_dim candidate, if more than one, we keep the last
             skew_dims = {i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]}
             if len(skew_dims) > 1:
                 return clusters

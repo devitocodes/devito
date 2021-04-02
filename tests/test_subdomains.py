@@ -159,7 +159,7 @@ class TestSubdomains(object):
 
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
 
-    @pytest.mark.parametrize('opt', ['advanced', 'blocking',
+    @pytest.mark.parametrize('opt', ['advanced',
                                      ('blocking', {'skewing': True}),
                                      ('blocking', {'skewing': True, 'blockinner': True})])
     def test_iterate_NDomains(self, opt):
@@ -367,9 +367,9 @@ class TestSubdomains(object):
 
         assert((np.array(result) == np.array(fex.data[:])).all())
 
-    @pytest.mark.parametrize('opt', ['advanced', 'blocking',
-                                     ('blocking', {'skewing': True}),
-                                     ('blocking', {'skewing': True, 'blockinner': True})])
+    @pytest.mark.parametrize('opt', ['advanced',
+                                     ('advanced', {'skewing': True}),
+                                     ('advanced', {'skewing': True, 'blockinner': True})])
     def test_multi_sets_eq(self, opt):
         """
         Check functionality for when multiple subdomain sets are present, each
