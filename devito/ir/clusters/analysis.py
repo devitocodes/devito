@@ -205,22 +205,7 @@ class Skewing(Detector):
         return self._process_fdta(elements, 1)
 
     def _callback(self, clusters, d, prefix):
-        # A Dimension is SKEWABLE only if it's PARALLEL and AFFINE
+        # A Dimension is SKEWABLE in case it is TILABLE
         properties = self._fetch_properties(clusters, prefix)
-        if not {PARALLEL, AFFINE} <= properties[d]:
-            return
-
-        # In addition, we use the heuristic that we do not consider
-        # SKEWABLE a Dimension that is not embedded in at least one
-        # SEQUENTIAL Dimension. This is to rule out tiling when the
-        # computation is not expected to be expensive
-        if not any(SEQUENTIAL in properties[i.dim] for i in prefix[:-1]):
-            return
-
-        # Likewise, it won't be marked SKEWABLE if there's at least one
-        # local SubDimension in all Clusters
-        if all(any(i.dim.is_Sub and i.dim.local for i in c.itintervals)
-               for c in clusters):
-            return
-
-        return SKEWABLE
+        if {TILABLE} <= properties[d]:
+            return SKEWABLE

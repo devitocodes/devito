@@ -17,18 +17,20 @@ def blocking(clusters, options):
 
     Parameters
     ----------
-    cluster : Cluster
-        Input Cluster, subject of the optimization pass.
+    clusters : Cluster
+        Input Clusters, subject of the optimization pass.
     options : dict
         The optimization options.
-        * `blockinner` (boolean, False): enable/disable loop blocking along innermost loop
-        * `blocklevels` (int, 1): 1 => classic loop blocking; 2 for two-level hierarchical
-           blocking
-        * `skewing` (boolean, False): enable loop skewing
+        * `blockinner` (boolean, False): enable/disable loop blocking along the
+           innermost loop.
+        * `blocklevels` (int, 1): 1 => classic loop blocking; 2 for two-level
+           hierarchical
+           blocking.
+        * `skewing` (boolean, False): enable loop skewing.
 
     Notes
     ------
-    In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed
+    In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed.
     """
 
     clusters = preprocess(clusters, options)
@@ -104,14 +106,13 @@ class Blocking(Queue):
 
                 # The new Cluster properties
                 # TILABLE property is dropped after the blocking.
-                # SKEWABLE is dropped as well only from the new
+                # SKEWABLE is dropped as well, but only from the new
                 # block dimensions.
                 properties = dict(c.properties)
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
-                properties.update({bd: c.properties[d] - {SKEWABLE} for bd in
-                                   block_dims[:-1]})
-
+                properties.update({bd: c.properties[d] - {SKEWABLE}
+                                  for bd in block_dims[:-1]})
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            properties=properties))
             else:
@@ -259,15 +260,11 @@ class Skewing(Queue):
             if d is c.ispace[-1].dim and not self.skewinner:
                 return clusters
 
-            skew_dim = None
-            # Search for a skew_dim candidate
-            for i in c.ispace:
-                if SEQUENTIAL in c.properties[i.dim]:
-                    skew_dim = i.dim
-                    continue
-            if not skew_dim:
-                # return if no skewing dimension found
+            # Search for a skew_dim candidate, if more than one, we keep the last
+            skew_dims = {i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]}
+            if len(skew_dims) > 1:
                 return clusters
+            skew_dim = skew_dims.pop()
 
             # Since we are here, prefix is skewable and nested under a
             # SEQUENTIAL loop.

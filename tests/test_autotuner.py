@@ -263,15 +263,14 @@ def test_multiple_blocking():
     assert len(op._state['autotuning'][0]['tuned']) == 5
 
 
-@pytest.mark.parametrize('add_opt', [{'skewing': False}, {'skewing': True}])
-def test_hierarchical_blocking(add_opt):
+@pytest.mark.parametrize('opt_options', [{'skewing': False}, {'skewing': True}])
+def test_hierarchical_blocking(opt_options):
     grid = Grid(shape=(64, 64, 64))
 
     u = TimeFunction(name='u', grid=grid, space_order=2)
 
-    opt_dict = {'openmp': False, 'blocklevels': 2}
-    opt_dict.update(add_opt)
-    op = Operator(Eq(u.forward, u + 1), opt=('blocking', opt_dict))
+    opt = ('blocking', {**opt_options, 'openmp': False, 'blocklevels': 2})
+    op = Operator(Eq(u.forward, u + 1), opt=opt)
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
@@ -287,18 +286,17 @@ def test_hierarchical_blocking(add_opt):
 
 
 @switchconfig(platform='cpu64-dummy')  # To fix the core count
-@pytest.mark.parametrize('opt_dict', [{'skewing': False}, {'skewing': True}])
-def test_multiple_threads(opt_dict):
+@pytest.mark.parametrize('opt_options', [{'skewing': False}, {'skewing': True}])
+def test_multiple_threads(opt_options):
     """
     Test autotuning when different ``num_threads`` for a given OpenMP parallel
     region are attempted.
     """
     grid = Grid(shape=(96, 96, 96))
 
-    opt_dict.update({'openmp': True})
     v = TimeFunction(name='v', grid=grid)
-
-    op = Operator(Eq(v.forward, v + 1), opt=('blocking', opt_dict))
+    opt = ('blocking', {**opt_options, 'openmp': True})
+    op = Operator(Eq(v.forward, v + 1), opt=opt)
 
     op.apply(time_M=0, autotune='max')
     assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
