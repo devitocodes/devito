@@ -10,13 +10,12 @@ from collections.abc import Iterable
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.equations import ClusterizedEq, DummyEq
+from devito.ir.equations import DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
-from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          validate_type)
+from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
@@ -332,7 +331,6 @@ class Expression(ExprStmt, Node):
 
     is_Expression = True
 
-    @validate_type(('expr', ClusterizedEq))
     def __init__(self, expr, pragmas=None):
         self.__expr_finalize__(expr, pragmas)
 
@@ -893,8 +891,6 @@ class ForeignExpression(Expression):
 
     is_ForeignExpression = True
 
-    @validate_type(('expr', FunctionFromPointer),
-                   ('dtype', type))
     def __init__(self, expr, dtype, **kwargs):
         self._dtype = dtype
         self._is_increment = kwargs.get('is_Increment', False)

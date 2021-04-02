@@ -71,22 +71,6 @@ class Search(object):
             found.update(self.collection.wrap(expr))
         return found
 
-    def dfs_first_hit(self, expr):
-        """
-        Perform a DFS search, returning immediately when a node matches the query.
-
-        Parameters
-        ----------
-        expr : expr-like
-            The searched expression.
-        """
-        found = self.collection()
-        for a in self._next(expr):
-            found.update(self.dfs_first_hit(a))
-        if not found and self.query(expr):
-            found.update(self.collection.wrap(expr))
-        return found
-
     def bfs(self, expr):
         """
         Perform a BFS search.
@@ -132,8 +116,6 @@ def search(exprs, query, mode='unique', visit='dfs', deep=False):
     for e in as_tuple(exprs):
         if visit == 'dfs':
             found.update(searcher.dfs(e))
-        elif visit == 'dfs_first_hit':
-            found.update(searcher.dfs_first_hit(e))
         elif visit == 'bfs':
             found.update(searcher.bfs(e))
         elif visit == "bfs_first_hit":
