@@ -14,6 +14,9 @@ Prerequisites:
 * Support guaranteed only for Intel Advisor as installed with Intel Parallel Studio v 2020 Update 2
   and Intel oneAPI 2021; earlier years may not work; other 2020/2021 versions, as well as later years,
   may or may not work.
+* In Linux systems you may need to set:
+  - `/proc/sys/kernel/yama/ptrace_scope` to `0`
+  - `/proc/sys/kernel/perf_event_paranoid` to `1`
 * `numactl` must be available on the system. If not available, install with:
 	`sudo apt-get install numactl`
 * Install `pandas` and `matplotlib`. They are not included in the core Devito installation.
