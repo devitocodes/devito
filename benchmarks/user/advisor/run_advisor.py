@@ -100,7 +100,6 @@ def run_with_advisor(path, output, name, exec_args):
     ]
     advisor_cmd = [
         'advixe-cl',
-        #'-q',  # Silence advisor
         '-data-limit=500',
         '-project-dir', str(output),
         '-search-dir src:r=%s' % gettempdir(),  # Root directory where Devito stores the generated code  # noqa
