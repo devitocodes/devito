@@ -168,3 +168,10 @@ def pytest_runtest_call(item):
     if item.get_closest_marker("parallel") and not partest:
         # Spawn parallel processes to run test
         parallel(item)
+
+
+# A list of optimization options/pipelines to be used in testing
+# regarding spatial and/or temporal blocking.
+opts_tiling = ['advanced',
+               ('advanced', {'skewing': True}),
+               ('advanced', {'skewing': True, 'blockinner': True})]
