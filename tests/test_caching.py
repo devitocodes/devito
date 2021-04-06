@@ -7,7 +7,7 @@ from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunc
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
                     DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
                     TensorFunction, TensorTimeFunction, VectorTimeFunction)
-from devito.types import Scalar, Symbol, NThreadsBase, DeviceID, ThreadID
+from devito.types import Scalar, Symbol, NThreadsBase, DeviceID, NPThreads, ThreadID
 
 
 @pytest.fixture
@@ -408,6 +408,12 @@ class TestCaching(object):
         did0 = DeviceID()
         did1 = DeviceID()
         assert did0 is did1
+
+        npt0 = NPThreads(name='npt', size=3)
+        npt1 = NPThreads(name='npt', size=3)
+        npt2 = NPThreads(name='npt', size=4)
+        assert npt0 is npt1
+        assert npt0 is not npt2
 
     def test_symbol_aliasing(self):
         """Test to assert that our aliasing cache isn't defeated by sympys

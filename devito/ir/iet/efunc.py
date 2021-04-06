@@ -118,7 +118,7 @@ class ThreadFunction(Callable):
 def _make_threads(value, sregistry):
     name = sregistry.make_name(prefix='threads')
 
-    base_id = 1 + sum(i.data for i in sregistry.npthreads)
+    base_id = 1 + sum(i.size for i in sregistry.npthreads)
 
     if value is None:
         # The npthreads Symbol isn't actually used, but we record the fact

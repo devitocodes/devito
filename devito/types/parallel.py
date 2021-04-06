@@ -14,6 +14,7 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
+from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
 from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered
 from devito.types.array import Array, ArrayObject
@@ -70,9 +71,27 @@ class NPThreads(NThreadsBase):
 
     name = 'npthreads'
 
-    @property
-    def default_value(self):
-        return 1
+    def __new__(cls, **kwargs):
+        obj = super().__new__(cls, **kwargs)
+
+        # Size of the thread pool
+        obj.size = kwargs['size']
+
+        return obj
+
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            v = kwargs.pop(self.name)
+            if v < self.size:
+                return {self.name: v}
+            else:
+                raise InvalidArgument("Illegal `%s=%d`. It must be `%s<%d`"
+                                      % (self.name, v, self.name, self.size))
+        else:
+            return self._arg_defaults()
+
+    # Pickling support
+    _pickle_kwargs = NThreadsBase._pickle_kwargs + ['size']
 
 
 class ThreadID(CustomDimension):

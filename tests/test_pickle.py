@@ -13,7 +13,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID, ThreadID, TempFunction)
+                          DeviceID, NPThreads, ThreadID, TempFunction)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -528,6 +528,17 @@ def test_deviceid():
 
     assert did.name == new_did.name
     assert did.dtype == new_did.dtype
+
+
+def test_npthreads():
+    npt = NPThreads(name='npt', size=3)
+
+    pkl_npt = pickle.dumps(npt)
+    new_npt = pickle.loads(pkl_npt)
+
+    assert npt.name == new_npt.name
+    assert npt.dtype == new_npt.dtype
+    assert npt.size == new_npt.size
 
 
 @skipif(['nompi'])

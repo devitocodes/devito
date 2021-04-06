@@ -36,8 +36,8 @@ class SymbolRegistry(object):
 
         return "%s%d" % (prefix, counter())
 
-    def make_npthreads(self, value):
+    def make_npthreads(self, size):
         name = self.make_name(prefix='npthreads')
-        npthreads = NPThreads(name=name, value=value)
+        npthreads = NPThreads(name=name, size=size)
         self.npthreads.append(npthreads)
         return npthreads
