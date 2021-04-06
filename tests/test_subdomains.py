@@ -367,10 +367,7 @@ class TestSubdomains(object):
 
         assert((np.array(result) == np.array(fex.data[:])).all())
 
-    @pytest.mark.parametrize('opt', ['advanced',
-                                     ('advanced', {'skewing': True}),
-                                     ('advanced', {'skewing': True, 'blockinner': True})])
-    def test_multi_sets_eq(self, opt):
+    def test_multi_sets_eq(self):
         """
         Check functionality for when multiple subdomain sets are present, each
         with multiple equations.
@@ -416,7 +413,7 @@ class TestSubdomains(object):
         eq3 = Eq(f, f-1, subdomain=grid.subdomains['mydomains1'])
         eq4 = Eq(g, g+1, subdomain=grid.subdomains['mydomains2'])
 
-        op = Operator([eq1, eq2, eq3, eq4], opt=opt)
+        op = Operator([eq1, eq2, eq3, eq4])
         op.apply()
 
         expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

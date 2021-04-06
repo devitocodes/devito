@@ -47,7 +47,10 @@ class TestBufferedDimension(object):
 
 class TestSubDimension(object):
 
-    def test_interior(self):
+    @pytest.mark.parametrize('opt', ['advanced',
+                                     ('advanced', {'skewing': True}),
+                                     ('advanced', {'skewing': True, 'blockinner': True})])
+    def test_interior(self, opt):
         """
         Tests application of an Operator consisting of a single equation
         over the ``interior`` subdomain.
@@ -61,7 +64,7 @@ class TestSubDimension(object):
 
         eqn = [Eq(u.forward, u + 2, subdomain=interior)]
 
-        op = Operator(eqn)
+        op = Operator(eqn, opt=opt)
         op.apply(time_M=2)
         assert np.all(u.data[1, 1:-1, 1:-1, 1:-1] == 6.)
         assert np.all(u.data[1, :, 0] == 0.)
@@ -97,7 +100,10 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, :, -1] == 1)
         assert np.all(u.data[1, 1:3, 1:3, 1:3] == 3)
 
-    def test_subdim_middle(self):
+    @pytest.mark.parametrize('opt', ['advanced',
+                                     ('advanced', {'skewing': True}),
+                                     ('advanced', {'skewing': True, 'blockinner': True})])
+    def test_subdim_middle(self, opt):
         """
         Tests that instantiating SubDimensions using the classmethod
         constructors works correctly.
@@ -113,7 +119,7 @@ class TestSubDimension(object):
         eqs = [Eq(u.forward, u + 1)]
         eqs = [e.subs(x, xi) for e in eqs]
 
-        op = Operator(eqs)
+        op = Operator(eqs, opt=opt)
 
         u.data[:] = 1.0
         op.apply(time_M=1)
@@ -138,7 +144,10 @@ class TestSubDimension(object):
         xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
         assert xright.symbolic_size == xright.thickness.right[0]
 
-    def test_bcs(self):
+    @pytest.mark.parametrize('opt', ['advanced',
+                                     ('advanced', {'skewing': True}),
+                                     ('advanced', {'skewing': True, 'blockinner': True})])
+    def test_bcs(self, opt):
         """
         Tests application of an Operator consisting of multiple equations
         defined over different sub-regions, explicitly created through the
@@ -163,7 +172,7 @@ class TestSubDimension(object):
         leftbc = Eq(u[t+1, xleft, yi], u[t+1, xleft+1, yi] + 1)
         rightbc = Eq(u[t+1, xright, yi], u[t+1, xright-1, yi] + 1)
 
-        op = Operator([t_in_centre, leftbc, rightbc])
+        op = Operator([t_in_centre, leftbc, rightbc], opt=opt)
 
         op.apply(time_m=1, time_M=1)
 
@@ -287,7 +296,10 @@ class TestSubDimension(object):
         vectorized = [i.dim.name for i in iterations if i.is_Vectorized]
         assert set(vectorized) == set(expected)
 
-    def test_subdimmiddle_parallel(self):
+    @pytest.mark.parametrize('opt', ['advanced',
+                                     ('advanced', {'skewing': True}),
+                                     ('advanced', {'skewing': True, 'blockinner': True})])
+    def test_subdimmiddle_parallel(self, opt):
         """
         Tests application of an Operator consisting of a subdimension
         defined over different sub-regions, explicitly created through the
@@ -312,7 +324,8 @@ class TestSubDimension(object):
 
         u.data[0, 10, 10] = 1.0
 
-        op = Operator([centre])
+        op = Operator([centre], opt=opt)
+        print(op.ccode)
 
         iterations = FindNodes(Iteration).visit(op)
         assert all(i.is_Affine and i.is_Parallel for i in iterations if i.dim in [xi, yi])
@@ -484,7 +497,10 @@ class TestSubDimension(object):
         # "ValueError: No value found for parameter xi_size"
         op()
 
-    def test_expandingbox_like(self):
+    @pytest.mark.parametrize('opt', ['advanced',
+                                     ('advanced', {'skewing': True}),
+                                     ('advanced', {'skewing': True, 'blockinner': True})])
+    def test_expandingbox_like(self, opt):
         """
         Make sure SubDimensions aren't an obstacle to expanding boxes.
         """
@@ -498,7 +514,7 @@ class TestSubDimension(object):
         eqn = Eq(u.forward, u + 1)
         eqn = eqn.subs({x: xi, y: yi})
 
-        op = Operator(eqn)
+        op = Operator(eqn, opt=opt)
 
         op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
                  xi_ltkn=0, xi_rtkn=0, yi_ltkn=0, yi_rtkn=0)
@@ -582,7 +598,10 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
 
-    def test_spacial_subsampling(self):
+    @pytest.mark.parametrize('opt', ['advanced',
+                                     ('advanced', {'skewing': True}),
+                                     ('advanced', {'skewing': True, 'blockinner': True})])
+    def test_spacial_subsampling(self, opt):
         """
         Test conditional dimension for the spatial ones.
         This test saves u every two grid points :
@@ -603,7 +622,8 @@ class TestConditionalDimension(object):
         assert(time in u2.indices)
 
         eqns = [Eq(u.forward, u + 1.), Eq(u2, u)]
-        op = Operator(eqns)
+        op = Operator(eqns, opt=opt)
+        import pdb;pdb.set_trace()
         op.apply(time_M=nt-2)
         # Verify that u2[x,y]= u[2*x, 2*y]
         assert np.allclose(u.data[:-1, 0::2, 0::2], u2.data[:-1, :, :])

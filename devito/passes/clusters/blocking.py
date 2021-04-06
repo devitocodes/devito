@@ -31,8 +31,10 @@ def blocking(clusters, options):
     ------
     In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed.
     """
-    clusters = preprocess(clusters, options)
-    processed = Blocking(options).process(clusters)
+    processed = preprocess(clusters, options)
+
+    if options['blocklevels'] > 0:
+        processed = Blocking(options).process(processed)
 
     if options['skewing']:
         processed = Skewing(options).process(processed)
@@ -54,12 +56,6 @@ class Blocking(Queue):
 
     def _make_key_hook(self, cluster, level):
         return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
-
-    def process(self, clusters):
-        if self.levels < 1:
-            return clusters
-        else:
-            return super(Blocking, self).process(clusters)
 
     def _process_fdta(self, clusters, level, prefix=None):
         # Truncate recursion in case of TILABLE, non-perfect sub-nests, as
@@ -110,6 +106,7 @@ class Blocking(Queue):
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
                 properties.update({bd: c.properties[d] - {SKEWABLE}
                                   for bd in block_dims[:-1]})
+
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            properties=properties))
             else:

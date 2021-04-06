@@ -1,13 +1,10 @@
 import pytest
 
-from sympy import Add, cos, sin, sqrt  # noqa
-
-from devito.core.autotuning import options  # noqa
-from devito import Function, TimeFunction, Grid, Operator, Eq # noqa
+from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator # noqa
 from devito.ir import Expression, Iteration, FindNodes
 
 
-class TestCodeGenSkew(object):
+class TestCodeGenSkewing(object):
 
     '''
     Test code generation with blocking+skewing, tests adapted from test_operator.py
@@ -31,6 +28,7 @@ class TestCodeGenSkew(object):
         eqn = eval(expr)
         # List comprehension would need explicit locals/globals mappings to eval
         op = Operator(eqn, opt=('blocking', {'skewing': True}))
+        op.apply(time_M=5)
         iters = FindNodes(Iteration).visit(op)
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 1
@@ -78,7 +76,7 @@ class TestCodeGenSkew(object):
         eqn = eval(expr)
         # List comprehension would need explicit locals/globals mappings to eval
         op = Operator(eqn, opt=('blocking', {'skewing': True}))
-
+        op.apply()
         iters = FindNodes(Iteration).visit(op)
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 0
@@ -121,6 +119,7 @@ class TestCodeGenSkew(object):
         # List comprehension would need explicit locals/globals mappings to eval
         op = Operator(eqn, opt=('blocking', {'blocklevels': 0, 'skewing': skewing,
                                              'blockinner': blockinner}))
+        op.apply(time_M=5)
 
         iters = FindNodes(Iteration).visit(op)
 
