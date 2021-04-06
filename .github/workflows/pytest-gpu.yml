@@ -1,7 +1,6 @@
 # Runner information:
 # OpenACC on NVidia runs on `sarlaac`
-# OpenACC on AMD runs on `nexu`
-# OpenMP on NVidia runs on `bantha`
+# OpenMP on NVidia runs on `kimogila`
 
 name: CI-gpu
 
@@ -62,7 +61,7 @@ jobs:
           test_file: "tests/test_gpu_openacc.py"
           env_file: "devito-ci-nvidia-openacc.env"
           test_drive_cmd: "nvidia-smi"
-          arch: "pgcc"
+          arch: "nvcc"
           platform: "nvidiaX"
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
@@ -94,7 +93,7 @@ jobs:
     - name: Test with pytest
       run: |
         ${{ matrix.test_drive_cmd }}
-        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_gpu_common.py
+        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
 
     - name: Test examples
