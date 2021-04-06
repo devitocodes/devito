@@ -576,9 +576,9 @@ def AdjointOperator(model, geometry, space_order=4,
         stagg_p = stagg_r = None
 
     # Create symbols for forward wavefield, source and receivers
-    p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p, save=None,
+    p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p,
                      time_order=time_order, space_order=space_order)
-    r = TimeFunction(name='r', grid=model.grid, staggered=stagg_r, save=None,
+    r = TimeFunction(name='r', grid=model.grid, staggered=stagg_r,
                      time_order=time_order, space_order=space_order)
     srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
                        npoint=geometry.nsrc)
