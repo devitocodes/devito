@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from conftest import skipif, opts_tiling
+from conftest import skipif
 from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
 from devito.data import LEFT
 from devito.core.autotuning import options  # noqa
@@ -263,7 +263,6 @@ def test_multiple_blocking():
     assert len(op._state['autotuning'][0]['tuned']) == 5
 
 
-@pytest.mark.parametrize('opt', opts_tiling)
 @pytest.mark.parametrize('opt_options', [{'skewing': False}, {'skewing': True}])
 def test_hierarchical_blocking(opt_options):
     grid = Grid(shape=(64, 64, 64))
