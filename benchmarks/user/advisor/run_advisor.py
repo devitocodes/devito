@@ -100,7 +100,6 @@ def run_with_advisor(path, output, name, exec_args):
     ]
     advisor_cmd = [
         'advixe-cl',
-        '-q',  # Silence advisor
         '-data-limit=500',
         '-project-dir', str(output),
         '-search-dir src:r=%s' % gettempdir(),  # Root directory where Devito stores the generated code  # noqa
@@ -108,13 +107,16 @@ def run_with_advisor(path, output, name, exec_args):
     advisor_survey = [
         '-collect survey',
         '-run-pass-thru=--no-altstack',  # Avoids `https://software.intel.com/en-us/vtune-amplifier-help-error-message-stack-size-is-too-small`  # noqa
+        '-run-pass-thru=-timestamp=sys',  # Avoids 'VTune Amplifier may detect which timer source to use incorrectly on Intel® Xeon® processor E5-XXXX processors (200287361)' # noqa
         '-strategy ldconfig:notrace:notrace',  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
         '-start-paused',  # The generated code will enable/disable Advisor on a loop basis
     ]
     advisor_flops = [
-        '-collect tripcounts',
-        '-enable-cache-simulation',
-        '-flop',
+        '--collect=tripcounts',
+        '--enable-cache-simulation', # Switch to '-enable-cache-simulation' for a CARM roofline `https://software.intel.com/content/www/us/en/develop/articles/integrated-roofline-model-with-intel-advisor.html`  # noqa
+        '--flop',
+        '--stacks',
+        '--collect=map',
         '-start-paused',
     ]
     py_cmd = [sys.executable, str(path)] + exec_args.split()

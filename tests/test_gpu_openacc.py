@@ -34,6 +34,11 @@ class TestCodeGeneration(object):
             ('acc exit data delete(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
+        # Currently, advanced-fsg mode == advanced mode
+        op1 = Operator(Eq(u.forward, u + 1), platform='nvidiaX', language='openacc',
+                       opt='advanced-fsg')
+        assert str(op) == str(op1)
+
     def test_basic_customop(self):
         grid = Grid(shape=(3, 3, 3))
 

@@ -17,6 +17,7 @@ class IndexMode(Tag):
     """Tag for access functions."""
     pass
 AFFINE = IndexMode('affine')  # noqa
+REGULAR = IndexMode('regular')
 IRREGULAR = IndexMode('irregular')
 
 
@@ -80,8 +81,11 @@ class IterationInstance(LabeledVector):
                 retval.append(AFFINE)
             elif len(dims) == 1:
                 candidate = dims.pop()
-                if fi in candidate._defines and q_affine(i, candidate):
-                    retval.append(AFFINE)
+                if fi._defines & candidate._defines:
+                    if q_affine(i, candidate):
+                        retval.append(AFFINE)
+                    else:
+                        retval.append(REGULAR)
                 else:
                     retval.append(IRREGULAR)
             else:
@@ -147,7 +151,7 @@ class IterationInstance(LabeledVector):
 
     @cached_property
     def is_regular(self):
-        return all(i is AFFINE for i in self.index_mode)
+        return all(i in (AFFINE, REGULAR) for i in self.index_mode)
 
     @property
     def is_irregular(self):

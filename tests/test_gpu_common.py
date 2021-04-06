@@ -18,8 +18,8 @@ class TestGPUInfo(object):
     def test_get_gpu_info(self):
         info = get_gpu_info()
         try:
-            assert 'tesla' in info['architecture'].lower()
-        except TypeError:
+            assert info['architecture'].lower() in ['tesla', 'geforce', 'unspecified']
+        except KeyError:
             # There might be than one GPUs, but for now we don't care
             # as we're not really exploiting this info yet...
             pass
@@ -109,7 +109,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate'))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 4
+        assert len(retrieve_iteration_tree(op)) == 5
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
         assert len(op._func_table) == 2
@@ -148,13 +148,13 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate'))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 6
+        assert len(retrieve_iteration_tree(op)) == 7
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
-        assert len(sections) == 3
-        assert (str(sections[0].body[0].body[0].body[0].body[0]) ==
+        assert len(sections) == 4
+        assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
-        body = sections[1].body[0].body[0]
+        body = sections[2].body[0].body[0]
         assert (str(body.body[1].condition) ==
                 'Ne(lock0[0], 2) | Ne(FieldFromComposite(sdata0[wi0]), 1)')  # Wait-thread
         assert (str(body.body[1].body[0]) ==
@@ -162,7 +162,7 @@ class TestStreaming(object):
         assert str(body.body[2]) == 'sdata0[wi0].time = time;'
         assert str(body.body[3]) == 'lock0[0] = 0;'  # Set-lock
         assert str(body.body[4]) == 'sdata0[wi0].flag = 2;'
-        body = sections[2].body[0].body[0]
+        body = sections[3].body[0].body[0]
         assert (str(body.body[1].condition) ==
                 'Ne(lock1[0], 2) | Ne(FieldFromComposite(sdata1[wi1]), 1)')  # Wait-thread
         assert (str(body.body[1].body[0]) ==

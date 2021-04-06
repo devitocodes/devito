@@ -1,6 +1,6 @@
 # Runner information:
-# Standard NC24_Promo (24 vcpus, 224 GiB memory)
-# NVIDIA Tesla K80, Intel Xeon E5-2690 v3 (Haswell)
+# OpenACC on NVidia runs on `sarlaac`
+# OpenMP on NVidia runs on `kimogila`
 
 name: CI-gpu
 
@@ -9,74 +9,24 @@ env:
   RESOURCE_GROUP: CI-gpu
 
 on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  # Push-button activation
   workflow_dispatch:
     inputs:
       tags:
         description: 'Run GPU tests'
-  # Trigger the workflow on push to the master branch
-  push:
-    branches:
-      - master
 
 jobs:
-  # Start the self-hosted runner and start runner app
-  start-runners:
-    name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
-
-    strategy:
-      # Prevent all build to stop if a single one fails
-      fail-fast: false
-
-      matrix:
-        name: [
-          start-runner-omp,
-          start-runner-acc
-        ]
-        include:
-        - name: start-runner-omp
-          vm_name: gpu-runner-04
-
-        - name: start-runner-acc
-          vm_name: gpu-runner-02
-
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v2.3.2
-
-    - name: start VM
-      env:
-        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
-        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
-        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
-        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\startVM.ps1'"
-        -servicePrincipal $SP_APPID
-        -servicePrincipalSecret $SP_SECRET
-        -servicePrincipalTenantId $TENANT_ID
-        -azureSubscriptionName $SUB_ID
-        -resourceGroupName $RESOURCE_GROUP
-        -vmName ${{ matrix.vm_name }}
-
-    - name: set host
-      run: echo ::set-output name=action_host::$(az vm show -d -g $RESOURCE_GROUP -n ${{ matrix.vm_name }} --query publicIps -o tsv)
-      id: host
-
-    - name: start actions runner app
-      uses: fifsky/ssh-action@master
-      with:
-        command: |
-          #!/bin/bash
-          nohup actions-runner/run.sh >/dev/null 2>&1 &
-        host: ${{ steps.host.outputs.action_host }}
-        user: ${{ secrets.CI_GPU_VM_ADMIN_LOGIN }}
-        pass: ${{ secrets.CI_GPU_VM_ADMIN_PASSWORD }}
-        args: "-tt"
 
   build:
     name: ${{ matrix.name }}
-    needs: start-runners
     runs-on: ${{ matrix.tags }}
 
     env:
@@ -86,17 +36,22 @@ jobs:
       OMPI_CC: ${{ matrix.arch }}
 
     strategy:
-      # Prevent all build to stop if a single one fails
+      # Prevent all builds from terminating if one fails
       fail-fast: false
 
       matrix:
         name: [
+          # NOTE: We can re-instate this as a 'failing' build
+          # as soon as the hardware is ready
           pytest-gpu-omp,
           pytest-gpu-acc
+          # pytest-gpu-aomp
         ]
         include:
         - name: pytest-gpu-omp
           test_file: "tests/test_gpu_openmp.py"
+          env_file: "devito-ci-nvidia-openmp.env"
+          test_drive_cmd: "nvidia-smi"
           arch: "clang"
           platform: "nvidiaX"
           language: "openmp"
@@ -104,14 +59,31 @@ jobs:
 
         - name: pytest-gpu-acc
           test_file: "tests/test_gpu_openacc.py"
-          arch: "pgcc"
+          env_file: "devito-ci-nvidia-openacc.env"
+          test_drive_cmd: "nvidia-smi"
+          arch: "nvcc"
           platform: "nvidiaX"
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
 
+        # - name: pytest-gpu-aomp
+        #   test_file: "tests_gpu_aomp.py"
+        #   env_file: "devito-ci-amd-openmp.py"
+        #   test_drive_cmd: "TODO"
+        #   arch: "aomp"
+        #   platform: "amdgpuX"
+        #   language: "openmp"
+        #   tags: ["self-hosted", "gpu", "aomp"]
+
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
+
+    - name: Set environment
+      run: |
+        source $HOME/${{ matrix.env_file }}
+        echo "PATH=$PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
     - name: Install dependencies
       run: |
@@ -120,10 +92,8 @@ jobs:
 
     - name: Test with pytest
       run: |
-        if [ "${{ matrix.name }}" == 'pytest-gpu-acc' ]; then
-          pgaccelinfo
-        fi
-        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_gpu_common.py
+        ${{ matrix.test_drive_cmd }}
+        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
 
     - name: Test examples
@@ -147,45 +117,3 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
-
-  # Deallocate runners
-  stop-runners:
-    name: ${{ matrix.name }}
-    if: ${{ always() }}
-    needs: build
-    runs-on: ubuntu-latest
-
-    strategy:
-      # Prevent all build to stop if a single one fails
-      fail-fast: false
-
-      matrix:
-        name: [
-          stop-runner-omp,
-          stop-runner-acc
-        ]
-        include:
-        - name: stop-runner-omp
-          vm_name: gpu-runner-04
-
-        - name: stop-runner-acc
-          vm_name: gpu-runner-02
-
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v2.3.2
-
-    - name: stop VM
-      env:
-        SP_APPID: ${{ secrets.SERVICE_PRINCIPAL_APPID }}
-        SP_SECRET: ${{ secrets.SERVICE_PRINCIPAL_SECRET }}
-        TENANT_ID: ${{ secrets.SERVICE_PRINCIPAL_TENANTID }}
-        SUB_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      run: >
-        pwsh -command "& '${{ env.OUTPUT_PATH }}\.github\azure\stopVM.ps1'"
-        -servicePrincipal $SP_APPID
-        -servicePrincipalSecret $SP_SECRET
-        -servicePrincipalTenantId $TENANT_ID
-        -azureSubscriptionName $SUB_ID
-        -resourceGroupName $RESOURCE_GROUP
-        -vmName ${{ matrix.vm_name }}

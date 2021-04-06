@@ -7,6 +7,7 @@ from devito.ir.iet import (Expression, List, Prodder, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
 from devito.tools import flatten, is_integer, split
+from devito.logger import warning
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
 
@@ -146,5 +147,9 @@ def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
             expressions = FindNodes(Expression).visit(iet)
             functions &= {i.write for i in expressions}
 
-    return all(not (f.is_TimeFunction and f.save is not None and f not in gpu_fit)
-               for f in functions)
+    fsave = [f for f in functions if f.is_TimeFunction and f.save is not None]
+    if 'all-fallback' in gpu_fit and fsave:
+        warning("TimeFunction %s assumed to fit the GPU memory" % fsave)
+        return True
+
+    return all(f in gpu_fit for f in fsave)

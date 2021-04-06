@@ -10,13 +10,12 @@ from collections.abc import Iterable
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.equations import ClusterizedEq, DummyEq
+from devito.ir.equations import DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
-from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          validate_type)
+from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
@@ -66,10 +65,15 @@ class Node(Signer):
 
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
-        argnames = inspect.getfullargspec(cls.__init__).args
+        argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
+        try:
+            defaults = dict(zip(argnames[-len(defaultvalues):], defaultvalues))
+        except TypeError:
+            # No default kwarg values
+            defaults = {}
         obj._args = {k: v for k, v in zip(argnames[1:], args)}
         obj._args.update(kwargs.items())
-        obj._args.update({k: None for k in argnames[1:] if k not in obj._args})
+        obj._args.update({k: defaults.get(k) for k in argnames[1:] if k not in obj._args})
         return obj
 
     def _rebuild(self, *args, **kwargs):
@@ -327,7 +331,6 @@ class Expression(ExprStmt, Node):
 
     is_Expression = True
 
-    @validate_type(('expr', ClusterizedEq))
     def __init__(self, expr, pragmas=None):
         self.__expr_finalize__(expr, pragmas)
 
@@ -789,9 +792,10 @@ class PointerCast(ExprStmt, Node):
 
     is_PointerCast = True
 
-    def __init__(self, function, obj=None):
+    def __init__(self, function, obj=None, alignment=True):
         self.function = function
         self.obj = obj
+        self.alignment = alignment
 
     def __repr__(self):
         return "<PointerCast(%s)>" % self.function
@@ -832,41 +836,36 @@ class PointerCast(ExprStmt, Node):
 class Dereference(ExprStmt, Node):
 
     """
-    A node encapsulating a dereference from an object `parray` to another object
-    `array`. Two possibilities are supported:
+    A node encapsulating a dereference from a `pointer` to a `pointee`.
+    The following cases are supported:
 
-        * `parray` is a PointerArray and `array` is an Array (default case)
-        * `parray` is an ArrayObject representing a pointer to a C struct while
-          `array` is a field in `parray`.
+        * `pointer` is a PointerArray and `pointee` is an Array (typical case).
+        * `pointer` is an ArrayObject representing a pointer to a C struct while
+          `pointee` is a field in `pointer`.
     """
 
     is_Dereference = True
 
-    def __init__(self, array, parray):
-        self.array = array
-        self.parray = parray
+    def __init__(self, pointee, pointer):
+        self.pointee = pointee
+        self.pointer = pointer
 
     def __repr__(self):
-        return "<Dereference(%s,%s)>" % (self.array, self.parray)
+        return "<Dereference(%s,%s)>" % (self.pointee, self.pointer)
 
     @property
     def functions(self):
-        return (self.array, self.parray)
+        return (self.pointee, self.pointer)
 
     @property
     def free_symbols(self):
-        """
-        The symbols required by the PointerCast.
-
-        This may include DiscreteFunctions as well as Dimensions.
-        """
-        return ((self.array.indexed.label, self.parray.indexed.label) +
-                tuple(flatten(i.free_symbols for i in self.array.symbolic_shape[1:])) +
-                tuple(self.parray.free_symbols))
+        return ((self.pointee.indexed.label, self.pointer.indexed.label) +
+                tuple(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:])) +
+                tuple(self.pointer.free_symbols))
 
     @property
     def defines(self):
-        return (self.array,)
+        return (self.pointee,)
 
 
 class LocalExpression(Expression):
@@ -892,8 +891,6 @@ class ForeignExpression(Expression):
 
     is_ForeignExpression = True
 
-    @validate_type(('expr', FunctionFromPointer),
-                   ('dtype', type))
     def __init__(self, expr, dtype, **kwargs):
         self._dtype = dtype
         self._is_increment = kwargs.get('is_Increment', False)

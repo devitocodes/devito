@@ -22,9 +22,8 @@ def skipif(items, whole_module=False):
     assert isinstance(whole_module, bool)
     items = as_tuple(items)
     # Sanity check
-    accepted = set(configuration._accepted['backend'])
+    accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc'})
-    accepted.update({'no%s' % i for i in configuration._accepted['backend']})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -37,18 +36,6 @@ def skipif(items, whole_module=False):
                 skipit = "mpi4py/MPI not installed"
                 break
             continue
-        # Skip if an unsupported backend
-        if i == configuration['backend']:
-            skipit = "`%s` backend unsupported" % i
-            break
-        try:
-            _, noi = i.split('no')
-            if noi in configuration._accepted['backend']:
-                if noi != configuration['backend']:
-                    skipit = "`%s` backend unsupported" % i
-                    break
-        except ValueError:
-            pass
         # Skip if won't run on GPUs
         if i == 'device' and isinstance(configuration['platform'], Device):
             skipit = "device `%s` unsupported" % configuration['platform'].name
@@ -114,20 +101,11 @@ def parallel(item):
         if isinstance(m, int):
             nprocs = m
             scheme = 'basic'
-            restrain = False
         else:
             if len(m) == 2:
                 nprocs, scheme = m
-                restrain = False
-            elif len(m) == 3:
-                nprocs, scheme, restrain = m
             else:
                 raise ValueError("Can't run test: unexpected mode `%s`" % m)
-
-        if restrain and os.environ.get('MPI_RESTRAIN', False):
-            # A computationally expensive test that would take too long to
-            # run on the current machine
-            continue
 
         pyversion = sys.executable
         # Only spew tracebacks on rank 0.

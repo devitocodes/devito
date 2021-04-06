@@ -19,7 +19,7 @@ from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposit
 from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
-__all__ = ['HaloExchangeBuilder']
+__all__ = ['HaloExchangeBuilder', 'mpi_registry']
 
 
 class HaloExchangeBuilder(object):
@@ -29,18 +29,7 @@ class HaloExchangeBuilder(object):
     """
 
     def __new__(cls, mode, **generators):
-        if mode is True or mode == 'basic':
-            obj = object.__new__(BasicHaloExchangeBuilder)
-        elif mode == 'diag':
-            obj = object.__new__(DiagHaloExchangeBuilder)
-        elif mode == 'overlap':
-            obj = object.__new__(OverlapHaloExchangeBuilder)
-        elif mode == 'overlap2':
-            obj = object.__new__(Overlap2HaloExchangeBuilder)
-        elif mode == 'full':
-            obj = object.__new__(FullHaloExchangeBuilder)
-        else:
-            assert False, "unexpected value `mode=%s`" % mode
+        obj = object.__new__(mpi_registry[mode])
 
         # Unique name generators
         obj._gen_msgkey = generators.get('msg', generator())
@@ -124,11 +113,11 @@ class HaloExchangeBuilder(object):
             haloupdates.append(self._call_haloupdate(haloupdate.name, f, hse, msg))
             if halowait is not None:
                 halowaits.append(self._call_halowait(halowait.name, f, hse, msg))
-        body = [
-            HaloUpdateList(body=haloupdates),
-            callcompute,
-            HaloWaitList(body=halowaits)
-        ]
+        body = []
+        body.append(HaloUpdateList(body=haloupdates))
+        if callcompute is not None:
+            body.append(callcompute)
+        body.append(HaloWaitList(body=halowaits))
         if remainder is not None:
             body.append(self._call_remainder(remainder))
 
@@ -274,6 +263,11 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     """
     A HaloExchangeBuilder making use of synchronous MPI routines only.
+
+    Generates:
+
+        haloupdate()
+        compute()
     """
 
     def _make_msg(self, f, hse, key):
@@ -465,6 +459,11 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
     """
     Similar to a BasicHaloExchangeBuilder, but communications to diagonal
     neighbours are performed explicitly.
+
+    Generates:
+
+        haloupdate()
+        compute()
     """
 
     def _make_haloupdate(self, f, hse, key, **kwargs):
@@ -509,6 +508,13 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     """
     A DiagHaloExchangeBuilder making use of asynchronous MPI routines to implement
     computation-communication overlap.
+
+    Generates:
+
+        haloupdate()
+        compute_core()
+        halowait()
+        remainder()
     """
 
     def _make_msg(self, f, hse, key):
@@ -672,6 +678,13 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     A OverlapHaloExchangeBuilder with reduced Call overhead and increased code
     readability, achieved by supplying more values via Python-land-produced
     structs, which replace explicit Call arguments.
+
+    Generates:
+
+        haloupdate()
+        compute_core()
+        halowait()
+        remainder()
     """
 
     def _make_region(self, hs, key):
@@ -820,11 +833,40 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return make_efunc('remainder%d' % key, iet)
 
 
+class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
+
+    """
+    A DiagHaloExchangeBuilder which uses preallocated buffers for comms
+    as in Overlap2HaloExchange builder.
+
+    Generates:
+
+        haloupdate()
+        halowait()
+        compute()
+    """
+
+    def _make_compute(self, hs, key, *args):
+        return
+
+    def _call_compute(self, hs, compute, *args):
+        return
+
+    _make_remainder = Overlap2HaloExchangeBuilder._make_compute
+
+
 class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
     """
-    A Overlap2HaloExchangeBuilder which generates explicit Calls to MPI_Test
+    An Overlap2HaloExchangeBuilder which generates explicit Calls to MPI_Test
     poking the MPI runtime to advance communication while computing.
+
+    Generates:
+
+        haloupdate()
+        compute_core()
+        halowait()
+        remainder()
     """
 
     def _make_compute(self, hs, key, msgs, callpoke):
@@ -866,6 +908,17 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
     def _call_poke(self, poke):
         return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)
+
+
+mpi_registry = {
+    True: BasicHaloExchangeBuilder,
+    'basic': BasicHaloExchangeBuilder,
+    'diag': DiagHaloExchangeBuilder,
+    'diag2': Diag2HaloExchangeBuilder,
+    'overlap': OverlapHaloExchangeBuilder,
+    'overlap2': Overlap2HaloExchangeBuilder,
+    'full': FullHaloExchangeBuilder
+}
 
 
 # Callable sub-hierarchy

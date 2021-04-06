@@ -1,13 +1,11 @@
-from collections import OrderedDict
-
 from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import SEQUENTIAL, IterationSpace, UniteratedInterval
+from devito.ir.support import SEQUENTIAL, IterationSpace, normalize_properties
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
-from devito.tools import flatten
+from devito.tools import Bunch, DefaultOrderedDict, flatten
 
 __all__ = ['stree_build']
 
@@ -34,52 +32,62 @@ def stree_schedule(clusters):
     """
     stree = ScheduleTree()
 
-    mapper = OrderedDict()
+    prev = None
+    mapper = DefaultOrderedDict(lambda: Bunch(top=None, bottom=None))
+
+    def attach_metadata(cluster, d, tip):
+        if d in cluster.guards:
+            tip = NodeConditional(cluster.guards[d], tip)
+        if d in cluster.syncs:
+            tip = NodeSync(cluster.syncs[d], tip)
+        return tip
+
     for c in clusters:
         pointers = list(mapper)
 
-        # Find out if any of the existing nodes can be reused
         index = 0
-        root = stree
+        tip = stree
         for it0, it1 in zip(c.itintervals, pointers):
             if it0 != it1:
                 break
-            root = mapper[it0]
             index += 1
-            if it0.dim in c.guards:
+
+            d = it0.dim
+
+            # The reused sub-trees might acquire new sub-iterators as well as
+            # new properties
+            mapper[it0].top.ispace = IterationSpace.union(mapper[it0].top.ispace,
+                                                          c.ispace.project([d]))
+            mapper[it0].top.properties = normalize_properties(mapper[it0].top.properties,
+                                                              c.properties[it0.dim])
+
+            # Different guards or syncops cannot be further nested
+            if c.guards.get(d) != prev.guards.get(d) or \
+               c.syncs.get(d) != prev.syncs.get(d):
+                tip = mapper[it0].top
+                tip = attach_metadata(c, d, tip)
+                mapper[it0].bottom = tip
                 break
+            else:
+                tip = mapper[it0].bottom
 
-        # The reused sub-trees might acquire some new sub-iterators
-        for i in pointers[:index]:
-            mapper[i].ispace = IterationSpace.union(mapper[i].ispace,
-                                                    c.ispace.project([i.dim]))
         # Nested sub-trees, instead, will not be used anymore
-        for i in pointers[index:]:
-            mapper.pop(i)
+        for it in pointers[index:]:
+            mapper.pop(it)
 
-        # Add in Iterations
-        for i in c.itintervals[index:]:
-            root = NodeIteration(c.ispace.project([i.dim]), root, c.properties.get(i.dim))
-            mapper[i] = root
+        # Add in Iterations, Conditionals, and Syncs
+        for it in c.itintervals[index:]:
+            d = it.dim
+            tip = NodeIteration(c.ispace.project([d]), tip, c.properties.get(d))
+            mapper[it].top = tip
+            tip = attach_metadata(c, d, tip)
+            mapper[it].bottom = tip
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, root)
+        NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, tip)
 
-        # Add in Conditionals and Syncs, which chop down the reuse tree
-        drop = None
-        for k, v in [(UniteratedInterval, stree)] + list(mapper.items()):
-            if drop:
-                mapper.pop(k)
-            if k.dim in c.syncs:
-                node = NodeSync(c.syncs[k.dim])
-                v.last.parent = node
-                node.parent = v
-                drop = True
-            if k.dim in c.guards:
-                node = NodeConditional(c.guards[k.dim])
-                v.last.parent = node
-                node.parent = v
-                drop = True
+        # Prepare for next iteration
+        prev = c
 
     return stree
 

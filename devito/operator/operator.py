@@ -409,6 +409,10 @@ class Operator(Callable):
         return tuple(filter_ordered(ret))
 
     @cached_property
+    def temporaries(self):
+        return tuple(i for i in self.input if i.is_TempFunction)
+
+    @cached_property
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
 
@@ -452,6 +456,7 @@ class Operator(Callable):
             raise ValueError("Multiple Grids found")
         try:
             grid = grids.pop()
+            args.update(grid._arg_values(**kwargs))
         except KeyError:
             grid = None
 
@@ -485,9 +490,6 @@ class Operator(Callable):
                 # User-provided floats/ndarray obviously do not have `_arg_as_ctype`
                 args.update(p._arg_as_ctype(args, alias=p))
 
-        # Add in any backend-specific argument
-        args.update(kwargs.pop('backend', {}))
-
         # Execute autotuning and adjust arguments accordingly
         args = self._autotune(args, kwargs.pop('autotune', configuration['autotuning']))
 
@@ -513,8 +515,16 @@ class Operator(Callable):
     @cached_property
     def _known_arguments(self):
         """The arguments that can be passed to ``apply`` when running the Operator."""
-        ret = set.union(*[set(i._arg_names) for i in self.input + self.dimensions])
-        return tuple(sorted(ret))
+        ret = set()
+        for i in self.input:
+            ret.update(i._arg_names)
+            try:
+                ret.update(i.grid._arg_names)
+            except AttributeError:
+                pass
+        for d in self.dimensions:
+            ret.update(d._arg_names)
+        return frozenset(ret)
 
     def _autotune(self, args, setup):
         """Auto-tuning to improve runtime performance."""

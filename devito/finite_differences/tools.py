@@ -163,7 +163,7 @@ def generate_indices(func, dim, order, side=None, x0=None):
         Order of the finite-difference scheme
     side: Side
         Side of the scheme, (centered, left, right)
-    x0: Dimension or Expr or Number
+    x0: Dict of {Dimension: Dimension or Expr or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
@@ -192,7 +192,7 @@ def generate_indices_cartesian(dim, order, side, x0):
         Order of the finite-difference scheme
     side: Side
         Side of the scheme, (centered, left, right)
-    x0: Dimension or Expr or Number
+    x0: Dict of {Dimension: Dimension or Expr or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
@@ -234,7 +234,7 @@ def generate_indices_staggered(func, dim, order, side=None, x0=None):
         Order of the finite-difference scheme
     side: Side
         Side of the scheme, (centered, left, right)
-    x0: Dimension or Expr or Number
+    x0: Dict of {Dimension: Dimension or Expr or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns

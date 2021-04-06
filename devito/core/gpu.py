@@ -13,8 +13,9 @@ from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halosp
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
-           'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceCustomOmpOperator',
-           'DeviceNoopAccOperator', 'DeviceAdvAccOperator', 'DeviceCustomAccOperator']
+           'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceFsgOmpOperator',
+           'DeviceCustomOmpOperator', 'DeviceNoopAccOperator', 'DeviceAdvAccOperator',
+           'DeviceFsgAccOperator', 'DeviceCustomAccOperator']
 
 
 class DeviceOperatorMixin(object):
@@ -23,16 +24,6 @@ class DeviceOperatorMixin(object):
     """
     Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
-    """
-
-    CIRE_REPEATS_INV = 2
-    """
-    Number of CIRE passes to detect and optimize away Dimension-invariant expressions.
-    """
-
-    CIRE_REPEATS_SOPS = 7
-    """
-    Number of CIRE passes to detect and optimize away redundant sum-of-products.
     """
 
     CIRE_MINCOST_INV = 50
@@ -51,6 +42,11 @@ class DeviceOperatorMixin(object):
     PAR_CHUNK_NONAFFINE = 3
     """
     Coefficient to adjust the chunk size in non-affine parallel loops.
+    """
+
+    GPU_FIT = 'all-fallback'
+    """
+    Assuming all functions fit into the gpu memory.
     """
 
     @classmethod
@@ -74,12 +70,12 @@ class DeviceOperatorMixin(object):
         o['cire-rotate'] = False
         o['cire-maxpar'] = oo.pop('cire-maxpar', True)
         o['cire-maxalias'] = oo.pop('cire-maxalias', False)
-        o['cire-repeats'] = {
-            'invariants': oo.pop('cire-repeats-inv', cls.CIRE_REPEATS_INV),
-            'sops': oo.pop('cire-repeats-sops', cls.CIRE_REPEATS_SOPS)
-        }
+        o['cire-ftemps'] = oo.pop('cire-ftemps', False)
         o['cire-mincost'] = {
-            'invariants': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            'invariants': {
+                'scalar': 1,
+                'tensor': oo.pop('cire-mincost-inv', cls.CIRE_MINCOST_INV),
+            },
             'sops': oo.pop('cire-mincost-sops', cls.CIRE_MINCOST_SOPS)
         }
 
@@ -91,7 +87,7 @@ class DeviceOperatorMixin(object):
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
         o['gpu-direct'] = oo.pop('gpu-direct', True)
-        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', None))
+        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -101,6 +97,12 @@ class DeviceOperatorMixin(object):
 
         return kwargs
 
+    @classmethod
+    def _normalize_gpu_fit(cls, **kwargs):
+        if any(i in kwargs['mode'] for i in ['tasking', 'streaming']):
+            return None
+        else:
+            return cls.GPU_FIT
 
 # Mode level
 
@@ -152,7 +154,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
-        clusters = cire(clusters, 'divs', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
         # Reduce flops (potential arithmetic alterations)
@@ -206,6 +207,17 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         return graph
 
 
+class DeviceFsgOperator(DeviceAdvOperator):
+
+    """
+    Operator with performance optimizations tailored "For small grids" ("Fsg").
+    """
+
+    # Note: currently mimics DeviceAdvOperator. Will see if this will change
+    # in the future
+    pass
+
+
 class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
     @classmethod
@@ -247,7 +259,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
-            'cire-divs': lambda i: cire(i, 'divs', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
             'topofuse': lambda i: fuse(i, toposort=True)
@@ -279,7 +290,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'buffering',
         # Clusters
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
-        'cire-sops', 'cire-divs', 'cse', 'opt-pows', 'topofuse',
+        'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
         'optcomms', 'orchestrate', 'parallel', 'mpi', 'prodders', 'gpu-direct'
     )
@@ -311,6 +322,10 @@ class DeviceNoopOmpOperator(DeviceOmpOperatorMixin, DeviceNoopOperator):
 
 
 class DeviceAdvOmpOperator(DeviceOmpOperatorMixin, DeviceAdvOperator):
+    pass
+
+
+class DeviceFsgOmpOperator(DeviceOmpOperatorMixin, DeviceFsgOperator):
     pass
 
 
@@ -348,6 +363,10 @@ class DeviceNoopAccOperator(DeviceAccOperatorMixin, DeviceNoopOperator):
 
 
 class DeviceAdvAccOperator(DeviceAccOperatorMixin, DeviceAdvOperator):
+    pass
+
+
+class DeviceFsgAccOperator(DeviceAccOperatorMixin, DeviceFsgOperator):
     pass
 
 

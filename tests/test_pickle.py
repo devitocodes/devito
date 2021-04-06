@@ -13,7 +13,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID, ThreadID)
+                          DeviceID, ThreadID, TempFunction)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -492,6 +492,30 @@ def test_mpi_grid():
     MPI.COMM_WORLD.Barrier()
 
 
+def test_compilerfunction():
+    grid = Grid(shape=(3, 3))
+    d = Dimension(name='d')
+
+    cf = TempFunction(name='f', dtype=np.float64, dimensions=grid.dimensions,
+                      halo=((1, 1), (1, 1), (1, 1)))
+
+    pkl_cf = pickle.dumps(cf)
+    new_cf = pickle.loads(pkl_cf)
+    assert new_cf.name == cf.name
+    assert new_cf.dtype is np.float64
+    assert new_cf.halo == ((1, 1), (1, 1), (1, 1))
+    assert new_cf.ndim == cf.ndim
+    assert new_cf.dim is None
+
+    pcf = cf._make_pointer(d)
+
+    pkl_pcf = pickle.dumps(pcf)
+    new_pcf = pickle.loads(pkl_pcf)
+    assert new_pcf.name == pcf.name
+    assert new_pcf.dim.name == 'd'
+    assert new_pcf.ndim == cf.ndim + 1
+
+
 @skipif(['nompi'])
 @pytest.mark.parallel(mode=[1])
 def test_deviceid():
@@ -601,10 +625,10 @@ def test_full_model():
                       np.linalg.norm(new_time_range.time_values))
 
     # Test Class Constant pickling
-    pkl_origin = pickle.dumps(model.grid.origin)
+    pkl_origin = pickle.dumps(model.grid.origin_symbols)
     new_origin = pickle.loads(pkl_origin)
 
-    for a, b in zip(model.grid.origin, new_origin):
+    for a, b in zip(model.grid.origin_symbols, new_origin):
         assert a.compare(b) == 0
 
     # Test Class TimeDimension pickling

@@ -8,7 +8,8 @@ from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer)
-from devito.ir.iet import Expression, Iteration, FindNodes, retrieve_iteration_tree
+from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
+                           retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
 from devito.types import Array
 
@@ -483,6 +484,32 @@ class TestSubDimension(object):
         # "ValueError: No value found for parameter xi_size"
         op()
 
+    def test_expandingbox_like(self):
+        """
+        Make sure SubDimensions aren't an obstacle to expanding boxes.
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid)
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=2, thickness_right=2)
+        yi = SubDimension.middle(name='yi', parent=y, thickness_left=2, thickness_right=2)
+
+        eqn = Eq(u.forward, u + 1)
+        eqn = eqn.subs({x: xi, y: yi})
+
+        op = Operator(eqn)
+
+        op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
+                 xi_ltkn=0, xi_rtkn=0, yi_ltkn=0, yi_rtkn=0)
+
+        assert np.all(u.data[0, 2:-2, 2:-2] == 4.)
+        assert np.all(u.data[1, 2:-2, 2:-2] == 3.)
+        assert np.all(u.data[:, :2] == 0.)
+        assert np.all(u.data[:, -2:] == 0.)
+        assert np.all(u.data[:, :, :2] == 0.)
+        assert np.all(u.data[:, :, -2:] == 0.)
+
 
 class TestConditionalDimension(object):
 
@@ -562,7 +589,7 @@ class TestConditionalDimension(object):
         u2[x, y] = u[2*x, 2*y]
         """
         nt = 19
-        grid = Grid(shape=(12, 12))
+        grid = Grid(shape=(11, 11))
         time = grid.time_dim
 
         u = TimeFunction(name='u', grid=grid, save=nt)
@@ -579,7 +606,7 @@ class TestConditionalDimension(object):
         op = Operator(eqns)
         op.apply(time_M=nt-2)
         # Verify that u2[x,y]= u[2*x, 2*y]
-        assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
+        assert np.allclose(u.data[:-1, 0::2, 0::2], u2.data[:-1, :, :])
 
     def test_time_subsampling_fd(self):
         nt = 19
@@ -613,7 +640,7 @@ class TestConditionalDimension(object):
         """
         Test that the FD shortcuts are handled correctly with ConditionalDimensions
         """
-        grid = Grid(shape=(21, 21))
+        grid = Grid(shape=(11, 11))
         time = grid.time_dim
         # Creates subsampled spatial dimensions and accordine grid
         dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
@@ -627,13 +654,13 @@ class TestConditionalDimension(object):
         # Verify that u2 contains subsampled fd values
         assert np.all(u2.data[0, :, :] == 2.)
         assert np.all(u2.data[1, 0, 0] == 0.)
-        assert np.all(u2.data[1, -1, -1] == -40.)
-        assert np.all(u2.data[1, 0, -1] == -20.)
-        assert np.all(u2.data[1, -1, 0] == -20.)
+        assert np.all(u2.data[1, -1, -1] == -20.)
+        assert np.all(u2.data[1, 0, -1] == -10.)
+        assert np.all(u2.data[1, -1, 0] == -10.)
         assert np.all(u2.data[1, 1:-1, 0] == 0.)
         assert np.all(u2.data[1, 0, 1:-1] == 0.)
-        assert np.all(u2.data[1, 1:-1, -1] == -20.)
-        assert np.all(u2.data[1, -1, 1:-1] == -20.)
+        assert np.all(u2.data[1, 1:-1, -1] == -10.)
+        assert np.all(u2.data[1, -1, 1:-1] == -10.)
         assert np.all(u2.data[1, 1:4, 1:4] == 0.)
 
     # This test generates an openmp loop form which makes older gccs upset
@@ -875,6 +902,27 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data == F)
 
+    def test_grouping(self):
+        """
+        Test that Clusters over the same set of ConditionalDimensions fall within
+        the same Conditional. This is a follow up to issue #1610.
+        """
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+        cond = ConditionalDimension(name='cond', parent=time, condition=time < 5)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        # We use a SubDomain only to keep the two Eqs separated
+        eqns = [Eq(u.forward, u + 1, subdomain=grid.interior),
+                Eq(u.forward, u.dx.dx + 1., implicit_dims=[cond])]
+
+        op = Operator(eqns, opt=('advanced-fsg', {'cire-mincost-sops': 1}))
+
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 1
+        assert len(retrieve_iteration_tree(conds[0].then_body)) == 2
+
     def test_stepping_dim_in_condition_lowering(self):
         """
         Check that the compiler performs lowering on conditions
@@ -1060,6 +1108,28 @@ class TestConditionalDimension(object):
         assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
+
+    def test_affiness(self):
+        """
+        Test for issue #1616.
+        """
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled)
+
+        eqns = [Eq(u.forward, u + 1.), Eq(usave, u)]
+
+        op = Operator(eqns)
+
+        iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim is not time]
+        assert all(i.is_Affine for i in iterations)
 
 
 class TestMashup(object):

@@ -218,14 +218,14 @@ class CGen(Visitor):
                                                 f._C_field_data)
             else:
                 rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, obj)
-            lvalue = c.AlignedAttribute(f._data_alignment,
-                                        c.Value(f._C_typedata,
-                                                '(*restrict %s)%s' % (f.name, shape)))
+            lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (f.name, shape))
+            if o.alignment:
+                lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
         return c.Initializer(lvalue, rvalue)
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
-        if a1.is_PointerArray:
+        if a1.is_PointerArray or a1.is_TempFunction:
             shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
             rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name, a1.dim.name)
             lvalue = c.AlignedAttribute(a0._data_alignment,
