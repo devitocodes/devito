@@ -1,16 +1,20 @@
 """
-Generate a roofline for the Intel Advisor ``project``.
+Generate a roofline for the Intel Advisor ``project`` and generate a JSON file
+containing all the necessary information to generate a roofline plot of the
+results obtained with an Advisor roofline analysis.
+The JSON can be therefore used flexibly.
 
 This module has been partly extracted from the examples directory of Intel Advisor 2018.
 """
 import click
-
+import json
 import math
-import pandas as pd
-import numpy as np
 import matplotlib
 from matplotlib.ticker import ScalarFormatter
 import matplotlib.pyplot as plt  # noqa
+
+import numpy as np
+import pandas as pd
 import sys
 import os
 
@@ -48,7 +52,7 @@ plt.style.use('seaborn-darkgrid')
                    'socket).')
 @click.option('--precision', type=click.Choice(['SP', 'DP', 'all']),
               help='Arithmetic precision.', default='SP')
-@click.option('--mode', '-m', type=click.Choice(['overview', 'top-loops']),
+@click.option('--mode', '-m', type=click.Choice(['overview', 'top-loops', 'all']),
               default='overview', required=True,
               help='overview: Display a single point with the total GFLOPS and '
                    'arithmetic intensity of the program.\n top-loops: Display all the '
@@ -56,7 +60,8 @@ plt.style.use('seaborn-darkgrid')
                    'the most time consuming loop.')
 @click.option('--th', default=0, help='Percentage threshold (e.g. 95) such that loops '
                                       'under this value in execution time consumed will '
-                                      'not be displayed. Only valid for --top-loops.')
+                                      'not be displayed/collected.'
+                                      'Only valid for --top-loops.')
 def roofline(name, project, scale, precision, mode, th):
     pd.options.display.max_rows = 20
 
@@ -74,7 +79,11 @@ def roofline(name, project, scale, precision, mode, th):
     full_df = pd.DataFrame(rows).replace('', np.nan)
 
     # Narrow down the columns to those of interest
-    df = full_df[analysis_columns].copy()
+    try:
+        df = full_df[analysis_columns].copy()
+    except KeyError:
+        err('Could not read data columns from profiling. Not enough data has been '
+            'generated for the specified problem. Try rerunning with a bigger problem')
 
     df.self_ai = df.self_ai.astype(float)
     df.self_gflops = df.self_gflops.astype(float)
@@ -101,6 +110,13 @@ def roofline(name, project, scale, precision, mode, th):
     gflops_min = 2**0
     width = ai_max
 
+    # Declare the dictionary that will hold the JSON information
+    roofline_data = {}
+
+    # Declare the two types of rooflines dictionaries
+    memory_roofs = []
+    compute_roofs = []
+
     for roof in roofs:
         # by default drawing multi-threaded roofs only
         if 'single-thread' not in roof.name:
@@ -113,6 +129,7 @@ def roofline(name, project, scale, precision, mode, th):
                 y1, y2 = 0, x2*bandwidth
                 label = '{} {:.0f} GB/s'.format(roof.name, bandwidth)
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
+                memory_roofs.append(((x1, x2), (y1, y2)))
 
             # compute roofs
             elif precision == 'all' or precision in roof.name:
@@ -122,6 +139,15 @@ def roofline(name, project, scale, precision, mode, th):
                 y1, y2 = bandwidth, bandwidth
                 label = '{} {:.0f} GFLOPS'.format(roof.name, bandwidth)
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
+                compute_roofs.append(((x1, x2), (y1, y2)))
+
+    roofs = {'memory': memory_roofs, 'compute': compute_roofs}
+    roofline_data['roofs'] = roofs
+
+    if mode == 'overview' or mode == 'all':
+        # Save the single point as the total ai and total gflops metric
+        roofline_data['overview'] = {'total_ai': data.metrics.total_ai,
+                                     'total_gflops': data.metrics.total_gflops}
 
     # drawing points using the same ax
     ax.set_xscale('log', base=2)
@@ -133,7 +159,7 @@ def roofline(name, project, scale, precision, mode, th):
         # Only display the overall GFLOPS and arithmetic intensity of the program
         ax.plot(data.metrics.total_ai, data.metrics.total_gflops, 'o', color='black')
     elif mode == 'top-loops':
-        # Display the most costly loop followed by loops with same order of magnitude
+        # Display/save the most costly loop followed by loops with same order of magnitude
         max_self_time = df.self_time.max()
         top_df = df[(max_self_time / df.self_time < 10) &
                     (max_self_time / df.self_time >= 1) & (df.percent_weight >= th)]
@@ -145,6 +171,22 @@ def roofline(name, project, scale, precision, mode, th):
                     'Time: %.2fs\n'
                     'Incidence: %.0f%%' % (row.self_time, row.percent_weight),
                     bbox={'boxstyle': 'round', 'facecolor': 'white'}, fontsize=8)
+        top_loops_data = [{'ai': row.self_ai,
+                           'gflops': row.self_gflops,
+                           'time': row.self_time,
+                           'incidence': row.percent_weight}
+                          for _, row in top_df.iterrows()]
+        roofline_data['top-loops'] = top_loops_data
+    elif mode == 'all':  # JSON dumping only
+        max_self_time = df.self_time.max()
+        top_df = df[(max_self_time / df.self_time < 10) &
+                    (max_self_time / df.self_time >= 1) & (df.percent_weight >= th)]
+        top_loops_data = [{'ai': row.self_ai,
+                           'gflops': row.self_gflops,
+                           'time': row.self_time,
+                           'incidence': row.percent_weight}
+                          for _, row in top_df.iterrows()]
+        roofline_data['top-loops'] = top_loops_data
 
     # make sure axes start at 1
     ax.set_ylim(ymin=gflops_min)
@@ -160,6 +202,12 @@ def roofline(name, project, scale, precision, mode, th):
     plt.savefig('%s.png' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
     figpath = os.path.realpath(__file__).split(os.path.basename(__file__))[0]
     log('Figure saved in %s%s.png.' % (figpath, name))
+
+    # Save the JSON file
+    with open('%s.json' % name, 'w') as f:
+        f.write(json.dumps(roofline_data))
+
+    log('JSON file saved as %s.json.' % name)
 
 
 analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']
