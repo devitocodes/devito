@@ -286,7 +286,7 @@ class ClusterGroup(tuple):
 
     Parameters
     ----------
-    clusters : list of Clusters
+    clusters : tuple of Clusters
         Input elements.
     itintervals : tuple of IterationIntervals, optional
         The region of iteration space shared by the ``clusters``.

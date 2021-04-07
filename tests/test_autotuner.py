@@ -123,9 +123,29 @@ def test_mixed_blocking_nthreads():
     assert 'nthreads' in op._state['autotuning'][0]['tuned']
 
 
-def test_tti_aggressive():
+@pytest.mark.parametrize('openmp, expected', [
+    (False, 2), (True, 3)
+])
+def test_mixed_blocking_w_skewing(openmp, expected):
+    grid = Grid(shape=(96, 96, 96))
+    f = TimeFunction(name='f', grid=grid)
+
+    op = Operator(Eq(f.forward, f + 1.), opt=('blocking', {'skewing': True,
+                                                           'openmp': openmp}))
+    op.apply(time=0, autotune=True)
+    assert op._state['autotuning'][0]['runs'] == 6
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
+    assert len(op._state['autotuning'][0]['tuned']) == expected
+    if openmp:
+        assert 'nthreads' in op._state['autotuning'][0]['tuned']
+    else:
+        assert 'nthreads' not in op._state['autotuning'][0]['tuned']
+
+
+@pytest.mark.parametrize('opt', ['advanced', ('blocking', {'skewing': True})])
+def test_tti_aggressive(opt):
     from test_dse import TestTTI
-    wave_solver = TestTTI().tti_operator(opt='advanced')
+    wave_solver = TestTTI().tti_operator(opt=opt)
     op = wave_solver.op_fwd(kernel='centered')
     op.apply(time=0, autotune='aggressive', dt=0.1)
     assert op._state['autotuning'][0]['runs'] == 30
@@ -243,13 +263,14 @@ def test_multiple_blocking():
     assert len(op._state['autotuning'][0]['tuned']) == 5
 
 
-def test_hierarchical_blocking():
+@pytest.mark.parametrize('opt_options', [{'skewing': False}, {'skewing': True}])
+def test_hierarchical_blocking(opt_options):
     grid = Grid(shape=(64, 64, 64))
 
     u = TimeFunction(name='u', grid=grid, space_order=2)
 
-    op = Operator(Eq(u.forward, u + 1), opt=('blocking', {'openmp': False,
-                                                          'blocklevels': 2}))
+    opt = ('blocking', {**opt_options, 'openmp': False, 'blocklevels': 2})
+    op = Operator(Eq(u.forward, u + 1), opt=opt)
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
@@ -265,7 +286,8 @@ def test_hierarchical_blocking():
 
 
 @switchconfig(platform='cpu64-dummy')  # To fix the core count
-def test_multiple_threads():
+@pytest.mark.parametrize('opt_options', [{'skewing': False}, {'skewing': True}])
+def test_multiple_threads(opt_options):
     """
     Test autotuning when different ``num_threads`` for a given OpenMP parallel
     region are attempted.
@@ -273,8 +295,9 @@ def test_multiple_threads():
     grid = Grid(shape=(96, 96, 96))
 
     v = TimeFunction(name='v', grid=grid)
+    opt = ('blocking', {**opt_options, 'openmp': True})
+    op = Operator(Eq(v.forward, v + 1), opt=opt)
 
-    op = Operator(Eq(v.forward, v + 1), opt=('blocking', {'openmp': True}))
     op.apply(time_M=0, autotune='max')
     assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1

@@ -1,6 +1,6 @@
 from devito.ir.clusters.queue import QueueStateful
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               AFFINE, ROUNDABLE, TILABLE, Forward)
+from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
+                               ROUNDABLE, SEQUENTIAL, SKEWABLE, TILABLE, Forward)
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
@@ -14,6 +14,7 @@ def analyze(clusters):
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
     clusters = Tiling(state).process(clusters)
+    clusters = Skewing(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
     # Reconstruct Clusters attaching the discovered properties
@@ -164,9 +165,6 @@ class Tiling(Detector):
     Detect the TILABLE Dimensions.
     """
 
-    def process(self, elements):
-        return self._process_fdta(elements, 1)
-
     def _callback(self, clusters, d, prefix):
         # A Dimension is TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
@@ -192,3 +190,16 @@ class Tiling(Detector):
             return
 
         return TILABLE
+
+
+class Skewing(Detector):
+
+    """
+    Detect the SKEWABLE Dimensions.
+    """
+
+    def _callback(self, clusters, d, prefix):
+        # A Dimension is SKEWABLE in case it is TILABLE
+        properties = self._fetch_properties(clusters, prefix)
+        if {TILABLE} <= properties[d]:
+            return SKEWABLE

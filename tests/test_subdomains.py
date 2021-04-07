@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from math import floor
 
+from conftest import opts_tiling
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
 from devito.ir import FindNodes, Expression
@@ -159,7 +160,8 @@ class TestSubdomains(object):
 
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
 
-    def test_iterate_NDomains(self):
+    @pytest.mark.parametrize('opt', opts_tiling)
+    def test_iterate_NDomains(self, opt):
         """
         Test that a set of subdomains are iterated upon correctly.
         """
@@ -192,7 +194,7 @@ class TestSubdomains(object):
         stencil = Eq(f.forward, solve(Eq(f.dt, 1), f.forward),
                      subdomain=grid.subdomains['inner'])
 
-        op = Operator(stencil)
+        op = Operator(stencil, opt=opt)
         op(time_m=0, time_M=9, dt=1)
         result = f.data[0]
 
