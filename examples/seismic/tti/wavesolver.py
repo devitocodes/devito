@@ -28,10 +28,12 @@ class AnisotropicWaveSolver(object):
     -----
     space_order must be even and it is recommended to be a multiple of 4
     """
-    def __init__(self, model, geometry, space_order=4, **kwargs):
+    def __init__(self, model, geometry, space_order=4, kernel='centered',
+                 **kwargs):
         self.model = model
         self.model._initialize_bcs(bcs="damp")
         self.geometry = geometry
+        self.kernel = kernel
 
         if space_order % 2 != 0:
             raise ValueError("space_order must be even but got %s"
@@ -51,17 +53,18 @@ class AnisotropicWaveSolver(object):
         return self.model.critical_dt
 
     @memoized_meth
-    def op_fwd(self, kernel='centered', save=False):
+    def op_fwd(self, save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
-                               space_order=self.space_order,
-                               kernel=kernel, **self._kwargs)
+                               space_order=self.space_order, kernel=self.kernel,
+                               **self._kwargs)
 
     @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=None, geometry=self.geometry,
-                               space_order=self.space_order, **self._kwargs)
+                               space_order=self.space_order, kernel=self.kernel,
+                               **self._kwargs)
 
     @memoized_meth
     def op_jac(self):
@@ -76,7 +79,7 @@ class AnisotropicWaveSolver(object):
                                    space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, v=None, model=None,
-                save=False, kernel='centered', **kwargs):
+                save=False, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -111,7 +114,7 @@ class AnisotropicWaveSolver(object):
         -------
         Receiver, wavefield and performance summary.
         """
-        if kernel == 'staggered':
+        if self.kernel == 'staggered':
             time_order = 1
             dims = self.model.space_dimensions
             stagg_u = (-dims[-1])
@@ -137,7 +140,7 @@ class AnisotropicWaveSolver(object):
                              time_order=time_order,
                              space_order=self.space_order)
 
-        if kernel == 'staggered':
+        if self.kernel == 'staggered':
             vx, vz, vy = particle_velocity_fields(self.model, self.space_order)
             kwargs["vx"] = vx
             kwargs["vz"] = vz
@@ -150,13 +153,12 @@ class AnisotropicWaveSolver(object):
         if self.model.dim < 3:
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
-        op = self.op_fwd(kernel, save)
-        summary = op.apply(src=src, rec=rec, u=u, v=v,
-                           dt=kwargs.pop('dt', self.dt), **kwargs)
+        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, v=v,
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, v, summary
 
     def adjoint(self, rec, srca=None, p=None, r=None, model=None,
-                save=None, kernel='centered', **kwargs):
+                save=None, **kwargs):
         """
         Adjoint modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -187,11 +189,15 @@ class AnisotropicWaveSolver(object):
         -------
         Adjoint source, wavefield and performance summary.
         """
-        if kernel != 'centered':
-            raise ValueError('Only centered kernel is supported for the adjoint')
+        if self.kernel == 'staggered':
+            time_order = 1
+            dims = self.model.space_dimensions
+            stagg_p = (-dims[-1])
+            stagg_r = (-dims[0], -dims[1]) if self.model.grid.dim == 3 else (-dims[0])
+        else:
+            time_order = 2
+            stagg_p = stagg_r = None
 
-        time_order = 2
-        stagg_p = stagg_r = None
         # Source term is read-only, so re-use the default
         srca = srca or self.geometry.new_src(name='srca', src_type=None)
 
@@ -206,6 +212,13 @@ class AnisotropicWaveSolver(object):
                              time_order=time_order,
                              space_order=self.space_order)
 
+        if self.kernel == 'staggered':
+            vx, vz, vy = particle_velocity_fields(self.model, self.space_order)
+            kwargs["vx"] = vx
+            kwargs["vz"] = vz
+            if vy is not None:
+                kwargs["vy"] = vy
+
         model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
@@ -213,7 +226,9 @@ class AnisotropicWaveSolver(object):
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj().apply(srca=srca, rec=rec, p=p, r=r,
-                                      dt=kwargs.pop('dt', self.dt), **kwargs)
+                                      dt=kwargs.pop('dt', self.dt),
+                                      time_m=0 if time_order == 1 else None,
+                                      **kwargs)
         return srca, p, r, summary
 
     def jacobian(self, dm, src=None, rec=None, u0=None, v0=None, du=None, dv=None,

@@ -18,7 +18,8 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     # Source and receiver geometries
     geometry = setup_geometry(model, tn)
 
-    return AnisotropicWaveSolver(model, geometry, space_order=space_order, **kwargs)
+    return AnisotropicWaveSolver(model, geometry, space_order=space_order,
+                                 kernel=kernel, **kwargs)
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
@@ -29,7 +30,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                        nbl=nbl, kernel=kernel, **kwargs)
     info("Applying Forward")
 
-    rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
+    rec, u, v, summary = solver.forward(autotune=autotune)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u, v]

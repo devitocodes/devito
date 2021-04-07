@@ -2158,7 +2158,7 @@ class TestTTI(object):
         rec, u, v, summary = wavesolver.forward()
 
         # Make sure no opts were applied
-        op = wavesolver.op_fwd('centered', False)
+        op = wavesolver.op_fwd(False)
         assert len(op._func_table) == 0
         assert summary[('section0', None)].ops == 737
 
@@ -2167,7 +2167,7 @@ class TestTTI(object):
     @switchconfig(profiling='advanced')
     def test_fullopt(self):
         wavesolver = self.tti_operator(opt='advanced')
-        rec, u, v, summary = wavesolver.forward(kernel='centered')
+        rec, u, v, summary = wavesolver.forward()
 
         assert np.allclose(self.tti_noopt[0].data, v.data, atol=10e-1)
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
@@ -2177,7 +2177,7 @@ class TestTTI(object):
         assert np.isclose(summary[('section1', None)].oi, 1.524, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
-        op = wavesolver.op_fwd(kernel='centered')
+        op = wavesolver.op_fwd()
         block_dims = [i for i in op.dimensions if i.is_Incr]
         assert len(block_dims) == 4
         x, x0_blk0, y, y0_blk0 = block_dims
@@ -2206,15 +2206,15 @@ class TestTTI(object):
     @pytest.mark.parallel(mode=[(1, 'full')])
     def test_fullopt_w_mpi(self):
         tti_noopt = self.tti_operator(opt=None)
-        rec0, u0, v0, _ = tti_noopt.forward(kernel='centered')
+        rec0, u0, v0, _ = tti_noopt.forward()
         tti_agg = self.tti_operator(opt='advanced')
-        rec1, u1, v1, _ = tti_agg.forward(kernel='centered')
+        rec1, u1, v1, _ = tti_agg.forward()
 
         assert np.allclose(v0.data, v1.data, atol=10e-1)
         assert np.allclose(rec0.data, rec1.data, atol=10e-1)
 
         # Run a quick check to be sure MPI-full-mode code was actually generated
-        op = tti_agg.op_fwd('centered', False)
+        op = tti_agg.op_fwd(False)
         assert len(op._func_table) == 8
         assert 'pokempi0' in op._func_table
 
@@ -2224,7 +2224,7 @@ class TestTTI(object):
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
-        sections = list(op.op_fwd(kernel='centered')._profiler._sections.values())
+        sections = list(op.op_fwd()._profiler._sections.values())
         assert sections[1].sops == expected
 
 

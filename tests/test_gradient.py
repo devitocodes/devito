@@ -155,7 +155,7 @@ class TestGradient(object):
         (np.float64, 4, 'sls', (50, 60), False, viscoacoustic_setup),
     ])
     def test_gradientFWI(self, dtype, space_order, kernel, shape, ckp, setup_func):
-        """
+        r"""
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -238,7 +238,7 @@ class TestGradient(object):
         (np.float64, 4, 'sls', (70, 80), (20., 20.), viscoacoustic_setup),
     ])
     def test_gradientJ(self, dtype, space_order, kernel, shape, spacing, setup_func):
-        """
+        r"""
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
         .. math::
