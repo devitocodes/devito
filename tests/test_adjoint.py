@@ -132,6 +132,12 @@ class TestAdjoint(object):
         # 3D TTI tests with varying space orders
         ('layers-tti', (20, 25, 30), 'centered', 8, tti_setup),
         ('layers-tti', (20, 25, 30), 'centered', 4, tti_setup),
+        # 2D viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25), 'sls', 8, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25), 'sls', 4, viscoacoustic_setup),
+        # 3D viscoacoustic tests with varying space orders
+        ('layers-viscoacoustic', (20, 25, 30), 'sls', 8, viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 30), 'sls', 4, viscoacoustic_setup),
     ])
     def test_adjoint_J(self, mkey, shape, kernel, space_order, setup_func):
         """
@@ -158,15 +164,15 @@ class TestAdjoint(object):
         # Compute initial born perturbation from m - m0
         dm = (solver.model.vp.data**(-2) - model0.vp.data**(-2))
 
-        du = solver.jacobian(dm, vp=model0.vp)[0]
+        du = solver.jacobian(dm, model=model0)[0]
 
         # Compute the full bg field(s) & gradient from initial perturbation
-        if setup_func is acoustic_setup:
-            u0 = solver.forward(save=True, vp=model0.vp)[1]
-            im, _ = solver.jacobian_adjoint(du, u0, vp=model0.vp)
+        if setup_func is tti_setup:
+            u0, v0 = solver.forward(save=True, model=model0)[1:-1]
+            im, _ = solver.jacobian_adjoint(du, u0, v0, model=model0)
         else:
-            u0, v0 = solver.forward(save=True, vp=model0.vp)[1:-1]
-            im, _ = solver.jacobian_adjoint(du, u0, v0, vp=model0.vp)
+            u0 = solver.forward(save=True, model=model0)[1]
+            im, _ = solver.jacobian_adjoint(du, u0, model=model0)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))

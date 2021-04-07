@@ -39,8 +39,8 @@ class ElasticWaveSolver(object):
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec1=None, rec2=None, lam=None, mu=None, b=None,
-                v=None, tau=None, save=None, **kwargs):
+    def forward(self, src=None, rec1=None, rec2=None, v=None, tau=None,
+                model=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -57,6 +57,8 @@ class ElasticWaveSolver(object):
             The computed particle velocity.
         tau : TensorTimeFunction, optional
             The computed symmetric stress tensor.
+        model : Model, optional
+            Object containing the physical parameters.
         lam : Function, optional
             The time-constant first Lame parameter `rho * (vp**2 - 2 * vs **2)`.
         mu : Function, optional
@@ -85,8 +87,11 @@ class ElasticWaveSolver(object):
                                         space_order=self.space_order, time_order=1)
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})
+
+        model = model or self.model
         # Pick Lame parameters from model unless explicitly provided
-        kwargs.update(self.model.physical_params(lam=lam, mu=mu, b=b))
+        kwargs.update(model.physical_params(**kwargs))
+
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)

@@ -75,8 +75,7 @@ class AnisotropicWaveSolver(object):
         return JacobianAdjOperator(self.model, save=save, geometry=self.geometry,
                                    space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, v=None, vp=None,
-                epsilon=None, delta=None, theta=None, phi=None,
+    def forward(self, src=None, rec=None, u=None, v=None, model=None,
                 save=False, kernel='centered', **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -91,6 +90,8 @@ class AnisotropicWaveSolver(object):
             The computed wavefield first component.
         v : TimeFunction, optional
             The computed wavefield second component.
+        model : Model, optional
+            Object containing the physical parameters.
         vp : Function or float, optional
             The time-constant velocity.
         epsilon : Function or float, optional
@@ -143,10 +144,9 @@ class AnisotropicWaveSolver(object):
             if vy is not None:
                 kwargs["vy"] = vy
 
+        model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(self.model.physical_params(
-            vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
-        )
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
@@ -155,8 +155,7 @@ class AnisotropicWaveSolver(object):
                            dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, v, summary
 
-    def adjoint(self, rec, srca=None, p=None, r=None, vp=None,
-                epsilon=None, delta=None, theta=None, phi=None,
+    def adjoint(self, rec, srca=None, p=None, r=None, model=None,
                 save=None, kernel='centered', **kwargs):
         """
         Adjoint modelling function that creates the necessary
@@ -171,6 +170,8 @@ class AnisotropicWaveSolver(object):
             The computed wavefield first component.
         r : TimeFunction, optional
             The computed wavefield second component.
+        model : Model, optional
+            Object containing the physical parameters.
         vp : Function or float, optional
             The time-constant velocity.
         epsilon : Function or float, optional
@@ -205,10 +206,9 @@ class AnisotropicWaveSolver(object):
                              time_order=time_order,
                              space_order=self.space_order)
 
+        model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(self.model.physical_params(
-            vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
-        )
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
@@ -217,8 +217,7 @@ class AnisotropicWaveSolver(object):
         return srca, p, r, summary
 
     def jacobian(self, dm, src=None, rec=None, u0=None, v0=None, du=None, dv=None,
-                 vp=None, epsilon=None, delta=None, theta=None, phi=None,
-                 save=None, kernel='centered', **kwargs):
+                 model=None, save=None, kernel='centered', **kwargs):
         """
         Linearized Born modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -237,6 +236,8 @@ class AnisotropicWaveSolver(object):
             The computed perturbed wavefield first component.
         dv : TimeFunction, optional
             The computed perturbed wavefield second component.
+        model : Model, optional
+            Object containing the physical parameters.
         vp : Function or float, optional
             The time-constant velocity.
         epsilon : Function or float, optional
@@ -267,10 +268,9 @@ class AnisotropicWaveSolver(object):
         dv = dv or TimeFunction(name='dv', grid=self.model.grid,
                                 time_order=2, space_order=self.space_order)
 
+        model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(self.model.physical_params(
-            vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
-        )
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
 
@@ -279,8 +279,7 @@ class AnisotropicWaveSolver(object):
                                       rec=rec, dt=dt, **kwargs)
         return rec, u0, v0, du, dv, summary
 
-    def jacobian_adjoint(self, rec, u0, v0, du=None, dv=None, dm=None, vp=None,
-                         epsilon=None, delta=None, theta=None, phi=None,
+    def jacobian_adjoint(self, rec, u0, v0, du=None, dv=None, dm=None, model=None,
                          checkpointing=False, kernel='centered', **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
@@ -301,6 +300,8 @@ class AnisotropicWaveSolver(object):
             The computed perturbed wavefield.
         dm : Function, optional
             Stores the gradient field.
+        model : Model, optional
+            Object containing the physical parameters.
         vp : Function or float, optional
             The time-constant velocity.
         epsilon : Function or float, optional
@@ -311,6 +312,7 @@ class AnisotropicWaveSolver(object):
             The time-constant Dip angle (radians).
         phi : Function or float, optional
             The time-constant Azimuth angle (radians).
+
         Returns
         -------
         Gradient field and performance summary.
@@ -328,10 +330,9 @@ class AnisotropicWaveSolver(object):
         dv = dv or TimeFunction(name='dv', grid=self.model.grid,
                                 time_order=2, space_order=self.space_order)
 
+        model = model or self.model
         # Pick vp and Thomsen parameters from model unless explicitly provided
-        kwargs.update(self.model.physical_params(
-            vp=vp, epsilon=epsilon, delta=delta, theta=theta, phi=phi)
-        )
+        kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
 

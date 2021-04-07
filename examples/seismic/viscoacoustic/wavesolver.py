@@ -1,7 +1,11 @@
-from devito import VectorTimeFunction, TimeFunction, NODE
+from devito import VectorTimeFunction, TimeFunction, Function, NODE
 from devito.tools import memoized_meth
 from examples.seismic import PointSource
-from examples.seismic.viscoacoustic.operators import (ForwardOperator, AdjointOperator)
+from examples.seismic.viscoacoustic.operators import (
+    ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+)
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
+from pyrevolve import Revolver
 
 
 class ViscoacousticWaveSolver(object):
@@ -57,8 +61,22 @@ class ViscoacousticWaveSolver(object):
                                space_order=self.space_order, kernel=self.kernel,
                                time_order=self.time_order, **self._kwargs)
 
-    def forward(self, src=None, rec=None, v=None, r=None, p=None, qp=None, b=None,
-                vp=None, save=None, **kwargs):
+    @memoized_meth
+    def op_grad(self, save=True):
+        """Cached operator for gradient runs"""
+        return GradientOperator(self.model, save=save, geometry=self.geometry,
+                                space_order=self.space_order, kernel=self.kernel,
+                                time_order=self.time_order, **self._kwargs)
+
+    @memoized_meth
+    def op_born(self):
+        """Cached operator for born runs"""
+        return BornOperator(self.model, save=None, geometry=self.geometry,
+                            space_order=self.space_order, kernel=self.kernel,
+                            time_order=self.time_order, **self._kwargs)
+
+    def forward(self, src=None, rec=None, v=None, r=None, p=None, model=None,
+                save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -72,9 +90,11 @@ class ViscoacousticWaveSolver(object):
         v : VectorTimeFunction, optional
             The computed particle velocity.
         r : TimeFunction, optional
-            The computed memory variable.
+            The computed attenuation memory variable.
         p : TimeFunction, optional
             Stores the computed wavefield.
+        model : Model, optional
+            Object containing the physical parameters.
         qp : Function, optional
             The P-wave quality factor.
         b : Function, optional
@@ -113,29 +133,23 @@ class ViscoacousticWaveSolver(object):
                               time_order=self.time_order, space_order=self.space_order,
                               staggered=NODE)
 
-        # Pick physical parameters from model unless explicitly provided
-        b = b or self.model.b
-        qp = qp or self.model.qp
-
-        # Pick vp from model unless explicitly provided
-        vp = vp or self.model.vp
+        model = model or self.model
+        # Pick vp and physical parameters from model unless explicitly provided
+        kwargs.update(model.physical_params(**kwargs))
 
         if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
-            summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, r=r,
-                                              p=p, b=b, vp=vp,
+            summary = self.op_fwd(save).apply(src=src, rec=rec, r=r, p=p,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         else:
             # Execute operator and return wavefield and receiver data
             # Without Memory variable
-            summary = self.op_fwd(save).apply(src=src, rec=rec, qp=qp, p=p,
-                                              b=b, vp=vp,
+            summary = self.op_fwd(save).apply(src=src, rec=rec, p=p,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, p, v, summary
 
-    def adjoint(self, rec, srca=None, va=None, pa=None, vp=None, qp=None, b=None, r=None,
-                **kwargs):
+    def adjoint(self, rec, srca=None, va=None, pa=None, r=None, model=None, **kwargs):
         """
         Adjoint modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -152,14 +166,16 @@ class ViscoacousticWaveSolver(object):
             The computed particle velocity.
         pa : TimeFunction, optional
             Stores the computed wavefield.
+        r : TimeFunction, optional
+            The computed attenuation memory variable.
+        model : Model, optional
+            Object containing the physical parameters.
         vp : Function or float, optional
             The time-constant velocity.
         qp : Function, optional
             The P-wave quality factor.
         b : Function, optional
             The time-constant inverse density.
-        r : TimeFunction, optional
-            The computed memory variable.
 
         Returns
         -------
@@ -184,23 +200,157 @@ class ViscoacousticWaveSolver(object):
         r = r or TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
                               space_order=self.space_order, staggered=NODE)
 
-        b = b or self.model.b
-        qp = qp or self.model.qp
-
-        # Pick vp from model unless explicitly provided
-        vp = vp or self.model.vp
+        model = model or self.model
+        # Pick vp and physical parameters from model unless explicitly provided
+        kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
         if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
-            summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, r=r, b=b, vp=vp,
-                                          qp=qp, dt=kwargs.pop('dt', self.dt),
+            summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, r=r,
+                                          dt=kwargs.pop('dt', self.dt),
                                           time_m=0 if self.time_order == 1 else None,
                                           **kwargs)
         else:
-            summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, vp=vp, b=b, qp=qp,
+            summary = self.op_adj().apply(src=srca, rec=rec, pa=pa,
                                           dt=kwargs.pop('dt', self.dt),
                                           time_m=0 if self.time_order == 1 else None,
                                           **kwargs)
         return srca, pa, va, summary
+
+    def jacobian_adjoint(self, rec, p, pa=None, grad=None, r=None, model=None,
+                         checkpointing=False, **kwargs):
+        """
+        Gradient modelling function for computing the adjoint of the
+        Linearized Born modelling function, ie. the action of the
+        Jacobian adjoint on an input data.
+
+        Parameters
+        ----------
+        rec : SparseTimeFunction
+            Receiver data.
+        p : TimeFunction
+            Full wavefield `p` (created with save=True).
+        pa : TimeFunction, optional
+            Stores the computed wavefield.
+        grad : Function, optional
+            Stores the gradient field.
+        r : TimeFunction, optional
+            The computed attenuation memory variable.
+        model : Model, optional
+            Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+
+        Returns
+        -------
+        Gradient field and performance summary.
+        """
+        dt = kwargs.pop('dt', self.dt)
+        # Gradient symbol
+        grad = grad or Function(name='grad', grid=self.model.grid)
+
+        # Create the forward wavefield
+        pa = pa or TimeFunction(name='pa', grid=self.model.grid,
+                                time_order=self.time_order, space_order=self.space_order,
+                                staggered=NODE)
+
+        model = model or self.model
+        # Pick vp and physical parameters from model unless explicitly provided
+        kwargs.update(model.physical_params(**kwargs))
+
+        if checkpointing:
+            p = TimeFunction(name='p', grid=self.model.grid,
+                             time_order=self.time_order, space_order=self.space_order,
+                             staggered=NODE)
+
+            r = TimeFunction(name="r", grid=self.model.grid, time_order=self.time_order,
+                             space_order=self.space_order, staggered=NODE)
+
+            cp = DevitoCheckpoint([p, r])
+            n_checkpoints = None
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False),
+                                         src=self.geometry.src, p=p, r=r, dt=dt, **kwargs)
+            wrap_rev = CheckpointOperator(self.op_grad(save=False), p=p, pa=pa, rec=rec,
+                                          dt=dt, grad=grad, **kwargs)
+
+            # Run forward
+            wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
+            wrp.apply_forward()
+            summary = wrp.apply_reverse()
+        else:
+            # Memory variable:
+            r = r or TimeFunction(name="r", grid=self.model.grid,
+                                  time_order=self.time_order,
+                                  space_order=self.space_order, staggered=NODE)
+
+            summary = self.op_grad().apply(rec=rec, grad=grad, pa=pa, p=p, r=r, dt=dt,
+                                           **kwargs)
+
+        return grad, summary
+
+    def jacobian(self, dmin, src=None, rec=None, p=None, P=None, rp=None, rP=None,
+                 model=None, **kwargs):
+        """
+        Linearized Born modelling function that creates the necessary
+        data objects for running an adjoint modelling operator.
+
+        Parameters
+        ----------
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec : SparseTimeFunction or array_like, optional
+            The interpolated receiver data.
+        p : TimeFunction, optional
+            The forward wavefield.
+        P : TimeFunction, optional
+            The linearized wavefield.
+        rp : TimeFunction, optional
+            The computed attenuation memory variable.
+        rP : TimeFunction, optional
+            The computed attenuation memory variable.
+        model : Model, optional
+            Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+        """
+        # Source term is read-only, so re-use the default
+        src = src or self.geometry.src
+        # Create a new receiver object to store the result
+        rec = rec or self.geometry.rec
+
+        # Create the forward wavefields u and U if not provided
+        p = p or TimeFunction(name='p', grid=self.model.grid,
+                              time_order=self.time_order, space_order=self.space_order,
+                              staggered=NODE)
+        P = P or TimeFunction(name='P', grid=self.model.grid,
+                              time_order=self.time_order, space_order=self.space_order,
+                              staggered=NODE)
+
+        # Memory variable:
+        rp = rp or TimeFunction(name='rp', grid=self.model.grid,
+                                time_order=self.time_order,
+                                space_order=self.space_order, staggered=NODE)
+        # Memory variable:
+        rP = rP or TimeFunction(name='rP', grid=self.model.grid,
+                                time_order=self.time_order,
+                                space_order=self.space_order, staggered=NODE)
+
+        model = model or self.model
+        # Pick vp and physical parameters from model unless explicitly provided
+        kwargs.update(model.physical_params(**kwargs))
+
+        # Execute operator and return wavefield and receiver data
+        summary = self.op_born().apply(dm=dmin, p=p, P=P, src=src, rec=rec, rp=rp, rP=rP,
+                                       dt=kwargs.pop('dt', self.dt), **kwargs)
+
+        return rec, p, P, summary
