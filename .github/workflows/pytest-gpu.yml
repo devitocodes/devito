@@ -33,6 +33,7 @@ jobs:
       DEVITO_ARCH: ${{ matrix.arch }}
       DEVITO_PLATFORM: ${{ matrix.platform }}
       DEVITO_LANGUAGE: ${{ matrix.language }}
+      DEVITO_LOGGING: DEBUG
       OMPI_CC: ${{ matrix.arch }}
 
     strategy:
@@ -93,7 +94,7 @@ jobs:
     - name: Test with pytest
       run: |
         ${{ matrix.test_drive_cmd }}
-        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py
+        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py -s
         pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
 
     - name: Test examples
