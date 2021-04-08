@@ -466,14 +466,28 @@ class Scalar(Symbol, ArgProvider):
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('dtype', np.float32)
 
-    def _arg_defaults(self):
-        return {}
+    @property
+    def default_value(self):
+        return None
+
+    @property
+    def _arg_names(self):
+        return (self.name,)
+
+    def _arg_defaults(self, **kwargs):
+        if self.default_value is None:
+            # It is possible that the Scalar value is provided indirectly
+            # through a wrapper object (e.g., a Dimension spacing `h_x` gets its
+            # value via a Grid object)
+            return {}
+        else:
+            return {self.name: self.default_value}
 
     def _arg_values(self, **kwargs):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:
-            return {}
+            return self._arg_defaults()
 
 
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):

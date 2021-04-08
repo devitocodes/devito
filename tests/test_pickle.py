@@ -13,7 +13,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID, ThreadID, TempFunction)
+                          DeviceID, NPThreads, ThreadID, TempFunction)
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               FunctionFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -516,19 +516,29 @@ def test_compilerfunction():
     assert new_pcf.ndim == cf.ndim + 1
 
 
-@skipif(['nompi'])
-@pytest.mark.parallel(mode=[1])
 def test_deviceid():
-    grid = Grid(shape=(4, 4, 4))
-
-    did = DeviceID(grid.distributor._obj_comm)
+    did = DeviceID()
 
     pkl_did = pickle.dumps(did)
     new_did = pickle.loads(pkl_did)
+    # TODO: this will be extend when we'll support DeviceID
+    # for multi-node multi-gpu execution, when DeviceID will have
+    # to pick its default value from an MPI communicator attached
+    # to the runtime arguments
 
     assert did.name == new_did.name
     assert did.dtype == new_did.dtype
-    assert did.data == new_did.data
+
+
+def test_npthreads():
+    npt = NPThreads(name='npt', size=3)
+
+    pkl_npt = pickle.dumps(npt)
+    new_npt = pickle.loads(pkl_npt)
+
+    assert npt.name == new_npt.name
+    assert npt.dtype == new_npt.dtype
+    assert npt.size == new_npt.size
 
 
 @skipif(['nompi'])

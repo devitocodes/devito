@@ -28,7 +28,7 @@ def norm(f, order=2):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
-    s = dv.types.Scalar(name='sum', dtype=f.dtype)
+    s = dv.types.Symbol(name='sum', dtype=f.dtype)
 
     with MPIReduction(f) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] +
@@ -59,7 +59,7 @@ def sumall(f):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
-    s = dv.types.Scalar(name='sum', dtype=f.dtype)
+    s = dv.types.Symbol(name='sum', dtype=f.dtype)
 
     with MPIReduction(f) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] +
@@ -113,7 +113,7 @@ def inner(f, g):
     # otherwise we would eventually be summing more than expected
     rhs, eqns = f.guard(f*g) if f.is_SparseFunction else (f*g, [])
 
-    s = dv.types.Scalar(name='sum', dtype=f.dtype)
+    s = dv.types.Symbol(name='sum', dtype=f.dtype)
 
     with MPIReduction(f, g) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] +

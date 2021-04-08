@@ -14,81 +14,84 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
+from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
 from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_ordered
 from devito.types.array import Array, ArrayObject
-from devito.types.basic import Symbol
-from devito.types.constant import Constant
+from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
 from devito.types.misc import VolatileInt, c_volatile_int_p
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsMixin', 'DeviceID',
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase', 'DeviceID',
            'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
            'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM',
            'normalize_syncs']
 
 
-class NThreadsMixin(object):
+class NThreadsBase(Scalar):
 
+    is_Input = True
     is_PerfKnob = True
 
     def __new__(cls, **kwargs):
-        name = kwargs.get('name', cls.name)
-        value = cls.__value_setup__(**kwargs)
-        obj = Constant.__new__(cls, name=name, dtype=np.int32, value=value)
-        obj.aliases = as_tuple(kwargs.get('aliases')) + (name,)
-        return obj
+        kwargs.setdefault('name', cls.name)
+        kwargs['is_const'] = True
+        return super().__new__(cls, **kwargs)
 
     @classmethod
-    def __value_setup__(cls, **kwargs):
-        try:
-            return kwargs.pop('value')
-        except KeyError:
-            return cls.default_value()
+    def __dtype_setup__(cls, **kwargs):
+        return np.int32
 
-    @property
-    def _arg_names(self):
-        return self.aliases
-
-    def _arg_values(self, **kwargs):
-        for i in self.aliases:
-            if i in kwargs:
-                return {self.name: kwargs.pop(i)}
-        # Fallback: as usual, pick the default value
-        return self._arg_defaults()
-
-
-class NThreads(NThreadsMixin, Constant):
-
-    name = 'nthreads'
-
-    @classmethod
-    def default_value(cls):
+    @cached_property
+    def default_value(self):
         return int(os.environ.get('OMP_NUM_THREADS',
                                   configuration['platform'].cores_physical))
 
 
-class NThreadsNested(NThreadsMixin, Constant):
+class NThreads(NThreadsBase):
 
-    name = 'nthreads_nested'
-
-    @classmethod
-    def default_value(cls):
-        return configuration['platform'].threads_per_core
+    name = 'nthreads'
 
 
-class NThreadsNonaffine(NThreads):
+class NThreadsNonaffine(NThreadsBase):
 
     name = 'nthreads_nonaffine'
 
 
-class NPThreads(NThreadsMixin, Constant):
+class NThreadsNested(NThreadsBase):
+
+    name = 'nthreads_nested'
+
+    @property
+    def default_value(self):
+        return configuration['platform'].threads_per_core
+
+
+class NPThreads(NThreadsBase):
 
     name = 'npthreads'
 
-    @classmethod
-    def default_value(cls):
-        return 1
+    def __new__(cls, **kwargs):
+        obj = super().__new__(cls, **kwargs)
+
+        # Size of the thread pool
+        obj.size = kwargs['size']
+
+        return obj
+
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            v = kwargs.pop(self.name)
+            if v < self.size:
+                return {self.name: v}
+            else:
+                raise InvalidArgument("Illegal `%s=%d`. It must be `%s<%d`"
+                                      % (self.name, v, self.name, self.size))
+        else:
+            return self._arg_defaults()
+
+    # Pickling support
+    _pickle_kwargs = NThreadsBase._pickle_kwargs + ['size']
 
 
 class ThreadID(CustomDimension):
@@ -344,14 +347,15 @@ def normalize_syncs(*args):
     return syncs
 
 
-class DeviceSymbol(Constant):
+class DeviceSymbol(Scalar):
 
+    is_Input = True
     is_PerfKnob = True
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, **kwargs):
         kwargs['name'] = cls.name
-        kwargs['value'] = cls.__value_setup__(**kwargs)
-        return Constant.__new__(cls, *args, **kwargs)
+        kwargs['is_const'] = True
+        return super().__new__(cls, **kwargs)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -362,8 +366,8 @@ class DeviceID(DeviceSymbol):
 
     name = 'deviceid'
 
-    @classmethod
-    def __value_setup__(cls, **kwargs):
+    @property
+    def default_value(self):
         return -1
 
 
@@ -371,8 +375,8 @@ class DeviceRM(DeviceSymbol):
 
     name = 'devicerm'
 
-    @classmethod
-    def __value_setup__(cls, **kwargs):
+    @property
+    def default_value(self):
         return 1
 
     def _arg_values(self, **kwargs):

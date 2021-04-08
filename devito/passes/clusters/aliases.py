@@ -13,7 +13,7 @@ from devito.passes.clusters.utils import timed_pass
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               q_leaf, retrieve_indexed, search, uxreplace)
 from devito.tools import as_tuple, flatten, split
-from devito.types import (Array, TempFunction, Eq, Scalar, ModuloDimension,
+from devito.types import (Array, TempFunction, Eq, Symbol, ModuloDimension,
                           CustomDimension, IncrDimension)
 
 __all__ = ['cire']
@@ -172,7 +172,7 @@ class Cire(object):
         return SpacePoint(schedule, exprs, score)
 
     def _make_symbol(self):
-        return Scalar(name=self.sregistry.make_name('dummy'))
+        return Symbol(name=self.sregistry.make_name('dummy'))
 
     def _nrepeats(self, cluster):
         raise NotImplementedError
@@ -801,7 +801,7 @@ def lower_schedule(cluster, schedule, sregistry, options):
             # Degenerate case: scalar expression
             assert writeto.size == 0
 
-            obj = Scalar(name=name, dtype=dtype)
+            obj = Symbol(name=name, dtype=dtype)
             expression = Eq(obj, alias)
 
             callback = lambda idx: obj

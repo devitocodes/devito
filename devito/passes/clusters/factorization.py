@@ -3,7 +3,7 @@ from collections import defaultdict
 from sympy import Add, Mul, collect
 
 from devito.passes.clusters.utils import cluster_pass
-from devito.symbolics import estimate_cost, retrieve_scalars
+from devito.symbolics import estimate_cost, retrieve_symbols
 from devito.tools import ReducerMap
 
 __all__ = ['factorize']
@@ -155,9 +155,9 @@ def collect_nested(expr):
 
             # Collect common temporaries (r0, r1, ...)
             w_coeffs = Add(*w_coeffs, evaluate=False)
-            scalars = retrieve_scalars(w_coeffs)
-            if scalars:
-                w_coeffs = collect(w_coeffs, scalars, evaluate=False)
+            symbols = retrieve_symbols(w_coeffs)
+            if symbols:
+                w_coeffs = collect(w_coeffs, symbols, evaluate=False)
                 try:
                     terms.extend([Mul(k, collect_const(v), evaluate=False)
                                   for k, v in w_coeffs.items()])

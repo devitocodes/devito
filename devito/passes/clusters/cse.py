@@ -3,7 +3,7 @@ from collections import OrderedDict
 from devito.ir import DummyEq, Cluster, Scope
 from devito.passes.clusters.utils import cluster_pass, makeit_ssa
 from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace
-from devito.types import Scalar
+from devito.types import Symbol
 
 __all__ = ['cse']
 
@@ -13,7 +13,7 @@ def cse(cluster, sregistry, *args):
     """
     Common sub-expressions elimination (CSE).
     """
-    make = lambda: Scalar(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+    make = lambda: Symbol(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
     processed = _cse(cluster.exprs, make)
 
     return cluster.rebuild(processed)

@@ -5,7 +5,7 @@ from devito.tools import as_tuple, is_integer
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
            'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
-           'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine',
+           'q_identity', 'q_inc', 'q_symbol', 'q_multivar', 'q_monoaffine',
            'q_dimension']
 
 
@@ -16,9 +16,9 @@ __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xo
 # * Indexed
 
 
-def q_scalar(expr):
+def q_symbol(expr):
     try:
-        return expr.is_Scalar
+        return expr.is_Symbol
     except AttributeError:
         return False
 

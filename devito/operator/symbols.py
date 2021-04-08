@@ -15,9 +15,9 @@ class SymbolRegistry(object):
         self.counters = {}
 
         # Special symbols
-        self.nthreads = NThreads(aliases='nthreads0')
-        self.nthreads_nested = NThreadsNested(aliases='nthreads1')
-        self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
+        self.nthreads = NThreads()
+        self.nthreads_nested = NThreadsNested()
+        self.nthreads_nonaffine = NThreadsNonaffine()
         self.threadid = ThreadID(self.nthreads)
 
         # Several groups of pthreads each of size `npthread` may be created
@@ -36,8 +36,8 @@ class SymbolRegistry(object):
 
         return "%s%d" % (prefix, counter())
 
-    def make_npthreads(self, value):
+    def make_npthreads(self, size):
         name = self.make_name(prefix='npthreads')
-        npthreads = NPThreads(name=name, value=value)
+        npthreads = NPThreads(name=name, size=size)
         self.npthreads.append(npthreads)
         return npthreads

@@ -7,7 +7,7 @@ from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunc
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
                     DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
                     TensorFunction, TensorTimeFunction, VectorTimeFunction)
-from devito.types.basic import Scalar, Symbol
+from devito.types import Scalar, Symbol, NThreadsBase, DeviceID, NPThreads, ThreadID
 
 
 @pytest.fixture
@@ -376,6 +376,44 @@ class TestCaching(object):
         assert y0.spacing is y1.spacing
         assert ox0 is ox1
         assert oy0 is oy1
+
+    def test_special_symbols(self):
+        """
+        This test checks the singletonization, through the caching infrastructure,
+        of the special symbols that an Operator may generate (e.g., `nthreads`).
+        """
+        grid = Grid(shape=(4, 4, 4))
+        f = TimeFunction(name='f', grid=grid)
+        sf = SparseTimeFunction(name='sf', grid=grid, npoint=1, nt=10)
+
+        eqns = [Eq(f.forward, f + 1.)] + sf.inject(field=f.forward, expr=sf)
+
+        opt = ('advanced', {'par-nested': 0, 'openmp': True})
+        op0 = Operator(eqns, opt=opt)
+        op1 = Operator(eqns, opt=opt)
+
+        nthreads0, nthreads_nested0, nthreads_nonaffine0 =\
+            [i for i in op0.input if isinstance(i, NThreadsBase)]
+        nthreads1, nthreads_nested1, nthreads_nonaffine1 =\
+            [i for i in op1.input if isinstance(i, NThreadsBase)]
+
+        assert nthreads0 is nthreads1
+        assert nthreads_nested0 is nthreads_nested1
+        assert nthreads_nonaffine0 is nthreads_nonaffine1
+
+        tid0 = ThreadID(op0.nthreads)
+        tid1 = ThreadID(op0.nthreads)
+        assert tid0 is tid1
+
+        did0 = DeviceID()
+        did1 = DeviceID()
+        assert did0 is did1
+
+        npt0 = NPThreads(name='npt', size=3)
+        npt1 = NPThreads(name='npt', size=3)
+        npt2 = NPThreads(name='npt', size=4)
+        assert npt0 is npt1
+        assert npt0 is not npt2
 
     def test_symbol_aliasing(self):
         """Test to assert that our aliasing cache isn't defeated by sympys

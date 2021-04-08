@@ -6,7 +6,7 @@ from devito.ir.support import TILABLE, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul, uxreplace
 from devito.tools import DAG, as_tuple, filter_ordered, frozendict, timed_pass
-from devito.types import Scalar
+from devito.types import Symbol
 
 __all__ = ['Lift', 'fuse', 'eliminate_arrays', 'optimize_pows', 'extract_increments']
 
@@ -316,7 +316,7 @@ def extract_increments(cluster, sregistry, *args):
     processed = []
     for e in cluster.exprs:
         if e.is_Increment and e.lhs.function.is_Input:
-            handle = Scalar(name=sregistry.make_name(), dtype=e.dtype).indexify()
+            handle = Symbol(name=sregistry.make_name(), dtype=e.dtype).indexify()
             if e.rhs.is_Number or e.rhs.is_Symbol:
                 extracted = e.rhs
             else:

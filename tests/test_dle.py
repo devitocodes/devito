@@ -10,7 +10,7 @@ from devito.exceptions import InvalidArgument
 from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
 from devito.passes.iet.languages.openmp import OmpRegion
 from devito.tools import as_tuple
-from devito.types import Scalar, NThreads, NThreadsNonaffine
+from devito.types import Scalar
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):
@@ -360,6 +360,21 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
 
 class TestNodeParallelism(object):
 
+    def test_nthreads_generation(self):
+        grid = Grid(shape=(10, 10))
+
+        f = TimeFunction(name='f', grid=grid)
+
+        eq = Eq(f.forward, f + 1)
+
+        op0 = Operator(eq, openmp=True)
+
+        # `nthreads` must appear among the Operator parameters
+        assert op0.nthreads in op0.parameters
+
+        # `nthreads` is bindable to a runtime value
+        assert op0.nthreads._arg_values()
+
     @pytest.mark.parametrize('exprs,expected', [
         # trivial 1D
         (['Eq(fa[x], fa[x] + fb[x])'],
@@ -452,15 +467,8 @@ class TestNodeParallelism(object):
         assert np.all(f.data[0] == 2.)
 
         # Check the actual value assumed by `nthreads` and `nthreads_nonaffine`
-        assert op.arguments(time=0)['nthreads'] == NThreads.default_value()
-        assert op.arguments(time=0)['nthreads_nonaffine'] == \
-            NThreadsNonaffine.default_value()
-        # Again, but with user-supplied values
         assert op.arguments(time=0, nthreads=123)['nthreads'] == 123
         assert op.arguments(time=0, nthreads_nonaffine=100)['nthreads_nonaffine'] == 100
-        # Again, but with the aliases
-        assert op.arguments(time=0, nthreads0=123)['nthreads'] == 123
-        assert op.arguments(time=0, nthreads2=123)['nthreads_nonaffine'] == 123
 
     @pytest.mark.parametrize('eqns,expected,blocking', [
         ('[Eq(f, 2*f)]', [2, 0, 0], False),
@@ -633,8 +641,6 @@ class TestNestedParallelism(object):
         op.apply(t_M=9, nthreads=1, nthreads_nested=2)
         assert np.all(u.data[0] == 10)
         assert op.arguments(t_M=9, nthreads_nested=2)['nthreads_nested'] == 2
-        # Same as above, but with the alias
-        assert op.arguments(t_M=9, nthreads1=2)['nthreads_nested'] == 2
 
         iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
         assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(dynamic,1)'

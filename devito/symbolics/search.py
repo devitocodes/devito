@@ -1,9 +1,9 @@
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
-                                      q_scalar, q_dimension)
+                                      q_symbol, q_dimension)
 from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_xops', 'retrieve_scalars',
+           'retrieve_terminals', 'retrieve_xops', 'retrieve_symbols',
            'retrieve_dimensions', 'search']
 
 
@@ -139,9 +139,9 @@ def retrieve_functions(exprs, mode='all'):
     return search(exprs, q_function, mode, 'dfs')
 
 
-def retrieve_scalars(exprs, mode='all'):
+def retrieve_symbols(exprs, mode='all'):
     """Shorthand to retrieve the Scalar in ``exprs``."""
-    return search(exprs, q_scalar, mode, 'dfs')
+    return search(exprs, q_symbol, mode, 'dfs')
 
 
 def retrieve_function_carriers(exprs, mode='all'):

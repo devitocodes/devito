@@ -14,7 +14,7 @@ from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           memoized_meth, is_integer)
 from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
-from devito.types.basic import Symbol, Scalar
+from devito.types.basic import Symbol
 from devito.types.equation import Eq, Inc
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -540,7 +540,7 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point."""
-        return tuple(Scalar(name='p%s' % d, dtype=self.dtype)
+        return tuple(Symbol(name='p%s' % d, dtype=self.dtype)
                      for d in self.grid.dimensions)
 
     @cached_property
@@ -559,7 +559,7 @@ class SparseFunction(AbstractSparseFunction):
         the position. We mitigate this problem by computing the positions
         individually (hence the need for a position map).
         """
-        symbols = [Scalar(name='pos%s' % d, dtype=self.dtype)
+        symbols = [Symbol(name='pos%s' % d, dtype=self.dtype)
                    for d in self.grid.dimensions]
         return OrderedDict([(c - o, p) for p, c, o in zip(symbols,
                                                           self._coordinate_symbols,

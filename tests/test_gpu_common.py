@@ -4,9 +4,10 @@ import numpy as np
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     SubDimension, SubDomain, TimeFunction, Operator)
 from devito.arch import get_gpu_info
+from devito.exceptions import InvalidArgument
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
 from devito.passes.iet.languages.openmp import OmpIteration
-from devito.types import DeviceID, DeviceRM, Lock, PThreadArray
+from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray
 
 from conftest import skipif
 
@@ -406,7 +407,7 @@ class TestStreaming(object):
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size == 1
-        assert threads[1].size.data == 2
+        assert threads[1].size.size == 2
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, usave=usave1)
@@ -437,7 +438,7 @@ class TestStreaming(object):
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 1
-        assert threads[0].size.data == 1
+        assert threads[0].size.size == 1
 
         op0.apply(time_M=nt-1, dt=0.1)
         op1.apply(time_M=nt-1, dt=0.1, u=u1, usave=usave1)
@@ -475,8 +476,8 @@ class TestStreaming(object):
         assert len([i for i in symbols if isinstance(i, Lock)]) == 2
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
-        assert threads[0].size.data == 1
-        assert threads[1].size.data == 1
+        assert threads[0].size.size == 1
+        assert threads[1].size.size == 1
         assert len(op1._func_table) == 4  # usave and vsave eqns are in two diff efuncs
 
         op0.apply(time_M=nt-1)
@@ -727,7 +728,6 @@ class TestAPI(object):
 
         deviceid = self.get_param(op, DeviceID)
         assert deviceid is not None
-        assert deviceid.data == -1
         assert op.arguments()[deviceid.name] == -1
         assert op.arguments(deviceid=0)[deviceid.name] == 0
 
@@ -748,10 +748,30 @@ class TestAPI(object):
 
         devicerm = self.get_param(op, DeviceRM)
         assert devicerm is not None
-        assert devicerm.data == 1  # Always evict, by default
-        assert op.arguments(time_M=2)[devicerm.name] == 1
+        assert op.arguments(time_M=2)[devicerm.name] == 1  # Always evict by default
         assert op.arguments(time_M=2, devicerm=0)[devicerm.name] == 0
         assert op.arguments(time_M=2, devicerm=1)[devicerm.name] == 1
         assert op.arguments(time_M=2, devicerm=224)[devicerm.name] == 1
         assert op.arguments(time_M=2, devicerm=True)[devicerm.name] == 1
         assert op.arguments(time_M=2, devicerm=False)[devicerm.name] == 0
+
+    def test_npthreads(self):
+        nt = 10
+        async_degree = 5
+        grid = Grid(shape=(300, 300, 300))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward)]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate',
+                                 {'buf-async-degree': async_degree}))
+
+        npthreads0 = self.get_param(op, NPThreads)
+        assert op.arguments(time_M=2)[npthreads0.name] == 1
+        assert op.arguments(time_M=2, npthreads0=4)[npthreads0.name] == 4
+        # Cannot provide a value larger than the thread pool size
+        with pytest.raises(InvalidArgument):
+            assert op.arguments(time_M=2, npthreads0=5)

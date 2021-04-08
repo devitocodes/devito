@@ -8,7 +8,7 @@ from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, indexify, INT
 from devito.tools import powerset, flatten, prod
 from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq, Inc,
-                          Evaluable, Scalar, SubFunction)
+                          Evaluable, Symbol, SubFunction)
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
 
@@ -234,7 +234,7 @@ class LinearInterpolator(GenericInterpolator):
                     for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
 
             # Accumulate point-wise contributions into a temporary
-            rhs = Scalar(name='sum', dtype=self.sfunction.dtype)
+            rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
             summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
             summands.extend([Inc(rhs, i, implicit_dims=self.sfunction.dimensions)
                             for i in args])
