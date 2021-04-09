@@ -52,15 +52,27 @@ def detect_oobs(mapper):
     for f, stencil in mapper.items():
         if f is None or not (f.is_DiscreteFunction or f.is_Array):
             continue
+        dim_sizes = dict(zip(f.dimensions, f.shape))
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
             try:
-                test0 = min(v) < 0
-                test1 = max(v) > f._size_nodomain[p].left + f._size_halo[p].right
+                if d.is_Sub:
+                    size = dim_sizes[d if d in dim_sizes else d.parent]
+                    if d._offset_left[1] == d.parent.symbolic_min:
+                        test0 = min(v) < - d._offset_left[0]
+                    else:
+                        test0 = min(v) < - (size - 1 + d._offset_left[0])
+                    if d._offset_right[1] == d.parent.symbolic_max:
+                        test1 = max(v) > f._size_halo[p].left + f._size_halo[p].right - d._offset_right[0]
+                    else:
+                        test1 = max(v) > f._size_halo[p].left + f._size_halo[p].right + (size - 1 - d._offset_right[0])
+                else:
+                    test0 = min(v) < 0
+                    test1 = max(v) > f._size_halo[p].left + f._size_halo[p].right
                 if test0 or test1:
                     # It'd mean trying to access a point before the
                     # left padding (test0) or after the right halo (test1)
-                    found.add(p)
+                    found.add(d)
             except KeyError:
                 # Unable to detect presence of OOB accesses
                 # (/p/ not in /f._size_halo/, typical of indirect

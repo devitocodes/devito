@@ -138,6 +138,13 @@ class LoweredEq(IREq):
         # Analyze the expression
         mapper = detect_accesses(expr)
         oobs = detect_oobs(mapper)
+
+        for d in oobs:
+            if d.is_Space:
+                if d.is_Sub:
+                    if not d.is_NonlinearDerived:
+                        raise ValueError(' OOB access\n')
+        
         conditional_dimensions = [i for i in ordering if i.is_Conditional]
 
         # Construct Intervals for IterationSpace and DataSpace
