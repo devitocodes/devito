@@ -34,19 +34,19 @@ RUN apt-get update -y && \
         libibverbs-dev \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super && \
     wget -q -P /app/ \
-         https://developer.download.nvidia.com/hpc-sdk/21.2/nvhpc-21-2_21.2_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.2/nvhpc-21-2-cuda-multi_21.2_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.2/nvhpc-2021_21.2_amd64.deb && \
+         https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-21-3_21.3_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-21-3-cuda-multi_21.3_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-2021_21.3_amd64.deb && \
     apt-get install -y -q \
-         /app/nvhpc-21-2_21.2_amd64.deb \
-         /app/nvhpc-21-2-cuda-multi_21.2_amd64.deb \
-         /app/nvhpc-2021_21.2_amd64.deb && \
+         /app/nvhpc-21-3_21.3_amd64.deb \
+         /app/nvhpc-21-3-cuda-multi_21.3_amd64.deb \
+         /app/nvhpc-2021_21.3_amd64.deb && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
     rm -rf /var/lib/apt/lists/*
 
 ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.2/extras/CUPTI
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.3/extras/CUPTI
 ARG MPI_VER=3
 
 # nvidia-container-runtime
@@ -120,7 +120,7 @@ RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
 ## Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
 # Set arch to PGI (pgcc)
-ENV DEVITO_ARCH="pgcc" 
+ENV DEVITO_ARCH="nvc" 
 ENV DEVITO_LANGUAGE="openacc"
 ENV DEVITO_PLATFORM=nvidiaX
 # Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
