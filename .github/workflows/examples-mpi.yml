@@ -27,7 +27,6 @@ jobs:
       DEVITO_LANGUAGE: "openmp"
       OMP_NUM_THREADS: "2"
       DEVITO_ARCH: "gcc"
-      DEVITO_BACKEND: "core"
       CC: "gcc"
       CXX: "g++"
 
