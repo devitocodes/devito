@@ -23,7 +23,6 @@ jobs:
     env:
       DEVITO_ARCH: gcc
       DEVITO_LANGUAGE: "openmp"
-      DEVITO_BACKEND: "core"
       PYTHON_VERSION: "3.7"
 
     strategy:
