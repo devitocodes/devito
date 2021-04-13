@@ -1,5 +1,5 @@
 # Runner information:
-# CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz
+# CPU: Intel(R) Xeon(R) CPU E5-2640 0 @ 2.50GHz (24 cores)
 
 name: Examples-mpi
 
@@ -34,14 +34,12 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v2.3.2
 
-      # We can use the same env as for asv here
-    - name: Set VIRTUAL_ENV
+    - name: Set environment
       run: |
-        echo "VIRTUAL_ENV=$ENVHOME/asv" >> $GITHUB_ENV
-        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
-    - name: Set PATH
-      run: |
-        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
+        source $ENVHOME/devito-cpu-mpi/bin/activate
+        echo "PATH=$PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
     - name: Install dependencies
       run: |
         pip install --upgrade pip
