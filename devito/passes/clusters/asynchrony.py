@@ -1,11 +1,14 @@
 from collections import defaultdict
 
+from sympy import Mod, Mul
+
+from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Queue
-from devito.ir.support import SEQUENTIAL
+from devito.ir.support import Forward, SEQUENTIAL
 from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
                           indices_to_sections, timed_pass)
-from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchWait,
-                          FetchWaitPrefetch, Delete, normalize_syncs)
+from devito.types import (CustomDimension, Ge, Le, Lock, WaitLock, WithLock,
+                          FetchWait, FetchWaitPrefetch, Delete, normalize_syncs)
 
 __all__ = ['Tasker', 'Streaming']
 
@@ -163,12 +166,12 @@ class Streaming(Asynchronous):
         # 1) all CustomDimensions of fixed (i.e. integer) size, which
         #    implies a bound on the amount of streamed data
         if all(SEQUENTIAL in c.properties[d] for c in clusters):
-            make_fetch = lambda f, i, s: FetchWaitPrefetch(f, d, i, s, direction)
-            make_delete = lambda f, i, s: Delete(f, d, i, s)
+            make_fetch = lambda f, i, s, cb: FetchWaitPrefetch(f, d, direction, i, s, cb)
+            make_delete = lambda f, i, s, cb: Delete(f, d, direction, i, s, cb)
             syncd = d
         elif d.is_Custom and is_integer(it.size):
-            make_fetch = lambda f, i, s: FetchWait(f, d, i, it.size, direction)
-            make_delete = lambda f, i, s: Delete(f, d, i, it.size)
+            make_fetch = lambda f, i, s, cb: FetchWait(f, d, direction, i, it.size, cb)
+            make_delete = lambda f, i, s, cb: Delete(f, d, direction, i, it.size, cb)
             syncd = pd
         else:
             return clusters
@@ -200,7 +203,8 @@ class Streaming(Asynchronous):
             for c, m in mapper.items():
                 for f, v in m.items():
                     for i, s in indices_to_sections(v):
-                        sync_ops[c].append(callback(f, i, s))
+                        next_cbk = make_next_cbk(c.guards.get(d), d, direction)
+                        sync_ops[c].append(callback(f, i, s, next_cbk))
 
         # Attach SyncOps to Clusters
         processed = []
@@ -212,3 +216,30 @@ class Streaming(Asynchronous):
                 processed.append(c)
 
         return processed
+
+
+# Utilities
+
+def make_next_cbk(rel, d, direction):
+    """
+    Create a callable that given a symbol returns a sympy.Relational usable to
+    express, in symbolic form, whether the next fetch/prefetch will be executed.
+    """
+    if rel is None:
+        if direction is Forward:
+            return lambda s: Le(s, d.symbolic_max)
+        else:
+            return lambda s: Ge(s, d.symbolic_min)
+    else:
+        # Only case we know how to deal with, today, is the one induced
+        # by a ConditionalDimension with structured condition (e.g. via `factor`)
+        if not (rel.is_Equality and rel.rhs == 0 and isinstance(rel.lhs, Mod)):
+            raise InvalidOperator("Unable to understand data streaming pattern")
+        _, v = rel.lhs.args
+
+        if direction is Forward:
+            # The LHS rounds `s` up to the nearest multiple of `v`
+            return lambda s: Le(Mul(((s + v - 1) / v), v, evaluate=False), d.symbolic_max)
+        else:
+            # The LHS rounds `s` down to the nearest multiple of `v`
+            return lambda s: Ge(Mul((s / v), v, evaluate=False), d.symbolic_min)

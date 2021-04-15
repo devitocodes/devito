@@ -42,7 +42,8 @@ def skipif(items, whole_module=False):
             break
         # Skip if won't run on a specific GPU backend
         langs = configuration._accepted['language']
-        if any(i == 'device-%s' % l and configuration['language'] == l for l in langs):
+        if any(i == 'device-%s' % l and configuration['language'] == l for l in langs)\
+                and isinstance(configuration['platform'], Device):
             skipit = "language `%s` for device unsupported" % configuration['language']
             break
         # Skip if must run on GPUs but not currently on a GPU

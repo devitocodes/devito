@@ -115,15 +115,14 @@ class Orchestrator(object):
         for s in sync_ops:
             if s.direction is Forward:
                 fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-                fsize = s.function._C_get_field(FULL, s.dim).size
-                fc_cond = fc + (s.size - 1) < fsize
                 pfc = s.fetch + 1
-                pfc_cond = pfc + (s.size - 1) < fsize
+                fc_cond = s.next_cbk(s.dim.symbolic_min)
+                pfc_cond = s.next_cbk(s.dim + 1)
             else:
                 fc = s.fetch.subs(s.dim, s.dim.symbolic_max)
-                fc_cond = fc >= 0
                 pfc = s.fetch - 1
-                pfc_cond = pfc >= 0
+                fc_cond = s.next_cbk(s.dim.symbolic_max)
+                pfc_cond = s.next_cbk(s.dim - 1)
 
             # Construct init IET
             imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]

@@ -314,6 +314,77 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 72)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
+    def test_streaming_conddim_forward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time_dim = grid.time_dim
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                             save=(int(nt//factor.data)), time_dim=time_sub)
+
+        for i in range(usave.save):
+            usave.data[i, :] = i
+
+        eqn = Eq(u.forward, u.forward + u + usave)
+
+        op = Operator(eqn, opt=('streaming', 'orchestrate'))
+
+        # TODO: we are *not* using the last entry of usave, so we gotta ensure
+        # it is *not* streamed on to the device (thus avoiding dangerous leaks).
+        # But how can we explicitly check this?
+        time_M = 6
+
+        op.apply(time_M=time_M)
+
+        # We entered the eq four times (at time=0,2,4,6)
+        # Since factor=2, we *only* write to u.data[(time+1)%2]=u.data[1]
+        assert np.all(u.data[0] == 0)
+        # 1st time u[1] = u[0]+u[1]+usave[0] = 0+0+0 = 0
+        # 2nd time u[1] = u[0]+u[1]+usave[1] = 0+0+1 = 1
+        # 3rd time u[1] = u[0]+u[1]+usave[2] = 0+1+2 = 3
+        # 4th time u[1] = u[0]+u[1]+usave[3] = 0+3+3 = 6
+        assert np.all(u.data[1] == 6)
+
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
+    def test_streaming_conddim_backward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time_dim = grid.time_dim
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                             save=(int(nt//factor.data)), time_dim=time_sub)
+
+        for i in range(usave.save):
+            usave.data[i, :] = i
+
+        eqn = Eq(u.backward, u.backward + u + usave)
+
+        op = Operator(eqn, opt=('streaming', 'orchestrate'))
+
+        # TODO: we are *not* using the first two entries of usave, so we gotta ensure
+        # they are *not* streamed on to the device (thus avoiding dangerous leaks).
+        # But how can we explicitly check this?
+        time_m = 4
+
+        op.apply(time_m=time_m, time_M=nt-2)
+
+        # We entered the eq three times (at time=8,6,4)
+        # Since factor=2, we *only* write to u.data[(time-1)%2]=u.data[1]
+        assert np.all(u.data[0] == 0)
+        # 1st time u[1] = u[0]+u[1]+usave[4] = 0+0+4 = 4
+        # 2nd time u[1] = u[0]+u[1]+usave[3] = 0+4+3 = 7
+        # 3rd time u[1] = u[0]+u[1]+usave[2] = 0+7+2 = 9
+        assert np.all(u.data[1] == 9)
+
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_multi_input(self):
         nt = 100
         grid = Grid(shape=(10, 10))
@@ -552,7 +623,6 @@ class TestStreaming(object):
     def test_save(self, opt, gpu_fit, async_degree):
         nt = 10
         grid = Grid(shape=(300, 300, 300))
-
         time_dim = grid.time_dim
 
         factor = Constant(name='factor', value=2, dtype=np.int32)
@@ -574,7 +644,6 @@ class TestStreaming(object):
     def test_save_multi_output(self):
         nt = 10
         grid = Grid(shape=(150, 150, 150))
-
         time_dim = grid.time_dim
 
         factor = Constant(name='factor', value=2, dtype=np.int32)
