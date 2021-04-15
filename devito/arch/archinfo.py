@@ -428,6 +428,7 @@ class Cpu64(Platform):
 
     def _detect_isa(self):
         for i in reversed(self.known_isas):
+            from IPython import embed; embed()
             if any(j.startswith(i) for j in get_cpu_info()['flags']):
                 # Using `startswith`, rather than `==`, as a flag such as 'avx512'
                 # appears as 'avx512f, avx512cd, ...'
