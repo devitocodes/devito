@@ -1341,7 +1341,8 @@ class TimeFunction(Function):
     def __shape_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
         save = kwargs.get('save') or None  # Force to None if 0/False/None/...
-        shape = kwargs.get('shape')
+        dimensions = kwargs.get('dimensions')
+        shape = kwargs.get('shape', kwargs.get('shape_global'))
         time_order = kwargs.get('time_order', 1)
 
         if grid is None:
@@ -1360,6 +1361,14 @@ class TimeFunction(Function):
                 shape.insert(cls._time_position, save)
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
+        elif dimensions is None:
+            raise TypeError("`dimensions` required if both `grid` and "
+                            "`shape` are provided")
+        else:
+            shape = super(TimeFunction, cls).__shape_setup__(
+                grid=grid, shape=shape, dimensions=dimensions
+            )
+
         return tuple(shape)
 
     @cached_property
