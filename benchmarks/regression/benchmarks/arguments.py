@@ -3,6 +3,7 @@ from devito import Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operato
 
 # ASV config
 repeat = 10
+timeout = 600.0
 
 
 class Processing(object):
