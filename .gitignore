@@ -1,5 +1,7 @@
 *.pyc
+
 *.json
+!benchmarks/regression/.asv/results/benchmarks.json
 
 .cache
 
