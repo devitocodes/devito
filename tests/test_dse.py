@@ -529,7 +529,6 @@ class TestAliases(object):
         ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
-        # assert len(FindNodes(VExpanded).visit(op1)) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -566,7 +565,6 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
-        # assert len(FindNodes(VExpanded).visit(op1)) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (0, 0)), (xs+2, ys+2, zs), rotate)
 
         # Check numerical output
@@ -639,7 +637,6 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
-        #assert len(FindNodes(VExpanded).visit(op1)) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -684,7 +681,6 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
-        # assert len(FindNodes(VExpanded).visit(op1)) == 2
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         self.check_array(arrays[1], ((1, 1), (0, 0)), (ys+2, zs), rotate)
 
@@ -721,7 +717,6 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
-        # assert len(FindNodes(VExpanded).visit(op1)) == 1
         self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
         self.check_array(arrays[1], ((2, 2), (0, 0)), (ys+4, zs))
 
@@ -806,7 +801,6 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
-        # assert len(FindNodes(VExpanded).visit(op1)) == 2
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         self.check_array(arrays[1], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
 
@@ -850,7 +844,6 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
-        #assert len(FindNodes(VExpanded).visit(op1)) == 2
         self.check_array(arrays[0], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
         self.check_array(arrays[1], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
 
@@ -1626,7 +1619,7 @@ class TestAliases(object):
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'cire-mingain': 0}))
 
-        # Check code generation      
+        # Check code generation
         trees = retrieve_iteration_tree(op1)
         assert len(trees) == 3  # Expected two separate blocked loop nests
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
@@ -2243,7 +2236,6 @@ class TestAliases(object):
         # Check code generation
         assert len([i for i in op1.dimensions if i.is_Incr]) == 6 + (2 if rotate else 0)
         if configuration['language'] == 'openmp':
-            
             pariters = FindNodes(ParallelIteration).visit(op2)
             assert len(pariters) == 2
 
@@ -2567,7 +2559,7 @@ class TestTTI(object):
         assert len(arrays) == 6
         assert all(not i._mem_external for i in arrays)
         assert len([i for i in arrays if i._mem_heap]) == 6
-        
+
     @skipif(['nompi'])
     @switchconfig(profiling='advanced')
     @pytest.mark.parallel(mode=[(1, 'full')])
@@ -2581,9 +2573,9 @@ class TestTTI(object):
         assert np.allclose(rec0.data, rec1.data, atol=10e-1)
 
         # Run a quick check to be sure MPI-full-mode code was actually generated
-        op = tti_agg.op_fwd('centered', False)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 8
+        op = tti_agg.op_fwd(False)
+
+        assert len(op._func_table) == 7
         assert 'pokempi0' in op._func_table
 
     @switchconfig(profiling='advanced')
