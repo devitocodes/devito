@@ -307,7 +307,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             # within a block)
             candidates = []
             for i in inner:
-                if self.key(i) and any((j.dim.parent is i.dim.root) for j in outer):
+                if self.key(i) and any((j.dim.root is i.dim.root) for j in outer):
                     candidates.append(i)
                 elif candidates:
                     # If there's at least one candidate but `i` doesn't honor the
