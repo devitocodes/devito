@@ -50,6 +50,31 @@ class TestDistributor(object):
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_partitioning_fewer_dims_timefunc(self):
+        """Test domain decomposition for Functions defined over a strict subset
+        of grid-decomposed dimensions."""
+        size_x, size_y = 16, 16
+        grid = Grid(shape=(size_x, size_y))
+        x, y = grid.dimensions
+
+        # A function with fewer dimensions that in `grid`
+        f = TimeFunction(
+            name='f',
+            grid=grid,
+            dimensions=(grid.time_dim, x,),
+            shape=(10, size_x,),
+        )
+
+        distributor = grid.distributor
+        expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
+            2: [(8,), (8,)],
+            4: [(8,), (8,), (8,), (8,)]
+        }
+        assert len(f.shape) == 2
+        assert f.shape[0] == 10
+        assert f.shape[1:] == expected[distributor.nprocs][distributor.myrank]
+
     @pytest.mark.parallel(mode=9)
     def test_neighborhood_horizontal_2d(self):
         grid = Grid(shape=(3, 3))
