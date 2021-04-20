@@ -128,7 +128,6 @@ def test_cache_blocking_structure_subdims():
 
         * With local SubDimensions no-blocking is expected.
         * With non-local SubDimensions, blocking is expected.
-        * With non-local SubDimensions, nested blocking works fine when expected.
     """
     grid = Grid(shape=(4, 4, 4))
     x, y, z = grid.dimensions
@@ -157,27 +156,6 @@ def test_cache_blocking_structure_subdims():
     assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
         tree[3].dim.root is y
     assert not tree[4].dim.is_Incr and tree[4].dim is zi and tree[4].dim.parent is z
-
-    # Non-local SubDimension -> nested blocking can works as expected
-    op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior),
-                  opt=('blocking', 'openmp', {'par-nested': 0, 'par-collapse-ncores': 2,
-                       'par-dynamic-work': 0}))
-    trees = retrieve_iteration_tree(op._func_table['bf0'].root)
-    assert len(trees) == 1
-    tree = trees[0]
-    assert len(tree) == 5
-    assert tree[0].dim.is_Incr and tree[0].dim.parent is xi and tree[0].dim.root is x
-    assert tree[1].dim.is_Incr and tree[1].dim.parent is yi and tree[1].dim.root is y
-    assert tree[2].dim.is_Incr and tree[2].dim.parent is tree[0].dim and\
-        tree[2].dim.root is x
-    assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
-        tree[3].dim.root is y
-    assert not tree[4].dim.is_Incr and tree[4].dim is zi and tree[4].dim.parent is z
-    assert trees[0][0].pragmas[0].value ==\
-        'omp for collapse(2) schedule(dynamic,1)'
-    assert trees[0][2].pragmas[0].value == ('omp parallel for collapse(2) '
-                                            'schedule(dynamic,1) '
-                                            'num_threads(nthreads_nested)')
 
 
 @pytest.mark.parallel(mode=[(1, 'full')])  # Shortcut to put loops in nested efuncs
@@ -757,5 +735,69 @@ class TestNestedParallelism(object):
                                                 'num_threads(nthreads_nested)')
         assert not trees[1][2].pragmas
         assert trees[1][3].pragmas[0].value == ('omp parallel for collapse(1) '
+                                                'schedule(dynamic,1) '
+                                                'num_threads(nthreads_nested)')
+
+    def test_nested_cache_blocking_structure_subdims(self):
+        """
+        Test that:
+
+            * With non-local SubDimensions, nested blocking works fine when expected.
+            * With non-local SubDimensions, hierarchical nested blocking works fine
+            when expected.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+        xi, yi, zi = grid.interior.dimensions
+        xl = SubDimension.left(name='xl', parent=x, thickness=4)
+
+        f = TimeFunction(name='f', grid=grid)
+
+        assert xl.local
+
+        # Non-local SubDimension -> nested blocking can works as expected
+        op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior),
+                      opt=('blocking', 'openmp', {'par-nested': 0,
+                           'par-collapse-ncores': 2, 'par-dynamic-work': 0}))
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 1
+        tree = trees[0]
+        assert len(tree) == 5
+        assert tree[0].dim.is_Incr and tree[0].dim.parent is xi and tree[0].dim.root is x
+        assert tree[1].dim.is_Incr and tree[1].dim.parent is yi and tree[1].dim.root is y
+        assert tree[2].dim.is_Incr and tree[2].dim.parent is tree[0].dim and\
+            tree[2].dim.root is x
+        assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
+            tree[3].dim.root is y
+        assert not tree[4].dim.is_Incr and tree[4].dim is zi and tree[4].dim.parent is z
+        assert trees[0][0].pragmas[0].value ==\
+            'omp for collapse(2) schedule(dynamic,1)'
+        assert trees[0][2].pragmas[0].value == ('omp parallel for collapse(2) '
+                                                'schedule(dynamic,1) '
+                                                'num_threads(nthreads_nested)')
+
+        # Non-local SubDimension -> hierarchical + nested blocking can works as expected
+        op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior),
+                      opt=('blocking', 'openmp', {'blocklevels': 2, 'par-nested': 0,
+                           'par-collapse-ncores': 2, 'par-dynamic-work': 0}))
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 1
+        tree = trees[0]
+        assert len(tree) == 7
+        assert tree[0].dim.is_Incr and tree[0].dim.parent is xi and tree[0].dim.root is x
+        assert tree[1].dim.is_Incr and tree[1].dim.parent is yi and tree[1].dim.root is y
+        assert tree[2].dim.is_Incr and tree[2].dim.parent is tree[0].dim and\
+            tree[2].dim.root is x
+        assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
+            tree[3].dim.root is y
+        assert tree[4].dim.is_Incr and tree[4].dim.parent is tree[2].dim and\
+            tree[4].dim.root is x
+        assert tree[5].dim.is_Incr and tree[5].dim.parent is tree[3].dim and\
+            tree[5].dim.root is y
+
+        assert not tree[6].dim.is_Incr and tree[6].dim is zi and tree[6].dim.parent is z
+        assert trees[0][0].pragmas[0].value ==\
+            'omp for collapse(2) schedule(dynamic,1)'
+        assert trees[0][2].pragmas[0].value == ('omp parallel for collapse(2) '
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
