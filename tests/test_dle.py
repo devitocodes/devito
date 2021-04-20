@@ -96,9 +96,9 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     tree = trees[1]
     assert len(tree) == exp_iters
     if blockinner:
-        assert all(tree[i].dim.is_Incr for i in range(1,exp_iters))
+        assert all(tree[i].dim.is_Incr for i in range(1, exp_iters))
     else:
-        assert all(tree[i].dim.is_Incr for i in range(1,exp_iters-1))
+        assert all(tree[i].dim.is_Incr for i in range(1, exp_iters-1))
         assert not tree[-1].dim.is_Incr
 
     # Check presence of openmp pragmas at the right place
@@ -115,7 +115,6 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # to avoid omp segfaults at scheduling time (only certain omp implementations,
     # including Intel's)
     conditionals = FindNodes(Conditional).visit(op)
-    
 
     assert len(conditionals) == 1
     conds = conditionals[0].condition.args
@@ -751,4 +750,3 @@ class TestNestedParallelism(object):
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
         assert all(not i.pragmas for i in trees[2][2:4])
-

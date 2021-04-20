@@ -6,6 +6,7 @@ from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator # noqa
 from devito.ir import Expression, Iteration, FindNodes
 from devito.symbolics import INT
 
+
 class TestCodeGenSkewing(object):
 
     '''
@@ -35,7 +36,6 @@ class TestCodeGenSkewing(object):
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 1
 
-        #for i in ['bf0']:
         iters = FindNodes(Iteration).visit(op)
         assert len(iters) == 6
         assert iters[1].dim.parent is x
