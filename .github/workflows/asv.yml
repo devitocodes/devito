@@ -72,6 +72,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add -f benchmarks/regression/.asv/results/
+        git rebase origin/master
         git status
         git commit -m "Commit ASV results"
 
