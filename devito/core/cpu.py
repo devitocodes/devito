@@ -206,7 +206,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
-
         # Parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_simd(graph)
