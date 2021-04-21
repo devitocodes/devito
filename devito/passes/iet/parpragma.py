@@ -42,12 +42,14 @@ class PragmaSimdTransformer(PragmaTransformer):
     def make_simd(self, iet):
         mapper = {}
         for tree in retrieve_iteration_tree(iet):
+
             candidates = [i for i in tree if i.is_ParallelRelaxed]
             # As long as there's an outer level of parallelism, the innermost
             # PARALLEL Iteration gets vectorized
             if len(candidates) < 2:
                 continue
             candidate = candidates[-1]
+
             # Only fully-parallel Iterations will be SIMD-ized (ParallelRelaxed
             # might not be enough then)
             if not candidate.is_Parallel:
@@ -66,6 +68,7 @@ class PragmaSimdTransformer(PragmaTransformer):
 
             # Add VECTORIZED property
             properties = list(candidate.properties) + [VECTORIZED]
+
             mapper[candidate] = candidate._rebuild(pragmas=pragmas, properties=properties)
 
         iet = Transformer(mapper).visit(iet)

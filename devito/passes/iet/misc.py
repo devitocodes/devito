@@ -61,6 +61,7 @@ def relax_incr_dimensions(iet, **kwargs):
     Recast Iteration bounds using min/max conditions to iterate over the
     domain. This function sets the limits of a tree's Iterations.
     """
+
     efuncs = []
     mapper = {}
     for tree in retrieve_iteration_tree(iet):
