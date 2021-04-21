@@ -60,7 +60,7 @@ jobs:
       if: matrix.name != 'tutos-docker-gcc-py36'
       uses: actions/setup-python@v1
       with:
-        python-version: 3.7
+        python-version: 3.6
 
     - name: Install compilers for OSX
       if: runner.os == 'macOS'
