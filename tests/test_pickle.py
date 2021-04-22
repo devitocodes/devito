@@ -492,18 +492,18 @@ def test_mpi_grid():
     MPI.COMM_WORLD.Barrier()
 
 
-def test_compilerfunction():
+def test_temp_function():
     grid = Grid(shape=(3, 3))
     d = Dimension(name='d')
 
     cf = TempFunction(name='f', dtype=np.float64, dimensions=grid.dimensions,
-                      halo=((1, 1), (1, 1), (1, 1)))
+                      halo=((1, 1), (1, 1)))
 
     pkl_cf = pickle.dumps(cf)
     new_cf = pickle.loads(pkl_cf)
     assert new_cf.name == cf.name
     assert new_cf.dtype is np.float64
-    assert new_cf.halo == ((1, 1), (1, 1), (1, 1))
+    assert new_cf.halo == ((1, 1), (1, 1))
     assert new_cf.ndim == cf.ndim
     assert new_cf.dim is None
 
@@ -514,6 +514,7 @@ def test_compilerfunction():
     assert new_pcf.name == pcf.name
     assert new_pcf.dim.name == 'd'
     assert new_pcf.ndim == cf.ndim + 1
+    assert new_pcf.halo == ((0, 0), (1, 1), (1, 1))
 
 
 def test_deviceid():
