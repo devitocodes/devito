@@ -1512,7 +1512,7 @@ class TempFunction(DiscreteFunction):
         halo = as_tuple(kwargs.get('halo'))
         if halo is None:
             halo = tuple((0, 0) for _ in dimensions)
-        if pointer_dim is not None:
+        if pointer_dim is not None and pointer_dim not in dimensions:
             halo = ((0, 0),) + as_tuple(halo)
         return halo
 
