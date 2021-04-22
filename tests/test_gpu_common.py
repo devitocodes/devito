@@ -747,6 +747,39 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, -3:] == 0)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
+    def test_streaming_w_shifting(self):
+        nt = 50
+        grid = Grid(shape=(5, 5))
+        time = grid.time_dim
+
+        factor = Constant(name='factor', value=5, dtype=np.int32)
+        t_sub = ConditionalDimension('t_sub', parent=time, factor=factor)
+        save_shift = Constant(name='save_shift', dtype=np.int32)
+
+        u = TimeFunction(name='u', grid=grid, time_order=0)
+        usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                             save=(int(nt//factor.data)), time_dim=t_sub)
+
+        for i in range(usave.save):
+            usave.data[i, :] = i
+
+        eqns = Eq(u.forward, u + usave.subs(t_sub, t_sub - save_shift))
+
+        op = Operator(eqns, opt=('streaming', 'orchestrate'))
+
+        # From time_m=15 to time_M=35 with a factor=5 -- it means that, thanks
+        # to t_sub, we enter the Eq exactly (35-15)/5 + 1 = 5 times. We set
+        # save_shift=1 so instead of accessing the range usave[15/5:35/5+1],
+        # we rather access the range usave[15/5-1:35:5], which means accessing
+        # the usave values 2, 3, 4, 5, 6.
+        op.apply(time_m=15, time_M=35, save_shift=1)
+        assert np.allclose(u.data, 20)
+
+        # Again, but with a different shift
+        op.apply(time_m=15, time_M=35, save_shift=-2)
+        assert np.allclose(u.data, 20 + 35)
+
+    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,gpu_fit', [
         (('streaming', 'orchestrate'), True),
         (('streaming', 'orchestrate'), False)

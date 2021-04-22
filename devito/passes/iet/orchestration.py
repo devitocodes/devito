@@ -126,7 +126,8 @@ class Orchestrator(object):
 
             # Construct init IET
             imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetch = PragmaList(self.lang._map_to(s.function, imask), s.function)
+            fetch = PragmaList(self.lang._map_to(s.function, imask),
+                               {s.function} | fc.free_symbols)
             fetches.append(Conditional(fc_cond, fetch))
 
             # Construct present clauses
@@ -139,7 +140,7 @@ class Orchestrator(object):
                      for d in s.dimensions]
             prefetch = PragmaList(self.lang._map_to_wait(s.function, imask,
                                                          SharedData._field_id),
-                                  s.function)
+                                  {s.function} | pfc.free_symbols)
             prefetches.append(Conditional(pfc_cond, prefetch))
 
         # Turn init IET into a Callable
