@@ -11,7 +11,7 @@ from devito.symbolics import CondEq, INT, ccode
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
-from devito.tools import as_tuple, is_integer, prod
+from devito.tools import as_tuple, prod
 from devito.types import Symbol, NThreadsBase
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
@@ -307,7 +307,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             # within a block)
             candidates = []
             for i in inner:
-                if self.key(i) and any(is_integer(j.step-i.symbolic_size) for j in outer):
+                if self.key(i) and any((j.dim.root is i.dim.root) for j in outer):
                     candidates.append(i)
                 elif candidates:
                     # If there's at least one candidate but `i` doesn't honor the
