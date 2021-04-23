@@ -163,16 +163,14 @@
 <span></span><span class="sd">&quot;&quot;&quot;User API to specify equations.&quot;&quot;&quot;</span>
 
 <span class="kn">import</span> <span class="nn">sympy</span>
-<span class="kn">from</span> <span class="nn">sympy.solvers.solveset</span> <span class="kn">import</span> <span class="n">linear_coeffs</span>
 
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">default_rules</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">as_tuple</span>
 <span class="kn">from</span> <span class="nn">devito.types.lazy</span> <span class="kn">import</span> <span class="n">Evaluable</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">Evaluable</span><span class="p">):</span>
@@ -212,7 +210,7 @@
 
 <span class="sd">    Any SymPy expressions may be used in the right-hand side.</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import sin</span>
+<span class="sd">    &gt;&gt;&gt; from devito import sin</span>
 <span class="sd">    &gt;&gt;&gt; Eq(f, sin(f.dx)**2)</span>
 <span class="sd">    Eq(f(x, y), sin(Derivative(f(x, y), x))**2)</span>
 
@@ -379,44 +377,6 @@
         <span class="k">return</span> <span class="s2">&quot;Inc(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
 
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
-
-
-<div class="viewcode-block" id="solve"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Algebraically rearrange an Eq w.r.t. a given symbol.</span>
-
-<span class="sd">    This is a wrapper around ``sympy.solve``.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    eq : expr-like</span>
-<span class="sd">        The equation to be rearranged.</span>
-<span class="sd">    target : symbol</span>
-<span class="sd">        The symbol w.r.t. which the equation is rearranged. May be a `Function`</span>
-<span class="sd">        or any other symbolic object.</span>
-<span class="sd">    **kwargs</span>
-<span class="sd">        Symbolic optimizations applied while rearranging the equation. For more</span>
-<span class="sd">        information. refer to ``sympy.solve.__doc__``.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">Eq</span><span class="p">):</span>
-        <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span> <span class="k">if</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">eq</span><span class="o">.</span><span class="n">lhs</span>
-    <span class="n">sols</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">e</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">eq</span><span class="p">),</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">target</span><span class="p">)):</span>
-        <span class="c1"># Try first linear solver</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">cc</span> <span class="o">=</span> <span class="n">linear_coeffs</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">_eval_at</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">evaluate</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
-            <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">-</span><span class="n">cc</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">cc</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Equation is not affine w.r.t the target, falling back to standard&quot;</span>
-                    <span class="s2">&quot;sympy.solve that may be slow&quot;</span><span class="p">)</span>
-            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;rational&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Avoid float indices</span>
-            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Do not attempt premature optimisation</span>
-            <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">evaluate</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="c1"># We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sols</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">target</span><span class="o">.</span><span class="n">new_from_mat</span><span class="p">(</span><span class="n">sols</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">sols</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
 </pre></div>
 
            </div>

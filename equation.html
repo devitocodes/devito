@@ -209,7 +209,7 @@ constructing an Operator.</p></li>
 </pre></div>
 </div>
 <p>Any SymPy expressions may be used in the right-hand side.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">sin</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">sin</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">sin</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dx</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
 <span class="go">Eq(f(x, y), sin(Derivative(f(x, y), x))**2)</span>
 </pre></div>
@@ -356,24 +356,6 @@ the user-defined Dimension <code class="docutils literal notranslate"><span clas
 <p class="rubric">Notes</p>
 <p>An Inc can be thought of as the augmented assignment ‘+=’ in an imperative
 programming language (e.g., <code class="docutils literal notranslate"><span class="pre">a[i]</span> <span class="pre">+=</span> <span class="pre">c</span></code>).</p>
-</dd></dl>
-
-<dl class="py function">
-<dt id="devito.types.equation.solve">
-<code class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></code><code class="sig-name descname"><span class="pre">solve</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eq</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#solve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.solve" title="Permalink to this definition">¶</a></dt>
-<dd><p>Algebraically rearrange an Eq w.r.t. a given symbol.</p>
-<p>This is a wrapper around <code class="docutils literal notranslate"><span class="pre">sympy.solve</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>eq</strong> (<em>expr-like</em>) – The equation to be rearranged.</p></li>
-<li><p><strong>target</strong> (<em>symbol</em>) – The symbol w.r.t. which the equation is rearranged. May be a <cite>Function</cite>
-or any other symbolic object.</p></li>
-<li><p><strong>**kwargs</strong> – Symbolic optimizations applied while rearranging the equation. For more
-information. refer to <code class="docutils literal notranslate"><span class="pre">sympy.solve.__doc__</span></code>.</p></li>
-</ul>
-</dd>
-</dl>
 </dd></dl>
 
 </div>
