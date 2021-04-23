@@ -1,6 +1,5 @@
-from sympy import cos, sin, sqrt
-
-from devito import Eq, Operator, Function, TimeFunction, NODE, Inc, solve
+from devito import (Eq, Operator, Function, TimeFunction, NODE, Inc, solve,
+                    cos, sin, sqrt)
 from examples.seismic import PointSource, Receiver
 
 

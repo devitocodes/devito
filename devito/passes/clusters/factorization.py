@@ -71,6 +71,9 @@ def collect_const(expr):
             # Other special case: [-a, -b, -c ...]
             add = Add(*[i.args[1] for i in v], evaluate=False)
             mul = Mul(-k, add, evaluate=False)
+        elif k == 1:
+            # 1 * (a + c)
+            mul = Add(*v)
         else:
             # Back to the running example
             # -> (a + c)

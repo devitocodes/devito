@@ -6,7 +6,7 @@ import sympy
 from devito.finite_differences.finite_difference import (generic_derivative,
                                                          first_derivative,
                                                          cross_derivative)
-from devito.finite_differences.differentiable import Differentiable, EvalDiffDerivative
+from devito.finite_differences.differentiable import Differentiable, EvalDerivative
 from devito.finite_differences.tools import direct, transpose
 from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
 from devito.types.utils import DimensionTuple
@@ -195,10 +195,10 @@ class Derivative(sympy.Derivative, Differentiable):
         return self._new_from_self(fd_order=_fd_order, x0=_x0)
 
     def _new_from_self(self, **kwargs):
+        expr = kwargs.pop('expr', self.expr)
         _kwargs = {'deriv_order': self.deriv_order, 'fd_order': self.fd_order,
                    'side': self.side, 'transpose': self.transpose, 'subs': self._subs,
                    'x0': self.x0, 'preprocessed': True}
-        expr = kwargs.pop('expr', self.expr)
         _kwargs.update(**kwargs)
         return Derivative(expr, *self.dims, **_kwargs)
 
@@ -214,6 +214,7 @@ class Derivative(sympy.Derivative, Differentiable):
             rules = dict(*args)
         except TypeError:
             rules = dict((args,))
+        kwargs.pop('simultaneous', None)
         return self.xreplace(rules, **kwargs)
 
     def _xreplace(self, subs):
@@ -329,7 +330,7 @@ class Derivative(sympy.Derivative, Differentiable):
         - 3: Evaluate remaining terms (as `g` may need to be evaluated
         at a different point).
         - 4: Apply substitutions.
-        - 5: Cast to an object of type `EvalDiffDerivative` so that we know
+        - 5: Cast to an object of type `EvalDerivative` so that we know
              the argument stems from a `Derivative. This may be useful for
              later compilation passes.
         """
@@ -357,6 +358,6 @@ class Derivative(sympy.Derivative, Differentiable):
 
         # Step 5: Cast to EvaluatedDerivative
         assert res.is_Add
-        res = EvalDiffDerivative(*res.args, evaluate=False)
+        res = EvalDerivative(*res.args, evaluate=False)
 
         return res

@@ -6,7 +6,8 @@ import numpy as np
 
 from mpmath.libmp import prec_to_dps, to_str
 from sympy.printing.precedence import precedence
-from sympy.printing.ccode import C99CodePrinter
+from sympy.printing.c import C99CodePrinter
+
 
 __all__ = ['ccode']
 

@@ -2,7 +2,6 @@ from collections import ChainMap
 from functools import singledispatch
 
 import sympy
-from sympy.functions.elementary.integers import floor
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
@@ -10,7 +9,7 @@ from cached_property import cached_property
 from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
 from devito.tools import filter_ordered, flatten
-from devito.types.lazy import Evaluable, EvalDerivative
+from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Differentiable']
@@ -202,9 +201,11 @@ class Differentiable(sympy.Expr, Evaluable):
     __rtruediv__ = __rdiv__
 
     def __floordiv__(self, other):
+        from .elementary import floor
         return floor(self / other)
 
     def __rfloordiv__(self, other):
+        from .elementary import floor
         return floor(other / self)
 
     def __mod__(self, other):
@@ -347,6 +348,19 @@ class DifferentiableOp(Differentiable):
         return None
 
 
+class DifferentiableFunction(DifferentiableOp):
+
+    def __new__(cls, *args, **kwargs):
+        return cls.__sympy_class__.__new__(cls, *args, **kwargs)
+
+    @property
+    def evaluate(self):
+        return self.func(*[getattr(a, 'evaluate', a) for a in self.args])
+
+    def _eval_at(self, func):
+        return self
+
+
 class Add(DifferentiableOp, sympy.Add):
     __sympy_class__ = sympy.Add
     __new__ = DifferentiableOp.__new__
@@ -379,7 +393,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         for f in self.args:
             if f not in self._args_diff:
                 new_args.append(f)
-            elif f is func_args:
+            elif f is func_args or isinstance(f, DifferentiableFunction):
                 new_args.append(f)
             else:
                 ind_f = f.indices_ref._getters
@@ -405,8 +419,8 @@ class Mod(DifferentiableOp, sympy.Mod):
     __new__ = DifferentiableOp.__new__
 
 
-class EvalDiffDerivative(DifferentiableOp, EvalDerivative):
-    __sympy_class__ = EvalDerivative
+class EvalDerivative(DifferentiableOp, sympy.Add):
+    __sympy_class__ = sympy.Add
     __new__ = DifferentiableOp.__new__
 
 
@@ -466,7 +480,7 @@ class diffify(object):
     @_cls.register(Mul)
     @_cls.register(Pow)
     @_cls.register(Mod)
-    @_cls.register(EvalDiffDerivative)
+    @_cls.register(EvalDerivative)
     def _(obj):
         return obj.__class__
 

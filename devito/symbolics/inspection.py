@@ -1,10 +1,8 @@
 from collections import Counter
 
-from sympy import cos, sin, exp, log
-
+from devito.logger import warning
 from devito.symbolics.queries import q_routine
 from devito.symbolics.search import retrieve_terminals, retrieve_xops, search
-from devito.logger import warning
 from devito.tools import as_tuple, flatten
 
 __all__ = ['compare_ops', 'count', 'estimate_cost']
@@ -79,7 +77,7 @@ def estimate_cost(exprs, estimate=False):
             * Powers with integer exponent `n>0` count as n-1 ops (as if
               it were a chain of multiplications).
     """
-    trascendentals_cost = {sin: 100, cos: 100, exp: 100, log: 100}
+    elementary_cost = 100
     pow_cost = 50
     div_cost = 25
 
@@ -113,7 +111,7 @@ def estimate_cost(exprs, estimate=False):
                     if all(i.function.is_const for i in terminals):
                         flops += 1
                     else:
-                        flops += trascendentals_cost.get(op.__class__, 1)
+                        flops += elementary_cost
                 else:
                     flops += 1
             elif op.is_Pow:
