@@ -18,7 +18,6 @@ jobs:
     env:
       DEVITO_ARCH: "${{ matrix.compiler }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
-      DEVITO_BACKEND: "core"
       PYTHON_VERSION: "3.7"
 
     strategy:
