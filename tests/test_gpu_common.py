@@ -1,8 +1,10 @@
 import pytest
 import numpy as np
+import scipy.sparse
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, Operator)
+                    MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
+                    SubDomain, TimeFunction, Operator)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
@@ -898,5 +900,18 @@ class TestEdgeCases(object):
 
         op = Operator(eqns)
         op.apply()
+        assert np.all(f.data == 1.)
 
+        # Again, but with a MatrixSparseTimeFunction
+        mat = scipy.sparse.coo_matrix((0, 0), dtype=np.float32)
+        sf = MatrixSparseTimeFunction(name="s", grid=grid, r=2, matrix=mat, nt=10)
+        assert sf.size == 0
+
+        eqns = sf.interpolate(f)
+
+        op = Operator(eqns)
+
+        sf.manual_scatter()
+        op(time_m=0, time_M=9)
+        sf.manual_gather()
         assert np.all(f.data == 1.)

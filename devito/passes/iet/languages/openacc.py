@@ -1,8 +1,6 @@
 import cgen as c
-from sympy import And
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.data import FULL
 from devito.ir import Call, ParallelIteration, FindSymbols
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.orchestration import Orchestrator
@@ -11,7 +9,7 @@ from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import DefFunction, Macro, ccode
+from devito.symbolics import DefFunction, Macro
 from devito.tools import prod
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
@@ -46,15 +44,6 @@ class DeviceAccIteration(ParallelIteration):
 
         if deviceptrs:
             clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
-
-        # SparseFunctions may occasionally degenerate to zero-size arrays. In such
-        # a case, a copy-in produces a `nil` pointer on the device. To fire up a
-        # parallel loop we must ensure none of SparseFunction pointers are `nil`
-        sfs = [i for i in symbols if i.is_SparseFunction]
-        if sfs:
-            sizes = [prod(f._C_get_field(FULL, d).size for d in f.dimensions) for f in sfs]
-            ifcond = ccode(And(*[i > 0 for i in sizes]))
-            clauses.append("if(%s)" % ifcond)
 
         return clauses
 
