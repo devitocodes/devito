@@ -147,7 +147,7 @@ def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
             expressions = FindNodes(Expression).visit(iet)
             functions &= {i.write for i in expressions}
 
-    fsave = [f for f in functions if f.is_TimeFunction and f.save is not None]
+    fsave = [f for f in functions if f.is_TimeFunction and is_integer(f.save)]
     if 'all-fallback' in gpu_fit and fsave:
         warning("TimeFunction %s assumed to fit the GPU memory" % fsave)
         return True
