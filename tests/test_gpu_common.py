@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    SubDimension, SubDomain, TimeFunction, Operator)
+                    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, Operator)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
@@ -877,3 +877,26 @@ class TestAPI(object):
         # Cannot provide a value larger than the thread pool size
         with pytest.raises(InvalidArgument):
             assert op.arguments(time_M=2, npthreads0=5)
+
+
+class TestEdgeCases(object):
+
+    def test_empty_arrays(self):
+        """
+        MFE for issue #1641.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        f = TimeFunction(name='f', grid=grid, space_order=0)
+        f.data[:] = 1.
+        sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=0, nt=10)
+        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10)
+        assert sf1.size == 0
+        assert sf2.size == 0
+
+        eqns = sf1.inject(field=f, expr=sf1 + sf2 + 1.)
+
+        op = Operator(eqns)
+        op.apply()
+
+        assert np.all(f.data == 1.)
