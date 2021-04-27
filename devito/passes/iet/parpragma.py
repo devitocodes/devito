@@ -1,6 +1,6 @@
 import numpy as np
 import cgen as c
-from sympy import Or, Max
+from sympy import And, Or, Max
 
 from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
@@ -273,15 +273,15 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         return self.Region(partree)
 
-    def _make_guard(self, partree):
+    def _make_guard(self, parregion):
         # Do not enter the parallel region if the step increment is 0; this
         # would raise a `Floating point exception (core dumped)` in some OpenMP
         # implementations. Note that using an OpenMP `if` clause won't work
-        cond = Or(*[CondEq(i.step, 0) for i in partree.collapsed
+        cond = Or(*[CondEq(i.step, 0) for i in parregion.collapsed
                     if isinstance(i.step, Symbol)])
         if cond != False:  # noqa: `cond` may be a sympy.False which would be == False
-            partree = List(body=[Conditional(cond, Return()), partree])
-        return partree
+            parregion = List(body=[Conditional(cond, Return()), parregion])
+        return parregion
 
     def _make_nested_partree(self, partree):
         # Apply heuristic
@@ -432,11 +432,30 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
 
     def _make_guard(self, parregion, *args):
         partrees = FindNodes(ParallelTree).visit(parregion)
-        if any(isinstance(i.root, self.DeviceIteration) for i in partrees):
-            # no-op for now
-            return parregion
-        else:
+        if not any(isinstance(i.root, self.DeviceIteration) for i in partrees):
             return super()._make_guard(parregion, *args)
+
+        cond = []
+        # There must be at least one iteration or potential crash
+        if not parregion.is_Affine:
+            trees = retrieve_iteration_tree(parregion.root)
+            tree = trees[0][:parregion.ncollapsed]
+            cond.extend([i.symbolic_size > 0 for i in tree])
+
+        # SparseFunctions may occasionally degenerate to zero-size arrays. In such
+        # a case, a copy-in produces a `nil` pointer on the device. To fire up a
+        # parallel loop we must ensure none of the SparseFunction pointers are `nil`
+        symbols = FindSymbols().visit(parregion)
+        sfs = [i for i in symbols if i.is_SparseFunction]
+        if sfs:
+            size = [prod(f._C_get_field(FULL, d).size for d in f.dimensions) for f in sfs]
+            cond.extend([i > 0 for i in size])
+
+        # Combine all cond elements
+        if cond:
+            parregion = List(body=[Conditional(And(*cond), parregion)])
+
+        return parregion
 
     def _make_nested_partree(self, partree):
         if isinstance(partree.root, self.DeviceIteration):

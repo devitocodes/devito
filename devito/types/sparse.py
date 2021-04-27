@@ -1182,6 +1182,9 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         symbolic function.
     """
 
+    is_SparseFunction = True
+    is_SparseTimeFunction = True
+
     _time_position = 0
     """Position of time index among the function indices."""
 
