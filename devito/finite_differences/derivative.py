@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 
+from cached_property import cached_property
 import sympy
 
 from devito.finite_differences.finite_difference import (generic_derivative,
@@ -225,11 +226,13 @@ class Derivative(sympy.Derivative, Differentiable):
         subs = self._ppsubs + (subs,)  # Postponed substitutions
         return self._new_from_self(subs=subs), True
 
-    @property
+    @cached_property
     def _metadata(self):
         state = list(self._state)
         state.remove('expr')
-        return tuple(getattr(self, i) for i in state)
+        ret = [getattr(self, i) for i in state]
+        ret.append(self.expr.staggered or (None,))
+        return tuple(ret)
 
     @property
     def dims(self):

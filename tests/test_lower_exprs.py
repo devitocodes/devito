@@ -161,6 +161,18 @@ class TestCollectDerivatives(object):
 
         assert eq == leq
 
+    def test_nocollection_staggered(self):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+
+        u = TimeFunction(name="u", grid=grid)
+        v = TimeFunction(name="v", grid=grid, staggered=x)
+
+        eq = Eq(u.forward, u.dx + v.dx)
+        leq = collect_derivatives.func([eq])[0]
+
+        assert eq == leq
+
 
 class TestBuffering(object):
 
