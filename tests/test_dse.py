@@ -1401,6 +1401,22 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
+    def test_lazy_solve_produces_larger_temps(self):
+        """
+        Test that using `solve` doesn't affect CIRE.
+        """
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name="u", grid=grid, space_order=4, time_order=2)
+
+        pde = u.dt2 - (u.dx.dx + u.dy.dy) + u.dx.dy
+        eq = Eq(u.forward, solve(pde, u.forward))
+
+        op = Operator(eq)
+
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 2
+        assert op._profiler._sections['section0'].sops == 41
+
     def test_hoisting_iso_ot4_akin(self):
         """
         Test hoisting of time invariant sub-expressions in iso-acoustic-like kernels.
@@ -1425,16 +1441,16 @@ class TestAliases(object):
 
         op0 = Operator(eq, opt=('advanced', {'openmp': False}))
         assert len([i for i in FindSymbols().visit(op0) if i.is_Array]) == 2
-        assert op0._profiler._sections['section1'].sops == 109
+        assert op0._profiler._sections['section1'].sops == 74
 
         op1 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True}))
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 4
-        assert op1._profiler._sections['section1'].sops == 94
+        assert op1._profiler._sections['section1'].sops == 64
 
         op2 = Operator(eq, opt=('advanced', {'openmp': False, 'cire-maxalias': True}),
                        subs={i: 0.5 for i in grid.spacing_symbols})
         assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 2
-        assert op2._profiler._sections['section1'].sops == 57
+        assert op2._profiler._sections['section1'].sops == 44
 
     def test_hoisting_scalar_divs(self):
         """
@@ -1748,7 +1764,7 @@ class TestAliases(object):
         ('f.dx.dx + g.dx.dx',
          (1, 1, 2, (0, 1)), (46, 40, 49, 17)),
         ('v.dx.dx + p.dx.dx',
-         (2, 2, 2, (0, 2)), (61, 49, 49, 25)),
+         (2, 2, 2, (0, 2)), (61, 49, 49, 23)),
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
          (3, 3, 4, (0, 3)), (217, 199, 208, 76)),
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx',
