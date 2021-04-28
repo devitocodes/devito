@@ -69,11 +69,11 @@ jobs:
 
     - name: Commit benchmarks results
       run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
         ls benchmarks/regression/benchmarks
         git merge master
         ls benchmarks/regression/benchmarks
-        #git config --local user.email "action@github.com"
-        #git config --local user.name "GitHub Action"
         #git add -f benchmarks/regression/.asv/results/
         #git status
         #git commit -m "Commit ASV results"
