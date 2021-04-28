@@ -72,7 +72,8 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         ls benchmarks/regression/benchmarks
-        git merge origin/master
+        echo ${GITHUB_REF##*/}
+        git rebase ${GITHUB_REF##*/}
         ls benchmarks/regression/benchmarks
         #git add -f benchmarks/regression/.asv/results/
         #git status
