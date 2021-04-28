@@ -92,7 +92,7 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
                                              'par-collapse-ncores': 1}))
     calls = FindNodes(Call).visit(op)
     assert len(calls) == exp_calls
-    trees = [i for i in retrieve_iteration_tree(op) if len(i) > 1]
+    trees = [i for i in retrieve_iteration_tree(op)]
     assert len(trees) == 1
     tree = trees[0]
     assert len(tree) == exp_iters
@@ -287,7 +287,7 @@ def test_cache_blocking_imperfect_nest(blockinner):
     op1 = Operator(eqns, opt=('advanced', {'blockinner': blockinner}))
 
     # First, check the generated code
-    trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
+    trees = [i for i in retrieve_iteration_tree(op1)]
 
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
@@ -337,7 +337,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     op2 = Operator(eq, opt=('advanced-fsg', {'blockinner': blockinner}))
 
     # First, check the generated code
-    trees = [i for i in retrieve_iteration_tree(op2) if len(i) > 1]
+    trees = [i for i in retrieve_iteration_tree(op2)]
 
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
