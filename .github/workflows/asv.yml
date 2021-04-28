@@ -72,7 +72,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         #git rebase origin/master
-        git checkout ${GITHUB_REF##*/} -- benchmarks/regression/benchmarks
+        git checkout master -- benchmarks/regression/benchmarks
         ls benchmarks/regression/benchmarks
         #git diff origin/master --name-olny benchmarks/regression/benchmarks
         #ls benchmarks/regression/benchmarks
