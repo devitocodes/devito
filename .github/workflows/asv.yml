@@ -69,10 +69,10 @@ jobs:
 
     - name: Commit benchmarks results
       run: |
-        git checkout master -- benchmarks/regression/benchmarks
         ls benchmarks/regression/benchmarks
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        git checkout origin/master -- benchmarks/regression/benchmarks
         #git rebase origin/master
         #git diff origin/master --name-olny benchmarks/regression/benchmarks
         #ls benchmarks/regression/benchmarks
