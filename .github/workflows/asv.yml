@@ -74,7 +74,6 @@ jobs:
         git add -f benchmarks/regression/.asv/results/
         git status
         git commit -m "Commit ASV results"
-        git rebase origin/master
 
     - name: Push benchmarks results to the asv-results branch
       uses: ad-m/github-push-action@master
