@@ -491,63 +491,95 @@ class TestFD(object):
 
     @pytest.mark.parametrize('exprs, error,', [
         ### Dimensions
-        # OOB access avoided by iteration space shrinking
-        (['Eq(so1.forward, so1.dx.dx.dx)'],None),
+        
+        # # OOB access avoided by iteration space shrinking
+        (['Eq(so2.forward, so2.dx.dx.dx)'],None),
         (['Eq(so2.forward, (so2+so0).dx2 )'],None),
         (['Eq(so2.forward, so2.biharmonic(1/so0) )'],None),
+        (['Eq(tk0so0[t+1,x,y], tk0so0[t,x-1,y] + tk0so0[t,x+1,y] )'],None),
         
         ### SubDimensions (Thickness == 0)
-        # Thickness and/or halo size support their indices
-        (['Eq(so1[t+1,x,y], so1[t,x-1,y] + so1[t,x+1,y] )'],None), 
-        (['Eq(so1[t+1,xi0,y], so1[t,xi0-1,y] + so1[t,xi0+1,y] )'],None), 
-        (['Eq(so2[t+1,xi0,y], so2[t,xi0-2,y] + so2[t,xi0+2,y] )'],None),
-        (['Eq(sd0so2[t+1,x,y], sd0so2[t,x-2,y] + sd0so2[t,x+2,y] )'],None),
-        # These examples would get SEGFAULT
-        (['Eq(sd0so2.forward, (sd0so2+sd0so0).dx2 )'],ValueError),
-        (['Eq(sd0so2.forward, sd0so2.dx.dx.dx)'],ValueError),
-        (['Eq(so0[t+1,xi0,y], so0[t,xi0-1,y] + so0[t,xi0+1,y] )'],ValueError),
+        
+        # Indices within the halo 
+        # (['Eq(so0[t+1,xm0,y], so0[t,xm0,y] + so0[t,xm0,y] )'],None), 
+        # (['Eq(so1[t+1,xm0,y], so1[t,xm0-1,y] + so1[t,xm0+1,y] )'],None), 
+        # (['Eq(so2[t+1,xm0,y], so2[t,xm0-2,y] + so2[t,xm0+2,y] )'],None),
 
-        ### SubDimensions (Thickness == 1) (Not covered by current patch)
-        # Thickness and/or halo size support their indices
-        (['Eq(sd1so2.forward, sd1so2.dx.dx.dx)'],None),
-        (['Eq(sd1so2.forward, (sd1so2+sd1so0).dx2 )'],None),
-        (['Eq(so1[t+1,xi1,y], so1[t,xi1-2,y] + so1[t,xi1+2,y] )'],None),
-        # These should could get SEGFAULT
-        (['Eq(so0[t+1,xi1,y], so0[t,xi1-2,y] + so0[t,xi1+2,y] )'],ValueError),
-        (['Eq(so1[t+1,xi1,y], so1[t,xi1-3,y] + so1[t,xi1+3,y] )'],ValueError),
-    ])
+        # # OOB indices
+        # (['Eq(so0[t+1,xm0,y], so0[t,xm0-1,y] + so0[t,xm0+1,y] )'],ValueError),
+        # (['Eq(so1[t+1,xm0,y], so1[t,xm0-2,y] + so1[t,xm0+2,y] )'],ValueError), 
+        # (['Eq(so2[t+1,xm0,y], so2[t,xm0-3,y] + so2[t,xm0+3,y] )'],ValueError),
+        
+        (['Eq(tk0so2.forward, (tk0so2+tk0so0).dx2 )'],ValueError),
+        (['Eq(tk0so2.forward, tk0so2.dx.dx.dx.dx)'],ValueError),
+
+        ### SubDimensions (Thickness == 1)
+        
+        # # Indices within the halo + subdimension offset
+        # (['Eq(so0[t+1,xm1,y], so0[t,xm1-1,y] + so0[t,xm1+1,y] )'],None),
+        # (['Eq(so1[t+1,xm1,y], so1[t,xm1-2,y] + so1[t,xm1+2,y] )'],None),
+        # (['Eq(so2[t+1,xm1,y], so2[t,xm1-3,y] + so2[t,xm1+3,y] )'],None),
+
+        # (['Eq(so0[t+1,xl1,y], so0[t,xl1,y] + so0[t,xl1+99,y] )'],None),
+        # (['Eq(so1[t+1,xl1,y], so1[t,xl1-1,y] + so1[t,xl1+100,y] )'],None),
+        # (['Eq(so2[t+1,xl1,y], so2[t,xl1-2,y] + so2[t,xl1+101,y] )'],None),
+        
+        # (['Eq(so0[t+1,xr1,y], so0[t,xr1-99,y] + so0[t,xr1,y] )'],None),
+        # (['Eq(so1[t+1,xr1,y], so1[t,xr1-100,y] + so1[t,xr1+1,y] )'],None),
+        # (['Eq(so2[t+1,xr1,y], so2[t,xr1-101,y] + so2[t,xr1+2,y] )'],None),
+        
+        (['Eq(tk1so2.forward, tk1so2.dx.dx.dx.dx)'],None),
+        (['Eq(tk1so2.forward, (tk1so2+tk1so0).dx2 )'],None),
+        
+        # # OOB indices
+        # (['Eq(so0[t+1,xm1,y], so0[t,xm1-2,y] + so0[t,xm1+2,y] )'],ValueError),
+        # (['Eq(so1[t+1,xm1,y], so1[t,xm1-3,y] + so1[t,xm1+3,y] )'],ValueError),
+        # (['Eq(so2[t+1,xm1,y], so2[t,xm1-4,y] + so2[t,xm1+4,y] )'],ValueError),
+
+        # (['Eq(so0[t+1,xl1,y], so0[t,xl1-1,y] + so0[t,xl1+100,y] )'],ValueError),
+        # (['Eq(so1[t+1,xl1,y], so1[t,xl1-2,y] + so1[t,xl1+101,y] )'],ValueError),
+        # (['Eq(so2[t+1,xl1,y], so2[t,xl1-3,y] + so2[t,xl1+102,y] )'],ValueError),
+
+        # (['Eq(so0[t+1,xr1,y], so0[t,xr1-100,y] + so0[t,xr1+1,y] )'],ValueError),
+        # (['Eq(so1[t+1,xr1,y], so1[t,xr1-101,y] + so1[t,xr1+2,y] )'],ValueError),
+        # (['Eq(so2[t+1,xr1,y], so2[t,xr1-102,y] + so2[t,xr1+3,y] )'],ValueError),
+        ])
     def test_oobs(self, exprs, error):
         
         grid = Grid(tuple([100]*2))
         x , y = grid.dimensions
         t = grid.stepping_dim
         
-        xi0 = SubDimension.middle(name='xi0', parent=x, thickness_left=0, thickness_right=0)
-        xi1 = SubDimension.middle(name='xi1', parent=x, thickness_left=1, thickness_right=1)
+        xm0 = SubDimension.middle(name='xm0', parent=x, thickness_left=0, thickness_right=0)
+        xm1 = SubDimension.middle(name='xm1', parent=x, thickness_left=1, thickness_right=1)
 
+        xl0 = SubDimension.left(name='xl0', parent=x, thickness=0)
+        xl1 = SubDimension.left(name='xl1', parent=x, thickness=1)
+
+        xr0 = SubDimension.right(name='xr0', parent=x, thickness=0)
+        xr1 = SubDimension.right(name='xr1', parent=x, thickness=1)
+        
         so0 = TimeFunction(name="so0", grid=grid, time_order=1, space_order=0)
         so1 = TimeFunction(name="so1", grid=grid, time_order=1, space_order=1)
         so2 = TimeFunction(name="so2", grid=grid, time_order=1, space_order=2)
 
-        sd0so0 = TimeFunction(name="sdso0", grid=grid, time_order=1, space_order=0, dimensions=(t,xi0,y))
-        sd0so1 = TimeFunction(name="sdso1", grid=grid, time_order=1, space_order=1, dimensions=(t,xi0,y))
-        sd0so2 = TimeFunction(name="sdso2", grid=grid, time_order=1, space_order=2, dimensions=(t,xi0,y))
+        tk0so0 = TimeFunction(name="tk0so0", grid=grid, time_order=1, space_order=0, dimensions=(t,xm0,y))
+        tk0so1 = TimeFunction(name="tk0so1", grid=grid, time_order=1, space_order=1, dimensions=(t,xm0,y))
+        tk0so2 = TimeFunction(name="tk0so2", grid=grid, time_order=1, space_order=2, dimensions=(t,xm0,y))
 
-        sd1so0 = TimeFunction(name="sdso0", grid=grid, time_order=1, space_order=0, dimensions=(t,xi1,y))
-        sd1so1 = TimeFunction(name="sdso1", grid=grid, time_order=1, space_order=1, dimensions=(t,xi1,y))
-        sd1so2 = TimeFunction(name="sdso2", grid=grid, time_order=1, space_order=2, dimensions=(t,xi1,y))
+        tk1so0 = TimeFunction(name="tk1so0", grid=grid, time_order=1, space_order=0, dimensions=(t,xm1,y))
+        tk1so1 = TimeFunction(name="tk1so1", grid=grid, time_order=1, space_order=1, dimensions=(t,xm1,y))
+        tk1so2 = TimeFunction(name="tk1so2", grid=grid, time_order=1, space_order=2, dimensions=(t,xm1,y))
 
         # List comprehension would need explicit locals/globals mappings to eval
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
         try:
             op = Operator(exprs)
+            op.apply(time_M=6)
         except Exception as e:
             if error is None or not isinstance(e, error):
                 assert False, "Not expected: %s %s" % (type(e),e)
         else:
             if error is not None:
                 assert False, "Should raise an %s exception" % error
-            print('arguments: ', op.arguments(time_M=0))
-            print('operator:\n',op)
-            op.apply(time_M=5)
