@@ -71,7 +71,7 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        asv run --bench just-discover
+        asv run --config benchmarks/regression/asv.conf.json --bench just-discover
         git add -f benchmarks/regression/.asv/results/
         git status
         git commit -m "Commit ASV results"
