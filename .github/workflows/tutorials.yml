@@ -94,4 +94,4 @@ jobs:
 
     - name: Performance notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/performance
+        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval --cov . --cov-config=.coveragerc --cov-report=xml:comp_coverage.xml examples/performance
