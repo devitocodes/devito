@@ -299,7 +299,7 @@ class PrecomputedInterpolator(GenericInterpolator):
         gridpoints = SubFunction(name="%s_gridpoints" % self.obj.name, dtype=np.int32,
                                  dimensions=(self.obj.indices[-1], Dimension(name='d')),
                                  shape=(self._npoint, self.obj.grid.dim), space_order=0,
-                                 parent=self)
+                                 parent=self.obj)
 
         assert(gridpoints_data is not None)
         gridpoints.data[:] = gridpoints_data[:]
@@ -312,7 +312,7 @@ class PrecomputedInterpolator(GenericInterpolator):
                                            shape=(self.obj.npoint, self.obj.grid.dim,
                                                   self.r),
                                            dtype=self.obj.dtype, space_order=0,
-                                           parent=self)
+                                           parent=self.obj)
         assert(coefficients_data is not None)
         interpolation_coeffs.data[:] = coefficients_data[:]
         self.obj._interpolation_coeffs = interpolation_coeffs
@@ -368,12 +368,12 @@ class PrecomputedInterpolator(GenericInterpolator):
             _expr = indexify(expr)
             _field = indexify(field)
 
-            p, _ = self.gridpoints.indices
+            p, _ = self.obj.gridpoints.indices
             dim_subs = []
             coeffs = []
-            for i, d in enumerate(self.grid.dimensions):
+            for i, d in enumerate(self.obj.grid.dimensions):
                 rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-                dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
+                dim_subs.append((d, INT(rd + self.obj.gridpoints[p, i])))
                 coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
             rhs = prod(coeffs) * _expr
             _field = _field.subs(dim_subs)
