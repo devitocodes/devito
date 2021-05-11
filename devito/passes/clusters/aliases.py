@@ -82,11 +82,16 @@ def cire(clusters, mode, sregistry, options, platform):
     t1 = 3.0*t2[x,y,z+1]
     """
     modes = {
-        CireInvariants.optname: CireInvariants,
-        CireSops.optname: CireSops,
+        'invariants': [CireInvariantsElementary, CireInvariantsDivs],
+        'sops': [CireSops],
     }
 
-    return modes[mode](sregistry, options, platform).process(clusters)
+    for cls in modes[mode]:
+        transformer = cls(sregistry, options, platform)
+
+        clusters = transformer.process(clusters)
+
+    return clusters
 
 
 class CireTransformer(object):
@@ -94,8 +99,6 @@ class CireTransformer(object):
     """
     Abstract base class for transformers implementing a CIRE variant.
     """
-
-    optname = None
 
     def __init__(self, sregistry, options, platform):
         self.sregistry = sregistry
@@ -221,8 +224,6 @@ class CireTransformer(object):
 
 class CireInvariants(CireTransformer, Queue):
 
-    optname = 'invariants'
-
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
 
@@ -262,9 +263,24 @@ class CireInvariants(CireTransformer, Queue):
 
         return processed
 
+    def _lookup_key(self, c, d):
+        ispace = c.ispace.reset()
+        dintervals = c.dspace.intervals.drop(d).reset()
+        properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
+
+        return AliasKey(ispace, dintervals, c.dtype, None, properties)
+
+    def _eval_variants_delta(self, delta_flops, delta_ws):
+        # Always prefer the Variant with fewer temporaries
+        return ((delta_ws == 0 and delta_flops < 0) or
+                (delta_ws > 0))
+
+
+class CireInvariantsElementary(CireInvariants):
+
     def _generate(self, exprs, exclude):
-        # E.g., extract `sin(x)` and `cos(x)` from `a*sin(x)*cos(x)`
-        rule = lambda e: e.is_Function or (e.is_Pow and e.exp.is_Number and e.exp < 1)
+        # E.g., extract `sin(x)` and `sqrt(x)` from `a*sin(x)*sqrt(x)`
+        rule = lambda e: e.is_Function or (e.is_Pow and e.exp.is_Number and 0 < e.exp < 1)
         cbk_search = lambda e: search(e, rule, 'all', 'bfs_first_hit')
         basextr = self._do_generate(exprs, exclude, cbk_search)
         if not basextr:
@@ -282,22 +298,17 @@ class CireInvariants(CireTransformer, Queue):
         cbk_compose = lambda e: split(e.args, lambda a: a in basextr)[0]
         yield self._do_generate(exprs, exclude, cbk_search, cbk_compose)
 
-    def _lookup_key(self, c, d):
-        ispace = c.ispace.reset()
-        dintervals = c.dspace.intervals.drop(d).reset()
-        properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
 
-        return AliasKey(ispace, dintervals, c.dtype, None, properties)
+class CireInvariantsDivs(CireInvariants):
 
-    def _eval_variants_delta(self, delta_flops, delta_ws):
-        # Always prefer the Variant with fewer temporaries
-        return ((delta_ws == 0 and delta_flops < 0) or
-                (delta_ws > 0))
+    def _generate(self, exprs, exclude):
+        # E.g., extract `1/h_x`
+        rule = lambda e: e.is_Pow and e.exp.is_Number and e.exp < 0
+        cbk_search = lambda e: search(e, rule, 'all', 'bfs_first_hit')
+        yield self._do_generate(exprs, exclude, cbk_search)
 
 
 class CireSops(CireTransformer):
-
-    optname = 'sops'
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)

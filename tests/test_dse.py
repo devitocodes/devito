@@ -1021,6 +1021,59 @@ class TestAliases(object):
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs[-1].expr.find(sin)) == 0
 
+    def test_nested_invariant_v4(self):
+        """
+        Check that nested aliases are optimized away.
+        """
+        grid = Grid((10, 10))
+
+        a = Function(name="a", grid=grid, space_order=4)
+        b = Function(name="b", grid=grid, space_order=4)
+
+        e = TimeFunction(name="e", grid=grid, space_order=4)
+        f = TimeFunction(name="f", grid=grid, space_order=4)
+
+        subexpr0 = sqrt(1. + 1./a)
+        subexpr1 = 1/(8.*subexpr0 - 8./b)
+        eqns = [Eq(e.forward, e + 1),
+                Eq(f.forward, f*subexpr0 - f*subexpr1 + e.forward.dx)]
+
+        op = Operator(eqns)
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+        arrays = [i for i in FindSymbols().visit(trees[0].root) if i.is_Array]
+        assert len(arrays) == 1
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+    def test_nested_invariant_v5(self):
+        """
+        Check that nested aliases are optimized away.
+        """
+        grid = Grid((10, 10))
+        x, y = grid.dimensions
+        hx = x.spacing
+        dt = grid.stepping_dim.spacing
+
+        xright = SubDimension.right(name='xright', parent=x, thickness=4)
+
+        a = Function(name="a", grid=grid)
+        b = Function(name="b", grid=grid)
+        e = TimeFunction(name="e", grid=grid)
+
+        expr = 1./(5.*dt*sqrt(a)*b/hx + 2.*dt**2*b**2*a/hx**2 + 3.)
+        eq = Eq(e.forward, 2.*expr*sqrt(a) + 3.*expr + e*sqrt(a)).subs({x: xright})
+
+        op = Operator(eq, openmp=False)
+
+        # Check generated code
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 1
+        exprs = FindNodes(Expression).visit(op)
+        assert len(exprs) == 2
+        assert exprs[0].write is arrays[0]
+        assert exprs[0].expr.rhs.is_Pow
+
     @switchconfig(profiling='advanced')
     def test_twin_sops(self):
         """
@@ -1065,7 +1118,7 @@ class TestAliases(object):
         # We expect two temporary Arrays which have in common a sub-expression
         # stemming from `d0(v, p0, p1)`
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
-        assert len(arrays) == 7
+        assert len(arrays) == 6
         vexpandeds = FindNodes(VExpanded).visit(op1._func_table['bf0'])
         assert len(vexpandeds) == (2 if configuration['language'] == 'openmp' else 0)
         assert all(i._mem_heap and not i._mem_external for i in arrays)
@@ -1083,7 +1136,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert sum(i.ops for i in summary1.values()) == 76
+        assert sum(i.ops for i in summary1.values()) == 69
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_from_different_nests(self, rotate):
@@ -1237,9 +1290,9 @@ class TestAliases(object):
         assert len(arrays) == 4
 
         exprs = FindNodes(Expression).visit(op)
-        sqrt_exprs = exprs[:2]
+        sqrt_exprs = exprs[2:4]
         assert all(e.write in arrays for e in sqrt_exprs)
-        assert all(e.expr.rhs.args[0].is_Pow for e in sqrt_exprs)
+        assert all(e.expr.rhs.is_Pow for e in sqrt_exprs)
         assert all(e.write._mem_heap and not e.write._mem_external for e in sqrt_exprs)
 
         tmp_exprs = exprs[4:6]
@@ -1418,31 +1471,6 @@ class TestAliases(object):
 
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 3
-        assert all(i._mem_heap and not i._mem_external for i in arrays)
-
-    def test_hoisting_if_coupled(self):
-        """
-        Test that coupled aliases are successfully hoisted out of the time loop.
-        """
-        grid = Grid((10, 10))
-
-        a = Function(name="a", grid=grid, space_order=4)
-        b = Function(name="b", grid=grid, space_order=4)
-
-        e = TimeFunction(name="e", grid=grid, space_order=4)
-        f = TimeFunction(name="f", grid=grid, space_order=4)
-
-        subexpr0 = sqrt(1. + 1./a)
-        subexpr1 = 1/(8.*subexpr0 - 8./b)
-        eqns = [Eq(e.forward, e + 1),
-                Eq(f.forward, f*subexpr0 - f*subexpr1 + e.forward.dx)]
-
-        op = Operator(eqns, opt=('advanced', {'cire-mingain': 28}))
-
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 3
-        arrays = [i for i in FindSymbols().visit(trees[0].root) if i.is_Array]
-        assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
     def test_discarded_compound(self):
