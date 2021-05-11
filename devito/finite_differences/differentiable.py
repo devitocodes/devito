@@ -397,6 +397,10 @@ class Mul(DifferentiableOp, sympy.Mul):
         # (e.g., if an EvalDerivative is present among the arguments)
         # So we treat some special cases here
 
+        # (a*b)*c -> a*b*c (flattening)
+        nested, others = split(args, lambda e: isinstance(e, Mul))
+        args = flatten(e.args for e in nested) + list(others)
+
         # a*0 -> 0
         if any(i == 0 for i in args):
             return sympy.S.Zero

@@ -2032,6 +2032,19 @@ class TestAliases(object):
         # all redundancies have been detected correctly
         assert summary1[('section0', None)].ops == 14
 
+    def test_undestroyed_preevaluated_derivatives_v1(self):
+        grid = Grid(shape=(10, 10))
+
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+
+        expr = -1 * v.dx.dx.evaluate
+        eqn = Eq(v.forward, 2 * expr)
+
+        op = Operator(eqn)
+
+        # Check generated code
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
+
     def test_nested_first_derivatives_unbalanced(self):
         grid = Grid(shape=(3, 3))
 
