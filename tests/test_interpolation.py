@@ -178,15 +178,13 @@ def test_precomputed_injection():
     origin = (0, 0)
     result = 0.25
 
-    r = 2  # Constant for linear interpolation
-    #  because we interpolate across 2 neighbouring points in each dimension
+    # Constant for linear interpolation
+    # because we interpolate across 2 neighbouring points in each dimension
+    r = 2
 
     m = unit_box(shape=shape)
     m.data[:] = 0.
 
-    r = 2  # Constant for linear interpolation
-    #  because we interpolate across 2 neighbouring points in each dimension
-    
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
                                                                        m.grid, origin)
 
