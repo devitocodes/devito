@@ -374,7 +374,7 @@ class Add(DifferentiableOp, sympy.Add):
     def __new__(cls, *args, **kwargs):
         # Here, often we get `evaluate=False` to prevent SymPy evaluation (e.g.,
         # when `cls==EvalDerivative`), but in all cases we at least apply a small
-        # sets of basic optimizations
+        # set of basic simplifications
 
         # (a+b)+c -> a+b+c (flattening)
         nested, others = split(args, lambda e: isinstance(e, Add))
@@ -393,9 +393,10 @@ class Mul(DifferentiableOp, sympy.Mul):
     __sympy_class__ = sympy.Mul
 
     def __new__(cls, *args, **kwargs):
-        # A DifferentiableOp may not trigger evaluation upon construction
-        # (e.g., if an EvalDerivative is present among the arguments)
-        # So we treat some special cases here
+        # A Mul, being a DifferentiableOp, may not trigger evaluation upon
+        # construction (e.g., when an EvalDerivative is present among its
+        # arguments), so here we apply a small set of basic simplifications
+        # to avoid generating functional, but also ugly, code
 
         # (a*b)*c -> a*b*c (flattening)
         nested, others = split(args, lambda e: isinstance(e, Mul))
@@ -407,6 +408,11 @@ class Mul(DifferentiableOp, sympy.Mul):
 
         # a*1 -> a
         args = [i for i in args if i != 1]
+
+        # a*-1*-1 -> a
+        nminus = len([i for i in args if i == sympy.S.NegativeOne])
+        if nminus % 2 == 0:
+            args = [i for i in args if i != sympy.S.NegativeOne]
 
         # Reorder for homogeneity with pure SymPy types
         _mulsort(args)
