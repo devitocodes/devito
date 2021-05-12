@@ -13,6 +13,8 @@
   
   <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
 
   
   
@@ -31,6 +33,7 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
         <script src="_static/doctools.js"></script>
@@ -182,8 +185,8 @@
   <div class="section" id="subdomain">
 <h1>SubDomain<a class="headerlink" href="#subdomain" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
-<dt id="devito.types.SubDomain">
-<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">devito.types.</span></code><code class="sig-name descname"><span class="pre">SubDomain</span></code><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="devito.types.SubDomain">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">SubDomain</span></span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Base class to define Grid subdomains.</p>
 <p>To create a new SubDomain, all one needs to do is overriding <a class="reference internal" href="#devito.types.SubDomain.define" title="devito.types.SubDomain.define"><code class="xref py py-meth docutils literal notranslate"><span class="pre">define()</span></code></a>.
@@ -232,8 +235,8 @@ grid</p>
 </dl>
 </div>
 <dl class="py method">
-<dt id="devito.types.SubDomain.define">
-<code class="sig-name descname"><span class="pre">define</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dimensions</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain.define"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain.define" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="devito.types.SubDomain.define">
+<span class="sig-name descname"><span class="pre">define</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dimensions</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain.define"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain.define" title="Permalink to this definition">¶</a></dt>
 <dd><p>Parametrically describe the SubDomain w.r.t. a generic Grid.</p>
 <p class="rubric">Notes</p>
 <p>This method should be overridden by each SubDomain subclass. For more
@@ -241,8 +244,8 @@ information, refer to <code class="docutils literal notranslate"><span class="pr
 </dd></dl>
 
 <dl class="py attribute">
-<dt id="devito.types.SubDomain.name">
-<code class="sig-name descname"><span class="pre">name</span></code><em class="property"> <span class="pre">=</span> <span class="pre">None</span></em><a class="headerlink" href="#devito.types.SubDomain.name" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="devito.types.SubDomain.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"> <span class="pre">=</span> <span class="pre">None</span></em><a class="headerlink" href="#devito.types.SubDomain.name" title="Permalink to this definition">¶</a></dt>
 <dd><p>A unique name for the SubDomain.</p>
 </dd></dl>
 
