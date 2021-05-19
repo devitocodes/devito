@@ -35,7 +35,7 @@ def src_rec(p, model, geometry, **kwargs):
         # Create interpolation expression for the adjoint-source
         src_term = src.interpolate(expr=p)
 
-    return [src_term, rec_term]
+    return src_term + rec_term
 
 
 def sls_1st_order(model, geometry, p, r=None, **kwargs):
