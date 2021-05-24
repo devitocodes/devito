@@ -10,7 +10,7 @@ from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
 from devito.tools import (Bunch, DefaultOrderedDict, as_tuple, filter_ordered, flatten,
-                          timed_pass)
+                          is_integer, timed_pass)
 from devito.types import Array, CustomDimension, Dimension, Eq, ModuloDimension
 
 __all__ = ['buffering']
@@ -422,12 +422,23 @@ class Buffer(object):
             else:
                 m = self.index_mapper[d]
                 if d in m:
-                    offset = len([i for i in m if i < d])
+                    pivot = d
                 else:
                     # E.g., `time/factor-1` and `time/factor+1` present, but not
-                    # `time/factor`. We reconstruct `time/factor` -- the mid point
-                    # logically corresponding to time_M
-                    pass
+                    # `time/factor`. We reconstruct `time/factor` -- the mid point,
+                    # or "pivot", logically corresponding to time_M
+                    assert len(m) > 0
+                    v = list(m).pop()
+                    try:
+                        pivot = v.args[1]
+                        if len(v.args) != 2 or \
+                           not is_integer(v.args[0]) or \
+                           not is_integer(pivot - v):
+                            raise ValueError
+                    except (IndexError, ValueError):
+                        raise NotImplementedError("Cannot apply buffering with nonlinear "
+                                                  "index functions (found `%s`)" % v)
+                offset = len([i for i in m if i < pivot])
                 mapper[d] = d.symbolic_max - offset + bd
         return mapper
 

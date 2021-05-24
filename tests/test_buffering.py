@@ -113,6 +113,37 @@ def test_read_only_backwards():
     assert np.all(v.data == v1.data)
 
 
+def test_read_only_backwards_unstructured():
+    """
+    Instead of the class `time-1`, `time`, and `time+1`, here we access the
+    buffered Function via `time-2`, `time-1` and `time+2`.
+    """
+    nt = 10
+    grid = Grid(shape=(2, 2))
+
+    u = TimeFunction(name='u', grid=grid, save=nt)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    for i in range(nt):
+        u.data[i, :] = i
+
+    eqns = [Eq(v.backward, v + u.backward.backward + u.backward + u.forward.forward + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 2
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 1
+
+    op0.apply(time_m=2)
+    op1.apply(time_m=2, v=v1)
+
+    assert np.all(v.data == v1.data)
+
+
 @pytest.mark.parametrize('async_degree', [2, 4])
 def test_async_degree(async_degree):
     nt = 10
