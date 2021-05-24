@@ -1,4 +1,4 @@
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, namedtuple
 from itertools import combinations
 
 from cached_property import cached_property
@@ -119,10 +119,6 @@ class Buffering(Queue):
             if not all(any([i.dim in d._defines for i in prefix]) for d in dims):
                 continue
 
-            # Read-only Functions cannot be buffering candidates
-            if accessv.lastwrite is None:
-                continue
-
             b = cache[f] = Buffer(f, dims, accessv, async_degree, self.sregistry)
             buffers.append(b)
 
@@ -153,6 +149,27 @@ class Buffering(Queue):
                 subs[a] = b.indexify(a.indices)
 
         for c in clusters:
+            # If a buffer is read but never written, then we need to add
+            # an Eq to step through the next slot
+            # E.g., `ub[0, x] = u[time+2, x]`
+            for b in buffers:
+                if not b.is_readonly:
+                    continue
+                try:
+                    c.exprs.index(b.lastread)
+                except ValueError:
+                    continue
+
+                dims = b.function.dimensions
+                lhs = b.indexed[[b.lastmap.get(d, Map(d, d)).b for d in dims]]
+                rhs = b.function[[b.lastmap.get(d, Map(d, d)).f for d in dims]]
+
+                expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
+                ispace = b.written
+                dspace = derive_dspace(expr, ispace)
+
+                processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
+
             # Substitute buffered Functions with the newly created buffers
             exprs = [uxreplace(e, subs) for e in c.exprs]
             ispace = c.ispace
@@ -161,21 +178,24 @@ class Buffering(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
             # Also append the copy-back if `e` is the last-write of some buffers
-            for e in c.exprs:
-                for b in buffers:
-                    if e is not b.accessv.lastwrite:
-                        continue
-                    items = list(zip(e.lhs.indices, b.function.dimensions))
-                    lhs = b.function[[i if i in b.index_mapper else d for i, d in items]]
-                    rhs = b.indexed[[b.index_mapper.get(i, d) for i, d in items]]
+            # E.g., `u[time + 1, x] = ub[sb1, x]`
+            for b in buffers:
+                if b.is_readonly:
+                    continue
+                try:
+                    c.exprs.index(b.lastwrite)
+                except ValueError:
+                    continue
 
-                    expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
-                    ispace = b.written
-                    dspace = derive_dspace(expr, ispace)
+                dims = b.function.dimensions
+                lhs = b.function[[b.lastmap.get(d, Map(d, d)).f for d in dims]]
+                rhs = b.indexed[[b.lastmap.get(d, Map(d, d)).b for d in dims]]
 
-                    processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
+                expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
+                ispace = b.written
+                dspace = derive_dspace(expr, ispace)
 
-                    break
+                processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
 
         return processed
 
@@ -205,7 +225,7 @@ class Buffer(object):
         self.accessv = accessv
 
         self.contraction_mapper = {}
-        self.index_mapper = {}
+        self.index_mapper = defaultdict(dict)
         self.sub_iterators = defaultdict(list)
         self.subdims_mapper = DefaultOrderedDict(set)
 
@@ -239,7 +259,7 @@ class Buffer(object):
             # Finally create the ModuloDimensions as children of `bd`
             for i in indices:
                 name = sregistry.make_name(prefix='sb')
-                md = self.index_mapper[i] = ModuloDimension(name, bd, i, size)
+                md = self.index_mapper[d][i] = ModuloDimension(name, bd, i, size)
                 self.sub_iterators[d.root].append(md)
 
         # Track the SubDimensions used to index into `function`
@@ -287,14 +307,20 @@ class Buffer(object):
                             space='mapped')
 
     def __repr__(self):
-        return "Buffer[%s,<%s:%s>]" % (self.buffer.name,
-                                       ','.join(str(i) for i in self.contraction_mapper),
-                                       ','.join(str(i).replace(" ", "")
-                                                for i in self.index_mapper))
+        return "Buffer[%s,<%s>]" % (self.buffer.name,
+                                    ','.join(str(i) for i in self.contraction_mapper))
 
     @property
     def is_read(self):
         return self.accessv.is_read
+
+    @property
+    def is_readonly(self):
+        return self.is_read and self.lastwrite is None
+
+    @property
+    def lastread(self):
+        return self.accessv.lastread
 
     @property
     def lastwrite(self):
@@ -359,12 +385,34 @@ class Buffer(object):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
+    @cached_property
+    def lastmap(self):
+        """
+        Build a mapper from contracted Dimensions to a 2-tuple of indices
+        representing, respectively, the "last" write to the buffer and the
+        "last" read from the buffered Function.
+        For example, `{time: (sb1, time+1)}`.
+        """
+        mapper = {}
+        for d, m in self.index_mapper.items():
+            func = max if self.written.directions[d] is Forward else min
+            v = func(m)
+            mapper[d] = Map(m[v], v)
+        return mapper
+
     def indexify(self, indices=None):
         if indices is None:
             indices = list(self.buffer.dimensions)
         else:
-            indices = [self.index_mapper.get(i, i) for i in indices]
+            indices = [self._flatten_index_mapper.get(i, i) for i in indices]
         return self.indexed[indices]
+
+    @cached_property
+    def _flatten_index_mapper(self):
+        ret = {}
+        for mapper in self.index_mapper.values():
+            ret.update(mapper)
+        return ret
 
 
 class AccessValue(object):
@@ -400,6 +448,13 @@ class AccessValue(object):
         return any(av.reads for av in self.mapper.values())
 
     @cached_property
+    def lastread(self):
+        for e, av in reversed(self.mapper.items()):
+            if av.reads:
+                return e
+        return None
+
+    @cached_property
     def lastwrite(self):
         for e, av in reversed(self.mapper.items()):
             if av.write is not None:
@@ -408,6 +463,7 @@ class AccessValue(object):
 
 
 AccessTuple = lambda: Bunch(reads=[], write=None)
+Map = namedtuple('Map', 'b f')
 
 
 class AccessMapper(OrderedDict):
