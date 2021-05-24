@@ -132,8 +132,8 @@ class Buffering(Queue):
         processed = []
         for b in buffers:
             if b.is_read or not b.has_uniform_subdims:
-                lhs = b.indexify()
-                rhs = b.function.subs(b.contraction_mapper)
+                lhs = b.indexed[b.buffer.dimensions]
+                rhs = b.function[[b.initmap.get(d, d) for d in b.function.dimensions]]
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.writeto
@@ -146,7 +146,7 @@ class Buffering(Queue):
         subs = {}
         for b in buffers:
             for a in b.accessv.accesses:
-                subs[a] = b.indexify(a.indices)
+                subs[a] = b.indexed[[b.index_mapper_flat.get(i, i) for i in a.indices]]
 
         for c in clusters:
             # If a buffer is read but never written, then we need to add
@@ -335,9 +335,17 @@ class Buffer(object):
         return self.buffer.indexed
 
     @cached_property
+    def index_mapper_flat(self):
+        ret = {}
+        for mapper in self.index_mapper.values():
+            ret.update(mapper)
+        return ret
+
+    @cached_property
     def writeto(self):
         """
-        Build the `writeto` IterationSpace, used to initialize the buffer.
+        The `writeto` IterationSpace, that is the iteration space that must be
+        iterated over in order to initialize the buffer.
         """
         intervals = []
         sub_iterators = {}
@@ -361,8 +369,8 @@ class Buffer(object):
     @cached_property
     def written(self):
         """
-        Build the `written` IterationSpace, used to read from the written
-        region of the buffer.
+        The `written` IterationSpace, that is the iteration space that must be
+        iterated over in order to read all of the written buffer values.
         """
         intervals = []
         sub_iterators = {}
@@ -388,10 +396,9 @@ class Buffer(object):
     @cached_property
     def lastmap(self):
         """
-        Build a mapper from contracted Dimensions to a 2-tuple of indices
-        representing, respectively, the "last" write to the buffer and the
-        "last" read from the buffered Function.
-        For example, `{time: (sb1, time+1)}`.
+        A mapper from contracted Dimensions to a 2-tuple of indices representing,
+        respectively, the "last" write to the buffer and the "last" read from the
+        buffered Function. For example, `{time: (sb1, time+1)}`.
         """
         mapper = {}
         for d, m in self.index_mapper.items():
@@ -400,19 +407,29 @@ class Buffer(object):
             mapper[d] = Map(m[v], v)
         return mapper
 
-    def indexify(self, indices=None):
-        if indices is None:
-            indices = list(self.buffer.dimensions)
-        else:
-            indices = [self._flatten_index_mapper.get(i, i) for i in indices]
-        return self.indexed[indices]
-
     @cached_property
-    def _flatten_index_mapper(self):
-        ret = {}
-        for mapper in self.index_mapper.values():
-            ret.update(mapper)
-        return ret
+    def initmap(self):
+        """
+        A mapper from contracted Dimensions to indices representing the min point
+        for buffer initialization. For example, `{time: db0}` in the case of a
+        forward-propagating `time`, or `{time: time_M - 2 + db0}` in the case
+        of a backward-propagating `time`.
+        """
+        mapper = {}
+        for d, bd in self.contraction_mapper.items():
+            if self.written.directions[d] is Forward:
+                mapper[d] = bd
+            else:
+                m = self.index_mapper[d]
+                if d in m:
+                    offset = len([i for i in m if i < d])
+                else:
+                    # E.g., `time/factor-1` and `time/factor+1` present, but not
+                    # `time/factor`. We reconstruct `time/factor` -- the mid point
+                    # logically corresponding to time_M
+                    pass
+                mapper[d] = d.symbolic_max - offset + bd
+        return mapper
 
 
 class AccessValue(object):
