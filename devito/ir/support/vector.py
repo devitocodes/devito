@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from sympy import true
 
-from devito.symbolics import q_positive
+from devito.symbolics import q_negative, q_positive
 from devito.tools import as_tuple, is_integer, memoized_meth
 from devito.types import Dimension
 
@@ -120,6 +120,10 @@ class Vector(tuple):
                         return False
                     elif (i >= 0) == true:
                         return False
+                    elif q_negative(i):
+                        return True
+                    elif q_positive(i):
+                        return False
                 raise TypeError("Non-comparable index functions")
 
         return False
@@ -154,6 +158,8 @@ class Vector(tuple):
                         return False
                     elif q_positive(i):
                         return True
+                    elif q_negative(i):
+                        return False
                 raise TypeError("Non-comparable index functions")
 
         return False
@@ -188,6 +194,10 @@ class Vector(tuple):
                         return False
                     elif (i >= 0) == true:
                         # See analogous considerations in __lt__
+                        return False
+                    elif q_negative(i):
+                        return True
+                    elif q_positive(i):
                         return False
                 raise TypeError("Non-comparable index functions")
 
