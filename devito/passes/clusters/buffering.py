@@ -264,10 +264,14 @@ class Buffer(object):
             self.contraction_mapper[d] = dims[dims.index(d)] = bd
 
             # Finally create the ModuloDimensions as children of `bd`
-            for i in indices:
-                name = sregistry.make_name(prefix='sb')
-                md = self.index_mapper[d][i] = ModuloDimension(name, bd, i, size)
-                self.sub_iterators[d.root].append(md)
+            if size > 1:
+                for i in indices:
+                    name = sregistry.make_name(prefix='sb')
+                    md = self.index_mapper[d][i] = ModuloDimension(name, bd, i, size)
+                    self.sub_iterators[d.root].append(md)
+            else:
+                assert len(indices) == 1
+                self.index_mapper[d][indices[0]] = 0
 
         # Track the SubDimensions used to index into `function`
         for e in accessv.mapper:
