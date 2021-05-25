@@ -4,8 +4,8 @@ from itertools import combinations
 from cached_property import cached_property
 
 from devito.ir import (Cluster, Forward, Interval, IntervalGroup, IterationSpace,
-                       DataSpace, Queue, lower_exprs, detect_accesses, build_intervals,
-                       PARALLEL)
+                       DataSpace, Queue, Vector, lower_exprs, detect_accesses,
+                       build_intervals, vmax, vmin, PARALLEL)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -239,8 +239,15 @@ class Buffer(object):
             # Determine the buffer size, and therefore the span of the ModuloDimension,
             # along the contracting Dimension `d`
             indices = filter_ordered(i.indices[d] for i in accessv.accesses)
-            slots = [i.xreplace({d: 0, d.spacing: 1}) for i in indices]
-            size = max(slots) - min(slots) + 1
+            slots = [i.subs({d: 0, d.spacing: 1}) for i in indices]
+            try:
+                size = max(slots) - min(slots) + 1
+            except TypeError:
+                # E.g., special case `slots=[-1 + time/factor, 2 + time/factor]`
+                # Resort to the fast vector-based comparison machinery (rather than
+                # the slower sympy.simplify)
+                slots = [Vector(i) for i in slots]
+                size = int((vmax(*slots) - vmin(*slots) + 1)[0])
 
             if async_degree is not None:
                 if async_degree < size:
@@ -402,9 +409,14 @@ class Buffer(object):
         """
         mapper = {}
         for d, m in self.index_mapper.items():
-            func = max if self.written.directions[d] is Forward else min
-            v = func(m)
+            try:
+                func = max if self.written.directions[d.root] is Forward else min
+                v = func(m)
+            except TypeError:
+                func = vmax if self.written.directions[d.root] is Forward else vmin
+                v = func(*[Vector(i) for i in m])[0]
             mapper[d] = Map(m[v], v)
+
         return mapper
 
     @cached_property
@@ -417,29 +429,41 @@ class Buffer(object):
         """
         mapper = {}
         for d, bd in self.contraction_mapper.items():
-            if self.written.directions[d] is Forward:
+            if self.written.directions[d.root] is Forward:
                 mapper[d] = bd
             else:
                 m = self.index_mapper[d]
                 if d in m:
-                    pivot = d
+                    offset = len([i for i in m if i < d])
+                    mapper[d] = d.symbolic_max - offset + bd
                 else:
                     # E.g., `time/factor-1` and `time/factor+1` present, but not
-                    # `time/factor`. We reconstruct `time/factor` -- the mid point,
-                    # or "pivot", logically corresponding to time_M
+                    # `time/factor`. We reconstruct `time/factor` -- the mid point
+                    # logically corresponding to time_M
                     assert len(m) > 0
                     v = list(m).pop()
+
+                    if len(m) == 1:
+                        mapper[d] = v.subs(d.root, d.root.symbolic_max) + bd
+                        continue
+
                     try:
-                        pivot = v.args[1]
+                        p = v.args[1]
                         if len(v.args) != 2 or \
                            not is_integer(v.args[0]) or \
-                           not is_integer(pivot - v):
+                           not is_integer(p - v):
                             raise ValueError
                     except (IndexError, ValueError):
                         raise NotImplementedError("Cannot apply buffering with nonlinear "
                                                   "index functions (found `%s`)" % v)
-                offset = len([i for i in m if i < pivot])
-                mapper[d] = d.symbolic_max - offset + bd
+                    try:
+                        # Start assuming e.g. `list(m) = [time - 1, time + 2]`
+                        offset = len([i for i in m if i < p])
+                    except TypeError:
+                        # Actually, e.g. `list(m) = [time/factor - 1, time/factor + 2]`
+                        offset = len([i for i in m if Vector(i) < Vector(p)])
+                    mapper[d] = p.subs(d.root, d.root.symbolic_max) - offset + bd
+
         return mapper
 
 

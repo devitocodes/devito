@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 
-from devito import (Grid, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    SubDimension, SubDomain, configuration)
+from devito import (Constant, Grid, TimeFunction, SparseTimeFunction, Operator,
+                    Eq, ConditionalDimension, SubDimension, SubDomain, configuration)
 from devito.ir import FindSymbols, retrieve_iteration_tree
 from devito.exceptions import InvalidOperator
 
@@ -393,3 +393,83 @@ def test_subdimensions():
     op1.apply(time_M=nt-2, u=u1)
 
     assert np.all(u.data == u1.data)
+
+
+def test_conditionaldimension_backwards():
+    nt = 10
+    grid = Grid(shape=(4, 4))
+    time_dim = grid.time_dim
+    x, y = grid.dimensions
+
+    factor = Constant(name='factor', value=2, dtype=np.int32)
+    time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+    u = TimeFunction(name='u', grid=grid, time_order=0, save=nt, time_dim=time_sub)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    for i in range(u.save):
+        u.data[i, :] = i
+
+    eqns = [Eq(v.backward, v.backward + v + u + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 3
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 1
+
+    op0.apply(time_m=1, time_M=9)
+    op1.apply(time_m=1, time_M=9, v=v1)
+
+    assert np.all(v.data == v1.data)
+
+
+def test_conditionaldimension_backwards_unstructured():
+    nt = 10
+    grid = Grid(shape=(4, 4))
+    time_dim = grid.time_dim
+    x, y = grid.dimensions
+
+    factor = Constant(name='factor', value=2, dtype=np.int32)
+    time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+    u = TimeFunction(name='u', grid=grid, time_order=0, save=nt, time_dim=time_sub)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    for i in range(u.save):
+        u.data[i, :] = i
+
+    ub = u[time_sub - 1, x, y]
+    ubb = u[time_sub - 2, x, y]
+    uff = u[time_sub + 2, x, y]
+
+    eqns = [Eq(v.backward, v.backward + v + ubb + ub + uff + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 3
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 1
+
+    # Note 1: cannot use time_m<4 or time_M>14 or there would be OOB accesses
+    # due to `ubb` and `uff`, which read two steps away from the current point,
+    # while `u` has in total `nt=10` entries (so last one has index 9). In
+    # particular, at `time_M=14` we will read from `uff = u[time/factor + 2] =
+    # u[14/2+2] = u[9]`, which is the last available entry in `u`. Likewise,
+    # at `time_m=4` we will read from `ubb = u[time/factor - 2`] = u[4/2 - 2] =
+    # u[0]`, which is clearly the last accessible entry in `u` while iterating
+    # in the backward direction
+    # Note 2: Given `factor=2`, we always write to `v` when `time % 2 == 0`, which
+    # means that we always write to `v[t1] = v[(time+1)%2] = v[1]`, while `v[0]`
+    # remains zero-valued. So the fact that the Eq is also reading from `v` is
+    # only relevant to induce the backward iteration direction
+    op0.apply(time_m=4, time_M=14)
+    op1.apply(time_m=4, time_M=14, v=v1)
+
+    assert np.all(v.data == v1.data)

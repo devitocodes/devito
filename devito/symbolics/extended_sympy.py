@@ -66,6 +66,8 @@ class IntDiv(sympy.Expr):
 
     is_Atom = True
 
+    is_commutative = True
+
     def __new__(cls, lhs, rhs, params=None):
         try:
             rhs = Integer(rhs)
