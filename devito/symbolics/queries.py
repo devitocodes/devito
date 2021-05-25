@@ -245,43 +245,48 @@ def q_positive(expr):
         if integer >= divisor:
             return True
 
-    def case1(integer, maybe_mul, v):
-        # E.g., X - X / p0 + p1
+    def case1(*args):
+        # E.g., p0 - x / p1 + x
 
-        if not (integer.is_Integer and integer >= 0):
-            return False
-
-        if maybe_mul.is_Mul and len(maybe_mul.args) == 2:
-            sign, intdiv = maybe_mul.args
-            if sign != -1:
-                return False
-        else:
-            sign = 1
-            intdiv = maybe_mul
-        if not isinstance(intdiv, IntDiv):
-            return False
-
-        if not q_dimension(v):
-            return False
-
-        if intdiv.lhs is not v:
-            return False
-
-        # TODO: here we should rather check for the value of .nonnegative, but
-        # this would introduce a requirement on the overarching apps, so for now
-        # we just run this isinstance(..., Constant) check. In theory it's not
-        # enough, but in practice it ism because there's only one known way to get
-        # deep down to this point, and such a Constant would definitely be positive
-        # (i.e, the often called "factor" used for time subsampling)
+        assert len(args) == 3
         from devito.types.constant import Constant
-        if not isinstance(intdiv.rhs, Constant):
+
+        found = [None, None, None]
+        for i in args:
+            if i.is_Integer and i >= 0:
+                found[0] = i
+            elif isinstance(i, Constant):
+                # TODO: here we should rather check for the value of .nonnegative, but
+                # this would introduce a requirement on the overarching apps, so for now
+                # we just run this isinstance(..., Constant) check. In theory it's not
+                # enough, but in practice it ism because there's only one known way to
+                # get deep down to this point, and such a Constant would definitely be
+                # positive (i.e, the often called "factor" used for time subsampling)
+                found[0] = i
+            elif (i.is_Mul and len(i.args) == 2 and i.args[0] == -1 and
+                  isinstance(i.args[1], IntDiv)):
+                found[1] = i.args[1]
+            elif isinstance(i, IntDiv):
+                found[1] = i
+            elif q_dimension(i):
+                found[2] = i
+
+        if any(i is None for i in found):
+            return False
+
+        p0, intdiv, x1 = found
+        x0, p1 = intdiv.args
+
+        if x0 is not x1:
+            return False
+        if not isinstance(p1, Constant):
+            # TODO: Same considerations above about Constant apply
             return False
 
         # At this point we are in the form `X {+,-} X / p0 + p1`, where
         # `X`, `p0`, and `p1` are definitely positive; since `X > X / p0`,
         # definitely the answer is True
         return True
-        pass
 
     if len(expr.args) == 2:
         return case0(*expr.args) or case1(S.Zero, *expr.args)

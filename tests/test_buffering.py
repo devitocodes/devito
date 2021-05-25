@@ -369,7 +369,7 @@ def test_over_two_subdomains():
     assert np.all(u.data == u1.data)
 
 
-def test_subdimensions():
+def test_subdims():
     nt = 10
     grid = Grid(shape=(10, 10, 10))
     x, y, z = grid.dimensions
@@ -395,7 +395,7 @@ def test_subdimensions():
     assert np.all(u.data == u1.data)
 
 
-def test_conditionaldimension_backwards():
+def test_conddim_backwards():
     nt = 10
     grid = Grid(shape=(4, 4))
     time_dim = grid.time_dim
@@ -427,7 +427,7 @@ def test_conditionaldimension_backwards():
     assert np.all(v.data == v1.data)
 
 
-def test_conditionaldimension_backwards_unstructured():
+def test_conddim_backwards_unstructured():
     nt = 10
     grid = Grid(shape=(4, 4))
     time_dim = grid.time_dim
@@ -473,3 +473,45 @@ def test_conditionaldimension_backwards_unstructured():
     op1.apply(time_m=4, time_M=14, v=v1)
 
     assert np.all(v.data == v1.data)
+
+
+def test_conddim_w_shifting():
+    nt = 50
+    grid = Grid(shape=(5, 5))
+    time = grid.time_dim
+
+    factor = Constant(name='factor', value=5, dtype=np.int32)
+    t_sub = ConditionalDimension('t_sub', parent=time, factor=factor)
+    save_shift = Constant(name='save_shift', dtype=np.int32)
+
+    u = TimeFunction(name='u', grid=grid, time_order=0)
+    u1 = TimeFunction(name='u', grid=grid, time_order=0)
+    usave = TimeFunction(name='usave', grid=grid, time_order=0,
+                         save=(int(nt//factor.data)), time_dim=t_sub)
+
+    for i in range(usave.save):
+        usave.data[i, :] = i
+
+    eqns = Eq(u.forward, u + usave.subs(t_sub, t_sub - save_shift))
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 3
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 1
+
+    # From time_m=15 to time_M=35 with a factor=5 -- it means that, thanks
+    # to t_sub, we enter the Eq exactly (35-15)/5 + 1 = 5 times. We set
+    # save_shift=1 so instead of accessing the range usave[15/5:35/5+1],
+    # we rather access the range usave[15/5-1:35:5], which means accessing
+    # the usave values 2, 3, 4, 5, 6.
+    op0.apply(time_m=15, time_M=35, save_shift=1)
+    op1.apply(time_m=15, time_M=35, save_shift=1, u=u1)
+    assert np.allclose(u.data, 20)
+    assert np.all(u.data == u1.data)
+
+    # Again, but with a different shift
+    op1.apply(time_m=15, time_M=35, save_shift=-2, u=u1)
+    assert np.allclose(u1.data, 20 + 35)
