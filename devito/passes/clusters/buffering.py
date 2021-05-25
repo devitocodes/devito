@@ -315,7 +315,7 @@ class Buffer(object):
                             dimensions=dims,
                             dtype=function.dtype,
                             halo=function.halo,
-                            space='mapped')
+                            space='default' if self.is_readonly else 'mapped')
 
     def __repr__(self):
         return "Buffer[%s,<%s>]" % (self.buffer.name,
