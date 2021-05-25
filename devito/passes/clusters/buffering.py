@@ -427,46 +427,49 @@ class Buffer(object):
     def initmap(self):
         """
         A mapper from contracted Dimensions to indices representing the min point
-        for buffer initialization. For example, `{time: db0}` in the case of a
-        forward-propagating `time`, or `{time: time_M - 2 + db0}` in the case
+        for buffer initialization. For example, `{time: time_m + db0}` in the case
+        of a forward-propagating `time`, or `{time: time_M - 2 + db0}` in the case
         of a backward-propagating `time`.
         """
         mapper = {}
         for d, bd in self.contraction_mapper.items():
-            if self.written.directions[d.root] is Forward:
-                mapper[d] = bd
+            m = self.index_mapper[d]
+
+            # The buffer is initialized at `d_m(d_M) - offset`. E.g., a buffer with
+            # six slots, used to replace a buffered Function accessed at `d-3`, `d`
+            # and `d + 2`, will have `offset = 3`
+            if d in m:
+                p = d
+                offset = d - min(m)
+                assert is_integer(offset)
+            elif len(m) == 1:
+                p = list(m).pop()
+                offset = 0
             else:
-                m = self.index_mapper[d]
-                if d in m:
-                    offset = len([i for i in m if i < d])
-                    mapper[d] = d.symbolic_max - offset + bd
-                else:
-                    # E.g., `time/factor-1` and `time/factor+1` present, but not
-                    # `time/factor`. We reconstruct `time/factor` -- the mid point
-                    # logically corresponding to time_M
-                    assert len(m) > 0
-                    v = list(m).pop()
+                # E.g., `time/factor-1` and `time/factor+1` present among the
+                # indices in `index_mapper`, but not `time/factor`. We reconstruct
+                # `time/factor` -- the starting pointing at time_m or time_M
+                assert len(m) > 0
+                v = list(m).pop()
 
-                    if len(m) == 1:
-                        mapper[d] = v.subs(d.root, d.root.symbolic_max) + bd
-                        continue
+                try:
+                    p = v.args[1]
+                    if len(v.args) != 2 or not ((p - v).is_Integer or (p - v).is_Symbol):
+                        raise ValueError
+                except (IndexError, ValueError):
+                    raise NotImplementedError("Cannot apply buffering with nonlinear "
+                                              "index functions (found `%s`)" % v)
+                try:
+                    # Start assuming e.g. `list(m) = [time - 1, time + 2]`
+                    offset = p - min(m)
+                except TypeError:
+                    # Actually, e.g. `list(m) = [time/factor - 1, time/factor + 2]`
+                    offset = p - vmin(*[Vector(i) for i in m])[0]
 
-                    try:
-                        p = v.args[1]
-                        if len(v.args) != 2 or \
-                           not is_integer(v.args[0]) or \
-                           not is_integer(p - v):
-                            raise ValueError
-                    except (IndexError, ValueError):
-                        raise NotImplementedError("Cannot apply buffering with nonlinear "
-                                                  "index functions (found `%s`)" % v)
-                    try:
-                        # Start assuming e.g. `list(m) = [time - 1, time + 2]`
-                        offset = len([i for i in m if i < p])
-                    except TypeError:
-                        # Actually, e.g. `list(m) = [time/factor - 1, time/factor + 2]`
-                        offset = len([i for i in m if Vector(i) < Vector(p)])
-                    mapper[d] = p.subs(d.root, d.root.symbolic_max) - offset + bd
+            if self.written.directions[d.root] is Forward:
+                mapper[d] = p.subs(d.root, d.root.symbolic_min) - offset + bd
+            else:
+                mapper[d] = p.subs(d.root, d.root.symbolic_max) - offset + bd
 
         return mapper
 

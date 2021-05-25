@@ -86,6 +86,28 @@ def test_read_only():
     assert np.all(v.data == v1.data)
 
 
+def test_read_only_w_offset():
+    nt = 10
+    grid = Grid(shape=(2, 2))
+
+    u = TimeFunction(name='u', grid=grid, save=nt)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    for i in range(nt):
+        u.data[i, :] = i
+
+    eqns = [Eq(v.forward, v + u.backward + u + u.forward + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    op0.apply(time_M=nt-2, time_m=4)
+    op1.apply(time_M=nt-2, time_m=4, v=v1)
+
+    assert np.all(v.data == v1.data)
+
+
 def test_read_only_backwards():
     nt = 10
     grid = Grid(shape=(2, 2))
