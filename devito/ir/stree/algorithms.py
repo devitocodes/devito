@@ -75,7 +75,11 @@ def stree_schedule(clusters):
         for it in pointers[index:]:
             mapper.pop(it)
 
-        # Add in Iterations, Conditionals, and Syncs
+        # Add in any Conditionals and Syncs outside of the outermost Iteration
+        if index == 0:
+            tip = attach_metadata(c, None, tip)
+
+        # Add in Iterations, as well as nested Conditionals and Syncs
         for it in c.itintervals[index:]:
             d = it.dim
             tip = NodeIteration(c.ispace.project([d]), tip, c.properties.get(d))
