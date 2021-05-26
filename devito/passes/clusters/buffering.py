@@ -106,7 +106,7 @@ class Buffering(Queue):
         accessmap = AccessMapper(clusters)
 
         # Create the buffers
-        buffers = []
+        buffers = BufferBatch()
         for f, accessv in accessmap.items():
             # Has a buffer already been produced for `f`?
             if f in cache:
@@ -119,8 +119,7 @@ class Buffering(Queue):
             if not all(any([i.dim in d._defines for i in prefix]) for d in dims):
                 continue
 
-            b = cache[f] = Buffer(f, dims, accessv, async_degree, self.sregistry)
-            buffers.append(b)
+            b = cache[f] = buffers.make(f, dims, accessv, async_degree, self.sregistry)
 
         if not buffers:
             return clusters
@@ -200,6 +199,25 @@ class Buffering(Queue):
         return processed
 
 
+class BufferBatch(list):
+
+    def __init__(self):
+        super().__init__()
+
+        # Track the buffer Dimensions created so far
+        self.bds = {}
+        # Track the ModuloDimensions created so far
+        self.mds = {}
+
+    def make(self, *args):
+        """
+        Create a Buffer. See Buffer.__doc__.
+        """
+        b = Buffer(*args, bds=self.bds, mds=self.mds)
+        self.append(b)
+        return b
+
+
 class Buffer(object):
 
     """
@@ -218,9 +236,18 @@ class Buffer(object):
         Enforce a size of `async_degree` along the contracted Dimensions.
     sregistry : SymbolRegistry
         The symbol registry, to create unique names for buffers and Dimensions.
+    bds : dict, optional
+        All CustomDimensions created to define buffer dimensions, potentially
+        reusable in the creation of this buffer. The object gets updated if new
+        CustomDimensions are created.
+    mds : dict, optional
+        All ModuloDimensions created to index into other buffers, potentially reusable
+        for indexing into this buffer. The object gets updated if new ModuloDimensions
+        are created.
     """
 
-    def __init__(self, function, contracted_dims, accessv, async_degree, sregistry):
+    def __init__(self, function, contracted_dims, accessv, async_degree, sregistry,
+                 bds=None, mds=None):
         self.function = function
         self.accessv = accessv
 
@@ -260,14 +287,15 @@ class Buffer(object):
 
             # Replace `d` with a suitable CustomDimension `bd`
             name = sregistry.make_name(prefix='db')
-            bd = CustomDimension(name, 0, size-1, size, d)
+            bd = bds.setdefault((d, size), CustomDimension(name, 0, size-1, size, d))
             self.contraction_mapper[d] = dims[dims.index(d)] = bd
 
             # Finally create the ModuloDimensions as children of `bd`
             if size > 1:
                 for i in indices:
                     name = sregistry.make_name(prefix='sb')
-                    md = self.index_mapper[d][i] = ModuloDimension(name, bd, i, size)
+                    md = mds.setdefault((bd, i), ModuloDimension(name, bd, i, size))
+                    self.index_mapper[d][i] = md
                     self.sub_iterators[d.root].append(md)
             else:
                 assert len(indices) == 1

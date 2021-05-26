@@ -191,6 +191,33 @@ def test_async_degree(async_degree):
     assert np.all(u.data == u1.data)
 
 
+def test_two_homogeneous_buffers():
+    nt = 10
+    grid = Grid(shape=(4, 4))
+
+    u = TimeFunction(name='u', grid=grid, save=nt)
+    u1 = TimeFunction(name='u', grid=grid, save=nt)
+    v = TimeFunction(name='v', grid=grid, save=nt)
+    v1 = TimeFunction(name='v', grid=grid, save=nt)
+
+    eqns = [Eq(u.forward, u + v + u.backward + v.backward + 1.),
+            Eq(v.forward, u + v + u.backward + v.backward + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 2
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 2
+
+    op0.apply(time_M=nt-2)
+    op1.apply(time_M=nt-2, u=u1, v=v1)
+
+    assert np.all(u.data == u1.data)
+    assert np.all(v.data == v1.data)
+
+
 def test_two_heterogeneous_buffers():
     nt = 10
     grid = Grid(shape=(4, 4))
