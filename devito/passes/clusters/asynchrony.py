@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 
 from sympy import Mod, Mul
 
@@ -8,7 +8,8 @@ from devito.ir.support import Forward, SEQUENTIAL
 from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
                           indices_to_sections, timed_pass)
 from devito.types import (CustomDimension, Ge, Le, Lock, WaitLock, WithLock,
-                          FetchWait, FetchWaitPrefetch, Delete, normalize_syncs)
+                          FetchPrefetch, FetchMemcpy, PrefetchMemcpy, Delete,
+                          normalize_syncs)
 
 __all__ = ['Tasker', 'Streaming']
 
@@ -135,8 +136,7 @@ class Tasker(Asynchronous):
 class Streaming(Asynchronous):
 
     """
-    Tag Clusters with the FetchWait, FetchWaitPrefetch and Delete SyncOps to
-    stream Functions in and out the process memory.
+    Tag Clusters with SyncOps to stream Functions in and out the device memory.
 
     Parameters
     ----------
@@ -154,64 +154,42 @@ class Streaming(Asynchronous):
 
         it = prefix[-1]
         d = it.dim
-        direction = it.direction
 
-        try:
-            pd = prefix[-2].dim
-        except IndexError:
-            pd = None
+        sync_ops = defaultdict(lambda: defaultdict(list))
 
-        # What are the stream-able Dimensions?
-        # 0) all sequential Dimensions
-        # 1) all CustomDimensions of fixed (i.e. integer) size, which
-        #    implies a bound on the amount of streamed data
-        if all(SEQUENTIAL in c.properties[d] for c in clusters):
-            make_fetch = lambda f, i, s, cb: FetchWaitPrefetch(f, d, direction, i, s, cb)
-            make_delete = lambda f, i, s, cb: Delete(f, d, direction, i, s, cb)
-            syncd = d
-        elif d.is_Custom and is_integer(it.size):
-            make_fetch = lambda f, i, s, cb: FetchWait(f, d, direction, i, it.size, cb)
-            make_delete = lambda f, i, s, cb: Delete(f, d, direction, i, it.size, cb)
-            syncd = pd
-        else:
-            return clusters
+        # Case 1 (special case, leading to more efficient streaming)
+        if d.is_Custom and is_integer(it.size):
+            for c in clusters:
+                candidates = self.key(c)
+                if candidates and is_memcpy(c):
+                    update_syncops_from_init_memcpy(c, prefix, sync_ops)
 
-        first_seen = {}
-        last_seen = {}
-        for c in clusters:
-            candidates = self.key(c)
-            if not candidates:
-                continue
-            for i in c.scope.accesses:
-                f = i.function
-                if f in candidates:
-                    k = (f, i[d])
-                    first_seen.setdefault(k, c)
-                    last_seen[k] = c
+        # Case 2
+        elif all(SEQUENTIAL in c.properties[d] for c in clusters):
+            mapper = OrderedDict()
+            for c in clusters:
+                candidates = self.key(c)
+                if candidates:
+                    if is_memcpy(c):
+                        mapper[c] = update_syncops_from_update_memcpy
+                    else:
+                        mapper[c] = None
 
-        if not first_seen:
-            return clusters
+            # Case 2A (special case, leading to more efficient streaming)
+            if all(i is update_syncops_from_update_memcpy for i in mapper.values()):
+                for c in mapper:
+                    update_syncops_from_update_memcpy(c, prefix, sync_ops)
 
-        # Bind fetches and deletes to Clusters
-        sync_ops = defaultdict(list)
-        callbacks = [(frozendict(first_seen), make_fetch),
-                     (frozendict(last_seen), make_delete)]
-        for seen, callback in callbacks:
-            mapper = defaultdict(lambda: DefaultOrderedDict(list))
-            for (f, v), c in seen.items():
-                mapper[c][f].append(v)
-            for c, m in mapper.items():
-                for f, v in m.items():
-                    for i, s in indices_to_sections(v):
-                        next_cbk = make_next_cbk(c.guards.get(d), d, direction)
-                        sync_ops[c].append(callback(f, i, s, next_cbk))
+            # Case 2B
+            elif mapper:
+                update_syncops_from_unstructured(clusters, self.key, prefix, sync_ops)
 
         # Attach SyncOps to Clusters
         processed = []
         for c in clusters:
-            v = sync_ops.get(c)
-            if v is not None:
-                processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, {syncd: v})))
+            syncs = sync_ops.get(c)
+            if syncs:
+                processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, syncs)))
             else:
                 processed.append(c)
 
@@ -219,6 +197,97 @@ class Streaming(Asynchronous):
 
 
 # Utilities
+
+
+def is_memcpy(cluster):
+    """
+    True if `cluster` emulates a memcpy, False otherwise.
+    """
+    return (len(cluster.exprs) == 1 and
+            cluster.exprs[0].lhs.function.is_Array and
+            cluster.exprs[0].rhs.is_Indexed)
+
+
+def update_syncops_from_init_memcpy(cluster, prefix, sync_ops):
+
+    it = prefix[-1]
+    d = it.dim
+    direction = it.direction
+    try:
+        pd = prefix[-2].dim
+    except IndexError:
+        pd = None
+
+    cbk = make_next_cbk(cluster.guards.get(d), d, direction)
+
+    # Extract necessary info
+    e = cluster.exprs[0]
+    target = e.lhs.function
+    tf = e.lhs.indices[d].subs(d, d.symbolic_min)
+    function = e.rhs.function
+    ff = e.rhs.indices[d].subs(d, d.symbolic_min)
+    size = d.symbolic_size
+
+    # Sanity check
+    assert is_integer(size)
+
+    sync_ops[cluster][pd].append(FetchMemcpy(target, tf, function, d, direction, ff,
+                                             size, cbk))
+
+
+def update_syncops_from_update_memcpy(cluster, prefix, sync_ops):
+    it = prefix[-1]
+    d = it.dim
+    direction = it.direction
+
+    cbk = make_next_cbk(cluster.guards.get(d), d, direction)
+
+    # Extract necessary info
+    e = cluster.exprs[0]
+    target = e.lhs.function
+    tf = e.lhs.indices[d]
+    function = e.rhs.function
+    ff = e.rhs.indices[d]
+    size = 1
+
+    sync_ops[cluster][d].append(PrefetchMemcpy(target, tf, function, d, direction, ff,
+                                               size, cbk))
+
+
+def update_syncops_from_unstructured(clusters, key, prefix, sync_ops):
+    it = prefix[-1]
+    d = it.dim
+    direction = it.direction
+
+    # Locate the streamable Functions
+    first_seen = {}
+    last_seen = {}
+    for c in clusters:
+        candidates = key(c)
+        if not candidates:
+            continue
+        for i in c.scope.accesses:
+            f = i.function
+            if f in candidates:
+                k = (f, i[d])
+                first_seen.setdefault(k, c)
+                last_seen[k] = c
+    if not first_seen:
+        return clusters
+
+    # Create and map SyncOps to Clusters
+    callbacks = [(frozendict(first_seen), FetchPrefetch),
+                 (frozendict(last_seen), Delete)]
+    for seen, callback in callbacks:
+        mapper = defaultdict(lambda: DefaultOrderedDict(list))
+        for (f, v), c in seen.items():
+            mapper[c][f].append(v)
+        for c, m in mapper.items():
+            for f, v in m.items():
+                for i, s in indices_to_sections(v):
+                    cbk = make_next_cbk(c.guards.get(d), d, direction)
+                    sync_ops[c][d].append(callback(f, d, direction, i, s, cbk))
+
 
 def make_next_cbk(rel, d, direction):
     """

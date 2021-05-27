@@ -14,9 +14,9 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, ListInitializer
 from devito.tools import (as_mapper, as_list, filter_ordered, filter_sorted,
-                          is_integer)
-from devito.types import (WaitLock, WithLock, FetchWait, FetchWaitPrefetch,
-                          Delete, SharedData)
+                          flatten, is_integer)
+from devito.types import (WaitLock, WithLock, FetchPrefetch, FetchMemcpy,
+                          PrefetchMemcpy, Delete, SharedData)
 
 __init__ = ['Orchestrator', 'BusyWait']
 
@@ -34,6 +34,20 @@ class Orchestrator(object):
 
     def __init__(self, sregistry):
         self.sregistry = sregistry
+
+    def __process_syncdata(self, s):
+        if s.direction is Forward:
+            fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
+            pfc = s.fetch + 1
+            fc_cond = s.next_cbk(s.dim.symbolic_min)
+            pfc_cond = s.next_cbk(s.dim + 1)
+        else:
+            fc = s.fetch.subs(s.dim, s.dim.symbolic_max)
+            pfc = s.fetch - 1
+            fc_cond = s.next_cbk(s.dim.symbolic_max)
+            pfc_cond = s.next_cbk(s.dim - 1)
+
+        return fc, pfc, fc_cond, pfc_cond
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
@@ -95,34 +109,78 @@ class Orchestrator(object):
 
         return iet
 
-    def _make_fetchwait(self, iet, sync_ops, *args):
+    def _make_fetchmemcpy(self, iet, sync_ops, pieces, *args):
         # Construct fetches
         fetches = []
         for s in sync_ops:
-            fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-            imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
-            fetches.append(self.lang._map_to(s.function, imask))
+            fc, _, fc_cond, _ = self.__process_syncdata(s)
+            tc = s.tfetch
 
-        # Glue together the new IET pieces
-        iet = List(header=fetches, body=iet)
+            dimensions = s.dimensions
+            dimask = [(tc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
+            himask = [(fc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
+
+            memcpy = self.lang._memcpy_to(s.target, dimask, s.function, himask)
+            fetch = Conditional(fc_cond, memcpy)
+
+            fetches.append(fetch)
+
+        # Turn init IET into a Callable
+        functions = filter_ordered(flatten([(s.target, s.function) for s in sync_ops]))
+        name = self.sregistry.make_name(prefix='init_device')
+        body = List(body=fetches)
+        parameters = filter_sorted(functions + derive_parameters(body))
+        func = Callable(name, body, 'void', parameters, 'static')
+        pieces.funcs.append(func)
+
+        # Perform initial fetch by the main thread
+        iet = List(
+            header=c.Comment("Initialize data stream"),
+            body=Call(name, parameters)
+        )
 
         return iet
 
-    def _make_fetchwaitprefetch(self, iet, sync_ops, pieces, root):
+    def _make_prefetchmemcpy(self, iet, sync_ops, pieces, root):
+        prefetches = []
+        for s in sync_ops:
+            _, pfc, _, pfc_cond = self.__process_syncdata(s)
+            ptc = s.tfetch
+
+            dimensions = s.dimensions
+            dimask = [(ptc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
+            himask = [(pfc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
+
+            memcpy = self.lang._memcpy_to_wait(s.target, dimask, s.function, himask)
+            prefetch = Conditional(pfc_cond, memcpy)
+
+            prefetches.append(prefetch)
+
+        # Turn prefetch IET into a ThreadFunction
+        name = self.sregistry.make_name(prefix='prefetch_host_to_device')
+        body = List(header=c.Line(), body=prefetches)
+        tctx = make_thread_ctx(name, body, root, None, sync_ops, self.sregistry)
+        pieces.funcs.extend(tctx.funcs)
+
+        # The IET degenerates to the thread activation logic
+        iet = tctx.activate
+
+        # Fire up the threads
+        threads = tctx.threads
+        pieces.init.append(tctx.init)
+        pieces.threads.append(threads)
+
+        # Final wait before jumping back to Python land
+        pieces.finalize.append(tctx.finalize)
+
+        return iet
+
+    def _make_fetchprefetch(self, iet, sync_ops, pieces, root):
         fetches = []
         prefetches = []
         presents = []
         for s in sync_ops:
-            if s.direction is Forward:
-                fc = s.fetch.subs(s.dim, s.dim.symbolic_min)
-                pfc = s.fetch + 1
-                fc_cond = s.next_cbk(s.dim.symbolic_min)
-                pfc_cond = s.next_cbk(s.dim + 1)
-            else:
-                fc = s.fetch.subs(s.dim, s.dim.symbolic_max)
-                pfc = s.fetch - 1
-                fc_cond = s.next_cbk(s.dim.symbolic_max)
-                pfc_cond = s.next_cbk(s.dim - 1)
+            fc, pfc, fc_cond, pfc_cond = self.__process_syncdata(s)
 
             # Construct init IET
             imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in s.dimensions]
@@ -207,13 +265,19 @@ class Orchestrator(object):
 
         def key(s):
             # The SyncOps are to be processed in the following order
-            return [WaitLock, WithLock, Delete, FetchWait, FetchWaitPrefetch].index(s)
+            return [WaitLock,
+                    WithLock,
+                    Delete,
+                    FetchMemcpy,
+                    FetchPrefetch,
+                    PrefetchMemcpy].index(s)
 
         callbacks = {
             WaitLock: self._make_waitlock,
             WithLock: self._make_withlock,
-            FetchWait: self._make_fetchwait,
-            FetchWaitPrefetch: self._make_fetchwaitprefetch,
+            FetchMemcpy: self._make_fetchmemcpy,
+            FetchPrefetch: self._make_fetchprefetch,
+            PrefetchMemcpy: self._make_prefetchmemcpy,
             Delete: self._make_delete
         }
 

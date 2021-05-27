@@ -22,10 +22,10 @@ from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
 from devito.types.misc import VolatileInt, c_volatile_int_p
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase', 'DeviceID',
-           'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
-           'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM',
-           'normalize_syncs']
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
+           'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchMemcpy',
+           'FetchPrefetch', 'PrefetchMemcpy', 'Delete', 'PThreadArray',
+           'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
 
 
 class NThreadsBase(Scalar):
@@ -236,9 +236,6 @@ class SyncOp(sympy.Expr, Pickable):
 
     is_WaitLock = False
     is_WithLock = False
-    is_FetchWait = False
-    is_FetchWaitPrefetch = False
-    is_Delete = False
 
     def __new__(cls, handle):
         obj = sympy.Expr.__new__(cls, handle)
@@ -277,15 +274,18 @@ class SyncData(SyncOp):
 
     is_SyncData = True
 
-    def __new__(cls, function, dim, direction, fetch, size, next_cbk):
-        obj = sympy.Expr.__new__(cls, function, dim, direction, fetch, size, next_cbk)
-        obj.function = function
-        obj.dim = dim
-        obj.direction = direction
-        obj.fetch = fetch
-        obj.size = size
-        obj.next_cbk = next_cbk
+    def __new__(cls, *args):
+        obj = sympy.Expr.__new__(cls, *args)
+        obj.__init_finalize__(*args)
         return obj
+
+    def __init_finalize__(self, function, dim, direction, fetch, size, next_cbk):
+        self.function = function
+        self.dim = dim
+        self.direction = direction
+        self.fetch = fetch
+        self.size = size
+        self.next_cbk = next_cbk
 
     def __str__(self):
         return "%s<%s:%s:%s:%d>" % (self.__class__.__name__, self.function,
@@ -312,16 +312,40 @@ class WithLock(SyncLock):
     is_WithLock = True
 
 
-class FetchWait(SyncData):
-    is_FetchWait = True
+class FetchPrefetch(SyncData):
+    pass
 
 
-class FetchWaitPrefetch(SyncData):
-    is_FetchWaitPrefetch = True
+class SyncDataMemcpy(SyncData):
+
+    def __init_finalize__(self, target, tfetch, *args):
+        super().__init_finalize__(*args)
+        self.target = target
+        self.tfetch = tfetch
+
+    def __str__(self):
+        return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
+                                     self.target, self.dim, self.size)
+
+    __repr__ = __str__
+
+    __hash__ = sympy.Basic.__hash__
+
+    # Pickling support
+    _pickle_args = ['target', 'tfetch'] + SyncData._pickle_args
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class FetchMemcpy(SyncDataMemcpy):
+    pass
+
+
+class PrefetchMemcpy(SyncDataMemcpy):
+    pass
 
 
 class Delete(SyncData):
-    is_Delete = True
+    pass
 
 
 def normalize_syncs(*args):
