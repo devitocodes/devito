@@ -274,7 +274,11 @@ class TestStreaming(object):
             'while(lock0[t1] == 0);'
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_streaming_simple(self):
+    @pytest.mark.parametrize('opt,ntmps', [
+        (('streaming', 'orchestrate'), 0),
+        (('buffering', 'streaming', 'orchestrate'), 1),
+    ])
+    def test_streaming_basic(self, opt, ntmps):
         nt = 10
         grid = Grid(shape=(4, 4))
 
@@ -286,7 +290,11 @@ class TestStreaming(object):
 
         eqn = Eq(u.forward, u + usave)
 
-        op = Operator(eqn, opt=('streaming', 'orchestrate'))
+        op = Operator(eqn, opt=opt)
+
+        # Check generated code
+        assert len(op._func_table) == 3
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         op.apply(time_M=nt-2)
 
@@ -294,7 +302,11 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_streaming_two_buffers(self):
+    @pytest.mark.parametrize('opt,ntmps,nfuncs', [
+        (('streaming', 'orchestrate'), 0, 3),
+        (('buffering', 'streaming', 'orchestrate'), 2, 6),
+    ])
+    def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
         nt = 10
         grid = Grid(shape=(4, 4))
 
@@ -308,7 +320,11 @@ class TestStreaming(object):
 
         eqn = Eq(u.forward, u + usave + vsave)
 
-        op = Operator(eqn, opt=('streaming', 'orchestrate'))
+        op = Operator(eqn, opt=opt)
+
+        # Check generated code
+        assert len(op._func_table) == nfuncs
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         op.apply(time_M=nt-2)
 
@@ -387,7 +403,11 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 9)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_streaming_multi_input(self):
+    @pytest.mark.parametrize('opt,ntmps', [
+        (('streaming', 'orchestrate'), 0),
+        (('buffering', 'streaming', 'orchestrate'), 1),
+    ])
+    def test_streaming_multi_input(self, opt, ntmps):
         nt = 100
         grid = Grid(shape=(10, 10))
 
@@ -403,7 +423,11 @@ class TestStreaming(object):
         eqn = Eq(grad, grad - u.dt2 * v)
 
         op0 = Operator(eqn, opt=('noop', {'gpu-fit': u}))
-        op1 = Operator(eqn, opt=('streaming', 'orchestrate'))
+        op1 = Operator(eqn, opt=opt)
+
+        # Check generated code
+        assert len(op1._func_table) == 3
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-2, dt=0.1)
         op1.apply(time_M=nt-2, dt=0.1, grad=grad1)
@@ -411,7 +435,11 @@ class TestStreaming(object):
         assert np.all(grad.data == grad1.data)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_streaming_postponed_deletion(self):
+    @pytest.mark.parametrize('opt,ntmps', [
+        (('streaming', 'orchestrate'), 0),
+        (('buffering', 'streaming', 'orchestrate'), 1),
+    ])
+    def test_streaming_postponed_deletion(self, opt, ntmps):
         nt = 10
         grid = Grid(shape=(10, 10, 10))
 
@@ -428,7 +456,11 @@ class TestStreaming(object):
                 Eq(v.forward, v + u.forward.dx + usave)]
 
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': usave}))
-        op1 = Operator(eqns, opt=('streaming', 'orchestrate'))
+        op1 = Operator(eqns, opt=opt)
+
+        # Check generated code
+        assert len(op1._func_table) == 3
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, v=v1)
