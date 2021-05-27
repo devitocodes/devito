@@ -3,11 +3,12 @@ import cgen as c
 from sympy import And, Or, Max
 
 from devito.data import FULL
-from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
-                       List, ParallelTree, Prodder, FindSymbols, FindNodes, Return,
-                       VECTORIZED, Transformer, IsPerfectIteration, filter_iterations,
-                       retrieve_iteration_tree)
-from devito.symbolics import CondEq, INT, ccode
+from devito.ir import (BlankLine, DummyEq, Conditional, Dereference, DummyExpr,
+                       Expression, ExpressionBundle, List, ParallelTree, Prodder,
+                       FindSymbols, FindNodes, Return, VECTORIZED, Transformer,
+                       IsPerfectIteration, filter_iterations, retrieve_iteration_tree)
+from devito.symbolics import (CondEq, DefFunction, FieldFromPointer, INT, ccode,
+                              cast_mapper)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
@@ -487,6 +488,23 @@ class PragmaLangBB(LangBB):
         return ''.join(sections)
 
     @classmethod
+    def _make_offset_from_imask(cls, f, imask):
+        datasize = cls._map_data(f)
+        if imask is None:
+            imask = [FULL]*len(datasize)
+        assert len(imask) == len(datasize)
+        offset = 0
+        size = DefFunction('sizeof', f._C_typedata)
+        for n, (i, j) in enumerate(zip(imask, datasize)):
+            if i is FULL:
+                size *= j
+            else:
+                nofs, nsize = i
+                offset += nofs*prod(datasize[n+1:])
+                size *= nsize
+        return offset, size
+
+    @classmethod
     def _map_data(cls, f):
         if f.is_Array:
             return f.symbolic_shape
@@ -546,6 +564,45 @@ class PragmaLangBB(LangBB):
         items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
         cond = ' if(%s)' % ' && '.join(items)
         return cls.mapper['map-exit-delete'](f.name, sections, cond)
+
+    @classmethod
+    def _memcpy_to(cls, df, dimask, hf, himask):
+        """
+        Copy a host Function into a device Function.
+        """
+        return cls._memcpy_to_wait(df, dimask, hf, himask, queueid=None)
+
+    @classmethod
+    def _memcpy_to_wait(cls, df, dimask, hf, himask, queueid=None):
+        """
+        Copy a host Function into a device Function and explicitly wait.
+        """
+        if df.is_Array:
+            dp = df._C_symbol
+        else:
+            raise NotImplementedError
+        hp = cast_mapper[(hf.dtype, '*')](FieldFromPointer('data', hf._C_symbol))
+
+        dofs, dsize = cls._make_offset_from_imask(df, dimask)
+        hofs, hsize = cls._make_offset_from_imask(hf, himask)
+
+        sdofs = Symbol(name='dofs', dtype=np.int32, is_const=True)
+        shofs = Symbol(name='hofs', dtype=np.int32, is_const=True)
+        initdofs = DummyExpr(sdofs, dofs)
+        inithofs = DummyExpr(shofs, hofs)
+
+        nbytes = Symbol(name='nbytes', dtype=np.int32, is_const=True)
+        initsize = DummyExpr(nbytes, hsize)
+
+        if queueid is None:
+            memcpy = cls.mapper['memcpy-to-device'](dp + sdofs, hp + shofs, nbytes)
+        else:
+            memcpy = cls.mapper['memcpy-to-device-wait'](dp + sdofs, hp + shofs, nbytes,
+                                                         queueid)
+
+        iet = List(body=[initdofs, inithofs, initsize, BlankLine, memcpy])
+
+        return iet
 
 
 # Utils
