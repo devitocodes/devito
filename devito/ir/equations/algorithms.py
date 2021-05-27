@@ -5,7 +5,7 @@ from sympy import sympify
 
 from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
                               uxreplace)
-from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
+from devito.tools import PartialOrderTuple, filter_sorted, as_tuple
 from devito.types import Dimension, Eq
 
 __all__ = ['dimension_sort', 'generate_implicit_exprs', 'lower_exprs']
@@ -18,25 +18,40 @@ def dimension_sort(expr):
     """
 
     def handle_indexed(indexed):
-        relation = []
+        # This returns a set of relations i.e. Set[Tuple[Dimension, ...]]
+        relations = set()
+
+        # We force an ordering of any affine indices
+        # We do not force ordering of nonaffine indices - the
+        # access pattern may be irregular anyway
+        self_relation = []
         for i in indexed.indices:
             try:
                 maybe_dim = split_affine(i).var
                 if isinstance(maybe_dim, Dimension):
-                    relation.append(maybe_dim)
+                    self_relation.append(maybe_dim)
             except ValueError:
                 # Maybe there are some nested Indexeds (e.g., the situation is A[B[i]])
-                nested = flatten(handle_indexed(n) for n in retrieve_indexed(i))
-                if nested:
-                    relation.extend(nested)
-                else:
-                    # Fallback: Just insert all the Dimensions we find, regardless of
-                    # what the user is attempting to do
-                    relation.extend([d for d in filter_sorted(i.free_symbols)
-                                     if isinstance(d, Dimension)])
-        return tuple(relation)
+                relations.update(
+                    set().union(*[handle_indexed(n) for n in retrieve_indexed(i)])
+                )
 
-    relations = {handle_indexed(i) for i in retrieve_indexed(expr)}
+                # We also need to make sure we capture all the Dimensions we find,
+                # regardless of what the user is attempting to do.
+                # We don't need an order on these, so we just unconditionally return
+                # single-dimension 'relations' that don't define an order i.e. (dim,)
+                relations.update({
+                    (d, )
+                    for d in filter_sorted(i.free_symbols)
+                    if isinstance(d, Dimension)
+                })
+
+        if self_relation:
+            relations.add(tuple(self_relation))
+
+        return relations
+
+    relations = set().union(*[handle_indexed(i) for i in retrieve_indexed(expr)])
 
     # Add in any implicit dimension (typical of scalar temporaries, or Step)
     relations.add(expr.implicit_dims)
