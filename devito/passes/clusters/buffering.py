@@ -2,6 +2,7 @@ from collections import OrderedDict, defaultdict, namedtuple
 from itertools import combinations
 
 from cached_property import cached_property
+import numpy as np
 
 from devito.ir import (Cluster, Forward, Interval, IntervalGroup, IterationSpace,
                        DataSpace, Queue, Vector, lower_exprs, detect_accesses,
@@ -292,6 +293,13 @@ class Buffer(object):
 
             # Finally create the ModuloDimensions as children of `bd`
             if size > 1:
+                # Note: indices are sorted so that the semantic order (sb0, sb1, sb2)
+                # follows SymPy's index ordering (time, time-1, time+1) after modulo
+                # replacement, so that associativity errors are consistent. This very
+                # same strategy is also applied in clusters/algorithms/Stepper
+                p, _ = offset_from_centre(d, indices)
+                indices = sorted(indices,
+                                 key=lambda i: -np.inf if i - p == 0 else (i - p))
                 for i in indices:
                     name = sregistry.make_name(prefix='sb')
                     md = mds.setdefault((bd, i), ModuloDimension(name, bd, i, size))
@@ -461,38 +469,12 @@ class Buffer(object):
         """
         mapper = {}
         for d, bd in self.contraction_mapper.items():
-            m = self.index_mapper[d]
+            indices = list(self.index_mapper[d])
 
             # The buffer is initialized at `d_m(d_M) - offset`. E.g., a buffer with
             # six slots, used to replace a buffered Function accessed at `d-3`, `d`
             # and `d + 2`, will have `offset = 3`
-            if d in m:
-                p = d
-                offset = d - min(m)
-                assert is_integer(offset)
-            elif len(m) == 1:
-                p = list(m).pop()
-                offset = 0
-            else:
-                # E.g., `time/factor-1` and `time/factor+1` present among the
-                # indices in `index_mapper`, but not `time/factor`. We reconstruct
-                # `time/factor` -- the starting pointing at time_m or time_M
-                assert len(m) > 0
-                v = list(m).pop()
-
-                try:
-                    p = v.args[1]
-                    if len(v.args) != 2 or not ((p - v).is_Integer or (p - v).is_Symbol):
-                        raise ValueError
-                except (IndexError, ValueError):
-                    raise NotImplementedError("Cannot apply buffering with nonlinear "
-                                              "index functions (found `%s`)" % v)
-                try:
-                    # Start assuming e.g. `list(m) = [time - 1, time + 2]`
-                    offset = p - min(m)
-                except TypeError:
-                    # Actually, e.g. `list(m) = [time/factor - 1, time/factor + 2]`
-                    offset = p - vmin(*[Vector(i) for i in m])[0]
+            p, offset = offset_from_centre(d, indices)
 
             if self.written.directions[d.root] is Forward:
                 mapper[d] = p.subs(d.root, d.root.symbolic_min) - offset + bd
@@ -573,3 +555,37 @@ def derive_dspace(expr, ispace):
     dspace = DataSpace(ispace.intervals, parts)
 
     return dspace
+
+
+def offset_from_centre(d, indices):
+    if d in indices:
+        p = d
+        offset = d - min(indices)
+        assert is_integer(offset)
+
+    elif len(indices) == 1:
+        p = indices[0]
+        offset = 0
+
+    else:
+        # E.g., `time/factor-1` and `time/factor+1` present among the
+        # indices in `index_mapper`, but not `time/factor`. We reconstruct
+        # `time/factor` -- the starting pointing at time_m or time_M
+        assert len(indices) > 0
+        v = indices[0]
+
+        try:
+            p = sum(v.args[1:])
+            if not ((p - v).is_Integer or (p - v).is_Symbol):
+                raise ValueError
+        except (IndexError, ValueError):
+            raise NotImplementedError("Cannot apply buffering with nonlinear "
+                                      "index functions (found `%s`)" % v)
+        try:
+            # Start assuming e.g. `list(m) = [time - 1, time + 2]`
+            offset = p - min(indices)
+        except TypeError:
+            # Actually, e.g. `list(m) = [time/factor - 1, time/factor + 2]`
+            offset = p - vmin(*[Vector(i) for i in indices])[0]
+
+    return p, offset
