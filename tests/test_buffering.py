@@ -564,3 +564,34 @@ def test_conddim_w_shifting():
     # Again, but with a different shift
     op1.apply(time_m=15, time_M=35, save_shift=-2, u=u1)
     assert np.allclose(u1.data, 20 + 35)
+
+
+def test_multi_access():
+    nt = 10
+    grid = Grid(shape=(2, 2))
+
+    u = TimeFunction(name='u', grid=grid, save=nt)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+    w = TimeFunction(name='w', grid=grid)
+    w1 = TimeFunction(name='w', grid=grid)
+
+    for i in range(nt):
+        u.data[i, :] = i
+
+    eqns = [Eq(v.forward, v + u.forward + 1.),
+            Eq(w.forward, w + u + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 2
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 1
+
+    op0.apply(time_M=nt-2)
+    op1.apply(time_M=nt-2, v=v1, w=w1)
+
+    assert np.all(v.data == v1.data)
+    assert np.all(w.data == w1.data)

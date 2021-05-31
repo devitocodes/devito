@@ -156,7 +156,7 @@ class Buffering(Queue):
                 if not b.is_readonly:
                     continue
                 try:
-                    c.exprs.index(b.lastread)
+                    c.exprs.index(b.firstread)
                 except ValueError:
                     continue
 
@@ -366,8 +366,8 @@ class Buffer(object):
         return self.is_read and self.lastwrite is None
 
     @property
-    def lastread(self):
-        return self.accessv.lastread
+    def firstread(self):
+        return self.accessv.firstread
 
     @property
     def lastwrite(self):
@@ -517,8 +517,8 @@ class AccessValue(object):
         return any(av.reads for av in self.mapper.values())
 
     @cached_property
-    def lastread(self):
-        for e, av in reversed(self.mapper.items()):
+    def firstread(self):
+        for e, av in self.mapper.items():
             if av.reads:
                 return e
         return None
