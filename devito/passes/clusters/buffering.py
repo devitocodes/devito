@@ -132,8 +132,9 @@ class Buffering(Queue):
         processed = []
         for b in buffers:
             if b.is_read or not b.has_uniform_subdims:
-                lhs = b.indexed[b.buffer.dimensions]
-                rhs = b.function[[b.initmap.get(d, d) for d in b.function.dimensions]]
+                dims = b.function.dimensions
+                lhs = b.indexed[[b.initmap.get(d, Map(d, d)).b for d in dims]]
+                rhs = b.function[[b.initmap.get(d, Map(d, d)).f for d in dims]]
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.writeto
@@ -462,10 +463,10 @@ class Buffer(object):
     @cached_property
     def initmap(self):
         """
-        A mapper from contracted Dimensions to indices representing the min point
-        for buffer initialization. For example, `{time: time_m + db0}` in the case
-        of a forward-propagating `time`, or `{time: time_M - 2 + db0}` in the case
-        of a backward-propagating `time`.
+        A mapper from contracted Dimensions to indices representing the min points
+        for buffer initialization. For example, in the case of a forward-propagating
+        `time` Dimension, we could have `{time: (time_m + db0) % 2, (time_m + db0)}`;
+        likewise, for backwards, `{time: (time_M - 2 + db0) % 4, time_M - 2 + db0}`.
         """
         mapper = {}
         for d, bd in self.contraction_mapper.items():
@@ -477,9 +478,11 @@ class Buffer(object):
             p, offset = offset_from_centre(d, indices)
 
             if self.written.directions[d.root] is Forward:
-                mapper[d] = p.subs(d.root, d.root.symbolic_min) - offset + bd
+                v = p.subs(d.root, d.root.symbolic_min) - offset + bd
             else:
-                mapper[d] = p.subs(d.root, d.root.symbolic_max) - offset + bd
+                v = p.subs(d.root, d.root.symbolic_max) - offset + bd
+
+            mapper[d] = Map(v % bd.symbolic_size, v)
 
         return mapper
 

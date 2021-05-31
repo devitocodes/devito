@@ -603,6 +603,10 @@ class TestStreaming(object):
         u1 = TimeFunction(name='u', grid=grid, save=nt)
         v1 = TimeFunction(name='v', grid=grid, save=nt)
 
+        for i in range(nt):
+            u.data[i, :] = i
+            u1.data[i, :] = i
+
         eqns = [Eq(u.forward, u + v + 1),
                 Eq(v.forward, u + v + v.backward)]
 
