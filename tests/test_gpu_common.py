@@ -828,6 +828,49 @@ class TestStreaming(object):
         op.apply(time_m=15, time_M=35, save_shift=-2)
         assert np.allclose(u.data, 20 + 35)
 
+    def test_streaming_complete(self):
+        nt = 50
+        grid = Grid(shape=(6, 6))
+        x, y = grid.dimensions
+        time = grid.time_dim
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=2, thickness_right=2)
+        yi = SubDimension.middle(name='yi', parent=y, thickness_left=2, thickness_right=2)
+
+        factor = Constant(name='factor', value=5, dtype=np.int32)
+        t_sub = ConditionalDimension('t_sub', parent=time, factor=factor)
+        save_shift = Constant(name='save_shift', dtype=np.int32)
+
+        u = TimeFunction(name='u', grid=grid, time_order=0)
+        u1 = TimeFunction(name='u', grid=grid, time_order=0)
+        va = TimeFunction(name='va', grid=grid, time_order=0,
+                          save=(int(nt//factor.data)), time_dim=t_sub)
+        vb = TimeFunction(name='vb', grid=grid, time_order=0,
+                          save=(int(nt//factor.data)), time_dim=t_sub)
+
+        for i in range(va.save):
+            va.data[i, :] = i
+            vb.data[i, :] = i*2 - 1
+
+        vas = va.subs(t_sub, t_sub - save_shift)
+        vasb = va.subs(t_sub, t_sub - 1 - save_shift)
+        vasf = va.subs(t_sub, t_sub + 1 - save_shift)
+
+        eqns = [Eq(u.forward, u + (vasb + vas + vasf)*2. + vb)]
+
+        eqns = [e.xreplace({x: xi, y: yi}) for e in eqns]
+
+        op0 = Operator(eqns, opt='noop')
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
+
+        # Check generated code
+        assert len(op1._func_table) == 4
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 2
+
+        op0.apply(time_m=15, time_M=35, save_shift=0)
+        op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
+
+        assert np.all(u.data == u1.data)
+
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,gpu_fit', [
         (('streaming', 'orchestrate'), True),
