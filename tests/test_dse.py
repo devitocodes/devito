@@ -1117,7 +1117,7 @@ class TestAliases(object):
         assert len(arrays) == 7
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
-        trees = [i for i in retrieve_iteration_tree(op1)]
+        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
 
         assert len(trees) == 3
 
@@ -2165,7 +2165,7 @@ class TestAliases(object):
         op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True, 'cire-rotate': rotate}))
 
         # Check code generation
-        trees = [i for i in retrieve_iteration_tree(op1)]
+        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
 
         assert len(trees) == 2
         assert trees[0][1] is trees[1][1]
@@ -2469,7 +2469,7 @@ class TestIsoAcoustic(object):
         u1, rec1, summary1, op1 = self.run_acoustic_forward(opt='advanced')
 
         assert len(op0._func_table) == 0
-        trees = [i for i in retrieve_iteration_tree(op0)]
+        trees = [i for i in retrieve_iteration_tree(op0) if len(i) > 1]
         assert len(trees) == 3  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50

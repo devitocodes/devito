@@ -204,3 +204,10 @@ def _R(expr):
         assert len(base) == 1
         base = base.pop()
     return EvalDerivative(*expr.args, base=base)
+
+
+# A list of optimization options/pipelines to be used in testing
+# regarding GPU openacc spatial and/or temporal blocking.
+opts_openacc_tiling = [('openacc', 'blocking'),
+                       ('openacc', 'blocking', {'skewing': True}),
+                       ('openacc', 'blocking', {'skewing': True, 'blockinner': True})]

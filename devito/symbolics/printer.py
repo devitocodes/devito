@@ -21,7 +21,9 @@ class CodePrinter(C99CodePrinter):
         'FLOATP': '(float*)',
         'DOUBLE': '(double)',
         'DOUBLEP': '(double*)',
-    }
+        'Min': 'MIN',
+        'Max': 'MAX'
+        }
 
     """
     Decorator for sympy.printing.ccode.CCodePrinter.

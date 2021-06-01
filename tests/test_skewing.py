@@ -4,7 +4,6 @@ from sympy import Min, Max
 
 from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator # noqa
 from devito.ir import Expression, Iteration, FindNodes
-from devito.symbolics import INT
 
 
 class TestCodeGenSkewing(object):
@@ -45,15 +44,15 @@ class TestCodeGenSkewing(object):
         assert iters[4].dim.parent is iters[2].dim
 
         assert (iters[3].symbolic_min == (iters[1].dim + time))
-        assert (iters[3].symbolic_max == INT(Min(iters[1].dim + time +
-                                                 iters[1].dim.symbolic_incr - 1,
-                                                 Max(iters[1].dim.symbolic_max,
-                                                 iters[1].dim.symbolic_max + time))))
+        assert (iters[3].symbolic_max == Min(iters[1].dim + time +
+                                             iters[1].dim.symbolic_incr - 1,
+                                             Max(iters[1].dim.symbolic_max,
+                                             iters[1].dim.symbolic_max + time)))
         assert (iters[4].symbolic_min == (iters[2].dim + time))
-        assert (iters[4].symbolic_max == INT(Min(iters[2].dim + time +
-                                                 iters[2].dim.symbolic_incr - 1,
-                                                 Max(iters[2].dim.symbolic_max,
-                                                 iters[2].dim.symbolic_max + time))))
+        assert (iters[4].symbolic_max == Min(iters[2].dim + time +
+                                             iters[2].dim.symbolic_incr - 1,
+                                             Max(iters[2].dim.symbolic_max,
+                                             iters[2].dim.symbolic_max + time)))
 
         assert (iters[5].symbolic_min == (iters[5].dim.symbolic_min))
         assert (iters[5].symbolic_max == (iters[5].dim.symbolic_max))
