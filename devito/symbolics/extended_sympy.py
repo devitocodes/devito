@@ -11,8 +11,8 @@ from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
-           'DefFunction', 'InlineIf', 'Macro', 'Literal', 'INT', 'FLOAT', 'DOUBLE',
-           'FLOOR', 'cast_mapper']
+           'DefFunction', 'InlineIf', 'Precedence', 'Macro', 'Literal', 'INT',
+           'FLOAT', 'DOUBLE', 'FLOOR', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -377,6 +377,20 @@ class InlineIf(sympy.Expr, Pickable):
     # Pickling support
     _pickle_args = ['cond', 'true_expr', 'false_expr']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Precedence(sympy.Expr):
+
+    """
+    Used to enforce operator precedence when this would be ambigulously defined,
+    and/or when SymPy doesn't provide working mechanisms (e.g., explicit parentheses)
+    to express it.
+    """
+
+    def __str__(self):
+        return "(%s)" % ",".join([str(i) for i in self.args])
+
+    __repr__ = __str__
 
 
 class Macro(sympy.Symbol):

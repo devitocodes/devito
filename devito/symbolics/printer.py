@@ -142,6 +142,9 @@ class CodePrinter(C99CodePrinter):
     _print_DefFunction = _print_IntDiv
     _print_InlineIf = _print_IntDiv
 
+    def _print_Precedence(self, expr):
+        return "(%s)" % ', '.join([self._print(i) for i in expr.args])
+
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
         if self.dtype == np.float32:
