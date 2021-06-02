@@ -1,14 +1,14 @@
 import numpy as np
 import cgen as c
-from sympy import And, Or, Max
+from sympy import And, Or, Max, Mod
 
 from devito.data import FULL
 from devito.ir import (BlankLine, DummyEq, Conditional, Dereference, Expression,
                        ExpressionBundle, List, DummyExpr, ParallelTree, Prodder,
                        FindSymbols, FindNodes, Return, VECTORIZED, Transformer,
                        IsPerfectIteration, filter_iterations, retrieve_iteration_tree)
-from devito.symbolics import (CondEq, DefFunction, FieldFromPointer, INT, ccode,
-                              cast_mapper)
+from devito.symbolics import (CondEq, DefFunction, FieldFromPointer, INT, Precedence,
+                              ccode, cast_mapper)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
@@ -494,15 +494,19 @@ class PragmaLangBB(LangBB):
             imask = [FULL]*len(datasize)
         assert len(imask) == len(datasize)
         offset = 0
-        size = DefFunction('sizeof', f._C_typedata)
+        shape = []
         for n, (i, j) in enumerate(zip(imask, datasize)):
             if i is FULL:
-                size *= j
+                shape.append(j)
             else:
-                nofs, nsize = i
+                nofs, size = i
+                if isinstance(nofs, Mod):
+                    # NOTE: work around alleged SymPy bug which doesn't allow
+                    # expressing precedence of Mod over Mul through parentheses
+                    nofs = Precedence(nofs)
                 offset += nofs*prod(datasize[n+1:])
-                size *= nsize
-        return offset, size
+                shape.append(size)
+        return offset, shape
 
     @classmethod
     def _map_data(cls, f):
@@ -577,30 +581,101 @@ class PragmaLangBB(LangBB):
         """
         Copy a host Function into a device Function and explicitly wait.
         """
+
         if df.is_Array:
             dp = df._C_symbol
         else:
             raise NotImplementedError
         hp = cast_mapper[(hf.dtype, '*')](FieldFromPointer('data', hf._C_symbol))
 
-        dofs, dsize = cls._make_offset_from_imask(df, dimask)
-        hofs, hsize = cls._make_offset_from_imask(hf, himask)
+        mcpy = cls.mapper['memcpy-to-device']
+        mcpyW = cls.mapper['memcpy-to-device-wait']
+
+        # `df` is a buffer array potentially (typically) accessed with
+        # ModuloDimensions.  So the memcpy from `hf` into `df` needs to
+        # take this into account. In the example below, the region `[a, b, c]`
+        # is copied from `hf` to `df`, but `df`'s fetch point, captured
+        # by the `dimask`, corresponds to the third entry, so we need to
+        # perform two memcpy's, one for the so called "lower part" `[a]`
+        # and one for the "upper part", `[b, c]`
+        #
+        #     o---o---o---o
+        # df: | b | c | a |
+        #     o---o---o---o
+        #
+        #     o---o---o---o---o---o---o---o---
+        # hf: |   |   | a | b | c |   |   |
+        #     o---o---o---o---o---o---o---o---
 
         sdofs = Symbol(name='dofs', dtype=np.int32, is_const=True)
         shofs = Symbol(name='hofs', dtype=np.int32, is_const=True)
-        initdofs = DummyExpr(sdofs, dofs)
-        inithofs = DummyExpr(shofs, hofs)
+        stsize = Symbol(name='tsize', dtype=np.int32, is_const=True)
+        sdfsize = Symbol(name='dfsize', dtype=np.int32, is_const=True)
+        sdsize0 = Symbol(name='dsize0', dtype=np.int32, is_const=True)
+        sdsize1 = Symbol(name='dsize1', dtype=np.int32, is_const=True)
+        sdofs0 = Symbol(name='dofs0', dtype=np.int32, is_const=True)
+        sdofs1 = Symbol(name='dofs1', dtype=np.int32, is_const=True)
+        shofs0 = Symbol(name='hofs0', dtype=np.int32, is_const=True)
+        shofs1 = Symbol(name='hofs1', dtype=np.int32, is_const=True)
+        sizeof = DefFunction('sizeof', df._C_typedata)
+        snbytes = Symbol(name='nbytes', dtype=np.int32, is_const=True)
+        snbytes0 = Symbol(name='nbytes0', dtype=np.int32, is_const=True)
+        snbytes1 = Symbol(name='nbytes1', dtype=np.int32, is_const=True)
 
-        nbytes = Symbol(name='nbytes', dtype=np.int32, is_const=True)
-        initsize = DummyExpr(nbytes, hsize)
+        dofs, dshape = cls._make_offset_from_imask(df, dimask)
+        hofs, _ = cls._make_offset_from_imask(hf, himask)
 
+        dsize = prod(dshape)
+
+        idofs = DummyExpr(sdofs, dofs)
+        ihofs = DummyExpr(shofs, hofs)
+        itsize = DummyExpr(stsize, dsize)
+        idfsize = DummyExpr(sdfsize, prod(cls._map_data(df)))
+
+        cond = sdofs + stsize <= sdfsize
+
+        # If `cond` resolves to True, then no piggyback
+        then_body = [
+            DummyExpr(snbytes, stsize*sizeof),
+            BlankLine
+        ]
         if queueid is None:
-            memcpy = cls.mapper['memcpy-to-device'](dp + sdofs, hp + shofs, nbytes)
+            then_body.append(mcpy(dp + sdofs, hp + shofs, snbytes))
         else:
-            memcpy = cls.mapper['memcpy-to-device-wait'](dp + sdofs, hp + shofs, nbytes,
-                                                         queueid)
+            then_body.append(mcpyW(dp + sdofs, hp + shofs, snbytes, queueid))
 
-        iet = List(body=[initdofs, inithofs, initsize, BlankLine, memcpy])
+        # Otherwise, there's a remainder
+        else_body = [
+            DummyExpr(sdsize0, sdfsize - sdofs),
+            DummyExpr(sdofs0, sdofs),
+            DummyExpr(shofs0, shofs),
+            DummyExpr(snbytes0, sdsize0*sizeof),
+            BlankLine,
+            DummyExpr(sdsize1, stsize - sdsize0),
+            DummyExpr(sdofs1, 0),
+            DummyExpr(shofs1, shofs + sdsize0),
+            DummyExpr(snbytes1, sdsize1*sizeof),
+            BlankLine
+        ]
+        if queueid is None:
+            else_body.extend([
+                mcpy(dp + sdofs0, hp + shofs0, snbytes0),
+                mcpy(dp + sdofs1, hp + shofs1, snbytes1)
+            ])
+        else:
+            else_body.extend([
+                mcpyW(dp + sdofs0, hp + shofs0, snbytes0, queueid),
+                mcpyW(dp + sdofs1, hp + shofs1, snbytes1, queueid)
+            ])
+
+        prefix = [idofs, ihofs, itsize]
+        if dshape.count(1) == 1:
+            # Special case: if only one slice is memcpy-ed, then definitely there is
+            # no piggyback, hence we can skip the conditional entirely
+            body = then_body
+        else:
+            body = [idfsize, BlankLine, Conditional(cond, then_body, else_body)]
+        iet = List(body=prefix + body)
 
         return iet
 

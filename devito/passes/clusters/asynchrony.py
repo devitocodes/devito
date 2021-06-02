@@ -280,7 +280,6 @@ def update_syncops_from_init(cluster, prefix, sync_ops, memcpy=False):
         ))
 
 
-
 def update_syncops_from_update_memcpy(cluster, clusters, prefix, sync_ops):
     it = prefix[-1]
     d = it.dim
