@@ -54,6 +54,17 @@ class PragmaSimdTransformer(PragmaTransformer):
             if not candidate.is_Parallel:
                 continue
 
+            # Iterations that are not innermost should not be considered as candidates
+            # This check catches cases where an iteration appears as innermost in one tree
+            # (tree A) but is not actually innermost (tree B)
+            #
+            # Example:
+            #
+            # for (i = ... ) (End of tree A)
+            #   Expr1
+            #   for (j = ...) (End of tree B)
+            #     ...
+
             if not IsPerfectIteration(depth=candidates[-2]).visit(candidate):
                 continue
 
