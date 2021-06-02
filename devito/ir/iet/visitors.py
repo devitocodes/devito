@@ -474,8 +474,7 @@ class MapExprStmts(FindSections):
         ret[o] = as_tuple(queue)
         return ret
 
-    visit_Conditional = FindSections.visit_Node
-
+    visit_Conditional = FindSections.visit_Iteration
     visit_Block = FindSections.visit_Iteration
 
 
