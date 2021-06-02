@@ -23,9 +23,9 @@ from devito.types.dimension import CustomDimension
 from devito.types.misc import VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
-           'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchMemcpy',
-           'FetchPrefetch', 'PrefetchMemcpy', 'Delete', 'PThreadArray',
-           'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
+           'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'Fetch',
+           'FetchMemcpy', 'FetchPrefetch', 'PrefetchMemcpy', 'WaitPrefetch', 'Delete',
+           'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
 
 
 class NThreadsBase(Scalar):
@@ -274,22 +274,35 @@ class SyncData(SyncOp):
 
     is_SyncData = True
 
-    def __new__(cls, *args):
-        obj = sympy.Expr.__new__(cls, *args)
-        obj.__init_finalize__(*args)
+    def __new__(cls, dim, size, function, fetch, ifetch, fcond,
+                pfetch=None, pcond=None, target=None, tstore=None):
+        obj = sympy.Expr.__new__(cls, dim, size, function, fetch, ifetch, fcond,
+                                 pfetch, pcond, target, tstore)
+
+        # fetch -> the input Function fetch index, e.g. `time`
+        # ifetch -> the input Function initialization index, e.g. `time_m`
+        # pfetch -> the input Function prefetch index, e.g. `time+1`
+        # tstore -> the target Function store index, e.g. `sb1`
+
+        # fcond -> the input Function fetch condition, e.g. `time_m <= time_M`
+        # pcond -> the input Function prefetch condition, e.g. `time + 1 <= time_M`
+
+        obj.dim = dim
+        obj.size = size
+        obj.function = function
+        obj.fetch = fetch
+        obj.ifetch = ifetch
+        obj.fcond = fcond
+        obj.pfetch = pfetch
+        obj.pcond = pcond
+        obj.target = target
+        obj.tstore = tstore
+
         return obj
 
-    def __init_finalize__(self, function, dim, direction, fetch, size, next_cbk):
-        self.function = function
-        self.dim = dim
-        self.direction = direction
-        self.fetch = fetch
-        self.size = size
-        self.next_cbk = next_cbk
-
     def __str__(self):
-        return "%s<%s:%s:%s:%d>" % (self.__class__.__name__, self.function,
-                                    self.dim, self.fetch, self.size)
+        return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
+                                     self.target, self.dim, self.size)
 
     __repr__ = __str__
 
@@ -300,7 +313,8 @@ class SyncData(SyncOp):
         return self.function.dimensions
 
     # Pickling support
-    _pickle_args = ['function', 'dim', 'direction', 'fetch', 'size', 'next_cbk']
+    _pickle_args = ['dim', 'size', 'function', 'fetch', 'ifetch', 'fcond']
+    _pickle_kwargs = ['pfetch', 'pcond', 'target', 'tstore']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -312,35 +326,23 @@ class WithLock(SyncLock):
     is_WithLock = True
 
 
+class Fetch(SyncData):
+    pass
+
+
 class FetchPrefetch(SyncData):
     pass
 
 
-class SyncDataMemcpy(SyncData):
-
-    def __init_finalize__(self, target, tfetch, *args):
-        super().__init_finalize__(*args)
-        self.target = target
-        self.tfetch = tfetch
-
-    def __str__(self):
-        return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
-                                     self.target, self.dim, self.size)
-
-    __repr__ = __str__
-
-    __hash__ = sympy.Basic.__hash__
-
-    # Pickling support
-    _pickle_args = ['target', 'tfetch'] + SyncData._pickle_args
-    __reduce_ex__ = Pickable.__reduce_ex__
-
-
-class FetchMemcpy(SyncDataMemcpy):
+class FetchMemcpy(SyncData):
     pass
 
 
-class PrefetchMemcpy(SyncDataMemcpy):
+class PrefetchMemcpy(SyncData):
+    pass
+
+
+class WaitPrefetch(SyncData):
     pass
 
 

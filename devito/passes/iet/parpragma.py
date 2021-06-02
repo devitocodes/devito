@@ -3,8 +3,8 @@ import cgen as c
 from sympy import And, Or, Max
 
 from devito.data import FULL
-from devito.ir import (BlankLine, DummyEq, Conditional, Dereference, DummyExpr,
-                       Expression, ExpressionBundle, List, ParallelTree, Prodder,
+from devito.ir import (BlankLine, DummyEq, Conditional, Dereference, Expression,
+                       ExpressionBundle, List, DummyExpr, ParallelTree, Prodder,
                        FindSymbols, FindNodes, Return, VECTORIZED, Transformer,
                        IsPerfectIteration, filter_iterations, retrieve_iteration_tree)
 from devito.symbolics import (CondEq, DefFunction, FieldFromPointer, INT, ccode,

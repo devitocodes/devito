@@ -1,15 +1,15 @@
 from collections import OrderedDict, defaultdict
 
-from sympy import Mod, Mul
+from sympy import Ge, Le, Mod, Mul, true
 
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Queue
-from devito.ir.support import Forward, SEQUENTIAL
+from devito.ir.support import Forward, SEQUENTIAL, Vector
 from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
                           indices_to_sections, timed_pass)
-from devito.types import (CustomDimension, Ge, Le, Lock, WaitLock, WithLock,
-                          FetchPrefetch, FetchMemcpy, PrefetchMemcpy, Delete,
-                          normalize_syncs)
+from devito.types import (CustomDimension, Lock, WaitLock, WithLock, Fetch,
+                          FetchPrefetch, FetchMemcpy, PrefetchMemcpy, WaitPrefetch,
+                          Delete, normalize_syncs)
 
 __all__ = ['Tasker', 'Streaming']
 
@@ -157,12 +157,19 @@ class Streaming(Asynchronous):
 
         sync_ops = defaultdict(lambda: defaultdict(list))
 
-        # Case 1 (special case, leading to more efficient streaming)
+        # Case 1
         if d.is_Custom and is_integer(it.size):
             for c in clusters:
                 candidates = self.key(c)
-                if candidates and is_memcpy(c):
-                    update_syncops_from_init_memcpy(c, prefix, sync_ops)
+                if candidates:
+                    # Case 1A (special case, leading to more efficient streaming)
+                    if is_memcpy(c):
+                        update_syncops_from_init(c, prefix, sync_ops, memcpy=True)
+                    # Case 1B
+                    elif is_memcpy_like(c):
+                        update_syncops_from_init(c, prefix, sync_ops)
+                    else:
+                        raise NotImplementedError
 
         # Case 2
         elif all(SEQUENTIAL in c.properties[d] for c in clusters):
@@ -178,7 +185,7 @@ class Streaming(Asynchronous):
             # Case 2A (special case, leading to more efficient streaming)
             if all(i is update_syncops_from_update_memcpy for i in mapper.values()):
                 for c in mapper:
-                    update_syncops_from_update_memcpy(c, prefix, sync_ops)
+                    update_syncops_from_update_memcpy(c, clusters, prefix, sync_ops)
 
             # Case 2B
             elif mapper:
@@ -188,7 +195,9 @@ class Streaming(Asynchronous):
         processed = []
         for c in clusters:
             syncs = sync_ops.get(c)
-            if syncs:
+            if syncs == 'drop':
+                continue
+            elif syncs:
                 processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, syncs)))
             else:
                 processed.append(c)
@@ -201,15 +210,24 @@ class Streaming(Asynchronous):
 
 def is_memcpy(cluster):
     """
-    True if `cluster` emulates a memcpy, False otherwise.
+    True if `cluster` emulates a memcpy and the target object is a default-allocated
+    Array, False otherwise.
     """
     return (len(cluster.exprs) == 1 and
             cluster.exprs[0].lhs.function.is_Array and
+            cluster.exprs[0].lhs.function._mem_default and
             cluster.exprs[0].rhs.is_Indexed)
 
 
-def update_syncops_from_init_memcpy(cluster, prefix, sync_ops):
+def is_memcpy_like(cluster):
+    """
+    True if `cluster` emulates a memcpy, False otherwise.
+    """
+    return (len(cluster.exprs) == 1 and
+            cluster.exprs[0].rhs.is_Indexed)
 
+
+def update_syncops_from_init(cluster, prefix, sync_ops, memcpy=False):
     it = prefix[-1]
     d = it.dim
     direction = it.direction
@@ -218,40 +236,118 @@ def update_syncops_from_init_memcpy(cluster, prefix, sync_ops):
     except IndexError:
         pd = None
 
-    cbk = make_next_cbk(cluster.guards.get(d), d, direction)
-
-    # Extract necessary info
+    # Prepare the data to instantiate a FetchMemcpy SyncOp
     e = cluster.exprs[0]
-    target = e.lhs.function
-    tf = e.lhs.indices[d].subs(d, d.symbolic_min)
-    function = e.rhs.function
-    ff = e.rhs.indices[d].subs(d, d.symbolic_min)
+
     size = d.symbolic_size
 
-    # Sanity check
+    function = e.rhs.function
+    fetch = e.rhs.indices[d]
+    ifetch = fetch.subs(d, d.symbolic_min)
+    if direction is Forward:
+        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_min)
+    else:
+        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_max)
+
+    pfetch = None
+    pcond = None
+
+    target = e.lhs.function
+    tstore = e.lhs.indices[d].subs(d, d.symbolic_min)
+
+    # Sanity checks
     assert is_integer(size)
 
-    sync_ops[cluster][pd].append(FetchMemcpy(target, tf, function, d, direction, ff,
-                                             size, cbk))
+    if memcpy:
+        sync_ops[cluster][pd].append(FetchMemcpy(
+            d, size,
+            function, fetch, ifetch, fcond,
+            pfetch, pcond,
+            target, tstore
+        ))
+    else:
+        sync_ops[cluster][pd].append(Fetch(
+            d, size,
+            function, ifetch, ifetch, fcond,
+            pfetch, pcond,
+            target, tstore
+        ))
+        sync_ops[cluster][pd].append(Delete(
+            d, size,
+            function, ifetch, ifetch, fcond,  # Note: `ifetch` twice, that's deliberate
+            pfetch, pcond,
+            target, tstore
+        ))
 
 
-def update_syncops_from_update_memcpy(cluster, prefix, sync_ops):
+
+def update_syncops_from_update_memcpy(cluster, clusters, prefix, sync_ops):
     it = prefix[-1]
     d = it.dim
     direction = it.direction
 
-    cbk = make_next_cbk(cluster.guards.get(d), d, direction)
-
-    # Extract necessary info
+    # Prepare the data to instantiate a FetchMemcpy SyncOp
     e = cluster.exprs[0]
-    target = e.lhs.function
-    tf = e.lhs.indices[d]
-    function = e.rhs.function
-    ff = e.rhs.indices[d]
+
     size = 1
 
-    sync_ops[cluster][d].append(PrefetchMemcpy(target, tf, function, d, direction, ff,
-                                               size, cbk))
+    function = e.rhs.function
+    fetch = e.rhs.indices[d]
+    ifetch = fetch.subs(d, d.symbolic_min)
+    if direction is Forward:
+        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_min)
+    else:
+        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_max)
+
+    if direction is Forward:
+        pfetch = fetch + 1
+        pcond = make_cond(cluster.guards.get(d), d, direction, d + 1)
+    else:
+        pfetch = fetch - 1
+        pcond = make_cond(cluster.guards.get(d), d, direction, d - 1)
+
+    target = e.lhs.function
+    tstore0 = e.lhs.indices[d]
+
+    # If fetching into e.g., `ub[sb1]`, we'll need to prefetch into e.g. `ub[sb0]`
+    if is_integer(tstore0):
+        tstore = tstore0
+    else:
+        assert tstore0.is_Modulo
+        subiters = [md for md in cluster.sub_iterators[d] if md.parent is tstore0.parent]
+        osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
+        n = osubiters.index(tstore0)
+        if direction is Forward:
+            tstore = osubiters[(n + 1) % len(osubiters)]
+        else:
+            tstore = osubiters[(n - 1) % len(osubiters)]
+
+    # Since we're turning `e` into a prefetch, we need to attach ...
+    # ... a WaitPrefetch SyncOp to the first Cluster accessing the `target`
+    # ... the actual PrefetchMemcpy to the last Cluster accessing the `target`
+    n = clusters.index(cluster)
+    first = None
+    last = None
+    for c in clusters[n+1:]:
+        if target in c.scope.reads:
+            if first is None:
+                first = c
+            last = c
+    assert first is not None
+    assert last is not None
+    sync_ops[first][d].append(WaitPrefetch(
+        d, size,
+        function, fetch, ifetch, fcond,
+        pfetch, pcond,
+        target, tstore
+    ))
+    sync_ops[last][d].append(PrefetchMemcpy(
+        d, size,
+        function, fetch, ifetch, fcond,
+        pfetch, pcond,
+        target, tstore
+    ))
+    sync_ops[cluster] = 'drop'
 
 
 def update_syncops_from_unstructured(clusters, key, prefix, sync_ops):
@@ -275,30 +371,43 @@ def update_syncops_from_unstructured(clusters, key, prefix, sync_ops):
     if not first_seen:
         return clusters
 
-    # Create and map SyncOps to Clusters
     callbacks = [(frozendict(first_seen), FetchPrefetch),
                  (frozendict(last_seen), Delete)]
+
+    # Create and map SyncOps to Clusters
     for seen, callback in callbacks:
         mapper = defaultdict(lambda: DefaultOrderedDict(list))
         for (f, v), c in seen.items():
             mapper[c][f].append(v)
+
         for c, m in mapper.items():
             for f, v in m.items():
-                for i, s in indices_to_sections(v):
-                    cbk = make_next_cbk(c.guards.get(d), d, direction)
-                    sync_ops[c][d].append(callback(f, d, direction, i, s, cbk))
+                for fetch, s in indices_to_sections(v):
+                    if direction is Forward:
+                        ifetch = fetch.subs(d, d.symbolic_min)
+                        fcond = make_cond(c.guards.get(d), d, direction, d.symbolic_min)
+                        pfetch = fetch + 1
+                        pcond = make_cond(c.guards.get(d), d, direction, d + 1)
+                    else:
+                        ifetch = fetch.subs(d, d.symbolic_max)
+                        fcond = make_cond(c.guards.get(d), d, direction, d.symbolic_max)
+                        pfetch = fetch - 1
+                        pcond = make_cond(c.guards.get(d), d, direction, d - 1)
+
+                    syncop = callback(d, s, f, fetch, ifetch, fcond, pfetch, pcond)
+                    sync_ops[c][d].append(syncop)
 
 
-def make_next_cbk(rel, d, direction):
+def make_cond(rel, d, direction, iteration):
     """
-    Create a callable that given a symbol returns a sympy.Relational usable to
-    express, in symbolic form, whether the next fetch/prefetch will be executed.
+    Create a symbolic condition which, once resolved at runtime, returns True
+    if `iteration` is within the Dimension `d`'s min/max bounds, False otherwise.
     """
     if rel is None:
         if direction is Forward:
-            return lambda s: Le(s, d.symbolic_max)
+            cond = Le(iteration, d.symbolic_max)
         else:
-            return lambda s: Ge(s, d.symbolic_min)
+            cond = Ge(iteration, d.symbolic_min)
     else:
         # Only case we know how to deal with, today, is the one induced
         # by a ConditionalDimension with structured condition (e.g. via `factor`)
@@ -308,7 +417,12 @@ def make_next_cbk(rel, d, direction):
 
         if direction is Forward:
             # The LHS rounds `s` up to the nearest multiple of `v`
-            return lambda s: Le(Mul(((s + v - 1) / v), v, evaluate=False), d.symbolic_max)
+            cond = Le(Mul(((iteration + v - 1) / v), v, evaluate=False), d.symbolic_max)
         else:
             # The LHS rounds `s` down to the nearest multiple of `v`
-            return lambda s: Ge(Mul((s / v), v, evaluate=False), d.symbolic_min)
+            cond = Ge(Mul((iteration / v), v, evaluate=False), d.symbolic_min)
+
+    if cond is true:
+        return None
+    else:
+        return cond

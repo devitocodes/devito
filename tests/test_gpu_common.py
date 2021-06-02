@@ -304,7 +304,8 @@ class TestStreaming(object):
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
         (('streaming', 'orchestrate'), 0, 3),
-        (('buffering', 'streaming', 'orchestrate'), 2, 6),
+        (('buffering', 'streaming', 'orchestrate'), 2, 4),
+        (('buffering', 'streaming', 'fuse', 'orchestrate'), 2, 3),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
         nt = 10
@@ -787,7 +788,11 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, -3:] == 0)
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_streaming_w_shifting(self):
+    @pytest.mark.parametrize('opt,ntmps', [
+        (('streaming', 'orchestrate'), 0),
+        (('buffering', 'streaming', 'orchestrate'), 1),
+    ])
+    def test_streaming_w_shifting(self, opt, ntmps):
         nt = 50
         grid = Grid(shape=(5, 5))
         time = grid.time_dim
@@ -805,7 +810,11 @@ class TestStreaming(object):
 
         eqns = Eq(u.forward, u + usave.subs(t_sub, t_sub - save_shift))
 
-        op = Operator(eqns, opt=('streaming', 'orchestrate'))
+        op = Operator(eqns, opt=opt)
+
+        # Check generated code
+        assert len(op._func_table) == 3
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         # From time_m=15 to time_M=35 with a factor=5 -- it means that, thanks
         # to t_sub, we enter the Eq exactly (35-15)/5 + 1 = 5 times. We set
@@ -822,7 +831,8 @@ class TestStreaming(object):
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,gpu_fit', [
         (('streaming', 'orchestrate'), True),
-        (('streaming', 'orchestrate'), False)
+        (('streaming', 'orchestrate'), False),
+        (('buffering', 'streaming', 'orchestrate'), False)
     ])
     def test_xcor_from_saved(self, opt, gpu_fit):
         nt = 10
