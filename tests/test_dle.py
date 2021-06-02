@@ -657,7 +657,7 @@ class TestNodeParallelism(object):
           'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
          0)
     ])
-    def test_omp_pragmas_edge_cases(self, exprs, exp_simd):
+    def test_edge_cases(self, exprs, exp_simd):
         t, x, y = dimensions('t x y')
 
         g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
