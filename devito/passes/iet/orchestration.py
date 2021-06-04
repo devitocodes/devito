@@ -14,8 +14,8 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, ListInitializer
 from devito.tools import (as_mapper, as_list, filter_ordered, filter_sorted,
                           flatten, is_integer)
-from devito.types import (WaitLock, WithLock, Fetch, FetchPrefetch, FetchMemcpy,
-                          PrefetchMemcpy, WaitPrefetch, Delete, SharedData)
+from devito.types import (WaitLock, WithLock, FetchUpdate, FetchPrefetch,
+                          PrefetchUpdate, WaitPrefetch, Delete, SharedData)
 
 __init__ = ['Orchestrator', 'BusyWait']
 
@@ -62,7 +62,6 @@ class Orchestrator(object):
         for s in sync_ops:
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
                      for d in s.target.dimensions]
-
             update = List(header=self.lang._map_update_wait_host(s.target, imask,
                                                                  SharedData._field_id))
             preactions.append(List(body=[BlankLine, update, DummyExpr(s.handle, 1)]))
@@ -96,43 +95,23 @@ class Orchestrator(object):
 
         return iet
 
-    def _make_fetch(self, iet, sync_ops, pieces, *args):
+    def _make_fetchupdate(self, iet, sync_ops, pieces, *args):
         # Construct fetches
-        fetches = []
+        postactions = []
         for s in sync_ops:
-            dimensions = s.dimensions
-            ifc = s.ifetch
+            # The condition is already encoded in `iet` with a Conditional,
+            # which stems from the originating Cluster's guards
+            assert s.fcond is None
 
-            imask = [(ifc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            fetches.append(self.lang._map_to(s.function, imask))
-
-        # Glue together the new IET pieces
-        iet = List(header=fetches, body=iet)
-
-        return iet
-
-    def _make_fetchmemcpy(self, iet, sync_ops, pieces, *args):
-        # Construct fetches
-        fetches = []
-        for s in sync_ops:
-            dimensions = s.dimensions
-            ifc = s.ifetch
-            fcond = s.fcond
-            tc = s.tstore
-
-            dimask = [(tc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            himask = [(ifc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-
-            memcpy = self.lang._memcpy_to(s.target, dimask, s.function, himask)
-            if fcond is not None:
-                memcpy = Conditional(fcond, memcpy)
-
-            fetches.append(memcpy)
+            imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
+                     for d in s.dimensions]
+            fetch = List(header=self.lang._map_update_device(s.target, imask))
+            postactions.append(fetch)
 
         # Turn init IET into a Callable
         functions = filter_ordered(flatten([(s.target, s.function) for s in sync_ops]))
         name = self.sregistry.make_name(prefix='init_device')
-        body = List(body=fetches)
+        body = List(body=iet.body + tuple(postactions))
         parameters = filter_sorted(functions + derive_parameters(body))
         func = Callable(name, body, 'void', parameters, 'static')
         pieces.funcs.append(func)
@@ -145,32 +124,31 @@ class Orchestrator(object):
 
         return iet
 
-    def _make_prefetchmemcpy(self, iet, sync_ops, pieces, root):
-        sid = SharedData._symbolic_id
+    def _make_prefetchupdate(self, iet, sync_ops, pieces, root):
+        fid = SharedData._field_id
 
-        prefetches = []
+        postactions = []
         for s in sync_ops:
-            dimensions = s.dimensions
-            pfc = s.pfetch
-            pcond = s.pcond
-            ptc = s.tstore
+            # `pcond` is not None, but we won't use it here because the condition
+            # is actually already encoded in `iet` itself (it stems from the
+            # originating Cluster's guards)
+            assert s.pcond is not None
 
-            dimask = [(ptc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            himask = [(pfc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-
-            memcpy = self.lang._memcpy_to_wait(s.target, dimask, s.function, himask, sid)
-            prefetch = Conditional(pcond, memcpy)
-
-            prefetches.append(prefetch)
+            imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
+                     for d in s.dimensions]
+            prefetch = List(
+                header=self.lang._map_update_wait_device(s.target, imask, fid)
+            )
+            postactions.append(prefetch)
 
         # Turn prefetch IET into a ThreadFunction
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
-        body = List(header=c.Line(), body=prefetches)
+        body = List(body=iet.body + tuple(postactions))
         tctx = make_thread_ctx(name, body, root, None, sync_ops, self.sregistry)
         pieces.funcs.extend(tctx.funcs)
 
-        # Glue together all the IET pieces, including the activation logic
-        iet = List(body=[iet, tctx.activate])
+        # The IET degenerates to the threads activation logic
+        iet = tctx.activate
 
         # Fire up the threads
         pieces.init.append(tctx.init)
@@ -184,11 +162,13 @@ class Orchestrator(object):
         return iet
 
     def _make_waitprefetch(self, iet, sync_ops, pieces, *args):
+        ff = SharedData._field_flag
+
         waits = []
         for s in sync_ops:
             sdata, threads = pieces.objs.get(s)
-            waits.append(BusyWait(CondNe(FieldFromComposite(sdata._field_flag,
-                                                            sdata[threads.index]), 1)))
+            wait = BusyWait(CondNe(FieldFromComposite(ff, sdata[threads.index]), 1))
+            waits.append(wait)
 
         iet = List(
             header=c.Comment("Wait for the arrival of prefetched data"),
@@ -198,6 +178,8 @@ class Orchestrator(object):
         return iet
 
     def _make_fetchprefetch(self, iet, sync_ops, pieces, root):
+        fid = SharedData._field_id
+
         fetches = []
         prefetches = []
         presents = []
@@ -212,7 +194,8 @@ class Orchestrator(object):
 
             # Construct init IET
             imask = [(ifc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            fetch = PragmaList(self.lang._map_to(f, imask), {f} | ifc.free_symbols)
+            fetch = PragmaList(self.lang._map_to(f, imask), f,
+                               ifc.free_symbols | {f.indexed})
             fetches.append(Conditional(fcond, fetch))
 
             # Construct present clauses
@@ -221,8 +204,8 @@ class Orchestrator(object):
 
             # Construct prefetch IET
             imask = [(pfc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            prefetch = PragmaList(self.lang._map_to_wait(f, imask, SharedData._field_id),
-                                  {f} | pfc.free_symbols)
+            prefetch = PragmaList(self.lang._map_to_wait(f, imask, fid), f,
+                                  pfc.free_symbols | {f.indexed})
             prefetches.append(Conditional(pcond, prefetch))
 
         # Turn init IET into a Callable
@@ -294,20 +277,18 @@ class Orchestrator(object):
             return [WaitLock,
                     WithLock,
                     Delete,
-                    Fetch,
-                    FetchMemcpy,
+                    FetchUpdate,
                     FetchPrefetch,
-                    PrefetchMemcpy,
+                    PrefetchUpdate,
                     WaitPrefetch].index(s)
 
         callbacks = {
             WaitLock: self._make_waitlock,
             WithLock: self._make_withlock,
             Delete: self._make_delete,
-            Fetch: self._make_fetch,
-            FetchMemcpy: self._make_fetchmemcpy,
+            FetchUpdate: self._make_fetchupdate,
             FetchPrefetch: self._make_fetchprefetch,
-            PrefetchMemcpy: self._make_prefetchmemcpy
+            PrefetchUpdate: self._make_prefetchupdate
         }
         postponed_callbacks = {
             WaitPrefetch: self._make_waitprefetch

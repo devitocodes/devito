@@ -1,15 +1,16 @@
 from collections import OrderedDict, defaultdict
 
-from sympy import Ge, Le, Mod, Mul, true
+from sympy import And, Ge, Le, Mod, Mul, true
 
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Queue
 from devito.ir.support import Forward, SEQUENTIAL, Vector
-from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
+from devito.symbolics import uxreplace
+from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
                           indices_to_sections, timed_pass)
-from devito.types import (CustomDimension, Lock, WaitLock, WithLock, Fetch,
-                          FetchPrefetch, FetchMemcpy, PrefetchMemcpy, WaitPrefetch,
-                          Delete, normalize_syncs)
+from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
+                          FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete,
+                          normalize_syncs)
 
 __all__ = ['Tasker', 'Streaming']
 
@@ -155,20 +156,18 @@ class Streaming(Asynchronous):
         it = prefix[-1]
         d = it.dim
 
-        sync_ops = defaultdict(lambda: defaultdict(list))
+        actions = defaultdict(Actions)
 
         # Case 1
         if d.is_Custom and is_integer(it.size):
             for c in clusters:
                 candidates = self.key(c)
                 if candidates:
-                    # Case 1A (special case, leading to more efficient streaming)
                     if is_memcpy(c):
-                        update_syncops_from_init(c, prefix, sync_ops, memcpy=True)
-                    # Case 1B
-                    elif is_memcpy_like(c):
-                        update_syncops_from_init(c, prefix, sync_ops)
+                        # Case 1A (special case, leading to more efficient streaming)
+                        actions_from_init(c, prefix, actions, memcpy=True)
                     else:
+                        # Case 1B (actually, we expect to never end up here)
                         raise NotImplementedError
 
         # Case 2
@@ -178,29 +177,34 @@ class Streaming(Asynchronous):
                 candidates = self.key(c)
                 if candidates:
                     if is_memcpy(c):
-                        mapper[c] = update_syncops_from_update_memcpy
+                        mapper[c] = actions_from_update_memcpy
                     else:
                         mapper[c] = None
 
             # Case 2A (special case, leading to more efficient streaming)
-            if all(i is update_syncops_from_update_memcpy for i in mapper.values()):
+            if all(i is actions_from_update_memcpy for i in mapper.values()):
                 for c in mapper:
-                    update_syncops_from_update_memcpy(c, clusters, prefix, sync_ops)
+                    actions_from_update_memcpy(c, clusters, prefix, actions)
 
             # Case 2B
             elif mapper:
-                update_syncops_from_unstructured(clusters, self.key, prefix, sync_ops)
+                actions_from_unstructured(clusters, self.key, prefix, actions)
 
-        # Attach SyncOps to Clusters
+        # Perform the necessary actions; this will ultimately attach SyncOps to Clusters
         processed = []
         for c in clusters:
-            syncs = sync_ops.get(c)
-            if syncs == 'drop':
+            v = actions[c]
+
+            if v.drop:
+                assert not v.syncs
                 continue
-            elif syncs:
-                processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, syncs)))
+            elif v.syncs:
+                processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, v.syncs)))
             else:
                 processed.append(c)
+
+            if v.insert:
+                processed.extend(v.insert)
 
         return processed
 
@@ -208,26 +212,26 @@ class Streaming(Asynchronous):
 # Utilities
 
 
+class Actions(object):
+
+    def __init__(self, drop=False, syncs=None, insert=None):
+        self.drop = drop
+        self.syncs = syncs or defaultdict(list)
+        self.insert = insert or []
+
+
 def is_memcpy(cluster):
     """
-    True if `cluster` emulates a memcpy and the target object is a default-allocated
+    True if `cluster` emulates a memcpy and the target object is a mapped
     Array, False otherwise.
     """
     return (len(cluster.exprs) == 1 and
             cluster.exprs[0].lhs.function.is_Array and
-            cluster.exprs[0].lhs.function._mem_default and
+            cluster.exprs[0].lhs.function._mem_mapped and
             cluster.exprs[0].rhs.is_Indexed)
 
 
-def is_memcpy_like(cluster):
-    """
-    True if `cluster` emulates a memcpy, False otherwise.
-    """
-    return (len(cluster.exprs) == 1 and
-            cluster.exprs[0].rhs.is_Indexed)
-
-
-def update_syncops_from_init(cluster, prefix, sync_ops, memcpy=False):
+def actions_from_init(cluster, prefix, actions, memcpy=False):
     it = prefix[-1]
     d = it.dim
     direction = it.direction
@@ -236,7 +240,7 @@ def update_syncops_from_init(cluster, prefix, sync_ops, memcpy=False):
     except IndexError:
         pd = None
 
-    # Prepare the data to instantiate a FetchMemcpy SyncOp
+    # Prepare the data to instantiate a FetchUpdate SyncOp
     e = cluster.exprs[0]
 
     size = d.symbolic_size
@@ -253,39 +257,25 @@ def update_syncops_from_init(cluster, prefix, sync_ops, memcpy=False):
     pcond = None
 
     target = e.lhs.function
-    tstore = e.lhs.indices[d].subs(d, d.symbolic_min)
+    tstore = 0
 
     # Sanity checks
     assert is_integer(size)
 
-    if memcpy:
-        sync_ops[cluster][pd].append(FetchMemcpy(
-            d, size,
-            function, fetch, ifetch, fcond,
-            pfetch, pcond,
-            target, tstore
-        ))
-    else:
-        sync_ops[cluster][pd].append(Fetch(
-            d, size,
-            function, ifetch, ifetch, fcond,
-            pfetch, pcond,
-            target, tstore
-        ))
-        sync_ops[cluster][pd].append(Delete(
-            d, size,
-            function, ifetch, ifetch, fcond,  # Note: `ifetch` twice, that's deliberate
-            pfetch, pcond,
-            target, tstore
-        ))
+    actions[cluster].syncs[pd].append(FetchUpdate(
+        d, size,
+        function, fetch, ifetch, fcond,
+        pfetch, pcond,
+        target, tstore
+    ))
 
 
-def update_syncops_from_update_memcpy(cluster, clusters, prefix, sync_ops):
+def actions_from_update_memcpy(cluster, clusters, prefix, actions):
     it = prefix[-1]
     d = it.dim
     direction = it.direction
 
-    # Prepare the data to instantiate a FetchMemcpy SyncOp
+    # Prepare the data to instantiate a PrefetchUpdate SyncOp
     e = cluster.exprs[0]
 
     size = 1
@@ -321,9 +311,21 @@ def update_syncops_from_update_memcpy(cluster, clusters, prefix, sync_ops):
         else:
             tstore = osubiters[(n - 1) % len(osubiters)]
 
-    # Since we're turning `e` into a prefetch, we need to attach ...
-    # ... a WaitPrefetch SyncOp to the first Cluster accessing the `target`
-    # ... the actual PrefetchMemcpy to the last Cluster accessing the `target`
+    # Turn `cluster` into a prefetch Cluster
+    expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
+    guards = {d: And(*([pcond] + as_list(cluster.guards.get(d))))}
+    syncs = {d: [PrefetchUpdate(
+        d, size,
+        function, fetch, ifetch, fcond,
+        pfetch, pcond,
+        target, tstore
+    )]}
+    pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
+
+    # Since we're turning `e` into a prefetch, we need to:
+    # 1) attach a WaitPrefetch SyncOp to the first Cluster accessing `target`
+    # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
+    # 3) drop the original Cluster performing a memcpy-based fetch
     n = clusters.index(cluster)
     first = None
     last = None
@@ -334,22 +336,17 @@ def update_syncops_from_update_memcpy(cluster, clusters, prefix, sync_ops):
             last = c
     assert first is not None
     assert last is not None
-    sync_ops[first][d].append(WaitPrefetch(
+    actions[first].syncs[d].append(WaitPrefetch(
         d, size,
         function, fetch, ifetch, fcond,
         pfetch, pcond,
         target, tstore
     ))
-    sync_ops[last][d].append(PrefetchMemcpy(
-        d, size,
-        function, fetch, ifetch, fcond,
-        pfetch, pcond,
-        target, tstore
-    ))
-    sync_ops[cluster] = 'drop'
+    actions[last].insert.append(pcluster)
+    actions[cluster].drop = True
 
 
-def update_syncops_from_unstructured(clusters, key, prefix, sync_ops):
+def actions_from_unstructured(clusters, key, prefix, actions):
     it = prefix[-1]
     d = it.dim
     direction = it.direction
@@ -394,7 +391,7 @@ def update_syncops_from_unstructured(clusters, key, prefix, sync_ops):
                         pcond = make_cond(c.guards.get(d), d, direction, d - 1)
 
                     syncop = callback(d, s, f, fetch, ifetch, fcond, pfetch, pcond)
-                    sync_ops[c][d].append(syncop)
+                    actions[c].syncs[d].append(syncop)
 
 
 def make_cond(rel, d, direction, iteration):

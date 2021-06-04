@@ -3,12 +3,11 @@ import cgen as c
 from sympy import And, Or, Max, Mod
 
 from devito.data import FULL
-from devito.ir import (BlankLine, DummyEq, Conditional, Dereference, Expression,
-                       ExpressionBundle, List, DummyExpr, ParallelTree, Prodder,
-                       FindSymbols, FindNodes, Return, VECTORIZED, Transformer,
-                       IsPerfectIteration, filter_iterations, retrieve_iteration_tree)
-from devito.symbolics import (CondEq, DefFunction, FieldFromPointer, INT, Precedence,
-                              ccode, cast_mapper)
+from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
+                       List, ParallelTree, Prodder, FindSymbols, FindNodes, Return,
+                       VECTORIZED, Transformer, IsPerfectIteration, filter_iterations,
+                       retrieve_iteration_tree)
+from devito.symbolics import CondEq, INT, Precedence, ccode
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
@@ -385,6 +384,16 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         self.gpu_fit = options['gpu-fit']
         self.par_disabled = options['par-disabled']
 
+    def _is_offloadable(self, iet):
+        expressions = FindNodes(Expression).visit(iet)
+        if any(not is_on_device(e.write, self.gpu_fit) for e in expressions):
+            return False
+
+        functions = FindSymbols().visit(iet)
+        buffers = [f for f in functions if f.is_Array and f._mem_mapped]
+        hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
+        return not (buffers and hostfuncs)
+
     def _make_threaded_prodders(self, partree):
         if isinstance(partree.root, self.DeviceIteration):
             # no-op for now
@@ -396,19 +405,18 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         """
         Parallelize the `candidates` Iterations. In particular:
 
-            * All parallel Iterations not *writing* to a host Function, that
-              is a Function `f` such that `is_on_device(f) == False`, are offloaded
-              to the device.
-            * The remaining ones, that is those writing to a host Function,
-              are parallelized on the host.
+            * A PARALLEL Iteration writing (reading) a mapped Array while
+              reading (writing) a host Function (that is, all Functions `f`
+              such that `is_on_device(f)` gives False) is parallelized
+              on the host. These are essentially the Iterations that initialize
+              or dump the Devito-created buffers.
+            * All other PARALLEL Iterations (typically, the majority) are
+              offloaded to the device.
         """
         assert candidates
         root = candidates[0]
 
-        if is_on_device(root, self.gpu_fit, only_writes=True):
-            # The typical case: all written Functions are device Functions, that is
-            # they're mapped in the device memory. Then we offload `root` to the device
-
+        if self._is_offloadable(root):
             # Get the collapsable Iterations
             collapsable = self._find_collapsable(root, candidates)
             ncollapse = 1 + len(collapsable)
@@ -568,116 +576,6 @@ class PragmaLangBB(LangBB):
         items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
         cond = ' if(%s)' % ' && '.join(items)
         return cls.mapper['map-exit-delete'](f.name, sections, cond)
-
-    @classmethod
-    def _memcpy_to(cls, df, dimask, hf, himask):
-        """
-        Copy a host Function into a device Function.
-        """
-        return cls._memcpy_to_wait(df, dimask, hf, himask, queueid=None)
-
-    @classmethod
-    def _memcpy_to_wait(cls, df, dimask, hf, himask, queueid=None):
-        """
-        Copy a host Function into a device Function and explicitly wait.
-        """
-
-        if df.is_Array:
-            dp = df._C_symbol
-        else:
-            raise NotImplementedError
-        hp = cast_mapper[(hf.dtype, '*')](FieldFromPointer('data', hf._C_symbol))
-
-        mcpy = cls.mapper['memcpy-to-device']
-        mcpyW = cls.mapper['memcpy-to-device-wait']
-
-        # `df` is a buffer array potentially (typically) accessed with
-        # ModuloDimensions.  So the memcpy from `hf` into `df` needs to
-        # take this into account. In the example below, the region `[a, b, c]`
-        # is copied from `hf` to `df`, but `df`'s fetch point, captured
-        # by the `dimask`, corresponds to the third entry, so we need to
-        # perform two memcpy's, one for the so called "lower part" `[a]`
-        # and one for the "upper part", `[b, c]`
-        #
-        #     o---o---o---o
-        # df: | b | c | a |
-        #     o---o---o---o
-        #
-        #     o---o---o---o---o---o---o---o---
-        # hf: |   |   | a | b | c |   |   |
-        #     o---o---o---o---o---o---o---o---
-
-        sdofs = Symbol(name='dofs', dtype=np.int32, is_const=True)
-        shofs = Symbol(name='hofs', dtype=np.int32, is_const=True)
-        stsize = Symbol(name='tsize', dtype=np.int32, is_const=True)
-        sdfsize = Symbol(name='dfsize', dtype=np.int32, is_const=True)
-        sdsize0 = Symbol(name='dsize0', dtype=np.int32, is_const=True)
-        sdsize1 = Symbol(name='dsize1', dtype=np.int32, is_const=True)
-        sdofs0 = Symbol(name='dofs0', dtype=np.int32, is_const=True)
-        sdofs1 = Symbol(name='dofs1', dtype=np.int32, is_const=True)
-        shofs0 = Symbol(name='hofs0', dtype=np.int32, is_const=True)
-        shofs1 = Symbol(name='hofs1', dtype=np.int32, is_const=True)
-        sizeof = DefFunction('sizeof', df._C_typedata)
-        snbytes = Symbol(name='nbytes', dtype=np.int32, is_const=True)
-        snbytes0 = Symbol(name='nbytes0', dtype=np.int32, is_const=True)
-        snbytes1 = Symbol(name='nbytes1', dtype=np.int32, is_const=True)
-
-        dofs, dshape = cls._make_offset_from_imask(df, dimask)
-        hofs, _ = cls._make_offset_from_imask(hf, himask)
-
-        dsize = prod(dshape)
-
-        idofs = DummyExpr(sdofs, dofs)
-        ihofs = DummyExpr(shofs, hofs)
-        itsize = DummyExpr(stsize, dsize)
-        idfsize = DummyExpr(sdfsize, prod(cls._map_data(df)))
-
-        cond = sdofs + stsize <= sdfsize
-
-        # If `cond` resolves to True, then no piggyback
-        then_body = [
-            DummyExpr(snbytes, stsize*sizeof),
-            BlankLine
-        ]
-        if queueid is None:
-            then_body.append(mcpy(dp + sdofs, hp + shofs, snbytes))
-        else:
-            then_body.append(mcpyW(dp + sdofs, hp + shofs, snbytes, queueid))
-
-        # Otherwise, there's a remainder
-        else_body = [
-            DummyExpr(sdsize0, sdfsize - sdofs),
-            DummyExpr(sdofs0, sdofs),
-            DummyExpr(shofs0, shofs),
-            DummyExpr(snbytes0, sdsize0*sizeof),
-            BlankLine,
-            DummyExpr(sdsize1, stsize - sdsize0),
-            DummyExpr(sdofs1, 0),
-            DummyExpr(shofs1, shofs + sdsize0),
-            DummyExpr(snbytes1, sdsize1*sizeof),
-            BlankLine
-        ]
-        if queueid is None:
-            else_body.extend([
-                mcpy(dp + sdofs0, hp + shofs0, snbytes0),
-                mcpy(dp + sdofs1, hp + shofs1, snbytes1)
-            ])
-        else:
-            else_body.extend([
-                mcpyW(dp + sdofs0, hp + shofs0, snbytes0, queueid),
-                mcpyW(dp + sdofs1, hp + shofs1, snbytes1, queueid)
-            ])
-
-        prefix = [idofs, ihofs, itsize]
-        if dshape.count(1) == 1:
-            # Special case: if only one slice is memcpy-ed, then definitely there is
-            # no piggyback, hence we can skip the conditional entirely
-            body = then_body
-        else:
-            body = [idfsize, BlankLine, Conditional(cond, then_body, else_body)]
-        iet = List(body=prefix + body)
-
-        return iet
 
 
 # Utils

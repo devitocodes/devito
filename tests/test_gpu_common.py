@@ -304,7 +304,7 @@ class TestStreaming(object):
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
         (('streaming', 'orchestrate'), 0, 3),
-        (('buffering', 'streaming', 'orchestrate'), 2, 4),
+        (('buffering', 'streaming', 'orchestrate'), 2, 6),
         (('buffering', 'streaming', 'fuse', 'orchestrate'), 2, 3),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
@@ -615,7 +615,7 @@ class TestStreaming(object):
         op1 = Operator(eqns, opt=('buffering', 'tasking', 'streaming', 'orchestrate'))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op1)) == 9
+        assert len(retrieve_iteration_tree(op1)) == 7
         assert len([i for i in FindSymbols().visit(op1) if isinstance(i, Lock)]) == 2
 
         op0.apply(time_M=nt-2)
@@ -842,6 +842,7 @@ class TestStreaming(object):
 
         u = TimeFunction(name='u', grid=grid, time_order=0)
         u1 = TimeFunction(name='u', grid=grid, time_order=0)
+        u2 = TimeFunction(name='u', grid=grid, time_order=0)
         va = TimeFunction(name='va', grid=grid, time_order=0,
                           save=(int(nt//factor.data)), time_dim=t_sub)
         vb = TimeFunction(name='vb', grid=grid, time_order=0,
@@ -861,15 +862,56 @@ class TestStreaming(object):
 
         op0 = Operator(eqns, opt='noop')
         op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
+        op2 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
 
         # Check generated code
-        assert len(op1._func_table) == 4
+        assert len(op1._func_table) == 6
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 2
+        assert len(op2._func_table) == 4
+        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 2
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
+        op2.apply(time_m=15, time_M=35, save_shift=0, u=u2)
 
         assert np.all(u.data == u1.data)
+        assert np.all(u.data == u2.data)
+
+    def test_streaming_split_noleak(self):
+        """
+        Make sure the helper pthreads leak no memory in the target langauge runtime.
+        """
+        nt = 1000
+        grid = Grid(shape=(20, 20, 20))
+
+        u = TimeFunction(name='u', grid=grid)
+        u1 = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+
+        eqn = Eq(u.forward, u + usave + usave.backward)
+
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt=('buffering', 'streaming', 'orchestrate'))
+
+        op0.apply(time_M=nt-2)
+
+        # We'll call `op1` in total `X` times, which will create and destroy
+        # `X` pthreads. With `X` at least O(10), this test would be enough
+        # to uncover outrageous memory leaks due to leaking resources in
+        # the runtime (in the past, we've seen leaks due to pthreads-local
+        # pinned memory used for the data transfers)
+        m = 1
+        l = 20
+        npairs = nt // l + (1 if nt % l > 0 else 0)
+        X = [(m + i*l, min((i+1)*l, nt-2)) for i in range(npairs)]
+        for m, M in X:
+            op1.apply(time_m=m, time_M=M, u=u1)
+
+        assert np.all(u.data[0] == u1.data[0])
+        assert np.all(u.data[1] == u1.data[1])
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,gpu_fit', [

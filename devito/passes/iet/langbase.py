@@ -119,20 +119,6 @@ class LangBB(object, metaclass=LangMeta):
         """
         raise NotImplementedError
 
-    @classmethod
-    def _memcpy_to(cls, df, dimask, hf, himask):
-        """
-        Copy a host Function into a device Function.
-        """
-        raise NotImplementedError
-
-    @classmethod
-    def _memcpy_to_wait(cls, df, dimask, hf, himask, queueid=None):
-        """
-        Copy a host Function into a device Function and explicitly wait.
-        """
-        raise NotImplementedError
-
 
 class LangTransformer(ABC):
 

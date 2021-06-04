@@ -3,6 +3,7 @@ from itertools import combinations
 
 from cached_property import cached_property
 import numpy as np
+from sympy import Le
 
 from devito.ir import (Cluster, Forward, Interval, IntervalGroup, IterationSpace,
                        DataSpace, Queue, Vector, lower_exprs, detect_accesses,
@@ -125,6 +126,11 @@ class Buffering(Queue):
         if not buffers:
             return clusters
 
+        try:
+            pd = prefix[-2].dim
+        except IndexError:
+            pd = None
+
         # Create Eqs to initialize buffers. Note: a buffer needs to be initialized
         # only if the buffered Function is read in at least one place or in the case
         # of non-uniform SubDimensions, to avoid uninitialized values to be copied-back
@@ -139,9 +145,11 @@ class Buffering(Queue):
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.writeto
                 dspace = derive_dspace(expr, ispace)
+                guards = {pd: Le(d.root.symbolic_min, d.root.symbolic_max)
+                          for d in b.contraction_mapper}
                 properties = {d: {PARALLEL} for d in ispace.itdimensions}
 
-                processed.append(Cluster(expr, ispace, dspace, properties=properties))
+                processed.append(Cluster(expr, ispace, dspace, guards, properties))
 
         # Substitution rules to replace buffered Functions with buffers
         subs = {}
@@ -352,7 +360,7 @@ class Buffer(object):
                             dimensions=dims,
                             dtype=function.dtype,
                             halo=function.halo,
-                            space='default' if self.is_readonly else 'mapped')
+                            space='mapped')
 
     def __repr__(self):
         return "Buffer[%s,<%s>]" % (self.buffer.name,

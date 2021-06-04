@@ -23,9 +23,9 @@ from devito.types.dimension import CustomDimension
 from devito.types.misc import VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
-           'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'Fetch',
-           'FetchMemcpy', 'FetchPrefetch', 'PrefetchMemcpy', 'WaitPrefetch', 'Delete',
-           'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
+           'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchUpdate',
+           'FetchPrefetch', 'PrefetchUpdate', 'WaitPrefetch', 'Delete', 'PThreadArray',
+           'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
 
 
 class NThreadsBase(Scalar):
@@ -326,19 +326,15 @@ class WithLock(SyncLock):
     is_WithLock = True
 
 
-class Fetch(SyncData):
-    pass
-
-
 class FetchPrefetch(SyncData):
     pass
 
 
-class FetchMemcpy(SyncData):
+class FetchUpdate(SyncData):
     pass
 
 
-class PrefetchMemcpy(SyncData):
+class PrefetchUpdate(SyncData):
     pass
 
 
