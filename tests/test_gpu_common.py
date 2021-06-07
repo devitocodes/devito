@@ -969,6 +969,7 @@ class TestAPI(object):
     def test_deviceid(self):
         self.check_deviceid()
 
+    @skipif('device-openmp')
     @pytest.mark.parallel(mode=1)
     def test_deviceid_w_mpi(self):
         self.check_deviceid()
