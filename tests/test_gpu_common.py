@@ -273,9 +273,8 @@ class TestStreaming(object):
         assert str(sections[1].body[0].body[0].body[0].body[0]) ==\
             'while(lock0[t1] == 0);'
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,ntmps', [
-        (('streaming', 'orchestrate'), 0),
+        pytest.param(('streaming', 'orchestrate'), 0, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
     ])
     def test_streaming_basic(self, opt, ntmps):
@@ -301,9 +300,8 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 28)
         assert np.all(u.data[1] == 36)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('streaming', 'orchestrate'), 0, 3),
+        pytest.param(('streaming', 'orchestrate'), 0, 3, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 2, 6),
         (('buffering', 'streaming', 'fuse', 'orchestrate'), 2, 3),
     ])
@@ -332,8 +330,11 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_streaming_conddim_forward(self):
+    @pytest.mark.parametrize('opt', [
+        pytest.param(('streaming', 'orchestrate'), marks=skipif('device-openmp')),
+        ('buffering', 'streaming', 'orchestrate'),
+    ])
+    def test_streaming_conddim_forward(self, opt):
         nt = 10
         grid = Grid(shape=(4, 4))
         time_dim = grid.time_dim
@@ -350,7 +351,7 @@ class TestStreaming(object):
 
         eqn = Eq(u.forward, u.forward + u + usave)
 
-        op = Operator(eqn, opt=('streaming', 'orchestrate'))
+        op = Operator(eqn, opt=opt)
 
         # TODO: we are *not* using the last entry of usave, so we gotta ensure
         # it is *not* streamed on to the device (thus avoiding dangerous leaks).
@@ -368,8 +369,11 @@ class TestStreaming(object):
         # 4th time u[1] = u[0]+u[1]+usave[3] = 0+3+3 = 6
         assert np.all(u.data[1] == 6)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_streaming_conddim_backward(self):
+    @pytest.mark.parametrize('opt', [
+        pytest.param(('streaming', 'orchestrate'), marks=skipif('device-openmp')),
+        ('buffering', 'streaming', 'orchestrate'),
+    ])
+    def test_streaming_conddim_backward(self, opt):
         nt = 10
         grid = Grid(shape=(4, 4))
         time_dim = grid.time_dim
@@ -386,7 +390,7 @@ class TestStreaming(object):
 
         eqn = Eq(u.backward, u.backward + u + usave)
 
-        op = Operator(eqn, opt=('streaming', 'orchestrate'))
+        op = Operator(eqn, opt=opt)
 
         # TODO: we are *not* using the first two entries of usave, so we gotta ensure
         # they are *not* streamed on to the device (thus avoiding dangerous leaks).
@@ -403,9 +407,8 @@ class TestStreaming(object):
         # 3rd time u[1] = u[0]+u[1]+usave[2] = 0+7+2 = 9
         assert np.all(u.data[1] == 9)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,ntmps', [
-        (('streaming', 'orchestrate'), 0),
+        pytest.param(('streaming', 'orchestrate'), 0, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
     ])
     def test_streaming_multi_input(self, opt, ntmps):
@@ -435,9 +438,8 @@ class TestStreaming(object):
 
         assert np.all(grad.data == grad1.data)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,ntmps', [
-        (('streaming', 'orchestrate'), 0),
+        pytest.param(('streaming', 'orchestrate'), 0, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
     ])
     def test_streaming_postponed_deletion(self, opt, ntmps):
@@ -469,7 +471,6 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(v.data == v1.data)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_streaming_with_host_loop(self):
         grid = Grid(shape=(10, 10, 10))
 
@@ -594,7 +595,6 @@ class TestStreaming(object):
         assert np.all(usave.data == usave1.data)
         assert np.all(vsave.data == vsave1.data)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_composite_full(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -787,9 +787,8 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, :3] == 0)
             assert np.all(usave.data[i, :, -3:] == 0)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,ntmps', [
-        (('streaming', 'orchestrate'), 0),
+        pytest.param(('streaming', 'orchestrate'), 0, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
     ])
     def test_streaming_w_shifting(self, opt, ntmps):
@@ -913,10 +912,9 @@ class TestStreaming(object):
         assert np.all(u.data[0] == u1.data[0])
         assert np.all(u.data[1] == u1.data[1])
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     @pytest.mark.parametrize('opt,gpu_fit', [
         (('streaming', 'orchestrate'), True),
-        (('streaming', 'orchestrate'), False),
+        pytest.param(('streaming', 'orchestrate'), False, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), False)
     ])
     def test_xcor_from_saved(self, opt, gpu_fit):
