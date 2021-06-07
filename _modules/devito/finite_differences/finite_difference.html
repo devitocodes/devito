@@ -353,8 +353,8 @@
 <span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, space_order=2)</span>
 <span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid, space_order=2)</span>
 <span class="sd">    &gt;&gt;&gt; cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1))</span>
-<span class="sd">    -(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y +\</span>
-<span class="sd"> (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
+<span class="sd">    (-1/h_y)*(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x) + \</span>
+<span class="sd">(-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
 
 <span class="sd">    Semantically, this is equivalent to</span>
 
@@ -365,15 +365,15 @@
 <span class="sd">    The expanded form is obtained via ``evaluate``</span>
 
 <span class="sd">    &gt;&gt;&gt; (f*g).dxdy.evaluate</span>
-<span class="sd">    -(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y +\</span>
-<span class="sd"> (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
+<span class="sd">    (-1/h_y)*(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x) + \</span>
+<span class="sd">(-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
 
 <span class="sd">    Finally the x0 argument allows to choose the origin of the finite-difference</span>
 
 <span class="sd">    &gt;&gt;&gt; cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1), \</span>
 <span class="sd">    x0={x: 1, y: 2})</span>
-<span class="sd">    -(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x)/h_y +\</span>
-<span class="sd"> (-f(1, h_y + 2)*g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y</span>
+<span class="sd">    (-1/h_y)*(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x) + (-f(1, h_y + 2)*\</span>
+<span class="sd">g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">x0</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;x0&#39;</span><span class="p">,</span> <span class="p">{})</span>
     <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">fd</span><span class="p">,</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">dims</span><span class="p">):</span>
@@ -447,7 +447,7 @@
         <span class="n">c</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
         <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">iloc</span> <span class="o">-</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">-</span> <span class="n">dim</span><span class="p">))</span> <span class="o">*</span> <span class="n">c</span><span class="p">)</span>
 
-    <span class="n">deriv</span> <span class="o">=</span> <span class="n">EvalDerivative</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">)</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="n">EvalDerivative</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="n">expr</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">deriv</span>
 </pre></div>
