@@ -6,7 +6,11 @@
 # BUILD: 
 #   docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
 #
-# EXPERIMENTAL:
+# LEGACY:
+#   (1) Option MPI 3.0:
+#   docker build --network=host --build-arg MPI_VER=3 --file docker/Dockerfile.nvidia --tag devito:nvidia .
+#
+#   (2) Option MPI 4.0:
 #   Enabling and using MPI 4.0.5 works on R450 drivers, but is showing compatibility 
 #   issues during testing on older R418 drivers.
 # 
@@ -14,6 +18,7 @@
 #
 # RUN: 
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
+#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
 ##############################################################
 FROM python:3.6
 
@@ -31,24 +36,29 @@ RUN apt-get update -y && \
         nodejs \
         liblapack-dev  \
         libblas-dev \
-        libibverbs-dev \
+        libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
         python-dev python3-dev python3-venv && \
     wget -q -P /app/ \
-         https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-21-3_21.3_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-21-3-cuda-multi_21.3_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-2021_21.3_amd64.deb && \
+         https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-21-5_21.5_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-21-5-cuda-multi_21.5_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-2021_21.5_amd64.deb && \
+    wget -q -P /app/nvcomp_exts/ \
+         https://developer.download.nvidia.com/compute/nvcomp/2.0/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz &&\
     apt-get install -y -q \
-         /app/nvhpc-21-3_21.3_amd64.deb \
-         /app/nvhpc-21-3-cuda-multi_21.3_amd64.deb \
-         /app/nvhpc-2021_21.3_amd64.deb && \
+         /app/nvhpc-21-5_21.5_amd64.deb \
+         /app/nvhpc-21-5-cuda-multi_21.5_amd64.deb \
+         /app/nvhpc-2021_21.5_amd64.deb && \
+    tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz -C /app/nvcomp_exts && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
+    rm -rf /app/nvcomp_exts/nvcomp* && \
     rm -rf /var/lib/apt/lists/*
 
 ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.3/extras/CUPTI
-ARG MPI_VER=3
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.2/extras/CUPTI
+#MPI_VER options 3,4,HPCX
+ARG MPI_VER=HPCX 
 
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
@@ -61,12 +71,16 @@ RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_CUPTI/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf    
+
+# Compression
+ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.2
+ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
     
 # Compiler, CUDA, and Library paths
 ENV CUDA_HOME $HPCSDK_HOME/cuda
 ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
 ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
-ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
@@ -84,8 +98,16 @@ RUN python3 -m venv /venv && \
 # MPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV OMPI_MCA_rmaps_base_oversubscribe=1
 ENV UCX_MEMTYPE_CACHE=no
-ENV UCX_TLS=self,shm,cuda_copy
+ENV UCX_NET_DEVICES=all
+ENV UCX_SHM_DEVICES=all
+ENV UCX_ACC_DEVICES=all
+ENV NCCL_UCX_RNDV_THRESH=0
+ENV NCCL_UCX_RNDV_SCHEME=get_zcopy
+ENV NCCL_PLUGIN_P2P=ucx
+ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
+ENV MELLANOX_MOUNT_DRIVER=1
 
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 ENV CFLAGS=-noswitcherror
@@ -93,6 +115,11 @@ ENV CFLAGS=-noswitcherror
 RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
+               $HPCSDK_HOME/comm_libs/mpi ; \
+    fi;  \
+    if [ "x$MPI_VER" = "HPCX" ]; then \
+        rm -f  $HPCSDK_HOME/comm_libs/mpi && \
+        ln -sf $HPCSDK_HOME/comm_libs/hpcx/hpcx-2.7.4/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
     fi;  \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
