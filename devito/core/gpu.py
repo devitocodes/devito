@@ -74,8 +74,9 @@ class DeviceOperatorMixin(object):
         o['cire-schedule'] = oo.pop('cire-schedule', cls.CIRE_SCHEDULE)
 
         # GPU parallelism
-        o['par-collapse-ncores'] = 1  # Always use a collapse clause
-        o['par-collapse-work'] = 1  # Always use a collapse clause
+        o['par-tile'] = oo.pop('par-tile', True)  # Parallelize using a tile-like clause
+        o['par-collapse-ncores'] = 1  # Always collapse (meaningful if `par-tile=False`)
+        o['par-collapse-work'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism

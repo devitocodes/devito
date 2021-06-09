@@ -382,6 +382,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         super().__init__(sregistry, options, platform)
 
         self.gpu_fit = options['gpu-fit']
+        self.par_tile = options['par-tile']
         self.par_disabled = options['par-disabled']
 
     def _is_offloadable(self, iet):
