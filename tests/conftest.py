@@ -11,6 +11,7 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
                     SparseTimeFunction, cos)  # noqa
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Device, sniff_mpi_distro
+from devito.arch.compiler import compiler_registry
 from devito.tools import as_tuple
 
 try:
@@ -24,7 +25,8 @@ def skipif(items, whole_module=False):
     items = as_tuple(items)
     # Sanity check
     accepted = set()
-    accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc'})
+    accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
+                     'device-aomp'})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -46,6 +48,11 @@ def skipif(items, whole_module=False):
         if any(i == 'device-%s' % l and configuration['language'] == l for l in langs)\
                 and isinstance(configuration['platform'], Device):
             skipit = "language `%s` for device unsupported" % configuration['language']
+            break
+        if any(i == 'device-%s' % k and isinstance(configuration['compiler'], v)
+               for k, v in compiler_registry.items()) and\
+                isinstance(configuration['platform'], Device):
+            skipit = "compiler `%s` for device unsupported" % configuration['compiler']
             break
         # Skip if must run on GPUs but not currently on a GPU
         if i in ('nodevice', 'nodevice-omp', 'nodevice-acc') and\
