@@ -10,7 +10,7 @@ from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering
                                     fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
                                mpiize, hoist_prodders, is_on_device,
-                               relax_incr_dimensions)
+                               finalize_loop_bounds)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -180,7 +180,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        finalize_loop_bounds(graph)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)

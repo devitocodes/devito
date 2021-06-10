@@ -161,7 +161,7 @@ def test_discarding_runs():
                   opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
     op.apply(time=100, nthreads=4, autotune='aggressive')
 
-    assert op._state['autotuning'][0]['runs'] == 18
+    assert op._state['autotuning'][0]['runs'] == 10
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
     assert op._state['autotuning'][0]['tuned']['nthreads'] == 4

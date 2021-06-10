@@ -250,7 +250,8 @@ def finalize_time_bounds(stepper, at_args, args, mode):
 
 
 def calculate_nblocks(tree, blockable):
-    collapsed = tree[1:1 + (tree[1].ncollapsed or 1)]
+    pos = [n for n, i in enumerate(tree) if i.dim in blockable]
+    collapsed = tree[:(tree[pos[0]].ncollapsed or 1)]
     blocked = [i.dim for i in collapsed if i.dim in blockable]
     remainders = [(d.root.symbolic_max-d.root.symbolic_min+1) % d.step for d in blocked]
     niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders)]

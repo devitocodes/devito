@@ -9,7 +9,7 @@ from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
 from devito.tools import split, is_integer
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
+__all__ = ['avoid_denormals', 'hoist_prodders', 'finalize_loop_bounds', 'is_on_device']
 
 
 @iet_pass
@@ -56,14 +56,12 @@ def hoist_prodders(iet):
 
 
 @iet_pass
-def relax_incr_dimensions(iet, **kwargs):
+def finalize_loop_bounds(iet, **kwargs):
     """
-    This pass is transforming an IET to iterate over "main" and "remainder" regions.
-    IncrDimensions in the IET are not iterating over the whole domain, as they miss the
-    the remainder regions. The remainder regions include a number of iterations
-    that are less than a block's size iterations.
-    This function rebuilds Iterations over IncrDimensions. Min/Max conditions
-    are used to iterate over the whole domain using blocking.
+    This pass is adjusting the bounds of space-blocked loops in order to
+    include the "remainder regions". The iterations in the input IET span
+    only to the extent of the last space block that can be fully iterated,
+    thus missing the "remainder" part.
 
     A simple example (blocking only), nested Iterations are
     transformed from:
@@ -74,7 +72,7 @@ def relax_incr_dimensions(iet, **kwargs):
     to:
 
     <Iteration x0_blk0; (x_m, x_M, x0_blk0_size)>
-        <Iteration x; (x0_blk0, INT(Min(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
+        <Iteration x; (x0_blk0, MIN(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
 
     """
 
@@ -104,25 +102,23 @@ def relax_incr_dimensions(iet, **kwargs):
                i.symbolic_size == i.dim.parent.step):
                 # Special case: A parent dimension may have already been processed
                 # as a member of 'inner' iterations. In this case we can use parent's
-                # Max
-                # Usually encountered in hierarchical blocking (BLOCKLEVELS > 1)
+                # Max. Usually encountered in hierarchical blocking (BLOCKLEVELS > 1)
                 it_max = proc_parents_max[i.dim.parent]
             else:
                 # Most of the cases pass though this code:
-                # Candidates for upper bound calculation are:
+                # Candidates for iteration's max are:
                 # Candidate 1: symbolic_max of current iteration
-                # e.g.
-                # i.symbolic_max = x0_blk0 + x0_blk0_size
+                # e.g. `i.symbolic_max = x0_blk0 + x0_blk0_size`
                 symbolic_max = i.symbolic_max
 
                 # Candidate 2: The domain max. Usualy it is the max of parent/root
                 # dimension.
-                # e.g. x_M
+                # e.g. `x_M`
                 # This may not always be true as the symbolic_size of an Iteration may
                 # exceed the size of a parent's block size (e.g. after CIRE passes)
                 # e.g.
-                # i.dim.parent.step = x0_blk1_size
-                # i.symbolic_size = x0_blk1_size + 4
+                # `i.dim.parent.step = x0_blk1_size`
+                # `i.symbolic_size = x0_blk1_size + 4`
 
                 # For this case, proper margin should be allowed
                 # in order not to drop iterations. So Candidate 2 is the maximum of the
@@ -135,11 +131,11 @@ def relax_incr_dimensions(iet, **kwargs):
                 upper_margin = i.dim.parent.symbolic_max + size_margin + lb_margin
 
                 # Domain max candidate
-                # e.g. domain_max = Max(x_M + 1, x_M)
+                # e.g. `domain_max = Max(x_M + 1, x_M)``
                 domain_max = Max(upper_margin, root_max)
 
-                # Finally our upper bound is the minimum of upper bound candidates
-                # e.g. upper_bound = Min(x0_blk0 + x0_blk0_size, domain_max)
+                # Finally the iteration's maximum is the minimum of the candidates
+                # e.g. `it_max = Min(x0_blk0 + x0_blk0_size, domain_max)``
                 it_max = Min(symbolic_max, domain_max)
 
             # Store the selected maximum of this iteration's dimension for

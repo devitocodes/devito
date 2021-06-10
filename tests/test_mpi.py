@@ -854,7 +854,7 @@ class TestCodeGeneration(object):
 
         # There are exactly two halo exchange calls in the Operator body
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2 + 0  # 0 are due to loop blocking
+        assert len(calls) == 2
         assert calls[0].name == 'haloupdate0'
         assert calls[1].name == 'haloupdate0'
 

@@ -888,8 +888,8 @@ class TestAliases(object):
         # Check code generation
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
-        assert len(arrays) == 2
-        assert len(FindNodes(VExpanded).visit(op1)) == 2
+        assert len(arrays) == 3
+        assert len(FindNodes(VExpanded).visit(op1)) == 3
         self.check_array(arrays[0], ((1, 0), (1, 0)), (xs+1, zs+1), rotate)
         self.check_array(arrays[1], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
         self.check_array(arrays[2], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
@@ -1114,7 +1114,7 @@ class TestAliases(object):
         # We expect two temporary Arrays which have in common a sub-expression
         # stemming from `d0(v, p0, p1)`
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
-        assert len(arrays) == 7
+        assert len(arrays) == 6
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
         trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
@@ -1713,9 +1713,9 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 5
-        assert len(FindNodes(VExpanded).visit(op._func_table['bf0'])) == 3
+        assert len(FindNodes(VExpanded).visit(op)) == 3
         xs, ys, zs = self.get_params(op, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         # The three kind of derivatives taken -- in x, y, z -- all are over
         # different expressions, so this leads to three temporaries of dimensionality,
@@ -1758,9 +1758,9 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 6
-        assert len(FindNodes(VExpanded).visit(op._func_table['bf0'])) == 3
+        assert len(FindNodes(VExpanded).visit(op)) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 48)])
     @switchconfig(profiling='advanced')
@@ -1802,9 +1802,9 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 7
-        assert len(FindNodes(VExpanded).visit(op._func_table['bf0'])) == 3
+        assert len(FindNodes(VExpanded).visit(op)) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 144), (8, 208)])
     @switchconfig(profiling='advanced')
@@ -1869,9 +1869,9 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op._func_table['bf0']) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         assert len(arrays) == 10
-        assert len(FindNodes(VExpanded).visit(op._func_table['bf0'])) == 6
+        assert len(FindNodes(VExpanded).visit(op)) == 6
 
     @pytest.mark.parametrize('so_ops', [(4, 33), (8, 69)])
     @pytest.mark.parametrize('rotate', [False, True])
@@ -1932,9 +1932,9 @@ class TestAliases(object):
 
         # Check code generation
         assert summary[('section1', None)].ops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 5
-        assert len(FindNodes(VExpanded).visit(op1._func_table['bf0'])) == 1
+        assert len(FindNodes(VExpanded).visit(op1)) == 1
 
     @switchconfig(profiling='advanced')
     def test_tti_adjoint_akin_v2(self):
@@ -2101,11 +2101,10 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op2) if i.is_Array]
         assert len(arrays) == exp_arrays[1]
         arrays = [i for i in FindSymbols().visit(op3) if i.is_Array]
-        assert len(arrays) == exp_arrays[2]
-        arrays = [i for i in FindSymbols().visit(op4) if i.is_Array]
-        exp_inv, exp_sops = exp_arrays[3]
+        exp_inv, exp_sops = exp_arrays[2]
+
         assert len(arrays) == exp_inv + exp_sops
-        assert len(FindNodes(VExpanded).visit(op4)) == exp_sops
+        assert len(FindNodes(VExpanded).visit(op3)) == exp_sops
 
         # Check numerical output
         op0(time_M=20)
@@ -2198,7 +2197,7 @@ class TestAliases(object):
 
         # Check code generation
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
         self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
 
@@ -2646,7 +2645,7 @@ class TestTTIv2(object):
         op = Operator(eqns, openmp=True)
 
         # Check code generation
-        arrays = FindNodes(VExpanded).visit(op._func_table['bf0'])
+        arrays = FindNodes(VExpanded).visit(op)
         assert len(arrays) == 4
         assert all(len(i.pointee.shape) == 2 for i in arrays)  # Expected 2D arrays
         sections = list(op._profiler._sections.values())

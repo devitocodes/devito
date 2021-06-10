@@ -1168,8 +1168,8 @@ class TestMashup(object):
 
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs) == 6
-        assert exprs[0].write is f
-        assert exprs[1].write is g
+        assert exprs[1].write is f
+        assert exprs[2].write is g
 
         assert exprs[3].write is fsave
         assert exprs[4].write is gsave
@@ -1232,9 +1232,9 @@ class TestMashup(object):
         # in the same loop nest with the fsave equation
 
         exprs = FindNodes(Expression).visit(op)
-        assert len(exprs) == 7
-        assert exprs[0].write is f
-        assert exprs[1].write is g
-        assert exprs[3].write is fsave
-        assert exprs[4].write is gsave
-        assert exprs[6].write is h
+        assert len(exprs) == 9
+        assert exprs[3].write is f
+        assert exprs[4].write is g
+        assert exprs[5].write is fsave
+        assert exprs[6].write is gsave
+        assert exprs[8].write is h
