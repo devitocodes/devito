@@ -142,7 +142,7 @@ def test_mixed_blocking_w_skewing(openmp, expected):
         assert 'nthreads' not in op._state['autotuning'][0]['tuned']
 
 
-@pytest.mark.parametrize('opt, expected', [('advanced', 60),
+@pytest.mark.parametrize('opt, expected', [('advanced', 30),
                                            (('blocking', {'skewing': True}), 30)])
 def test_tti_aggressive(opt, expected):
     from test_dse import TestTTI
