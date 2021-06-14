@@ -269,7 +269,7 @@ def run(problem, **kwargs):
             with open(dumpfile, 'w') as f:
                 summary = retval[-1]
                 assert isinstance(summary, PerformanceSummary)
-                f.write(str(summary.globals['fdlike']))
+                f.write(str(summary.globals_all))
 
     dumpfile = kwargs.pop('dump_norms')
     if dumpfile:

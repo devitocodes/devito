@@ -413,6 +413,12 @@ class PerformanceSummary(OrderedDict):
         self.globals['fdlike'] = PerfEntry(time, None, gpointss, None, None, None)
 
     @property
+    def globals_all(self):
+        v0 = self.globals['vanilla']
+        v1 = self.globals['fdlike']
+        return PerfEntry(v0.time, v0.gflopss, v1.gpointss, v0.oi, None, None)
+
+    @property
     def gflopss(self):
         return OrderedDict([(k, v.gflopss) for k, v in self.items()])
 
