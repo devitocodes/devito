@@ -54,12 +54,17 @@ class Cached(object):
         -------
         The object if in the cache and alive, otherwise None.
         """
-        if key in _SymbolCache:
+
+        # Thread safe against concurrent deletion
+        obj_cached = _SymbolCache.get(key)
+
+        if obj_cached is not None:
             # There is indeed an object mapped to `key`. But is it still alive?
-            obj = _SymbolCache[key]()
+            obj = obj_cached()
             if obj is None:
                 # Cleanup _SymbolCache (though practically unnecessary)
-                del _SymbolCache[key]
+                # does not fail if it's already gone
+                _SymbolCache.pop(key, None)
                 return None
             else:
                 return obj
@@ -85,9 +90,11 @@ class Cached(object):
         for i in (key,) + aliases:
             _SymbolCache[i] = awr
 
-    def __init_cached__(self, key):
+    def __init_cached__(self, cached_obj):
         """
         Initialise `self` with a cached object state.
+
+        "obj" must have been returned, non-None, from _cache_get
 
         Parameters
         ----------
@@ -95,7 +102,7 @@ class Cached(object):
             The cache key of the object whose state is used to initialize `self`.
             It must be hashable.
         """
-        self.__dict__ = _SymbolCache[key]().__dict__.copy()
+        self.__dict__ = cached_obj.__dict__.copy()
 
     def __hash__(self):
         """
@@ -165,6 +172,17 @@ class CacheManager(object):
         else:
             gc.collect()
 
-        for key, obj in list(_SymbolCache.items()):
+        # mydict.copy() is safer than list(mydict) for getting an unchanging list
+        # See https://bugs.python.org/issue40327 for terrifying discussion
+        # on this issue.
+        # This is a separate line so that when we get a "dictionary keys changed
+        #  during iteration" error we know which operation caused it
+        cache_copied = _SymbolCache.copy()
+        for key in cache_copied:
+            obj = _SymbolCache.get(key)
+            if obj is None:
+                # deleted by another thread
+                continue
             if obj() is None:
-                del _SymbolCache[key]
+                # does not error if already gone
+                _SymbolCache.pop(key, None)
