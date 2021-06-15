@@ -4,5 +4,6 @@ from devito.tools.algorithms import *  # noqa
 from devito.tools.data_structures import *  # noqa
 from devito.tools.memoization import *  # noqa
 from devito.tools.os_helper import *  # noqa
+from devito.tools.threading import * # noqa
 from devito.tools.timing import *  # noqa
 from devito.tools.visitors import *  # noqa
