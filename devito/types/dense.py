@@ -101,9 +101,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # is that they are indeed the same exact object
         return self is other
 
-    _subs = Differentiable._subs
+    def __hash__(self):
+        return id(self)
 
-    __hash__ = AbstractFunction.__hash__  # Required since we're overriding __eq__
+    _subs = Differentiable._subs
 
     def _allocate_memory(func):
         """Allocate memory as a Data."""
