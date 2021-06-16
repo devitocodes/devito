@@ -98,9 +98,12 @@ class Cached(object):
 
         Parameters
         ----------
-        key : object
-            The cache key of the object whose state is used to initialize `self`.
-            It must be hashable.
+        cached_obj: object
+            This is expected to be the non-None return value of _cache_get.
+
+            By making a single dictionary lookup we are making things thread-safe
+            by not relying on the cache having not changed between _cache_get and
+            this call.
         """
         self.__dict__ = cached_obj.__dict__.copy()
 
@@ -156,13 +159,21 @@ class CacheManager(object):
         sympy.polys.fields._field_cache.clear()
         sympy.polys.domains.modularinteger._modular_integer_cache.clear()
 
+        # Take a copy of the dictionary so we can safely iterate over it
+        # even if another thread is making changes
+
+        # mydict.copy() is safer than list(mydict) for getting an unchanging list
+        # See https://bugs.python.org/issue40327 for terrifying discussion
+        # on this issue.
+        cache_copied = _SymbolCache.copy()
+
         # Maybe trigger garbage collection
         if force is False:
             if cls.ncalls_w_force_false + 1 == cls.force_ths:
                 # Case 1: too long since we called gc.collect, let's do it now
                 gc.collect()
                 cls.ncalls_w_force_false = 0
-            elif any(i.nbytes > cls.gc_ths for i in _SymbolCache.values()):
+            elif any(i.nbytes > cls.gc_ths for i in cache_copied.values()):
                 # Case 2: we got big objects in cache, we try to reclaim memory
                 gc.collect()
                 cls.ncalls_w_force_false = 0
@@ -172,17 +183,12 @@ class CacheManager(object):
         else:
             gc.collect()
 
-        # mydict.copy() is safer than list(mydict) for getting an unchanging list
-        # See https://bugs.python.org/issue40327 for terrifying discussion
-        # on this issue.
-        # This is a separate line so that when we get a "dictionary keys changed
-        #  during iteration" error we know which operation caused it
-        cache_copied = _SymbolCache.copy()
         for key in cache_copied:
             obj = _SymbolCache.get(key)
             if obj is None:
-                # deleted by another thread
+                # deleted by another thread since we took the copy
                 continue
             if obj() is None:
-                # does not error if already gone
+                # pop(x, None) does not error if already gone
+                # (key could be removed in another thread since get() above)
                 _SymbolCache.pop(key, None)
