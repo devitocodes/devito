@@ -632,4 +632,10 @@ if __name__ == "__main__":
     if configuration['profiling'] == 'basic':
         configuration['profiling'] = 'advanced'
 
-    benchmark()
+    benchmark(standalone_mode=False)
+
+    try:
+        MPI.Finalize()
+    except TypeError:
+        # MPI not available
+        pass
