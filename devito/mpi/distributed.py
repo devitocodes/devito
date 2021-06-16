@@ -194,7 +194,9 @@ class Distributor(AbstractDistributor):
 
             # Make sure the cloned communicator will be freed up upon exit
             def cleanup():
-                if self._input_comm is not None:
+                if self._input_comm is not None and \
+                   MPI.Is_initialized() and \
+                   not MPI.Is_finalized():
                     self._input_comm.Free()
             atexit.register(cleanup)
 
