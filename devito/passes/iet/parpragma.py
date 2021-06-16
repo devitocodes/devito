@@ -1,13 +1,13 @@
 import numpy as np
 import cgen as c
-from sympy import And, Or, Max, Mod
+from sympy import And, Or, Max
 
 from devito.data import FULL
 from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
                        List, ParallelTree, Prodder, FindSymbols, FindNodes, Return,
                        VECTORIZED, Transformer, IsPerfectIteration, filter_iterations,
                        retrieve_iteration_tree)
-from devito.symbolics import CondEq, INT, Precedence, ccode
+from devito.symbolics import CondEq, INT, ccode
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
@@ -494,27 +494,6 @@ class PragmaLangBB(LangBB):
                 start = ccode(start)
             sections.append('[%s:%s]' % (start, size))
         return ''.join(sections)
-
-    @classmethod
-    def _make_offset_from_imask(cls, f, imask):
-        datasize = cls._map_data(f)
-        if imask is None:
-            imask = [FULL]*len(datasize)
-        assert len(imask) == len(datasize)
-        offset = 0
-        shape = []
-        for n, (i, j) in enumerate(zip(imask, datasize)):
-            if i is FULL:
-                shape.append(j)
-            else:
-                nofs, size = i
-                if isinstance(nofs, Mod):
-                    # NOTE: work around alleged SymPy bug which doesn't allow
-                    # expressing precedence of Mod over Mul through parentheses
-                    nofs = Precedence(nofs)
-                offset += nofs*prod(datasize[n+1:])
-                shape.append(size)
-        return offset, shape
 
     @classmethod
     def _map_data(cls, f):
