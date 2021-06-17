@@ -1,6 +1,6 @@
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
 from devito.symbolics import Literal, Macro
-from devito.tools import flatten, split
+from devito.tools import as_tuple, flatten, split
 from devito.types import Array, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'compose_nodes',
@@ -116,16 +116,19 @@ def derive_parameters(iet, drop_locals=False):
     return parameters
 
 
-def diff_parameters(iet, root):
+def diff_parameters(iet, root, indirectly_provided=None):
     """
     Derive the parameters of a sub-IET, `iet`, within a Callable, `root`, and
     split them into two groups:
 
         * the "read-only" parameters, and
         * the "dynamic" parameters, whose value changes at some point in `root`.
+
+    The `indirectly_provided` are the parameters that are provided indirectly to
+    `iet`, for example via a composite type (e.g., a C struct).
     """
-    # TODO: this is currently very rudimentary
     required = derive_parameters(iet)
+    required = [i for i in required if i not in as_tuple(indirectly_provided)]
 
     known = set(root.parameters) | set(i for i in required if i.is_Array)
 

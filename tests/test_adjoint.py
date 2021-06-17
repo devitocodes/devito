@@ -7,9 +7,6 @@ from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
 from examples.seismic.tti import tti_setup
 from examples.seismic.viscoacoustic import viscoacoustic_setup
-from conftest import skipif
-
-pytestmark = skipif('device-openmp', whole_module=True)
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},

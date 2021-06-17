@@ -14,7 +14,14 @@ __all__ = ['ccode']
 
 class CodePrinter(C99CodePrinter):
 
-    custom_functions = {'INT': '(int)', 'FLOAT': '(float)', 'DOUBLE': '(double)'}
+    custom_functions = {
+        'INT': '(int)',
+        'INTP': '(int*)',
+        'FLOAT': '(float)',
+        'FLOATP': '(float*)',
+        'DOUBLE': '(double)',
+        'DOUBLEP': '(double*)',
+    }
 
     """
     Decorator for sympy.printing.ccode.CCodePrinter.

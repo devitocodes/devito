@@ -501,10 +501,10 @@ class IterationInterval(object):
     An Interval associated with an IterationDirection.
     """
 
-    def __init__(self, interval, direction, sub_iterators):
+    def __init__(self, interval, sub_iterators, direction):
         self.interval = interval
-        self.direction = direction
         self.sub_iterators = sub_iterators
+        self.direction = direction
 
     def __repr__(self):
         return "%s%s" % (self.interval, self.direction)
@@ -514,6 +514,10 @@ class IterationInterval(object):
 
     def __hash__(self):
         return hash((self.interval, self.direction))
+
+    @property
+    def args(self):
+        return (self.interval, self.sub_iterators, self.direction)
 
     @property
     def dim(self):
@@ -838,7 +842,7 @@ class IterationSpace(Space):
     @cached_property
     def itintervals(self):
         return tuple(IterationInterval(
-            i, self.directions[i.dim], self.sub_iterators.get(i.dim)
+            i, self.sub_iterators.get(i.dim), self.directions[i.dim]
         ) for i in self.intervals)
 
     @cached_property

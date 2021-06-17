@@ -384,6 +384,16 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         self.gpu_fit = options['gpu-fit']
         self.par_disabled = options['par-disabled']
 
+    def _is_offloadable(self, iet):
+        expressions = FindNodes(Expression).visit(iet)
+        if any(not is_on_device(e.write, self.gpu_fit) for e in expressions):
+            return False
+
+        functions = FindSymbols().visit(iet)
+        buffers = [f for f in functions if f.is_Array and f._mem_mapped]
+        hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
+        return not (buffers and hostfuncs)
+
     def _make_threaded_prodders(self, partree):
         if isinstance(partree.root, self.DeviceIteration):
             # no-op for now
@@ -395,19 +405,18 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         """
         Parallelize the `candidates` Iterations. In particular:
 
-            * All parallel Iterations not *writing* to a host Function, that
-              is a Function `f` such that `is_on_device(f) == False`, are offloaded
-              to the device.
-            * The remaining ones, that is those writing to a host Function,
-              are parallelized on the host.
+            * A PARALLEL Iteration writing (reading) a mapped Array while
+              reading (writing) a host Function (that is, all Functions `f`
+              such that `is_on_device(f)` gives False) is parallelized
+              on the host. These are essentially the Iterations that initialize
+              or dump the Devito-created buffers.
+            * All other PARALLEL Iterations (typically, the majority) are
+              offloaded to the device.
         """
         assert candidates
         root = candidates[0]
 
-        if is_on_device(root, self.gpu_fit, only_writes=True):
-            # The typical case: all written Functions are device Functions, that is
-            # they're mapped in the device memory. Then we offload `root` to the device
-
+        if self._is_offloadable(root):
             # Get the collapsable Iterations
             collapsable = self._find_collapsable(root, candidates)
             ncollapse = 1 + len(collapsable)

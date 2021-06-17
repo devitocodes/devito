@@ -1036,8 +1036,8 @@ class MPIMsg(CompositeObject):
         (_C_field_rsend, c_mpirequest_p),
     ]
 
-    def __init__(self, name, function, halos):
-        self._function = function
+    def __init__(self, name, target, halos):
+        self._target = target
         self._halos = halos
 
         super(MPIMsg, self).__init__(name, 'msg', self.fields)
@@ -1062,8 +1062,8 @@ class MPIMsg(CompositeObject):
         return (dtype._type_*self.npeers)()
 
     @property
-    def function(self):
-        return self._function
+    def target(self):
+        return self._target
 
     @property
     def halos(self):
@@ -1074,21 +1074,21 @@ class MPIMsg(CompositeObject):
         return len(self._halos)
 
     def _arg_defaults(self, alias=None):
-        function = alias or self.function
+        target = alias or self.target
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
             # Buffer size for this peer
             shape = []
             for dim, side in zip(*halo):
                 try:
-                    shape.append(getattr(function._size_owned[dim], side.name))
+                    shape.append(getattr(target._size_owned[dim], side.name))
                 except AttributeError:
                     assert side is CENTER
-                    shape.append(function._size_domain[dim])
+                    shape.append(target._size_domain[dim])
             entry.sizes = (c_int*len(shape))(*shape)
             # Allocate the send/recv buffers
             size = reduce(mul, shape)
-            ctype = dtype_to_ctype(function.dtype)
+            ctype = dtype_to_ctype(target.dtype)
             entry.bufg, bufg_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
             entry.bufs, bufs_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
             # The `memfree_args` will be used to deallocate the buffer upon returning
@@ -1098,13 +1098,13 @@ class MPIMsg(CompositeObject):
         return {self.name: self.value}
 
     def _arg_values(self, args=None, **kwargs):
-        return self._arg_defaults(alias=kwargs.get(self.function.name, self.function))
+        return self._arg_defaults(alias=kwargs.get(self.target.name, self.target))
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
 
     # Pickling support
-    _pickle_args = ['name', 'function', 'halos']
+    _pickle_args = ['name', 'target', 'halos']
 
 
 class MPIMsgEnriched(MPIMsg):

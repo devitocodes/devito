@@ -4,9 +4,10 @@ import numpy as np
 
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
-from devito.passes.equations import collect_derivatives, buffering
-from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, cire, cse,
-                                    extract_increments, factorize, fuse, optimize_pows)
+from devito.passes.equations import collect_derivatives
+from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
+                                    cire, cse, extract_increments, factorize,
+                                    fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
                                mpiize, hoist_prodders, is_on_device)
 from devito.tools import as_tuple, timed_pass
@@ -218,11 +219,15 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         }
 
     @classmethod
-    def _make_exprs_passes_mapper(cls, **kwargs):
+    def _make_clusters_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
 
-        # This callback is used by `buffering` to replace host Functions with
-        # Arrays, used as device buffers for streaming-in and -out of data
+        # Callbacks used by `Tasking` and `Streaming`
+        runs_on_host, reads_if_on_host = make_callbacks(options)
+
+        # Callback used by `buffering`
         def callback(f):
             if not is_on_device(f, options['gpu-fit']):
                 return [f.time_dim]
@@ -230,18 +235,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
                 return None
 
         return {
-            'buffering': lambda i: buffering(i, callback, options)
-        }
-
-    @classmethod
-    def _make_clusters_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        sregistry = kwargs['sregistry']
-
-        runs_on_host, reads_if_on_host = make_callbacks(options)
-
-        return {
+            'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, options),
             'tasking': Tasker(runs_on_host).process,
             'streaming': Streaming(reads_if_on_host).process,
