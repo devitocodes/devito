@@ -364,7 +364,6 @@ class SeismicModel(GenericModel):
         dt = self._cfl_coeff * np.min(self.spacing) / (self._thomsen_scale*self._max_vp)
         dt = self.dtype("%.3e" % (self.dt_scale * dt))
         if self._dt:
-            assert self._dt <= dt
             return self._dt
         return dt
 

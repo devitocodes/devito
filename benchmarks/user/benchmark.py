@@ -70,6 +70,9 @@ def run_op(solver, operator, **options):
         return op(rec, **options)
     elif operator == "jacobian":
         dm = solver.model.dm
+        # Because sometime dm is zero, artificially add a non zero slice
+        if dm.data.min() == 0 and dm.data.max() == 0:
+            dm.data[..., np.min([25, dm.shape[-1]//4])] = .1
         return op(dm, **options)
     elif operator == "jacobian_adjoint":
         # I think we want the forward + gradient call, need to merge retvals
