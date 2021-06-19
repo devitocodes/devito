@@ -142,6 +142,14 @@ class OmpBB(PragmaLangBB):
         'map-exit-delete': lambda i, j, k:
             c.Pragma('omp target exit data map(delete: %s%s)%s'
                      % (i, j, k)),
+        'memcpy-to-device': lambda i, j, k:
+            Call('omp_target_memcpy', [i, j, k, 0, 0,
+                                       DefFunction('omp_get_device_num'),
+                                       DefFunction('omp_get_initial_device')]),
+        'memcpy-to-device-wait': lambda i, j, k, l:
+            Call('omp_target_memcpy', [i, j, k, 0, 0,
+                                       DefFunction('omp_get_device_num'),
+                                       DefFunction('omp_get_initial_device')]),
     }
     mapper.update(CBB.mapper)
 

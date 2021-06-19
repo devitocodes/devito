@@ -1,7 +1,7 @@
 import cgen as c
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import Call, ParallelIteration, FindSymbols
+from devito.ir import Call, List, ParallelIteration, FindSymbols
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import PragmaDeviceAwareTransformer, PragmaLangBB
@@ -104,6 +104,11 @@ class AccBB(PragmaLangBB):
             c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
         'map-exit-delete': lambda i, j, k:
             c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
+        'memcpy-to-device': lambda i, j, k:
+            Call('acc_memcpy_to_device', [i, j, k]),
+        'memcpy-to-device-wait': lambda i, j, k, l:
+            List(body=[Call('acc_memcpy_to_device_async', [i, j, k, l]),
+                       Call('acc_wait', [l])]),
         'device-alloc': lambda i:
             'acc_malloc(%s)' % i,
         'device-free': lambda i:

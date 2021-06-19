@@ -2,9 +2,8 @@ from itertools import product
 
 import cgen
 
-from devito.ir.iet import (Expression, List, Prodder, FindNodes, FindSymbols,
-                           Transformer, make_efunc, compose_nodes, filter_iterations,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (List, Prodder, FindNodes, Transformer, make_efunc,
+                           compose_nodes, filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
 from devito.tools import flatten, is_integer, split
 from devito.logger import warning
@@ -120,33 +119,20 @@ def relax_incr_dimensions(iet, **kwargs):
     return iet, {'efuncs': efuncs}
 
 
-def is_on_device(maybe_symbol, gpu_fit, only_writes=False):
+def is_on_device(obj, gpu_fit):
     """
-    True if all given Functions are allocated in the device memory, False otherwise.
+    True if the given object is allocated in the device memory, False otherwise.
 
     Parameters
     ----------
-    maybe_symbol : Indexed or Function or Node
-        The inspected object. May be a single Indexed or Function, or even an
-        entire piece of IET.
+    obj : Indexed or Function
+        The target object.
     gpu_fit : list of Function
         The Function's which are known to definitely fit in the device memory. This
         information is given directly by the user through the compiler option
         `gpu-fit` and is propagated down here through the various stages of lowering.
-    only_writes : bool, optional
-        Only makes sense if `maybe_symbol` is an IET. If True, ignore all Function's
-        that do not appear on the LHS of at least one Expression. Defaults to False.
     """
-    try:
-        functions = (maybe_symbol.function,)
-    except AttributeError:
-        assert maybe_symbol.is_Node
-        iet = maybe_symbol
-        functions = set(FindSymbols().visit(iet))
-        if only_writes:
-            expressions = FindNodes(Expression).visit(iet)
-            functions &= {i.write for i in expressions}
-
+    functions = (obj.function,)
     fsave = [f for f in functions if f.is_TimeFunction and is_integer(f.save)]
     if 'all-fallback' in gpu_fit and fsave:
         warning("TimeFunction %s assumed to fit the GPU memory" % fsave)

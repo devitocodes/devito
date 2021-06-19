@@ -60,7 +60,7 @@ def autotune(operator, args, level, mode):
                 for i in p.fields:
                     setattr(at_args[p.name]._obj, i, MPI.PROC_NULL)
             elif isinstance(p, MPIMsgEnriched):
-                at_args.update(MPIMsgEnriched(p.name, p.function, p.halos)._arg_values())
+                at_args.update(MPIMsgEnriched(p.name, p.target, p.halos)._arg_values())
                 for i in at_args[p.name]:
                     i.fromrank = MPI.PROC_NULL
                     i.torank = MPI.PROC_NULL

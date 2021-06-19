@@ -66,6 +66,8 @@ class IntDiv(sympy.Expr):
 
     is_Atom = True
 
+    is_commutative = True
+
     def __new__(cls, lhs, rhs, params=None):
         try:
             rhs = Integer(rhs)
@@ -321,6 +323,10 @@ class DefFunction(Function, Pickable):
     def arguments(self):
         return self._arguments
 
+    @property
+    def free_symbols(self):
+        return {i for i in self.arguments if isinstance(i, Expr)}
+
     def __str__(self):
         return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.arguments))
 
@@ -392,6 +398,25 @@ class Literal(sympy.Symbol):
 INT = Function('INT')
 FLOAT = Function('FLOAT')
 DOUBLE = Function('DOUBLE')
+
+INTP = Function('INTP')
+FLOATP = Function('FLOATP')
+DOUBLEP = Function('DOUBLEP')
+
 FLOOR = Function('floor')
 
-cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}
+cast_mapper = {
+    np.int: INT,
+    np.int32: INT,
+    np.int64: INT,
+    np.float32: FLOAT,
+    float: DOUBLE,
+    np.float64: DOUBLE,
+
+    (np.int, '*'): INTP,
+    (np.int32, '*'): INTP,
+    (np.int64, '*'): INTP,
+    (np.float32, '*'): FLOATP,
+    (float, '*'): DOUBLEP,
+    (np.float64, '*'): DOUBLEP
+}

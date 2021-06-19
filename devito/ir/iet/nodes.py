@@ -273,13 +273,25 @@ class Call(ExprStmt, Node):
 
     @property
     def functions(self):
-        retval = [i.function for i in self.arguments
-                  if isinstance(i, (AbstractFunction, Indexed, LocalObject))]
+        retval = []
+        for i in self.arguments:
+            if isinstance(i, numbers.Number):
+                continue
+            elif isinstance(i, (AbstractFunction, Indexed, LocalObject)):
+                retval.append(i.function)
+            else:
+                for s in i.free_symbols:
+                    try:
+                        f = s.function
+                    except AttributeError:
+                        continue
+                    if isinstance(f, AbstractFunction):
+                        retval.append(f)
         if self.base is not None:
             retval.append(self.base.function)
         if self.retobj is not None:
             retval.append(self.retobj.function)
-        return tuple(retval)
+        return tuple(filter_ordered(retval))
 
     @property
     def children(self):
@@ -1054,9 +1066,10 @@ class PragmaList(List):
     A floating sequence of pragmas.
     """
 
-    def __init__(self, pragmas, functions=None, **kwargs):
+    def __init__(self, pragmas, functions=None, free_symbols=None, **kwargs):
         super().__init__(header=pragmas)
         self._functions = as_tuple(functions)
+        self._free_symbols = as_tuple(free_symbols)
 
     @property
     def pragmas(self):
@@ -1068,7 +1081,7 @@ class PragmaList(List):
 
     @property
     def free_symbols(self):
-        return self._functions
+        return self._free_symbols
 
 
 class ParallelIteration(Iteration):

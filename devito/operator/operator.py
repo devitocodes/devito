@@ -919,7 +919,7 @@ def parse_kwargs(**kwargs):
     for k, v in configuration['opt-options'].items():
         options.setdefault(k, v)
     # Handle deprecations
-    deprecated_options = ('cire-mincost-inv', 'cire-mincost-sops')
+    deprecated_options = ('cire-mincost-inv', 'cire-mincost-sops', 'cire-maxalias')
     for i in deprecated_options:
         try:
             options.pop(i)
