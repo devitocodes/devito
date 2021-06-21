@@ -702,7 +702,7 @@ def JacobianAdjOperator(model, geometry, space_order=4,
     FD_kernel = kernels[('centered', len(model.shape))]
     eqn = FD_kernel(model, du, dv, space_order, forward=False)
 
-    dm_update = Inc(dm, - (u0.dt2 * du + v0.dt2 * dv))
+    dm_update = Inc(dm, - (u0 * du.dt2 + v0 * dv.dt2))
 
     # Add expression for receiver injection
     rec_term = rec.inject(field=du.backward, expr=rec * dt**2 / m)
