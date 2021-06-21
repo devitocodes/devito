@@ -178,38 +178,88 @@ class TestMatrixSparseTimeFunction(object):
 
         assert sf.data[0, 0] == 5.0
 
-    def test_precomputed_subpoints_inject(self):
+    def _pure_python_coeffs(self, mstf):
+        # Return a numpy array with the (nsrc, *grid.shape) coefficients
+        # represented by the MatrixSparseTimeFunction mstf
+        nloc, npoint = mstf.matrix.shape
+        out = np.zeros((npoint, *mstf.grid.shape_local), dtype=np.float32)
+
+        m_coo = mstf.matrix.tocoo()
+
+        for row, col, val in zip(m_coo.row, m_coo.col, m_coo.data):
+            base_gridpoint = mstf.gridpoints.data[row, :]
+
+            # construct the stencil and the slices to which it will be applied
+            stencil = np.array([1], dtype=np.float32)
+            slices = [slice(col, col+1)]
+            for i, d in enumerate(mstf.grid.dimensions):
+                stencil = np.multiply.outer(
+                    stencil, np.array(mstf.interpolation_coefficients[d].data[row, :])
+                )
+                if mstf.r[d] is None:
+                    # applies to whole slice
+                    slices.append(slice(None, None))
+                else:
+                    # applies to radius based at gridpoint
+                    assert base_gridpoint[i] >= 0
+                    assert base_gridpoint[i] + mstf.r[d] < mstf.grid.shape_local[i]
+                    slices.append(
+                        slice(base_gridpoint[i], base_gridpoint[i] + mstf.r[d])
+                    )
+
+            out[tuple(slices)] += val * stencil
+
+        return out
+
+    @pytest.mark.parametrize("rxy,par_dim_index", [
+        # single-point injection
+        (1, 0),
+        # 2x2 stencil, parallel over x
+        ((2, 2), 0),
+        # 2x3 stencil, parallel over x
+        ((2, 3), 0),
+        # allx2 stencil, parallel over x
+        ((None, 2), 0),
+        # allx2 stencil, parallel over y
+        ((None, 2), 1),
+    ])
+    def test_precomputed_subpoints_inject(self, rxy, par_dim_index):
         shape = (101, 101)
         grid = Grid(shape=shape)
         x, y = grid.dimensions
-        r = 2  # Constant for linear interpolation
-        #  because we interpolate across 2 neighbouring points in each dimension
+
+        if isinstance(rxy, tuple):
+            r = {grid.dimensions[0]: rxy[0], grid.dimensions[1]: rxy[1]}
+        else:
+            r = rxy
+
+        par_dim = grid.dimensions[par_dim_index]
 
         nt = 10
 
         m = TimeFunction(name="m", grid=grid, space_order=0, save=None, time_order=1)
 
+        # Put some data in there to ensure it acts additively
         m.data[:] = 0.0
         m.data[:, 40, 40] = 1.0
 
         # Single two-component source with coefficients both +1
         matrix = scipy.sparse.coo_matrix(np.array([[1], [1]], dtype=np.float32))
+        sf = MatrixSparseTimeFunction(
+            name="s", grid=grid, r=r, par_dim=par_dim, matrix=matrix, nt=nt
+        )
 
-        sf = MatrixSparseTimeFunction(name="s", grid=grid, r=r, matrix=matrix, nt=nt)
+        coeff_size_x = sf.interpolation_coefficients[x].data.shape[1]
+        coeff_size_y = sf.interpolation_coefficients[y].data.shape[1]
 
-        # Lookup the exact point
         sf.gridpoints.data[0, 0] = 40
         sf.gridpoints.data[0, 1] = 40
-        sf.interpolation_coefficients[x].data[0, 0] = 1.0
-        sf.interpolation_coefficients[x].data[0, 1] = 2.0
-        sf.interpolation_coefficients[y].data[0, 0] = 1.0
-        sf.interpolation_coefficients[y].data[0, 1] = 2.0
         sf.gridpoints.data[1, 0] = 39
         sf.gridpoints.data[1, 1] = 39
-        sf.interpolation_coefficients[x].data[1, 0] = 1.0
-        sf.interpolation_coefficients[x].data[1, 1] = 2.0
-        sf.interpolation_coefficients[y].data[1, 0] = 1.0
-        sf.interpolation_coefficients[y].data[1, 1] = 2.0
+        sf.interpolation_coefficients[x].data[0, :] = 1.0 + np.arange(coeff_size_x)
+        sf.interpolation_coefficients[y].data[0, :] = 1.0 + np.arange(coeff_size_y)
+        sf.interpolation_coefficients[x].data[1, :] = 1.0 + np.arange(coeff_size_x)
+        sf.interpolation_coefficients[y].data[1, :] = 1.0 + np.arange(coeff_size_y)
         sf.data[0, 0] = 1.0
 
         step = [Eq(m.forward, m)]
@@ -220,13 +270,17 @@ class TestMatrixSparseTimeFunction(object):
         op(time_m=0, time_M=0)
         sf.manual_gather()
 
-        assert m.data[1, 40, 40] == 6.0  # 1 + 1 + 4
-        assert m.data[1, 40, 41] == 2.0
-        assert m.data[1, 41, 40] == 2.0
-        assert m.data[1, 41, 41] == 4.0
-        assert m.data[1, 39, 39] == 1.0
-        assert m.data[1, 39, 40] == 2.0
-        assert m.data[1, 40, 39] == 2.0
+        check_coeffs = self._pure_python_coeffs(sf)
+        expected_data1 = (
+            m.data[0]
+            + np.tensordot(
+                np.array(sf.data[0, :]),
+                check_coeffs,
+                axes=1
+            )
+        )
+
+        assert np.all(m.data[1] == expected_data1)
 
     def test_precomputed_subpoints_inject_dt2(self):
         shape = (101, 101)
