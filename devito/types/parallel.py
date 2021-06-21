@@ -159,10 +159,13 @@ class SharedData(ThreadArray):
     one consumer thread.
     """
 
+    # Mandatory, or "static", fields
     _field_id = 'id'
+    _field_deviceid = 'deviceid'
     _field_flag = 'flag'
 
     _symbolic_id = Symbol(name=_field_id, dtype=np.int32)
+    _symbolic_deviceid = Symbol(name=_field_deviceid, dtype=np.int32)
     _symbolic_flag = VolatileInt(name=_field_flag)
 
     def __init_finalize__(self, *args, **kwargs):
@@ -172,12 +175,17 @@ class SharedData(ThreadArray):
 
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        fields = as_list(kwargs.get('fields')) + [cls._symbolic_id, cls._symbolic_flag]
+        fields = as_list(kwargs.get('fields'))
+        fields.extend([cls._symbolic_id, cls._symbolic_deviceid, cls._symbolic_flag])
         return [(i._C_name, i._C_ctype) for i in fields]
 
     @cached_property
     def symbolic_id(self):
         return self._symbolic_id
+
+    @cached_property
+    def symbolic_deviceid(self):
+        return self._symbolic_deviceid
 
     @cached_property
     def symbolic_flag(self):

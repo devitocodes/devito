@@ -10,14 +10,13 @@ import os
 import cgen as c
 from sympy import S
 
-from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
+from devito.ir.iet import (BusyWait, ExpressionBundle, List, TimedList, Section,
                            Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning, error
 from devito.mpi import MPI
 from devito.mpi.routines import MPICall, MPIList, RemainderCall
 from devito.parameters import configuration
-from devito.passes.iet import BusyWait
 from devito.symbolics import subs_op_args
 from devito.tools import DefaultOrderedDict, flatten
 

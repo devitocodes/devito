@@ -3,8 +3,10 @@ from abc import ABC
 
 import cgen as c
 
-from devito.ir import (DummyEq, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, PointerCast, EntryFunction, LocalExpression)
+from devito.ir import (BlankLine, DummyEq, Call, Conditional, FindNodes, List,
+                       LocalExpression, Prodder, ParallelIteration, ParallelBlock,
+                       PointerCast, WhileAlive, EntryFunction, ThreadFunction,
+                       Transformer)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe
@@ -191,6 +193,10 @@ class LangTransformer(ABC):
 
 class DeviceAwareMixin(object):
 
+    @property
+    def deviceid(self):
+        return self.sregistry.deviceid
+
     @iet_pass
     def initialize(self, iet):
         """
@@ -268,6 +274,25 @@ class DeviceAwareMixin(object):
             iet = iet._rebuild(body=(init,) + iet.body)
 
             return iet, {'args': deviceid}
+
+        @_initialize.register(ThreadFunction)
+        def _(iet):
+            body = FindNodes(WhileAlive).visit(iet)
+            assert len(body) == 1
+            body = body.pop()
+
+            devicetype = as_list(self.lang[self.platform])
+            deviceid = self.deviceid
+
+            init = Conditional(
+                CondNe(deviceid, -1),
+                self.lang['set-device']([deviceid] + devicetype)
+            )
+
+            mapper = {body: List(body=[init, BlankLine, body])}
+            iet = Transformer(mapper).visit(iet)
+
+            return iet, {}
 
         return _initialize(iet)
 
