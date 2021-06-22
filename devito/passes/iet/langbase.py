@@ -11,7 +11,7 @@ from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe
 from devito.tools import as_list
-from devito.types import DeviceID, Symbol
+from devito.types import Symbol
 
 __all__ = ['LangBB', 'LangTransformer']
 
@@ -233,6 +233,7 @@ class DeviceAwareMixin(object):
                     break
 
             devicetype = as_list(self.lang[self.platform])
+            deviceid = self.deviceid
 
             try:
                 lang_init = [self.lang['init'](devicetype)]
@@ -240,7 +241,6 @@ class DeviceAwareMixin(object):
                 # Not all target languages need to be explicitly initialized
                 lang_init = []
 
-            deviceid = DeviceID()
             if objcomm is not None:
                 rank = Symbol(name='rank')
                 rank_decl = LocalExpression(DummyEq(rank, 0))
