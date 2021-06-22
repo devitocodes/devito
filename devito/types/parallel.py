@@ -79,6 +79,10 @@ class NPThreads(NThreadsBase):
 
         return obj
 
+    @property
+    def default_value(self):
+        return 1
+
     def _arg_values(self, **kwargs):
         if self.name in kwargs:
             v = kwargs.pop(self.name)
