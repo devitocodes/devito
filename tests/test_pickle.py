@@ -554,10 +554,10 @@ def test_mpi_fullmode_objects():
     pkl_obj = pickle.dumps(obj)
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
-    assert obj.function.name == new_obj.function.name
-    assert all(obj.function.dimensions[i].name == new_obj.function.dimensions[i].name
+    assert obj.target.name == new_obj.target.name
+    assert all(obj.target.dimensions[i].name == new_obj.target.dimensions[i].name
                for i in range(grid.dim))
-    assert new_obj.function.dimensions[0] is new_obj.halos[0].dim
+    assert new_obj.target.dimensions[0] is new_obj.halos[0].dim
 
     # Region
     x_m, x_M = x.symbolic_min, x.symbolic_max

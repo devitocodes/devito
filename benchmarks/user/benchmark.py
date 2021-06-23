@@ -70,6 +70,9 @@ def run_op(solver, operator, **options):
         return op(rec, **options)
     elif operator == "jacobian":
         dm = solver.model.dm
+        # Because sometime dm is zero, artificially add a non zero slice
+        if dm.data.min() == 0 and dm.data.max() == 0:
+            dm.data[..., np.min([25, dm.shape[-1]//4])] = .1
         return op(dm, **options)
     elif operator == "jacobian_adjoint":
         # I think we want the forward + gradient call, need to merge retvals
@@ -269,7 +272,7 @@ def run(problem, **kwargs):
             with open(dumpfile, 'w') as f:
                 summary = retval[-1]
                 assert isinstance(summary, PerformanceSummary)
-                f.write(str(summary.globals['fdlike']))
+                f.write(str(summary.globals_all))
 
     dumpfile = kwargs.pop('dump_norms')
     if dumpfile:
@@ -632,4 +635,10 @@ if __name__ == "__main__":
     if configuration['profiling'] == 'basic':
         configuration['profiling'] = 'advanced'
 
-    benchmark()
+    benchmark(standalone_mode=False)
+
+    try:
+        MPI.Finalize()
+    except TypeError:
+        # MPI not available
+        pass

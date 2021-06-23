@@ -44,8 +44,8 @@ class SaIsoAcousticWaveSolver(object):
 
         self.space_order = space_order
 
-        # Time step is .6 time smaller due to Q
-        self.model.dt_scale = .6
+        # Time step is .5 time smaller due to Q
+        self.model.dt_scale = .5
 
         # Cache compiler options
         self._kwargs = kwargs

@@ -3,34 +3,36 @@ import pytest
 
 from conftest import skipif
 from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
-                    Operator, switchconfig, norm, cos)
+                    Operator, norm, cos)
 from devito.exceptions import InvalidOperator
 from devito.ir.iet import Block, FindNodes, retrieve_iteration_tree
 from devito.mpi.routines import IrecvCall, IsendCall
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
+pytestmark = skipif(['nodevice'], whole_module=True)
+
 
 class TestCodeGeneration(object):
 
-    @switchconfig(platform='nvidiaX')
     def test_init_omp_env(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u.dx+1))
+        op = Operator(Eq(u.forward, u.dx+1), language='openmp')
 
         assert str(op.body[0].body[0]) == ('if (deviceid != -1)\n'
                                            '{\n  omp_set_default_device(deviceid);\n}')
 
+    @skipif('device-aomp')
     @pytest.mark.parallel(mode=1)
-    @switchconfig(platform='nvidiaX')
     def test_init_omp_env_w_mpi(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}))
+        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}),
+                      language='openmp')
 
         assert str(op.body[0].body[0]) ==\
             ('if (deviceid != -1)\n'
@@ -41,7 +43,6 @@ class TestCodeGeneration(object):
              '  int ngpus = omp_get_num_devices();\n'
              '  omp_set_default_device((rank)%(ngpus));\n}')
 
-    @switchconfig(platform='nvidiaX')
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -69,7 +70,6 @@ class TestCodeGeneration(object):
         op1 = Operator(Eq(u.forward, u + 1), language='openmp', opt='advanced-fsg')
         assert str(op) == str(op1)
 
-    @switchconfig(platform='nvidiaX')
     def test_basic_customop(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -90,14 +90,14 @@ class TestCodeGeneration(object):
         except:
             assert False
 
-    @switchconfig(platform='nvidiaX')
     def test_multiple_eqns(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
 
-        op = Operator([Eq(u.forward, u + v + 1), Eq(v.forward, u + v + 4)])
+        op = Operator([Eq(u.forward, u + v + 1), Eq(v.forward, u + v + 4)],
+                      language='openmp')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
@@ -118,7 +118,6 @@ class TestCodeGeneration(object):
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]]) '
                  'if(devicerm)' % {'n': f.name})
 
-    @switchconfig(platform='nvidiaX')
     def test_multiple_loops(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -131,7 +130,7 @@ class TestCodeGeneration(object):
                 Eq(u.forward, u + v*f),
                 Eq(v.forward, u.forward.dx + v*f + 4)]
 
-        op = Operator(eqns, opt='noop')
+        op = Operator(eqns, opt='noop', language='openmp')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
@@ -181,7 +180,6 @@ class TestCodeGeneration(object):
              ' if(devicerm && (g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
              ' && (g_vec->size[2] != 0))')
 
-    @switchconfig(platform='nvidiaX')
     def test_array_rw(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -190,7 +188,7 @@ class TestCodeGeneration(object):
 
         eqn = Eq(u.forward, u*cos(f*2))
 
-        op = Operator(eqn)
+        op = Operator(eqn, language='openmp')
 
         assert len(op.body[2].header) == 7
         assert str(op.body[2].header[0]) == 'float (*r0)[y_size][z_size];'
@@ -207,7 +205,6 @@ class TestCodeGeneration(object):
              ' if((x_size != 0) && (y_size != 0) && (z_size != 0))')
         assert op.body[2].footer[2].text == 'free(r0)'
 
-    @switchconfig(platform='nvidiaX')
     def test_function_wo(self):
         grid = Grid(shape=(3, 3, 3))
         i = Dimension(name='i')
@@ -218,7 +215,7 @@ class TestCodeGeneration(object):
         eqns = [Eq(u.forward, u + 1),
                 Eq(f[0], u[0, 0, 0, 0])]
 
-        op = Operator(eqns, opt='noop')
+        op = Operator(eqns, opt='noop', language='openmp')
 
         assert len(op.body[2].header) == 2
         assert len(op.body[2].footer) == 2
@@ -234,7 +231,6 @@ class TestCodeGeneration(object):
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
-    @switchconfig(platform='nvidiaX')
     def test_timeparallel_reduction(self):
         grid = Grid(shape=(3, 3, 3))
         i = Dimension(name='i')
@@ -242,7 +238,7 @@ class TestCodeGeneration(object):
         f = Function(name='f', shape=(1,), dimensions=(i,), grid=grid)
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Inc(f[0], u + 1), opt='noop')
+        op = Operator(Inc(f[0], u + 1), opt='noop', language='openmp')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
@@ -257,14 +253,15 @@ class TestCodeGeneration(object):
             ('omp target teams distribute parallel for collapse(3)'
              ' reduction(+:f[0])')
 
+    @skipif('device-aomp')
     @pytest.mark.parallel(mode=1)
-    @switchconfig(platform='nvidiaX')
     def test_gpu_direct(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}))
+        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}),
+                      language='openmp')
 
         for f, v in op._func_table.items():
             for node in FindNodes(Block).visit(v.root):
@@ -276,13 +273,12 @@ class TestCodeGeneration(object):
 
 class TestOperator(object):
 
-    @skipif('nodevice')
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid, dtype=np.int32)
 
-        op = Operator(Eq(u.forward, u + 1))
+        op = Operator(Eq(u.forward, u + 1), language='openmp')
 
         # Make sure we've indeed generated OpenMP offloading code
         assert 'omp target' in str(op)
@@ -331,7 +327,8 @@ class TestOperator(object):
         src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
         rec_term = rec.interpolate(expr=u.forward)
 
-        op = Operator([stencil] + src_term + rec_term, opt=('advanced', opt_options))
+        op = Operator([stencil] + src_term + rec_term, opt=('advanced', opt_options),
+                      language='openmp')
 
         # Make sure we've indeed generated OpenMP offloading code
         assert 'omp target' in str(op)
@@ -340,18 +337,18 @@ class TestOperator(object):
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
 
-    @skipif('nodevice')
     def test_iso_acoustic(self):
         TestOperator().iso_acoustic()
 
+    @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
-    @skipif('nodevice')
     def test_gpu_direct(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid, dtype=np.int32)
 
-        op = Operator(Eq(u.forward, u + 1), opt=('advanced', {'gpu-direct': True}))
+        op = Operator(Eq(u.forward, u + 1), opt=('advanced', {'gpu-direct': True}),
+                      language='openmp')
 
         # Make sure we've indeed generated OpenMP offloading code
         assert 'omp target' in str(op)
@@ -361,8 +358,8 @@ class TestOperator(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
+    @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
-    @skipif('nodevice')
     def test_mpi_iso_acoustic(self):
         opt_options = {'gpu-direct': True}
         TestOperator().iso_acoustic(**opt_options)

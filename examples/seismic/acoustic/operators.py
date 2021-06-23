@@ -212,9 +212,9 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     eqn = iso_stencil(v, model, kernel, forward=False)
 
     if kernel == 'OT2':
-        gradient_update = Inc(grad, - u.dt2 * v)
+        gradient_update = Inc(grad, - u * v.dt2)
     elif kernel == 'OT4':
-        gradient_update = Inc(grad, - (u.dt2 + s**2 / 12.0 * u.biharmonic(m**(-2))) * v)
+        gradient_update = Inc(grad, - u * v.dt2 - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
     # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
 

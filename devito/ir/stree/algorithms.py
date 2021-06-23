@@ -43,10 +43,15 @@ def stree_schedule(clusters):
         return tip
 
     for c in clusters:
-        pointers = list(mapper)
+        # Add in any Conditionals and Syncs outside of the outermost Iteration
+        tip = attach_metadata(c, None, stree)
+
+        if tip is stree:
+            pointers = list(mapper)
+        else:
+            pointers = []
 
         index = 0
-        tip = stree
         for it0, it1 in zip(c.itintervals, pointers):
             if it0 != it1:
                 break

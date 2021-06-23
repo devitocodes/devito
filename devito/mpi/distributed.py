@@ -190,13 +190,9 @@ class Distributor(AbstractDistributor):
                 global init_by_devito
                 init_by_devito = True
 
+            # Note: the cloned communicator doesn't need to be explicitly freed;
+            # mpi4py takes care of that when the object gets out of scope
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
-
-            # Make sure the cloned communicator will be freed up upon exit
-            def cleanup():
-                if self._input_comm is not None:
-                    self._input_comm.Free()
-            atexit.register(cleanup)
 
             if topology is None:
                 # `MPI.Compute_dims` sets the dimension sizes to be as close to each other

@@ -22,10 +22,10 @@ from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
 from devito.types.misc import VolatileInt, c_volatile_int_p
 
-__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase', 'DeviceID',
-           'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchWait', 'FetchWaitPrefetch',
-           'Delete', 'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM',
-           'normalize_syncs']
+__all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
+           'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchUpdate',
+           'FetchPrefetch', 'PrefetchUpdate', 'WaitPrefetch', 'Delete', 'PThreadArray',
+           'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
 
 
 class NThreadsBase(Scalar):
@@ -78,6 +78,10 @@ class NPThreads(NThreadsBase):
         obj.size = kwargs['size']
 
         return obj
+
+    @property
+    def default_value(self):
+        return 1
 
     def _arg_values(self, **kwargs):
         if self.name in kwargs:
@@ -159,10 +163,13 @@ class SharedData(ThreadArray):
     one consumer thread.
     """
 
+    # Mandatory, or "static", fields
     _field_id = 'id'
+    _field_deviceid = 'deviceid'
     _field_flag = 'flag'
 
     _symbolic_id = Symbol(name=_field_id, dtype=np.int32)
+    _symbolic_deviceid = Symbol(name=_field_deviceid, dtype=np.int32)
     _symbolic_flag = VolatileInt(name=_field_flag)
 
     def __init_finalize__(self, *args, **kwargs):
@@ -172,12 +179,17 @@ class SharedData(ThreadArray):
 
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        fields = as_list(kwargs.get('fields')) + [cls._symbolic_id, cls._symbolic_flag]
+        fields = as_list(kwargs.get('fields'))
+        fields.extend([cls._symbolic_id, cls._symbolic_deviceid, cls._symbolic_flag])
         return [(i._C_name, i._C_ctype) for i in fields]
 
     @cached_property
     def symbolic_id(self):
         return self._symbolic_id
+
+    @cached_property
+    def symbolic_deviceid(self):
+        return self._symbolic_deviceid
 
     @cached_property
     def symbolic_flag(self):
@@ -236,9 +248,6 @@ class SyncOp(sympy.Expr, Pickable):
 
     is_WaitLock = False
     is_WithLock = False
-    is_FetchWait = False
-    is_FetchWaitPrefetch = False
-    is_Delete = False
 
     def __new__(cls, handle):
         obj = sympy.Expr.__new__(cls, handle)
@@ -277,19 +286,35 @@ class SyncData(SyncOp):
 
     is_SyncData = True
 
-    def __new__(cls, function, dim, direction, fetch, size, next_cbk):
-        obj = sympy.Expr.__new__(cls, function, dim, direction, fetch, size, next_cbk)
-        obj.function = function
+    def __new__(cls, dim, size, function, fetch, ifetch, fcond,
+                pfetch=None, pcond=None, target=None, tstore=None):
+        obj = sympy.Expr.__new__(cls, dim, size, function, fetch, ifetch, fcond,
+                                 pfetch, pcond, target, tstore)
+
+        # fetch -> the input Function fetch index, e.g. `time`
+        # ifetch -> the input Function initialization index, e.g. `time_m`
+        # pfetch -> the input Function prefetch index, e.g. `time+1`
+        # tstore -> the target Function store index, e.g. `sb1`
+
+        # fcond -> the input Function fetch condition, e.g. `time_m <= time_M`
+        # pcond -> the input Function prefetch condition, e.g. `time + 1 <= time_M`
+
         obj.dim = dim
-        obj.direction = direction
-        obj.fetch = fetch
         obj.size = size
-        obj.next_cbk = next_cbk
+        obj.function = function
+        obj.fetch = fetch
+        obj.ifetch = ifetch
+        obj.fcond = fcond
+        obj.pfetch = pfetch
+        obj.pcond = pcond
+        obj.target = target
+        obj.tstore = tstore
+
         return obj
 
     def __str__(self):
-        return "%s<%s:%s:%s:%d>" % (self.__class__.__name__, self.function,
-                                    self.dim, self.fetch, self.size)
+        return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
+                                     self.target, self.dim, self.size)
 
     __repr__ = __str__
 
@@ -300,7 +325,8 @@ class SyncData(SyncOp):
         return self.function.dimensions
 
     # Pickling support
-    _pickle_args = ['function', 'dim', 'direction', 'fetch', 'size', 'next_cbk']
+    _pickle_args = ['dim', 'size', 'function', 'fetch', 'ifetch', 'fcond']
+    _pickle_kwargs = ['pfetch', 'pcond', 'target', 'tstore']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -312,16 +338,24 @@ class WithLock(SyncLock):
     is_WithLock = True
 
 
-class FetchWait(SyncData):
-    is_FetchWait = True
+class FetchPrefetch(SyncData):
+    pass
 
 
-class FetchWaitPrefetch(SyncData):
-    is_FetchWaitPrefetch = True
+class FetchUpdate(SyncData):
+    pass
+
+
+class PrefetchUpdate(SyncData):
+    pass
+
+
+class WaitPrefetch(SyncData):
+    pass
 
 
 class Delete(SyncData):
-    is_Delete = True
+    pass
 
 
 def normalize_syncs(*args):
