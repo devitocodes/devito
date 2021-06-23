@@ -1,8 +1,7 @@
-from devito.ir.iet import MapNodes, Section, TimedList, Transformer
+from devito.ir.iet import BusyWait, MapNodes, Section, TimedList, Transformer
 from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
                                  HaloUpdateList, HaloWaitList, RemainderCall)
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.orchestration import BusyWait
 from devito.types import Timer
 
 __all__ = ['instrument']

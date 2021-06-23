@@ -23,7 +23,8 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
-           'PragmaList', 'DummyExpr', 'BlankLine', 'ParallelTree']
+           'PragmaList', 'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait',
+           'WhileAlive']
 
 # First-class IET nodes
 
@@ -1237,6 +1238,24 @@ class ParallelBlock(Block):
     @property
     def collapsed(self):
         return self.partree.collapsed
+
+
+class BusyWait(While):
+
+    """
+    A while-loop implementing a busy waiting.
+    """
+
+    pass
+
+
+class WhileAlive(While):
+
+    """
+    A while-loop used by threads to repeat the same actions until they're killed.
+    """
+
+    pass
 
 
 class SyncSpot(List):

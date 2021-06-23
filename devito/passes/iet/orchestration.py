@@ -6,9 +6,9 @@ import numpy as np
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, While,
-                           FindNodes, LocalExpression, Transformer, BlankLine,
-                           PragmaList, DummyExpr, derive_parameters, make_thread_ctx)
+from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, FindNodes,
+                           LocalExpression, Transformer, BlankLine, BusyWait, PragmaList,
+                           DummyExpr, derive_parameters, make_thread_ctx)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, ListInitializer
@@ -17,7 +17,7 @@ from devito.tools import (as_mapper, as_list, filter_ordered, filter_sorted,
 from devito.types import (WaitLock, WithLock, FetchUpdate, FetchPrefetch,
                           PrefetchUpdate, WaitPrefetch, Delete, SharedData)
 
-__init__ = ['Orchestrator', 'BusyWait']
+__init__ = ['Orchestrator']
 
 
 class Orchestrator(object):
@@ -325,10 +325,6 @@ class Orchestrator(object):
 
 
 # Utils
-
-class BusyWait(While):
-    pass
-
 
 class Objs(object):
 
