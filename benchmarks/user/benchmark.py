@@ -76,8 +76,10 @@ def run_op(solver, operator, **options):
         return op(dm, **options)
     elif operator == "jacobian_adjoint":
         # I think we want the forward + gradient call, need to merge retvals
-        rec, u, _ = solver.forward(save=True, **options)
-        return op(rec, u, **options)
+        args = solver.forward(save=True, **options)
+        assert isinstance(args[-1], PerformanceSummary)
+        args = args[:-1]
+        return op(*args, **options)
     else:
         raise ValueError("Unrecognized operator %s" % operator)
 

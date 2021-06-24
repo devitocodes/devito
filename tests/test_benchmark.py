@@ -13,7 +13,7 @@ from subprocess import check_call
     ('bench', 'tti', 'forward'), ('bench', 'elastic', 'forward'),
     ('bench', 'viscoelastic', 'forward'), ('run', 'acoustic_sa', 'forward'),
     ('run', 'acoustic_sa', 'adjoint'), ('run', 'acoustic_sa', 'jacobian'),
-    ('run', 'acoustic_sa', 'jacobian_adjoint')
+    ('run', 'acoustic_sa', 'jacobian_adjoint'), ('run', 'tti', 'jacobian_adjoint')
 ])
 def test_bench(mode, problem, op):
     """
