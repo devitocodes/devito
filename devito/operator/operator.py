@@ -18,7 +18,7 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, instrument
+from devito.passes import Graph, instrument, add_minmax
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
@@ -130,9 +130,7 @@ class Operator(Callable):
     refer to the relevant documentation.
     """
 
-    _default_headers = [('_POSIX_C_SOURCE', '200809L'),
-                        ('MIN(a,b)', '(((a) < (b)) ? (a) : (b))'),
-                        ('MAX(a,b)', '(((a) > (b)) ? (a) : (b))')]
+    _default_headers = [('_POSIX_C_SOURCE', '200809L')]
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 
@@ -392,6 +390,8 @@ class Operator(Callable):
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
         instrument(graph, profiler=profiler, sregistry=sregistry)
+
+        add_minmax(graph)
 
         return graph.root, graph
 

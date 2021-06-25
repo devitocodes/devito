@@ -1170,7 +1170,6 @@ class TestCodeGeneration(object):
         assert len(trees) == 2
         tree = trees[0]
         # Make sure `pokempi0` is the last node within the outer Iteration
-
         assert len(tree) == 2
         assert len(tree.root.nodes) == 2
         call = tree.root.nodes[1]
@@ -1188,7 +1187,6 @@ class TestCodeGeneration(object):
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
         op = Operator(eqn, opt=('advanced', {'blockinner': True, 'par-dynamic-work': 0}))
-
         # Make sure `pokempi0` is the last node within the inner Iteration over blocks
         assert len(tree) == 2
         assert len(tree.root.nodes) == 2

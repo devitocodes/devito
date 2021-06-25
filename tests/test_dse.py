@@ -489,7 +489,6 @@ class TestAliases(object):
         # Check code generation
         trees = retrieve_iteration_tree(op1)
         assert len(trees) == 3
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1

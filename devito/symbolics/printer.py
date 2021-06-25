@@ -22,8 +22,7 @@ class CodePrinter(C99CodePrinter):
         'DOUBLE': '(double)',
         'DOUBLEP': '(double*)',
         'Min': 'MIN',
-        'Max': 'MAX'
-        }
+        'Max': 'MAX'}
 
     """
     Decorator for sympy.printing.ccode.CCodePrinter.

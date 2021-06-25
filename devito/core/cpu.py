@@ -310,7 +310,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         return {
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
-            'blocking': partial(finalize_loop_bounds, sregistry=sregistry),
+            'blocking': partial(finalize_loop_bounds),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),

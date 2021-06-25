@@ -142,14 +142,13 @@ def test_mixed_blocking_w_skewing(openmp, expected):
         assert 'nthreads' not in op._state['autotuning'][0]['tuned']
 
 
-@pytest.mark.parametrize('opt, expected', [('advanced', 30),
-                                           (('blocking', {'skewing': True}), 30)])
-def test_tti_aggressive(opt, expected):
+@pytest.mark.parametrize('opt', ['advanced', ('blocking', {'skewing': True})])
+def test_tti_aggressive(opt):
     from test_dse import TestTTI
     wave_solver = TestTTI().tti_operator(opt=opt)
     op = wave_solver.op_fwd()
     op.apply(time=0, autotune='aggressive', dt=0.1)
-    assert op._state['autotuning'][0]['runs'] == expected
+    assert op._state['autotuning'][0]['runs'] == 30
 
 
 @switchconfig(develop_mode=False)
@@ -200,10 +199,7 @@ def test_at_w_mpi():
     # also that this autotuning mode disables the halo exchanges
     op.apply(time=-1, autotune=('basic', 'destructive'))
 
-    if configuration['mpi'] == 'diag':
-        assert np.all(f._data_ro_with_inhalo.sum() == 904)
-    elif configuration['mpi'] == 'full':
-        assert np.all(f._data_ro_with_inhalo.sum() == 6056)
+    assert np.all(f._data_ro_with_inhalo.sum() == 904)
 
     # Check the halo hasn't been touched during AT
     glb_pos_map = grid.distributor.glb_pos_map
