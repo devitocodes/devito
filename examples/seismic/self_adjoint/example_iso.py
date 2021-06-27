@@ -13,7 +13,6 @@ def acoustic_sa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
     # SA parameters
     qmin = 0.1
     qmax = 1000.0
-    tmax = 500.0
     fpeak = 0.010
     omega = 2.0 * np.pi * fpeak
     vp = 1.5*np.ones(shape)
@@ -26,7 +25,7 @@ def acoustic_sa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
                   space_order=space_order, bcs=init_damp,
                   dtype=kwargs.pop('dtype', np.float32), **kwargs)
     # Source and receiver geometries
-    geometry = setup_geometry(model, tmax)
+    geometry = setup_geometry(model, tn)
 
     # Create solver object to provide relevant operators
     solver = SaIsoAcousticWaveSolver(model, geometry,

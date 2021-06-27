@@ -3,6 +3,6 @@
 find /app -type f -name '*.pyc' -delete
 
 export PATH=/venv/bin:$PATH
-export PYTHONPATH=$PYTHONPATH:/app
+export PYTHONPATH=/app:$PYTHONPATH
 
 exec "$@"

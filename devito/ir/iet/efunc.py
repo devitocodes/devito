@@ -5,8 +5,10 @@ from sympy import Or
 import cgen as c
 
 from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Dereference,
-                                 DummyExpr, Iteration, List, PointerCast, Return, While)
+                                 DummyExpr, Iteration, List, PointerCast, Return, While,
+                                 WhileAlive)
 from devito.ir.iet.utils import derive_parameters, diff_parameters
+from devito.ir.iet.visitors import FindSymbols
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
 from devito.tools import as_tuple
 from devito.types import PThreadArray, SharedData, Symbol, VoidPointer
@@ -145,8 +147,9 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 
     # Initialize `sdata`
     arguments = list(isdata.parameters)
-    arguments[-2] = sdata.symbolic_base + d
-    arguments[-1] = pthreadid
+    arguments[-3] = sdata.symbolic_base + d
+    arguments[-2] = pthreadid
+    arguments[-1] = sregistry.deviceid
     call0 = Call(isdata.name, arguments)
 
     # Create pthreads
@@ -164,26 +167,28 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 
 
 def _make_thread_func(name, iet, root, threads, sregistry):
+    sid = SharedData._symbolic_id
+    sdeviceid = SharedData._symbolic_deviceid
+
     # Create the SharedData, that is the data structure that will be used by the
     # main thread to pass information dows to the child thread(s)
-    required, parameters, dynamic_parameters = diff_parameters(iet, root)
+    required, parameters, dynamic_parameters = diff_parameters(iet, root, [sid])
     parameters = sorted(parameters, key=lambda i: i.is_Function)  # Allow casting
     sdata = SharedData(name=sregistry.make_name(prefix='sdata'), npthreads=threads.size,
                        fields=required, dynamic_fields=dynamic_parameters)
 
-    sbase = sdata.symbolic_base
-    sid = sdata.symbolic_id
-
     # Create a Callable to initialize `sdata` with the known const values
+    sbase = sdata.symbolic_base
     iname = 'init_%s' % sdata.dtype._type_.__name__
     ibody = [DummyExpr(FieldFromPointer(i._C_name, sbase), i._C_symbol)
              for i in parameters]
     ibody.extend([
         BlankLine,
         DummyExpr(FieldFromPointer(sdata._field_id, sbase), sid),
+        DummyExpr(FieldFromPointer(sdata._field_deviceid, sbase), sdeviceid),
         DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
     ])
-    iparameters = parameters + [sdata, sid]
+    iparameters = parameters + [sdata, sid, sdeviceid]
     isdata = Callable(iname, ibody, 'void', iparameters, 'static')
 
     # Prepend the SharedData fields available upon thread activation
@@ -203,20 +208,24 @@ def _make_thread_func(name, iet, root, threads, sregistry):
     iet = Conditional(CondEq(FieldFromPointer(sdata._field_flag, sbase), 2), iet)
 
     # The thread keeps spinning until the alive flag is set to 0 by the main thread
-    iet = While(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), iet)
+    iet = WhileAlive(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), iet)
 
     # pthread functions expect exactly one argument, a void*, and must return void*
     tretval = 'void*'
     tparameter = VoidPointer('_%s' % sdata.name)
 
     # Unpack `sdata`
+    symbol_names = {i.name for i in FindSymbols('free-symbols').visit(iet)}
     unpack = [PointerCast(sdata, tparameter), BlankLine]
     for i in parameters:
         if i.is_AbstractFunction:
-            unpack.extend([Dereference(i, sdata), PointerCast(i)])
+            unpack.append(Dereference(i, sdata))
+            if i.name in symbol_names:
+                unpack.append(PointerCast(i))
         else:
             unpack.append(DummyExpr(i, FieldFromPointer(i.name, sbase)))
     unpack.append(DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase)))
+    unpack.append(DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase)))
     unpack.append(BlankLine)
     iet = List(body=unpack + [iet, BlankLine, Return(Macro('NULL'))])
 

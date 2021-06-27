@@ -2,9 +2,9 @@ from functools import partial
 
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
-from devito.passes.equations import buffering, collect_derivatives
-from devito.passes.clusters import (Lift, blocking, cire, cse, extract_increments,
-                                    factorize, fuse, optimize_pows)
+from devito.passes.equations import collect_derivatives
+from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
+                                    extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
@@ -273,11 +273,13 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         }
 
     @classmethod
-    def _make_exprs_passes_mapper(cls, **kwargs):
+    def _make_clusters_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
 
-        # This callback simply mimics `is_on_device`, used in the device backends.
-        # It's used by `buffering` to replace `save!=None` TimeFunctions with buffers
+        # Callback used by `buffering`; it mimics `is_on_device`, which is used
+        # on device backends
         def callback(f):
             if f.is_TimeFunction and f.save is not None:
                 return [f.time_dim]
@@ -285,16 +287,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
                 return None
 
         return {
-            'buffering': lambda i: buffering(i, callback, options)
-        }
-
-    @classmethod
-    def _make_clusters_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        sregistry = kwargs['sregistry']
-
-        return {
+            'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, options),
             'factorize': factorize,
             'fuse': fuse,

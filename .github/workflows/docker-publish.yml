@@ -79,6 +79,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.nvidia
           push: true
+          network: host
           tags: devitocodes/devito:gpu-dev
 
       - name: GPU image release
@@ -88,6 +89,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.nvidia
           push: true
+          network: host
           tags: |
             devitocodes/devito:gpu-latest
             devitocodes/devito:gpu-${{ github.event.release.tag_name }}

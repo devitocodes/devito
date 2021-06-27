@@ -1,6 +1,7 @@
 # Runner information:
 # OpenACC on NVidia runs on `sarlaac`
 # OpenMP on NVidia runs on `kimogila`
+# OpenMP on AMD runs on `wampa`
 
 name: CI-gpu
 
@@ -41,23 +42,21 @@ jobs:
 
       matrix:
         name: [
-          # NOTE: We can re-instate this as a 'failing' build
-          # as soon as the hardware is ready
-          pytest-gpu-omp,
-          pytest-gpu-acc
-          # pytest-gpu-aomp
+          pytest-gpu-omp-nvidia,
+          pytest-gpu-acc-nvidia,
+          pytest-gpu-omp-amd
         ]
         include:
-        - name: pytest-gpu-omp
+        - name: pytest-gpu-omp-nvidia
           test_file: "tests/test_gpu_openmp.py"
           env_file: "devito-ci-nvidia-openmp.env"
           test_drive_cmd: "nvidia-smi"
           arch: "clang"
           platform: "nvidiaX"
           language: "openmp"
-          tags: ["self-hosted", "gpu", "openmp"]
+          tags: ["self-hosted", "gpu", "openmp", "clang"]
 
-        - name: pytest-gpu-acc
+        - name: pytest-gpu-acc-nvidia
           test_file: "tests/test_gpu_openacc.py"
           env_file: "devito-ci-nvidia-openacc.env"
           test_drive_cmd: "nvidia-smi"
@@ -66,14 +65,14 @@ jobs:
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
 
-        # - name: pytest-gpu-aomp
-        #   test_file: "tests_gpu_aomp.py"
-        #   env_file: "devito-ci-amd-openmp.py"
-        #   test_drive_cmd: "TODO"
-        #   arch: "aomp"
-        #   platform: "amdgpuX"
-        #   language: "openmp"
-        #   tags: ["self-hosted", "gpu", "aomp"]
+        - name: pytest-gpu-omp-amd
+          test_file: "tests/test_gpu_openmp.py"
+          env_file: "devito-ci-amd-openmp.env"
+          test_drive_cmd: "rocm-smi"
+          arch: "aomp"
+          platform: "amdgpuX"
+          language: "openmp"
+          tags: ["self-hosted", "gpu", "openmp", "aomp"]
 
     steps:
     - name: Checkout devito
@@ -105,6 +104,7 @@ jobs:
         pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
+      if: matrix.name != 'pytest-gpu-omp-amd'
       run: |
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py

@@ -1,5 +1,6 @@
 from devito.tools import generator
-from devito.types import NThreads, NThreadsNested, NThreadsNonaffine, NPThreads, ThreadID
+from devito.types import (DeviceID, NThreads, NThreadsNested, NThreadsNonaffine,
+                          NPThreads, ThreadID)
 
 __init__ = ['SymbolRegistry']
 
@@ -19,6 +20,7 @@ class SymbolRegistry(object):
         self.nthreads_nested = NThreadsNested()
         self.nthreads_nonaffine = NThreadsNonaffine()
         self.threadid = ThreadID(self.nthreads)
+        self.deviceid = DeviceID()
 
         # Several groups of pthreads each of size `npthread` may be created
         # during compilation
