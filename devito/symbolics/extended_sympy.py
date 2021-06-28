@@ -12,7 +12,7 @@ from devito.tools import Pickable, as_tuple, is_integer
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
            'DefFunction', 'InlineIf', 'Macro', 'Literal', 'INT', 'FLOAT', 'DOUBLE',
-           'FLOOR', 'cast_mapper']
+           'FLOOR', 'MAX', 'MIN', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -404,6 +404,9 @@ FLOATP = Function('FLOATP')
 DOUBLEP = Function('DOUBLEP')
 
 FLOOR = Function('floor')
+
+MIN = Function('MIN')
+MAX = Function('MAX')
 
 cast_mapper = {
     np.int: INT,

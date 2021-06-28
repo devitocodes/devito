@@ -1,26 +1,14 @@
 import cgen
 
-from sympy import Min, Max
 from devito.ir.iet import (List, Prodder, FindNodes, Transformer, filter_iterations,
                            retrieve_iteration_tree)
 from devito.ir.support import Forward
 from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
+from devito.symbolics import MIN, MAX
 from devito.tools import split, is_integer
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'finalize_loop_bounds', 'is_on_device',
-           'add_minmax']
-
-
-@iet_pass
-def add_minmax(iet):
-    """
-    Add Min Max
-    """
-
-    headers = [('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),
-               ('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))]
-    return iet, {'headers': headers}
+__all__ = ['avoid_denormals', 'hoist_prodders', 'finalize_loop_bounds', 'is_on_device']
 
 
 @iet_pass
@@ -103,14 +91,13 @@ def finalize_loop_bounds(iet, **kwargs):
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
         # A dictionary to map maximum of processed parent dimensions
-        # useful for hierarchical blocking
+        # Helps to neatly handle bounds in hierarchical blocking
         proc_parents_max = {}
 
         # Process inner iterations
         for n, i in enumerate(inner):
             assert i.direction is Forward
-            if (i.dim.parent in proc_parents_max and
-               i.symbolic_size == i.dim.parent.step):
+            if i.dim.parent in proc_parents_max and i.symbolic_size == i.dim.parent.step:
                 # In hierarchical blocking (BLOCKLEVELS > 1) a parent dimension may
                 # have already been processed as an 'inner' iteration. Since in
                 # hierarchical blocking, block sizes in lower levels always perfectly
@@ -148,12 +135,12 @@ def finalize_loop_bounds(iet, **kwargs):
 
                 # So candidate 2 is
                 # e.g. `domain_max = Max(x_M + 1, x_M)``
-                domain_max = Max(ub_margin, root_max)
+                domain_max = MAX(ub_margin, root_max)
 
                 # Finally the iteration's maximum is the minimum of the
                 # candidates 1 and 2
                 # e.g. `iter_max = Min(x0_blk0 + x0_blk0_size, domain_max)``
-                iter_max = Min(symbolic_max, domain_max)
+                iter_max = MIN(symbolic_max, domain_max)
 
             # Store the selected maximum of this iteration's dimension for
             # possible reference in case of children iterations
@@ -164,7 +151,11 @@ def finalize_loop_bounds(iet, **kwargs):
 
     iet = Transformer(mapper, nested=True).visit(iet)
 
-    return iet, {'efuncs': []}
+    headers = [('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),
+               ('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))]
+    return iet, {'headers': headers}
+
+    # return iet, {}
 
 
 def is_on_device(obj, gpu_fit):

@@ -198,7 +198,6 @@ def test_at_w_mpi():
     # to perform the autotuning. Eventually, the result is complete garbage; note
     # also that this autotuning mode disables the halo exchanges
     op.apply(time=-1, autotune=('basic', 'destructive'))
-
     assert np.all(f._data_ro_with_inhalo.sum() == 904)
 
     # Check the halo hasn't been touched during AT

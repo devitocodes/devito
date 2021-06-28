@@ -18,7 +18,7 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, instrument, add_minmax
+from devito.passes import Graph, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
@@ -385,9 +385,6 @@ class Operator(Callable):
         # Lower IET to a target-specific IET
         graph = Graph(iet)
         graph = cls._specialize_iet(graph, **kwargs)
-
-        # Add MIN/MAX defines to the IET
-        add_minmax(graph)
 
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
