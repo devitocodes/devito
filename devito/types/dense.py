@@ -1452,6 +1452,9 @@ class SubFunction(Function):
     def parent(self):
         return self._parent
 
+    def __hash__(self):
+        return hash(self.data._local.tobytes())
+
     _pickle_kwargs = Function._pickle_kwargs + ['parent']
 
 

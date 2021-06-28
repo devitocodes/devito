@@ -19,6 +19,8 @@ from devito.types.equation import Eq, Inc
 from devito.types.utils import IgnoreDimSort
 
 
+import time
+
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction', 'MatrixSparseTimeFunction']
 
@@ -113,35 +115,29 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         return self.interpolator.inject(*args, **kwargs)
 
+    @cached_property
+    def _point_support(self):
+        return np.array(tuple(product(range(-self._radius + 1, self._radius + 1),
+                                      repeat=self.grid.dim)))
+
     @property
     def _support(self):
         """
         The grid points surrounding each sparse point within the radius of self's
         injection/interpolation operators.
         """
-        ret = []
-        for i in self.gridpoints:
-            support = [range(max(0, j - self._radius + 1), min(M, j + self._radius + 1))
-                       for j, M in zip(i, self.grid.shape)]
-            ret.append(tuple(product(*support)))
-        return tuple(ret)
+        max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
+        minmax = lambda arr : np.minimum(max_shape, np.maximum(0, arr))
+        return np.stack([minmax(self.gridpoints + s) for s in self._point_support],
+                        axis=2)
 
     @property
     def _dist_datamap(self):
-        return self._build_dist_datamap(support=self._support)
-
-    @memoized_meth
-    def _build_dist_datamap(self, support=None):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
-        ret = {}
-        support = support or self._support
-        for i, s in enumerate(support):
-            # Sparse point `i` is "required" by the following ranks
-            for r in self.grid.distributor.glb_to_rank(s):
-                ret.setdefault(r, []).append(i)
-        return {k: filter_ordered(v) for k, v in ret.items()}
+        dmap = self.grid.distributor.glb_to_rank(self._support)
+        return dmap or {}
 
     @property
     def _dist_scatter_mask(self):
@@ -289,11 +285,13 @@ class AbstractSparseFunction(DiscreteFunction):
 
         # Add in the sparse data (as well as any SubFunction data) belonging to
         # self's local domain only
+        print(self)
+        t0 = time.process_time()
         for k, v in self._dist_scatter().items():
             args[mapper[k].name] = v
             for i, s in zip(mapper[k].indices, v.shape):
                 args.update(i._arg_defaults(_min=0, size=s))
-
+        print(time.process_time() - t0)
         return args
 
     def _eval_at(self, func):
@@ -619,11 +617,14 @@ class SparseFunction(AbstractSparseFunction):
     def gridpoints(self):
         if self.coordinates._data is None:
             raise ValueError("No coordinates attached to this SparseFunction")
-        ret = []
-        for coords in self.coordinates.data._local:
-            ret.append(tuple(int(np.floor(c - o)/s) for c, o, s in
-                             zip(coords, self.grid.origin, self.grid.spacing)))
-        return tuple(ret)
+        return self._gridpoints(coords=self.coordinates)
+    
+    @memoized_meth
+    def _gridpoints(self, coords=None):
+        coords = coords or self.coordinates
+        return (
+            np.floor(coords.data._local - self.grid.origin) / self.grid.spacing
+        ).astype(int)
 
     def guard(self, expr=None, offset=0):
         """

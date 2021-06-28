@@ -12,7 +12,7 @@ __all__ = ['AcquisitionGeometry', 'setup_geometry', 'seismic_args']
 def setup_geometry(model, tn, f0=0.010):
     # Source and receiver geometries
     src_coordinates = np.empty((1, model.dim))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, :] = np.array(model.domain_size) * .45
     if model.dim > 1:
         src_coordinates[0, -1] = model.origin[-1] + model.spacing[-1]
 
@@ -25,7 +25,7 @@ def setup_geometry(model, tn, f0=0.010):
 
 
 def setup_rec_coords(model):
-    nrecx = model.shape[0]
+    nrecx = model.shape[0] - 1
     recx = np.linspace(model.origin[0], model.domain_size[0], nrecx)
 
     if model.dim == 1:

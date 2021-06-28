@@ -10,7 +10,7 @@ from cgen import Struct, Value
 
 from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, is_integer
+from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered
 from devito.types import CompositeObject, Object
 
 
@@ -308,29 +308,27 @@ class Distributor(AbstractDistributor):
 
         Parameters
         ----------
-        index : int or list of ints
-            The index, or list of indices, for which the owning MPI rank(s) is
+        index : array of ints
+            The index, or array of indices, for which the owning MPI rank(s) is
             retrieved.
         """
-        assert isinstance(index, (tuple, list))
-        if len(index) == 0:
+        # assert isinstance(index, np.array)
+        if index.shape[0] == 0:
             return None
-        elif is_integer(index[0]):
-            # `index` is a single point
-            indices = [index]
-        else:
-            indices = index
-        ret = []
-        for i in indices:
-            assert len(i) == self.ndim
-            found = False
-            for r, j in enumerate(self.all_ranges):
-                if all(v in j[d] for v, d in zip(i, self.dimensions)):
-                    ret.append(r)
-                    found = True
-                    break
-            assert found
-        return as_tuple(ret)
+        elif sum(index.shape) == 1:
+            return index
+        assert index.shape[1] == self.ndim
+        ret = {}
+
+        for r, j in enumerate(self.all_ranges):
+            mins = np.array([b[0] for b in j]).reshape(1, -1, 1)
+            maxs = np.array([b[-1] for b in j]).reshape(1, -1, 1)
+            inds = np.where(((index <= maxs) & (index >= mins)).all(axis=1))
+            if inds[0].size == 0:
+                continue
+            ret[r] = filter_ordered(inds[0])
+        return ret
+
 
     @property
     def neighborhood(self):
