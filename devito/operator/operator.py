@@ -386,12 +386,13 @@ class Operator(Callable):
         graph = Graph(iet)
         graph = cls._specialize_iet(graph, **kwargs)
 
+        # Add MIN/MAX defines to the IET
+        add_minmax(graph)
+
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
         instrument(graph, profiler=profiler, sregistry=sregistry)
-
-        add_minmax(graph)
 
         return graph.root, graph
 
