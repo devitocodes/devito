@@ -259,10 +259,11 @@ class SyncOp(sympy.Expr, Pickable):
 
     __repr__ = __str__
 
-    __hash__ = sympy.Basic.__hash__
-
     def __eq__(self, other):
         return type(self) == type(other) and self.args == other.args
+
+    def __hash__(self):
+        return hash((type(self), self.args))
 
     # Pickling support
     _pickle_args = ['handle']

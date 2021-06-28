@@ -13,7 +13,7 @@ from cgen import Struct, Value
 from devito.data import default_allocator
 from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
-                          frozendict, memoized_meth)
+                          frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
 from devito.types.lazy import Evaluable
@@ -678,8 +678,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # Does the base object exist at least (e.g. f(x))?
         obj = cls._cache_get(cls)
         if obj is not None:
-            newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(cls)
+            with sympy_mutex:
+                newobj = sympy.Function.__new__(cls, *args, **options)
+            newobj.__init_cached__(obj)
             Cached.__init__(newobj, key)
             return newobj
 
@@ -694,7 +695,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         newcls = type(name, (cls,), dict(cls.__dict__))
 
         # Create the new Function object and invoke __init__
-        newobj = sympy.Function.__new__(newcls, *indices, **options)
+        with sympy_mutex:
+            newobj = sympy.Function.__new__(newcls, *indices, **options)
 
         # Initialization. The following attributes must be available
         # when executing __init_finalize__
@@ -1075,7 +1077,8 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     is_AbstractObject = True
 
     def __new__(cls, *args, **kwargs):
-        obj = sympy.Basic.__new__(cls)
+        with sympy_mutex:
+            obj = sympy.Basic.__new__(cls)
         obj.__init__(*args, **kwargs)
         return obj
 
@@ -1226,7 +1229,8 @@ class IndexedData(sympy.IndexedBase, Pickable):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
             label = Symbol(name=label, dtype=None)
-        obj = sympy.IndexedBase.__new__(cls, label, shape)
+        with sympy_mutex:
+            obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
 
