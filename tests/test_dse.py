@@ -2555,6 +2555,13 @@ class TestIsoAcoustic(object):
 
         assert summary0[('section0', None)].ops == 50
         assert summary0[('section1', None)].ops == 140
+        iter_prod = np.prod(summary0[('section0', None)].itershapes)
+        assert iter_prod == 77175000
+        total_ops = iter_prod * summary0[('section0', None)].ops
+        exec_time = summary0[('section0', None)].time
+        assert np.isclose(total_ops/exec_time, summary0[('section0', None)].gflopss*1e9,
+                          atol=0.001)
+
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 31

@@ -415,6 +415,10 @@ class PerformanceSummary(OrderedDict):
     def globals_all(self):
         v0 = self.globals['vanilla']
         v1 = self.globals['fdlike']
+        assert v0.time == v1.time
+        assert v1.gflopss is None
+        assert v0.gpointss is None
+        assert v1.oi is None
         return PerfEntry(v0.time, v0.gflopss, v1.gpointss, v0.oi, None, None)
 
     @property
