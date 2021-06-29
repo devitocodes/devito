@@ -3,8 +3,8 @@ from devito.symbolics import Literal, Macro
 from devito.tools import as_tuple, flatten, split
 from devito.types import Array, LocalObject
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree',
-           'derive_parameters', 'diff_parameters']
+__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters',
+           'diff_parameters']
 
 
 def retrieve_iteration_tree(node, mode='normal'):

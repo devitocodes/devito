@@ -20,7 +20,8 @@ class CodePrinter(C99CodePrinter):
         'FLOAT': '(float)',
         'FLOATP': '(float*)',
         'DOUBLE': '(double)',
-        'DOUBLEP': '(double*)'}
+        'DOUBLEP': '(double*)',
+    }
 
     """
     Decorator for sympy.printing.ccode.CCodePrinter.

@@ -324,6 +324,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         for tree in retrieve_iteration_tree(iet):
             # Get the parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
+
             if not candidates:
                 continue
 

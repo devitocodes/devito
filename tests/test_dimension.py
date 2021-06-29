@@ -1099,6 +1099,32 @@ class TestConditionalDimension(object):
                 Eq(g, f + 1)]
 
         op = Operator(eqns)
+        trees = retrieve_iteration_tree(op)
+        assert(len(trees) == 4)
+
+        assert(len(trees[0]) == 6)
+        exprs = FindNodes(Expression).visit(trees[0])
+        assert(len(exprs) == 24)
+        trees_in = retrieve_iteration_tree(trees[0])
+        assert(len(trees_in)) == 9
+
+        assert(len(trees[1]) == 1)
+        exprs = FindNodes(Expression).visit(trees[1])
+        assert(len(exprs) == 9)
+        trees_in = retrieve_iteration_tree(trees[1])
+        assert(len(trees_in)) == 4
+
+        assert(len(trees[2]) == 6)
+        exprs = FindNodes(Expression).visit(trees[2])
+        assert(len(exprs) == 24)
+        trees_in = retrieve_iteration_tree(trees[2])
+        assert(len(trees_in)) == 9
+
+        assert(len(trees[3]) == 6)
+        exprs = FindNodes(Expression).visit(trees[3])
+        assert(len(exprs) == 24)
+        trees_in = retrieve_iteration_tree(trees[3])
+        assert(len(trees_in)) == 9
 
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs) == 9
@@ -1166,8 +1192,36 @@ class TestMashup(object):
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
 
+        trees = retrieve_iteration_tree(op)
+        assert(len(trees) == 4)
+
+        assert(len(trees[0]) == 6)
+        exprs = FindNodes(Expression).visit(trees[0])
+        assert(len(exprs) == 15)
+        trees_in = retrieve_iteration_tree(trees[0])
+        assert(len(trees_in)) == 9
+
+        assert(len(trees[1]) == 1)
+        exprs = FindNodes(Expression).visit(trees[1])
+        assert(len(exprs) == 5)
+        trees_in = retrieve_iteration_tree(trees[1])
+        assert(len(trees_in)) == 4
+
+        assert(len(trees[2]) == 6)
+        exprs = FindNodes(Expression).visit(trees[2])
+        assert(len(exprs) == 15)
+        trees_in = retrieve_iteration_tree(trees[2])
+        assert(len(trees_in)) == 9
+
+        assert(len(trees[3]) == 6)
+        exprs = FindNodes(Expression).visit(trees[3])
+        assert(len(exprs) == 10)
+        trees_in = retrieve_iteration_tree(trees[3])
+        assert(len(trees_in)) == 9
+
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs) == 6
+
         assert exprs[1].write is f
         assert exprs[2].write is g
 
@@ -1228,11 +1282,39 @@ class TestMashup(object):
 
         op = Operator(eqns)
 
+        trees = retrieve_iteration_tree(op)
+        assert(len(trees) == 5)
+
+        assert(len(trees[0]) == 6)
+        exprs = FindNodes(Expression).visit(trees[0])
+        assert(len(exprs) == 16)
+        trees_in = retrieve_iteration_tree(trees[0])
+        assert(len(trees_in)) == 10
+
+        assert(len(trees[1]) == 1)
+        exprs = FindNodes(Expression).visit(trees[1])
+        assert(len(exprs) == 6)
+        trees_in = retrieve_iteration_tree(trees[1])
+        assert(len(trees_in)) == 5
+
+        assert(len(trees[2]) == 6)
+        exprs = FindNodes(Expression).visit(trees[2])
+        assert(len(exprs) == 16)
+        trees_in = retrieve_iteration_tree(trees[2])
+        assert(len(trees_in)) == 10
+
+        assert(len(trees[3]) == 6)
+        exprs = FindNodes(Expression).visit(trees[3])
+        assert(len(exprs) == 13)
+        trees_in = retrieve_iteration_tree(trees[3])
+        assert(len(trees_in)) == 12
+
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
 
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs) == 9
+
         assert exprs[3].write is f
         assert exprs[4].write is g
         assert exprs[5].write is fsave

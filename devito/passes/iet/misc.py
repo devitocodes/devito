@@ -151,11 +151,10 @@ def finalize_loop_bounds(iet, **kwargs):
 
     iet = Transformer(mapper, nested=True).visit(iet)
 
-    headers = [('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),
-               ('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))]
-    return iet, {'headers': headers}
+    headers = [('%s(a,b)' % MIN.name, ('(((a) < (b)) ? (a) : (b))')),
+               ('%s(a,b)' % MAX.name, ('(((a) > (b)) ? (a) : (b))'))]
 
-    # return iet, {}
+    return iet, {'headers': headers}
 
 
 def is_on_device(obj, gpu_fit):

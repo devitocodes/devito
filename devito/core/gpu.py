@@ -9,8 +9,7 @@ from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering
                                     cire, cse, extract_increments, factorize,
                                     fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
-                               mpiize, hoist_prodders, is_on_device,
-                               finalize_loop_bounds)
+                               mpiize, hoist_prodders, is_on_device)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -178,9 +177,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         optimize_halospots(graph)
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
-
-        # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        finalize_loop_bounds(graph)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)

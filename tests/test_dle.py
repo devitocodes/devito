@@ -8,7 +8,8 @@ from conftest import _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
                     Dimension, SubDimension, Eq, Inc, Operator, info)
 from devito.exceptions import InvalidArgument
-from devito.ir.iet import Call, Iteration, Conditional, FindNodes, retrieve_iteration_tree
+from devito.ir.iet import (Call, Iteration, FindNodes, FindSections,
+                           retrieve_iteration_tree)
 from devito.passes.iet.languages.openmp import OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -92,7 +93,7 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
                                              'par-collapse-ncores': 1}))
     calls = FindNodes(Call).visit(op)
     assert len(calls) == exp_calls
-    trees = [i for i in retrieve_iteration_tree(op)]
+    trees = retrieve_iteration_tree(op)
     assert len(trees) == 1
     tree = trees[0]
     assert len(tree) == exp_iters
@@ -109,15 +110,8 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
                                              'par-collapse-ncores': 1}))
     trees = retrieve_iteration_tree(op)
     assert len(trees) == 1
-    tree = trees[0]
-    assert len(tree.root.pragmas) == 0
-    assert 'omp for' in trees[0][1].pragmas[0].value
-    # Also, with omp parallelism enabled, the step increment must be != 0
-    # to avoid omp segfaults at scheduling time (only certain omp implementations,
-    # including Intel's)
-    conditionals = FindNodes(Conditional).visit(op)
-
-    assert len(conditionals) == 0
+    assert len(tree[1].pragmas) == 1
+    assert 'omp for' in tree[1].pragmas[0].value
 
 
 def test_cache_blocking_structure_subdims():
@@ -178,7 +172,14 @@ def test_cache_blocking_structure_multiple_efuncs():
     op = Operator(eqns)
 
     assert len(op._func_table) == 7
+    trees = retrieve_iteration_tree(op)
+    assert len(trees) == 3
+    assert len(trees[0]) == 1
+    assert len(trees[1]) == 2
+    assert len(trees[2]) == 6
+
     iters = FindNodes(Iteration).visit(op)
+
     assert len(iters) == 7
     assert iters[2].dim.parent is x
     assert iters[3].dim.parent is y
