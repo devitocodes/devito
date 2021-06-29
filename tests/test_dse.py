@@ -13,7 +13,7 @@ from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
-from devito.passes.clusters.cse import _cse
+from devito.passes.clusters.cse import Temp, _cse
 from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import estimate_cost, pow_to_mul, indexify
 from devito.tools import as_tuple, generator
@@ -108,16 +108,16 @@ def test_cse(exprs, expected):
     tz = TimeFunction(name="tz", grid=grid, space_order=2)  # noqa
     ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
     ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
-    t0 = Scalar(name='t0')  # noqa
-    t1 = Scalar(name='t1')  # noqa
-    t2 = Scalar(name='t2')  # noqa
+    t0 = Temp(name='t0')  # noqa
+    t1 = Temp(name='t1')  # noqa
+    t2 = Temp(name='t2')  # noqa
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
         exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
-    make = lambda: Scalar(name='r%d' % counter()).indexify()
+    make = lambda: Temp(name='r%d' % counter()).indexify()
     processed = _cse(exprs, make)
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
