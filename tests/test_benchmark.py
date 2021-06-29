@@ -8,10 +8,10 @@ from subprocess import check_call
 
 
 @pytest.mark.parametrize('mode, problem, op', [
-    ('bench', 'acoustic', 'forward'), ('run', 'acoustic', 'adjoint'),
-    ('run', 'acoustic', 'jacobian'), ('bench', 'acoustic', 'jacobian_adjoint'),
-    ('bench', 'tti', 'forward'), ('bench', 'elastic', 'forward'),
-    ('bench', 'viscoelastic', 'forward'), ('run', 'acoustic_sa', 'forward'),
+    ('run', 'acoustic', 'forward'), ('run', 'acoustic', 'adjoint'),
+    ('run', 'acoustic', 'jacobian'), ('run', 'acoustic', 'jacobian_adjoint'),
+    ('run', 'tti', 'forward'), ('run', 'elastic', 'forward'),
+    ('run', 'viscoelastic', 'forward'), ('run', 'acoustic_sa', 'forward'),
     ('run', 'acoustic_sa', 'adjoint'), ('run', 'acoustic_sa', 'jacobian'),
     ('run', 'acoustic_sa', 'jacobian_adjoint'), ('run', 'tti', 'jacobian_adjoint')
 ])

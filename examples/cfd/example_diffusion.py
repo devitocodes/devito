@@ -21,13 +21,6 @@ import sympy
 from devito import Grid, Eq, Operator, TimeFunction, solve
 from devito.logger import log
 
-try:
-    from devitobench import Benchmark, Executor, Plotter
-except:
-    Benchmark = None
-    Executor = None
-    Plotter = None
-
 
 def ring_initial(spacing=0.01):
     """Initialise grid with initial condition ("ring")"""
@@ -176,9 +169,6 @@ performance comparison between Devito and "vectorised numpy" we
 recommend using --spacing 0.001 -t 1000.
 """
     parser = ArgumentParser(description=description)
-    parser.add_argument(dest='execmode', nargs='?', default='run',
-                        choices=['run', 'bench', 'plot'],
-                        help="Script mode; either 'run', 'bench' or 'plot' ")
     parser.add_argument('-m', '--mode', nargs='+', default=['devito'],
                         choices=['python', 'numpy', 'lambdify', 'devito'],
                         help="Example modes: python, numpy, lambdify, devito")
@@ -188,10 +178,6 @@ recommend using --spacing 0.001 -t 1000.
                         help='Number of timesteps to run')
     parser.add_argument('--show', action='store_true',
                         help="Show animation of the solution field")
-    parser.add_argument('-i', '--resultsdir', default='results',
-                        help='Directory containing results')
-    parser.add_argument('-o', '--plotdir', default='plots',
-                        help='Directory to store generated plots')
 
     args = parser.parse_args()
     if len(args.spacing) > 2:
@@ -203,51 +189,16 @@ recommend using --spacing 0.001 -t 1000.
     # Create parameters dict and remove script-specific args
     parameters = vars(args).copy()
     del parameters['show']
-    del parameters['execmode']
-    del parameters['resultsdir']
-    del parameters['plotdir']
 
-    if args.execmode == 'run':
-        if len(args.spacing) > 1:
-            raise ValueError("Run mode only supports a single --spacing value")
+    if len(args.spacing) > 1:
+        raise ValueError("Run mode only supports a single --spacing value")
 
-        # Run and animate example runs
-        for mode in args.mode:
-            ui = ring_initial(spacing=args.spacing[0])
-            if args.show:
-                animate(ui)
-            u, _ = exec_func[mode](ui, spacing=args.spacing[0],
-                                   timesteps=args.timesteps)
-            if args.show:
-                animate(u)
-
-    elif args.execmode == 'bench':
-        if Benchmark is None:
-            raise ImportError("Could not find devitobench utility package. Please \n"
-                              "install from https://github.com/devitocodes/devitobench")
-
-        class DiffusionExecutor(Executor):
-            """Executor class that defines how to run the benchmark"""
-            def setup(self, **kwargs):
-                self.ui = ring_initial(spacing=kwargs['spacing'])
-
-            def run(self, *args, **kwargs):
-                u, time = exec_func[kwargs['mode']](self.ui, spacing=kwargs['spacing'],
-                                                    timesteps=kwargs['timesteps'])
-                self.register(time)
-
-        # Run benchmark across parameters and save the result
-        bench = Benchmark(name='Diffusion', resultsdir=args.resultsdir,
-                          parameters=parameters)
-        bench.execute(DiffusionExecutor(), warmups=0, repeats=1)
-        bench.save()
-
-    elif args.execmode == 'plot':
-        # Load previously generated benchmark data
-        bench = Benchmark(name='Diffusion', resultsdir=args.resultsdir,
-                          parameters=parameters)
-        bench.load()
-
-        # Generate the plot from loaded benchmark data
-        plotter = Plotter()
-        plotter.plot_comparison('DiffusionModes.pdf', args.mode, bench.lookup())
+    # Run and animate example runs
+    for mode in args.mode:
+        ui = ring_initial(spacing=args.spacing[0])
+        if args.show:
+            animate(ui)
+        u, _ = exec_func[mode](ui, spacing=args.spacing[0],
+                               timesteps=args.timesteps)
+        if args.show:
+            animate(u)
