@@ -166,12 +166,11 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         assert candidates
         root = candidates[0]
 
-        if is_on_device(root, self.gpu_fit, only_writes=True) and self.par_tile:
+        if self._is_offloadable(root) and self.par_tile:
             if isinstance(self.par_tile, tuple):
                 tile = self.par_tile
             else:
-                # (32,4,4,...) is typically a decent pick and almost always
-                # faster than collapse(...)
+                # (32,4,4,...) is typically a decent choice
                 collapsable = self._find_collapsable(root, candidates)
                 tile = (32,) + (4,)*len(collapsable)
 

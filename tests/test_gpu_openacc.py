@@ -22,7 +22,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'acc parallel loop tile(32,4,4) present(u)'
+            'acc parallel loop collapse(3) present(u)'
         assert op.body[2].header[0].value ==\
             ('acc enter data copyin(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
@@ -51,7 +51,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'acc parallel loop tile(32,4,4) present(u)'
+            'acc parallel loop collapse(3) present(u)'
 
         try:
             Operator(Eq(u.forward, u + 1),
@@ -109,19 +109,19 @@ class TestCodeGeneration(object):
         assert len(trees) == 3
         assert 'present(f)' in str(trees[0][1].pragmas[0])
 
-    def test_notile_collapse(self):
+    def test_tile_insteadof_collapse(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
 
         op = Operator(Eq(u.forward, u + 1), platform='nvidiaX', language='openacc',
-                      opt=('advanced', {'par-tile': False}))
+                      opt=('advanced', {'par-tile': True}))
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'acc parallel loop collapse(3) present(u)'
+            'acc parallel loop tile(32,4,4) present(u)'
 
 
 class TestOperator(object):
