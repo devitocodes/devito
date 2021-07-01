@@ -461,8 +461,8 @@ class TestAliases(object):
         assert tuple(array.halo) == exp_halo
         assert tuple(shape) == tuple(exp_shape)
 
-    @pytest.mark.parametrize('rotate, expected', ([False, True], [1, 1]))
-    def test_full_shape(self, rotate, expected):
+    @pytest.mark.parametrize('rotate', ([False, True]))
+    def test_full_shape(self, rotate):
         """
         Check the shape of the Array used to store an aliasing expression.
         The shape is impacted by loop blocking, which reduces the required
@@ -492,7 +492,7 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == expected
+        assert len(FindNodes(VExpanded).visit(op1)) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -528,6 +528,7 @@ class TestAliases(object):
         ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
+        assert len(FindNodes(VExpanded).visit(op1)) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -564,6 +565,7 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
+        assert len(FindNodes(VExpanded).visit(op1)) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (0, 0)), (xs+2, ys+2, zs), rotate)
 
         # Check numerical output
@@ -601,6 +603,7 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
+
         self.check_array(arrays[0], ((0, 0), (0, 0), (1, 0)), (xs, ys, zs+1))
 
         # Check numerical output
@@ -636,6 +639,8 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
+        assert len(FindNodes(VExpanded).visit(op1)) == 1
+
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -680,6 +685,8 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
+        assert len(FindNodes(VExpanded).visit(op1)) == 2
+
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         self.check_array(arrays[1], ((1, 1), (0, 0)), (ys+2, zs), rotate)
 
@@ -716,6 +723,8 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
+        assert len(FindNodes(VExpanded).visit(op1)) == 1
+
         self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
         self.check_array(arrays[1], ((2, 2), (0, 0)), (ys+4, zs))
 
@@ -800,6 +809,8 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
+        assert len(FindNodes(VExpanded).visit(op1)) == 2
+
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         self.check_array(arrays[1], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
 
@@ -843,6 +854,7 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
+        assert len(FindNodes(VExpanded).visit(op1)) == 2
         self.check_array(arrays[0], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
         self.check_array(arrays[1], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
 
@@ -1114,13 +1126,12 @@ class TestAliases(object):
         # stemming from `d0(v, p0, p1)`
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 6
+        vexpandeds = FindNodes(VExpanded).visit(op1)
+        assert len(vexpandeds) == (2 if configuration['language'] == 'openmp' else 0)
         assert all(i._mem_heap and not i._mem_external for i in arrays)
-
-        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
-
-        assert len(trees) == 3
-
-        exprs = FindNodes(Expression).visit(trees[1])
+        trees = [i for i in retrieve_iteration_tree(op1)]
+        assert len(trees) == 4
+        exprs = FindNodes(Expression).visit(trees[2])
         assert exprs[-1].write is arrays[-1]
         assert arrays[-2] not in exprs[-1].reads
 
@@ -1170,6 +1181,13 @@ class TestAliases(object):
         # Check code generation
         trees = retrieve_iteration_tree(op1)
         assert len(trees) == 6
+        assert len(trees[0]) == 1
+
+        assert trees[1][-1].nodes[0].body[0].write.is_Array
+        assert trees[2][-1].nodes[0].body[0].write is u
+
+        assert trees[4][-1].nodes[0].body[0].write.is_Array
+        assert trees[5][-1].nodes[0].body[0].write is v
 
         exprs = FindNodes(Expression).visit(op1)
 
@@ -1359,7 +1377,7 @@ class TestAliases(object):
 
         op = Operator([pde, df])
 
-        trees = [i for i in retrieve_iteration_tree(op)]
+        trees = retrieve_iteration_tree(op)
 
         assert len(trees) == 3
         assert len(trees[0]) == 3  # time, x, y
@@ -2101,7 +2119,6 @@ class TestAliases(object):
         assert len(arrays) == exp_arrays[1]
         arrays = [i for i in FindSymbols().visit(op3) if i.is_Array]
         exp_inv, exp_sops = exp_arrays[2]
-
         assert len(arrays) == exp_inv + exp_sops
         assert len(FindNodes(VExpanded).visit(op3)) == exp_sops
 
@@ -2140,7 +2157,7 @@ class TestAliases(object):
         op = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
 
         # Check code generation
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array])
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_maxpar_option(self, rotate):
@@ -2163,12 +2180,12 @@ class TestAliases(object):
         op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True, 'cire-rotate': rotate}))
 
         # Check code generation
-        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
+        trees = [i for i in retrieve_iteration_tree(op1)]
 
-        assert len(trees) == 2
-        assert trees[0][1] is trees[1][1]
-        assert trees[0][2] is trees[1][2]
-        assert trees[0][2] is not trees[1][1]
+        assert len(trees) == 3
+        assert trees[1][1] is trees[2][1]
+        assert trees[1][2] is trees[2][2]
+        assert trees[1][2] is not trees[2][1]
 
         # Check numerical output
         op0.apply(time_M=2)
@@ -2560,6 +2577,8 @@ class TestTTI(object):
         assert len(arrays) == 6
         assert all(not i._mem_external for i in arrays)
         assert len([i for i in arrays if i._mem_heap]) == 6
+        vexpanded = 2 if configuration['language'] == 'openmp' else 0
+        assert len(FindNodes(VExpanded).visit(op)) == vexpanded
 
     @skipif(['nompi'])
     @switchconfig(profiling='advanced')

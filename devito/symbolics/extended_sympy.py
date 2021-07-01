@@ -405,8 +405,9 @@ DOUBLEP = Function('DOUBLEP')
 
 FLOOR = Function('floor')
 
-MIN = Function('MIN')
+# Functions used for finalizing loop bounds
 MAX = Function('MAX')
+MIN = Function('MIN')
 
 cast_mapper = {
     np.int: INT,

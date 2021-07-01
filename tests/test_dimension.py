@@ -1257,6 +1257,18 @@ class TestMashup(object):
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
         assert len(FindNodes(Expression).visit(op)) == 6
+        trees = retrieve_iteration_tree(op)
+
+        assert len(FindNodes(Expression).visit(trees[0][1])) == 3
+        assert len(FindNodes(Expression).visit(trees[0][2])) == 3
+        assert len(FindNodes(Expression).visit(trees[1][0])) == 5
+        assert len(trees[0]) == 6
+        assert len(trees[1]) == 1
+        assert len(trees[2]) == 6
+
+        exprs = FindNodes(Expression).visit(trees[1][0])
+        assert exprs[3].write is fsave
+        assert exprs[4].write is gsave
 
     def test_topofusion_w_subdims_conddims_v3(self):
         """

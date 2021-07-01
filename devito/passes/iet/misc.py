@@ -135,12 +135,22 @@ def finalize_loop_bounds(iet, **kwargs):
 
                 # So candidate 2 is
                 # e.g. `domain_max = Max(x_M + 1, x_M)``
-                domain_max = MAX(ub_margin, root_max)
+
+                try:
+                    bool(max(ub_margin, root_max))
+                    domain_max = (max(ub_margin, root_max))
+                except TypeError:
+                    domain_max = MAX(ub_margin, root_max)
 
                 # Finally the iteration's maximum is the minimum of the
                 # candidates 1 and 2
                 # e.g. `iter_max = Min(x0_blk0 + x0_blk0_size, domain_max)``
-                iter_max = MIN(symbolic_max, domain_max)
+
+                try:
+                    bool(min(symbolic_max, domain_max))
+                    iter_max = (min(symbolic_max, domain_max))
+                except TypeError:
+                    iter_max = MIN(symbolic_max, domain_max)
 
             # Store the selected maximum of this iteration's dimension for
             # possible reference in case of children iterations

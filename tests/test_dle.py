@@ -8,8 +8,7 @@ from conftest import _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
                     Dimension, SubDimension, Eq, Inc, Operator, info)
 from devito.exceptions import InvalidArgument
-from devito.ir.iet import (Call, Iteration, FindNodes, FindSections,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (Call, Iteration, FindNodes, retrieve_iteration_tree)
 from devito.passes.iet.languages.openmp import OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -110,8 +109,8 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
                                              'par-collapse-ncores': 1}))
     trees = retrieve_iteration_tree(op)
     assert len(trees) == 1
-    assert len(tree[1].pragmas) == 1
-    assert 'omp for' in tree[1].pragmas[0].value
+    assert len(trees[0][1].pragmas) == 1
+    assert 'omp for' in trees[0][1].pragmas[0].value
 
 
 def test_cache_blocking_structure_subdims():
@@ -138,7 +137,6 @@ def test_cache_blocking_structure_subdims():
     # Non-local SubDimension -> blocking expected
     op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior))
     trees = [i for i in retrieve_iteration_tree(op)]
-
     assert len(trees) == 1
     tree = trees[0]
     assert len(tree) == 6
@@ -289,7 +287,6 @@ def test_cache_blocking_imperfect_nest(blockinner):
 
     # First, check the generated code
     trees = [i for i in retrieve_iteration_tree(op1)]
-
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
     assert all(i is j for i, j in zip(trees[0][:5], trees[1][:5]))
@@ -839,6 +836,9 @@ class TestNestedParallelism(object):
         # Does it compile? Honoring the OpenMP specification isn't trivial
         assert op.cfunction
         iterations = FindNodes(Iteration).visit(op)
-        ompfor_string = str('omp for collapse('+collapsed+') ')
-        scheduling_string = str('schedule('+scheduling+',1)')
-        assert iterations[1].pragmas[0].value == ompfor_string+scheduling_string
+
+        ompfor_string = "".join(['omp for collapse(', collapsed, ')'])
+        scheduling_string = "".join([' schedule(', scheduling, ',1)'])
+
+        assert iterations[1].pragmas[0].value == "".join([ompfor_string,
+                                                          scheduling_string])

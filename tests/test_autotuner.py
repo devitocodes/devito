@@ -5,6 +5,7 @@ from conftest import skipif
 from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
 from devito.data import LEFT
 from devito.core.autotuning import options  # noqa
+from devito.ir import retrieve_iteration_tree
 
 
 @switchconfig(log_level='DEBUG')
@@ -198,7 +199,7 @@ def test_at_w_mpi():
     # to perform the autotuning. Eventually, the result is complete garbage; note
     # also that this autotuning mode disables the halo exchanges
     op.apply(time=-1, autotune=('basic', 'destructive'))
-    assert np.all(f._data_ro_with_inhalo.sum() == 2456)
+    assert np.all(f._data_ro_with_inhalo.sum() == 904)
 
     # Check the halo hasn't been touched during AT
     glb_pos_map = grid.distributor.glb_pos_map
@@ -236,6 +237,12 @@ def test_multiple_blocking():
 
     op = Operator([Eq(u.forward, u + 1), Eq(v.forward, u.forward.dx2 + v + 1)],
                   opt=('blocking', {'openmp': False}))
+
+    trees = retrieve_iteration_tree(op)
+
+    assert len(trees) == 2
+    assert len(trees[0]) == len(trees[1])
+    assert len(trees[0]) == 6
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
