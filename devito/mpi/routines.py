@@ -29,9 +29,10 @@ class HaloExchangeBuilder(object):
     Build IET-based routines to implement MPI halo exchange.
     """
 
-    def __new__(cls, mode, sregistry, **generators):
+    def __new__(cls, mode, language, sregistry, **generators):
         obj = object.__new__(mpi_registry[mode])
 
+        obj._language = language
         obj._sregistry = sregistry
 
         # Unique name generators
@@ -530,7 +531,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsg('msg%d' % key, f, halos)
+        return MPIMsg('msg%d' % key, f, halos, self._language)
 
     def _make_all(self, f, hse, msg):
         df = AliasFunction(name=self.sregistry.make_name(prefix='a'),
@@ -703,7 +704,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsgEnriched('msg%d' % key, f, halos)
+        return MPIMsgEnriched('msg%d' % key, f, halos, self._language)
 
     def _make_all(self, f, hse, msg):
         df = AliasFunction(name=self.sregistry.make_name(prefix='a'),
@@ -1050,15 +1051,16 @@ class MPIMsg(CompositeObject):
         (_C_field_rsend, c_mpirequest_p),
     ]
 
-    def __init__(self, name, target, halos):
+    def __init__(self, name, target, halos, language):
         self._target = target
         self._halos = halos
+        self._language = language
 
-        super(MPIMsg, self).__init__(name, 'msg', self.fields)
+        super().__init__(name, 'msg', self.fields)
 
         # Required for buffer allocation/deallocation before/after jumping/returning
         # to/from C-land
-        self._allocator = default_allocator()
+        self._allocator = default_allocator(language)
         self._memfree_args = []
 
     def __del__(self):
@@ -1082,6 +1084,10 @@ class MPIMsg(CompositeObject):
     @property
     def halos(self):
         return self._halos
+
+    @property
+    def language(self):
+        return self._language
 
     @property
     def npeers(self):
@@ -1118,7 +1124,7 @@ class MPIMsg(CompositeObject):
         self._C_memfree()
 
     # Pickling support
-    _pickle_args = ['name', 'target', 'halos']
+    _pickle_args = ['name', 'target', 'halos', 'language']
 
 
 class MPIMsgEnriched(MPIMsg):
@@ -1136,7 +1142,7 @@ class MPIMsgEnriched(MPIMsg):
     ]
 
     def _arg_defaults(self, alias=None):
-        super(MPIMsgEnriched, self)._arg_defaults(alias)
+        super()._arg_defaults(alias)
 
         function = alias or self.function
         neighborhood = function.grid.distributor.neighborhood
