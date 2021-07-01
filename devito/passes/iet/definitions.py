@@ -1,5 +1,5 @@
 """
-Collection of passes for the declaration, allocation, movement and deallocation
+Collection of passes for the declaration, allocation, transfer and deallocation
 of symbols and data.
 """
 
@@ -11,7 +11,7 @@ import cgen as c
 
 from devito.ir import (EntryFunction, List, LocalExpression, PragmaTransfer,
                        FindSymbols, MapExprStmts, Transformer)
-from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import ListInitializer, ccode
@@ -56,7 +56,7 @@ class DataManager(object):
 
     lang = LangBB
     """
-    The language used to express data allocations, deletions, and host-device movements.
+    The language used to express data allocations, deletions, and host-device transfers.
     """
 
     def __init__(self, sregistry, *args):
@@ -260,17 +260,24 @@ class DataManager(object):
 
         return iet, {}
 
-    @iet_pass
-    def map_onmemspace(self, iet, **kwargs):
+    @iet_visit
+    def derive_transfers(self, iet):
         """
-        Create a new IET where certain symbols have been mapped to one or more
-        extra memory spaces. This may or may not be required depending on the
-        underlying architecture.
+        Collect all symbols that cause host-device data transfer, distinguishing
+        between reads and writes.
+        """
+        return ([], [])
+
+    @iet_pass
+    def place_transfers(self, iet, **kwargs):
+        """
+        Create a new IET with host-device data transfers. This requires mapping
+        symbols to the suitable memory spaces.
         """
         return iet, {}
 
     @iet_pass
-    def place_casts(self, iet):
+    def place_casts(self, iet, **kwargs):
         """
         Create a new IET with the necessary type casts.
 
@@ -279,6 +286,12 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
+        #TODO: WHAT WAS THIS MAPPER FOR EXACTLY? IN ESSENCE, IT WAS USED FOR...:
+        #symbol_names = {i.name for i in FindSymbols('free-symbols').visit(iet)}
+        #symbol_names |= {i.name for i in flatten(mapper.values())}
+        #need_cast = {i for i in need_cast if i.name in symbol_names}
+        mapper = kwargs['mapper']
+
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
         defines = set(FindSymbols('defines').visit(iet))
 
@@ -300,11 +313,12 @@ class DataManager(object):
 
     def process(self, graph):
         """
-        Apply the `map_on_memspace`, `place_definitions` and `place_casts` passes.
+        Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
         """
-        self.map_onmemspace(graph)
+        mapper = self.derive_transfers(graph)
+        self.place_transfers(graph, mapper=mapper)
         self.place_definitions(graph)
-        self.place_casts(graph)
+        self.place_casts(graph, mapper=mapper)
 
 
 class DeviceAwareDataManager(DataManager):
@@ -393,45 +407,57 @@ class DeviceAwareDataManager(DataManager):
 
         return processed
 
+    @iet_visit
+    def derive_transfers(self, iet):
+
+        def needs_transfer(f):
+            return (is_on_device(f, self.gpu_fit) and
+                    f.is_DiscreteFunction and not f.is_AliasFunction)
+
+        writes = set()
+        reads = set()
+        for i, v in MapExprStmts().visit(iet).items():
+            if not i.is_Expression:
+                # No-op
+                continue
+            if not any(isinstance(j, self.lang.DeviceIteration) for j in v):
+                # Not an offloaded Iteration tree
+                continue
+
+            if needs_transfer(i.write):
+                writes.add(i.write)
+            reads.update({r for r in i.reads if needs_transfer(r)})
+
+        return (reads, writes)
+
     @iet_pass
-    def map_onmemspace(self, iet, **kwargs):
+    def place_transfers(self, iet, **kwargs):
 
         @singledispatch
-        def _map_onmemspace(iet):
+        def _place_transfers(iet, mapper):
             return iet, {}
 
-        @_map_onmemspace.register(EntryFunction)
-        def _(iet):
+        @_place_transfers.register(EntryFunction)
+        def _(iet, mapper):
+            try:
+                reads, writes = list(zip(*mapper.values()))
+            except ValueError:
+                return iet, {}
+            reads = set(flatten(reads))
+            writes = set(flatten(writes))
+
             # Special symbol which gives user code control over data deallocations
             devicerm = DeviceRM()
 
-            # Collect written and read-only symbols
-            writes = set()
-            reads = set()
-            for i, v in MapExprStmts().visit(iet).items():
-                if not i.is_Expression:
-                    # No-op
-                    continue
-                if not any(isinstance(j, self.lang.DeviceIteration) for j in v):
-                    # Not an offloaded Iteration tree
-                    continue
-                if i.write.is_AbstractFunction:
-                    writes.add(i.write)
-                reads.update({r for r in i.reads if r.is_AbstractFunction})
-
-            # Populate `storage`
+            #TODO: CHECK THIS... ADDED IF i.is_Array... as per master...
             storage = Storage()
             for i in filter_sorted(writes):
-                if not is_on_device(i, self.gpu_fit):
-                    continue
-                elif i.is_Array:
+                if i.is_Array:
                     self._map_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._map_function_on_high_bw_mem(iet, i, storage, devicerm)
             for i in filter_sorted(reads - writes):
-                if not is_on_device(i, self.gpu_fit):
-                    continue
-                elif i.is_Array:
+                if i.is_Array:
                     self._map_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
@@ -440,4 +466,4 @@ class DeviceAwareDataManager(DataManager):
 
             return iet, {'args': devicerm}
 
-        return _map_onmemspace(iet)
+        return _place_transfers(iet, mapper=kwargs['mapper'])
