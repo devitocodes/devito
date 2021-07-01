@@ -17,7 +17,8 @@ from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, subs_op_args)
 from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
-from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
+from devito.types import (AliasFunction, Array, Dimension, Symbol, LocalObject,
+                          CompositeObject)
 
 __all__ = ['HaloExchangeBuilder', 'mpi_registry']
 
@@ -274,8 +275,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         return
 
     def _make_all(self, f, hse, msg):
-        df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
-                                  dimensions=f.dimensions)
+        df = AliasFunction(name='a', grid=f.grid, shape=f.shape_global,
+                           dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
             key = "".join(str(d) for d in f.dimensions)
@@ -523,8 +524,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return MPIMsg('msg%d' % key, f, halos)
 
     def _make_all(self, f, hse, msg):
-        df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
-                                  dimensions=f.dimensions)
+        df = AliasFunction(name='a', grid=f.grid, shape=f.shape_global,
+                           dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
             key = "".join(str(d) for d in f.dimensions)
@@ -696,8 +697,8 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return MPIMsgEnriched('msg%d' % key, f, halos)
 
     def _make_all(self, f, hse, msg):
-        df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
-                                  dimensions=f.dimensions)
+        df = AliasFunction(name='a', grid=f.grid, shape=f.shape_global,
+                           dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
             # Note: unlike the less smarter builders (superclasses), here we can

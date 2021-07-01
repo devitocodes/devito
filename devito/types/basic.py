@@ -84,6 +84,7 @@ class Basic(object):
     is_Function = False
     is_TimeFunction = False
     is_TempFunction = False
+    is_AliasFunction = False
     is_SparseTimeFunction = False
     is_SparseFunction = False
     is_PrecomputedSparseFunction = False

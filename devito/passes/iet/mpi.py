@@ -5,7 +5,8 @@ from sympy import S
 from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            MapNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
-from devito.mpi import HaloExchangeBuilder, HaloScheme
+from devito.mpi.halo_scheme import HaloScheme
+from devito.mpi.routines import HaloExchangeBuilder
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_mapper, filter_sorted, generator
 
