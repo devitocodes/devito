@@ -15,7 +15,7 @@ from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBu
 from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
-                              IndexedPointer, Macro, subs_op_args)
+                              IndexedPointer, Macro, cast_mapper, subs_op_args)
 from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
 from devito.types import (AliasFunction, Array, Dimension, Symbol, LocalObject,
                           CompositeObject)
@@ -720,6 +720,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return haloupdate, halowait
 
     def _make_haloupdate(self, f, hse, key, msg=None):
+        cast = cast_mapper[(f.dtype, '*')]
         comm = f.grid.distributor._obj_comm
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
@@ -741,7 +742,8 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
-        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
+
+        gather = Call('gather%s' % key, [cast(bufg)] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
@@ -771,6 +773,8 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return
 
     def _make_halowait(self, f, hse, key, msg=None):
+        cast = cast_mapper[(f.dtype, '*')]
+
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
         dim = Dimension(name='i')
@@ -789,7 +793,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
-        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Call('scatter%s' % key, [cast(bufs)] + sizes + [f] + ofss)
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
