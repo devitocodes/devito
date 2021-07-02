@@ -16,6 +16,7 @@ from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.types.basic import Symbol
 from devito.types.equation import Eq, Inc
+from devito.types.utils import IgnoreDimSort
 
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -1605,8 +1606,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             Inc(
                 field,
                 rhs.subs(dim_subs),
-                implicit_dims=tuple(implicit_dims_for_inject),
-                ignore_dimsort=True,
+                implicit_dims=IgnoreDimSort(implicit_dims_for_inject),
             ),
         ]
 
