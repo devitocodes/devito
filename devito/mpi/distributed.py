@@ -312,12 +312,19 @@ class Distributor(AbstractDistributor):
             The index, or array of indices, for which the owning MPI rank(s) is
             retrieved.
         """
-        # assert isinstance(index, np.array)
+        assert isinstance(index, np.ndarray)
         if index.shape[0] == 0:
             return None
         elif sum(index.shape) == 1:
             return index
+        print(index.shape, self.ndim)
         assert index.shape[1] == self.ndim
+
+        # Add singleton dimension at the end if only single gridpoint is passed
+        # instead of support.
+        if len(index.shape) == 2:
+            index = np.expand_dims(index, axis=2)
+
         ret = {}
 
         for r, j in enumerate(self.all_ranges):
@@ -328,7 +335,6 @@ class Distributor(AbstractDistributor):
                 continue
             ret[r] = filter_ordered(inds[0])
         return ret
-
 
     @property
     def neighborhood(self):
