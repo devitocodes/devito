@@ -16,6 +16,8 @@ from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.types.basic import Symbol
 from devito.types.equation import Eq, Inc
+from devito.types.utils import IgnoreDimSort
+
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction', 'MatrixSparseTimeFunction']
@@ -1132,10 +1134,24 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         A scipy-style sparse matrix with a row for each physical
         point in the grid, and a column for each index into the
         data array.
-    r: int
+
+    r: int or Mapping[Dimension, Optional[int]]
         The number of gridpoints in each dimension used to inject/interpolate
         each physical point.  e.g. bi-/tri-linear interplation would use 2 coefficients
         in each dimension.
+
+        The Mapping version of this parameter allows a different number of grid points
+        in each dimension. If a Dimension maps to None, this has a special
+        interpretation - sources are not localised to coordinates in that dimension.
+        This is loosely equivalent to specifying r[dim] = dim_size, and with all
+        gridpoint locations along that dimension equal to zero.
+
+    par_dim: Dimension
+        If set, this is the dimension used to split the sources for parallel
+        injection. The source injection loop becomes a loop over this spatial
+        dimension, and then a loop over sources which touch that spatial
+        dimension coordinate. This defaults to grid.dimensions[0], and if specified
+        must correspond to one of the grid.dimensions.
 
     other parameters as per SparseTimeFunction
 
@@ -1144,6 +1160,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             integer, position (in global coordinates)
             of the _minimum_ index that location index
             `iloc` is interpolated from / injected into, in dimension `idim`
+            where idim is an index into the grid.dimensions
+
         msf.interpolation_coefficients: Dict[Dimension, np.ndarray]
             For each dimension, there is an array of interpolation coefficients
             for each location `iloc`.
@@ -1154,7 +1172,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             These are the coefficients that are multiplied by sample values
             at the gridpoints in the range:
 
-            [msf.gridpoints.data[iloc, idim], msf.gridoints.data[iloc, idim] + r)
+            [msf.gridpoints.data[iloc, idim], msf.gridpoints.data[iloc, idim] + r)
 
     NOTE: *** restriction on space order of functions being sampled/injected into
 
@@ -1204,12 +1222,33 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         # Grid points per sparse point
         r = kwargs.get('r')
-        if r is None or not is_integer(r) or r <= 0:
-            raise ValueError('Interpolation requires parameter `r` (>0)')
-        if r % 2 != 0:
-            raise ValueError('Interpolation requires r to be even')
+        if r is None:
+            raise ValueError('MatrixSparseTimeFunction requires parameter `r`')
+        if is_integer(r):
+            if r <= 0:
+                raise ValueError('MatrixSparseTimeFunction requires r > 0')
 
+            # convert to dictionary with same size in all dims
+            r = {dim: r for dim in self.grid.dimensions}
+
+        # Validate radius is set correctly for all grid dimensions
+        for d in self.grid.dimensions:
+            if d not in r:
+                raise ValueError("dimension %s not specified in r mapping" % d)
+            if r[d] is None:
+                continue
+            if not is_integer(r[d]) or r[d] <= 0:
+                raise ValueError('invalid parameter value r[%s] = %s' % (d, r[d]))
+
+        # TODO is this going to cause some trouble with users of self.r?
         self._radius = r
+
+        # Get the parallelism dimension for injection
+        self._par_dim = kwargs.get("par_dim")
+        if self._par_dim is not None:
+            assert self._par_dim in self.grid.dimensions
+        else:
+            self._par_dim = self.grid.dimensions[0]
 
         # This has one value per dimension (e.g. size=3 for 3D)
         # Maybe this should be unique per SparseFunction,
@@ -1231,17 +1270,26 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # There is a coefficient array per grid dimension
         # I could pack these into one array but that seems less readable?
         self.interpolation_coefficients = {}
+        self.interpolation_coefficients_t_bogus = {}
         self.rdims = []
         for d in self.grid.dimensions:
-            rdim = DefaultDimension(
-                name='r%s_%s' % (d.name, self.name),
-                default_value=self.r)
-            self.rdims.append(rdim)
+            if self._radius[d] is not None:
+                rdim = DefaultDimension(
+                    name='r%s_%s' % (d.name, self.name),
+                    default_value=self._radius[d]
+                )
+                self.rdims.append(rdim)
+                coeff_dim = rdim
+                coeff_shape = self._radius[d]
+            else:
+                coeff_dim = d
+                coeff_shape = self.grid.dimension_map[d].glb
+
             self.interpolation_coefficients[d] = SubFunction(
                 name="%s_coefficients_%s" % (self.name, d.name),
                 dtype=self.dtype,
-                dimensions=(locdim, rdim),
-                shape=(nloc, self.r),
+                dimensions=(locdim, coeff_dim),
+                shape=(nloc, coeff_shape),
                 allocator=self._allocator,
                 space_order=0, parent=self)
 
@@ -1294,33 +1342,35 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         )
 
         # This loop maintains a map of nnz indices which touch each
-        # x coordinate
+        # coordinate of the parallised injection dimension
         # This takes the form of a list of nnz indices, and a start/end
-        # position in that list for each x
-        self.x_to_nnz_dim = Dimension('x_to_nnz_%s' % self.name)
+        # position in that list for each index in the parallel dim
+        self.par_dim_to_nnz_dim = Dimension('par_dim_to_nnz_%s' % self.name)
 
-        self._x_to_nnz_map = SubFunction(
-            name='x_to_nnz_map_%s' % self.name,
+        # This map acts as an indirect sort of the sources according to their
+        # position along the parallelisation dimension
+        self._par_dim_to_nnz_map = SubFunction(
+            name='par_dim_to_nnz_map_%s' % self.name,
             dtype=np.int32,
-            dimensions=(self.x_to_nnz_dim,),
+            dimensions=(self.par_dim_to_nnz_dim,),
             # shape is unknown at this stage
             shape=(1,),
             space_order=0,
             parent=self,
         )
-        self._x_to_nnz_m = SubFunction(
-            name='x_to_nnz_m_%s' % self.name,
+        self._par_dim_to_nnz_m = SubFunction(
+            name='par_dim_to_nnz_m_%s' % self.name,
             dtype=np.int32,
-            dimensions=self.grid.dimensions[0:1],
+            dimensions=(self._par_dim,),
             # shape is unknown at this stage
             shape=(1,),
             space_order=0,
             parent=self,
         )
-        self._x_to_nnz_M = SubFunction(
-            name='x_to_nnz_M_%s' % self.name,
+        self._par_dim_to_nnz_M = SubFunction(
+            name='par_dim_to_nnz_M_%s' % self.name,
             dtype=np.int32,
-            dimensions=self.grid.dimensions[0:1],
+            dimensions=(self._par_dim,),
             # shape is unknown at this stage
             shape=(1,),
             space_order=0,
@@ -1377,22 +1427,23 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         return self._mval
 
     @property
-    def x_to_nnz_map(self):
-        return self._x_to_nnz_map
+    def par_dim_to_nnz_map(self):
+        return self._par_dim_to_nnz_map
 
     @property
-    def x_to_nnz_m(self):
-        return self._x_to_nnz_m
+    def par_dim_to_nnz_m(self):
+        return self._par_dim_to_nnz_m
 
     @property
-    def x_to_nnz_M(self):
-        return self._x_to_nnz_M
+    def par_dim_to_nnz_M(self):
+        return self._par_dim_to_nnz_M
 
     @property
     def _sub_functions(self):
         return ('gridpoints',
                 *['coefficients_%s' % d.name for d in self.grid.dimensions],
-                'mrow', 'mcol', 'mval', 'x_to_nnz_map', 'x_to_nnz_m', 'x_to_nnz_M')
+                'mrow', 'mcol', 'mval', 'par_dim_to_nnz_map',
+                'par_dim_to_nnz_m', 'par_dim_to_nnz_M')
 
     @property
     def r(self):
@@ -1433,7 +1484,14 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         for i, d in enumerate(self.grid.dimensions):
             _, rd = self.interpolation_coefficients[d].dimensions
             coefficients = self.interpolation_coefficients[d].indexed
-            dim_subs.append((d, rd + gridpoints[row, i]))
+
+            # If radius is set to None, then the coefficient array is
+            # actually the full size of the grid dimension itself
+            if self._radius[d] is not None:
+                dim_subs.append((d, rd + gridpoints[row, i]))
+            else:
+                assert d is rd
+
             coeffs.append(coefficients[row, rd])
 
         # Apply optional time symbol substitutions to lhs of assignment
@@ -1457,7 +1515,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         field = indexify(field)
 
         tdim, pdim = self.indices
-        x_to_nnz_dim = self.x_to_nnz_dim
+        par_dim_to_nnz_dim = self.par_dim_to_nnz_dim
         locdim, ddim = self.gridpoints.indices
 
         # Apply optional time symbol substitutions to field and expr
@@ -1470,37 +1528,85 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         mrow = self._mrow.indexed
         mcol = self._mcol.indexed
         mval = self._mval.indexed
-        xtonnz = self._x_to_nnz_map.indexed
+        partonnz = self._par_dim_to_nnz_map.indexed
 
-        nnz_index = xtonnz[x_to_nnz_dim]
+        nnz_index = partonnz[par_dim_to_nnz_dim]
         row = mrow[nnz_index]
         dim_subs = [(pdim, mcol[nnz_index])]
         coeffs = [mval[nnz_index]]
+
+        # Devito requires a fixed ordering of dimensions across
+        # all loops, which means we need to respect that when constructing
+        # the loops for this injection.
+
+        # to that end, we keep the pairs (x, rx) (y, ry) together in the
+        # ordering.
+
+        par_dim_seen = False
+        implicit_dims_for_range = [tdim]
+        implicit_dims_for_inject = [tdim]
 
         for i, d in enumerate(self.grid.dimensions):
             _, rd = self.interpolation_coefficients[d].dimensions
             coefficients = self.interpolation_coefficients[d].indexed
 
-            if i > 0:
-                dim_subs.append((d, rd + gridpoints[row, i]))
-                coeffs.append(coefficients[row, rd])
+            # There are four cases here.
+            if d is self._par_dim:
+                if self._radius[d] is None:
+                    # If d is the parallelism dimension, AND this dimension is
+                    # non-local (i.e. all sources touch all indices, and
+                    # gridpoint for this dim is ignored)
+                    coeffs.append(coefficients[row, d])
+                else:
+                    # d is the parallelism dimension, so the index into
+                    # the coefficients array is derived from the value of
+                    # this dimension minus the gridpoint of the point
+                    coeffs.append(coefficients[row, d - gridpoints[row, i]])
+
+                # loop dim here is always d
+                implicit_dims_for_range.append(d)
+                implicit_dims_for_inject.append(d)
+                implicit_dims_for_inject.append(par_dim_to_nnz_dim)
+                par_dim_seen = True
             else:
-                coeffs.append(coefficients[row, d - gridpoints[row, i]])
+                if self._radius[d] is None:
+                    # d is not the parallelism dimension, AND this dimension
+                    # is non-local (i.e. all sources touch all indices,
+                    # and gridpoint for this dim is ignored)
+
+                    # the loop is therefore over the original dimension d
+                    coeffs.append(coefficients[row, d])
+                    loop_dim = d
+                else:
+                    # d is not the parallelism dimension, and it _is_
+                    # local. In this case the loop is over the radius dimension
+                    # and we need to substitute d with the offset from the
+                    # grid point
+                    dim_subs.append((d, rd + gridpoints[row, i]))
+                    coeffs.append(coefficients[row, rd])
+                    loop_dim = rd
+
+                implicit_dims_for_inject.append(loop_dim)
+                if not par_dim_seen:
+                    implicit_dims_for_range.append(loop_dim)
 
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         out = [
-            Eq(x_to_nnz_dim.symbolic_min, self._x_to_nnz_m, implicit_dims=(tdim,)),
-            Eq(x_to_nnz_dim.symbolic_max, self._x_to_nnz_M, implicit_dims=(tdim,)),
+            Eq(
+                par_dim_to_nnz_dim.symbolic_min,
+                self._par_dim_to_nnz_m,
+                implicit_dims=tuple(implicit_dims_for_range)
+            ),
+            Eq(
+                par_dim_to_nnz_dim.symbolic_max,
+                self._par_dim_to_nnz_M,
+                implicit_dims=tuple(implicit_dims_for_range)
+            ),
             Inc(
                 field,
                 rhs.subs(dim_subs),
-                implicit_dims=(
-                    tdim,
-                    *self.grid.dimensions[0:1],
-                    x_to_nnz_dim,
-                    *self.rdims[1:]
-                )
+                implicit_dims=IgnoreDimSort(implicit_dims_for_inject),
             ),
         ]
 
@@ -1577,6 +1683,13 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             decomp = distributor.decomposition[idim]
             decomp_size = len(decomp)
             dim_breaks = np.empty([2*decomp_size+2], dtype=np.int32)
+
+            dim_r = self.r[dim]
+            if dim_r is None:
+                # size is the whole grid
+                dim_r = self.grid.dimension_map[dim].glb
+
+            # Define the split
             dim_breaks[:-2:2] = [
                 decomp_part[0] - self.r + 1 for decomp_part in decomp]
             dim_breaks[-2] = decomp[-1][-1] + 1 - self.r + 1
@@ -1584,9 +1697,15 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 decomp_part[0] for decomp_part in decomp]
             dim_breaks[-1] = decomp[-1][-1] + 1
 
+            # Handle the radius is None case by ensuring we treat
+            # all grid points in that direction as zero
+            gridpoints_dim = self._gridpoints.data[:, idim]
+            if self.r[dim] is None:
+                gridpoints_dim = np.zeros_like(gridpoints_dim)
+
             try:
                 binned_gridpoints[:, idim] = np.digitize(
-                    self._gridpoints.data[:, idim], dim_breaks)
+                    gridpoints_dim, dim_breaks)
             except ValueError as e:
                 raise ValueError(
                     "decomposition failed!  Are some ranks too skinny?"
@@ -1653,11 +1772,39 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             empty, *[gp_map[bi] for bi in global_rank_to_bins.get(rank, [])]))
             for rank in range(distributor.comm.Get_size())]
 
-    def _build_x_to_nnz(self, active_gp, active_mrow):
-        # sort the injected nonzero indices by x coordinate
-        x_coordinates_nnz = active_gp[active_mrow, 0]
-        reordering = np.argsort(x_coordinates_nnz)
-        x_reordered = x_coordinates_nnz[reordering]
+    def _build_par_dim_to_nnz(self, active_gp, active_mrow):
+        # The case where we parallelise over a non-local index is suboptimal, but
+        # supported. In this case, the actual grid point locations are ignored
+        # and all points are touched.
+
+        pardim_index = self.grid.dimensions.index(self._par_dim)
+
+        if self._radius[self._par_dim] is None:
+            # early exit with degenerate case - no reordering and all coordinate
+            # values touch all parts of the array
+            nnz_M = active_mrow.size - 1
+            return {
+                self._par_dim_to_nnz_map: np.arange(active_mrow.size, dtype=np.int32),
+                self._par_dim_to_nnz_m: np.zeros(
+                    (self.grid.shape_local[pardim_index],), dtype=np.int32
+                ),
+                self._par_dim_to_nnz_M: np.full(
+                    (self.grid.shape_local[pardim_index],), nnz_M, dtype=np.int32
+                ),
+            }
+
+        # Get the radius along the parallel dimension
+        r = self._radius[self._par_dim]
+
+        # now, the parameters can be devito.Data, which doesn't like fancy indexing
+        # very much. So, we convert to regular numpy arrays
+        active_gp = np.array(active_gp)
+        active_mrow = np.array(active_mrow)
+
+        # sort the injected nonzero indices by parallel coordinate
+        pardim_coordinates_nnz = active_gp[active_mrow, pardim_index]
+        reordering = np.argsort(pardim_coordinates_nnz)
+        pardim_reordered = pardim_coordinates_nnz[reordering]
 
         # now each x coordinate that we inject into has a range
         # of relevant entries in the reordered array
@@ -1667,19 +1814,19 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         # this coordinate is touched by any source with gridpoint >= x - r + 1
         # and gridpoint <= x
-        all_xs = np.arange(self.grid.shape_local[0])
+        all_xs = np.arange(self.grid.shape_local[pardim_index])
 
         # This should satisfy:
         # x_reordered[i-1] < x - r + 1 <= x_reordered[i]
-        reordered_m = np.searchsorted(x_reordered, all_xs - self.r + 1, side='left')
+        reordered_m = np.searchsorted(pardim_reordered, all_xs - r + 1, side='left')
         # x_reordered[i-1] <= x < x_reordered[i]
-        reordered_M = np.searchsorted(x_reordered, all_xs, side='right') - 1
+        reordered_M = np.searchsorted(pardim_reordered, all_xs, side='right') - 1
 
         # return output suitable for scatter
         return {
-            self._x_to_nnz_map: reordering.astype(np.int32),
-            self._x_to_nnz_m: reordered_m.astype(np.int32),
-            self._x_to_nnz_M: reordered_M.astype(np.int32),
+            self._par_dim_to_nnz_map: reordering.astype(np.int32),
+            self._par_dim_to_nnz_m: reordered_m.astype(np.int32),
+            self._par_dim_to_nnz_M: reordered_M.astype(np.int32),
         }
 
     def manual_scatter(self, *, data_all_zero=False):
@@ -1695,7 +1842,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 self.mrow: self.mrow.data,
                 self.mcol: self.mcol.data,
                 self.mval: self.mval.data,
-                **self._build_x_to_nnz(self.gridpoints.data, self.mrow.data),
+                **self._build_par_dim_to_nnz(self.gridpoints.data, self.mrow.data),
             }
             return
 
@@ -1718,17 +1865,25 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # Send out gridpoints
         # Send out coefficients
         # Send out matrix rows, cols, data
-        npoint, nloc, nnz, ndim, r, nt = distributor.comm.bcast(
+        r_tuple = tuple(self.r[dim] for dim in self.grid.dimensions)
+
+        npoint, nloc, nnz, ndim, r_tuple_bcast, nt = distributor.comm.bcast(
             (self.npoint,
              self._gridpoints.data.shape[0],
              m_coo.nnz,
              self._gridpoints.data.shape[-1],
-             self.r,
+             r_tuple,
              self.data.shape[self._time_position]), root=0)
 
         # important that all ranks have the same ndims and same r
-        assert r == self.r
+        assert r_tuple == r_tuple_bcast
         assert ndim == self._gridpoints.data.shape[-1]
+
+        # handle None radius
+        r_tuple_no_none = tuple(
+            ri if ri is not None else self.grid.dimension_map[d].glb
+            for ri, d in zip(r_tuple, self.grid.dimensions)
+        )
 
         # now all ranks can allocate the buffers to receive into
         if distributor.myrank != 0:
@@ -1738,7 +1893,9 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 scattered_data = np.empty([nt, npoint], dtype=self.dtype)
             scattered_gp = np.empty([nloc, ndim], dtype=np.int32)
             scattered_coeffs = [
-                np.empty([nloc, r], dtype=self.dtype) for _ in range(ndim)]
+                np.empty([nloc, r_tuple_no_none[idim]], dtype=self.dtype)
+                for idim in range(ndim)
+            ]
             scattered_mrow = np.empty([nnz], dtype=np.int32)
             scattered_mcol = np.empty([nnz], dtype=np.int32)
             scattered_mval = np.empty([nnz], dtype=self.dtype)
@@ -1779,10 +1936,16 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             _left = distributor.decomposition[idim][mycoord][0]
             _right = distributor.decomposition[idim][mycoord][-1] + 1
 
+            this_dim_r = self.r[dim]
+            effective_gridpoints = scattered_gp[active_mrow, idim]
+            if this_dim_r is None:
+                this_dim_r = self.grid.dimension_map[dim].glb
+                effective_gridpoints = np.zeros_like(effective_gridpoints)
+
             # rewrite the matrix to remove the rows in groups 0 and 4
             mask = (
-                (scattered_gp[active_mrow, idim] >= _left - self.r + 1)
-                & (scattered_gp[active_mrow, idim] < _right))
+                (effective_gridpoints >= _left - this_dim_r + 1)
+                & (effective_gridpoints < _right))
 
             which = np.nonzero(mask)
             active_mrow = active_mrow[which]
@@ -1798,22 +1961,30 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             _right = distributor.decomposition[idim][mycoord][-1] + 1
 
             # points to the left have the first few coeffs zeroed
-            trim_size = np.clip(_left - scattered_gp[:, idim], 0, self.r)
-            for ir in range(self.r):
+            this_dim_r = self.r[dim]
+            effective_gridpoints = scattered_gp[:, idim]
+            if this_dim_r is None:
+                this_dim_r = self.grid.dimension_map[dim].glb
+                effective_gridpoints = np.zeros_like(effective_gridpoints)
+
+            trim_size = np.clip(_left - effective_gridpoints, 0, this_dim_r)
+            for ir in range(this_dim_r):
                 # which points need zeroing?
                 mask = (trim_size > ir)
                 scattered_coeffs[idim][mask, ir] = 0
 
             # points to the right have the last few coeffs zeroed
             trim_size = np.clip(
-                scattered_gp[:, idim] - (_right - self.r), 0, self.r)
-            for ir in range(self.r):
+                effective_gridpoints - (_right - this_dim_r), 0, this_dim_r)
+            for ir in range(this_dim_r):
                 # which points need zeroing?
                 mask = (trim_size > ir)
                 scattered_coeffs[idim][mask, -(ir+1)] = 0
 
             # finally, we translate to local coordinates
-            scattered_gp[:, idim] -= _left
+            # no need for this in the broadcasted dimensions
+            if self.r[dim] is not None:
+                scattered_gp[:, idim] -= _left
 
         self.scattered_data = scattered_data
         self.scatter_result = {
@@ -1826,7 +1997,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             self.mrow: active_mrow,
             self.mcol: active_mcol,
             self.mval: active_mval,
-            **self._build_x_to_nnz(scattered_gp, active_mrow),
+            **self._build_par_dim_to_nnz(scattered_gp, active_mrow),
         }
 
     def _dist_scatter(self, data=None):

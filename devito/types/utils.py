@@ -1,7 +1,7 @@
 from devito.tools import EnrichedTuple, Tag
 # Additional Function-related APIs
 
-__all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL']
+__all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'IgnoreDimSort']
 
 
 class Buffer(Tag):
@@ -25,3 +25,9 @@ class DimensionTuple(EnrichedTuple):
             if d._defines & dim._defines:
                 return self._getters[d]
         raise KeyError
+
+
+class IgnoreDimSort(tuple):
+    """A tuple subclass used to wrap the implicit_dims to indicate
+    that the topological sort of other dimensions should not occur."""
+    pass

@@ -30,7 +30,7 @@ def as_list(item, type=None, length=None):
 
 def as_tuple(item, type=None, length=None):
     """
-    Force item to a tuple.
+    Force item to a tuple. Passes tuple subclasses through also.
 
     Partly extracted from: https://github.com/OP2/PyOP2/.
     """
@@ -39,6 +39,9 @@ def as_tuple(item, type=None, length=None):
         t = ()
     elif isinstance(item, (str, sympy.Function)):
         t = (item,)
+    elif isinstance(item, tuple):
+        # this makes tuple subclasses pass through
+        t = item
     else:
         # Convert iterable to list...
         try:
@@ -46,6 +49,7 @@ def as_tuple(item, type=None, length=None):
         # ... or create a list of a single item
         except (TypeError, NotImplementedError):
             t = (item,) * (length or 1)
+
     if length and not len(t) == length:
         raise ValueError("Tuple needs to be of length %d" % length)
     if type and not all(isinstance(i, type) for i in t):

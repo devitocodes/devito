@@ -6,7 +6,7 @@ from sympy import sympify
 from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
                               uxreplace)
 from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
-from devito.types import Dimension, Eq
+from devito.types import Dimension, Eq, IgnoreDimSort
 
 __all__ = ['dimension_sort', 'generate_implicit_exprs', 'lower_exprs']
 
@@ -36,7 +36,10 @@ def dimension_sort(expr):
                                      if isinstance(d, Dimension)])
         return tuple(relation)
 
-    relations = {handle_indexed(i) for i in retrieve_indexed(expr)}
+    if isinstance(expr.implicit_dims, IgnoreDimSort):
+        relations = set()
+    else:
+        relations = {handle_indexed(i) for i in retrieve_indexed(expr)}
 
     # Add in any implicit dimension (typical of scalar temporaries, or Step)
     relations.add(expr.implicit_dims)
