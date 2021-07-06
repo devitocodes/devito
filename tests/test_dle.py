@@ -136,11 +136,11 @@ def test_cache_blocking_structure_subdims():
 
     # Non-local SubDimension -> blocking expected
     op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior))
-    trees = [i for i in retrieve_iteration_tree(op)]
+    trees = retrieve_iteration_tree(op)
     assert len(trees) == 1
     tree = trees[0]
     assert len(tree) == 6
-
+    assert tree[0].dim.is_Time
     assert tree[1].dim.is_Incr and tree[1].dim.parent is xi and tree[1].dim.root is x
     assert tree[2].dim.is_Incr and tree[2].dim.parent is yi and tree[2].dim.root is y
     assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
@@ -286,7 +286,7 @@ def test_cache_blocking_imperfect_nest(blockinner):
     op1 = Operator(eqns, opt=('advanced', {'blockinner': blockinner}))
 
     # First, check the generated code
-    trees = [i for i in retrieve_iteration_tree(op1)]
+    trees = retrieve_iteration_tree(op1)
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
     assert all(i is j for i, j in zip(trees[0][:5], trees[1][:5]))
@@ -335,6 +335,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     op2 = Operator(eq, opt=('advanced-fsg', {'blockinner': blockinner}))
 
     # First, check the generated code
+    # Rule out len(i) <= 1 trees
     trees = [i for i in retrieve_iteration_tree(op2) if len(i) > 1]
 
     assert len(trees) == 2
@@ -343,7 +344,6 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert trees[0][2] is trees[1][2]
     assert trees[0][3] is not trees[1][3]
     assert all(i.dim.is_Incr for i in trees[0][1:3])
-    assert all(i.dim.is_Incr for i in trees[1][1:3])
 
     assert op2.parameters[6] is trees[0][1].step
     assert op2.parameters[6] is trees[1][1].step
@@ -803,22 +803,16 @@ class TestNestedParallelism(object):
                                                 'num_threads(nthreads_nested)')
 
     @pytest.mark.parametrize('exprs,collapsed,scheduling', [
-        (['Eq(u.forward, u + 2)'],
-         '2', 'static'),
-        (['Eq(u.forward, u.dx)'],
-         '2', 'static'),
-        (['Eq(u.forward, u.dy)'],
-         '1', 'static'),
-        (['Eq(u.forward, u.dx.dx)'],
-         '2', 'dynamic'),
-        (['Eq(u.forward, u.dy.dy)'],
-         '1', 'dynamic'),
+        (['Eq(u.forward, u + 2)'], '2', 'static'),
+        (['Eq(u.forward, u.dx)'], '2', 'static'),
+        (['Eq(u.forward, u.dy)'], '1', 'static'),
+        (['Eq(u.forward, u.dx.dx)'], '2', 'dynamic'),
+        (['Eq(u.forward, u.dy.dy)'], '1', 'dynamic'),
     ])
     def test_collapsing_w_wo_halo(self, exprs, collapsed, scheduling):
         """
-        This test ensures correct number of
-        collapsed loops and scheduling for several expressions
-        based on the amount of work (par-dynamic-work).
+        This test ensures correct number of collapsed loops and scheduling for several
+        expressions based on the amount of work (par-dynamic-work).
         """
 
         grid = Grid(shape=(10, 10, 10))

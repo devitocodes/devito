@@ -6,7 +6,7 @@ from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
                                     extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, mpiize,
-                               optimize_halospots, hoist_prodders, finalize_loop_bounds)
+                               optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
@@ -195,7 +195,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
             mpiize(graph, mode=options['mpi'])
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
-        finalize_loop_bounds(graph)
+        relax_incr_dimensions(graph)
 
         # Parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -310,7 +310,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         return {
             'denormals': avoid_denormals,
             'optcomms': optimize_halospots,
-            'blocking': partial(finalize_loop_bounds),
+            'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi']),

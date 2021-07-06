@@ -8,7 +8,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.symbolics import MIN, MAX
 from devito.tools import split, is_integer
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'finalize_loop_bounds', 'is_on_device']
+__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
 
 
 @iet_pass
@@ -55,15 +55,21 @@ def hoist_prodders(iet):
 
 
 @iet_pass
-def finalize_loop_bounds(iet, **kwargs):
+def relax_incr_dimensions(iet, **kwargs):
     """
-    This pass is adjusting the bounds of space-blocked loops in order to
-    include the "remainder regions". The iterations in the input IET span
-    only to the extent of the last space block that can be fully iterated,
+    This pass adjusts the bounds of blocked loops in order to
+    include the "remainder regions". The Iterations in the input IET span
+    only up to the end of the last of the blocks that fully fit in the domain,
     thus missing the "remainder" part.
 
-    A simple example (blocking only), nested Iterations are
-    transformed from:
+    Without the relaxation that occurs in this pass, the only way to iterate over the
+    entire iteration space is to have step increments/ block shapes that are perfect
+    divisors of the iteration space.
+
+    e.g. In case of an iteration space of size 67 and block size 8
+    only 64 iterations would be computed as `67 - 67mod8 = 64`
+
+    A simple 1D example: Nested Iterations are transformed from:
 
     <Iteration x0_blk0; (x_m, x_M, x0_blk0_size)>
         <Iteration x; (x0_blk0, x0_blk0 + x0_blk0_size - 1, 1)>
@@ -85,6 +91,7 @@ def finalize_loop_bounds(iet, **kwargs):
         if root in mapper:
             continue
 
+        assert all(i.direction is Forward for i in iterations)
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Incr)
 
         # Get root symbolic_max out of each outer dimension
@@ -96,56 +103,49 @@ def finalize_loop_bounds(iet, **kwargs):
 
         # Process inner iterations
         for n, i in enumerate(inner):
-            assert i.direction is Forward
             if i.dim.parent in proc_parents_max and i.symbolic_size == i.dim.parent.step:
                 # In hierarchical blocking (BLOCKLEVELS > 1) a parent dimension may
-                # have already been processed as an 'inner' iteration. Since in
-                # hierarchical blocking, block sizes in lower levels always perfectly
-                # divide block sizes of upper levels we can use parent's iteration
-                # maximum.
+                # have already been processed as an 'inner' Iteration. Since in
+                # hierarchical blocking block sizes in lower levels always perfectly
+                # divide block sizes of upper levels we can use the parent's Iteration
+                # maximum
                 iter_max = proc_parents_max[i.dim.parent]
             else:
                 # Candidate 1: symbolic_max of current iteration
                 # Most of the cases pass though this code:
-                # Candidates for iteration's maximum are:
-                # Candidate 1: symbolic_max of current iteration
                 # e.g. `i.symbolic_max = x0_blk0 + x0_blk0_size`
                 symbolic_max = i.symbolic_max
 
                 # Candidate 2: maximum of the root iteration
-                # Candidate 2a: Usualy it is the max of parent/root
-                # dimension, e.g. `x_M`
+                # Candidate 2a: Usually the max of parent/root dimension, e.g. `x_M`
                 root_max = roots_max[i.dim.root]
 
                 # Candidate 2b:
-                # the symbolic_size of an Iteration may exceed the size of a parent's
-                # block size (e.g. after CIRE passes)
-                # e.g.
-                # `i.dim.parent.step = x0_blk1_size`
+                # the `symbolic_size` of an Iteration may exceed the size of a parent's
+                # block size (e.g. after CIRE passes) e.g.
+                # `i.dim.parent.step = x0_blk1_size` while
                 # `i.symbolic_size = x0_blk1_size + 4`
-                # For this case, proper margin should be allowed
-                # in order not to omit loop iterations.
+                # For this case, proper margin should be added in order not to omit
+                # iterations
                 lb_margin = i.symbolic_min - i.dim.symbolic_min
                 size_margin = i.symbolic_size - i.dim.parent.step
                 ub_margin = i.dim.parent.symbolic_max + size_margin + lb_margin
 
-                # So Candidate 2 is the maximum of the
+                # So candidate 2 is the maximum of the
                 # root's max (2a) and the current iteration's required max (2b)
                 # and instead of `x_M` we may need `x_M + 1` or `x_M + 2`
 
                 # So candidate 2 is
                 # e.g. `domain_max = Max(x_M + 1, x_M)``
-
                 try:
                     bool(max(ub_margin, root_max))
                     domain_max = (max(ub_margin, root_max))
                 except TypeError:
                     domain_max = MAX(ub_margin, root_max)
 
-                # Finally the iteration's maximum is the minimum of the
+                # Finally the iteration's maximum is the minimum of
                 # candidates 1 and 2
                 # e.g. `iter_max = Min(x0_blk0 + x0_blk0_size, domain_max)``
-
                 try:
                     bool(min(symbolic_max, domain_max))
                     iter_max = (min(symbolic_max, domain_max))

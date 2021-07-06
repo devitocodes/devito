@@ -461,7 +461,7 @@ class TestAliases(object):
         assert tuple(array.halo) == exp_halo
         assert tuple(shape) == tuple(exp_shape)
 
-    @pytest.mark.parametrize('rotate', ([False, True]))
+    @pytest.mark.parametrize('rotate', [False, True])
     def test_full_shape(self, rotate):
         """
         Check the shape of the Array used to store an aliasing expression.
@@ -603,7 +603,6 @@ class TestAliases(object):
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
-
         self.check_array(arrays[0], ((0, 0), (0, 0), (1, 0)), (xs, ys, zs+1))
 
         # Check numerical output
@@ -640,7 +639,6 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
         assert len(FindNodes(VExpanded).visit(op1)) == 1
-
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -686,7 +684,6 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(op1)) == 2
-
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         self.check_array(arrays[1], ((1, 1), (0, 0)), (ys+2, zs), rotate)
 
@@ -1129,9 +1126,9 @@ class TestAliases(object):
         vexpandeds = FindNodes(VExpanded).visit(op1)
         assert len(vexpandeds) == (2 if configuration['language'] == 'openmp' else 0)
         assert all(i._mem_heap and not i._mem_external for i in arrays)
-        trees = [i for i in retrieve_iteration_tree(op1)]
-        assert len(trees) == 4
-        exprs = FindNodes(Expression).visit(trees[2])
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == (4 if configuration['language'] == 'openmp' else 3)
+        exprs = FindNodes(Expression).visit(trees[-2])
         assert exprs[-1].write is arrays[-1]
         assert arrays[-2] not in exprs[-1].reads
 
@@ -1378,13 +1375,12 @@ class TestAliases(object):
         op = Operator([pde, df])
 
         trees = retrieve_iteration_tree(op)
-
         assert len(trees) == 3
         assert len(trees[0]) == 3  # time, x, y
         assert len(trees[1]) == 2  # time, f
         assert trees[1][0].dim is time
         assert trees[1][1].dim is f
-        assert len(trees[2]) == 5
+        assert len(trees[2]) == 5  # time, f0_blk0, f, x, y
 
     def test_space_invariant_v2(self):
         """
@@ -1639,8 +1635,8 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'cire-mingain': 0}))
 
         # Check code generation
-        trees = retrieve_iteration_tree(op1)
-        assert len(trees) == 2  # Expected two separate blocked loop nests
+        # Expected two separate blocked loop nests
+        assert len(retrieve_iteration_tree(op1)) == 2
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
@@ -1775,8 +1771,7 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 6
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 6
         assert len(FindNodes(VExpanded).visit(op)) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 48)])
@@ -1819,8 +1814,7 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 7
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7
         assert len(FindNodes(VExpanded).visit(op)) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 144), (8, 208)])
@@ -1949,8 +1943,7 @@ class TestAliases(object):
 
         # Check code generation
         assert summary[('section1', None)].ops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
-        assert len(arrays) == 5
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 5
         assert len(FindNodes(VExpanded).visit(op1)) == 1
 
     @switchconfig(profiling='advanced')
@@ -2031,8 +2024,7 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
 
         # Check code generation
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
-        assert len(arrays) == 1
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
         assert len(FindNodes(VExpanded).visit(op1)) == 1
 
         # Check numerical output
@@ -2180,12 +2172,13 @@ class TestAliases(object):
         op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True, 'cire-rotate': rotate}))
 
         # Check code generation
-        trees = [i for i in retrieve_iteration_tree(op1)]
+        trees = retrieve_iteration_tree(op1)
 
-        assert len(trees) == 3
-        assert trees[1][1] is trees[2][1]
-        assert trees[1][2] is trees[2][2]
-        assert trees[1][2] is not trees[2][1]
+        assert len(trees) == (3 if configuration['language'] == 'openmp' else 2)
+
+        assert trees[-2][1] is trees[-1][1]
+        assert trees[-2][2] is trees[-1][2]
+        assert trees[-2][2] is not trees[-1][1]
 
         # Check numerical output
         op0.apply(time_M=2)
@@ -2382,8 +2375,7 @@ class TestAliases(object):
 
         op = Operator(eqn, opt=('advanced', {'openmp': False, 'cire-mingain': 4}))
 
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 1
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
 
     def test_contraction_with_conditional(self):
         """
@@ -2484,6 +2476,7 @@ class TestIsoAcoustic(object):
         u1, rec1, summary1, op1 = self.run_acoustic_forward(opt='advanced')
 
         assert len(op0._func_table) == 0
+        # Rule out len(i) <= 1 trees
         trees = [i for i in retrieve_iteration_tree(op0) if len(i) > 1]
         assert len(trees) == 3  # due to loop blocking
 
@@ -2567,10 +2560,9 @@ class TestTTI(object):
         # Also, in this operator, we expect seven temporary Arrays:
         # * all of the seven Arrays are allocated on the heap
         # * with OpenMP, five Arrays are defined globally, and two additional
-        #   Arrays are defined locally in bf0; otherwise, all of the seven
-        #   Arrays are defined globally and passed as arguments to bf0
+        #   Arrays are defined locally
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        extra_arrays = 2 if configuration['language'] == 'openmp' else 2
+        extra_arrays = 2
         assert len(arrays) == 4 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]

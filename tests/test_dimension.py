@@ -1103,28 +1103,20 @@ class TestConditionalDimension(object):
         assert(len(trees) == 4)
 
         assert(len(trees[0]) == 6)
-        exprs = FindNodes(Expression).visit(trees[0])
-        assert(len(exprs) == 24)
-        trees_in = retrieve_iteration_tree(trees[0])
-        assert(len(trees_in)) == 9
+        assert(len(FindNodes(Expression).visit(trees[0])) == 24)
+        assert(len(retrieve_iteration_tree(trees[0]))) == 9
 
         assert(len(trees[1]) == 1)
-        exprs = FindNodes(Expression).visit(trees[1])
-        assert(len(exprs) == 9)
-        trees_in = retrieve_iteration_tree(trees[1])
-        assert(len(trees_in)) == 4
+        assert(len(FindNodes(Expression).visit(trees[1])) == 9)
+        assert(len(retrieve_iteration_tree(trees[1]))) == 4
 
         assert(len(trees[2]) == 6)
-        exprs = FindNodes(Expression).visit(trees[2])
-        assert(len(exprs) == 24)
-        trees_in = retrieve_iteration_tree(trees[2])
-        assert(len(trees_in)) == 9
+        assert(len(FindNodes(Expression).visit(trees[2])) == 24)
+        assert(len(retrieve_iteration_tree(trees[2]))) == 9
 
         assert(len(trees[3]) == 6)
-        exprs = FindNodes(Expression).visit(trees[3])
-        assert(len(exprs) == 24)
-        trees_in = retrieve_iteration_tree(trees[3])
-        assert(len(trees_in)) == 9
+        assert(len(FindNodes(Expression).visit(trees[3])) == 24)
+        assert(len(retrieve_iteration_tree(trees[3]))) == 9
 
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs) == 9
@@ -1196,28 +1188,20 @@ class TestMashup(object):
         assert(len(trees) == 4)
 
         assert(len(trees[0]) == 6)
-        exprs = FindNodes(Expression).visit(trees[0])
-        assert(len(exprs) == 15)
-        trees_in = retrieve_iteration_tree(trees[0])
-        assert(len(trees_in)) == 9
+        assert(len(FindNodes(Expression).visit(trees[0])) == 15)
+        assert(len(retrieve_iteration_tree(trees[0]))) == 9
 
         assert(len(trees[1]) == 1)
-        exprs = FindNodes(Expression).visit(trees[1])
-        assert(len(exprs) == 5)
-        trees_in = retrieve_iteration_tree(trees[1])
-        assert(len(trees_in)) == 4
+        assert(len(FindNodes(Expression).visit(trees[1])) == 5)
+        assert(len(retrieve_iteration_tree(trees[1]))) == 4
 
         assert(len(trees[2]) == 6)
-        exprs = FindNodes(Expression).visit(trees[2])
-        assert(len(exprs) == 15)
-        trees_in = retrieve_iteration_tree(trees[2])
-        assert(len(trees_in)) == 9
+        assert(len(FindNodes(Expression).visit(trees[2])) == 15)
+        assert(len(retrieve_iteration_tree(trees[2]))) == 9
 
         assert(len(trees[3]) == 6)
-        exprs = FindNodes(Expression).visit(trees[3])
-        assert(len(exprs) == 10)
-        trees_in = retrieve_iteration_tree(trees[3])
-        assert(len(trees_in)) == 9
+        assert(len(FindNodes(Expression).visit(trees[3])) == 10)
+        assert(len(retrieve_iteration_tree(trees[3]))) == 9
 
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs) == 6
@@ -1298,28 +1282,20 @@ class TestMashup(object):
         assert(len(trees) == 5)
 
         assert(len(trees[0]) == 6)
-        exprs = FindNodes(Expression).visit(trees[0])
-        assert(len(exprs) == 16)
-        trees_in = retrieve_iteration_tree(trees[0])
-        assert(len(trees_in)) == 10
+        assert(len(FindNodes(Expression).visit(trees[0])) == 16)
+        assert(len(retrieve_iteration_tree(trees[0]))) == 10
 
         assert(len(trees[1]) == 1)
-        exprs = FindNodes(Expression).visit(trees[1])
-        assert(len(exprs) == 6)
-        trees_in = retrieve_iteration_tree(trees[1])
-        assert(len(trees_in)) == 5
+        assert(len(FindNodes(Expression).visit(trees[1])) == 6)
+        assert(len(retrieve_iteration_tree(trees[1]))) == 5
 
         assert(len(trees[2]) == 6)
-        exprs = FindNodes(Expression).visit(trees[2])
-        assert(len(exprs) == 16)
-        trees_in = retrieve_iteration_tree(trees[2])
-        assert(len(trees_in)) == 10
+        assert(len(FindNodes(Expression).visit(trees[2])) == 16)
+        assert(len(retrieve_iteration_tree(trees[2]))) == 10
 
         assert(len(trees[3]) == 6)
-        exprs = FindNodes(Expression).visit(trees[3])
-        assert(len(exprs) == 13)
-        trees_in = retrieve_iteration_tree(trees[3])
-        assert(len(trees_in)) == 12
+        assert(len(FindNodes(Expression).visit(trees[3])) == 13)
+        assert(len(retrieve_iteration_tree(trees[3]))) == 12
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
