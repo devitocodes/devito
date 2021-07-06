@@ -1051,7 +1051,7 @@ class MPIMsg(CompositeObject):
         (_C_field_rsend, c_mpirequest_p),
     ]
 
-    def __init__(self, name, target, halos, language):
+    def __init__(self, name, target, halos, language=None):
         self._target = target
         self._halos = halos
         self._language = language
@@ -1124,7 +1124,8 @@ class MPIMsg(CompositeObject):
         self._C_memfree()
 
     # Pickling support
-    _pickle_args = ['name', 'target', 'halos', 'language']
+    _pickle_args = ['name', 'target', 'halos']
+    _pickle_kwargs = CompositeObject._pickle_kwargs + ['language']
 
 
 class MPIMsgEnriched(MPIMsg):
