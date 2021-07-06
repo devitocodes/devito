@@ -57,19 +57,13 @@ def hoist_prodders(iet):
 @iet_pass
 def relax_incr_dimensions(iet, **kwargs):
     """
-    This pass adjusts the bounds of blocked loops in order to
-    include the "remainder regions". The Iterations in the input IET span
-    only up to the end of the last of the blocks that fully fit in the domain,
-    thus missing the "remainder" part.
+    This pass adjusts the bounds of blocked Iterations in order to include the "remainder
+    regions".  Without the relaxation that occurs in this pass, the only way to iterate
+    over the entire iteration space is to have step increments that are perfect divisors
+    of the iteration space (e.g. in case of an iteration space of size 67 and block size
+    8 only 64 iterations would be computed as `67 - 67mod8 = 64`
 
-    Without the relaxation that occurs in this pass, the only way to iterate over the
-    entire iteration space is to have step increments/ block shapes that are perfect
-    divisors of the iteration space.
-
-    e.g. In case of an iteration space of size 67 and block size 8
-    only 64 iterations would be computed as `67 - 67mod8 = 64`
-
-    A simple 1D example: Nested Iterations are transformed from:
+    A simple 1D example: nested Iterations are transformed from:
 
     <Iteration x0_blk0; (x_m, x_M, x0_blk0_size)>
         <Iteration x; (x0_blk0, x0_blk0 + x0_blk0_size - 1, 1)>
@@ -94,67 +88,56 @@ def relax_incr_dimensions(iet, **kwargs):
         assert all(i.direction is Forward for i in iterations)
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Incr)
 
-        # Get root symbolic_max out of each outer dimension
+        # Get root's `symbolic_max` out of each outer Dimension
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
-        # A dictionary to map maximum of processed parent dimensions
-        # Helps to neatly handle bounds in hierarchical blocking
+        # A dictionary to map maximum of processed parent dimensions. Helps to neatly
+        # handle bounds in hierarchical blocking and subdimensions
         proc_parents_max = {}
 
-        # Process inner iterations
+        # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
             if i.dim.parent in proc_parents_max and i.symbolic_size == i.dim.parent.step:
-                # In hierarchical blocking (BLOCKLEVELS > 1) a parent dimension may
-                # have already been processed as an 'inner' Iteration. Since in
-                # hierarchical blocking block sizes in lower levels always perfectly
-                # divide block sizes of upper levels we can use the parent's Iteration
-                # maximum
+                # Case A: An Iteration has a parent Dimension that has already been
+                # processed as an 'inner' Iteration. Mainly encountered in hierarchical
+                # blocking (BLOCKLEVELS > 1). In hierarchical blocking block sizes in
+                # lower levels perfectly divide block sizes of upper levels so we can
+                # use the parent's Iteration maximum
                 iter_max = proc_parents_max[i.dim.parent]
             else:
-                # Candidate 1: symbolic_max of current iteration
-                # Most of the cases pass though this code:
-                # e.g. `i.symbolic_max = x0_blk0 + x0_blk0_size`
-                symbolic_max = i.symbolic_max
+                # Case B: General case, most of the cases pass through here. There are
+                # two candidates for the Iteration's maximum (C1 and C2), C1 denotes the
+                # upper bound of the "main" blocked area and C2 the upper bound of the
+                # "remainder area". The Iteration's maximum is MIN(C1, C2)
 
-                # Candidate 2: maximum of the root iteration
-                # Candidate 2a: Usually the max of parent/root dimension, e.g. `x_M`
-                root_max = roots_max[i.dim.root]
+                # Candidate 1 (C1): `symbolic_max` of current Iteration, the maximum of
+                # step increments e.g. `i.symbolic_max = x0_blk0 + x0_blk0_size`
 
-                # Candidate 2b:
-                # the `symbolic_size` of an Iteration may exceed the size of a parent's
-                # block size (e.g. after CIRE passes) e.g.
+                # Candidate 2 (C2): maximum of the root Iteration. It is usually the max
+                # of root Dimension, e.g. `x_M` though there are some corner cases where
+                # the maximum needs to be exceeded (e.g. after CIRE passes). We get this
+                # additional margin by checking the the `symbolic_size` of the Iteration
+                # compared to the size of a parent's block size  e.g.
                 # `i.dim.parent.step = x0_blk1_size` while
                 # `i.symbolic_size = x0_blk1_size + 4`
-                # For this case, proper margin should be added in order not to omit
-                # iterations
-                lb_margin = i.symbolic_min - i.dim.symbolic_min
-                size_margin = i.symbolic_size - i.dim.parent.step
-                ub_margin = i.dim.parent.symbolic_max + size_margin + lb_margin
+                # This margin of `4` needs to be added to the "remainder" maximum in
+                # order not to omit iterations That may result in using `x_M + 1` or
+                # `x_M + 4` instead of the expected `x_M`.
 
-                # So candidate 2 is the maximum of the
-                # root's max (2a) and the current iteration's required max (2b)
-                # and instead of `x_M` we may need `x_M + 1` or `x_M + 2`
+                root_max = roots_max[i.dim.root]
+                lb_margin = i.symbolic_min - i.dim.symbolic_min  # lower bound margin
+                size_margin = i.symbolic_size - i.dim.parent.step  # symbolic size margin
 
-                # So candidate 2 is
-                # e.g. `domain_max = Max(x_M + 1, x_M)``
+                domain_max = root_max + size_margin + lb_margin  # root max extended
+
+                # Finally the Iteration's maximum is the minimum of C1 and C2
+                # e.g. `iter_max = MIN(x0_blk0 + x0_blk0_size, domain_max)``
                 try:
-                    bool(max(ub_margin, root_max))
-                    domain_max = (max(ub_margin, root_max))
+                    bool(min(i.symbolic_max, domain_max))
+                    iter_max = (min(i.symbolic_max, domain_max))
                 except TypeError:
-                    domain_max = MAX(ub_margin, root_max)
+                    iter_max = MIN(i.symbolic_max, domain_max)
 
-                # Finally the iteration's maximum is the minimum of
-                # candidates 1 and 2
-                # e.g. `iter_max = Min(x0_blk0 + x0_blk0_size, domain_max)``
-                try:
-                    bool(min(symbolic_max, domain_max))
-                    iter_max = (min(symbolic_max, domain_max))
-                except TypeError:
-                    iter_max = MIN(symbolic_max, domain_max)
-
-            # Store the selected maximum of this iteration's dimension for
-            # possible reference in case of children iterations
-            # Usually encountered in subdims and hierarchical blocking
             proc_parents_max[i.dim] = iter_max
 
             mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))

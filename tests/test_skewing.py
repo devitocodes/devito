@@ -1,7 +1,8 @@
 import pytest
+import numpy as np
 
-from devito.symbolics import MIN, MAX
-from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator # noqa
+from devito.symbolics import MIN
+from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, norm # noqa
 from devito.ir import Expression, Iteration, FindNodes
 
 
@@ -10,15 +11,18 @@ class TestCodeGenSkewing(object):
     '''
     Test code generation with blocking+skewing, tests adapted from test_operator.py
     '''
-    @pytest.mark.parametrize('expr, expected', [
+    @pytest.mark.parametrize('expr, expected, norm_u, norm_v', [
         (['Eq(u.forward, u + 1)',
-          'Eq(u[t1,x-time+1,y-time+1,z+1],u[t0,x-time+1,y-time+1,z+1]+1)']),
+          'Eq(u[t1,x-time+1,y-time+1,z+1],u[t0,x-time+1,y-time+1,z+1]+1)',
+         40.58325, 0]),
         (['Eq(u.forward, v + 1)',
-          'Eq(u[t1,x-time+1,y-time+1,z+1],v[t0,x-time+1,y-time+1,z+1]+1)']),
+          'Eq(u[t1,x-time+1,y-time+1,z+1],v[t0,x-time+1,y-time+1,z+1]+1)',
+         7.3484693, 0.0]),
         (['Eq(u, v + 1)',
-          'Eq(u[t0,x-time+1,y-time+1,z+1],v[t0,x-time+1,y-time+1,z+1]+1)']),
+          'Eq(u[t0,x-time+1,y-time+1,z+1],v[t0,x-time+1,y-time+1,z+1]+1)',
+         7.3484693, 0.0]),
     ])
-    def test_skewed_bounds(self, expr, expected):
+    def test_skewed_bounds(self, expr, expected, norm_u, norm_v):
         """Tests code generation on skewed indices."""
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
@@ -45,18 +49,25 @@ class TestCodeGenSkewing(object):
         assert (iters[3].symbolic_min == (iters[1].dim + time))
         assert (iters[3].symbolic_max == MIN(iters[1].dim + time +
                                              iters[1].dim.symbolic_incr - 1,
-                                             MAX(iters[1].dim.symbolic_max + time,
-                                             iters[1].dim.symbolic_max)))
+                                             iters[1].dim.symbolic_max + time))
         assert (iters[4].symbolic_min == (iters[2].dim + time))
         assert (iters[4].symbolic_max == MIN(iters[2].dim + time +
                                              iters[2].dim.symbolic_incr - 1,
-                                             MAX(iters[2].dim.symbolic_max + time,
-                                             iters[2].dim.symbolic_max)))
+                                             iters[2].dim.symbolic_max + time))
 
         assert (iters[5].symbolic_min == (iters[5].dim.symbolic_min))
         assert (iters[5].symbolic_max == (iters[5].dim.symbolic_max))
         skewed = [i.expr for i in FindNodes(Expression).visit(op)]
         assert str(skewed[0]).replace(' ', '') == expected
+        assert np.isclose(norm(u), norm_u, rtol=1e-5)
+        assert np.isclose(norm(v), norm_v, rtol=1e-5)
+
+        u.data[:] = 0
+        v.data[:] = 0
+        op2 = Operator(eqn, opt=('advanced'))
+        op2.apply(time_M=5)
+        assert np.isclose(norm(u), norm_u, rtol=1e-5)
+        assert np.isclose(norm(v), norm_v, rtol=1e-5)
 
     '''
     Test code generation with skewing, tests adapted from test_operator.py
