@@ -166,13 +166,17 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         assert candidates
         root = candidates[0]
 
-        if self._is_offloadable(root) and self.par_tile:
+        collapsable = self._find_collapsable(root, candidates)
+        ncollapsable = len(collapsable)
+
+        if self._is_offloadable(root) and \
+           all(i.is_Affine for i in [root] + collapsable) and \
+           self.par_tile:
             if isinstance(self.par_tile, tuple):
-                tile = self.par_tile
+                tile = self.par_tile[:ncollapsable + 1]
             else:
                 # (32,4,4,...) is typically a decent choice
-                collapsable = self._find_collapsable(root, candidates)
-                tile = (32,) + (4,)*len(collapsable)
+                tile = (32,) + (4,)*ncollapsable
 
             body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile, **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
