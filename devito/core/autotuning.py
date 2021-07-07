@@ -89,15 +89,15 @@ def autotune(operator, args, level, mode):
 
     # Perform autotuning
     timings = {}
-    processed = []
+    seen = set()
     for n, tree in enumerate(trees):
         blockable = [i.dim for i in tree if not is_integer(i.step)]
         # Drop dimensions that have been already tested
-        # Encountered in cases where blockable appear more than once under a tree
-        if all(i in processed for i in blockable):
+        # Encountered when `blockable` appear more than once under a tree
+        if all(i in seen for i in blockable):
             continue
 
-        processed.extend(blockable)
+        seen.update(blockable)
         # Tunable arguments
         try:
             tunable = []
