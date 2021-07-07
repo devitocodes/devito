@@ -17,8 +17,8 @@ from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
 from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
-from devito.types import (AliasFunction, Array, Dimension, Symbol, LocalObject,
-                          CompositeObject)
+from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
+from devito.types.dense import AliasFunction
 
 __all__ = ['HaloExchangeBuilder', 'mpi_registry']
 

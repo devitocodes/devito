@@ -27,7 +27,7 @@ from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
-__all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction', 'AliasFunction']
+__all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
@@ -1622,8 +1622,6 @@ class AliasFunction(DiscreteFunction):
 
     Like a TempFunction, an AliasFunction does not carry data.
     """
-
-    is_AliasFunction = True
 
     __indices_setup__ = Function.__indices_setup__
     __shape_setup__ = Function.__shape_setup__
