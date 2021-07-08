@@ -16,7 +16,7 @@ _PRECISION = 9
 
 @check_input
 def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
-                     x0=None, coeffs=None):
+                     x0=None, coeffs=None, indices=None):
     """
     First-order derivative of a given expression.
 
@@ -39,6 +39,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
         Origin of the finite-difference scheme as a map dim: origin_dim.
     coeffs : iterable or Function, optional
         Set of custom finite-difference weights.
+    indices : iterable, optional
+        The set of indices at which to apply coeffs.
 
     Returns
     -------
@@ -86,11 +88,12 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind = generate_indices(expr, dim, order, side=side, x0=x0)[0]
+    ind = list(indices) if indices else generate_indices(expr, dim, order, side=side, x0=x0)[0]
 
     # Finite difference weights from Taylor approximation with these positions
     # NOTE: fix up - add function case
     if coeffs:
+        #TODO: if indices not none add consistency check
         c = list(coeffs)
     else:
         c = numeric_weights(1, ind, dim)
@@ -223,8 +226,8 @@ g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
 
 
 @check_input
-def generic_derivative(expr, dim, fd_order, deriv_order,
-                       matvec=direct, x0=None, coeffs=None):
+def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct,
+                       x0=None, coeffs=None, indices=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -256,7 +259,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order,
     if deriv_order == 1 and fd_order == 2 and not coeffs:
         fd_order = 1
     # Stencil positions
-    indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
+    if indices:
+        indices = list(indices)
+    else:
+        indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
 
     # Finite difference weights from Taylor approximation with these positions
     # NOTE: Fix me. Add function case
