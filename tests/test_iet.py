@@ -217,8 +217,8 @@ def test_make_cpp_parfor():
     assert str(parfor) == """\
 void parallel_for(const int first, const int last, FuncType&& func, const int nthreads)
 {
-  int threshold = 1;
-  int portion = std::max(threshold, (-first + last)/nthreads);
+  const int threshold = 1;
+  const int portion = std::max(threshold, (-first + last)/nthreads);
   threads.reserve(nthreads);
   for (int it = first; it <= last; it += portion)
   {
