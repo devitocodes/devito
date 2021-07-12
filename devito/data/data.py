@@ -3,6 +3,8 @@ from functools import wraps
 
 import numpy as np
 
+from ctypes import c_void_p
+
 from devito.data.allocators import ALLOC_FLAT
 from devito.data.utils import *
 from devito.logger import warning
@@ -280,7 +282,11 @@ class Data(np.ndarray, DataMixin):
     @property
     def asnumpy(self):
         return self
-    
+
+    @property
+    def ptr(self):
+        return self.ctypes.data_as(c_void_p)
+
     def _check_idx(func):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)

@@ -681,7 +681,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         an Operator.
         """
         dataobj = byref(self._C_ctype._type_())
-        dataobj._obj.data = data.ctypes.data_as(c_void_p)
+        dataobj._obj.data = data.ptr
         dataobj._obj.size = (c_int*self.ndim)(*data.shape)
         # MPI-related fields
         dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
