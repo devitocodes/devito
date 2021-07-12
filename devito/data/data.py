@@ -6,7 +6,7 @@ import cupy as cp
 
 from ctypes import c_void_p
 
-from devito.data.allocators import ALLOC_FLAT
+from devito.data.allocators import ALLOC_FLAT, cupy_allocator
 from devito.data.utils import *
 from devito.logger import warning
 from devito.parameters import configuration
@@ -14,7 +14,7 @@ from devito.tools import Tag, as_tuple, as_list, is_integer
 
 import inspect
 
-__all__ = ['Data']
+__all__ = ['Data', 'DataFactory']
 
 class DataMixin:
 
@@ -153,6 +153,17 @@ class DataMixin:
             else:
                 mapped_idx.append(None)
         return as_tuple(mapped_idx)
+
+
+class DataFactory:
+    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT,
+                distributor=None):
+        if isinstance(allocator, cupy_allocator):
+            return CuPyData(shape, dtype, decomposition=decomposition, modulo=modulo, 
+                             allocator=allocator, distributor=distributor)
+        else:
+            return Data(shape, dtype, decomposition=decomposition, modulo=modulo, 
+                             allocator=allocator, distributor=distributor)
 
 
 class CuPyData(DataMixin):

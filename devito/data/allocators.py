@@ -15,7 +15,7 @@ from devito.tools import dtype_to_ctype
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
-           'default_allocator']
+           'default_allocator', 'cupy_allocator']
 
 
 class MemoryAllocator(object):
@@ -366,6 +366,11 @@ class ExternalAllocator(MemoryAllocator):
             (str(self.numpy_array.dtype), str(dtype))
 
         return (self.numpy_array, None)
+
+
+class cupy_allocator(MemoryAllocator):
+    def __init__(self):
+        pass
 
 
 ALLOC_GUARD = GuardAllocator(1048576)

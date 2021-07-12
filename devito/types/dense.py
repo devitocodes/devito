@@ -12,7 +12,7 @@ from cgen import Struct, Value
 
 from devito.builtins import assign
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
-                         Data, default_allocator)
+                         DataFactory, default_allocator)
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -117,7 +117,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 CacheManager.clear(force=False)
 
                 # Allocate the actual data object
-                self._data = Data(self.shape_allocated, self.dtype,
+                self._data = DataFactory(self.shape_allocated, self.dtype,
                                   modulo=self._mask_modulo, allocator=self._allocator,
                                   distributor=self._distributor)
 
