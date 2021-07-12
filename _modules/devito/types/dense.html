@@ -18,7 +18,7 @@
 
   
   
-    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
+    <link rel="shortcut icon" href="../../../_static/_static/devito_logo.png"/>
   
 
   
@@ -63,7 +63,7 @@
 
           
             
-            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/_static/devito_logo.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -1775,6 +1775,31 @@
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;pointer_dim&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">AliasFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tensor symbol that &quot;aliases&quot; another DiscreteFunction. Aliasing here means that</span>
+<span class="sd">    the AliasFunction logically represents another object. This is most commonly used</span>
+<span class="sd">    when we have a generic routine `foo(af, ...)` that we need to apply to multiple</span>
+<span class="sd">    DiscreteFunctions; here `af` is an AliasFunction, used in the body of `foo`.</span>
+
+<span class="sd">    Like a TempFunction, an AliasFunction does not carry data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__indices_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span>
+    <span class="n">__shape_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__shape_setup__</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Any attempt at allocating data by the user should fail miserably</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;AliasFunction cannot allocate data&quot;</span><span class="p">)</span>
+
+    <span class="n">data_domain</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">data_with_halo</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">data_ro_domain</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">data_ro_with_halo</span> <span class="o">=</span> <span class="n">data</span>
 </pre></div>
 
            </div>
