@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from functools import wraps
 
 import numpy as np
+import cupy as cp
 
 from ctypes import c_void_p
 
@@ -152,6 +153,303 @@ class DataMixin:
             else:
                 mapped_idx.append(None)
         return as_tuple(mapped_idx)
+
+
+class CuPyData(DataMixin):
+    def __init__(self, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT,
+                distributor=None, data=None):
+
+        # assert len(shape) == len(modulo) # issue?
+        self._allocator = allocator
+        self._decomposition = decomposition or (None,)*len(shape)
+        self._modulo = modulo or (False,)*len(shape)
+        self._distributor = distributor
+
+        # Since we're not subclassing numpy.ndarray and DiscreteFunciton sees Data
+        # as a numpy subclass
+        self.dtype = dtype
+        self.ctypes = None
+        self.ndim = len(shape)
+
+        # This cannot be a property, as Data objects constructed from this
+        # object might not have any `decomposition`, but they would still be
+        # distributed. Hence, in `__array_finalize__` we must copy this value
+        self._is_distributed = any(i is not None for i in self._decomposition)
+
+        # Saves the last index used in `__getitem__`. This allows `__array_finalize__`
+        # to reconstruct information about the computed view (e.g., `decomposition`)
+        self._index_stash = None
+
+        # Sanity check -- A Dimension can't be at the same time modulo-iterated
+        # and MPI-distributed
+        assert all(i is None for i, j in zip(self._decomposition, self._modulo)
+                   if j is True)
+
+        ngpus = cp.cuda.runtime.getDeviceCount()
+        rank = self._distributor.comm.Get_rank()
+        deviceid = rank % ngpus
+        
+        cp.cuda.Device(deviceid).use()
+
+        if isinstance(data, cp.ndarray):
+            cparray = cp.asarray(data)
+        elif isinstance(data, CuPyData): # TESTING
+            cparray = data.ndarray
+        else:
+            cparray = cp.empty(shape, dtype=dtype)
+
+        self.ndarray = cparray
+        
+        self._memfree_args = self.ndarray
+
+        self.ptr = self.ndarray.data.ptr
+        self.shape = self.ndarray.shape
+
+    def fill(self, val):
+        self.ndarray.fill(val)
+    
+    def __del__(self):
+        if getattr(self, "_memfree_args", None) is None:
+            # NOTE: The need for `getattr`, in place of `self._memfree_args`, was
+            # suggested for the first time in issue #1184. However, it appears
+            # that even though, as described in the issue, we initialize the
+            # attribute in `__array_finalize__`, an AttributeError exception may
+            # still be raised in some obscure situations. Our best explanation
+            # so far is that this is due to (un)pickling (as often used in a
+            # Dask/Distributed context), which may (re)create a Data object
+            # without going through `__array_finalize__`
+            # print("_memfree_args doesn't exist!")
+            return
+        del self.ndarray
+        self._memfree_args = None
+
+    @property
+    def asnumpy(self):
+        return cp.asnumpy(self.ndarray)
+      
+    def _global(self, glb_idx, decomposition):
+        """A "global" view of ``self`` over a given Decomposition."""
+        if self._is_distributed:
+            raise ValueError("Cannot derive a decomposed view from a decomposed Data")
+        if len(decomposition) != self.ndim:
+            raise ValueError("`decomposition` should have ndim=%d entries" % self.ndim)
+
+        ret = CuPyData(self[glb_idx].shape, self.dtype, self._decomposition, self._modulo,
+                       self._allocator, self._distributor, self[glb_idx])
+        ret._decomposition = decomposition
+        ret._is_distributed = any(i is not None for i in decomposition)
+        return ret
+
+    def _check_idx(func):
+        """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
+        @wraps(func)
+        def wrapper(data, *args, **kwargs):
+            glb_idx = args[0]
+            if len(args) > 1 and isinstance(args[1], Data) \
+                    and args[1]._is_mpi_distributed:
+                comm_type = index_by_index
+            elif data._is_mpi_distributed:
+                for i in as_tuple(glb_idx):
+                    if isinstance(i, slice) and i.step is not None and i.step < 0:
+                        comm_type = index_by_index
+                        break
+                    else:
+                        comm_type = serial
+            else:
+                comm_type = serial
+            kwargs['comm_type'] = comm_type
+            return func(data, *args, **kwargs)
+        return wrapper
+
+    @_check_idx
+    def __getitem__(self, glb_idx, comm_type, gather_rank=None):
+        loc_idx = self._index_glb_to_loc(glb_idx)
+        is_gather = True if isinstance(gather_rank, int) else False # TODO implement gather
+        if loc_idx is NONLOCAL:
+            # Caller expects a scalar. However, `glb_idx` doesn't belong to
+            # self's data partition, so None is returned
+            return None
+        else:
+            loc_idx = tuple(loc_idx) if len(loc_idx) > 1 else loc_idx
+            with cp.cuda.Device(self.ndarray.device):
+                data = self.ndarray.__getitem__(loc_idx)
+                ret = CuPyData(self.ndarray[loc_idx].shape, self.dtype,
+                               self._decomposition, self._modulo, self._allocator,
+                               self._distributor, self.ndarray[loc_idx])
+                return ret
+
+    @_check_idx
+    def __setitem__(self, glb_idx, val, comm_type):
+        loc_idx = self._index_glb_to_loc(glb_idx)
+        if loc_idx is NONLOCAL:
+            # no-op
+            return
+        elif np.isscalar(val):
+            if index_is_basic(loc_idx):
+                # Won't go through `__getitem__` as it's basic indexing mode,
+                # so we should just propage `loc_idx`
+                with cp.cuda.Device(self.ndarray.device):
+                    self.ndarray.__setitem__(loc_idx, val)
+            else:
+                with cp.cuda.Device(self.ndarray.device):
+                    # Warning: loc_idx? (Check Data.__stitem__)
+                    self.ndarray.__setitem__(loc_idx, val)
+
+        elif isinstance(val, CuPyData) and val._is_distributed:
+            if comm_type is index_by_index:
+
+                glb_idx, val = self._process_args(glb_idx, val)
+                val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
+                                    i in val._decomposition])
+                idx = self._set_global_idx(val, glb_idx, val_idx)
+                comm = self._distributor.comm
+                nprocs = self._distributor.nprocs
+                # Prepare global lists:
+                data_global = []
+                idx_global = []
+                for j in range(nprocs):
+                    data_global.append(comm.bcast(np.array(val), root=j))
+                    idx_global.append(comm.bcast(idx, root=j))
+                # Set the data:
+                for j in range(nprocs):
+                    skip = any(i is None for i in idx_global[j]) \
+                        or data_global[j].size == 0
+                    if not skip:
+                        self.__setitem__(idx_global[j], data_global[j])
+            elif self._is_distributed:
+                # `val` is decomposed, `self` is decomposed -> local set
+                with cp.cuda.Device(self.ndarray.device):
+                    self.ndarray.__setitem__(loc_idx, cp.asarray(val.ndarray))
+            else:
+                # `val` is decomposed, `self` is replicated -> gatherall-like
+                raise NotImplementedError
+        
+        # TODO - ISSUE: NotImplementedError: CuPy cannot copy non-contiguous array between devices.
+        elif isinstance(val, cp.ndarray):
+            if self._is_distributed:
+                # `val` is replicated, `self` is decomposed -> `val` gets decomposed
+                glb_idx = self._normalize_index(glb_idx)
+                glb_idx, val = self._process_args(glb_idx, val)
+                val_idx = [index_dist_to_repl(i, dec) for i, dec in
+                           zip(glb_idx, self._decomposition)]
+                if NONLOCAL in val_idx:
+                    # no-op
+                    return
+                val_idx = tuple([i for i in val_idx if i is not PROJECTED])
+                # NumPy broadcasting note:
+                # When operating on two arrays, NumPy compares their shapes
+                # element-wise. It starts with the trailing dimensions, and works
+                # its way forward. Two dimensions are compatible when
+                # * they are equal, or
+                # * one of them is 1
+                # Conceptually, below we apply the same rule
+                val_idx = val_idx[len(val_idx)-val.ndim:]
+                processed = []
+                # Handle step size > 1
+                for i, j in zip(glb_idx, val_idx):
+                    if isinstance(i, slice) and i.step is not None and i.step > 1 and \
+                            j.stop > j.start:
+                        processed.append(slice(j.start, j.stop, 1))
+                    else:
+                        processed.append(j)
+                val_idx = as_tuple(processed)
+                val = val[val_idx]
+            else:
+                # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
+                pass
+            if not val.size == 0:
+                with cp.cuda.Device(self.ndarray.device):
+                    self.ndarray.__setitem__(glb_idx, cp.asarray(val)) # ERROR
+        elif isinstance(val, np.ndarray):
+            if self._is_distributed:
+                # `val` is replicated, `self` is decomposed -> `val` gets decomposed
+                glb_idx = self._normalize_index(glb_idx)
+                glb_idx, val = self._process_args(glb_idx, val)
+                val_idx = [index_dist_to_repl(i, dec) for i, dec in
+                           zip(glb_idx, self._decomposition)]
+                if NONLOCAL in val_idx:
+                    # no-op
+                    return
+                val_idx = tuple([i for i in val_idx if i is not PROJECTED])
+                # NumPy broadcasting note:
+                # When operating on two arrays, NumPy compares their shapes
+                # element-wise. It starts with the trailing dimensions, and works
+                # its way forward. Two dimensions are compatible when
+                # * they are equal, or
+                # * one of them is 1
+                # Conceptually, below we apply the same rule
+                val_idx = val_idx[len(val_idx)-val.ndim:]
+                processed = []
+                # Handle step size > 1
+                for i, j in zip(glb_idx, val_idx):
+                    if isinstance(i, slice) and i.step is not None and i.step > 1 and \
+                            j.stop > j.start:
+                        processed.append(slice(j.start, j.stop, 1))
+                    else:
+                        processed.append(j)
+                val_idx = as_tuple(processed)
+                val = val[val_idx]
+            else:
+                # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
+                pass
+            with cp.cuda.Device(self.ndarray.device):
+                self.ndarray.__setitem__(glb_idx, cp.asarray(val))
+        elif isinstance(val, Iterable):
+            if self._is_mpi_distributed:
+                raise NotImplementedError("With MPI, data can only be set "
+                                          "via scalars, numpy arrays or "
+                                          "other data ")
+            with cp.cuda.Device(self.ndarray.device):
+                self.ndarray.__setitem__(glb_idx, cp.asarray(val))
+        else:
+            raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
+
+    def __repr__(self):
+        return self.ndarray.__repr__()
+    
+    def __str__(self):
+        return self.ndarray.__str__()
+
+    def _process_args(self, idx, val):
+        """If comm_type is parallel we need to first retrieve local unflipped data."""
+        if any(isinstance(i, slice) and i.step is not None and i.step < 0
+               for i in as_tuple(idx)):
+            processed = []
+            transform = []
+            for j, k in zip(idx, self._distributor.glb_shape):
+                if isinstance(j, slice) and j.step is not None and j.step < 0:
+                    if j.start is None:
+                        stop = None
+                    else:
+                        stop = j.start + 1
+                    if j.stop is None and j.start is None:
+                        start = int(np.mod(k-1, -j.step))
+                    elif j.stop is None:
+                        start = int(np.mod(j.start, -j.step))
+                    else:
+                        start = j.stop + 1
+                    processed.append(slice(start, stop, -j.step))
+                    transform.append(slice(None, None, np.sign(j.step)))
+                else:
+                    processed.append(j)
+            if isinstance(val, CuPyData) and len(transform) > 0 and \
+                    len(val._distributor.shape) > len(val.shape):
+                # Rebuild the distributor since the dimension of the slice
+                # is different to that of the original array
+                distributor = \
+                    val._distributor._rebuild(val.shape,
+                                              self._distributor.dimensions,
+                                              self._distributor.comm)
+                new_val = CuPyData(val.shape, val.dtype.type,
+                               decomposition=val._decomposition, modulo=val._modulo,
+                               distributor=distributor)
+                slc = as_tuple([slice(None, None, 1) for j in transform])
+                new_val[slc] = val[slc] # TODO Why this new data, why not just a view???
+                return as_tuple(processed), new_val[as_tuple(transform)]
+            else:
+                return as_tuple(processed), val[as_tuple(transform)]
+        else:
+            return idx, val
 
 
 class Data(np.ndarray, DataMixin):
