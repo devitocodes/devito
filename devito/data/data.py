@@ -9,10 +9,150 @@ from devito.logger import warning
 from devito.parameters import configuration
 from devito.tools import Tag, as_tuple, as_list, is_integer
 
+import inspect
+
 __all__ = ['Data']
 
+class DataMixin:
 
-class Data(np.ndarray):
+    @property
+    def _local(self):
+        """A view of ``self`` with global indexing disabled."""
+        ret = self.view()
+        ret._is_distributed = False
+        return ret
+
+    def _global(self, glb_idx, decomposition):
+        """A "global" view of ``self`` over a given Decomposition."""
+        if self._is_distributed:
+            raise ValueError("Cannot derive a decomposed view from a decomposed Data")
+        if len(decomposition) != self.ndim:
+            raise ValueError("`decomposition` should have ndim=%d entries" % self.ndim)
+        ret = self[glb_idx]
+        ret._decomposition = decomposition
+        ret._is_distributed = any(i is not None for i in decomposition)
+        return ret
+
+    @property
+    def _is_mpi_distributed(self):
+        return self._is_distributed and configuration['mpi']
+
+    def _normalize_index(self, idx):
+        if isinstance(idx, np.ndarray):
+            # Advanced indexing mode
+            return (idx,)
+        else:
+            idx = as_tuple(idx)
+            if any(i is Ellipsis for i in idx):
+                # Explicitly replace the Ellipsis
+                items = (slice(None),)*(self.ndim - len(idx) + 1)
+                items = idx[:idx.index(Ellipsis)] + items + idx[idx.index(Ellipsis)+1:]
+            else:
+                items = idx + (slice(None),)*(self.ndim - len(idx))
+            # Normalize slice steps:
+            processed = [slice(i.start, i.stop, 1) if
+                         (isinstance(i, slice) and i.step is None)
+                         else i for i in items]
+            return as_tuple(processed)
+
+    def _index_glb_to_loc(self, glb_idx):
+        glb_idx = self._normalize_index(glb_idx)
+        if len(glb_idx) > self.ndim:
+            # Maybe user code is trying to add a new axis (see np.newaxis),
+            # so the resulting array will be higher dimensional than `self`
+            if self._is_mpi_distributed:
+                raise ValueError("Cannot increase dimensionality of MPI-distributed Data")
+            else:
+                # As by specification, we are forced to ignore modulo indexing
+                return glb_idx
+
+        loc_idx = []
+        for i, s, mod, dec in zip(glb_idx, self.shape, self._modulo, self._decomposition):
+            # print('i, s, mod, dec: ', i, s, mod, dec)
+            if mod is True:
+                # Need to wrap index based on modulo
+                v = index_apply_modulo(i, s)
+            elif self._is_distributed is True and dec is not None:
+                # Need to convert the user-provided global indices into local indices.
+                # Obviously this will have no effect if MPI is not used
+                try:
+                    v = convert_index(i, dec, mode='glb_to_loc')
+                except TypeError:
+                    if self._is_mpi_distributed:
+                        raise NotImplementedError("Unsupported advanced indexing with "
+                                                  "MPI-distributed Data")
+                    v = i
+            else:
+                v = i
+
+            # Handle non-local, yet globally legal, indices
+            v = index_handle_oob(v)
+
+            loc_idx.append(v)
+
+        # Deal with NONLOCAL accesses
+        if NONLOCAL in loc_idx:
+            if len(loc_idx) == self.ndim and index_is_basic(loc_idx):
+                # Caller expecting a scalar -- it will eventually get None
+                loc_idx = [NONLOCAL]
+            else:
+                # Caller expecting an array -- it will eventually get a 0-length array
+                loc_idx = [slice(-1, -2) if i is NONLOCAL else i for i in loc_idx]
+
+        return loc_idx[0] if len(loc_idx) == 1 else tuple(loc_idx)
+
+    def _set_global_idx(self, val, idx, val_idx):
+        """
+        Compute the global indices to which val (the locally stored data) correspond.
+        """
+        data_loc_idx = as_tuple(val._index_glb_to_loc(val_idx))
+        data_glb_idx = []
+        # Convert integers to slices so that shape dims are preserved
+        if is_integer(as_tuple(idx)[0]):
+            data_glb_idx.append(slice(0, 1, 1))
+        for i, j in zip(data_loc_idx, val._decomposition):
+            if not j.loc_empty:
+                data_glb_idx.append(j.index_loc_to_glb(i))
+            else:
+                data_glb_idx.append(None)
+        mapped_idx = []
+        # Add any integer indices that were not present in `val_idx`.
+        if len(as_list(idx)) > len(data_glb_idx):
+            for index, value in enumerate(idx):
+                if is_integer(value) and index > 0:
+                    data_glb_idx.insert(index, value)
+        # Based on `data_glb_idx` the indices to which the locally stored data
+        # block correspond can now be computed:
+        for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition):
+            if is_integer(j):
+                mapped_idx.append(j)
+                continue
+            elif isinstance(j, slice) and j.start is None:
+                norm = 0
+            elif isinstance(j, slice) and j.start is not None:
+                if j.start >= 0:
+                    norm = j.start
+                else:
+                    norm = j.start+k.glb_max+1
+            else:
+                norm = j
+            if i is not None:
+                if isinstance(j, slice) and j.step is not None:
+                    stop = j.step*i.stop+norm
+                else:
+                    stop = i.stop+norm
+            if i is not None:
+                if isinstance(j, slice) and j.step is not None:
+                    mapped_idx.append(slice(j.step*i.start+norm,
+                                            stop, j.step))
+                else:
+                    mapped_idx.append(slice(i.start+norm, stop, i.step))
+            else:
+                mapped_idx.append(None)
+        return as_tuple(mapped_idx)
+
+
+class Data(np.ndarray, DataMixin):
 
     """
     A numpy.ndarray supporting distributed Dimensions.
@@ -137,24 +277,6 @@ class Data(np.ndarray):
                 self._modulo = tuple(False for i in range(self.ndim))
                 self._decomposition = (None,)*self.ndim
 
-    @property
-    def _local(self):
-        """A view of ``self`` with global indexing disabled."""
-        ret = self.view()
-        ret._is_distributed = False
-        return ret
-
-    def _global(self, glb_idx, decomposition):
-        """A "global" view of ``self`` over a given Decomposition."""
-        if self._is_distributed:
-            raise ValueError("Cannot derive a decomposed view from a decomposed Data")
-        if len(decomposition) != self.ndim:
-            raise ValueError("`decomposition` should have ndim=%d entries" % self.ndim)
-        ret = self[glb_idx]
-        ret._decomposition = decomposition
-        ret._is_distributed = any(i is not None for i in decomposition)
-        return ret
-
     def _check_idx(func):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)
@@ -175,10 +297,6 @@ class Data(np.ndarray):
             kwargs['comm_type'] = comm_type
             return func(data, *args, **kwargs)
         return wrapper
-
-    @property
-    def _is_mpi_distributed(self):
-        return self._is_distributed and configuration['mpi']
 
     def __repr__(self):
         return super(Data, self._local).__repr__()
@@ -339,24 +457,6 @@ class Data(np.ndarray):
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
 
-    def _normalize_index(self, idx):
-        if isinstance(idx, np.ndarray):
-            # Advanced indexing mode
-            return (idx,)
-        else:
-            idx = as_tuple(idx)
-            if any(i is Ellipsis for i in idx):
-                # Explicitly replace the Ellipsis
-                items = (slice(None),)*(self.ndim - len(idx) + 1)
-                items = idx[:idx.index(Ellipsis)] + items + idx[idx.index(Ellipsis)+1:]
-            else:
-                items = idx + (slice(None),)*(self.ndim - len(idx))
-            # Normalize slice steps:
-            processed = [slice(i.start, i.stop, 1) if
-                         (isinstance(i, slice) and i.step is None)
-                         else i for i in items]
-            return as_tuple(processed)
-
     def _process_args(self, idx, val):
         """If comm_type is parallel we need to first retrieve local unflipped data."""
         if any(isinstance(i, slice) and i.step is not None and i.step < 0
@@ -397,101 +497,6 @@ class Data(np.ndarray):
                 return as_tuple(processed), val[as_tuple(transform)]
         else:
             return idx, val
-
-    def _index_glb_to_loc(self, glb_idx):
-        glb_idx = self._normalize_index(glb_idx)
-        if len(glb_idx) > self.ndim:
-            # Maybe user code is trying to add a new axis (see np.newaxis),
-            # so the resulting array will be higher dimensional than `self`
-            if self._is_mpi_distributed:
-                raise ValueError("Cannot increase dimensionality of MPI-distributed Data")
-            else:
-                # As by specification, we are forced to ignore modulo indexing
-                return glb_idx
-
-        loc_idx = []
-        for i, s, mod, dec in zip(glb_idx, self.shape, self._modulo, self._decomposition):
-            if mod is True:
-                # Need to wrap index based on modulo
-                v = index_apply_modulo(i, s)
-            elif self._is_distributed is True and dec is not None:
-                # Need to convert the user-provided global indices into local indices.
-                # Obviously this will have no effect if MPI is not used
-                try:
-                    v = convert_index(i, dec, mode='glb_to_loc')
-                except TypeError:
-                    if self._is_mpi_distributed:
-                        raise NotImplementedError("Unsupported advanced indexing with "
-                                                  "MPI-distributed Data")
-                    v = i
-            else:
-                v = i
-
-            # Handle non-local, yet globally legal, indices
-            v = index_handle_oob(v)
-
-            loc_idx.append(v)
-
-        # Deal with NONLOCAL accesses
-        if NONLOCAL in loc_idx:
-            if len(loc_idx) == self.ndim and index_is_basic(loc_idx):
-                # Caller expecting a scalar -- it will eventually get None
-                loc_idx = [NONLOCAL]
-            else:
-                # Caller expecting an array -- it will eventually get a 0-length array
-                loc_idx = [slice(-1, -2) if i is NONLOCAL else i for i in loc_idx]
-
-        return loc_idx[0] if len(loc_idx) == 1 else tuple(loc_idx)
-
-    def _set_global_idx(self, val, idx, val_idx):
-        """
-        Compute the global indices to which val (the locally stored data) correspond.
-        """
-        data_loc_idx = as_tuple(val._index_glb_to_loc(val_idx))
-        data_glb_idx = []
-        # Convert integers to slices so that shape dims are preserved
-        if is_integer(as_tuple(idx)[0]):
-            data_glb_idx.append(slice(0, 1, 1))
-        for i, j in zip(data_loc_idx, val._decomposition):
-            if not j.loc_empty:
-                data_glb_idx.append(j.index_loc_to_glb(i))
-            else:
-                data_glb_idx.append(None)
-        mapped_idx = []
-        # Add any integer indices that were not present in `val_idx`.
-        if len(as_list(idx)) > len(data_glb_idx):
-            for index, value in enumerate(idx):
-                if is_integer(value) and index > 0:
-                    data_glb_idx.insert(index, value)
-        # Based on `data_glb_idx` the indices to which the locally stored data
-        # block correspond can now be computed:
-        for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition):
-            if is_integer(j):
-                mapped_idx.append(j)
-                continue
-            elif isinstance(j, slice) and j.start is None:
-                norm = 0
-            elif isinstance(j, slice) and j.start is not None:
-                if j.start >= 0:
-                    norm = j.start
-                else:
-                    norm = j.start+k.glb_max+1
-            else:
-                norm = j
-            if i is not None:
-                if isinstance(j, slice) and j.step is not None:
-                    stop = j.step*i.stop+norm
-                else:
-                    stop = i.stop+norm
-            if i is not None:
-                if isinstance(j, slice) and j.step is not None:
-                    mapped_idx.append(slice(j.step*i.start+norm,
-                                            stop, j.step))
-                else:
-                    mapped_idx.append(slice(i.start+norm, stop, i.step))
-            else:
-                mapped_idx.append(None)
-        return as_tuple(mapped_idx)
 
     def _gather(self, start=None, stop=None, step=1, rank=0):
         """
