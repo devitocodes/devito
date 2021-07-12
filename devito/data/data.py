@@ -277,6 +277,10 @@ class Data(np.ndarray, DataMixin):
                 self._modulo = tuple(False for i in range(self.ndim))
                 self._decomposition = (None,)*self.ndim
 
+    @property
+    def asnumpy(self):
+        return self
+    
     def _check_idx(func):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)

@@ -772,7 +772,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
                 # Gather send data
                 data = self._data_in_region(OWNED, d, i)
-                sendbuf = np.ascontiguousarray(data)
+                sendbuf = np.ascontiguousarray(data.asnumpy)
 
                 # Setup recv buffer
                 shape = self._data_in_region(HALO, d, i.flip()).shape
