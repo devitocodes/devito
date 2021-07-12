@@ -507,7 +507,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return np.asarray(self._data[self._mask_inhalo])
+        return self._data[self._mask_inhalo]
 
     @property
     @_allocate_memory
@@ -530,7 +530,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return np.asarray(self._data)
+        return self._data
 
     def _data_in_region(self, region, dim, side):
         """
@@ -561,7 +561,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         size = getattr(getattr(self, '_size_%s' % region.name)[dim], side.name)
         index_array = [slice(offset, offset+size) if d is dim else slice(None)
                        for d in self.dimensions]
-        return np.asarray(self._data[index_array])
+        return self._data[index_array]
 
     @property
     @_allocate_memory
