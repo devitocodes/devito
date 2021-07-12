@@ -1610,3 +1610,28 @@ class TempFunction(DiscreteFunction):
 
     # Pickling support
     _pickle_kwargs = DiscreteFunction._pickle_kwargs + ['dimensions', 'pointer_dim']
+
+
+class AliasFunction(DiscreteFunction):
+
+    """
+    Tensor symbol that "aliases" another DiscreteFunction. Aliasing here means that
+    the AliasFunction logically represents another object. This is most commonly used
+    when we have a generic routine `foo(af, ...)` that we need to apply to multiple
+    DiscreteFunctions; here `af` is an AliasFunction, used in the body of `foo`.
+
+    Like a TempFunction, an AliasFunction does not carry data.
+    """
+
+    __indices_setup__ = Function.__indices_setup__
+    __shape_setup__ = Function.__shape_setup__
+
+    @property
+    def data(self):
+        # Any attempt at allocating data by the user should fail miserably
+        raise TypeError("AliasFunction cannot allocate data")
+
+    data_domain = data
+    data_with_halo = data
+    data_ro_domain = data
+    data_ro_with_halo = data
