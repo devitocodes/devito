@@ -370,12 +370,13 @@ class DeviceAwareDataManager(DataManager):
 
             # Populate `storage`
             storage = Storage()
-            for i in filter_sorted(writes):
-                if is_on_device(i, self.gpu_fit):
-                    self._map_function_on_high_bw_mem(iet, i, storage, devicerm)
-            for i in filter_sorted(reads - writes):
-                if is_on_device(i, self.gpu_fit):
-                    self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
+            if 'prev-allocated' not in self.gpu_fit:
+                for i in filter_sorted(writes):
+                    if is_on_device(i, self.gpu_fit):
+                        self._map_function_on_high_bw_mem(iet, i, storage, devicerm)
+                for i in filter_sorted(reads - writes):
+                    if is_on_device(i, self.gpu_fit):
+                        self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
 
             iet = self._dump_storage(iet, storage)
 

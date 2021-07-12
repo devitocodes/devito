@@ -35,6 +35,9 @@ class DeviceAccIteration(ParallelIteration):
 
         symbols = FindSymbols().visit(kwargs['nodes'])
         deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
+        if 'prev-allocated' in kwargs['gpu_fit']:
+            deviceptrs += [i.name for i in symbols if (i.is_AbstractFunction) and
+                           is_on_device(i, kwargs['gpu_fit'])]
         presents = [i.name for i in symbols
                     if (i.is_AbstractFunction and
                         is_on_device(i, kwargs['gpu_fit']) and
