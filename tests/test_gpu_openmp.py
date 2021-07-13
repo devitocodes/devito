@@ -337,8 +337,12 @@ class TestOperator(object):
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
 
-    def test_iso_acoustic(self):
-        TestOperator().iso_acoustic()
+    @pytest.mark.parametrize('opt_options', [
+        {},
+        {'linearize': True},
+    ])
+    def test_iso_acoustic(self, opt_options):
+        TestOperator().iso_acoustic(**opt_options)
 
     @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])

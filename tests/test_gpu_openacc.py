@@ -9,6 +9,8 @@ from devito.exceptions import InvalidOperator
 from devito.ir.iet import FindNodes, Section, retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
+pytestmark = skipif(['nodevice'], whole_module=True)
+
 
 class TestCodeGeneration(object):
 
@@ -140,7 +142,6 @@ class TestCodeGeneration(object):
 
 class TestOperator(object):
 
-    @skipif('nodevice')
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -156,8 +157,7 @@ class TestOperator(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
-    @skipif('nodevice')
-    def test_iso_ac(self):
+    def iso_acoustic(self, **opt_options):
         shape = (101, 101)
         extent = (1000, 1000)
         origin = (0., 0.)
@@ -196,7 +196,8 @@ class TestOperator(object):
         src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
         rec_term = rec.interpolate(expr=u.forward)
 
-        op = Operator([stencil] + src_term + rec_term)
+        op = Operator([stencil] + src_term + rec_term, opt=('advanced', opt_options),
+                      language='openacc')
 
         # Make sure we've indeed generated OpenACC code
         assert 'acc parallel' in str(op)
@@ -205,10 +206,16 @@ class TestOperator(object):
 
         assert np.isclose(norm(rec), 490.56, atol=1e-2, rtol=0)
 
+    @pytest.mark.parametrize('opt_options', [
+        {},
+        {'linearize': True},
+    ])
+    def test_iso_acoustic(self, opt_options):
+        TestOperator().iso_acoustic(**opt_options)
+
 
 class TestMPI(object):
 
-    @skipif('nodevice')
     @pytest.mark.parallel(mode=2)
     def test_basic(self):
         grid = Grid(shape=(6, 6))
@@ -237,7 +244,6 @@ class TestMPI(object):
                                         [16., 23., 24., 24., 23., 16.],
                                         [11., 16., 17., 17., 16., 11.]])
 
-    @skipif('nodevice')
     @pytest.mark.parallel(mode=2)
     def test_iso_ac(self):
-        TestOperator().test_iso_ac()
+        TestOperator().iso_acoustic()
