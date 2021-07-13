@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from devito import Grid, TimeFunction, SparseTimeFunction, Operator, Eq
+from devito import Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq
 from devito.ir import Expression, FindNodes
 
 
@@ -162,3 +162,29 @@ def test_pow():
     assert expr.rhs.args[1].is_Pow
     assert expr.rhs.args[1].args[0].is_Mul
     assert expr.rhs.args[1].args[1] == -1
+
+
+def test_different_halos():
+    grid = Grid(shape=(8, 8, 8))
+
+    f = Function(name='f', grid=grid, space_order=8)
+    g = Function(name='g', grid=grid, space_order=16)
+    u = TimeFunction(name='u', grid=grid, space_order=12)
+    u1 = TimeFunction(name='u', grid=grid, space_order=12)
+
+    f.data[:] = 1.
+    g.data[:] = 2.
+
+    eqn = Eq(u.forward, u + f + g + 1)
+
+    op0 = Operator(eqn)
+    op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
+
+    # Check generated code
+    assert 'uL0' not in str(op0)
+    assert 'uL0' in str(op1)
+
+    op0.apply(time_M=4)
+    op1.apply(time_M=4, u=u1)
+
+    assert np.all(u.data == u1.data)
