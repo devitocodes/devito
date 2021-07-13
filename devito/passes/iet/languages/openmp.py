@@ -163,7 +163,7 @@ class DeviceOmpBB(OmpBB):
 
     # NOTE: Work around clang>=10 issue concerning offloading arrays declared
     # with an `__attribute__(aligned(...))` qualifier
-    PointerCast = lambda *args: PointerCast(*args, alignment=False)
+    PointerCast = lambda *a, **kw: PointerCast(*a, alignment=False, **kw)
 
 
 class SimdOmpizer(PragmaSimdTransformer):

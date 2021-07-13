@@ -16,7 +16,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import ccode
 from devito.tools import as_mapper, filter_sorted, flatten
-from devito.types import DeviceRM
+from devito.types import DeviceRM, FIndexed
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -50,6 +50,10 @@ class Storage(OrderedDict):
 
         self[k] = v
         self.defined.add(key)
+
+
+class Defs(List):
+    pass
 
 
 class DataManager(object):
@@ -148,7 +152,7 @@ class DataManager(object):
         else:
             storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
 
-    def _dump_storage(self, iet, storage):
+    def _dump_storage(self, iet, storage, cls=List):
         mapper = {}
         for k, v in storage.items():
             # Expr -> LocalExpr ?
@@ -177,7 +181,7 @@ class DataManager(object):
             if frees:
                 frees.insert(0, c.Line())
 
-            mapper[k] = k._rebuild(body=List(header=allocs, body=k.body, footer=frees),
+            mapper[k] = k._rebuild(body=cls(header=allocs, body=k.body, footer=frees),
                                    **k.args_frozen)
 
         processed = Transformer(mapper, nested=True).visit(iet)
@@ -254,7 +258,7 @@ class DataManager(object):
                     # E.g., a generic SymPy expression
                     pass
 
-        iet = self._dump_storage(iet, storage)
+        iet = self._dump_storage(iet, storage, Defs)
 
         return iet, {}
 
@@ -277,18 +281,47 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
+        body = iet.body[0]
+        if not isinstance(body, Defs):
+            # Sometimes we end up here -- an IET with no definitions
+            body = iet
+
         functions = FindSymbols().visit(iet)
-        need_cast = {i for i in functions if i.is_Tensor}
+        symbols = FindSymbols('free-symbols').visit(iet)
 
-        # Make the generated code less verbose by avoiding unnecessary casts
-        symbol_names = {i.name for i in FindSymbols('free-symbols').visit(iet)}
-        need_cast = {i for i in need_cast if i.name in symbol_names}
-
+        # Create Function -> n-dimensional array casts
+        # E.g. `float (*u)[u_vec->size[1]] = (float (*)[u_vec->size[1]]) u_vec->data`
+        symbol_names = {i.name for i in symbols}
+        need_cast = {i for i in functions if i.is_Tensor and i.name in symbol_names}
         casts = tuple(self.lang.PointerCast(i) for i in iet.parameters if i in need_cast)
         if casts:
             casts = (List(body=casts, footer=c.Line()),)
+            body = body._rebuild(body=casts + body.body)
 
-        iet = iet._rebuild(body=casts + iet.body)
+        # Create Function -> linearized n-dimensional array casts
+        # E.g. `float *ul = (float*) u_vec->data`
+        casts = []
+        seen = set()
+        for i in symbols:
+            if not isinstance(i, FIndexed):
+                continue
+            f = i.function
+            if f in seen:
+                continue
+            seen.add(f)
+            if f in iet.parameters:
+                casts.append(self.lang.PointerCast(f, flat=i.name))
+            else:
+                casts.append(self.lang.PointerCast(f, flat=i.name, cname=f.name))
+        if casts:
+            casts = (List(body=casts, footer=c.Line()),)
+            body = body._rebuild(body=casts + body.body)
+
+        # Incorporate the newly created casts
+        if isinstance(body, Defs):
+            iet = iet._rebuild(body=body)
+        else:
+            iet = body
 
         return iet, {}
 
