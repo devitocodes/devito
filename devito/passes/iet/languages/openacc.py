@@ -1,7 +1,7 @@
 import cgen as c
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import Call, List, ParallelIteration, FindSymbols
+from devito.ir import Call, List, ParallelIteration, ParallelTree, FindSymbols
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import PragmaDeviceAwareTransformer, PragmaLangBB
@@ -22,10 +22,13 @@ class DeviceAccIteration(ParallelIteration):
         return 'acc parallel loop'
 
     @classmethod
-    def _make_clauses(cls, ncollapse=None, reduction=None, **kwargs):
+    def _make_clauses(cls, ncollapse=None, reduction=None, tile=None, **kwargs):
         clauses = []
 
-        clauses.append('collapse(%d)' % (ncollapse or 1))
+        if ncollapse:
+            clauses.append('collapse(%d)' % (ncollapse or 1))
+        elif tile:
+            clauses.append('tile(%s)' % ','.join(str(i) for i in tile))
 
         if reduction:
             clauses.append(make_clause_reduction(reduction))
@@ -54,9 +57,10 @@ class DeviceAccIteration(ParallelIteration):
         kwargs.pop('gpu_fit', None)
 
         kwargs.pop('schedule', None)
-        kwargs.pop('parallel', False)
+        kwargs.pop('parallel', None)
         kwargs.pop('chunk_size', None)
         kwargs.pop('nthreads', None)
+        kwargs.pop('tile', None)
 
         return kwargs
 
@@ -151,11 +155,35 @@ class AccBB(PragmaLangBB):
 
 
 class DeviceAccizer(PragmaDeviceAwareTransformer):
+
     lang = AccBB
 
     # Note: there is no need to override `make_gpudirect` since acc_malloc is
     # used to allocate the buffers passed to the various MPI calls, which will
     # then receive device points
+
+    def _make_partree(self, candidates, nthreads=None):
+        assert candidates
+        root = candidates[0]
+
+        collapsable = self._find_collapsable(root, candidates)
+        ncollapsable = len(collapsable)
+
+        if self._is_offloadable(root) and \
+           all(i.is_Affine for i in [root] + collapsable) and \
+           self.par_tile:
+            if isinstance(self.par_tile, tuple):
+                tile = self.par_tile[:ncollapsable + 1]
+            else:
+                # (32,4,4,...) is typically a decent choice
+                tile = (32,) + (4,)*ncollapsable
+
+            body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile, **root.args)
+            partree = ParallelTree([], body, nthreads=nthreads)
+
+            return root, partree
+        else:
+            return super()._make_partree(candidates, nthreads)
 
 
 class DeviceAccDataManager(DeviceAwareDataManager):

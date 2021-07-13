@@ -133,6 +133,7 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u)
+
     # Substitute spacing terms to reduce flops
     return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
                     name='Forward', **kwargs)
