@@ -11,8 +11,8 @@ from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
-           'DefFunction', 'InlineIf', 'Macro', 'Literal', 'INT', 'FLOAT', 'DOUBLE',
-           'FLOOR', 'cast_mapper']
+           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal',
+           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -385,6 +385,18 @@ class Macro(sympy.Symbol):
     Symbolic representation of a C macro.
     """
     pass
+
+
+class MacroArgument(sympy.Symbol):
+
+    """
+    Symbolic representation of a C macro.
+    """
+
+    def __str__(self):
+        return "(%s)" % self.name
+
+    __repr__ = __str__
 
 
 class Literal(sympy.Symbol):
