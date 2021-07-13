@@ -13,7 +13,8 @@ from devito.symbolics import (INT, FLOOR, cast_mapper, indexify,
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           memoized_meth, is_integer)
 from devito.types.dense import DiscreteFunction, Function, SubFunction
-from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
+from devito.types.dimension import (Dimension, ConditionalDimension, DefaultDimension,
+                                    DynamicDimension)
 from devito.types.basic import Symbol
 from devito.types.equation import Eq, Inc
 from devito.types.utils import IgnoreDimSort
@@ -1345,7 +1346,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # coordinate of the parallised injection dimension
         # This takes the form of a list of nnz indices, and a start/end
         # position in that list for each index in the parallel dim
-        self.par_dim_to_nnz_dim = Dimension('par_dim_to_nnz_%s' % self.name)
+        self.par_dim_to_nnz_dim = DynamicDimension('par_dim_to_nnz_%s' % self.name)
 
         # This map acts as an indirect sort of the sources according to their
         # position along the parallelisation dimension

@@ -1,7 +1,9 @@
 import pytest
 import numpy as np
+import scipy.sparse
 
-from devito import Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq
+from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
+                    MatrixSparseTimeFunction)
 from devito.ir import Expression, FindNodes
 
 
@@ -95,6 +97,32 @@ def test_interpolation():
     op1.apply(time_M=nt-2, u=u1)
 
     assert np.all(u.data == u1.data)
+
+
+def test_interpolation_msf():
+    grid = Grid(shape=(4, 4))
+
+    r = 2  # Because we interpolate across 2 neighbouring points in each dimension
+    nt = 10
+
+    m0 = TimeFunction(name="m0", grid=grid, space_order=0, save=nt, time_order=0)
+    m1 = TimeFunction(name="m1", grid=grid, space_order=0, save=nt, time_order=0)
+
+    mat = scipy.sparse.coo_matrix((0, 0), dtype=np.float32)
+    sf = MatrixSparseTimeFunction(name="s", grid=grid, r=r, matrix=mat, nt=nt)
+
+    eqns = sf.inject(field=m0.forward, expr=sf.dt2)
+    eqns += sf.inject(field=m1.forward, expr=sf.dt2)
+
+    op0 = Operator(eqns)
+    op1 = Operator(eqns, opt=('advanced', {'linearize': True}))
+
+    assert 'm0L0' in str(op1)
+
+    # There used to be a bug causing the jit compilation to fail because of
+    # the writing to `const int` variables
+    assert op0.cfunction
+    assert op1.cfunction
 
 
 @pytest.mark.parallel(mode=[(1, 'diag2')])
