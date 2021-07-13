@@ -1,9 +1,11 @@
 from ctypes import c_int, c_double, c_void_p
 
-from devito.types import CompositeObject, LocalObject, Symbol
+from devito.types import CompositeObject, LocalObject, Indexed, Symbol
+from devito.types.basic import IndexedData
+from devito.tools import Pickable
 
 __all__ = ['Timer', 'VoidPointer', 'VolatileInt', 'c_volatile_int',
-           'c_volatile_int_p']
+           'c_volatile_int_p', 'FIndexed']
 
 
 class Timer(CompositeObject):
@@ -69,3 +71,41 @@ class c_volatile_int(c_int):
 
 class c_volatile_int_p(c_void_p):
     pass
+
+
+class FIndexed(Indexed, Pickable):
+
+    """
+    A flatten Indexed with functional (primary) and indexed (secondary) representations.
+
+    Examples
+    --------
+    Consider the Indexed `u[x, y]`. The corresponding FIndexed's functional representation
+    is `uX(x, y)`, where `X` is a generic string provided by the caller. Such functional
+    (primary) representation appears multidimensional. However, the corresponding indexed
+    (secondary) represenation is flatten, that is `ux[x*ny + y]`.
+    """
+
+    def __new__(cls, indexed, pname, sname):
+        plabel = Symbol(name=pname, dtype=indexed.dtype)
+        base = IndexedData(plabel, shape=indexed.shape, function=indexed.function)
+        obj = super().__new__(cls, base, *indexed.indices)
+
+        obj.indexed = indexed
+        obj.pname = pname
+        obj.sname = sname
+
+        return obj
+
+    def __repr__(self):
+        return "%s(%s)" % (self.name, ", ".join(str(i) for i in self.indices))
+
+    __str__ = __repr__
+
+    @property
+    def name(self):
+        return self.sname
+
+    # Pickling support
+    _pickle_args = ['indexed', 'pname', 'sname']
+    __reduce_ex__ = Pickable.__reduce_ex__

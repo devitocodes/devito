@@ -53,10 +53,19 @@ class CodePrinter(C99CodePrinter):
         --------
         U[t,x,y,z] -> U[t][x][y][z]
         """
-        output = self._print(expr.base.label) \
+        return self._print(expr.base.label) \
             + ''.join(['[' + self._print(x) + ']' for x in expr.indices])
 
-        return output
+    def _print_FIndexed(self, expr):
+        """
+        Print an FIndexed, that is a special Indexed, as a C-like multiarguments function.
+
+        Examples
+        --------
+        U[t,x,y,z] -> U(t,x,y,z)
+        """
+        return self._print(expr.base.label) \
+            + '(%s)' % ', '.join(self._print(x) for x in expr.indices)
 
     def _print_Rational(self, expr):
         """Print a Rational as a C-like float/float division."""
