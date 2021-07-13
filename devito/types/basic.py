@@ -1305,7 +1305,7 @@ class Indexed(sympy.Indexed):
 
     @property
     def name(self):
-        return self.function.name
+        return self.base.name
 
     @property
     def origin(self):

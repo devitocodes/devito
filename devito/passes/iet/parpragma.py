@@ -12,7 +12,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
 from devito.tools import as_tuple, prod
-from devito.types import Symbol, NThreadsBase
+from devito.types import FIndexed, Symbol, NThreadsBase
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
            'PragmaDeviceAwareTransformer', 'PragmaLangBB']
@@ -56,12 +56,12 @@ class PragmaSimdTransformer(PragmaTransformer):
                 continue
 
             # Add SIMD pragma
-            aligned = [j for j in FindSymbols('symbolics').visit(candidate)
-                       if j.is_DiscreteFunction]
+            indexeds = FindSymbols('indexeds').visit(candidate)
+            aligned = {i.name for i in indexeds
+                       if isinstance(i, FIndexed) or i.function.is_DiscreteFunction}
             if aligned:
                 simd = self.lang['simd-for-aligned']
-                simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                self.simd_reg_size))
+                simd = as_tuple(simd(','.join(sorted(aligned)), self.simd_reg_size))
             else:
                 simd = as_tuple(self.lang['simd-for'])
             pragmas = candidate.pragmas + simd
