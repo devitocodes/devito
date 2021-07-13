@@ -9,7 +9,7 @@ from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering
                                     cire, cse, extract_increments, factorize,
                                     fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
-                               mpiize, hoist_prodders, is_on_device)
+                               mpiize, hoist_prodders, is_on_device, linearize)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -83,6 +83,9 @@ class DeviceOperatorMixin(object):
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
         o['gpu-direct'] = oo.pop('gpu-direct', True)
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
+
+        # Misc
+        o['linearize'] = oo.pop('linearize', False)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -177,6 +180,10 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
 
+        # Linearize n-dimensional Indexeds
+        if options['linearize']:
+            linearize(graph, sregistry=sregistry)
+
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_parallel(graph)
@@ -264,6 +271,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi']),
+            'linearize': partial(linearize, sregistry=sregistry),
             'prodders': partial(hoist_prodders),
             'gpu-direct': partial(parizer.make_gpudirect),
             'init': parizer.initialize
@@ -278,7 +286,8 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'orchestrate', 'parallel', 'mpi', 'prodders', 'gpu-direct'
+        'optcomms', 'orchestrate', 'parallel', 'mpi', 'linearize',
+        'prodders', 'gpu-direct'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
