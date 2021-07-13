@@ -489,10 +489,13 @@ class TestAliases(object):
         # Check code generation
         trees = retrieve_iteration_tree(op1)
         assert len(trees) == 3
+        assert all(i.dim.is_Incr for i in trees[1][1:4])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i is j for i, j in zip(trees[1][0:3], trees[2][0:3]))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == 1
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -525,10 +528,14 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 3
+        assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
         ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == 1
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -562,10 +569,14 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 3
+        assert all(i.dim.is_Incr for i in trees[1][1:4])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == 1
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (0, 0)), (xs+2, ys+2, zs), rotate)
 
         # Check numerical output
@@ -600,6 +611,9 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced', {'openmp': True}))
 
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 2
+        assert all(i.dim.is_Incr for i in trees[1][1:5])
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 1
@@ -635,10 +649,19 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 3
+
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[1][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == 1
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -679,11 +702,19 @@ class TestAliases(object):
                                   'cire-mingain': 0, 'cire-rotate': rotate}))
 
         # Check code generation
-        assert len(op1._func_table) == 0
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 4
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[1][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 2
-        assert len(FindNodes(VExpanded).visit(op1)) == 2
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 2
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         self.check_array(arrays[1], ((1, 1), (0, 0)), (ys+2, zs), rotate)
 
@@ -721,7 +752,6 @@ class TestAliases(object):
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(op1)) == 1
-
         self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
         self.check_array(arrays[1], ((2, 2), (0, 0)), (ys+4, zs))
 
@@ -802,12 +832,18 @@ class TestAliases(object):
                                   'cire-mingain': 0, 'cire-rotate': rotate}))
 
         # Check code generation
-        assert len(op1._func_table) == 0
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 4
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[1][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 2
-        assert len(FindNodes(VExpanded).visit(op1)) == 2
-
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 2
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         self.check_array(arrays[1], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
 
@@ -847,11 +883,18 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        assert len(op1._func_table) == 0
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 3
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[1][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 2
-        assert len(FindNodes(VExpanded).visit(op1)) == 2
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 2
         self.check_array(arrays[0], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
         self.check_array(arrays[1], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
 
@@ -894,10 +937,19 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 4
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[1][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 3
-        assert len(FindNodes(VExpanded).visit(op1)) == 3
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 3
         self.check_array(arrays[0], ((1, 0), (1, 0)), (xs+1, zs+1), rotate)
         self.check_array(arrays[1], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
         self.check_array(arrays[2], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
@@ -937,13 +989,19 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mingain': 0,
                                               'cire-rotate': rotate}))
 
-        assert len(op1._func_table) == 0
-
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 3
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[1][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+
         ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == 1
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
 
         # Check numerical output
@@ -1121,14 +1179,18 @@ class TestAliases(object):
         # Check code generation
         # We expect two temporary Arrays which have in common a sub-expression
         # stemming from `d0(v, p0, p1)`
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        # trees = retrieve_iteration_tree(op1)
+        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
+        assert len(trees) == 3
+        assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         assert len(arrays) == 6
-        vexpandeds = FindNodes(VExpanded).visit(op1)
+        vexpandeds = FindNodes(VExpanded).visit(trees[1][0])
         assert len(vexpandeds) == (2 if configuration['language'] == 'openmp' else 0)
         assert all(i._mem_heap and not i._mem_external for i in arrays)
-        trees = retrieve_iteration_tree(op1)
-        assert len(trees) == (4 if configuration['language'] == 'openmp' else 3)
-        exprs = FindNodes(Expression).visit(trees[-2])
+
+        exprs = FindNodes(Expression).visit(trees[1][3])
         assert exprs[-1].write is arrays[-1]
         assert arrays[-2] not in exprs[-1].reads
 
@@ -1178,23 +1240,26 @@ class TestAliases(object):
         # Check code generation
         trees = retrieve_iteration_tree(op1)
         assert len(trees) == 6
+
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[1][1:4])
+            assert all(i.dim.is_Incr for i in trees[4][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[1][1:5])
+            assert all(i.dim.is_Incr for i in trees[4][1:5])
+
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[5][1:5])
+
         assert len(trees[0]) == 1
 
+        assert len(retrieve_iteration_tree(trees[1][1])) == 2
         assert trees[1][-1].nodes[0].body[0].write.is_Array
         assert trees[2][-1].nodes[0].body[0].write is u
 
+        assert len(retrieve_iteration_tree(trees[4][1])) == 2
         assert trees[4][-1].nodes[0].body[0].write.is_Array
         assert trees[5][-1].nodes[0].body[0].write is v
-
-        exprs = FindNodes(Expression).visit(op1)
-
-        assert exprs[0].write.is_Array
-        assert exprs[1].write is u
-        assert exprs[2].write.is_Symbol
-        assert exprs[3].write.is_Symbol
-        assert exprs[4].write is u
-        assert exprs[5].write.is_Array
-        assert exprs[6].write is v
 
         # Check numerical output
         op0(time_M=1)
@@ -1229,15 +1294,21 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 2
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[0][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[0][1:5])
+        assert all(i.dim.is_Incr for i in trees[1][1:5])
+
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == 0
+        assert len(FindNodes(VExpanded).visit(trees[0][0])) == 0
         assert arrays[0].padding == ((0, 0), (0, 0), (0, 30))
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+32), rotate)
         # Check loop bounds
-        trees = retrieve_iteration_tree(op1)
-        assert len(trees) == 2
         expected_rounded = trees[0].inner
         assert expected_rounded.symbolic_max ==\
             z.symbolic_max + (z.symbolic_max - z.symbolic_min + 3) % 16 + 1
@@ -1374,13 +1445,17 @@ class TestAliases(object):
 
         op = Operator([pde, df])
 
+        # Check code generation
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
         assert len(trees[0]) == 3  # time, x, y
         assert len(trees[1]) == 2  # time, f
         assert trees[1][0].dim is time
         assert trees[1][1].dim is f
-        assert len(trees[2]) == 5  # time, f0_blk0, f, x, y
+        assert len(retrieve_iteration_tree(trees[2][1])) == 1
+        trees = retrieve_iteration_tree(trees[2][1])
+        assert all(i.dim.is_Incr for i in trees[0][0:2])
+        assert len(trees[0]) == 4  # f0_blk0, f, x, y
 
     def test_space_invariant_v2(self):
         """
@@ -1635,10 +1710,13 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'cire-mingain': 0}))
 
         # Check code generation
-        # Expected two separate blocked loop nests
-        assert len(retrieve_iteration_tree(op1)) == 2
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 2  # Expected two separate blocked loop nests
+        assert all(i.dim.is_Incr for i in trees[0][1:5])
+        assert all(i.dim.is_Incr for i in trees[1][1:5])
+        assert trees[0][1] is not trees[1][1]
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]
         assert len(arrays) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2))
 
@@ -1725,10 +1803,22 @@ class TestAliases(object):
         op = Operator(eqn, subs=grid.spacing_map, openmp=True)
 
         # Check code generation
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 6
+        assert len(trees[0]) == 3
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+        assert all(i.dim.is_Incr for i in trees[4][1:5])
+        assert all(i.dim.is_Incr for i in trees[5][1:5])
+        assert all(i is j for i, j in zip(trees[2][1:3], trees[3][1:3]))
+        assert trees[2][3] is not trees[3][3]
+        assert all(i is j for i, j in zip(trees[3][1:4], trees[4][1:4]))
+        assert trees[3][4] is not trees[4][4]
+
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
         assert len(arrays) == 5
-        assert len(FindNodes(VExpanded).visit(op)) == 3
+        assert len(FindNodes(VExpanded).visit(trees[2][0])) == 3
         xs, ys, zs = self.get_params(op, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         # The three kind of derivatives taken -- in x, y, z -- all are over
         # different expressions, so this leads to three temporaries of dimensionality,
@@ -1771,8 +1861,15 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 6
-        assert len(FindNodes(VExpanded).visit(op)) == 3
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 4
+        assert all(i is j for i, j in zip(trees[2][:3], trees[3][:3]))
+        assert trees[2][4] is not trees[3][4]
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+        assert len([i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]) == 6
+        assert len(FindNodes(VExpanded).visit(trees[2][0])) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 48)])
     @switchconfig(profiling='advanced')
@@ -1814,8 +1911,15 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7
-        assert len(FindNodes(VExpanded).visit(op)) == 3
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 4
+        assert all(i is j for i, j in zip(trees[2][:3], trees[3][:3]))
+        assert trees[2][4] is not trees[3][4]
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+
+        assert len([i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]) == 7
+        assert len(FindNodes(VExpanded).visit(trees[2][0])) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 144), (8, 208)])
     @switchconfig(profiling='advanced')
@@ -1880,9 +1984,17 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 4
+        assert len(trees[1]) == 1
+        assert all(i is j for i, j in zip(trees[2][:3], trees[3][:3]))
+        assert trees[2][4] is not trees[3][4]
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+
+        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
         assert len(arrays) == 10
-        assert len(FindNodes(VExpanded).visit(op)) == 6
+        assert len(FindNodes(VExpanded).visit(trees[2][0])) == 6
 
     @pytest.mark.parametrize('so_ops', [(4, 33), (8, 69)])
     @pytest.mark.parametrize('rotate', [False, True])
@@ -1943,8 +2055,21 @@ class TestAliases(object):
 
         # Check code generation
         assert summary[('section1', None)].ops == exp_ops
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 5
-        assert len(FindNodes(VExpanded).visit(op1)) == 1
+
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 4
+        assert len(trees[1]) == 1
+        assert all(i is j for i, j in zip(trees[2][:3], trees[3][:3]))
+        assert trees[2][4] is not trees[3][4]
+
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[2][1:4])
+        else:
+            assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+
+        assert len([i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]) == 5
+        assert len(FindNodes(VExpanded).visit(trees[2][0])) == 1
 
     @switchconfig(profiling='advanced')
     def test_tti_adjoint_akin_v2(self):
@@ -1984,10 +2109,18 @@ class TestAliases(object):
         op1 = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
 
         # Check code generation
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 5
+        assert len(trees[1]) == 1
+        assert all(i is j for i, j in zip(trees[2][:3], trees[3][:3]))
+        assert all(i is j for i, j in zip(trees[3][:5], trees[4][:5]))
+        assert trees[2][3] is not trees[3][3]
+        assert trees[3][5] is not trees[4][5]
+
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
         assert len(arrays) == 4
-        assert len(FindNodes(VExpanded).visit(op1)) == 2
+        assert len(FindNodes(VExpanded).visit(trees[2][0])) == 2
         self.check_array(arrays[2], ((6, 6), (6, 6), (6, 6)), (xs+12, ys+12, zs+12))
         self.check_array(arrays[3], ((3, 3),), (zs+6,))
 
@@ -2024,8 +2157,20 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
 
         # Check code generation
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
-        assert len(FindNodes(VExpanded).visit(op1)) == 1
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 3
+
+        if rotate:
+            assert all(i.dim.is_Incr for i in trees[2][1:4])
+            assert all(i is j for i, j in zip(trees[1][:4], trees[2][:4]))
+            assert trees[1][4] is not trees[2][4]
+        else:
+            assert all(i.dim.is_Incr for i in trees[2][1:5])
+            assert all(i is j for i, j in zip(trees[1][:3], trees[2][:3]))
+            assert trees[1][3] is not trees[2][3]
+
+        assert len([i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]) == 1
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
 
         # Check numerical output
         op0(time_M=1)
@@ -2109,10 +2254,13 @@ class TestAliases(object):
         assert len(arrays) == exp_arrays[0]
         arrays = [i for i in FindSymbols().visit(op2) if i.is_Array]
         assert len(arrays) == exp_arrays[1]
-        arrays = [i for i in FindSymbols().visit(op3) if i.is_Array]
+
+        trees = retrieve_iteration_tree(op3)
+        # import pdb;pdb.set_trace()
+        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
         exp_inv, exp_sops = exp_arrays[2]
         assert len(arrays) == exp_inv + exp_sops
-        assert len(FindNodes(VExpanded).visit(op3)) == exp_sops
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == exp_sops
 
         # Check numerical output
         op0(time_M=20)
@@ -2173,12 +2321,17 @@ class TestAliases(object):
 
         # Check code generation
         trees = retrieve_iteration_tree(op1)
-
         assert len(trees) == (3 if configuration['language'] == 'openmp' else 2)
-
         assert trees[-2][1] is trees[-1][1]
         assert trees[-2][2] is trees[-1][2]
         assert trees[-2][2] is not trees[-1][1]
+        assert all(i is j for i, j in zip(trees[-1][:3], trees[-2][:3]))
+        assert all(i.dim.is_Incr for i in trees[-1][1:5])
+
+        if not rotate:
+            assert all(i.dim.is_Incr for i in trees[-2][1:5])
+        else:
+            assert all(i.dim.is_Incr for i in trees[-2][1:4])
 
         # Check numerical output
         op0.apply(time_M=2)
@@ -2204,9 +2357,14 @@ class TestAliases(object):
         op0 = Operator(eq, opt='noop')
         op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
 
-        # Check code generation
+        # Check code generation, get rid of len(i) <= 1
+        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
+        assert len(trees) == 2
+        assert all(i.dim.is_Incr for i in trees[0][1:5])
+        assert all(i.dim.is_Incr for i in trees[1][1:5])
+
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]
         assert len(arrays) == 1
         self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
 
@@ -2247,7 +2405,15 @@ class TestAliases(object):
         # Check code generation
         assert len([i for i in op1.dimensions if i.is_Incr]) == 6 + (2 if rotate else 0)
         if configuration['language'] == 'openmp':
-            pariters = FindNodes(ParallelIteration).visit(op2)
+            trees = retrieve_iteration_tree(op2)
+            assert len(trees) == 4
+            if rotate:
+                assert all(i.dim.is_Incr for i in trees[1][1:6])
+                assert not trees[1][6].dim.is_Incr
+            else:
+                assert all(i.dim.is_Incr for i in trees[1][1:7])
+            assert all(i.dim.is_Incr for i in trees[2][1:7])
+            pariters = FindNodes(ParallelIteration).visit(trees[1][1])
             assert len(pariters) == 2
 
         # Check numerical output
@@ -2346,10 +2512,21 @@ class TestAliases(object):
 
         # Check code generation
         # `min-storage` leads to one 2D and one 3D Arrays
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 5
+        if rotate:
+            assert trees[2][5] is not trees[3][5]
+        else:
+            assert trees[2][4] is not trees[3][4]
+
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+        assert all(i.dim.is_Incr for i in trees[4][1:5])
+
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
         assert len(arrays) == 3
-        assert len(FindNodes(VExpanded).visit(op1)) == 2
+        assert len(FindNodes(VExpanded).visit(trees[2][0])) == 2
         self.check_array(arrays[1], ((4, 4), (0, 0)), (ys+8, zs), rotate)
         self.check_array(arrays[2], ((4, 4),), (zs+8,))  # On purpose w/o `rotate`
 
@@ -2375,7 +2552,12 @@ class TestAliases(object):
 
         op = Operator(eqn, opt=('advanced', {'openmp': False, 'cire-mingain': 4}))
 
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2 and len(trees[0]) == len(trees[1])
+        assert len(trees[0]) == 6
+        assert all(i is j and i.dim.is_Incr for i, j in zip(trees[0][1:4], trees[1][1:4]))
+        assert trees[0][4] is not trees[1][4]
+        assert len([i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]) == 1
 
     def test_contraction_with_conditional(self):
         """
@@ -2476,9 +2658,10 @@ class TestIsoAcoustic(object):
         u1, rec1, summary1, op1 = self.run_acoustic_forward(opt='advanced')
 
         assert len(op0._func_table) == 0
-        # Rule out len(i) <= 1 trees
-        trees = [i for i in retrieve_iteration_tree(op0) if len(i) > 1]
+        # Rule out len(i) <= 1 trees due to Openmp tids
+        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
         assert len(trees) == 3  # due to loop blocking
+        assert all(i.dim.is_Incr for i in trees[0][1:5])
 
         assert summary0[('section0', None)].ops == 50
         assert summary0[('section1', None)].ops == 151
@@ -2565,12 +2748,14 @@ class TestTTI(object):
         extra_arrays = 2
         assert len(arrays) == 4 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        trees = retrieve_iteration_tree(op)
+        assert all(i is j and i.dim.is_Incr for i, j in zip(trees[1][1:3], trees[2][1:3]))
+        arrays = [i for i in FindSymbols().visit(trees[2][0]) if i.is_Array]
         assert len(arrays) == 6
         assert all(not i._mem_external for i in arrays)
         assert len([i for i in arrays if i._mem_heap]) == 6
         vexpanded = 2 if configuration['language'] == 'openmp' else 0
-        assert len(FindNodes(VExpanded).visit(op)) == vexpanded
+        assert len(FindNodes(VExpanded).visit(trees[1][0])) == vexpanded
 
     @skipif(['nompi'])
     @switchconfig(profiling='advanced')
@@ -2586,7 +2771,6 @@ class TestTTI(object):
 
         # Run a quick check to be sure MPI-full-mode code was actually generated
         op = tti_agg.op_fwd(False)
-
         assert len(op._func_table) == 7
         assert 'pokempi0' in op._func_table
 
@@ -2655,7 +2839,9 @@ class TestTTIv2(object):
         op = Operator(eqns, openmp=True)
 
         # Check code generation
-        arrays = FindNodes(VExpanded).visit(op)
+        trees = retrieve_iteration_tree(op)
+        assert all(i is j and i.dim.is_Incr for i, j in zip(trees[2][1:3], trees[3][1:3]))
+        arrays = FindNodes(VExpanded).visit(trees[2][0])
         assert len(arrays) == 4
         assert all(len(i.pointee.shape) == 2 for i in arrays)  # Expected 2D arrays
         sections = list(op._profiler._sections.values())

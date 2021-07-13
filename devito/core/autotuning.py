@@ -92,8 +92,7 @@ def autotune(operator, args, level, mode):
     seen = set()
     for n, tree in enumerate(trees):
         blockable = [i.dim for i in tree if not is_integer(i.step)]
-        # Drop dimensions that have been already tested
-        # Encountered when `blockable` appear more than once under a tree
+        # Continue if `blockable` appear more than once under a tree
         if all(i in seen for i in blockable):
             continue
 

@@ -3,14 +3,14 @@ import cgen as c
 from sympy import And, Max
 
 from devito.data import FULL
-from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
-                       List, ParallelTree, Prodder, FindSymbols, FindNodes,
-                       VECTORIZED, Transformer, IsPerfectIteration, filter_iterations,
-                       retrieve_iteration_tree)
-from devito.symbolics import INT, ccode
+from devito.ir import (Conditional, DummyEq, Dereference, Expression, ExpressionBundle,
+                       FindSymbols, FindNodes, ParallelTree, Prodder, List, Transformer,
+                       IsPerfectIteration, filter_iterations, retrieve_iteration_tree,
+                       VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
+from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, prod
 from devito.types import Symbol, NThreadsBase
 

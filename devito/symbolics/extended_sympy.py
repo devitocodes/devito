@@ -405,7 +405,7 @@ DOUBLEP = Function('DOUBLEP')
 
 FLOOR = Function('floor')
 
-# Functions used for finalizing loop bounds
+# Functions used for adjusting loop bounds
 MAX = Function('MAX')
 MIN = Function('MIN')
 

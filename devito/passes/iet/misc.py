@@ -98,13 +98,13 @@ def relax_incr_dimensions(iet, **kwargs):
         # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
             if i.dim.parent in proc_parents_max and i.symbolic_size == i.dim.parent.step:
-                # Use parent's Iteration max when possible in hierarchical blocking
+                # Use parent's Iteration max in hierarchical blocking
                 iter_max = proc_parents_max[i.dim.parent]
             else:
-                # The Iteration's maximum is the MIN of the `symbolic_max` of current
-                # Iteration e.g. `i.symbolic_max = x0_blk0 + x0_blk0_size - 1` and the
-                # `symbolic_max` of the current Iteration's root Dimension e.g. `x_M`.
-                # The generated bound will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
+                # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
+                # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
+                # of the current Iteration's root Dimension e.g. `x_M`. The generated
+                # bound will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
 
                 # In some corner cases an offset may be added (e.g. after CIRE passes)
                 # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
@@ -115,7 +115,7 @@ def relax_incr_dimensions(iet, **kwargs):
 
                 try:
                     iter_max = (min(i.symbolic_max, root_max))
-                    bool(iter_max)
+                    bool(iter_max)  # Can it be evaluated?
                 except TypeError:
                     iter_max = MIN(i.symbolic_max, root_max)
 

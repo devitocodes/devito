@@ -1057,7 +1057,11 @@ class TestConditionalDimension(object):
 
         op = Operator(eqns)
 
-        exprs = FindNodes(Expression).visit(op)
+        # Check code generation
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+        assert all(i.dim.is_Incr for i in trees[0][1:5])
+        exprs = FindNodes(Expression).visit(trees[0][1])
         assert len(exprs) == 4
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
@@ -1071,10 +1075,19 @@ class TestConditionalDimension(object):
                 Eq(g, f + 1, implicit_dims=[ctime])]
 
         op = Operator(eqns)
-        exprs = FindNodes(Expression).visit(op)
-        assert len(exprs) == 4
+        # Check code generation
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+        assert all(i.dim.is_Incr for i in trees[0][1:5])  # 1st set of blocked loops
+        assert len(trees[1]) == 1
+        assert all(i.dim.is_Incr for i in trees[2][1:5])  # 2nd set of blocked loops
+        assert (trees[0][1] is not trees[2][1])  # two different sets of blocked loops
+        exprs = FindNodes(Expression).visit(trees[0][1])
+        assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
+        exprs = FindNodes(Expression).visit(trees[2][1])
+        assert len(exprs) == 1
 
     @skipif('device')
     def test_no_fusion_convoluted(self):
@@ -1100,31 +1113,26 @@ class TestConditionalDimension(object):
 
         op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
-        assert(len(trees) == 4)
-
-        assert(len(trees[0]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[0])) == 24)
-        assert(len(retrieve_iteration_tree(trees[0]))) == 9
-
-        assert(len(trees[1]) == 1)
-        assert(len(FindNodes(Expression).visit(trees[1])) == 9)
-        assert(len(retrieve_iteration_tree(trees[1]))) == 4
-
-        assert(len(trees[2]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[2])) == 24)
-        assert(len(retrieve_iteration_tree(trees[2]))) == 9
-
-        assert(len(trees[3]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[3])) == 24)
-        assert(len(retrieve_iteration_tree(trees[3]))) == 9
-
-        exprs = FindNodes(Expression).visit(op)
-        assert len(exprs) == 9
+        assert len(trees) == 4
+        # Check 3 different sets of blocked loops
+        assert trees[0][1] is not trees[2][1]
+        assert trees[0][1] is not trees[3][1]
+        assert trees[2][1] is not trees[3][1]
+        assert all(i.dim.is_Incr for i in trees[0][1:5])
+        exprs = FindNodes(Expression).visit(trees[0][1])
+        assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
 
-        assert exprs[7].expr.rhs is exprs[6].output
-        assert exprs[8].expr.rhs is exprs[6].output
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        exprs = FindNodes(Expression).visit(trees[2][1])
+        assert len(exprs) == 3
+
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+        exprs = FindNodes(Expression).visit(trees[3][1])
+        assert len(exprs) == 3
+        assert exprs[1].expr.rhs is exprs[0].output
+        assert exprs[2].expr.rhs is exprs[0].output
 
     def test_affiness(self):
         """
@@ -1183,36 +1191,32 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-
         trees = retrieve_iteration_tree(op)
-        assert(len(trees) == 4)
+        assert len(trees) == 4
+        assert all(i.dim.is_Incr for i in trees[0][1:5])  # 1st set of blocked loops
+        assert len(trees[1]) == 1
+        assert all(i.dim.is_Incr for i in trees[2][1:5])  # 2nd set of blocked loops
+        assert all(i.dim.is_Incr for i in trees[3][1:5])  # 3rd set of blocked loops
+        # The 3 loop nests block should be different
+        assert trees[0][1] is not trees[2][1]
+        assert trees[0][1] is not trees[3][1]
+        assert trees[2][1] is not trees[3][1]
 
-        assert(len(trees[0]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[0])) == 15)
-        assert(len(retrieve_iteration_tree(trees[0]))) == 9
+        exprs = FindNodes(Expression).visit(trees[0][1])
+        assert len(exprs) == 2
+        assert exprs[0].write is f
+        assert exprs[1].write is g
 
-        assert(len(trees[1]) == 1)
-        assert(len(FindNodes(Expression).visit(trees[1])) == 5)
-        assert(len(retrieve_iteration_tree(trees[1]))) == 4
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        exprs = FindNodes(Expression).visit(trees[2][1])
+        assert len(exprs) == 2
+        assert exprs[0].write is fsave
+        assert exprs[1].write is gsave
 
-        assert(len(trees[2]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[2])) == 15)
-        assert(len(retrieve_iteration_tree(trees[2]))) == 9
-
-        assert(len(trees[3]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[3])) == 10)
-        assert(len(retrieve_iteration_tree(trees[3]))) == 9
-
-        exprs = FindNodes(Expression).visit(op)
-        assert len(exprs) == 6
-
-        assert exprs[1].write is f
-        assert exprs[2].write is g
-
-        assert exprs[3].write is fsave
-        assert exprs[4].write is gsave
-
-        assert exprs[5].write is h
+        assert all(i.dim.is_Incr for i in trees[3][1:5])
+        exprs = FindNodes(Expression).visit(trees[3][1])
+        assert len(exprs) == 1
+        assert exprs[0].write is h
 
     def test_topofusion_w_subdims_conddims_v2(self):
         """
@@ -1240,19 +1244,18 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        assert len(FindNodes(Expression).visit(op)) == 6
         trees = retrieve_iteration_tree(op)
-
-        assert len(FindNodes(Expression).visit(trees[0][1])) == 3
-        assert len(FindNodes(Expression).visit(trees[0][2])) == 3
-        assert len(FindNodes(Expression).visit(trees[1][0])) == 5
-        assert len(trees[0]) == 6
+        assert len(trees) == 3
+        assert all(i.dim.is_Incr for i in trees[0][1:5])  # 1st set of blocked loops
         assert len(trees[1]) == 1
-        assert len(trees[2]) == 6
-
-        exprs = FindNodes(Expression).visit(trees[1][0])
-        assert exprs[3].write is fsave
-        assert exprs[4].write is gsave
+        assert all(i.dim.is_Incr for i in trees[2][1:5])  # 2nd set of blocked loops
+        # The 2 loop nests block should be different
+        assert trees[0][1] is not trees[2][1]
+        assert len(FindNodes(Expression).visit(trees[0][1])) == 3
+        exprs = FindNodes(Expression).visit(trees[2][1])
+        assert len(exprs) == 2
+        assert exprs[0].write is fsave
+        assert exprs[1].write is gsave
 
     def test_topofusion_w_subdims_conddims_v3(self):
         """
@@ -1278,33 +1281,29 @@ class TestMashup(object):
 
         op = Operator(eqns)
 
-        trees = retrieve_iteration_tree(op)
-        assert(len(trees) == 5)
-
-        assert(len(trees[0]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[0])) == 16)
-        assert(len(retrieve_iteration_tree(trees[0]))) == 10
-
-        assert(len(trees[1]) == 1)
-        assert(len(FindNodes(Expression).visit(trees[1])) == 6)
-        assert(len(retrieve_iteration_tree(trees[1]))) == 5
-
-        assert(len(trees[2]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[2])) == 16)
-        assert(len(retrieve_iteration_tree(trees[2]))) == 10
-
-        assert(len(trees[3]) == 6)
-        assert(len(FindNodes(Expression).visit(trees[3])) == 13)
-        assert(len(retrieve_iteration_tree(trees[3]))) == 12
-
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 5
+        # The 3 loop nests block should be different
+        assert all(i.dim.is_Incr for i in trees[0][1:5])
+        assert all(i.dim.is_Incr for i in trees[2][1:5])
+        assert all(i.dim.is_Incr for i in trees[4][1:5])
+        assert trees[0][1] is not trees[2][1]
+        assert trees[0][1] is not trees[4][1]
+        assert trees[2][1] is not trees[4][1]
 
-        exprs = FindNodes(Expression).visit(op)
-        assert len(exprs) == 9
+        exprs = FindNodes(Expression).visit(trees[0][1])
+        assert len(exprs) == 2
+        assert exprs[0].write is f
+        assert exprs[1].write is g
 
-        assert exprs[3].write is f
-        assert exprs[4].write is g
-        assert exprs[5].write is fsave
-        assert exprs[6].write is gsave
-        assert exprs[8].write is h
+        exprs = FindNodes(Expression).visit(trees[2][1])
+        assert len(exprs) == 2
+        assert exprs[0].write is fsave
+        assert exprs[1].write is gsave
+
+        # Additional nest due to anti-dependence
+        exprs = FindNodes(Expression).visit(trees[4][1])
+        assert len(exprs) == 2
+        assert exprs[1].write is h
