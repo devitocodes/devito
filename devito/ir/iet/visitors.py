@@ -207,20 +207,24 @@ class CGen(Visitor):
         elif isinstance(o.obj, ArrayObject):
             obj = '%s->%s' % (o.obj.name, f._C_name)
         else:
-            obj = f._C_name
+            obj = o.cname or f._C_name
         if f.is_PointerArray:
-            rvalue = '(%s**) %s' % (f._C_typedata, obj)
             lvalue = c.Value(f._C_typedata, '**%s' % f.name)
+            rvalue = '(%s**) %s' % (f._C_typedata, obj)
         else:
-            shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
-            if f.is_DiscreteFunction:
-                rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, obj,
-                                                f._C_field_data)
+            if o.flat is None:
+                shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
+                rshape = '(*)%s' % shape
+                lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (f.name, shape))
             else:
-                rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, obj)
-            lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (f.name, shape))
+                rshape = '*'
+                lvalue = c.Value(f._C_typedata, '*%s' % o.flat)
             if o.alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
+            if f.is_DiscreteFunction:
+                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, obj, f._C_field_data)
+            else:
+                rvalue = '(%s %s) %s' % (f._C_typedata, rshape, obj)
         return c.Initializer(lvalue, rvalue)
 
     def visit_Dereference(self, o):

@@ -805,10 +805,12 @@ class PointerCast(ExprStmt, Node):
 
     is_PointerCast = True
 
-    def __init__(self, function, obj=None, alignment=True):
+    def __init__(self, function, obj=None, alignment=True, flat=None, cname=None):
         self.function = function
         self.obj = obj
         self.alignment = alignment
+        self.flat = flat
+        self.cname = cname
 
     def __repr__(self):
         return "<PointerCast(%s)>" % self.function
