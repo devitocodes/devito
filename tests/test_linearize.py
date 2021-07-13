@@ -144,3 +144,21 @@ def test_codegen_quality1():
 
     exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
     assert all('const int' in str(i) for i in exprs[:-2])
+
+
+def test_pow():
+    grid = Grid(shape=(4, 4))
+
+    u = TimeFunction(name='u', grid=grid, space_order=2)
+
+    eqn = Eq(u.forward, 1./(u*u) + 1.)
+
+    op = Operator(eqn, opt=('advanced', {'linearize': True}))
+
+    # Make sure linearize() doesn't cause `a*a` -> `Pow(a, 2)`
+    assert 'uL0' in str(op)
+    expr = FindNodes(Expression).visit(op)[-1].expr
+    assert expr.rhs.is_Add
+    assert expr.rhs.args[1].is_Pow
+    assert expr.rhs.args[1].args[0].is_Mul
+    assert expr.rhs.args[1].args[1] == -1
