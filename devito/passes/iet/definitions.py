@@ -9,8 +9,8 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (EntryFunction, List, LocalExpression, FindSymbols,
-                       MapExprStmts, Transformer)
+from devito.ir import (Dereference, EntryFunction, List, LocalExpression, FindNodes,
+                       FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
@@ -286,13 +286,17 @@ class DataManager(object):
             # Sometimes we end up here -- an IET with no definitions
             body = iet
 
-        functions = FindSymbols().visit(iet)
         symbols = FindSymbols('free-symbols').visit(iet)
+        symbol_names = {i.name for i in symbols}
+
+        placed = set()
+        placed.update({i.pointee for i in FindNodes(Dereference).visit(iet)})
 
         # Create Function -> n-dimensional array casts
         # E.g. `float (*u)[u_vec->size[1]] = (float (*)[u_vec->size[1]]) u_vec->data`
-        symbol_names = {i.name for i in symbols}
-        need_cast = {i for i in functions if i.is_Tensor and i.name in symbol_names}
+        functions = [i for i in FindSymbols().visit(iet)
+                     if i.is_Tensor and i.name in symbol_names]
+        need_cast = set(functions) - placed
         casts = tuple(self.lang.PointerCast(i) for i in iet.parameters if i in need_cast)
         if casts:
             casts = (List(body=casts, footer=c.Line()),)
@@ -301,14 +305,13 @@ class DataManager(object):
         # Create Function -> linearized n-dimensional array casts
         # E.g. `float *ul = (float*) u_vec->data`
         casts = []
-        seen = set()
         for i in symbols:
             if not isinstance(i, FIndexed):
                 continue
             f = i.function
-            if f in seen:
+            if f in placed:
                 continue
-            seen.add(f)
+            placed.add(f)
             if f in iet.parameters:
                 casts.append(self.lang.PointerCast(f, flat=i.name))
             else:
