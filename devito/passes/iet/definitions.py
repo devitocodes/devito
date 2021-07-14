@@ -9,19 +9,19 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (Dereference, EntryFunction, List, LocalExpression, FindNodes,
-                       FindSymbols, MapExprStmts, Transformer)
+from devito.ir import (BlankLine, Dereference, EntryFunction, List, LocalExpression,
+                       PragmaList, FindNodes, FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import ccode
-from devito.tools import as_mapper, filter_sorted, flatten
+from devito.tools import as_mapper, filter_ordered, filter_sorted, flatten
 from devito.types import DeviceRM, FIndexed
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 
-MetaSite = namedtuple('Definition', 'allocs frees pallocs pfrees')
+MetaSite = namedtuple('Definition', 'allocs frees pallocs pfrees maps unmaps')
 
 
 class Storage(OrderedDict):
@@ -37,7 +37,7 @@ class Storage(OrderedDict):
         try:
             metasite = self[site]
         except KeyError:
-            metasite = self.setdefault(site, MetaSite([], [], [], []))
+            metasite = self.setdefault(site, MetaSite([], [], [], [], [], []))
 
         for k, v in kwargs.items():
             getattr(metasite, k).append(v)
@@ -170,6 +170,24 @@ class DataManager(object):
             if allocs:
                 allocs.append(c.Line())
 
+            # maps/unmaps
+            rbody = []
+            if v.maps:
+                rbody.append(PragmaList(
+                    flatten(i.pragmas for i in v.maps),
+                    functions=filter_ordered(flatten(i.functions for i in v.maps)),
+                    free_symbols=filter_ordered(flatten(i.free_symbols for i in v.maps))
+                ))
+                rbody.append(BlankLine)
+            rbody.extend(list(k.body))
+            if v.unmaps:
+                rbody.append(BlankLine)
+                rbody.append(PragmaList(
+                    flatten(i.pragmas for i in v.unmaps),
+                    functions=filter_ordered(flatten(i.functions for i in v.maps)),
+                    free_symbols=filter_ordered(flatten(i.free_symbols for i in v.maps))
+                ))
+
             # frees/pfrees
             frees = []
             for tid, body in as_mapper(v.pfrees, itemgetter(0), itemgetter(1)).items():
@@ -181,7 +199,7 @@ class DataManager(object):
             if frees:
                 frees.insert(0, c.Line())
 
-            mapper[k] = k._rebuild(body=cls(header=allocs, body=k.body, footer=frees),
+            mapper[k] = k._rebuild(body=cls(header=allocs, body=rbody, footer=frees),
                                    **k.args_frozen)
 
         processed = Transformer(mapper, nested=True).visit(iet)
@@ -368,15 +386,19 @@ class DeviceAwareDataManager(DataManager):
         """
         Place a Function in the high bandwidth memory.
         """
-        alloc = self.lang._map_to(obj)
+        mmap = self.lang._map_to(obj)
+        mmap = PragmaList(mmap, functions=obj,
+                          free_symbols=[obj._C_symbol, obj.indexed.label])
 
         if read_only is False:
-            free = c.Collection([self.lang._map_update(obj),
-                                 self.lang._map_release(obj, devicerm=devicerm)])
+            unmap = c.Collection([self.lang._map_update(obj),
+                                  self.lang._map_release(obj, devicerm=devicerm)])
         else:
-            free = self.lang._map_delete(obj, devicerm=devicerm)
+            unmap = self.lang._map_delete(obj, devicerm=devicerm)
+        unmap = PragmaList(unmap, functions=obj,
+                           free_symbols=[obj._C_symbol, obj.indexed.label])
 
-        storage.update(obj, site, allocs=alloc, frees=free)
+        storage.update(obj, site, maps=mmap, unmaps=unmap)
 
     @iet_pass
     def map_onmemspace(self, iet, **kwargs):
