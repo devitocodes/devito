@@ -18,3 +18,5 @@ distributed<2021.8
 pytest>=3.6,<7.0
 pytest-runner
 pytest-cov
+versioneer
+cython
