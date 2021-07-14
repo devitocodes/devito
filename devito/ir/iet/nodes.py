@@ -861,9 +861,10 @@ class Dereference(ExprStmt, Node):
 
     is_Dereference = True
 
-    def __init__(self, pointee, pointer):
+    def __init__(self, pointee, pointer, flat=None):
         self.pointee = pointee
         self.pointer = pointer
+        self.flat = flat
 
     def __repr__(self):
         return "<Dereference(%s,%s)>" % (self.pointee, self.pointer)
