@@ -1048,3 +1048,22 @@ class TestEdgeCases(object):
         op(time_m=0, time_M=9)
         sf.manual_gather()
         assert np.all(f.data == 1.)
+
+
+class TestOptionalPasses(object):
+
+    def test_linearize(self):
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eqn = Eq(u.forward, u + 1)
+
+        op = Operator(eqn, opt=('advanced', {'linearize': True}))
+
+        # Check generated code
+        assert 'uL0' in str(op)
+
+        # Check jit-compilation and correct execution
+        op.apply(time_M=10)
+        assert np.all(u.data[1] == 11)

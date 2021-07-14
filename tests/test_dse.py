@@ -1551,19 +1551,22 @@ class TestAliases(object):
         pde = m * u.dt2 - u.laplace
         eq = Eq(u.forward, solve(pde, u.forward))
 
-        # Check that different backends behave the same (in older versions
-        # they were generating different code)
+        # Check that different backends behave the same
         op0 = Operator(eq, opt=('advanced', {'openmp': False}))
         op1 = Operator(eq, platform='nvidiaX', language='openacc')
 
-        for op, ops, nexprs in [(op0, 26, 5), (op1, 26, 5)]:
+        for op in [op0, op1]:
             assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
-            assert op._profiler._sections['section0'].sops == ops
+            assert op._profiler._sections['section0'].sops == 26
             exprs = FindNodes(Expression).visit(op)
-            assert len(exprs) == nexprs
+            assert len(exprs) == 5
             assert all(e.is_scalar for e in exprs[:-1])
-            assert op.body[-1].body[0].is_ExpressionBundle
-            assert op.body[-1].body[-1].is_Iteration
+
+        assert op0.body[-1].body[0].is_ExpressionBundle
+        assert op0.body[-1].body[-1].is_Iteration
+
+        assert op1.body[-1].body[2].body[0].is_ExpressionBundle
+        assert op1.body[-1].body[2].body[-1].is_Iteration
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_drop_redundants_after_fusion(self, rotate):

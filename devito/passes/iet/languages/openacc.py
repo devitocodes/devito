@@ -10,7 +10,7 @@ from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import DefFunction, Macro
-from devito.tools import prod
+from devito.tools import filter_ordered, prod
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
@@ -33,12 +33,13 @@ class DeviceAccIteration(ParallelIteration):
         if reduction:
             clauses.append(make_clause_reduction(reduction))
 
-        symbols = FindSymbols().visit(kwargs['nodes'])
-        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
-        presents = [i.name for i in symbols
-                    if (i.is_AbstractFunction and
-                        is_on_device(i, kwargs['gpu_fit']) and
-                        i.name not in deviceptrs)]
+        indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
+        deviceptrs = filter_ordered(i.name for i in indexeds
+                                    if i.function.is_Array and i.function._mem_default)
+        presents = filter_ordered(i.name for i in indexeds
+                                  if (i.function.is_AbstractFunction and
+                                      is_on_device(i, kwargs['gpu_fit']) and
+                                      i.name not in deviceptrs))
 
         # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
         # indirectly indexed arrays (e.g., a[b[i]]) unless a present clause is used

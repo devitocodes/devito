@@ -55,14 +55,15 @@ class TestCodeGeneration(object):
 
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3)'
-        assert op.body[2].header[0].value ==\
+        assert op.body[2].body[0].pragmas[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert str(op.body[2].footer[0]) == ''
-        assert op.body[2].footer[1].contents[0].value ==\
+        assert str(op.body[2].body[1]) == ''
+        assert str(op.body[2].body[3]) == ''
+        assert op.body[2].body[4].pragmas[0].contents[0].value ==\
             ('omp target update from(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[2].footer[1].contents[1].value ==\
+        assert op.body[2].body[4].pragmas[0].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
@@ -105,15 +106,15 @@ class TestCodeGeneration(object):
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3)'
         for i, f in enumerate([u, v]):
-            assert op.body[2].header[i].value ==\
+            assert op.body[2].body[0].pragmas[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[0].value ==\
+            assert op.body[2].body[4].pragmas[i].contents[0].value ==\
                 ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[1].value ==\
+            assert op.body[2].body[4].pragmas[i].contents[1].value ==\
                 ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]]) '
                  'if(devicerm)' % {'n': f.name})
@@ -145,36 +146,36 @@ class TestCodeGeneration(object):
 
         # Check `u` and `v`
         for i, f in enumerate([u, v], 1):
-            assert op.body[2].header[i].value ==\
+            assert op.body[2].body[0].pragmas[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[0].value ==\
+            assert op.body[2].body[4].pragmas[i].contents[0].value ==\
                 ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[2].footer[i+1].contents[1].value ==\
+            assert op.body[2].body[4].pragmas[i].contents[1].value ==\
                 ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]]) '
                  'if(devicerm)' % {'n': f.name})
 
         # Check `f`
-        assert op.body[2].header[0].value ==\
+        assert op.body[2].body[0].pragmas[0].value ==\
             ('omp target enter data map(to: f[0:f_vec->size[0]]'
              '[0:f_vec->size[1]][0:f_vec->size[2]])')
-        assert op.body[2].footer[1].contents[0].value ==\
+        assert op.body[2].body[4].pragmas[0].contents[0].value ==\
             ('omp target update from(f[0:f_vec->size[0]]'
              '[0:f_vec->size[1]][0:f_vec->size[2]])')
-        assert op.body[2].footer[1].contents[1].value ==\
+        assert op.body[2].body[4].pragmas[0].contents[1].value ==\
             ('omp target exit data map(release: f[0:f_vec->size[0]]'
              '[0:f_vec->size[1]][0:f_vec->size[2]]) if(devicerm)')
 
         # Check `g` -- note that unlike `f`, this one should be `delete` upon
         # exit, not `from`
-        assert op.body[2].header[3].value ==\
+        assert op.body[2].body[0].pragmas[3].value ==\
             ('omp target enter data map(to: g[0:g_vec->size[0]]'
              '[0:g_vec->size[1]][0:g_vec->size[2]])')
-        assert op.body[2].footer[4].value ==\
+        assert op.body[2].body[4].pragmas[3].value ==\
             ('omp target exit data map(delete: g[0:g_vec->size[0]]'
              '[0:g_vec->size[1]][0:g_vec->size[2]])'
              ' if(devicerm && (g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
@@ -190,20 +191,20 @@ class TestCodeGeneration(object):
 
         op = Operator(eqn, language='openmp')
 
-        assert len(op.body[2].header) == 7
-        assert str(op.body[2].header[0]) == 'float (*r0)[y_size][z_size];'
-        assert op.body[2].header[1].text ==\
+        assert len(op.body[1].header) == 4
+        assert str(op.body[1].header[0]) == 'float (*r0)[y_size][z_size];'
+        assert op.body[1].header[1].text ==\
             'posix_memalign((void**)&r0, 64, sizeof(float[x_size][y_size][z_size]))'
-        assert op.body[2].header[2].value ==\
+        assert op.body[1].header[2].value ==\
             ('omp target enter data map(alloc: r0[0:x_size][0:y_size][0:z_size])'
              '')
 
-        assert len(op.body[2].footer) == 6
-        assert str(op.body[2].footer[0]) == ''
-        assert op.body[2].footer[1].value ==\
+        assert len(op.body[1].footer) == 3
+        assert str(op.body[1].footer[0]) == ''
+        assert op.body[1].footer[1].value ==\
             ('omp target exit data map(delete: r0[0:x_size][0:y_size][0:z_size])'
              ' if((x_size != 0) && (y_size != 0) && (z_size != 0))')
-        assert op.body[2].footer[2].text == 'free(r0)'
+        assert op.body[1].footer[2].text == 'free(r0)'
 
     def test_function_wo(self):
         grid = Grid(shape=(3, 3, 3))
@@ -217,17 +218,17 @@ class TestCodeGeneration(object):
 
         op = Operator(eqns, opt='noop', language='openmp')
 
-        assert len(op.body[2].header) == 2
-        assert len(op.body[2].footer) == 2
-        assert op.body[2].header[0].value ==\
+        assert len(op.body[2].body[0].pragmas) == 1
+        assert len(op.body[2].body[4].pragmas) == 1
+        assert op.body[2].body[0].pragmas[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert str(op.body[2].header[1]) == ''
-        assert str(op.body[2].footer[0]) == ''
-        assert op.body[2].footer[1].contents[0].value ==\
+        assert str(op.body[2].body[1]) == ''
+        assert str(op.body[2].body[3]) == ''
+        assert op.body[2].body[4].pragmas[0].contents[0].value ==\
             ('omp target update from(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[2].footer[1].contents[1].value ==\
+        assert op.body[2].body[4].pragmas[0].contents[1].value ==\
             ('omp target exit data map(release: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
