@@ -308,9 +308,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         return '%s%s' % ('const ' if self.is_const else '',
                          dtype_to_cstr(self.dtype))
 
-    @property
-    def _C_typedata(self):
-        return dtype_to_cstr(self.dtype)
+    _C_typedata = _C_typename
 
     @property
     def _C_ctype(self):
