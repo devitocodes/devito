@@ -439,10 +439,7 @@ class TestSubdomains(object):
         class Inner(SubDomainSet):
             name = 'expanding'
 
-        bounds_xm = []
-        bounds_xM = []
-        bounds_ym = []
-        bounds_yM = []
+        bounds = []
 
         shape = 25
         s = int(floor(shape/2))
@@ -453,14 +450,16 @@ class TestSubdomains(object):
             ym_t = np.zeros((n_domains,), dtype=np.int32)
             yM_t = np.zeros((n_domains,), dtype=np.int32)
 
-            bounds_xm_t[0] = s-i
-            bounds_xM_t[0] = s-i
-            bounds_ym_t[0] = s-i
-            bounds_yM_t[0] = s-i
+            xm_t[0] = s-i
+            xM_t[0] = s-i
+            ym_t[0] = s-i
+            yM_t[0] = s-i
 
-        bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
+            bounds.append((xm_t, xM_t, ym_t, yM_t))
 
-        inner_sd = Inner(N=n_domains, bounds=bounds)
+        bounds = tuple(bounds)
+
+        inner_sd = Inner(bounds=bounds)
 
         grid = Grid(extent=(10, 10), shape=(10, 10), subdomains=(inner_sd, ))
 

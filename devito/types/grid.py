@@ -587,8 +587,17 @@ class SubDomainSet(SubDomain):
         if self.implicit_dimension is None:
             n = Dimension(name='n')
             self.implicit_dimension = n
-        self._n_domains = kwargs.get('N', 1)
-        self._global_bounds = kwargs.get('bounds', None)
+        bounds = kwargs.get('bounds', None)
+        # TODO: Add some asserts?
+        if type(bounds[0]) is tuple:
+            time_levels = len(bounds)
+            n_domains = tuple([i[0].size for i in bounds])
+        else:
+            time_levels = 1
+            n_domains = bounds[0].size
+        self._time_levels = time_levels
+        self._n_domains = n_domains
+        self._global_bounds = bounds
         self._implicit_exprs = None
 
     def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
@@ -663,6 +672,10 @@ class SubDomainSet(SubDomain):
             # Not distributed and hence local and global bounds are
             # equivalent.
             self._local_bounds = self._global_bounds
+
+    @property
+    def time_levels(self):
+        return self._time_levels
 
     @property
     def n_domains(self):
