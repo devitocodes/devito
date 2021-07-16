@@ -12,6 +12,7 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Device, sniff_mpi_distro
 from devito.arch.compiler import compiler_registry
+from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration
 from devito.tools import as_tuple
 
 try:
@@ -204,6 +205,63 @@ def _R(expr):
         assert len(base) == 1
         base = base.pop()
     return EvalDerivative(*expr.args, base=base)
+
+
+# Utilities for testing tree structure
+
+
+def assert_structure(operator, exp_trees=None, exp_iters=None):
+    """
+    Utility function that helps to check loop structure of IETs. Retrieves trees from an
+    Operator and check that blocking structure is as expected. Trees and Iterations are
+    returned for further use in tests.
+    """
+    mapper = {'time': 't'}
+    trees = retrieve_iteration_tree(operator)
+    iters = FindNodes(Iteration).visit(operator)
+
+    if exp_trees is not None:
+        exp_trees = [i.replace(',', '') for i in exp_trees]  # 't,x,y' -> 'txy'
+        tree_struc = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
+                       for j in trees])
+        assert tree_struc == exp_trees
+
+    if exp_iters is not None:
+        exp_iters = exp_iters.replace(',', '')  # 't,x,y' -> 'txy'
+        iter_struc = "".join(mapper.get(i.dim.name, i.dim.name) for i in iters)
+        assert iter_struc == exp_iters
+
+    return trees, iters
+
+
+def assert_blocking(tree, index, depth):
+    """
+    Utility function that helps to check loop structure of IETs. Retrieves trees from an
+    Operator and check that blocking structure is as expected. Trees and Iterations are
+    returned for further use in tests.
+    """
+    assert tree.root.dim.is_Time
+    assert all(i.dim.is_Incr for i in tree[index:depth])
+    return
+
+
+def get_blocked_nests(operator, exp_nests):
+    """
+    Utility function that helps to check existence of blocked nests. Checks the existence
+    of blocked loop nests but not the structure of the operator. Trees are returned for
+    further use in tests.
+    """
+    bns = {}
+
+    iterations = []
+    trees = retrieve_iteration_tree(operator)
+    for tree in trees:
+        iterations = [i for i in tree if i.dim.is_Incr]
+        if len(iterations):
+            bns[iterations[0].dim.name] = iterations[0]
+            iterations = []
+    assert bns.keys() == exp_nests
+    return trees, bns
 
 
 # A list of optimization options/pipelines to be used in testing

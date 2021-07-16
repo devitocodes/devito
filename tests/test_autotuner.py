@@ -1,11 +1,10 @@
 import pytest
 import numpy as np
 
-from conftest import skipif
+from conftest import get_blocked_nests, skipif
 from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
 from devito.data import LEFT
 from devito.core.autotuning import options  # noqa
-from devito.ir import retrieve_iteration_tree
 
 
 @switchconfig(log_level='DEBUG')
@@ -239,12 +238,7 @@ def test_multiple_blocking():
                   opt=('blocking', {'openmp': False}))
 
     # First of all, make sure there are indeed two different loop nests
-    trees = retrieve_iteration_tree(op)
-    assert len(trees) == 2 and trees[0][1].dim is not trees[1][1].dim
-    assert all(i.dim.is_Incr and j.dim.is_Incr for i, j in zip(trees[0][1:5],
-               trees[1][1:5]))
-    assert len(trees[0]) == len(trees[1]) and len(trees[0]) == 6
-
+    _ = get_blocked_nests(op, {'x0_blk0', 'x1_blk0'})
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
     assert op._state['autotuning'][0]['runs'] == 12  # 6 for each Iteration nest
