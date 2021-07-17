@@ -239,6 +239,7 @@ def test_multiple_blocking():
 
     # First of all, make sure there are indeed two different loop nests
     _ = get_blocked_nests(op, {'x0_blk0', 'x1_blk0'})
+
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
     assert op._state['autotuning'][0]['runs'] == 12  # 6 for each Iteration nest

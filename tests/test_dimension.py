@@ -1103,7 +1103,7 @@ class TestConditionalDimension(object):
                 Eq(g, f + 1)]
 
         op = Operator(eqns)
-        # Check 3 different sets of blocked loops
+
         _, bns = get_blocked_nests(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 3

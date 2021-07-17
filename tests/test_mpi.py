@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
-from conftest import skipif, _R
+from conftest import skipif, _R, get_blocked_nests
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
@@ -859,8 +859,11 @@ class TestCodeGeneration(object):
         assert calls[1].name == 'haloupdate0'
 
         # ... and none in the created efuncs
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2
+        _, bns = get_blocked_nests(op, ({'i0x0_blk0', 'x0_blk0'}))
+        calls = FindNodes(Call).visit(bns['i0x0_blk0'])
+        assert len(calls) == 0
+        calls = FindNodes(Call).visit(bns['x0_blk0'])
+        assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_from_innerloop(self):
@@ -1187,12 +1190,14 @@ class TestCodeGeneration(object):
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
         op = Operator(eqn, opt=('advanced', {'blockinner': True, 'par-dynamic-work': 0}))
-        assert len(retrieve_iteration_tree(op)) == 1
-
+        _, bns = get_blocked_nests(op._func_table['compute0'].root, ({'x0_blk0'}))
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
+        assert len(trees) == 2
+        tree = trees[1]
         # Make sure `pokempi0` is the last node within the inner Iteration over blocks
         assert len(tree) == 2
-        assert len(tree.root.nodes) == 2
-        call = tree.root.nodes[1]
+        assert len(tree.root.nodes[0].nodes) == 2
+        call = tree.root.nodes[0].nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
         if configuration['language'] == 'openmp':
@@ -1889,7 +1894,8 @@ class TestOperatorAdvanced(object):
         op1 = Operator(eqn, opt=('advanced', opt_options))
 
         # Check generated code
-        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        _, bns = get_blocked_nests(op1, ({'x0_blk0'}))
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 3
         assert 'haloupdate0' in op1._func_table
         # We expect exactly one halo exchange

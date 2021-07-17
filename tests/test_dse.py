@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
-from conftest import skipif, EVAL, _R, assert_structure  # noqa
+from conftest import skipif, EVAL, _R, assert_structure, get_blocked_nests  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, ConditionalDimension, DefaultDimension, Grid,
                     Operator, norm, grad, div, dimensions, switchconfig, configuration,
@@ -487,17 +487,9 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z')
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
@@ -532,17 +524,9 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,y,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,y,y,z,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,y,z')
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1)), (ys+2, zs+2), rotate)
@@ -578,16 +562,9 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z')
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (0, 0)), (xs+2, ys+2, zs), rotate)
@@ -659,19 +636,9 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0x,i0x,i0y,i0z',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z'],
-                                       't,i0x0_blk0,i0y0_blk0,i0x,i0x,i0x,i0y,i0z,i0y,'
-                                       'i0z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z'],
-                                       't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z,i0x,i0y,i0z')
-        trees = retrieve_iteration_tree(op1)
+        trees, bns = get_blocked_nests(op1, ({'i0x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['i0x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
@@ -714,19 +681,9 @@ class TestAliases(object):
                                   'cire-mingain': 0, 'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,y,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,y,y,z,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z,y,z')
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 2
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
@@ -846,22 +803,9 @@ class TestAliases(object):
                                   'cire-mingain': 0, 'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0x,i0x,i0y,i0z',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0y,i0y,i0z',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z'],
-                                       't,i0x0_blk0,i0y0_blk0,i0x,i0x,i0x,i0y,i0z,i0y,'
-                                       'i0y,i0y,i0z,i0z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z',
-                                             't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z'],
-                                       't,i0x0_blk0,i0y0_blk0,i0x,i0y,i0z,i0x,i0y,i0z,'
-                                       'i0y,i0z')
-
+        trees, bns = get_blocked_nests(op1, ({'i0x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['i0x0_blk0']) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 2
         self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
@@ -903,17 +847,9 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z')
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 2
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 2
         self.check_array(arrays[0], ((1, 0), (1, 1), (0, 0)), (xs+1, ys+2, zs), rotate)
@@ -958,19 +894,9 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,y,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,y,y,z,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z,y,z')
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 3
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 3
         self.check_array(arrays[0], ((1, 0), (1, 0)), (xs+1, zs+1), rotate)
@@ -1013,17 +939,9 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,y,y,z',
-                                             ',tx0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,y,y,z,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             ',tx0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,y,z')
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
         self.check_array(arrays[0], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
@@ -1203,16 +1121,15 @@ class TestAliases(object):
         # Check code generation
         # We expect two temporary Arrays which have in common a sub-expression
         # stemming from `d0(v, p0, p1)`
-        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
-        assert len(trees) == 3
-        assert all(i.dim.is_Incr for i in trees[1][1:5])
-        assert all(i.dim.is_Incr for i in trees[2][1:5])
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 6
         vexpandeds = FindNodes(VExpanded).visit(trees[1][0])
         assert len(vexpandeds) == (2 if configuration['language'] == 'openmp' else 0)
         assert all(i._mem_heap and not i._mem_external for i in arrays)
-        exprs = FindNodes(Expression).visit(trees[1][3])
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
+        assert len(trees) == 2
+        exprs = FindNodes(Expression).visit(trees[0][2])
         assert exprs[-1].write is arrays[-1]
         assert arrays[-2] not in exprs[-1].reads
 
@@ -1260,28 +1177,15 @@ class TestAliases(object):
                                                'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z', 'ti',
-                                             't,x1_blk0,y1_blk0,x,x,x,y,z',
-                                             't,x1_blk0,y1_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,z,ix1_blk0,'
-                                       'y1_blk0,x,x,x,y,z,y,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z', 'ti',
-                                             't,x1_blk0,y1_blk0,x,y,z',
-                                             't,x1_blk0,y1_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z,ix1_blk0,y1_blk0,'
-                                       'x,y,z,x,y,z')
-
-        assert len(retrieve_iteration_tree(trees[1][1])) == 2
-        assert trees[1][-1].nodes[0].body[0].write.is_Array
-        assert trees[2][-1].nodes[0].body[0].write is u
-
-        assert len(retrieve_iteration_tree(trees[4][1])) == 2
-        assert trees[4][-1].nodes[0].body[0].write.is_Array
-        assert trees[5][-1].nodes[0].body[0].write is v
+        _, bns = get_blocked_nests(op1, ({'x0_blk0', 'x1_blk0'}))
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].body[0].write.is_Array
+        assert trees[1][-1].nodes[0].body[0].write is u
+        trees = retrieve_iteration_tree(bns['x1_blk0'])
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].body[0].write.is_Array
+        assert trees[1][-1].nodes[0].body[0].write is v
 
         # Check numerical output
         op0(time_M=1)
@@ -1316,22 +1220,16 @@ class TestAliases(object):
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,z')
-        else:
-            trees, _ = assert_structure(op1, ['t,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z')
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         assert len(FindNodes(VExpanded).visit(trees[0][0])) == 0
         assert arrays[0].padding == ((0, 0), (0, 0), (0, 30))
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+32), rotate)
         # Check loop bounds
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
+        assert len(trees) == 2
         expected_rounded = trees[0].inner
         assert expected_rounded.symbolic_max ==\
             z.symbolic_max + (z.symbolic_max - z.symbolic_min + 3) % 16 + 1
@@ -1470,7 +1368,7 @@ class TestAliases(object):
 
         # Check code generation
         trees, _ = assert_structure(op, ['t,x,y', 't,f', 't,f0_blk0,f,x,y'],
-                                   't,x,y,f,f0_blk0,f,x,y')
+                                    't,x,y,f,f0_blk0,f,x,y')
 
     def test_space_invariant_v2(self):
         """
@@ -1725,12 +1623,9 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'cire-mingain': 0}))
 
         # Check code generation
-        trees, _ = assert_structure(op1, ['t,x0_blk0,y0_blk0,x,y,z',
-                                         't,x1_blk0,y1_blk0,x,y,z'],
-                                   't,x0_blk0,y0_blk0,x,y,z,x1_blk0,y1_blk0,x,y,z')
-
+        _, bns = get_blocked_nests(op1, ({'x0_blk0', 'x1_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         self.check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2))
 
@@ -1817,13 +1712,9 @@ class TestAliases(object):
         op = Operator(eqn, subs=grid.spacing_map, openmp=True)
 
         # Check code generation
-        trees, _ = assert_structure(op, ['x,y,z', 't', 't,x0_blk0,y0_blk0,x,y,z',
-                                        't,x0_blk0,y0_blk0,x,y,z',
-                                        't,x0_blk0,y0_blk0,x,y,z',
-                                        't,x0_blk0,y0_blk0,x,y,z'],
-                                   'x,y,z,t,x0_blk0,y0_blk0,x,y,z,x,y,z,y,z,z')
+        trees, bns = get_blocked_nests(op, ({'x0_blk0'}))
         assert op._profiler._sections['section1'].sops == exp_ops
-        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 5
         assert len(FindNodes(VExpanded).visit(trees[2][0])) == 3
         xs, ys, zs = self.get_params(op, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
@@ -1868,10 +1759,8 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        trees, _ = assert_structure(op, ['x,y,z', 't', 't,x0_blk0,y0_blk0,x,y,z',
-                                        't,x0_blk0,y0_blk0,x,y,z'],
-                                   'x,y,z,t,x0_blk0,y0_blk0,x,y,z,x,y,z')
-        assert len([i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]) == 6
+        trees, bns = get_blocked_nests(op, ({'x0_blk0'}))
+        assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 6
         assert len(FindNodes(VExpanded).visit(trees[2][0])) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 48)])
@@ -1914,10 +1803,8 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        trees, _ = assert_structure(op, ['x,y,z', 't', 't,x0_blk0,y0_blk0,x,y,z',
-                                        't,x0_blk0,y0_blk0,x,y,z'],
-                                   'x,y,z,t,x0_blk0,y0_blk0,x,y,z,x,y,z')
-        assert len([i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]) == 7
+        trees, bns = get_blocked_nests(op, ({'x0_blk0'}))
+        assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 7
         assert len(FindNodes(VExpanded).visit(trees[2][0])) == 3
 
     @pytest.mark.parametrize('so_ops', [(4, 144), (8, 208)])
@@ -1983,10 +1870,8 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-        trees, _ = assert_structure(op, ['x,y,z', 't', 't,x0_blk0,y0_blk0,x,y,z',
-                                        't,x0_blk0,y0_blk0,x,y,z'],
-                                   'x,y,z,t,x0_blk0,y0_blk0,x,y,z,x,y,z')
-        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
+        trees, bns = get_blocked_nests(op, ({'x0_blk0'}))
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 10
         assert len(FindNodes(VExpanded).visit(trees[2][0])) == 6
 
@@ -2049,16 +1934,8 @@ class TestAliases(object):
 
         # Check code generation
         assert summary[('section1', None)].ops == exp_ops
-
-        if rotate:
-            trees, _ = assert_structure(op1, ['x,y,z', 't', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       'x,y,z,t,x0_blk0,y0_blk0,x,x,x,y,z,y,z')
-        else:
-            trees, _ = assert_structure(op1, ['x,y,z', 't', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       'x,y,z,t,x0_blk0,y0_blk0,x,y,z,x,y,z')
-        assert len([i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]) == 5
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
+        assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 5
         assert len(FindNodes(VExpanded).visit(trees[2][0])) == 1
 
     @switchconfig(profiling='advanced')
@@ -2099,13 +1976,9 @@ class TestAliases(object):
         op1 = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
 
         # Check code generation
-        trees = retrieve_iteration_tree(op1)
-        trees, _ = assert_structure(op1, ['x,y,z', 't', 't,x0_blk0,y0_blk0,x,y,z',
-                                         't,x0_blk0,y0_blk0,x,y,z',
-                                         't,x0_blk0,y0_blk0,x,y,z'],
-                                   'x,y,z,t,x0_blk0,y0_blk0,x,y,z,x,y,z,z')
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 4
         assert len(FindNodes(VExpanded).visit(trees[2][0])) == 2
         self.check_array(arrays[2], ((6, 6), (6, 6), (6, 6)), (xs+12, ys+12, zs+12))
@@ -2144,16 +2017,8 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
 
         # Check code generation
-        if rotate:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,x,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,x,x,y,z,y,z')
-        else:
-            trees, _ = assert_structure(op1, ['t', 't,x0_blk0,y0_blk0,x,y,z',
-                                             't,x0_blk0,y0_blk0,x,y,z'],
-                                       't,x0_blk0,y0_blk0,x,y,z,x,y,z')
-
-        assert len([i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]) == 1
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
+        assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 1
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == 1
 
         # Check numerical output
@@ -2238,8 +2103,8 @@ class TestAliases(object):
         assert len(arrays) == exp_arrays[0]
         arrays = [i for i in FindSymbols().visit(op2) if i.is_Array]
         assert len(arrays) == exp_arrays[1]
-        trees = retrieve_iteration_tree(op3)
-        arrays = [i for i in FindSymbols().visit(trees[1][1]) if i.is_Array]
+        trees, bns = get_blocked_nests(op3, ({'x0_blk0'}))
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         exp_inv, exp_sops = exp_arrays[2]
         assert len(arrays) == exp_inv + exp_sops
         assert len(FindNodes(VExpanded).visit(trees[1][0])) == exp_sops
@@ -2302,18 +2167,11 @@ class TestAliases(object):
         op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True, 'cire-rotate': rotate}))
 
         # Check code generation
-        trees = retrieve_iteration_tree(op1)
-        assert len(trees) == (3 if configuration['language'] == 'openmp' else 2)
-        assert trees[-2][1] is trees[-1][1]
-        assert trees[-2][2] is trees[-1][2]
-        assert trees[-2][2] is not trees[-1][1]
-        assert all(i is j for i, j in zip(trees[-1][:3], trees[-2][:3]))
-        assert all(i.dim.is_Incr for i in trees[-1][1:5])
-
-        if not rotate:
-            assert all(i.dim.is_Incr for i in trees[-2][1:5])
-        else:
-            assert all(i.dim.is_Incr for i in trees[-2][1:4])
+        _, bns = get_blocked_nests(op1, ({'x0_blk0'}))
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
+        assert len(trees) == 2
+        assert trees[0][1] is trees[1][1]
+        assert trees[0][2] is not trees[1][2]
 
         # Check numerical output
         op0.apply(time_M=2)
@@ -2339,14 +2197,10 @@ class TestAliases(object):
         op0 = Operator(eq, opt='noop')
         op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
 
-        # Check code generation, drop len(i) <= 1, Openmp tid
-        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
-        assert len(trees) == 2
-        assert all(i.dim.is_Incr for i in trees[0][1:5])
-        assert all(i.dim.is_Incr for i in trees[1][1:5])
-
+        # Check code generation
+        _, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
         self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
 
@@ -2387,15 +2241,8 @@ class TestAliases(object):
         # Check code generation
         assert len([i for i in op1.dimensions if i.is_Incr]) == 6 + (2 if rotate else 0)
         if configuration['language'] == 'openmp':
-            trees = retrieve_iteration_tree(op2)
-            assert len(trees) == 4
-            if rotate:
-                assert all(i.dim.is_Incr for i in trees[1][1:6])
-                assert not trees[1][6].dim.is_Incr
-            else:
-                assert all(i.dim.is_Incr for i in trees[1][1:7])
-            assert all(i.dim.is_Incr for i in trees[2][1:7])
-            pariters = FindNodes(ParallelIteration).visit(trees[1][1])
+            trees, bns = get_blocked_nests(op2, ({'x0_blk0'}))
+            pariters = FindNodes(ParallelIteration).visit(bns['x0_blk0'])
             assert len(pariters) == 2
 
         # Check numerical output
@@ -2494,19 +2341,9 @@ class TestAliases(object):
 
         # Check code generation
         # `min-storage` leads to one 2D and one 3D Arrays
-        trees = retrieve_iteration_tree(op1)
-        assert len(trees) == 5
-        if rotate:
-            assert trees[2][5] is not trees[3][5]
-        else:
-            assert trees[2][4] is not trees[3][4]
-
-        assert all(i.dim.is_Incr for i in trees[2][1:5])
-        assert all(i.dim.is_Incr for i in trees[3][1:5])
-        assert all(i.dim.is_Incr for i in trees[4][1:5])
-
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(trees[2][1]) if i.is_Array]
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 3
         assert len(FindNodes(VExpanded).visit(trees[2][0])) == 2
         self.check_array(arrays[1], ((4, 4), (0, 0)), (ys+8, zs), rotate)
@@ -2534,12 +2371,8 @@ class TestAliases(object):
 
         op = Operator(eqn, opt=('advanced', {'openmp': False, 'cire-mingain': 4}))
 
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2 and len(trees[0]) == len(trees[1])
-        assert len(trees[0]) == 6
-        assert all(i is j and i.dim.is_Incr for i, j in zip(trees[0][1:4], trees[1][1:4]))
-        assert trees[0][4] is not trees[1][4]
-        assert len([i for i in FindSymbols().visit(trees[0][1]) if i.is_Array]) == 1
+        _, bns = get_blocked_nests(op, ({'x0_blk0'}))
+        assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 1
 
     def test_contraction_with_conditional(self):
         """
@@ -2639,11 +2472,8 @@ class TestIsoAcoustic(object):
         u0, rec0, summary0, op0 = self.run_acoustic_forward(opt=None)
         u1, rec1, summary1, op1 = self.run_acoustic_forward(opt='advanced')
 
-        assert len(op0._func_table) == 0
-        # Rule out len(i) <= 1 trees due to Openmp tids
-        trees = [i for i in retrieve_iteration_tree(op1) if len(i) > 1]
-        assert len(trees) == 3  # due to loop blocking
-        assert all(i.dim.is_Incr for i in trees[0][1:5])
+        trees, bns = get_blocked_nests(op0, ({}))
+        trees, bns = get_blocked_nests(op1, ({'x0_blk0'}))  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
         assert summary0[('section1', None)].ops == 151
@@ -2730,9 +2560,8 @@ class TestTTI(object):
         extra_arrays = 2
         assert len(arrays) == 4 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
-        trees = retrieve_iteration_tree(op)
-        assert all(i is j and i.dim.is_Incr for i, j in zip(trees[1][1:3], trees[2][1:3]))
-        arrays = [i for i in FindSymbols().visit(trees[2][0]) if i.is_Array]
+        trees, bns = get_blocked_nests(op, ({'x0_blk0'}))
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 6
         assert all(not i._mem_external for i in arrays)
         assert len([i for i in arrays if i._mem_heap]) == 6
@@ -2821,8 +2650,7 @@ class TestTTIv2(object):
         op = Operator(eqns, openmp=True)
 
         # Check code generation
-        trees = retrieve_iteration_tree(op)
-        assert all(i is j and i.dim.is_Incr for i, j in zip(trees[2][1:3], trees[3][1:3]))
+        trees, _ = get_blocked_nests(op, ({'x0_blk0'}))
         arrays = FindNodes(VExpanded).visit(trees[2][0])
         assert len(arrays) == 4
         assert all(len(i.pointee.shape) == 2 for i in arrays)  # Expected 2D arrays

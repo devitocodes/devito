@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 
+from conftest import get_blocked_nests
 from devito.symbolics import MIN
 from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, norm # noqa
 from devito.ir import Expression, Iteration, FindNodes
@@ -38,7 +39,8 @@ class TestCodeGenSkewing(object):
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 1
 
-        iters = FindNodes(Iteration).visit(op)
+        trees, bns = get_blocked_nests(op, ({'x0_blk0'}))
+        iters = FindNodes(Iteration).visit(trees[0][0])
         assert len(iters) == 6
         assert iters[1].dim.parent is x
         assert iters[2].dim.parent is y
@@ -57,7 +59,7 @@ class TestCodeGenSkewing(object):
 
         assert (iters[5].symbolic_min == (iters[5].dim.symbolic_min))
         assert (iters[5].symbolic_max == (iters[5].dim.symbolic_max))
-        skewed = [i.expr for i in FindNodes(Expression).visit(op)]
+        skewed = [i.expr for i in FindNodes(Expression).visit(bns['x0_blk0'])]
         assert str(skewed[0]).replace(' ', '') == expected
         assert np.isclose(norm(u), norm_u, rtol=1e-5)
         assert np.isclose(norm(v), norm_v, rtol=1e-5)
@@ -95,8 +97,8 @@ class TestCodeGenSkewing(object):
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 0
 
+        _, _ = get_blocked_nests(op, ({}))
         iters = FindNodes(Iteration).visit(op)
-
         assert len(iters) == 3
         assert iters[0].dim is x
         assert iters[1].dim is y

@@ -215,7 +215,24 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
     Utility function that helps to check loop structure of IETs. Retrieves trees from an
     Operator and check that blocking structure is as expected. Trees and Iterations are
     returned for further use in tests.
+
+    Example:
+
+    To check the following structure:
+
+    .. code-block:: python
+
+        for time
+            for x
+                for y
+            for f
+                for y
+
+    we call:
+
+    `trees, iters = assert_structure(op, ['t,x,y', 't,f,y'], 't,x,y,f,y')`
     """
+
     mapper = {'time': 't'}
     trees = retrieve_iteration_tree(operator)
     iters = FindNodes(Iteration).visit(operator)
@@ -234,32 +251,47 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
     return trees, iters
 
 
-def assert_blocking(tree, index, depth):
-    """
-    Utility function that helps to check loop structure of IETs. Retrieves trees from an
-    Operator and check that blocking structure is as expected. Trees and Iterations are
-    returned for further use in tests.
-    """
-    assert tree.root.dim.is_Time
-    assert all(i.dim.is_Incr for i in tree[index:depth])
-    return
-
-
 def get_blocked_nests(operator, exp_nests):
     """
-    Utility function that helps to check existence of blocked nests. Checks the existence
-    of blocked loop nests but not the structure of the operator. Trees are returned for
-    further use in tests.
+    Utility function that helps to check existence of blocked nests. The structure of the
+    operator is not used. Trees are returned for further use in tests.
+
+    Example:
+
+    For the following structure:
+
+    .. code-block:: python
+
+        for time
+            for x0_blk0
+                for x
+            for x1_blk0
+                for x
+
+    we call:
+
+    `trees, bns = get_blocked_nests(op, {'x0_blk0', 'x1_blk0'})`
+
+    to assert the existence of 'x0_blk0', 'x1_blk0' and then the function returns the
+    operator trees and a dictionary with the first blocking Iterations that start a
+    blocking subtree
+
     """
     bns = {}
-
     iterations = []
     trees = retrieve_iteration_tree(operator)
     for tree in trees:
-        iterations = [i for i in tree if i.dim.is_Incr]
+        iterations = [i for i in tree if i.dim.is_Incr]  # Collect Incr dimensions
         if len(iterations):
+            # If Incr dimensions exist map the first one to its name in the dict
             bns[iterations[0].dim.name] = iterations[0]
             iterations = []
+
+    # Return if no Incr dimensions, ensuring that no Incr expected
+    if not bns and not exp_nests:
+        return trees, bns
+
+    # Assert Incr dimensions found as expected
     assert bns.keys() == exp_nests
     return trees, bns
 
