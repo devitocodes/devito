@@ -183,7 +183,7 @@ class DeviceOmpizer(PragmaDeviceAwareTransformer):
         mapper = {}
         for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
             header = c.Pragma('omp target data use_device_ptr(%s)' %
-                              node.arguments[0].name)
+                              node.arguments[0]._C_name)
             mapper[node] = Block(header=header, body=node)
 
         iet = Transformer(mapper).visit(iet)

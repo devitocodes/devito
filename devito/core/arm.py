@@ -18,7 +18,7 @@ class ArmAdvOperator(Cpu64AdvOperator):
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)

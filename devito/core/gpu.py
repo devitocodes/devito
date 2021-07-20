@@ -117,7 +117,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
 
         # Distributed-memory parallelism
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -179,7 +179,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # Linearize n-dimensional Indexeds
         if options['linearize']:
@@ -271,7 +271,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'optcomms': partial(optimize_halospots),
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
-            'mpi': partial(mpiize, mode=options['mpi']),
+            'mpi': partial(mpiize, mode=options['mpi'], sregistry=sregistry),
             'linearize': partial(linearize, sregistry=sregistry),
             'prodders': partial(hoist_prodders),
             'gpu-direct': partial(parizer.make_gpudirect),
