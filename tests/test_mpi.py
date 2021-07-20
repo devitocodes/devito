@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
-from conftest import skipif, _R, get_blocked_nests
+from conftest import skipif, _R, assert_blocking
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
@@ -859,7 +859,8 @@ class TestCodeGeneration(object):
         assert calls[1].name == 'haloupdate0'
 
         # ... and none in the created efuncs
-        _, bns = get_blocked_nests(op, ({'i0x0_blk0', 'x0_blk0'}))
+        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
+
         calls = FindNodes(Call).visit(bns['i0x0_blk0'])
         assert len(calls) == 0
         calls = FindNodes(Call).visit(bns['x0_blk0'])
@@ -1190,7 +1191,9 @@ class TestCodeGeneration(object):
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
         op = Operator(eqn, opt=('advanced', {'blockinner': True, 'par-dynamic-work': 0}))
-        _, bns = get_blocked_nests(op._func_table['compute0'].root, ({'x0_blk0'}))
+
+        bns, _ = assert_blocking(op._func_table['compute0'].root, {'x0_blk0'})
+
         trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 2
         tree = trees[1]
@@ -1894,7 +1897,8 @@ class TestOperatorAdvanced(object):
         op1 = Operator(eqn, opt=('advanced', opt_options))
 
         # Check generated code
-        _, bns = get_blocked_nests(op1, ({'x0_blk0'}))
+        bns, _ = assert_blocking(op1, {'x0_blk0'})
+
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 3
         assert 'haloupdate0' in op1._func_table

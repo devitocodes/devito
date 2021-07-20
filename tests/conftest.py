@@ -12,7 +12,7 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Device, sniff_mpi_distro
 from devito.arch.compiler import compiler_registry
-from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration
+from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration, ParallelBlock
 from devito.tools import as_tuple
 
 try:
@@ -213,12 +213,12 @@ def _R(expr):
 def assert_structure(operator, exp_trees=None, exp_iters=None):
     """
     Utility function that helps to check loop structure of IETs. Retrieves trees from an
-    Operator and check that blocking structure is as expected. Trees and Iterations are
-    returned for further use in tests.
+    Operator and check that the blocking structure is as expected. Trees and Iterations
+    are returned for further use in tests.
 
-    Example:
-
-    To check the following structure:
+    Examples
+    --------
+    To check that an Iteration tree has the following structure:
 
     .. code-block:: python
 
@@ -230,9 +230,10 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
 
     we call:
 
-    `trees, iters = assert_structure(op, ['t,x,y', 't,f,y'], 't,x,y,f,y')`
-    """
+    .. code-block:: python
 
+        trees, iters = assert_structure(op, ['t,x,y', 't,f,y'], 't,x,y,f,y')`
+    """
     mapper = {'time': 't'}
     trees = retrieve_iteration_tree(operator)
     iters = FindNodes(Iteration).visit(operator)
@@ -251,13 +252,13 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
     return trees, iters
 
 
-def get_blocked_nests(operator, exp_nests):
+def assert_blocking(operator, exp_nests):
     """
     Utility function that helps to check existence of blocked nests. The structure of the
-    operator is not used. Trees are returned for further use in tests.
+    operator is not used.
 
-    Example:
-
+    Examples
+    --------
     For the following structure:
 
     .. code-block:: python
@@ -270,30 +271,42 @@ def get_blocked_nests(operator, exp_nests):
 
     we call:
 
-    `trees, bns = get_blocked_nests(op, {'x0_blk0', 'x1_blk0'})`
+    .. code-block:: python
 
-    to assert the existence of 'x0_blk0', 'x1_blk0' and then the function returns the
-    operator trees and a dictionary with the first blocking Iterations that start a
-    blocking subtree
+       bns, pbs = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
 
+    to assert the existence of 'x0_blk0', 'x1_blk0' and then the function returns a
+    dictionary with the blocking Iterations that start a blocking subtree:
+
+    ['x0_blk0': Iteration x0_blk0..., 'x1_blk0': Iteration x1_blk0...]
+
+    and the ParallelBlock that encapsules the above blocking subtree
+
+    ['x0_blk0': ParallelBlock encapsulating Iteration x0_blk0,
+     'x1_blk0': ParallelBlock encapsulating Iteration x1_blk0]
     """
     bns = {}
-    iterations = []
+    pbs = {}
     trees = retrieve_iteration_tree(operator)
     for tree in trees:
         iterations = [i for i in tree if i.dim.is_Incr]  # Collect Incr dimensions
-        if len(iterations):
+        parallel_blocks = FindNodes(ParallelBlock).visit(tree)
+        if iterations:
             # If Incr dimensions exist map the first one to its name in the dict
             bns[iterations[0].dim.name] = iterations[0]
-            iterations = []
+            try:
+                pbs[iterations[0].dim.name] = parallel_blocks[0]
+            except IndexError:
+                pbs[iterations[0].dim.name] = tree[0]
 
     # Return if no Incr dimensions, ensuring that no Incr expected
     if not bns and not exp_nests:
-        return trees, bns
+        return {}, {}
 
     # Assert Incr dimensions found as expected
     assert bns.keys() == exp_nests
-    return trees, bns
+
+    return bns, pbs
 
 
 # A list of optimization options/pipelines to be used in testing

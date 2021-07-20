@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from conftest import get_blocked_nests
+from conftest import assert_blocking
 from devito.symbolics import MIN
 from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, norm # noqa
 from devito.ir import Expression, Iteration, FindNodes
@@ -39,26 +39,27 @@ class TestCodeGenSkewing(object):
         time_iter = [i for i in iters if i.dim.is_Time]
         assert len(time_iter) == 1
 
-        trees, bns = get_blocked_nests(op, ({'x0_blk0'}))
-        iters = FindNodes(Iteration).visit(trees[0][0])
-        assert len(iters) == 6
-        assert iters[1].dim.parent is x
-        assert iters[2].dim.parent is y
-        assert iters[5].dim is z
-        assert iters[3].dim.parent is iters[1].dim
-        assert iters[4].dim.parent is iters[2].dim
+        bns, _ = assert_blocking(op, {'x0_blk0'})
 
+        iters = FindNodes(Iteration).visit(bns['x0_blk0'])
+        assert len(iters) == 5
+        assert iters[0].dim.parent is x
+        assert iters[1].dim.parent is y
+        assert iters[4].dim is z
+        assert iters[2].dim.parent is iters[0].dim
+        assert iters[3].dim.parent is iters[1].dim
+
+        assert (iters[2].symbolic_min == (iters[0].dim + time))
+        assert (iters[2].symbolic_max == MIN(iters[0].dim + time +
+                                             iters[0].dim.symbolic_incr - 1,
+                                             iters[0].dim.symbolic_max + time))
         assert (iters[3].symbolic_min == (iters[1].dim + time))
         assert (iters[3].symbolic_max == MIN(iters[1].dim + time +
                                              iters[1].dim.symbolic_incr - 1,
                                              iters[1].dim.symbolic_max + time))
-        assert (iters[4].symbolic_min == (iters[2].dim + time))
-        assert (iters[4].symbolic_max == MIN(iters[2].dim + time +
-                                             iters[2].dim.symbolic_incr - 1,
-                                             iters[2].dim.symbolic_max + time))
 
-        assert (iters[5].symbolic_min == (iters[5].dim.symbolic_min))
-        assert (iters[5].symbolic_max == (iters[5].dim.symbolic_max))
+        assert (iters[4].symbolic_min == (iters[4].dim.symbolic_min))
+        assert (iters[4].symbolic_max == (iters[4].dim.symbolic_max))
         skewed = [i.expr for i in FindNodes(Expression).visit(bns['x0_blk0'])]
         assert str(skewed[0]).replace(' ', '') == expected
         assert np.isclose(norm(u), norm_u, rtol=1e-5)
@@ -94,10 +95,10 @@ class TestCodeGenSkewing(object):
         op = Operator(eqn, opt=('blocking', {'skewing': True}))
         op.apply()
         iters = FindNodes(Iteration).visit(op)
-        time_iter = [i for i in iters if i.dim.is_Time]
-        assert len(time_iter) == 0
+        assert len([i for i in iters if i.dim.is_Time]) == 0
 
-        _, _ = get_blocked_nests(op, ({}))
+        _, _ = assert_blocking(op, {})  # no blocking is expected in the absence of time
+
         iters = FindNodes(Iteration).visit(op)
         assert len(iters) == 3
         assert iters[0].dim is x

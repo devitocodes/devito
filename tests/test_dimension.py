@@ -4,7 +4,7 @@ import numpy as np
 from sympy import And
 import pytest
 
-from conftest import get_blocked_nests, skipif, opts_tiling
+from conftest import assert_blocking, skipif, opts_tiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer)
@@ -1057,7 +1057,8 @@ class TestConditionalDimension(object):
 
         op = Operator(eqns)
 
-        _, bns = get_blocked_nests(op, {'x0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0'})
+
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 4
         assert exprs[1].expr.rhs is exprs[0].output
@@ -1072,7 +1073,9 @@ class TestConditionalDimension(object):
                 Eq(g, f + 1, implicit_dims=[ctime])]
 
         op = Operator(eqns)
-        _, bns = get_blocked_nests(op, {'x0_blk0', 'x1_blk0'})
+
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
@@ -1104,7 +1107,8 @@ class TestConditionalDimension(object):
 
         op = Operator(eqns)
 
-        _, bns = get_blocked_nests(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
+
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
@@ -1175,7 +1179,8 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        _, bns = get_blocked_nests(op, {'x0_blk0', 'x1_blk0', 'i0x0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'i0x0_blk0'})
+
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
@@ -1216,7 +1221,8 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        _, bns = get_blocked_nests(op, {'i0x0_blk0', 'x0_blk0'})
+        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
+
         assert len(FindNodes(Expression).visit(bns['i0x0_blk0'])) == 3
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
@@ -1249,7 +1255,8 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        _, bns = get_blocked_nests(op, {'i0x0_blk0', 'x0_blk0', 'i0x1_blk0'})
+        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0', 'i0x1_blk0'})
+
         exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
