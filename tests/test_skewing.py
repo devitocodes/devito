@@ -15,13 +15,13 @@ class TestCodeGenSkewing(object):
     @pytest.mark.parametrize('expr, expected, norm_u, norm_v', [
         (['Eq(u.forward, u + 1)',
           'Eq(u[t1,x-time+1,y-time+1,z+1],u[t0,x-time+1,y-time+1,z+1]+1)',
-         40.58325, 0]),
+         np.sqrt((3*3*3)*6**2 + (3*3*3)*5**2), 0]),
         (['Eq(u.forward, v + 1)',
           'Eq(u[t1,x-time+1,y-time+1,z+1],v[t0,x-time+1,y-time+1,z+1]+1)',
-         7.3484693, 0.0]),
+         np.sqrt((3*3*3)*1**2 + (3*3*3)*1**2), 0]),
         (['Eq(u, v + 1)',
           'Eq(u[t0,x-time+1,y-time+1,z+1],v[t0,x-time+1,y-time+1,z+1]+1)',
-         7.3484693, 0.0]),
+         np.sqrt((3*3*3)*1**2 + (3*3*3)*1**2), 0]),
     ])
     def test_skewed_bounds(self, expr, expected, norm_u, norm_v):
         """Tests code generation on skewed indices."""

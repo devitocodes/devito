@@ -81,27 +81,21 @@ def test_composite_transformation(shape):
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
-@pytest.mark.parametrize("blockinner", [
-    (False, True)
+@pytest.mark.parametrize("blockinner, openmp", [
+    (False, True), (False, True)
 ])
-def test_cache_blocking_structure(blockinner):
+def test_cache_blocking_structure(blockinner, openmp):
     # Check code structure
     _, op = _new_operator2((10, 31, 45), time_order=2,
-                           opt=('blocking', {'blockinner': blockinner,
-                                             'par-collapse-ncores': 1}))
-
-    _, op2 = _new_operator2((10, 31, 45), time_order=2,
-                            opt=('blocking', {'openmp': True,
-                                              'blockinner': blockinner,
-                                              'par-collapse-ncores': 1}))
-    for opi in [op, op2]:
-        if blockinner:
-            _, _ = assert_structure(opi, ['t,x0_blk0,y0_blk0,z0_blk0,x,y,z'])
-        else:
-            _, _ = assert_structure(opi, ['t,x0_blk0,y0_blk0,x,y,z'])
+                           opt=('blocking', {'openmp': True, 'blockinner': blockinner,
+                                'par-collapse-ncores': 1}))
+    if blockinner:
+        _, _ = assert_structure(op, ['t,x0_blk0,y0_blk0,z0_blk0,x,y,z'])
+    else:
+        _, _ = assert_structure(op, ['t,x0_blk0,y0_blk0,x,y,z'])
 
     # Check presence of openmp pragmas at the right place
-    trees = retrieve_iteration_tree(op2)
+    trees = retrieve_iteration_tree(op)
     assert len(trees[0][1].pragmas) == 1
     assert 'omp for' in trees[0][1].pragmas[0].value
 

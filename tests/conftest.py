@@ -228,7 +228,7 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
             for f
                 for y
 
-    we call:
+    we call(Note: `time` mapped to `t`):
 
     .. code-block:: python
 
