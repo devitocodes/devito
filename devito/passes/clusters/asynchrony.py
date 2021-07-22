@@ -1,5 +1,6 @@
 from collections import OrderedDict, defaultdict
 
+import numpy as np
 from sympy import And, Ge, Le, Mod, Mul, true
 
 from devito.exceptions import InvalidOperator
@@ -93,8 +94,10 @@ class Tasker(Asynchronous):
                         # Would degenerate to a scalar, but we rather use a lock
                         # of size 1 for simplicity
                         ld = CustomDimension(name='ld', symbolic_size=1)
-                    lock = locks.setdefault(f, Lock(name='lock%d' % len(locks),
-                                                    dimensions=ld, target=f))
+                    lock = locks.setdefault(f, Lock(
+                        name='lock%d' % len(locks), dimensions=ld, target=f,
+                        initvalue=np.full(ld.symbolic_size, 2, dtype=np.int32)
+                    ))
 
                     for w in writes:
                         try:
