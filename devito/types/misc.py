@@ -81,19 +81,18 @@ class FIndexed(Indexed, Pickable):
     Examples
     --------
     Consider the Indexed `u[x, y]`. The corresponding FIndexed's functional representation
-    is `uX(x, y)`, where `X` is a generic string provided by the caller. Such functional
-    (primary) representation appears multidimensional. However, the corresponding indexed
-    (secondary) represenation is flatten, that is `ux[x*ny + y]`.
+    is `u(x, y)`. This is a multidimensional representation, just like any other Indexed.
+    The corresponding indexed (secondary) represenation is instead flatten, that is
+    `uX[x*ny + y]`, where `X` is a string provided by the caller.
     """
 
-    def __new__(cls, indexed, pname, sname):
+    def __new__(cls, indexed, pname):
         plabel = Symbol(name=pname, dtype=indexed.dtype)
         base = IndexedData(plabel, shape=indexed.shape, function=indexed.function)
         obj = super().__new__(cls, base, *indexed.indices)
 
         obj.indexed = indexed
         obj.pname = pname
-        obj.sname = sname
 
         return obj
 
@@ -104,10 +103,10 @@ class FIndexed(Indexed, Pickable):
 
     @property
     def name(self):
-        return self.sname
+        return self.function.name
 
     # Pickling support
-    _pickle_args = ['indexed', 'pname', 'sname']
+    _pickle_args = ['indexed', 'pname']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
