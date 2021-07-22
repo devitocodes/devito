@@ -26,15 +26,13 @@ class TestCodeGeneration(object):
 
         assert trees[0][1].pragmas[0].value ==\
             'acc parallel loop collapse(3) present(u)'
-        assert op.body[2].body[0].pragmas[0].value ==\
+        assert op.body.maps[0].pragmas[0].value ==\
             ('acc enter data copyin(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert str(op.body[2].body[1]) == ''
-        assert str(op.body[2].body[3]) == ''
-        assert op.body[2].body[4].pragmas[0].contents[0].value ==\
+        assert op.body.unmaps[0].pragmas[0].value ==\
             ('acc exit data copyout(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[2].body[4].pragmas[0].contents[1].value ==\
+        assert op.body.unmaps[1].pragmas[0].value ==\
             ('acc exit data delete(u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
 
@@ -102,7 +100,7 @@ class TestCodeGeneration(object):
 
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2
-        assert str(sections[1].body[0].body[0].footer[1]) ==\
+        assert str(sections[1].body[0].body[0].body[-1]) ==\
             ('#pragma acc exit data delete(usave[time:1][0:usave_vec->size[1]]'
              '[0:usave_vec->size[2]][0:usave_vec->size[3]])')
 
@@ -126,9 +124,9 @@ class TestCodeGeneration(object):
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 2
         s = sections[0].body[0].body[0]
-        assert str(s.body[3].footer[1]) == ('#pragma acc exit data delete'
-                                            '(u[time:1][0:u_vec->size[1]][0:u_vec'
-                                            '->size[2]][0:u_vec->size[3]])')
+        assert str(s.body[3].body[-1]) == ('#pragma acc exit data delete'
+                                           '(u[time:1][0:u_vec->size[1]][0:u_vec'
+                                           '->size[2]][0:u_vec->size[3]])')
         assert str(s.body[2]) == ('#pragma acc data present(u[time:1][0:u_vec->'
                                   'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
         trees = retrieve_iteration_tree(op)

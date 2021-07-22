@@ -1558,12 +1558,8 @@ class TestAliases(object):
             exprs = FindNodes(Expression).visit(op)
             assert len(exprs) == 5
             assert all(e.is_scalar for e in exprs[:-1])
-
-        assert op0.body[-1].body[0].is_ExpressionBundle
-        assert op0.body[-1].body[-1].is_Iteration
-
-        assert op1.body[-1].body[2].body[0].is_ExpressionBundle
-        assert op1.body[-1].body[2].body[-1].is_Iteration
+            assert op.body.body[-1].body[0].is_ExpressionBundle
+            assert op.body.body[-1].body[-1].is_Iteration
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_drop_redundants_after_fusion(self, rotate):
