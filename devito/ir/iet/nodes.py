@@ -2,7 +2,6 @@
 
 import abc
 import inspect
-import numbers
 from cached_property import cached_property
 from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
@@ -23,8 +22,8 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
-           'PragmaList', 'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait',
-           'WhileAlive']
+           'PragmaTransfer', 'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait',
+           'CallableBody']
 
 # First-class IET nodes
 
@@ -43,6 +42,7 @@ class Node(Signer):
     is_ForeignExpression = False
     is_LocalExpression = False
     is_Callable = False
+    is_CallableBody = False
     is_Lambda = False
     is_ElementalFunction = False
     is_Call = False
@@ -124,20 +124,20 @@ class Node(Signer):
     def __str__(self):
         return str(self.ccode)
 
-    @abc.abstractproperty
+    @property
     def functions(self):
         """All AbstractFunction objects used by this node."""
-        raise NotImplementedError()
+        return ()
 
-    @abc.abstractproperty
-    def free_symbols(self):
-        """All Symbol objects used by this node."""
-        raise NotImplementedError()
+    @property
+    def expr_symbols(self):
+        """All symbols appearing in an expression within this node."""
+        return ()
 
-    @abc.abstractproperty
+    @property
     def defines(self):
-        """All Symbol objects defined by this node."""
-        raise NotImplementedError()
+        """All Basic objects defined by this node."""
+        return ()
 
     def _signature_items(self):
         return (str(self.ccode),)
@@ -193,18 +193,6 @@ class List(Node):
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
                                       len(self.body), len(self.footer))
-
-    @property
-    def functions(self):
-        return ()
-
-    @property
-    def free_symbols(self):
-        return ()
-
-    @property
-    def defines(self):
-        return ()
 
 
 class Block(List):
@@ -273,51 +261,55 @@ class Call(ExprStmt, Node):
         return "%sCall::\n\t%s(...)" % (ret, self.name)
 
     @property
+    def children(self):
+        return tuple(i for i in self.arguments if isinstance(i, (Call, Lambda)))
+
+    @cached_property
     def functions(self):
         retval = []
         for i in self.arguments:
-            if isinstance(i, numbers.Number):
-                continue
-            elif isinstance(i, (AbstractFunction, Indexed, LocalObject)):
+            if isinstance(i, (AbstractFunction, Indexed, LocalObject)):
                 retval.append(i.function)
+            elif isinstance(i, Call):
+                retval.extend(i.functions)
             else:
-                for s in i.free_symbols:
+                try:
+                    v = i.free_symbols
+                except AttributeError:
+                    continue
+                for s in v:
                     try:
-                        f = s.function
+                        # `try-except` necessary for e.g. Macro
+                        if isinstance(s.function, AbstractFunction):
+                            retval.append(s.function)
                     except AttributeError:
                         continue
-                    if isinstance(f, AbstractFunction):
-                        retval.append(f)
         if self.base is not None:
             retval.append(self.base.function)
         if self.retobj is not None:
             retval.append(self.retobj.function)
         return tuple(filter_ordered(retval))
 
-    @property
-    def children(self):
-        return tuple(i for i in self.arguments if isinstance(i, (Call, Lambda)))
-
     @cached_property
-    def free_symbols(self):
-        free = set()
+    def expr_symbols(self):
+        retval = []
         for i in self.arguments:
-            if isinstance(i, numbers.Number):
+            if isinstance(i, AbstractFunction):
                 continue
-            elif isinstance(i, AbstractFunction):
-                if i.is_ArrayBasic:
-                    free.add(i)
-                else:
-                    # Always passed by _C_name since what actually needs to be
-                    # provided is the pointer to the corresponding C struct
-                    free.add(i._C_symbol)
+            elif isinstance(i, (Indexed, LocalObject, Symbol)):
+                retval.append(i)
+            elif isinstance(i, Call):
+                retval.extend(i.expr_symbols)
             else:
-                free.update(i.free_symbols)
+                try:
+                    retval.extend(i.free_symbols)
+                except AttributeError:
+                    pass
         if self.base is not None:
-            free.add(self.base)
+            retval.append(self.base)
         if self.retobj is not None:
-            free.update(self.retobj.free_symbols)
-        return free
+            retval.extend(self.retobj.free_symbols)
+        return tuple(filter_ordered(retval))
 
     @property
     def defines(self):
@@ -411,7 +403,7 @@ class Expression(ExprStmt, Node):
         return (self.write,) if self.is_definition else ()
 
     @property
-    def free_symbols(self):
+    def expr_symbols(self):
         return tuple(self.expr.free_symbols)
 
     @cached_property
@@ -596,25 +588,6 @@ class Iteration(Node):
         return _max - _min + 1
 
     @property
-    def functions(self):
-        """All Functions appearing in the Iteration header."""
-        return ()
-
-    @property
-    def free_symbols(self):
-        """All Symbols appearing in the Iteration header."""
-        return tuple(self.symbolic_min.free_symbols) \
-            + tuple(self.symbolic_max.free_symbols) \
-            + self.uindices \
-            + tuple(flatten(i.symbolic_min.free_symbols for i in self.uindices)) \
-            + tuple(flatten(i.symbolic_incr.free_symbols for i in self.uindices))
-
-    @property
-    def defines(self):
-        """All Symbols defined in the Iteration header."""
-        return self.dimensions
-
-    @property
     def dimensions(self):
         """All Dimensions appearing in the Iteration header."""
         return tuple(self.dim._defines) + self.uindices
@@ -623,6 +596,18 @@ class Iteration(Node):
     def write(self):
         """All Functions written to in this Iteration"""
         return []
+
+    @cached_property
+    def expr_symbols(self):
+        return tuple(self.symbolic_min.free_symbols) \
+            + tuple(self.symbolic_max.free_symbols) \
+            + self.uindices \
+            + tuple(flatten(i.symbolic_min.free_symbols for i in self.uindices)) \
+            + tuple(flatten(i.symbolic_incr.free_symbols for i in self.uindices))
+
+    @property
+    def defines(self):
+        return self.dimensions
 
 
 class While(Node):
@@ -676,7 +661,10 @@ class Callable(Node):
 
     def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline')):
         self.name = name
-        self.body = as_tuple(body)
+        if not isinstance(body, CallableBody):
+            self.body = CallableBody(body)
+        else:
+            self.body = body
         self.retval = retval
         self.prefix = as_tuple(prefix)
         self.parameters = as_tuple(parameters)
@@ -689,13 +677,54 @@ class Callable(Node):
     def functions(self):
         return tuple(i for i in self.parameters if isinstance(i, AbstractFunction))
 
-    @property
-    def free_symbols(self):
-        return ()
 
-    @property
-    def defines(self):
-        return ()
+class CallableBody(Node):
+
+    """
+    The immediate child of a Callable.
+
+    Parameters
+    ----------
+    body : Node or list of Node
+        The actual body.
+    init : Node, optional
+        A piece of IET to perform some initialization relevant for `body`
+        (e.g., to initialize the target language runtime).
+    unpacks : list of Nodes, optional
+        Statements unpacking data from composite types.
+    allocs : list of cgen objects, optional
+        Data allocations for `body`.
+    casts : list of PointerCasts, optional
+        Sequence of PointerCasts required by the `body`.
+    maps : Transfer or list of Transfer, optional
+        Data maps for `body` (a data map may e.g. trigger a data transfer from
+        host to device).
+    unmaps : Transfer or list of Transfer, optional
+        Data unmaps for `body`.
+    frees : list of cgen objects, optional
+        Data deallocations for `body`.
+    """
+
+    is_CallableBody = True
+
+    _traversable = ['init', 'unpacks', 'casts', 'maps', 'body', 'unmaps']
+
+    def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
+                 maps=None, unmaps=None, frees=None):
+        # Sanity check
+        assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
+
+        self.body = as_tuple(body)
+        self.init = as_tuple(init)
+        self.unpacks = as_tuple(unpacks)
+        self.allocs = as_tuple(allocs)
+        self.casts = as_tuple(casts)
+        self.maps = as_tuple(maps)
+        self.unmaps = as_tuple(unmaps)
+        self.frees = as_tuple(frees)
+
+    def __repr__(self):
+        return "<CallableBody>"
 
 
 class Conditional(Node):
@@ -740,12 +769,8 @@ class Conditional(Node):
         return tuple(ret)
 
     @property
-    def free_symbols(self):
+    def expr_symbols(self):
         return tuple(self.condition.free_symbols)
-
-    @property
-    def defines(self):
-        return ()
 
 
 # Second level IET nodes
@@ -792,25 +817,21 @@ class TimedList(List):
     def timer(self):
         return self._timer
 
-    @property
-    def free_symbols(self):
-        return ()
-
 
 class PointerCast(ExprStmt, Node):
 
     """
-    A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
+    A node encapsulating a cast of a raw void pointer to a non-void,
+    potentially multi-dimensional array.
     """
 
     is_PointerCast = True
 
-    def __init__(self, function, obj=None, alignment=True, flat=None, cname=None):
+    def __init__(self, function, obj=None, alignment=True, flat=None):
         self.function = function
         self.obj = obj
         self.alignment = alignment
         self.flat = flat
-        self.cname = cname
 
     def __repr__(self):
         return "<PointerCast(%s)>" % self.function
@@ -831,12 +852,7 @@ class PointerCast(ExprStmt, Node):
         return (self.function,)
 
     @property
-    def free_symbols(self):
-        """
-        The symbols required by the PointerCast.
-
-        This may include DiscreteFunctions as well as Dimensions.
-        """
+    def expr_symbols(self):
         f = self.function
         if f.is_ArrayBasic:
             return tuple(flatten(s.free_symbols for s in f.symbolic_shape[1:]))
@@ -845,7 +861,7 @@ class PointerCast(ExprStmt, Node):
 
     @property
     def defines(self):
-        return ()
+        return (self.function,)
 
 
 class Dereference(ExprStmt, Node):
@@ -854,7 +870,7 @@ class Dereference(ExprStmt, Node):
     A node encapsulating a dereference from a `pointer` to a `pointee`.
     The following cases are supported:
 
-        * `pointer` is a PointerArray and `pointee` is an Array (typical case).
+        * `pointer` is a PointerArray and `pointee` is an Array.
         * `pointer` is an ArrayObject representing a pointer to a C struct while
           `pointee` is a field in `pointer`.
     """
@@ -874,14 +890,22 @@ class Dereference(ExprStmt, Node):
         return (self.pointee, self.pointer)
 
     @property
-    def free_symbols(self):
+    def expr_symbols(self):
         return ((self.pointee.indexed.label, self.pointer.indexed.label) +
+                (self.pointer.indexify(),) +
                 tuple(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:])) +
                 tuple(self.pointer.free_symbols))
 
     @property
     def defines(self):
-        return (self.pointee,)
+        if self.pointer.is_ObjectArray:
+            # E.g., `struct dataobj* a_vec = sdata->a_vec`, but I'm not defining
+            # the `a` `Function`, which is what `defines` is for, but rather it's
+            # carrier. It would take a `PointerCast` from `a_vec` to `a` to actually
+            # define the `a` `Function`
+            return ()
+        else:
+            return (self.pointee,)
 
 
 class LocalExpression(Expression):
@@ -975,12 +999,8 @@ class Lambda(Node):
         return "Lambda[%s](%s)" % (self.captures, self.parameters)
 
     @cached_property
-    def free_symbols(self):
-        return set(self.parameters)
-
-    @property
-    def defines(self):
-        return ()
+    def expr_symbols(self):
+        return tuple(self.parameters)
 
 
 class Section(List):
@@ -1064,28 +1084,54 @@ class Prodder(Call):
         return self._periodic
 
 
-class PragmaList(List):
+class Pragma(Node):
 
     """
-    A floating sequence of pragmas.
+    One or more pragmas floating in the IET.
     """
 
-    def __init__(self, pragmas, functions=None, free_symbols=None, **kwargs):
-        super().__init__(header=pragmas)
-        self._functions = as_tuple(functions)
-        self._free_symbols = as_tuple(free_symbols)
+    def __init__(self, pragmas):
+        super().__init__()
+        self.pragmas = as_tuple(pragmas)
 
-    @property
-    def pragmas(self):
-        return self.header
+    def __repr__(self):
+        return '<Pragmas>'
+
+
+class Transfer(object):
+
+    """
+    A mixin for nodes representing data transfers.
+    """
+
+    pass
+
+
+class PragmaTransfer(Pragma, Transfer):
+
+    """
+    A data transfer between host and device expressed by means of one or more pragmas.
+    """
+
+    def __init__(self, callback, function, **kwargs):
+        super().__init__(callback(function, **kwargs))
+        self.callback = callback
+        self.function = function
+        self.kwargs = kwargs
 
     @property
     def functions(self):
-        return self._functions
+        return (self.function,)
 
-    @property
-    def free_symbols(self):
-        return self._free_symbols
+    @cached_property
+    def expr_symbols(self):
+        retval = [self.function.indexed]
+        for i in flatten(self.kwargs.items()):
+            try:
+                retval.extend(i.free_symbols)
+            except AttributeError:
+                pass
+        return tuple(retval)
 
 
 class ParallelIteration(Iteration):
@@ -1252,15 +1298,6 @@ class BusyWait(While):
     pass
 
 
-class WhileAlive(While):
-
-    """
-    A while-loop used by threads to repeat the same actions until they're killed.
-    """
-
-    pass
-
-
 class SyncSpot(List):
 
     """
@@ -1356,14 +1393,6 @@ class HaloSpot(Node):
     @property
     def functions(self):
         return tuple(self.fmapper)
-
-    @property
-    def free_symbols(self):
-        return ()
-
-    @property
-    def defines(self):
-        return ()
 
 
 # Utility classes

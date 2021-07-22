@@ -3,10 +3,9 @@ from abc import ABC
 
 import cgen as c
 
-from devito.ir import (BlankLine, DummyEq, Call, Conditional, FindNodes, List,
-                       LocalExpression, Prodder, ParallelIteration, ParallelBlock,
-                       PointerCast, WhileAlive, EntryFunction, ThreadFunction,
-                       Transformer)
+from devito.ir import (BlankLine, DummyEq, Call, Conditional, List, LocalExpression,
+                       Prodder, ParallelIteration, ParallelBlock, PointerCast,
+                       EntryFunction, ThreadFunction)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe
@@ -73,7 +72,7 @@ class LangBB(object, metaclass=LangMeta):
         raise NotImplementedError
 
     @classmethod
-    def _map_update(cls, f):
+    def _map_update(cls, f, imask=None):
         """
         Copyi Function from device to host memory.
         """
@@ -108,7 +107,7 @@ class LangBB(object, metaclass=LangMeta):
         raise NotImplementedError
 
     @classmethod
-    def _map_release(cls, f, devicerm=None):
+    def _map_release(cls, f, imask=None, devicerm=None):
         """
         Release device pointer to a Function.
         """
@@ -221,6 +220,8 @@ class DeviceAwareMixin(object):
 
         @_initialize.register(EntryFunction)
         def _(iet):
+            assert iet.body.is_CallableBody
+
             # TODO: we need to pick the rank from `comm_shm`, not `comm`,
             # so that we have nranks == ngpus (as long as the user has launched
             # the right number of MPI processes per node given the available
@@ -270,17 +271,13 @@ class DeviceAwareMixin(object):
                 header = c.Comment('Begin of %s setup' % self.lang['name'])
                 footer = c.Comment('End of %s setup' % self.lang['name'])
 
-            init = List(header=header, body=body, footer=(footer, c.Line()))
-            iet = iet._rebuild(body=(init,) + iet.body)
+            init = List(header=header, body=body, footer=footer)
+            iet = iet._rebuild(body=iet.body._rebuild(init=init))
 
             return iet, {'args': deviceid}
 
         @_initialize.register(ThreadFunction)
         def _(iet):
-            body = FindNodes(WhileAlive).visit(iet)
-            assert len(body) == 1
-            body = body.pop()
-
             devicetype = as_list(self.lang[self.platform])
             deviceid = self.deviceid
 
@@ -288,9 +285,8 @@ class DeviceAwareMixin(object):
                 CondNe(deviceid, -1),
                 self.lang['set-device']([deviceid] + devicetype)
             )
-
-            mapper = {body: List(body=[init, BlankLine, body])}
-            iet = Transformer(mapper).visit(iet)
+            body = iet.body._rebuild(body=(init, BlankLine) + iet.body.body)
+            iet = iet._rebuild(body=body)
 
             return iet, {}
 

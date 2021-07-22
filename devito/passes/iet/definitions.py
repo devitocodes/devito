@@ -9,14 +9,14 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (BlankLine, Dereference, EntryFunction, List, LocalExpression,
-                       PragmaList, FindNodes, FindSymbols, MapExprStmts, Transformer)
+from devito.ir import (EntryFunction, List, LocalExpression, PragmaTransfer,
+                       FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import ccode
-from devito.tools import as_mapper, filter_ordered, filter_sorted, flatten
-from devito.types import DeviceRM, FIndexed
+from devito.symbolics import ListInitializer, ccode
+from devito.tools import as_mapper, filter_sorted, flatten
+from devito.types import DeviceRM
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -52,10 +52,6 @@ class Storage(OrderedDict):
         self.defined.add(key)
 
 
-class Defs(List):
-    pass
-
-
 class DataManager(object):
 
     lang = LangBB
@@ -85,9 +81,13 @@ class DataManager(object):
         """
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
         alignment = self.lang['aligned'](obj._data_alignment)
-        value = "%s%s %s" % (obj.name, shape, alignment)
+        decl = c.Value(obj._C_typedata, "%s%s %s" % (obj._C_name, shape, alignment))
 
-        storage.update(obj, site, allocs=c.POD(obj.dtype, value))
+        if obj.initvalue is not None:
+            storage.update(obj, site,
+                           allocs=c.Initializer(decl, ListInitializer(obj.initvalue)))
+        else:
+            storage.update(obj, site, allocs=decl)
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
@@ -100,14 +100,14 @@ class DataManager(object):
         """
         Allocate an Array in the high bandwidth memory.
         """
-        decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
-        decl = c.Value(obj._C_typedata, decl)
+        decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
 
         shape = "".join("[%s]" % i for i in obj.symbolic_shape)
         size = "sizeof(%s%s)" % (obj._C_typedata, shape)
-        alloc = c.Statement(self.lang['alloc-host'](obj.name, obj._data_alignment, size))
+        alloc = c.Statement(self.lang['alloc-host'](obj._C_name,
+                                                    obj._data_alignment, size))
 
-        free = c.Statement(self.lang['free-host'](obj.name))
+        free = c.Statement(self.lang['free-host'](obj._C_name))
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
 
@@ -132,15 +132,15 @@ class DataManager(object):
         by the owner thread.
         """
         # The pointer array
-        decl = "**%s" % obj.name
-        decl = c.Value(obj._C_typedata, decl)
+        decl = c.Value(obj._C_typedata, "**%s" % obj._C_name)
 
         size = 'sizeof(%s*)*%s' % (obj._C_typedata, obj.dim.symbolic_size)
-        alloc0 = c.Statement(self.lang['alloc-host'](obj.name, obj._data_alignment, size))
-        free0 = c.Statement(self.lang['free-host'](obj.name))
+        alloc0 = c.Statement(self.lang['alloc-host'](obj._C_name, obj._data_alignment,
+                                                     size))
+        free0 = c.Statement(self.lang['free-host'](obj._C_name))
 
         # The pointee Array
-        pobj = '%s[%s]' % (obj.name, obj.dim.name)
+        pobj = '%s[%s]' % (obj._C_name, obj.dim.name)
         shape = "".join("[%s]" % i for i in obj.array.symbolic_shape)
         size = "sizeof(%s%s)" % (obj._C_typedata, shape)
         alloc1 = c.Statement(self.lang['alloc-host'](pobj, obj._data_alignment, size))
@@ -152,7 +152,7 @@ class DataManager(object):
         else:
             storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
 
-    def _dump_storage(self, iet, storage, cls=List):
+    def _dump_definitions(self, iet, storage):
         mapper = {}
         for k, v in storage.items():
             # Expr -> LocalExpr ?
@@ -167,26 +167,6 @@ class DataManager(object):
                 init = c.Initializer(c.Value(tid._C_typedata, tid.name),
                                      self.lang['thread-num'])
                 allocs.append(c.Module((header, c.Block([init] + body))))
-            if allocs:
-                allocs.append(c.Line())
-
-            # maps/unmaps
-            rbody = []
-            if v.maps:
-                rbody.append(PragmaList(
-                    flatten(i.pragmas for i in v.maps),
-                    functions=filter_ordered(flatten(i.functions for i in v.maps)),
-                    free_symbols=filter_ordered(flatten(i.free_symbols for i in v.maps))
-                ))
-                rbody.append(BlankLine)
-            rbody.extend(list(k.body))
-            if v.unmaps:
-                rbody.append(BlankLine)
-                rbody.append(PragmaList(
-                    flatten(i.pragmas for i in v.unmaps),
-                    functions=filter_ordered(flatten(i.functions for i in v.maps)),
-                    free_symbols=filter_ordered(flatten(i.free_symbols for i in v.maps))
-                ))
 
             # frees/pfrees
             frees = []
@@ -196,11 +176,11 @@ class DataManager(object):
                                      self.lang['thread-num'])
                 frees.append(c.Module((header, c.Block([init] + body))))
             frees.extend(flatten(v.frees))
-            if frees:
-                frees.insert(0, c.Line())
 
-            mapper[k] = k._rebuild(body=cls(header=allocs, body=rbody, footer=frees),
-                                   **k.args_frozen)
+            if k is iet:
+                mapper[k.body] = k.body._rebuild(allocs=allocs, frees=frees)
+            else:
+                mapper[k] = k._rebuild(body=List(header=allocs, footer=frees))
 
         processed = Transformer(mapper, nested=True).visit(iet)
 
@@ -276,7 +256,7 @@ class DataManager(object):
                     # E.g., a generic SymPy expression
                     pass
 
-        iet = self._dump_storage(iet, storage, Defs)
+        iet = self._dump_definitions(iet, storage)
 
         return iet, {}
 
@@ -299,50 +279,22 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
-        body = iet.body[0]
-        if not isinstance(body, Defs):
-            # Sometimes we end up here -- an IET with no definitions
-            body = iet
+        indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
+        defines = set(FindSymbols('defines').visit(iet))
 
-        symbols = FindSymbols('free-symbols').visit(iet)
-        symbol_names = {i.name for i in symbols}
-
-        placed = set()
-        placed.update({i.pointee for i in FindNodes(Dereference).visit(iet)})
+        # The _C_name represents the name of the Function among the
+        # `iet.parameters`). If this differs from the name used within the
+        # expressions, then it implies a cast is required
+        needs_cast = lambda f: f not in defines and f._C_name != f.name
 
         # Create Function -> n-dimensional array casts
         # E.g. `float (*u)[u_vec->size[1]] = (float (*)[u_vec->size[1]]) u_vec->data`
-        functions = [i for i in FindSymbols().visit(iet)
-                     if i.is_Tensor and i.name in symbol_names]
-        need_cast = set(functions) - placed
-        casts = tuple(self.lang.PointerCast(i) for i in iet.parameters if i in need_cast)
-        if casts:
-            casts = (List(body=casts, footer=c.Line()),)
-            body = body._rebuild(body=casts + body.body)
-
-        # Create Function -> linearized n-dimensional array casts
-        # E.g. `float *ul = (float*) u_vec->data`
-        casts = []
-        for i in symbols:
-            if not isinstance(i, FIndexed):
-                continue
-            f = i.function
-            if f in placed:
-                continue
-            placed.add(f)
-            if f in iet.parameters:
-                casts.append(self.lang.PointerCast(f, flat=i.name))
-            else:
-                casts.append(self.lang.PointerCast(f, flat=i.name, cname=f.name))
-        if casts:
-            casts = (List(body=casts, footer=c.Line()),)
-            body = body._rebuild(body=casts + body.body)
+        functions = sorted({i.function for i in indexeds}, key=lambda i: i.name)
+        casts = [self.lang.PointerCast(f) for f in functions if needs_cast(f)]
 
         # Incorporate the newly created casts
-        if isinstance(body, Defs):
-            iet = iet._rebuild(body=body)
-        else:
-            iet = body
+        if casts:
+            iet = iet._rebuild(body=iet.body._rebuild(casts=casts))
 
         return iet, {}
 
@@ -374,31 +326,51 @@ class DeviceAwareDataManager(DataManager):
         super().__init__(sregistry)
         self.gpu_fit = options['gpu-fit']
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
-        _storage = Storage()
-        super()._alloc_array_on_high_bw_mem(site, obj, _storage)
+    def _map_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Map an Array already defined in the host memory in to the device high
+        bandwidth memory.
+        """
+        # If Array gets allocated directly in the device memory, there's nothing to map
+        if obj._mem_default:
+            return
 
-        allocs = _storage[site].allocs + [self.lang._map_alloc(obj)]
-        frees = [self.lang._map_delete(obj)] + _storage[site].frees
-        storage.update(obj, site, allocs=allocs, frees=frees)
+        mmap = PragmaTransfer(self.lang._map_alloc, obj)
+        unmap = PragmaTransfer(self.lang._map_delete, obj)
+
+        storage.update(obj, site, maps=mmap, unmaps=unmap)
 
     def _map_function_on_high_bw_mem(self, site, obj, storage, devicerm, read_only=False):
         """
-        Place a Function in the high bandwidth memory.
+        Map a Function already defined in the host memory in to the device high
+        bandwidth memory.
+
+        Notes
+        -----
+        In essence, the difference between `_map_function_on_high_bw_mem` and
+        `_map_array_on_high_bw_mem` is that the former triggers a data transfer to
+        synchronize the host and device copies, while the latter does not.
         """
-        mmap = self.lang._map_to(obj)
-        mmap = PragmaList(mmap, functions=obj,
-                          free_symbols=[obj._C_symbol, obj.indexed.label])
+        mmap = PragmaTransfer(self.lang._map_to, obj)
 
         if read_only is False:
-            unmap = c.Collection([self.lang._map_update(obj),
-                                  self.lang._map_release(obj, devicerm=devicerm)])
+            unmap = [PragmaTransfer(self.lang._map_update, obj),
+                     PragmaTransfer(self.lang._map_release, obj, devicerm=devicerm)]
         else:
-            unmap = self.lang._map_delete(obj, devicerm=devicerm)
-        unmap = PragmaList(unmap, functions=obj,
-                           free_symbols=[obj._C_symbol, obj.indexed.label])
+            unmap = PragmaTransfer(self.lang._map_delete, obj, devicerm=devicerm)
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
+
+    def _dump_transfers(self, iet, storage):
+        mapper = {}
+        for k, v in storage.items():
+            if v.maps or v.unmaps:
+                mapper[iet.body] = iet.body._rebuild(maps=flatten(v.maps),
+                                                     unmaps=flatten(v.unmaps))
+
+        processed = Transformer(mapper, nested=True).visit(iet)
+
+        return processed
 
     @iet_pass
     def map_onmemspace(self, iet, **kwargs):
@@ -422,20 +394,28 @@ class DeviceAwareDataManager(DataManager):
                 if not any(isinstance(j, self.lang.DeviceIteration) for j in v):
                     # Not an offloaded Iteration tree
                     continue
-                if i.write.is_DiscreteFunction:
+                if i.write.is_AbstractFunction:
                     writes.add(i.write)
-                reads.update({r for r in i.reads if r.is_DiscreteFunction})
+                reads.update({r for r in i.reads if r.is_AbstractFunction})
 
             # Populate `storage`
             storage = Storage()
             for i in filter_sorted(writes):
-                if is_on_device(i, self.gpu_fit):
+                if not is_on_device(i, self.gpu_fit):
+                    continue
+                elif i.is_Array:
+                    self._map_array_on_high_bw_mem(iet, i, storage)
+                else:
                     self._map_function_on_high_bw_mem(iet, i, storage, devicerm)
             for i in filter_sorted(reads - writes):
-                if is_on_device(i, self.gpu_fit):
+                if not is_on_device(i, self.gpu_fit):
+                    continue
+                elif i.is_Array:
+                    self._map_array_on_high_bw_mem(iet, i, storage)
+                else:
                     self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
 
-            iet = self._dump_storage(iet, storage)
+            iet = self._dump_transfers(iet, storage)
 
             return iet, {'args': devicerm}
 

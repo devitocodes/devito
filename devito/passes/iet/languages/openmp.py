@@ -3,7 +3,8 @@ from sympy import Not
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Block, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, PointerCast, While, FindNodes, Transformer)
+                       ParallelBlock, PragmaTransfer, PointerCast, While, FindNodes,
+                       Transformer)
 from devito.mpi.routines import IrecvCall, IsendCall
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
@@ -196,7 +197,14 @@ class OmpDataManager(DataManager):
 
 
 class DeviceOmpDataManager(DeviceAwareDataManager):
+
     lang = DeviceOmpBB
+
+    def _map_array_on_high_bw_mem(self, site, obj, storage):
+        mmap = PragmaTransfer(self.lang._map_alloc, obj)
+        unmap = PragmaTransfer(self.lang._map_delete, obj)
+
+        storage.update(obj, site, maps=mmap, unmaps=unmap)
 
 
 class OmpOrchestrator(Orchestrator):
