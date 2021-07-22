@@ -229,6 +229,11 @@ class ArrayObject(ArrayBasic):
     def __pfields_setup__(cls, **kwargs):
         return [(i._C_name, i._C_ctype) for i in kwargs.get('fields', [])]
 
+    @property
+    def _C_name(self):
+        # No reason for the `_C_name` to different from the `name`
+        return self.name
+
     @cached_property
     def _C_typename(self):
         return ctypes_to_cstr(self.dtype)
