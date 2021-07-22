@@ -36,8 +36,9 @@ class Array(ArrayBasic):
     """
     Tensor symbol representing an array in symbolic equations.
 
-    An Array is very similar to a sympy.Indexed, though it also carries
-    metadata essential for code generation.
+    Arrays are created and managed directly by Devito (IOW, they are not
+    expected to be used directly in user code). An Array behaves similarly to
+    a Function, but unlike a Function it carries no user data.
 
     Parameters
     ----------
@@ -68,6 +69,8 @@ class Array(ArrayBasic):
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack'.
         Defaults to 'heap'. This may not have an impact on certain platforms.
+    initvalue : array-like, optional
+        The initial content of the Array. Must be None if `scope='heap'`.
 
     Warnings
     --------
@@ -89,6 +92,9 @@ class Array(ArrayBasic):
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack']
+
+        self._initvalue = kwargs.get('initvalue')
+        assert self._initvalue is None or self._scope != 'heap'
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -162,6 +168,10 @@ class Array(ArrayBasic):
     @property
     def _mem_heap(self):
         return self._scope == 'heap'
+
+    @property
+    def initvalue(self):
+        return self._initvalue
 
     @cached_property
     def free_symbols(self):
