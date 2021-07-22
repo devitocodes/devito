@@ -12,7 +12,7 @@ from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, prod
-from devito.types import FIndexed, Symbol, NThreadsBase
+from devito.types import Symbol, NThreadsBase, Wildcard
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
            'PragmaDeviceAwareTransformer', 'PragmaLangBB']
@@ -260,11 +260,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 pi = parrays[i]
             else:
                 pi = parrays.setdefault(i, i._make_pointer(dim=self.threadid))
-            if isinstance(n.output, FIndexed):
-                flat = n.output.name
-            else:
-                flat = None
-            vexpandeds.append(VExpanded(i, pi, flat=flat))
+            vexpandeds.append(VExpanded(i, pi))
 
         if vexpandeds:
             init = c.Initializer(c.Value(self.threadid._C_typedata, self.threadid.name),
@@ -474,11 +470,11 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
 class PragmaLangBB(LangBB):
 
     @classmethod
-    def _make_sections_from_imask(cls, f, imask):
+    def _make_symbolic_sections_from_imask(cls, f, imask):
         datasize = cls._map_data(f)
         if imask is None:
             imask = [FULL]*len(datasize)
-        assert len(imask) == len(datasize)
+
         sections = []
         for i, j in zip(imask, datasize):
             if i is FULL:
@@ -488,9 +484,34 @@ class PragmaLangBB(LangBB):
                     start, size = i
                 except TypeError:
                     start, size = i, 1
-                start = ccode(start)
-            sections.append('[%s:%s]' % (start, size))
-        return ''.join(sections)
+            sections.append((start, size))
+
+        # Unroll (or "flatten") the remaining Dimensions not captured by `imask`
+        if len(imask) < len(datasize):
+            try:
+                start, size = sections.pop(-1)
+            except IndexError:
+                start, size = (0, 1)
+            remainder_size = prod(datasize[len(imask):])
+            # The reason we may see a Wildcard is detailed in the `linearize_transfer`
+            # pass, take a look there for more info. Basically, a Wildcard here means
+            # that the symbol `start` is actually a temporary whose value already
+            # represents the unrolled size
+            if not isinstance(start, Wildcard):
+                start *= remainder_size
+            size *= remainder_size
+            sections.append((start, size))
+
+        return sections
+
+    @classmethod
+    def _make_sections_from_imask(cls, f, imask):
+        sections = cls._make_symbolic_sections_from_imask(f, imask)
+
+        sections = ['[%s:%s]' % (ccode(start), ccode(size)) for start, size in sections]
+        sections = ''.join(sections)
+
+        return sections
 
     @classmethod
     def _map_data(cls, f):
@@ -516,9 +537,9 @@ class PragmaLangBB(LangBB):
         return
 
     @classmethod
-    def _map_update(cls, f):
-        return cls.mapper['map-update'](f.name, ''.join('[0:%s]' % i
-                                                        for i in cls._map_data(f)))
+    def _map_update(cls, f, imask=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.mapper['map-update'](f.name, sections)
 
     @classmethod
     def _map_update_host(cls, f, imask=None, queueid=None):
@@ -535,9 +556,9 @@ class PragmaLangBB(LangBB):
     _map_update_wait_device = _map_update_device
 
     @classmethod
-    def _map_release(cls, f, devicerm=None):
-        return cls.mapper['map-release'](f.name,
-                                         ''.join('[0:%s]' % i for i in cls._map_data(f)),
+    def _map_release(cls, f, imask=None, devicerm=None):
+        sections = cls._make_sections_from_imask(f, imask)
+        return cls.mapper['map-release'](f.name, sections,
                                          (' if(%s)' % devicerm.name) if devicerm else '')
 
     @classmethod
