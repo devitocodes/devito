@@ -148,8 +148,8 @@ def linearize_pointers(iet):
     """
     Flatten n-dimensional PointerCasts/Dereferences.
     """
-    indexeds = [i for i in FindSymbols('indexeds|indexedbases').visit(iet)]
-    candidates = {i.function for i in indexeds if isinstance(i, (FIndexed, IndexedData))}
+    indexeds = [i for i in FindSymbols('indexeds').visit(iet)]
+    candidates = {i.function for i in indexeds if isinstance(i, FIndexed)}
 
     mapper = {}
 
@@ -169,8 +169,14 @@ def linearize_pointers(iet):
 
 
 def linearize_transfers(iet, sregistry):
+    casts = FindNodes(PointerCast).visit(iet)
+    candidates = {i.function for i in casts if i.flat is not None}
+
     mapper = {}
     for n in FindNodes(PragmaTransfer).visit(iet):
+        if n.function not in candidates:
+            continue
+
         try:
             imask0 = n.kwargs['imask']
         except KeyError:

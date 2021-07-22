@@ -71,6 +71,31 @@ def test_cire():
     assert np.all(u.data == u1.data)
 
 
+def test_nested_indexeds():
+    grid = Grid(shape=(4, 4))
+    t = grid.stepping_dim
+    x, y = grid.dimensions
+
+    f = Function(name='f', grid=grid, dtype=np.int32)
+    g = Function(name='g', grid=grid, dimensions=(x,), shape=(4,), dtype=np.int32)
+    u = TimeFunction(name='u', grid=grid, space_order=2)
+    u1 = TimeFunction(name='u', grid=grid, space_order=2)
+
+    eqn = Eq(u.forward, u[t, f[g[x], g[x]], y] + 1.)
+
+    op0 = Operator(eqn)
+    op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
+
+    # Check generated code
+    assert 'uL0' not in str(op0)
+    assert 'uL0' in str(op1)
+
+    op0.apply(time_M=10)
+    op1.apply(time_M=10, u=u1)
+
+    assert np.all(u.data == u1.data)
+
+
 def test_interpolation():
     nt = 10
     grid = Grid(shape=(4, 4))
