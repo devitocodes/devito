@@ -200,10 +200,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
 
-        # Linearize n-dimensional Indexeds
-        if options['linearize']:
-            linearize(graph, sregistry=sregistry)
-
         # Parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_simd(graph)
@@ -214,6 +210,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Symbol definitions
         cls._Target.DataManager(sregistry).process(graph)
+
+        # Linearize n-dimensional Indexeds
+        if options['linearize']:
+            linearize(graph, sregistry=sregistry)
 
         # Initialize the target-language runtime
         parizer.initialize(graph)
