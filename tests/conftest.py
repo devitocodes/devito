@@ -12,6 +12,7 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Device, sniff_mpi_distro
 from devito.arch.compiler import compiler_registry
+from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration, ParallelBlock
 from devito.tools import as_tuple
 
 try:
@@ -204,3 +205,113 @@ def _R(expr):
         assert len(base) == 1
         base = base.pop()
     return EvalDerivative(*expr.args, base=base)
+
+
+# Utilities for testing tree structure
+
+
+def assert_structure(operator, exp_trees=None, exp_iters=None):
+    """
+    Utility function that helps to check loop structure of IETs. Retrieves trees from an
+    Operator and check that the blocking structure is as expected.
+
+    Examples
+    --------
+    To check that an Iteration tree has the following structure:
+
+    .. code-block:: python
+
+        for time
+            for x
+                for y
+            for f
+                for y
+
+    we call:
+
+    .. code-block:: python
+
+        assert_structure(op, ['t,x,y', 't,f,y'], 't,x,y,f,y')`
+
+    Notes
+    -----
+    `time` is mapped to `t`
+    """
+    mapper = {'time': 't'}
+
+    if exp_trees is not None:
+        trees = retrieve_iteration_tree(operator)
+        exp_trees = [i.replace(',', '') for i in exp_trees]  # 't,x,y' -> 'txy'
+        tree_struc = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
+                       for j in trees])  # Flatten every tree's dims as a string
+        assert tree_struc == exp_trees
+
+    if exp_iters is not None:
+        iters = FindNodes(Iteration).visit(operator)
+        exp_iters = exp_iters.replace(',', '')  # 't,x,y' -> 'txy'
+        iter_struc = "".join(mapper.get(i.dim.name, i.dim.name) for i in iters)
+        assert iter_struc == exp_iters
+
+
+def assert_blocking(operator, exp_nests):
+    """
+    Utility function that helps to check existence of blocked nests. The structure of the
+    operator is not used.
+
+    Examples
+    --------
+    For the following structure:
+
+    .. code-block:: python
+
+        for t
+            for x0_blk0
+                for x
+            for x1_blk0
+                for x
+
+    we call:
+
+    .. code-block:: python
+
+       bns, pbs = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+
+    to assert the existence of 'x0_blk0', 'x1_blk0' and then the function returns a
+    dictionary with the blocking Iterations that start a blocking subtree:
+
+    ['x0_blk0': Iteration x0_blk0..., 'x1_blk0': Iteration x1_blk0...]
+
+    and the ParallelBlock that encapsules the above blocking subtree
+
+    ['x0_blk0': ParallelBlock encapsulating Iteration x0_blk0,
+     'x1_blk0': ParallelBlock encapsulating Iteration x1_blk0]
+    """
+    bns = {}
+    pbs = {}
+    trees = retrieve_iteration_tree(operator)
+    for tree in trees:
+        iterations = [i for i in tree if i.dim.is_Incr]  # Collect Incr dimensions
+        if iterations:
+            # If Incr dimensions exist map the first one to its name in the dict
+            bns[iterations[0].dim.name] = iterations[0]
+            try:
+                parallel_blocks = FindNodes(ParallelBlock).visit(tree)
+                pbs[iterations[0].dim.name] = parallel_blocks[0]
+            except IndexError:
+                pbs[iterations[0].dim.name] = tree[0]
+
+    # Return if no Incr dimensions, ensuring that no Incr expected
+    if not bns and not exp_nests:
+        return {}, {}
+
+    # Assert Incr dimensions found as expected
+    assert bns.keys() == exp_nests
+
+    return bns, pbs
+
+
+# A list of optimization options/pipelines to be used in testing
+# regarding GPU openacc spatial and/or temporal blocking.
+opts_openacc_tiling = [('openacc', 'blocking'),
+                       ('openacc', 'blocking', {'skewing': True}),
+                       ('openacc', 'blocking', {'skewing': True, 'blockinner': True})]

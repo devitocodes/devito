@@ -1,9 +1,9 @@
 import pytest
 import numpy as np
 
-from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator,
                     norm, solve)
+from conftest import skipif, opts_openacc_tiling
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
 from devito.ir.iet import FindNodes, Section, retrieve_iteration_tree
@@ -61,6 +61,28 @@ class TestCodeGeneration(object):
             assert True
         except:
             assert False
+
+    @pytest.mark.parametrize('opt', opts_openacc_tiling)
+    def test_blocking_customop(self, opt):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1),
+                      platform='nvidiaX', language='openacc', opt=opt)
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+        tree = trees[0]
+        assert len(tree) == 7
+        assert all(i.dim.is_Incr for i in tree[1:7])
+
+        assert op.parameters[3] is tree[1].step
+        assert op.parameters[6] is tree[2].step
+        assert op.parameters[9] is tree[3].step
+
+        assert tree[1].pragmas[0].value ==\
+            'acc parallel loop collapse(3) present(u)'
 
     def test_streaming_postponed_deletion(self):
         grid = Grid(shape=(10, 10, 10))

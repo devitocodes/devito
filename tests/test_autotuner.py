@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from conftest import skipif
+from conftest import assert_blocking, skipif
 from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
 from devito.data import LEFT
 from devito.core.autotuning import options  # noqa
@@ -238,8 +238,7 @@ def test_multiple_blocking():
                   opt=('blocking', {'openmp': False}))
 
     # First of all, make sure there are indeed two different loop nests
-    assert 'bf0' in op._func_table
-    assert 'bf1' in op._func_table
+    assert_blocking(op, {'x0_blk0', 'x1_blk0'})
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')

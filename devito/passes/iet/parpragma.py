@@ -1,16 +1,16 @@
 import numpy as np
 import cgen as c
-from sympy import And, Or, Max
+from sympy import And, Max
 
 from devito.data import FULL
-from devito.ir import (DummyEq, Conditional, Dereference, Expression, ExpressionBundle,
-                       List, ParallelTree, Prodder, FindSymbols, FindNodes, Return,
-                       VECTORIZED, Transformer, IsPerfectIteration, filter_iterations,
-                       retrieve_iteration_tree)
-from devito.symbolics import CondEq, INT, ccode
+from devito.ir import (Conditional, DummyEq, Dereference, Expression, ExpressionBundle,
+                       FindSymbols, FindNodes, ParallelTree, Prodder, List, Transformer,
+                       IsPerfectIteration, filter_iterations, retrieve_iteration_tree,
+                       VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
 from devito.passes.iet.misc import is_on_device
+from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, prod
 from devito.types import Symbol, NThreadsBase
 
@@ -274,13 +274,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         return self.Region(partree)
 
     def _make_guard(self, parregion):
-        # Do not enter the parallel region if the step increment is 0; this
-        # would raise a `Floating point exception (core dumped)` in some OpenMP
-        # implementations. Note that using an OpenMP `if` clause won't work
-        cond = Or(*[CondEq(i.step, 0) for i in parregion.collapsed
-                    if isinstance(i.step, Symbol)])
-        if cond != False:  # noqa: `cond` may be a sympy.False which would be == False
-            parregion = List(body=[Conditional(cond, Return()), parregion])
         return parregion
 
     def _make_nested_partree(self, partree):

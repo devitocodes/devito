@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
-from conftest import skipif, _R
+from conftest import skipif, _R, assert_blocking
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
@@ -850,18 +850,19 @@ class TestCodeGeneration(object):
 
         op = Operator(eqns)
 
-        assert len(op._func_table) == 6
+        assert len(op._func_table) == 4
 
         # There are exactly two halo exchange calls in the Operator body
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2 + 8  # 8 are due to loop blocking
+        assert len(calls) == 2
         assert calls[0].name == 'haloupdate0'
         assert calls[1].name == 'haloupdate0'
 
         # ... and none in the created efuncs
-        calls = FindNodes(Call).visit(op._func_table['bf0'].root)
+        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
+        calls = FindNodes(Call).visit(bns['i0x0_blk0'])
         assert len(calls) == 0
-        calls = FindNodes(Call).visit(op._func_table['bf1'].root)
+        calls = FindNodes(Call).visit(bns['x0_blk0'])
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
@@ -1189,7 +1190,10 @@ class TestCodeGeneration(object):
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
         op = Operator(eqn, opt=('advanced', {'blockinner': True, 'par-dynamic-work': 0}))
-        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+
+        bns, _ = assert_blocking(op._func_table['compute0'].root, {'x0_blk0'})
+
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 2
         tree = trees[1]
         # Make sure `pokempi0` is the last node within the inner Iteration over blocks
@@ -1892,14 +1896,14 @@ class TestOperatorAdvanced(object):
         op1 = Operator(eqn, opt=('advanced', opt_options))
 
         # Check generated code
-        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
+        bns, _ = assert_blocking(op1, {'x0_blk0'})
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 3
         assert 'haloupdate0' in op1._func_table
         # We expect exactly one halo exchange
         calls = FindNodes(Call).visit(op1)
-        assert len(calls) == 5
+        assert len(calls) == 1
         assert calls[0].name == 'haloupdate0'
-        assert all(i.name == 'bf0' for i in calls[1:])
 
         op0.apply(time_M=1)
         op1.apply(time_M=1, p=p1)

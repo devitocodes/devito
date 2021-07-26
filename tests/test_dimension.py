@@ -4,7 +4,7 @@ import numpy as np
 from sympy import And
 import pytest
 
-from conftest import skipif, opts_tiling
+from conftest import assert_blocking, skipif, opts_tiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer)
@@ -317,7 +317,6 @@ class TestSubDimension(object):
         u.data[0, 10, 10] = 1.0
 
         op = Operator([centre], opt=opt)
-        print(op.ccode)
 
         iterations = FindNodes(Iteration).visit(op)
         assert all(i.is_Affine and i.is_Parallel for i in iterations if i.dim in [xi, yi])
@@ -1058,7 +1057,9 @@ class TestConditionalDimension(object):
 
         op = Operator(eqns)
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        bns, _ = assert_blocking(op, {'x0_blk0'})
+
+        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 4
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
@@ -1072,11 +1073,14 @@ class TestConditionalDimension(object):
                 Eq(g, f + 1, implicit_dims=[ctime])]
 
         op = Operator(eqns)
-        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+
+        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
-        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        exprs = FindNodes(Expression).visit(bns['x1_blk0'])
         assert len(exprs) == 1
 
     @skipif('device')
@@ -1103,15 +1107,17 @@ class TestConditionalDimension(object):
 
         op = Operator(eqns)
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
+
+        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        exprs = FindNodes(Expression).visit(bns['x1_blk0'])
         assert len(exprs) == 3
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
+        exprs = FindNodes(Expression).visit(bns['x2_blk0'])
         assert len(exprs) == 3
         assert exprs[1].expr.rhs is exprs[0].output
         assert exprs[2].expr.rhs is exprs[0].output
@@ -1173,19 +1179,18 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        assert len(op._func_table) == 3
-
-        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'i0x0_blk0'})
+        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
         assert exprs[1].write is g
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        exprs = FindNodes(Expression).visit(bns['x1_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is fsave
         assert exprs[1].write is gsave
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
+        exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
         assert len(exprs) == 1
         assert exprs[0].write is h
 
@@ -1215,9 +1220,12 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        assert len(op._func_table) == 2
-        assert len(FindNodes(Expression).visit(op._func_table['bf0'].root)) == 3
-        assert len(FindNodes(Expression).visit(op._func_table['bf1'].root)) == 2
+        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
+        assert len(FindNodes(Expression).visit(bns['i0x0_blk0'])) == 3
+        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
+        assert len(exprs) == 2
+        assert exprs[0].write is fsave
+        assert exprs[1].write is gsave
 
     def test_topofusion_w_subdims_conddims_v3(self):
         """
@@ -1245,18 +1253,18 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        assert len(op._func_table) == 3
-
-        exprs = FindNodes(Expression).visit(op._func_table['bf0'].root)
+        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0', 'i0x1_blk0'})
+        exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
         assert exprs[1].write is g
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf1'].root)
+        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is fsave
         assert exprs[1].write is gsave
 
-        exprs = FindNodes(Expression).visit(op._func_table['bf2'].root)
+        # Additional nest due to anti-dependence
+        exprs = FindNodes(Expression).visit(bns['i0x1_blk0'])
         assert len(exprs) == 2
         assert exprs[1].write is h
