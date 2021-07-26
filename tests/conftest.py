@@ -213,8 +213,7 @@ def _R(expr):
 def assert_structure(operator, exp_trees=None, exp_iters=None):
     """
     Utility function that helps to check loop structure of IETs. Retrieves trees from an
-    Operator and check that the blocking structure is as expected. Trees and Iterations
-    are returned for further use in tests.
+    Operator and check that the blocking structure is as expected.
 
     Examples
     --------
@@ -222,34 +221,36 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
 
     .. code-block:: python
 
-        for t
+        for time
             for x
                 for y
             for f
                 for y
 
-    we call(Note: `time` mapped to `t`):
+    we call:
 
     .. code-block:: python
 
-        trees, iters = assert_structure(op, ['t,x,y', 't,f,y'], 't,x,y,f,y')`
+        assert_structure(op, ['t,x,y', 't,f,y'], 't,x,y,f,y')`
+
+    Notes
+    -----
+    `time` is mapped to `t`
     """
     mapper = {'time': 't'}
-    trees = retrieve_iteration_tree(operator)
-    iters = FindNodes(Iteration).visit(operator)
 
     if exp_trees is not None:
+        trees = retrieve_iteration_tree(operator)
         exp_trees = [i.replace(',', '') for i in exp_trees]  # 't,x,y' -> 'txy'
         tree_struc = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
                        for j in trees])  # Flatten every tree's dims as a string
         assert tree_struc == exp_trees
 
     if exp_iters is not None:
+        iters = FindNodes(Iteration).visit(operator)
         exp_iters = exp_iters.replace(',', '')  # 't,x,y' -> 'txy'
         iter_struc = "".join(mapper.get(i.dim.name, i.dim.name) for i in iters)
         assert iter_struc == exp_iters
-
-    return trees, iters
 
 
 def assert_blocking(operator, exp_nests):

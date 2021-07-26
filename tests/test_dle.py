@@ -81,23 +81,24 @@ def test_composite_transformation(shape):
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
-@pytest.mark.parametrize("blockinner, openmp", [
-    (False, True), (False, True)
+@pytest.mark.parametrize("blockinner, openmp, expected", [
+    (False, True, 't,x0_blk0,y0_blk0,x,y,z'), (False, False, 't,x0_blk0,y0_blk0,x,y,z'),
+    (True, True, 't,x0_blk0,y0_blk0,z0_blk0,x,y,z'),
+    (True, False, 't,x0_blk0,y0_blk0,z0_blk0,x,y,z')
 ])
-def test_cache_blocking_structure(blockinner, openmp):
+def test_cache_blocking_structure(blockinner, openmp, expected):
     # Check code structure
     _, op = _new_operator2((10, 31, 45), time_order=2,
-                           opt=('blocking', {'openmp': True, 'blockinner': blockinner,
+                           opt=('blocking', {'openmp': openmp, 'blockinner': blockinner,
                                 'par-collapse-ncores': 1}))
-    if blockinner:
-        assert_structure(op, ['t,x0_blk0,y0_blk0,z0_blk0,x,y,z'])
-    else:
-        assert_structure(op, ['t,x0_blk0,y0_blk0,x,y,z'])
+
+    assert_structure(op, [expected])
 
     # Check presence of openmp pragmas at the right place
-    trees = retrieve_iteration_tree(op)
-    assert len(trees[0][1].pragmas) == 1
-    assert 'omp for' in trees[0][1].pragmas[0].value
+    if openmp:
+        trees = retrieve_iteration_tree(op)
+        assert len(trees[0][1].pragmas) == 1
+        assert 'omp for' in trees[0][1].pragmas[0].value
 
 
 def test_cache_blocking_structure_subdims():
@@ -473,12 +474,12 @@ class TestNodeParallelism(object):
             op = Operator(eqns, opt=('blocking', 'simd', 'openmp',
                                      {'blockinner': True, 'par-collapse-ncores': 1,
                                       'par-collapse-work': 0}))
-            _, iterations = assert_structure(op, ['t,x0_blk0,y0_blk0,z0_blk0,x,y,z'])
+            assert_structure(op, ['t,x0_blk0,y0_blk0,z0_blk0,x,y,z'])
         else:
             op = Operator(eqns, opt=('simd', 'openmp', {'par-collapse-ncores': 1,
                                                         'par-collapse-work': 0}))
-            iterations = FindNodes(Iteration).visit(op)
 
+        iterations = FindNodes(Iteration).visit(op)
         assert len(iterations) == len(expected)
 
         # Check for presence of pragma omp + collapse clause
@@ -516,7 +517,8 @@ class TestNodeParallelism(object):
 
         op = Operator(eq, opt=('advanced', {'openmp': True}))
 
-        _, iterations = assert_structure(op, ['co,ci,x,y'])
+        assert_structure(op, ['co,ci,x,y'])
+        iterations = FindNodes(Iteration).visit(op)
         assert iterations[0].ncollapsed == 1
         assert iterations[1].is_Vectorized
         assert iterations[2].is_Sequential
