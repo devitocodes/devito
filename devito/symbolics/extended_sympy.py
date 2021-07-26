@@ -422,14 +422,14 @@ MAX = Function('MAX')
 MIN = Function('MIN')
 
 cast_mapper = {
-    np.int: INT,
+    int: INT,
     np.int32: INT,
     np.int64: INT,
     np.float32: FLOAT,
     float: DOUBLE,
     np.float64: DOUBLE,
 
-    (np.int, '*'): INTP,
+    (int, '*'): INTP,
     (np.int32, '*'): INTP,
     (np.int64, '*'): INTP,
     (np.float32, '*'): FLOATP,
