@@ -134,8 +134,7 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
-        dmap = self.grid.distributor.glb_to_rank(self._support)
-        return dmap or {}
+        return self.grid.distributor.glb_to_rank(self._support) or {}
 
     def _dist_scatter_mask(self, dmap=None):
         """

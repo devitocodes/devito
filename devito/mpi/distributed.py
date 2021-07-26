@@ -317,7 +317,7 @@ class Distributor(AbstractDistributor):
             return None
         elif sum(index.shape) == 1:
             return index
-        print(index.shape, self.ndim)
+
         assert index.shape[1] == self.ndim
 
         # Add singleton dimension at the end if only single gridpoint is passed
@@ -326,7 +326,6 @@ class Distributor(AbstractDistributor):
             index = np.expand_dims(index, axis=2)
 
         ret = {}
-
         for r, j in enumerate(self.all_ranges):
             mins = np.array([b[0] for b in j]).reshape(1, -1, 1)
             maxs = np.array([b[-1] for b in j]).reshape(1, -1, 1)
