@@ -97,7 +97,7 @@ class TestCodeGenSkewing(object):
         iters = FindNodes(Iteration).visit(op)
         assert len([i for i in iters if i.dim.is_Time]) == 0
 
-        _, _ = assert_blocking(op, {})  # no blocking is expected in the absence of time
+        assert_blocking(op, {})  # no blocking is expected in the absence of time
 
         iters = FindNodes(Iteration).visit(op)
         assert len(iters) == 3

@@ -90,9 +90,9 @@ def test_cache_blocking_structure(blockinner, openmp):
                            opt=('blocking', {'openmp': True, 'blockinner': blockinner,
                                 'par-collapse-ncores': 1}))
     if blockinner:
-        _, _ = assert_structure(op, ['t,x0_blk0,y0_blk0,z0_blk0,x,y,z'])
+        assert_structure(op, ['t,x0_blk0,y0_blk0,z0_blk0,x,y,z'])
     else:
-        _, _ = assert_structure(op, ['t,x0_blk0,y0_blk0,x,y,z'])
+        assert_structure(op, ['t,x0_blk0,y0_blk0,x,y,z'])
 
     # Check presence of openmp pragmas at the right place
     trees = retrieve_iteration_tree(op)
@@ -120,7 +120,7 @@ def test_cache_blocking_structure_subdims():
     # Local SubDimension -> no blocking expected
     op = Operator(Eq(f[t+1, xl, y, z], f[t, xl, y, z] + 1))
 
-    _, _ = assert_blocking(op, {})
+    assert_blocking(op, {})
 
     # Non-local SubDimension -> blocking expected
     op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior))
@@ -272,7 +272,6 @@ def test_cache_blocking_imperfect_nest(blockinner):
 
     # First, check the generated code
     bns, _ = assert_blocking(op1, {'x0_blk0'})
-
     trees = retrieve_iteration_tree(bns['x0_blk0'])
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
@@ -319,7 +318,6 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
 
     # First, check the generated code
     bns, _ = assert_blocking(op2, {'x0_blk0'})
-
     trees = retrieve_iteration_tree(bns['x0_blk0'])
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])

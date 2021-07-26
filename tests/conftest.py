@@ -222,7 +222,7 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
 
     .. code-block:: python
 
-        for time
+        for t
             for x
                 for y
             for f
@@ -241,7 +241,7 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
     if exp_trees is not None:
         exp_trees = [i.replace(',', '') for i in exp_trees]  # 't,x,y' -> 'txy'
         tree_struc = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
-                       for j in trees])
+                       for j in trees])  # Flatten every tree's dims as a string
         assert tree_struc == exp_trees
 
     if exp_iters is not None:
@@ -263,7 +263,7 @@ def assert_blocking(operator, exp_nests):
 
     .. code-block:: python
 
-        for time
+        for t
             for x0_blk0
                 for x
             for x1_blk0
@@ -290,11 +290,11 @@ def assert_blocking(operator, exp_nests):
     trees = retrieve_iteration_tree(operator)
     for tree in trees:
         iterations = [i for i in tree if i.dim.is_Incr]  # Collect Incr dimensions
-        parallel_blocks = FindNodes(ParallelBlock).visit(tree)
         if iterations:
             # If Incr dimensions exist map the first one to its name in the dict
             bns[iterations[0].dim.name] = iterations[0]
             try:
+                parallel_blocks = FindNodes(ParallelBlock).visit(tree)
                 pbs[iterations[0].dim.name] = parallel_blocks[0]
             except IndexError:
                 pbs[iterations[0].dim.name] = tree[0]

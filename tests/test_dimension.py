@@ -1180,7 +1180,6 @@ class TestMashup(object):
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
         bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'i0x0_blk0'})
-
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
@@ -1222,7 +1221,6 @@ class TestMashup(object):
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
         bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
-
         assert len(FindNodes(Expression).visit(bns['i0x0_blk0'])) == 3
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
@@ -1256,7 +1254,6 @@ class TestMashup(object):
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
         bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0', 'i0x1_blk0'})
-
         exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f

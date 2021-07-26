@@ -73,15 +73,15 @@ class TestCodeGeneration(object):
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
-        assert len(trees[0]) == 7
+        tree = trees[0]
+        assert len(tree) == 7
+        assert all(i.dim.is_Incr for i in tree[1:7])
 
-        assert all(i.dim.is_Incr for i in trees[0][1:7])
+        assert op.parameters[3] is tree[1].step
+        assert op.parameters[6] is tree[2].step
+        assert op.parameters[9] is tree[3].step
 
-        assert op.parameters[3] is trees[0][1].step
-        assert op.parameters[6] is trees[0][2].step
-        assert op.parameters[9] is trees[0][3].step
-
-        assert trees[0][1].pragmas[0].value ==\
+        assert tree[1].pragmas[0].value ==\
             'acc parallel loop collapse(3) present(u)'
 
     def test_streaming_postponed_deletion(self):

@@ -488,7 +488,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
@@ -526,7 +525,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         ys, zs = self.get_params(op1, 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
@@ -565,7 +563,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
@@ -640,7 +637,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'i0x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['i0x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
@@ -686,7 +682,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 2
@@ -809,7 +804,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'i0x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['i0x0_blk0']) if i.is_Array]
         assert len(arrays) == 2
@@ -854,7 +848,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 2
@@ -902,7 +895,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 3
@@ -1186,7 +1178,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0', 'x1_blk0'})
-
         trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 2
         assert trees[0][-1].nodes[0].body[0].write.is_Array
@@ -1230,7 +1221,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
@@ -1377,8 +1367,8 @@ class TestAliases(object):
         op = Operator([pde, df])
 
         # Check code generation
-        _, _ = assert_structure(op, ['t,x,y', 't,f', 't,f0_blk0,f,x,y'],
-                                't,x,y,f,f0_blk0,f,x,y')
+        assert_structure(op, ['t,x,y', 't,f', 't,f0_blk0,f,x,y'],
+                         't,x,y,f,f0_blk0,f,x,y')
 
     def test_space_invariant_v2(self):
         """
@@ -1634,7 +1624,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0', 'x1_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
@@ -1724,7 +1713,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op, {'x0_blk0'})
-
         assert op._profiler._sections['section1'].sops == exp_ops
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 5
@@ -1771,9 +1759,7 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-
         bns, pbs = assert_blocking(op, {'x0_blk0'})
-
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 6
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 3
 
@@ -1817,9 +1803,7 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-
         bns, pbs = assert_blocking(op, {'x0_blk0'})
-
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 7
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 3
 
@@ -1886,9 +1870,7 @@ class TestAliases(object):
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
-
         bns, pbs = assert_blocking(op, {'x0_blk0'})
-
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 10
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 6
@@ -1952,9 +1934,7 @@ class TestAliases(object):
 
         # Check code generation
         assert summary[('section1', None)].ops == exp_ops
-
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 5
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 1
 
@@ -1997,7 +1977,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 4
@@ -2039,7 +2018,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 1
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 1
 
@@ -2192,7 +2170,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
-
         trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 2
         assert trees[0][1] is trees[1][1]
@@ -2224,7 +2201,6 @@ class TestAliases(object):
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
@@ -2369,7 +2345,6 @@ class TestAliases(object):
         # Check code generation
         # `min-storage` leads to one 2D and one 3D Arrays
         bns, pbs = assert_blocking(op1, {'x0_blk0'})
-
         xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 3
@@ -2681,7 +2656,6 @@ class TestTTIv2(object):
 
         # Check code generation
         _, pbs = assert_blocking(op, {'x0_blk0'})
-
         arrays = FindNodes(VExpanded).visit(pbs['x0_blk0'])
         assert len(arrays) == 4
         assert all(len(i.pointee.shape) == 2 for i in arrays)  # Expected 2D arrays

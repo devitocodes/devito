@@ -238,7 +238,7 @@ def test_multiple_blocking():
                   opt=('blocking', {'openmp': False}))
 
     # First of all, make sure there are indeed two different loop nests
-    _, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+    assert_blocking(op, {'x0_blk0', 'x1_blk0'})
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
