@@ -2,12 +2,9 @@ import cgen as c
 from sympy import Not
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import (Block, Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, PragmaTransfer, PointerCast, While, FindNodes,
-                       Transformer)
-from devito.mpi.routines import IrecvCall, IsendCall
+from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration,
+                       ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
-from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
                                          PragmaDeviceAwareTransformer, PragmaLangBB)
@@ -77,7 +74,14 @@ class DeviceOmpIteration(OmpIteration):
     @classmethod
     def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
-        return super()._make_clauses(**kwargs)
+        clauses = super()._make_clauses(**kwargs)
+
+        symbols = FindSymbols().visit(kwargs['nodes'])
+        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
+        if deviceptrs:
+            clauses.append("is_device_ptr(%s)" % ",".join(deviceptrs))
+
+        return clauses
 
     @classmethod
     def _process_kwargs(cls, **kwargs):
@@ -151,6 +155,12 @@ class OmpBB(PragmaLangBB):
             Call('omp_target_memcpy', [i, j, k, 0, 0,
                                        DefFunction('omp_get_device_num'),
                                        DefFunction('omp_get_initial_device')]),
+        'device-get':
+            'omp_get_default_device()',
+        'device-alloc': lambda i, j:
+            'omp_target_alloc(%s, %s)' % (i, j),
+        'device-free': lambda i, j:
+            'omp_target_free(%s, %s)' % (i, j)
     }
     mapper.update(CBB.mapper)
 
@@ -176,20 +186,7 @@ class Ompizer(PragmaShmTransformer):
 
 
 class DeviceOmpizer(PragmaDeviceAwareTransformer):
-
     lang = DeviceOmpBB
-
-    @iet_pass
-    def make_gpudirect(self, iet):
-        mapper = {}
-        for node in FindNodes((IsendCall, IrecvCall)).visit(iet):
-            header = c.Pragma('omp target data use_device_ptr(%s)' %
-                              node.arguments[0]._C_name)
-            mapper[node] = Block(header=header, body=node)
-
-        iet = Transformer(mapper).visit(iet)
-
-        return iet, {}
 
 
 class OmpDataManager(DataManager):
@@ -197,14 +194,7 @@ class OmpDataManager(DataManager):
 
 
 class DeviceOmpDataManager(DeviceAwareDataManager):
-
     lang = DeviceOmpBB
-
-    def _map_array_on_high_bw_mem(self, site, obj, storage):
-        mmap = PragmaTransfer(self.lang._map_alloc, obj)
-        unmap = PragmaTransfer(self.lang._map_delete, obj)
-
-        storage.update(obj, site, maps=mmap, unmaps=unmap)
 
 
 class OmpOrchestrator(Orchestrator):

@@ -5,8 +5,7 @@ from conftest import skipif
 from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
                     Operator, norm, cos)
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import Block, FindNodes, retrieve_iteration_tree
-from devito.mpi.routines import IrecvCall, IsendCall
+from devito.ir.iet import retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
 pytestmark = skipif(['nodevice'], whole_module=True)
@@ -31,8 +30,7 @@ class TestCodeGeneration(object):
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}),
-                      language='openmp')
+        op = Operator(Eq(u.forward, u.dx+1), language='openmp')
 
         assert str(op.body.init[0].body[0]) ==\
             ('if (deviceid != -1)\n'
@@ -189,20 +187,19 @@ class TestCodeGeneration(object):
 
         op = Operator(eqn, language='openmp')
 
-        assert len(op.body.allocs) == 2
-        assert str(op.body.allocs[0]) == 'float *r0_vec;'
-        assert op.body.allocs[1].text ==\
-            'posix_memalign((void**)&r0_vec, 64, sizeof(float[x_size][y_size][z_size]))'
-        assert op.body.maps[0].pragmas[0].value ==\
-            ('omp target enter data map(alloc: r0[0:x_size][0:y_size][0:z_size])'
-             '')
+        assert len(op.body.allocs) == 1
+        assert str(op.body.allocs[0]) ==\
+            ('float *r0_vec = (float*) '
+             'omp_target_alloc(sizeof(float[x_size*y_size*z_size]), '
+             'omp_get_default_device());')
+        assert len(op.body.maps) == 2
+        assert all('r0' not in str(i) for i in op.body.maps)
 
         assert len(op.body.frees) == 1
-        assert op.body.frees[0].text == 'free(r0_vec)'
-        assert len(op.body.unmaps) == 4
-        assert op.body.unmaps[0].pragmas[0].value ==\
-            ('omp target exit data map(delete: r0[0:x_size][0:y_size][0:z_size])'
-             ' if((x_size != 0) && (y_size != 0) && (z_size != 0))')
+        assert str(op.body.frees[0]) ==\
+            'omp_target_free(r0_vec, omp_get_default_device());'
+        assert len(op.body.unmaps) == 3
+        assert all('r0' not in str(i) for i in op.body.unmaps)
 
     def test_function_wo(self):
         grid = Grid(shape=(3, 3, 3))
@@ -249,23 +246,6 @@ class TestCodeGeneration(object):
         assert tree[1].pragmas[0].value ==\
             ('omp target teams distribute parallel for collapse(3)'
              ' reduction(+:f[0])')
-
-    @skipif('device-aomp')
-    @pytest.mark.parallel(mode=1)
-    def test_gpu_direct(self):
-        grid = Grid(shape=(3, 3, 3))
-
-        u = TimeFunction(name='u', grid=grid)
-
-        op = Operator(Eq(u.forward, u.dx+1), opt=('advanced', {'gpu-direct': True}),
-                      language='openmp')
-
-        for f, v in op._func_table.items():
-            for node in FindNodes(Block).visit(v.root):
-                if type(node.children[0][0]) in (IrecvCall, IsendCall):
-                    assert node.header[0].value ==\
-                        ('omp target data use_device_ptr(%s)' %
-                         node.children[0][0].arguments[0].name)
 
 
 class TestOperator(object):
@@ -343,13 +323,12 @@ class TestOperator(object):
 
     @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
-    def test_gpu_direct(self):
+    def test_mpi_nocomms(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid, dtype=np.int32)
 
-        op = Operator(Eq(u.forward, u + 1), opt=('advanced', {'gpu-direct': True}),
-                      language='openmp')
+        op = Operator(Eq(u.forward, u + 1), language='openmp')
 
         # Make sure we've indeed generated OpenMP offloading code
         assert 'omp target' in str(op)
@@ -362,5 +341,4 @@ class TestOperator(object):
     @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
     def test_mpi_iso_acoustic(self):
-        opt_options = {'gpu-direct': True}
-        TestOperator().iso_acoustic(**opt_options)
+        TestOperator().iso_acoustic()

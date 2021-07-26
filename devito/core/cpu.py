@@ -102,7 +102,6 @@ class Cpu64OperatorMixin(object):
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
-        oo.pop('gpu-direct', None)
         oo.pop('gpu-fit', None)
 
         if oo:
@@ -338,7 +337,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         # IET
         'denormals', 'optcomms', 'openmp', 'mpi', 'linearize', 'simd', 'prodders',
     )
-    _known_passes_disabled = ('tasking', 'streaming', 'gpu-direct', 'openacc')
+    _known_passes_disabled = ('tasking', 'streaming', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
 

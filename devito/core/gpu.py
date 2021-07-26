@@ -82,7 +82,6 @@ class DeviceOperatorMixin(object):
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
-        o['gpu-direct'] = oo.pop('gpu-direct', True)
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
 
         # Misc
@@ -198,13 +197,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Initialize the target-language runtime
         parizer.initialize(graph)
 
-        # TODO: This should be moved right below the `mpiize` pass, but currently calling
-        # `make_gpudirect` before Symbol definitions` block would create Blocks before
-        # creating C variables. That would lead to MPI_Request variables being local to
-        # their blocks. This way, it would generate incorrect C code.
-        if options['gpu-direct']:
-            parizer.make_gpudirect(graph)
-
         return graph
 
 
@@ -274,7 +266,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'mpi': partial(mpiize, mode=options['mpi'], sregistry=sregistry),
             'linearize': partial(linearize, sregistry=sregistry),
             'prodders': partial(hoist_prodders),
-            'gpu-direct': partial(parizer.make_gpudirect),
             'init': parizer.initialize
         }
 
@@ -287,8 +278,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'orchestrate', 'parallel', 'mpi', 'linearize',
-        'prodders', 'gpu-direct'
+        'optcomms', 'orchestrate', 'parallel', 'mpi', 'linearize', 'prodders'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))

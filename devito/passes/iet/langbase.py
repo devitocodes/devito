@@ -291,12 +291,3 @@ class DeviceAwareMixin(object):
             return iet, {}
 
         return _initialize(iet)
-
-    @iet_pass
-    def make_gpudirect(self, iet):
-        """
-        An `iet_pass` which transforms an IET modifying all MPI Callables such
-        that device pointers are used in place of host pointers, thus exploiting
-        GPU-direct communication.
-        """
-        return iet, {}

@@ -10,7 +10,7 @@ from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import DefFunction, Macro
-from devito.tools import filter_ordered, prod
+from devito.tools import filter_ordered
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
@@ -114,9 +114,11 @@ class AccBB(PragmaLangBB):
         'memcpy-to-device-wait': lambda i, j, k, l:
             List(body=[Call('acc_memcpy_to_device_async', [i, j, k, l]),
                        Call('acc_wait', [l])]),
-        'device-alloc': lambda i:
+        'device-get':
+            'acc_get_device_num()',
+        'device-alloc': lambda i, *args:
             'acc_malloc(%s)' % i,
-        'device-free': lambda i:
+        'device-free': lambda i, *args:
             'acc_free(%s)' % i
     }
     mapper.update(CBB.mapper)
@@ -159,10 +161,6 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
     lang = AccBB
 
-    # Note: there is no need to override `make_gpudirect` since acc_malloc is
-    # used to allocate the buffers passed to the various MPI calls, which will
-    # then receive device points
-
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
         root = candidates[0]
@@ -188,25 +186,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
 
 class DeviceAccDataManager(DeviceAwareDataManager):
-
     lang = AccBB
-
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
-        if obj._mem_mapped:
-            # posix_memalign + copy-to-device
-            super()._alloc_array_on_high_bw_mem(site, obj, storage)
-        else:
-            # acc_malloc -- the Array only resides on the device, ie, it never
-            # needs to be accessed on the host
-            assert obj._mem_default
-            decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
-            size = "sizeof(%s[%s])" % (obj._C_typedata, prod(obj.symbolic_shape))
-            alloc = "(%s*) %s" % (obj._C_typedata, self.lang['device-alloc'](size))
-            init = c.Initializer(decl, alloc)
-
-            free = c.Statement(self.lang['device-free'](obj._C_name))
-
-            storage.update(obj, site, allocs=init, frees=free)
 
 
 class AccOrchestrator(Orchestrator):
