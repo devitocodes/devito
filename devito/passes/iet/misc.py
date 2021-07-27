@@ -76,7 +76,6 @@ def relax_incr_dimensions(iet, **kwargs):
         <Iteration x; (x0_blk0, MIN(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
 
     """
-
     mapper = {}
     for tree in retrieve_iteration_tree(iet):
         iterations = [i for i in tree if i.dim.is_Incr]
@@ -125,10 +124,13 @@ def relax_incr_dimensions(iet, **kwargs):
 
             mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
 
-    iet = Transformer(mapper, nested=True).visit(iet)
+    if mapper:
+        iet = Transformer(mapper, nested=True).visit(iet)
 
-    headers = [('%s(a,b)' % MIN.name, ('(((a) < (b)) ? (a) : (b))')),
-               ('%s(a,b)' % MAX.name, ('(((a) > (b)) ? (a) : (b))'))]
+        headers = [('%s(a,b)' % MIN.name, ('(((a) < (b)) ? (a) : (b))')),
+                   ('%s(a,b)' % MAX.name, ('(((a) > (b)) ? (a) : (b))'))]
+    else:
+        headers = []
 
     return iet, {'headers': headers}
 
