@@ -24,4 +24,4 @@ def print_kernel(op):
         for i in op._func_table.values():
             print(i.root)
     else:
-        print(op.body[-1])
+        print(op.body.body[-1])
