@@ -9,7 +9,7 @@ import sympy
 from devito.finite_differences import EvalDerivative
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, DataSpace,
                        Forward, IterationInstance, IterationSpace, Interval,
-                       Cluster, Queue, IntervalGroup, LabeledVector,
+                       Cluster, Queue, IntervalGroup, LabeledVector, Stamp,
                        detect_accesses, build_intervals, normalize_properties,
                        relax_properties)
 from devito.passes.clusters.utils import timed_pass
@@ -611,6 +611,7 @@ def lower_aliases(aliases, meta, maxpar):
     """
     Create a Schedule from an AliasList.
     """
+    stampcache = {}
     dmapper = {}
     processed = []
     for a in aliases:
@@ -635,8 +636,6 @@ def lower_aliases(aliases, meta, maxpar):
                     intervals.append(i)
                     continue
 
-            assert i.stamp >= interval.stamp
-
             if not (writeto or
                     interval != interval.zero() or
                     (maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
@@ -654,7 +653,9 @@ def lower_aliases(aliases, meta, maxpar):
 
             # We further bump the interval stamp if we were requested to trade
             # fusion for more collapse-parallelism
-            interval = interval.lift(interval.stamp + int(maxpar))
+            if maxpar:
+                stamp = stampcache.setdefault(interval.dim, Stamp())
+                interval = interval.lift(stamp)
 
             writeto.append(interval)
             intervals.append(interval)

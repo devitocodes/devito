@@ -8,11 +8,27 @@ from sympy import Expr
 
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
-                          frozendict, toposort, is_integer)
+                          frozendict, is_integer, toposort)
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
-           'Forward', 'Backward', 'Any']
+__all__ = ['Stamp', 'NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
+           'DataSpace', 'Forward', 'Backward', 'Any']
+
+
+class Stamp(object):
+
+    """
+    Uniquely identifies Intervals.
+    """
+
+    def __repr__(self):
+        return "<%s>" % str(id(self))[-3:]
+
+    __str__ = __repr__
+
+
+# The default Stamp, used by all new Intervals
+S0 = Stamp()
 
 
 class AbstractInterval(object):
@@ -26,7 +42,7 @@ class AbstractInterval(object):
     is_Null = False
     is_Defined = False
 
-    def __init__(self, dim, stamp=0):
+    def __init__(self, dim, stamp=S0):
         self.dim = dim
         self.stamp = stamp
 
@@ -80,7 +96,7 @@ class NullInterval(AbstractInterval):
     is_Null = True
 
     def __repr__(self):
-        return "%s[Null]<%d>" % (self.dim, self.stamp)
+        return "%s[Null]%s" % (self.dim, self.stamp)
 
     def __hash__(self):
         return hash(self.dim)
@@ -117,7 +133,7 @@ class Interval(AbstractInterval):
 
     is_Defined = True
 
-    def __init__(self, dim, lower, upper, stamp=0):
+    def __init__(self, dim, lower, upper, stamp=S0):
         super(Interval, self).__init__(dim, stamp)
 
         try:
@@ -132,7 +148,7 @@ class Interval(AbstractInterval):
             self.upper = upper
 
     def __repr__(self):
-        return "%s[%s,%s]<%d>" % (self.dim, self.lower, self.upper, self.stamp)
+        return "%s[%s,%s]%s" % (self.dim, self.lower, self.upper, self.stamp)
 
     def __hash__(self):
         return hash((self.dim, self.offsets))
@@ -253,11 +269,11 @@ class Interval(AbstractInterval):
 
     def lift(self, v=None):
         if v is None:
-            v = self.stamp + 1
+            v = Stamp()
         return Interval(self.dim, self.lower, self.upper, v)
 
     def reset(self):
-        return Interval(self.dim, self.lower, self.upper, 0)
+        return Interval(self.dim, self.lower, self.upper, S0)
 
     def switch(self, d):
         return Interval(d, self.lower, self.upper, self.stamp)
@@ -338,8 +354,7 @@ class IntervalGroup(PartialOrderTuple):
         >>> ig1 = IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3)])
         >>> ig2 = IntervalGroup([Interval(y, 2, -2), Interval(z, 1, -1)])
 
-        >>> IntervalGroup.generate('intersection', ig0, ig1, ig2)
-        IntervalGroup[x[2,-2]<0>, y[3,-3]<0>, z[1,-1]<0>]
+        >>> ig = IntervalGroup.generate('intersection', ig0, ig1, ig2)
         """
         mapper = {}
         for ig in interval_groups:
@@ -650,9 +665,9 @@ class DataSpace(Space):
         parts = {k: v.zero(d) for k, v in self.parts.items()}
         return DataSpace(intervals, parts)
 
-    def lift(self, d=None):
-        intervals = self.intervals.lift(d)
-        parts = {k: v.lift(d) for k, v in self.parts.items()}
+    def lift(self, d=None, v=None):
+        intervals = self.intervals.lift(d, v)
+        parts = {k: p.lift(d, v) for k, p in self.parts.items()}
         return DataSpace(intervals, parts)
 
     def reset(self):

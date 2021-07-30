@@ -2210,6 +2210,27 @@ class TestAliases(object):
         op1.apply(time_M=2, u=u1)
         assert np.isclose(norm(u), norm(u1), rtol=1e-10)
 
+    def test_maxpar_option_v3(self):
+        """
+        Another test for the compiler option `cire-maxpar=True`.
+        """
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+
+        eq = Eq(u.forward, u.dx.dx + v.dx.dy)
+
+        op = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
+
+        # Check code generation
+        xs, ys = self.get_params(op, 'x_size', 'y_size')
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 2
+        self.check_array(arrays[0], ((2, 2), (2, 2)), (xs+4, ys+4))
+        self.check_array(arrays[1], ((2, 2), (2, 2)), (xs+4, ys+4))
+        assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,x,y')
+
     @pytest.mark.parametrize('rotate', [False, True])
     def test_blocking_options(self, rotate):
         """
