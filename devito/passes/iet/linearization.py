@@ -20,7 +20,8 @@ __all__ = ['linearize']
 def linearize(graph, **kwargs):
     """
     Turn n-dimensional Indexeds into 1-dimensional Indexed with suitable index
-    access function, such as `a[i, j]` -> `a[i*n + j]`.
+    access function, such as `a[i, j]` -> `a[i*n + j]`. The row-major format
+    of the underlying Function objects is honored.
     """
     # Simple data structure to avoid generation of duplicated code
     cache = defaultdict(lambda: Bunch(stmts0=[], stmts1=[], cbk=None))
