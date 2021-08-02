@@ -7,7 +7,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
                                     cire, cse, extract_increments, factorize,
-                                    fuse, optimize_pows)
+                                    fission, fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
                                mpiize, hoist_prodders, is_on_device, linearize)
 from devito.tools import as_tuple, timed_pass
@@ -150,6 +150,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 
+        # Fission to increase parallelism
+        clusters = fission(clusters)
+
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
@@ -241,6 +244,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'tasking': Tasker(runs_on_host).process,
             'streaming': Streaming(reads_if_on_host).process,
             'factorize': factorize,
+            'fission': fission,
             'fuse': fuse,
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
@@ -275,7 +279,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         # Expressions
         'buffering',
         # Clusters
-        'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
+        'blocking', 'tasking', 'streaming', 'factorize', 'fission', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
         'optcomms', 'orchestrate', 'parallel', 'mpi', 'linearize', 'prodders'

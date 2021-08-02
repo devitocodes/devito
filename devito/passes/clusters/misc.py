@@ -2,13 +2,14 @@ from collections import Counter
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue
-from devito.ir.support import TILABLE, Scope
+from devito.ir.support import TILABLE, SEQUENTIAL, Scope, Stamp
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
-from devito.tools import DAG, as_tuple, frozendict, timed_pass
+from devito.tools import DAG, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Symbol
 
-__all__ = ['Lift', 'fuse', 'optimize_pows', 'extract_increments']
+__all__ = ['Lift', 'fuse', 'optimize_pows', 'extract_increments',
+           'fission']
 
 
 class Lift(Queue):
@@ -280,3 +281,74 @@ def extract_increments(cluster, sregistry, *args):
             processed.append(e)
 
     return cluster.rebuild(processed)
+
+
+class Fission(Queue):
+
+    """
+    Implement Clusters fission. For more info refer to fission.__doc__.
+    """
+
+    def callback(self, clusters, prefix):
+        if not prefix or len(clusters) == 1:
+            return clusters
+
+        d = prefix[-1].dim
+
+        # Do not waste time if definitely illegal
+        if any(SEQUENTIAL in c.properties[d] for c in clusters):
+            return clusters
+
+        # Do not waste time if definitely nothing to do
+        if all(len(prefix) == len(c.itintervals) for c in clusters):
+            return clusters
+
+        # Analyze and abort if fissioning would break a dependence
+        scope = Scope(flatten(c.exprs for c in clusters))
+        if any(d._defines & dep.cause or dep.is_reduce(d) for dep in scope.d_all_gen()):
+            return clusters
+
+        processed = []
+        for k, g in groupby(clusters, key=lambda c: self._key(c, len(prefix))):
+            it, _ = k
+            group = list(g)
+
+            if any(SEQUENTIAL in c.properties[it.dim] for c in group):
+                # Heuristic: no gain from fissioning if unable to ultimately
+                # increase the number of collapsable iteration spaces, hence give up
+                processed.extend(group)
+            else:
+                stamp = Stamp()
+                for c in group:
+                    ispace = c.ispace.lift(d, stamp)
+                    dspace = c.dspace.lift(d, stamp)
+                    processed.append(c.rebuild(ispace=ispace, dspace=dspace))
+
+        return processed
+
+    def _key(self, c, index):
+        try:
+            return (c.itintervals[index], c.guards)
+        except IndexError:
+            return (None, c.guards)
+
+
+@timed_pass()
+def fission(clusters):
+    """
+    Clusters fission.
+
+    Currently performed in the following cases:
+
+        * Trade off data locality for parallelism, e.g.
+
+          .. code-block::
+
+            for x              for x
+              for y1             for y1
+                ..                 ..
+              for y2     -->   for x
+                ..               for y2
+                                   ..
+    """
+    return Fission().process(clusters)
