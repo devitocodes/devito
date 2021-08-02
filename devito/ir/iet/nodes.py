@@ -724,7 +724,9 @@ class CallableBody(Node):
         self.frees = as_tuple(frees)
 
     def __repr__(self):
-        return "<CallableBody>"
+        return ("<CallableBody <allocs=%d, casts=%d, maps=%d> <unmaps=%d, frees=%d>>" %
+                (len(self.allocs), len(self.casts), len(self.maps),
+                 len(self.unmaps), len(self.frees)))
 
 
 class Conditional(Node):

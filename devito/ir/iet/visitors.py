@@ -87,6 +87,12 @@ class PrintAST(Visitor):
         self._depth -= 1
         return self.indent + '<Callable %s>\n%s' % (o.name, body)
 
+    def visit_CallableBody(self, o):
+        self._depth += 1
+        body = [self._visit(o.init), self._visit(o.unpacks), self._visit(o.body)]
+        self._depth -= 1
+        return self.indent + "%s\n%s" % (o.__repr__(), '\n'.join([i for i in body if i]))
+
     def visit_list(self, o):
         return ('\n').join([self._visit(i) for i in o])
 
