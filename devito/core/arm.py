@@ -1,6 +1,6 @@
 from devito.core.cpu import Cpu64AdvOperator
 from devito.passes.iet import (CTarget, OmpTarget, mpiize, optimize_halospots,
-                               hoist_prodders, relax_incr_dimensions)
+                               hoist_prodders, linearize, relax_incr_dimensions)
 from devito.tools import timed_pass
 
 __all__ = ['ArmAdvCOperator', 'ArmAdvOmpOperator']
@@ -18,7 +18,7 @@ class ArmAdvOperator(Cpu64AdvOperator):
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
@@ -33,6 +33,10 @@ class ArmAdvOperator(Cpu64AdvOperator):
 
         # Symbol definitions
         cls._Target.DataManager(sregistry).process(graph)
+
+        # Linearize n-dimensional Indexeds
+        if options['linearize']:
+            linearize(graph, sregistry=sregistry)
 
         # Initialize the target-language runtime
         parizer.initialize(graph)

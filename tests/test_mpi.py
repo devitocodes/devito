@@ -882,8 +882,8 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
         # Also make sure the Call is at the right place in the IET
-        assert op.body[-1].body[1].body[0].body[0].body[0].body[0].is_Call
-        assert op.body[-1].body[1].body[0].body[0].body[1].is_Iteration
+        assert op.body.body[-1].body[1].body[0].body[0].body[0].body[0].is_Call
+        assert op.body.body[-1].body[1].body[0].body[0].body[1].is_Iteration
 
     @pytest.mark.parallel(mode=2)
     def test_unhoist_haloupdate_if_invariant(self):
@@ -1016,7 +1016,7 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-        titer = op.body[-1].body[0]
+        titer = op.body.body[-1].body[0]
         assert titer.dim is grid.time_dim
         assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
         assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
@@ -1738,7 +1738,7 @@ class TestOperatorAdvanced(object):
 
         op = Operator(eqns)
 
-        titer = op.body[-1].body[0]
+        titer = op.body.body[-1].body[0]
         assert titer.dim is grid.time_dim
         assert titer.nodes[0].body[0].body[0].is_List
         assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1

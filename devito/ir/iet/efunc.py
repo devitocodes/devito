@@ -6,9 +6,8 @@ import cgen as c
 
 from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Dereference,
                                  DummyExpr, Iteration, List, PointerCast, Return, While,
-                                 WhileAlive)
+                                 CallableBody)
 from devito.ir.iet.utils import derive_parameters, diff_parameters
-from devito.ir.iet.visitors import FindSymbols
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
 from devito.tools import as_tuple
 from devito.types import PThreadArray, SharedData, Symbol, VoidPointer
@@ -208,26 +207,23 @@ def _make_thread_func(name, iet, root, threads, sregistry):
     iet = Conditional(CondEq(FieldFromPointer(sdata._field_flag, sbase), 2), iet)
 
     # The thread keeps spinning until the alive flag is set to 0 by the main thread
-    iet = WhileAlive(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), iet)
+    iet = While(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), iet)
 
     # pthread functions expect exactly one argument, a void*, and must return void*
     tretval = 'void*'
     tparameter = VoidPointer('_%s' % sdata.name)
 
     # Unpack `sdata`
-    symbol_names = {i.name for i in FindSymbols('free-symbols').visit(iet)}
     unpack = [PointerCast(sdata, tparameter), BlankLine]
     for i in parameters:
         if i.is_AbstractFunction:
             unpack.append(Dereference(i, sdata))
-            if i.name in symbol_names:
-                unpack.append(PointerCast(i))
         else:
             unpack.append(DummyExpr(i, FieldFromPointer(i.name, sbase)))
     unpack.append(DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase)))
     unpack.append(DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase)))
-    unpack.append(BlankLine)
-    iet = List(body=unpack + [iet, BlankLine, Return(Macro('NULL'))])
+
+    iet = CallableBody([iet, Return(Macro('NULL'))], unpacks=unpack)
 
     tfunc = ThreadFunction(name, iet, tretval, tparameter, 'static')
 

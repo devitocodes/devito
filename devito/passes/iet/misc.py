@@ -1,12 +1,11 @@
 import cgen
 
-from devito.ir.iet import (List, Prodder, FindNodes, Transformer, filter_iterations,
-                           retrieve_iteration_tree)
-from devito.ir.support import Forward
+from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
+                       filter_iterations, retrieve_iteration_tree)
 from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import MIN, MAX
-from devito.tools import split, is_integer
+from devito.tools import is_integer, split
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
 
@@ -26,7 +25,10 @@ def avoid_denormals(iet):
               cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
               cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'),
               cgen.Line())
-    iet = iet._rebuild(body=(List(header=header),) + iet.body)
+
+    body = iet.body._rebuild(body=(List(header=header),) + iet.body.body)
+    iet = iet._rebuild(body=body)
+
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
 
@@ -74,7 +76,6 @@ def relax_incr_dimensions(iet, **kwargs):
         <Iteration x; (x0_blk0, MIN(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
 
     """
-
     mapper = {}
     for tree in retrieve_iteration_tree(iet):
         iterations = [i for i in tree if i.dim.is_Incr]
@@ -123,10 +124,13 @@ def relax_incr_dimensions(iet, **kwargs):
 
             mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
 
-    iet = Transformer(mapper, nested=True).visit(iet)
+    if mapper:
+        iet = Transformer(mapper, nested=True).visit(iet)
 
-    headers = [('%s(a,b)' % MIN.name, ('(((a) < (b)) ? (a) : (b))')),
-               ('%s(a,b)' % MAX.name, ('(((a) > (b)) ? (a) : (b))'))]
+        headers = [('%s(a,b)' % MIN.name, ('(((a) < (b)) ? (a) : (b))')),
+                   ('%s(a,b)' % MAX.name, ('(((a) > (b)) ? (a) : (b))'))]
+    else:
+        headers = []
 
     return iet, {'headers': headers}
 

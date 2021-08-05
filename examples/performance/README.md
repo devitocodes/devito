@@ -25,8 +25,9 @@
     * `cire-schedule` ((str, int), 'automatic'): scheduling strategy for derivatives
   * Device-specific:
     * `gpu-fit` (boolean, False): list of saved TimeFunctions that fit in the device memory
-    * `gpu-direct` (boolean, False): generate code for optimized GPU-aware MPI
     * `par-disabled` (boolean, True): enable/disable parallelism on the host
+  * Misc:
+    * `linearize` (boolean, False): linearize array accesses
 
 
 ### Optimization parameters by platform
@@ -65,5 +66,10 @@
 |                     |        CPU          |         GPU        |
 |---------------------|---------------------|--------------------|
 | gpu-fit             |        :x:          | :heavy_check_mark: |
-| gpu-direct          |        :x:          | :heavy_check_mark: |
 | par-disabled        |        :x:          | :heavy_check_mark: |
+
+* Misc
+
+|                     |        CPU          |         GPU        |
+|---------------------|---------------------|--------------------|
+| linearize           | :heavy_check_mark:  | :heavy_check_mark: |

@@ -71,6 +71,14 @@ def _uxreplace_handle(expr, args):
     return expr.func(*args)
 
 
+@_uxreplace_handle.register(sympy.Min)
+@_uxreplace_handle.register(sympy.Max)
+@_uxreplace_handle.register(sympy.Pow)
+def _(expr, args):
+    evaluate = all(i.is_Number for i in args)
+    return expr.func(*args, evaluate=evaluate)
+
+
 @_uxreplace_handle.register(sympy.Add)
 def _(expr, args):
     if all(i.is_commutative for i in args):

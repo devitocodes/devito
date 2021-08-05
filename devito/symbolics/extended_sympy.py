@@ -11,8 +11,8 @@ from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
-           'DefFunction', 'InlineIf', 'Macro', 'Literal', 'INT', 'FLOAT', 'DOUBLE',
-           'FLOOR', 'MAX', 'MIN', 'cast_mapper']
+           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal',
+           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -387,6 +387,18 @@ class Macro(sympy.Symbol):
     pass
 
 
+class MacroArgument(sympy.Symbol):
+
+    """
+    Symbolic representation of a C macro.
+    """
+
+    def __str__(self):
+        return "(%s)" % self.name
+
+    __repr__ = __str__
+
+
 class Literal(sympy.Symbol):
 
     """
@@ -410,14 +422,14 @@ MAX = Function('MAX')
 MIN = Function('MIN')
 
 cast_mapper = {
-    np.int: INT,
+    int: INT,
     np.int32: INT,
     np.int64: INT,
     np.float32: FLOAT,
     float: DOUBLE,
     np.float64: DOUBLE,
 
-    (np.int, '*'): INTP,
+    (int, '*'): INTP,
     (np.int32, '*'): INTP,
     (np.int64, '*'): INTP,
     (np.float32, '*'): FLOATP,

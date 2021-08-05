@@ -29,8 +29,10 @@ class HaloExchangeBuilder(object):
     Build IET-based routines to implement MPI halo exchange.
     """
 
-    def __new__(cls, mode, **generators):
+    def __new__(cls, mode, sregistry, **generators):
         obj = object.__new__(mpi_registry[mode])
+
+        obj._sregistry = sregistry
 
         # Unique name generators
         obj._gen_msgkey = generators.get('msg', generator())
@@ -45,6 +47,10 @@ class HaloExchangeBuilder(object):
         obj._efuncs = []
 
         return obj
+
+    @property
+    def sregistry(self):
+        return self._sregistry
 
     @property
     def efuncs(self):
@@ -275,8 +281,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         return
 
     def _make_all(self, f, hse, msg):
-        df = AliasFunction(name='a', grid=f.grid, shape=f.shape_global,
-                           dimensions=f.dimensions)
+        df = AliasFunction(name=self.sregistry.make_name(prefix='a'),
+                           grid=f.grid, shape=f.shape_global, dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
             key = "".join(str(d) for d in f.dimensions)
@@ -305,7 +311,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             if d not in hse.loc_indices:
                 buf_dims.append(Dimension(name='buf_%s' % d.root))
                 buf_indices.append(d.root)
-        buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype, padding=0)
+        buf = Array(name=self.sregistry.make_name(prefix='buf'),
+                    dimensions=buf_dims, dtype=f.dtype, padding=0)
 
         f_offsets = []
         f_indices = []
@@ -334,8 +341,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
                     if d not in hse.loc_indices]
-        bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, padding=0)
-        bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, padding=0)
+        bufg = Array(name=self.sregistry.make_name(prefix='bufg'),
+                     dimensions=buf_dims, dtype=f.dtype, padding=0)
+        bufs = Array(name=self.sregistry.make_name(prefix='bufs'),
+                     dimensions=buf_dims, dtype=f.dtype, padding=0)
 
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
@@ -524,8 +533,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return MPIMsg('msg%d' % key, f, halos)
 
     def _make_all(self, f, hse, msg):
-        df = AliasFunction(name='a', grid=f.grid, shape=f.shape_global,
-                           dimensions=f.dimensions)
+        df = AliasFunction(name=self.sregistry.make_name(prefix='a'),
+                           grid=f.grid, shape=f.shape_global, dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
             key = "".join(str(d) for d in f.dimensions)
@@ -697,8 +706,8 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return MPIMsgEnriched('msg%d' % key, f, halos)
 
     def _make_all(self, f, hse, msg):
-        df = AliasFunction(name='a', grid=f.grid, shape=f.shape_global,
-                           dimensions=f.dimensions)
+        df = AliasFunction(name=self.sregistry.make_name(prefix='a'),
+                           grid=f.grid, shape=f.shape_global, dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
             # Note: unlike the less smarter builders (superclasses), here we can

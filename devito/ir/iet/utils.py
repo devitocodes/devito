@@ -1,6 +1,6 @@
 from devito.ir.iet import IterationTree, FindSections, FindSymbols
 from devito.symbolics import Literal, Macro
-from devito.tools import as_tuple, flatten, split
+from devito.tools import as_tuple, filter_ordered, split
 from devito.types import Array, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters',
@@ -71,17 +71,16 @@ def derive_parameters(iet, drop_locals=False):
     Derive all input parameters (function call arguments) from an IET
     by collecting all symbols not defined in the tree itself.
     """
-    # Pick all free symbols and symbolic functions from the kernel
-    functions = FindSymbols('symbolics').visit(iet)
-    free_symbols = FindSymbols('free-symbols').visit(iet)
+    # Extract all candidate parameters
+    candidates = FindSymbols().visit(iet)
+    candidates.extend(FindSymbols('basics').visit(iet))
 
-    # Filter out function base symbols and use real function objects
-    function_names = set(flatten([(s.name, s._C_name) for s in functions]))
-    symbols = [s for s in free_symbols if s.name not in function_names]
-    symbols = functions + symbols
+    # Filter off duplicates (e.g., `x_size` is extracted by both calls to FindSymbols)
+    candidates = filter_ordered(candidates)
 
+    # Filter off symbols which are defined somewhere within `iet`
     defines = [s.name for s in FindSymbols('defines').visit(iet)]
-    parameters = tuple(s for s in symbols if s.name not in defines)
+    parameters = [s for s in candidates if s.name not in defines]
 
     # Drop globally-visible objects
     parameters = [p for p in parameters if not isinstance(p, (Literal, Macro))]

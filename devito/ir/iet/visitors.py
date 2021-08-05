@@ -6,15 +6,17 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 
 from collections import OrderedDict
 from collections.abc import Iterable
+from itertools import chain
 
 import cgen as c
+from sympy import IndexedBase
 
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
-from devito.types.basic import AbstractFunction
+from devito.types.basic import Basic
 from devito.types import ArrayObject, VoidPointer
 
 
@@ -84,6 +86,12 @@ class PrintAST(Visitor):
         body = self._visit(o.children)
         self._depth -= 1
         return self.indent + '<Callable %s>\n%s' % (o.name, body)
+
+    def visit_CallableBody(self, o):
+        self._depth += 1
+        body = [self._visit(o.init), self._visit(o.unpacks), self._visit(o.body)]
+        self._depth -= 1
+        return self.indent + "%s\n%s" % (o.__repr__(), '\n'.join([i for i in body if i]))
 
     def visit_list(self, o):
         return ('\n').join([self._visit(i) for i in o])
@@ -192,13 +200,14 @@ class CGen(Visitor):
                     ret.append(self.visit(i))
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
-                elif i.is_ArrayBasic:
-                    ret.append("(%s)%s" % (i._C_typename, i.name))
                 else:
                     ret.append(i._C_name)
             except AttributeError:
                 ret.append(ccode(i))
         return ret
+
+    def visit_Generable(self, o):
+        return o
 
     def visit_PointerCast(self, o):
         f = o.function
@@ -209,28 +218,40 @@ class CGen(Visitor):
         else:
             obj = f._C_name
         if f.is_PointerArray:
-            rvalue = '(%s**) %s' % (f._C_typedata, obj)
             lvalue = c.Value(f._C_typedata, '**%s' % f.name)
+            rvalue = '(%s**) %s' % (f._C_typedata, obj)
         else:
-            shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
-            if f.is_DiscreteFunction:
-                rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, obj,
-                                                f._C_field_data)
+            if o.flat is None:
+                shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
+                rshape = '(*)%s' % shape
+                lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (f.name, shape))
             else:
-                rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, obj)
-            lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (f.name, shape))
+                rshape = '*'
+                lvalue = c.Value(f._C_typedata, '*%s' % o.flat)
             if o.alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
+            if f.is_DiscreteFunction:
+                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, obj, f._C_field_data)
+            else:
+                rvalue = '(%s %s) %s' % (f._C_typedata, rshape, obj)
         return c.Initializer(lvalue, rvalue)
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
         if a1.is_PointerArray or a1.is_TempFunction:
-            shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
-            rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name, a1.dim.name)
-            lvalue = c.AlignedAttribute(a0._data_alignment,
-                                        c.Value(a0._C_typedata,
-                                                '(*restrict %s)%s' % (a0.name, shape)))
+            if o.flat is None:
+                shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
+                rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name,
+                                                a1.dim.name)
+                lvalue = c.AlignedAttribute(
+                    a0._data_alignment,
+                    c.Value(a0._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
+                )
+            else:
+                rvalue = '(%s *) %s[%s]' % (a1._C_typedata, a1.name, a1.dim.name)
+                lvalue = c.AlignedAttribute(
+                    a0._data_alignment, c.Value(a0._C_typedata, '*restrict %s' % o.flat)
+                )
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
             lvalue = c.Value(a0._C_typename, a0._C_name)
@@ -341,6 +362,12 @@ class CGen(Visitor):
 
         return handle
 
+    def visit_Pragma(self, o):
+        if len(o.pragmas) == 1:
+            return o.pragmas[0]
+        else:
+            return c.Collection(o.pragmas)
+
     def visit_While(self, o):
         condition = ccode(o.condition)
         if o.body:
@@ -355,6 +382,23 @@ class CGen(Visitor):
         decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
+
+    def visit_CallableBody(self, o):
+        body = []
+        prev = None
+        for i in [o.init, o.unpacks, o.allocs, o.casts, o.maps,  # pre
+                  o.body,  # actual body
+                  o.unmaps, o.frees]:  # post
+            if i in o.children:
+                v = self.visit(i)
+            else:
+                v = i
+            if v:
+                if prev:
+                    body.append(c.Line())
+                prev = v
+                body.extend(as_tuple(v))
+        return c.Collection(body)
 
     def visit_Lambda(self, o):
         body = flatten(self._visit(i) for i in o.children)
@@ -590,35 +634,30 @@ class FindSymbols(Visitor):
     ----------
     mode : str, optional
         Drive the search. Accepted:
-        - ``symbolics``: Collect all AbstractFunction objects, default.
-        - ``free-symbols``: Collect all free symbols.
-        - ``indexeds``: Collect all Indexeds.
-        - ``defines``: Collect all defined (bound) objects.
+        - `symbolics`: Collect all AbstractFunction objects, default
+        - `basics`: Collect all Basic objects
+        - `indexeds`: Collect all Indexed objects
+        - `indexedbases`: Collect all IndexedBase objects
+        - `defines`: Collect all defined objects
     """
 
-    def _symbolics(e):
-        try:
-            return e.functions
-        except AttributeError:
-            # A SymPy expression
-            return [i for i in e.free_symbols if isinstance(i, AbstractFunction)]
-
-    def _defines(e):
-        try:
-            return as_tuple(e.defines)
-        except AttributeError:
-            return ()
-
     rules = {
-        'symbolics': _symbolics,
-        'free-symbols': lambda e: e.free_symbols,
-        'indexeds': lambda e: [i for i in e.free_symbols if i.is_Indexed],
-        'defines': _defines,
+        'symbolics': lambda n: n.functions,
+        'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
+        'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
+        'indexedbases': lambda n: [i for i in n.expr_symbols
+                                   if isinstance(i, IndexedBase)],
+        'defines': lambda n: as_tuple(n.defines),
     }
 
     def __init__(self, mode='symbolics'):
         super(FindSymbols, self).__init__()
-        self.rule = self.rules[mode]
+
+        modes = mode.split('|')
+        if len(modes) == 1:
+            self.rule = self.rules[mode]
+        else:
+            self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def visit_tuple(self, o):
         return self.Retval(*[self._visit(i) for i in o])
@@ -634,17 +673,20 @@ class FindSymbols(Visitor):
         return self.Retval(*[self._visit(i) for i in o.children], self.rule(o))
 
     def visit_Conditional(self, o):
-        return self.Retval(*[self._visit(i) for i in o.children],
-                           self.rule(o), self.rule(o.condition), node=o)
+        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o), node=o)
 
     def visit_Expression(self, o):
         return self.Retval([f for f in self.rule(o)])
 
     visit_PointerCast = visit_Expression
     visit_Dereference = visit_Expression
+    visit_Pragma = visit_Expression
 
     def visit_Call(self, o):
-        return self.Retval(self._visit(o.children), [f for f in self.rule(o)])
+        return self.Retval(self._visit(o.children), self.rule(o))
+
+    def visit_CallableBody(self, o):
+        return self.Retval(self._visit(o.children), self.rule(o), node=o)
 
 
 class FindNodes(Visitor):

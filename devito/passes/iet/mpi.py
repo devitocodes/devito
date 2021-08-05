@@ -286,11 +286,12 @@ def mpiize(iet, **kwargs):
     parallel code.
     """
     mode = kwargs.pop('mode')
+    sregistry = kwargs.pop('sregistry')
 
     # To produce unique object names
     generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
-    sync_heb = HaloExchangeBuilder('basic', **generators)
-    user_heb = HaloExchangeBuilder(mode, **generators)
+    sync_heb = HaloExchangeBuilder('basic', sregistry, **generators)
+    user_heb = HaloExchangeBuilder(mode, sregistry, **generators)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         heb = user_heb if isinstance(hs, OverlappableHaloSpot) else sync_heb

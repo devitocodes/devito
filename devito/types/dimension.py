@@ -1256,6 +1256,37 @@ class CustomDimension(BasicDimension):
     _pickle_kwargs = ['symbolic_min', 'symbolic_max', 'symbolic_size', 'parent']
 
 
+class DynamicDimensionMixin(object):
+
+    """
+    Avoid generation of const Symbols.
+    """
+
+    @cached_property
+    def symbolic_size(self):
+        return Scalar(name=self.size_name, dtype=np.int32)
+
+    @cached_property
+    def symbolic_min(self):
+        return Scalar(name=self.min_name, dtype=np.int32)
+
+    @cached_property
+    def symbolic_max(self):
+        return Scalar(name=self.max_name, dtype=np.int32)
+
+
+class DynamicDimension(DynamicDimensionMixin, BasicDimension):
+    pass
+
+
+class DynamicSubDimension(DynamicDimensionMixin, SubDimension):
+
+    @classmethod
+    def _symbolic_thickness(cls, name):
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, nonnegative=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32, nonnegative=True))
+
+
 def dimensions(names):
     assert type(names) == str
     return tuple(Dimension(i) for i in names.split())

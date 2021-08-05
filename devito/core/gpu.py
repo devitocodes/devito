@@ -9,7 +9,7 @@ from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering
                                     cire, cse, extract_increments, factorize,
                                     fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
-                               mpiize, hoist_prodders, is_on_device)
+                               mpiize, hoist_prodders, is_on_device, linearize)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -82,8 +82,10 @@ class DeviceOperatorMixin(object):
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
-        o['gpu-direct'] = oo.pop('gpu-direct', True)
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
+
+        # Misc
+        o['linearize'] = oo.pop('linearize', False)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -114,7 +116,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
 
         # Distributed-memory parallelism
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -176,7 +178,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'])
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -188,15 +190,12 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Symbol definitions
         cls._Target.DataManager(sregistry, options).process(graph)
 
+        # Linearize n-dimensional Indexeds
+        if options['linearize']:
+            linearize(graph, sregistry=sregistry)
+
         # Initialize the target-language runtime
         parizer.initialize(graph)
-
-        # TODO: This should be moved right below the `mpiize` pass, but currently calling
-        # `make_gpudirect` before Symbol definitions` block would create Blocks before
-        # creating C variables. That would lead to MPI_Request variables being local to
-        # their blocks. This way, it would generate incorrect C code.
-        if options['gpu-direct']:
-            parizer.make_gpudirect(graph)
 
         return graph
 
@@ -264,9 +263,9 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'optcomms': partial(optimize_halospots),
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
-            'mpi': partial(mpiize, mode=options['mpi']),
+            'mpi': partial(mpiize, mode=options['mpi'], sregistry=sregistry),
+            'linearize': partial(linearize, sregistry=sregistry),
             'prodders': partial(hoist_prodders),
-            'gpu-direct': partial(parizer.make_gpudirect),
             'init': parizer.initialize
         }
 
@@ -279,7 +278,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'orchestrate', 'parallel', 'mpi', 'prodders', 'gpu-direct'
+        'optcomms', 'orchestrate', 'parallel', 'mpi', 'linearize', 'prodders'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))

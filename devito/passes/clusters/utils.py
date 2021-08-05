@@ -1,4 +1,4 @@
-from collections import Iterable
+from collections.abc import Iterable
 
 from devito.symbolics import uxreplace
 from devito.tools import flatten, timed_pass

@@ -10,7 +10,7 @@ from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import DefFunction, Macro
-from devito.tools import prod
+from devito.tools import filter_ordered
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
@@ -33,12 +33,13 @@ class DeviceAccIteration(ParallelIteration):
         if reduction:
             clauses.append(make_clause_reduction(reduction))
 
-        symbols = FindSymbols().visit(kwargs['nodes'])
-        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
-        presents = [i.name for i in symbols
-                    if (i.is_AbstractFunction and
-                        is_on_device(i, kwargs['gpu_fit']) and
-                        i.name not in deviceptrs)]
+        indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
+        deviceptrs = filter_ordered(i.name for i in indexeds
+                                    if i.function.is_Array and i.function._mem_default)
+        presents = filter_ordered(i.name for i in indexeds
+                                  if (i.function.is_AbstractFunction and
+                                      is_on_device(i, kwargs['gpu_fit']) and
+                                      i.name not in deviceptrs))
 
         # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
         # indirectly indexed arrays (e.g., a[b[i]]) unless a present clause is used
@@ -113,9 +114,11 @@ class AccBB(PragmaLangBB):
         'memcpy-to-device-wait': lambda i, j, k, l:
             List(body=[Call('acc_memcpy_to_device_async', [i, j, k, l]),
                        Call('acc_wait', [l])]),
-        'device-alloc': lambda i:
+        'device-get':
+            'acc_get_device_num()',
+        'device-alloc': lambda i, *args:
             'acc_malloc(%s)' % i,
-        'device-free': lambda i:
+        'device-free': lambda i, *args:
             'acc_free(%s)' % i
     }
     mapper.update(CBB.mapper)
@@ -158,10 +161,6 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
     lang = AccBB
 
-    # Note: there is no need to override `make_gpudirect` since acc_malloc is
-    # used to allocate the buffers passed to the various MPI calls, which will
-    # then receive device points
-
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
         root = candidates[0]
@@ -187,27 +186,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
 
 class DeviceAccDataManager(DeviceAwareDataManager):
-
     lang = AccBB
-
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
-        if obj._mem_mapped:
-            # posix_memalign + copy-to-device
-            super()._alloc_array_on_high_bw_mem(site, obj, storage)
-        else:
-            # acc_malloc -- the Array only resides on the device, ie, it never
-            # needs to be accessed on the host
-            assert obj._mem_default
-            size_trunkated = "".join("[%s]" % i for i in obj.symbolic_shape[1:])
-            decl = c.Value(obj._C_typedata, "(*%s)%s" % (obj.name, size_trunkated))
-            cast = "(%s (*)%s)" % (obj._C_typedata, size_trunkated)
-            size_full = "sizeof(%s[%s])" % (obj._C_typedata, prod(obj.symbolic_shape))
-            alloc = "%s %s" % (cast, self.lang['device-alloc'](size_full))
-            init = c.Initializer(decl, alloc)
-
-            free = c.Statement(self.lang['device-free'](obj.name))
-
-            storage.update(obj, site, allocs=init, frees=free)
 
 
 class AccOrchestrator(Orchestrator):

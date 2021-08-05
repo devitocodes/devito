@@ -80,7 +80,7 @@ def test_make_efuncs(exprs, nfuncs, ntimeiters, nests):
         functions = FindSymbols().visit(efunc)
         assert len(functions) == nf
         assert all(i in efunc.parameters for i in functions)
-        timeiters = [i for i in FindSymbols('free-symbols').visit(efunc)
+        timeiters = [i for i in FindSymbols('basics').visit(efunc)
                      if isinstance(i, Dimension) and i.is_Time]
         assert len(timeiters) == nt
         assert all(i in efunc.parameters for i in timeiters)
@@ -106,7 +106,7 @@ def test_nested_calls_cgen():
 
 
 @pytest.mark.parametrize('mode,expected', [
-    ('free-symbols', '["f_vec", "x"]'),
+    ('basics', '["x"]'),
     ('symbolics', '["f"]')
 ])
 def test_find_symbols_nested(mode, expected):
@@ -217,8 +217,8 @@ def test_make_cpp_parfor():
     assert str(parfor) == """\
 void parallel_for(const int first, const int last, FuncType&& func, const int nthreads)
 {
-  int threshold = 1;
-  int portion = std::max(threshold, (-first + last)/nthreads);
+  const int threshold = 1;
+  const int portion = std::max(threshold, (-first + last)/nthreads);
   threads.reserve(nthreads);
   for (int it = first; it <= last; it += portion)
   {
