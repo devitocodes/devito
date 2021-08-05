@@ -10,7 +10,7 @@ import cgen as c
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, SKEWABLE,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
@@ -488,7 +488,8 @@ class Iteration(Node):
         self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
-        assert all(i.is_Derived and self.dim in i._defines for i in self.uindices)
+        if not self.dim.is_Incr and uindices:
+            assert all(i.is_Derived and self.dim in i._defines for i in uindices)
 
     def __repr__(self):
         properties = ""
@@ -527,6 +528,10 @@ class Iteration(Node):
     @property
     def is_Vectorized(self):
         return VECTORIZED in self.properties
+
+    @property
+    def is_Skewable(self):
+        return SKEWABLE in self.properties
 
     @property
     def ncollapsed(self):

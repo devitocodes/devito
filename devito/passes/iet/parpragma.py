@@ -157,6 +157,10 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 if any(j.dim in i.symbolic_min.free_symbols for j in candidates[:n]):
                     break
 
+                # Do not collapse loops with same symbolic_min
+                if any(j.symbolic_min is i.symbolic_min for j in candidates[:n]):
+                    break
+
                 # Also, we do not want to collapse SIMD-vectorized Iterations
                 if i.is_Vectorized:
                     break

@@ -3,9 +3,8 @@ from functools import partial
 from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
-                                    extract_increments, factorize, fission, fuse,
-                                    optimize_pows, optimize_msds)
+from devito.passes.clusters import (Lift, blocking, buffering, cire, cse, skewing,
+                                    extract_increments, factorize, fuse, optimize_pows)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
@@ -84,7 +83,8 @@ class Cpu64OperatorMixin(object):
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
-        o['skewing'] = oo.pop('skewing', False)
+        o['wavefront'] = oo.pop('wavefront', False)
+        o['skewing'] = oo.pop('skewing', False) or o['wavefront']
 
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
@@ -186,6 +186,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cse(clusters, sregistry)
+
+        # Skewing
+        if options['skewing']:
+            clusters = skewing(clusters, options)
 
         return clusters
 
@@ -315,7 +319,8 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
-            'topofuse': lambda i: fuse(i, toposort=True, options=options)
+            'topofuse': lambda i: fuse(i, toposort=True),
+            'skewing': lambda i: skewing(i, options)
         }
 
     @classmethod
@@ -346,8 +351,8 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         # Expressions
         'buffering',
         # Clusters
-        'blocking', 'topofuse', 'fission', 'fuse', 'factorize', 'cire-sops',
-        'cse', 'lift', 'opt-pows',
+        'blocking', 'skewing', 'topofuse', 'fuse', 'factorize', 'cire-sops', 'cse',
+        'lift', 'opt-pows',
         # IET
         'denormals', 'optcomms', 'openmp', 'mpi', 'linearize', 'simd', 'prodders',
     )
