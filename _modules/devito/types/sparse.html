@@ -178,7 +178,8 @@
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span>
                           <span class="n">memoized_meth</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SubFunction</span>
-<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
+<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">DefaultDimension</span><span class="p">,</span>
+                                    <span class="n">DynamicDimension</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">devito.types.equation</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
 <span class="kn">from</span> <span class="nn">devito.types.utils</span> <span class="kn">import</span> <span class="n">IgnoreDimSort</span>
@@ -1510,7 +1511,7 @@
         <span class="c1"># coordinate of the parallised injection dimension</span>
         <span class="c1"># This takes the form of a list of nnz indices, and a start/end</span>
         <span class="c1"># position in that list for each index in the parallel dim</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">par_dim_to_nnz_dim</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;par_dim_to_nnz_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">par_dim_to_nnz_dim</span> <span class="o">=</span> <span class="n">DynamicDimension</span><span class="p">(</span><span class="s1">&#39;par_dim_to_nnz_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
         <span class="c1"># This map acts as an indirect sort of the sources according to their</span>
         <span class="c1"># position along the parallelisation dimension</span>
