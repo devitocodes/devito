@@ -92,10 +92,6 @@ def relax_incr_dimensions(iet, **kwargs):
         # Get root's `symbolic_max` out of each outer Dimension
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
-        # The processed dimensions. Helps to neatly handle bounds in hierarchical
-        # blocking and SubDimensions
-        processed = []
-
         # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
             # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
@@ -115,8 +111,6 @@ def relax_incr_dimensions(iet, **kwargs):
                 bool(iter_max)  # Can it be evaluated?
             except TypeError:
                 iter_max = MIN(i.symbolic_max, root_max)
-
-            processed.append(i.dim)
 
             mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
 
