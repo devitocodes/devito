@@ -92,35 +92,25 @@ def relax_incr_dimensions(iet, **kwargs):
         # Get root's `symbolic_max` out of each outer Dimension
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
-        # A dictionary to map maximum of processed parent dimensions. Helps to neatly
-        # handle bounds in hierarchical blocking and SubDimensions
-        proc_parents_max = {}
-
         # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
-            if i.dim.parent in proc_parents_max and i.symbolic_size == i.dim.parent.step:
-                # Use parent's Iteration max in hierarchical blocking
-                iter_max = proc_parents_max[i.dim.parent]
-            else:
-                # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
-                # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
-                # of the current Iteration's root Dimension e.g. `x_M`. The generated
-                # maximum will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
+            # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
+            # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
+            # of the current Iteration's root Dimension e.g. `x_M`. The generated
+            # maximum will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
 
-                # In some corner cases an offset may be added (e.g. after CIRE passes)
-                # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
-                # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
-                # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
+            # In some corner cases an offset may be added (e.g. after CIRE passes)
+            # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
+            # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
+            # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
 
-                root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
+            root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
 
-                try:
-                    iter_max = (min(i.symbolic_max, root_max))
-                    bool(iter_max)  # Can it be evaluated?
-                except TypeError:
-                    iter_max = MIN(i.symbolic_max, root_max)
-
-            proc_parents_max[i.dim] = iter_max
+            try:
+                iter_max = (min(i.symbolic_max, root_max))
+                bool(iter_max)  # Can it be evaluated?
+            except TypeError:
+                iter_max = MIN(i.symbolic_max, root_max)
 
             mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
 
