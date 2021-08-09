@@ -279,38 +279,30 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">interpolator</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_point_support</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_radius</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+                                      <span class="n">repeat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)))</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_support</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The grid points surrounding each sparse point within the radius of self&#39;s</span>
 <span class="sd">        injection/interpolation operators.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="p">:</span>
-            <span class="n">support</span> <span class="o">=</span> <span class="p">[</span><span class="nb">range</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">j</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">min</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
-                       <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">M</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">shape</span><span class="p">)]</span>
-            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="n">support</span><span class="p">)))</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+        <span class="n">max_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
+        <span class="n">minmax</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">arr</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">max_shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">arr</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">minmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_point_support</span><span class="p">],</span>
+                        <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_datamap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_dist_datamap</span><span class="p">(</span><span class="n">support</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_support</span><span class="p">)</span>
-
-    <span class="nd">@memoized_meth</span>
-    <span class="k">def</span> <span class="nf">_build_dist_datamap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">support</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Mapper ``M : MPI rank -&gt; required sparse data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">support</span> <span class="o">=</span> <span class="n">support</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_support</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">support</span><span class="p">):</span>
-            <span class="c1"># Sparse point `i` is &quot;required&quot; by the following ranks</span>
-            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_rank</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
-                <span class="n">ret</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">ret</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_rank</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_support</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_scatter_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_scatter_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A mask to index into ``self.data``, which creates a new data array that</span>
 <span class="sd">        logically contains N consecutive groups of sparse data values, where N</span>
@@ -318,30 +310,28 @@
 <span class="sd">        values accessible by the i-th MPI rank.  Thus, sparse data values along</span>
 <span class="sd">        the boundary of two or more MPI ranks are duplicated.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
+        <span class="n">dmap</span> <span class="o">=</span> <span class="n">dmap</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
         <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">dmap</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dmap</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)]</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)]</span>
         <span class="n">ret</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_subfunc_scatter_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_scatter_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This method is analogous to :meth:`_dist_scatter_mask`, although</span>
 <span class="sd">        the mask is now suitable to index into self&#39;s SubFunctions, rather</span>
 <span class="sd">        than into ``self.data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_gather_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_gather_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A mask to index into the ``data`` received upon returning from</span>
 <span class="sd">        ``self._dist_alltoall``. This mask creates a new data array in which</span>
 <span class="sd">        duplicate sparse data values have been discarded. The resulting data</span>
 <span class="sd">        array can thus be used to populate ``self.data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">))</span>
         <span class="n">mask</span> <span class="o">=</span> <span class="n">ret</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
         <span class="n">inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">inds</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
@@ -349,22 +339,20 @@
 
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_subfunc_gather_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_gather_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This method is analogous to :meth:`_dist_subfunc_scatter_mask`, although</span>
 <span class="sd">        the mask is now suitable to index into self&#39;s SubFunctions, rather</span>
 <span class="sd">        than into ``self.data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A 2-tuple of comm-sized iterables, which tells how many sparse points</span>
 <span class="sd">        is this MPI rank expected to send/receive to/from each other MPI rank.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
+        <span class="n">dmap</span> <span class="o">=</span> <span class="n">dmap</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
         <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
 
         <span class="n">ssparse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">dmap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[]))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">comm</span><span class="o">.</span><span class="n">size</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
@@ -382,13 +370,12 @@
         <span class="n">ret</span> <span class="o">+=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ret</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The metadata necessary to perform an ``MPI_Alltoallv`` distributing the</span>
 <span class="sd">        sparse data values across the MPI ranks needing them.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_count</span>
+        <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_count</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)</span>
 
         <span class="c1"># Per-rank shape of send/recv data</span>
         <span class="n">sshape</span> <span class="o">=</span> <span class="p">[]</span>
@@ -424,8 +411,7 @@
 
         <span class="k">return</span> <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The metadata necessary to perform an ``MPI_Alltoallv`` distributing</span>
 <span class="sd">        self&#39;s SubFunction values across the MPI ranks needing them.</span>
@@ -785,11 +771,9 @@
     <span class="k">def</span> <span class="nf">gridpoints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No coordinates attached to this SparseFunction&quot;</span><span class="p">)</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">coords</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">:</span>
-            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="p">)</span><span class="o">/</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span>
-                             <span class="nb">zip</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing</span><span class="p">)))</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
 <div class="viewcode-block" id="SparseFunction.guard"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction.guard">[docs]</a>    <span class="k">def</span> <span class="nf">guard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -841,9 +825,9 @@
         <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">decomposition</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">]}</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_count</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">dmap</span> <span class="o">=</span> <span class="n">dmap</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
+        <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_count</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)</span>
 
         <span class="c1"># Per-rank shape of send/recv `coordinates`</span>
         <span class="n">sshape</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ssparse</span><span class="p">]</span>
@@ -877,22 +861,28 @@
         <span class="n">comm</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
         <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
 
+        <span class="c1"># Compute dist map only once</span>
+        <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
+
         <span class="c1"># Pack sparse data values so that they can be sent out via an Alltoallv</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)]</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
+
         <span class="c1"># Send out the sparse point values</span>
-        <span class="n">_</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)</span>
         <span class="n">scattered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">rshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">data</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
                        <span class="p">[</span><span class="n">scattered</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">scattered</span>
+
         <span class="c1"># Unpack data values so that they follow the expected storage layout</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
 
         <span class="c1"># Pack (reordered) coordinates so that they can be sent out via an Alltoallv</span>
-        <span class="n">coords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_scatter_mask</span><span class="p">]</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_scatter_mask</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)]</span>
+
         <span class="c1"># Send out the sparse point coordinates</span>
-        <span class="n">_</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_alltoall</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_alltoall</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)</span>
         <span class="n">scattered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">rshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">coords</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
                        <span class="p">[</span><span class="n">scattered</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
@@ -912,28 +902,33 @@
 
         <span class="n">comm</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
 
+        <span class="c1"># Compute dist map only once</span>
+        <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
+
         <span class="c1"># Pack sparse data values so that they can be sent out via an Alltoallv</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
         <span class="c1"># Send back the sparse point values</span>
-        <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span>
+        <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)</span>
         <span class="n">gathered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">sshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
         <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">data</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
                        <span class="p">[</span><span class="n">gathered</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
         <span class="c1"># Unpack data values so that they follow the expected storage layout</span>
         <span class="n">gathered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">gathered</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">gathered</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">gathered</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)]</span>
 
         <span class="k">if</span> <span class="n">coords</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Pack (reordered) coordinates so that they can be sent out via an Alltoallv</span>
             <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin_offset</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
             <span class="c1"># Send out the sparse point coordinates</span>
-            <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_alltoall</span>
+            <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_alltoall</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)</span>
             <span class="n">gathered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">sshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
             <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
             <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">coords</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
                            <span class="p">[</span><span class="n">gathered</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">gathered</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_gather_mask</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">[:]</span> <span class="o">=</span> \
+                <span class="n">gathered</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_gather_mask</span><span class="p">(</span><span class="n">dmap</span><span class="o">=</span><span class="n">dmap</span><span class="p">)]</span>
 
         <span class="c1"># Note: this method &quot;mirrors&quot; `_dist_scatter`: a sparse point that is sent</span>
         <span class="c1"># in `_dist_scatter` is here received; a sparse point that is received in</span>
