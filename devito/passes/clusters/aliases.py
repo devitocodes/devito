@@ -9,13 +9,13 @@ import sympy
 from devito.finite_differences import EvalDerivative
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, DataSpace,
                        Forward, IterationInstance, IterationSpace, Interval,
-                       Cluster, Queue, IntervalGroup, LabeledVector, Stamp,
-                       detect_accesses, build_intervals, normalize_properties,
-                       relax_properties)
+                       Cluster, Queue, IntervalGroup, LabeledVector, detect_accesses,
+                       build_intervals, normalize_properties, relax_properties)
 from devito.passes.clusters.utils import timed_pass
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               reuse_if_untouched, retrieve_indexed, search, uxreplace)
-from devito.tools import as_mapper, as_tuple, flatten, frozendict, generator, split
+from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
+                          split)
 from devito.types import (Array, TempFunction, Eq, Symbol, ModuloDimension,
                           CustomDimension, IncrDimension, Indexed)
 

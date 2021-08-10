@@ -7,24 +7,12 @@ from cached_property import cached_property
 from sympy import Expr
 
 from devito.ir.support.vector import Vector, vmin, vmax
-from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
+from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
                           frozendict, is_integer, toposort)
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['Stamp', 'NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
+__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
            'DataSpace', 'Forward', 'Backward', 'Any']
-
-
-class Stamp(object):
-
-    """
-    Uniquely identifies Intervals.
-    """
-
-    def __repr__(self):
-        return "<%s>" % str(id(self))[-3:]
-
-    __str__ = __repr__
 
 
 # The default Stamp, used by all new Intervals

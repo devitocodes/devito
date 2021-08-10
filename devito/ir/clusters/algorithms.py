@@ -5,12 +5,13 @@ import numpy as np
 import sympy
 
 from devito.exceptions import InvalidOperator
-from devito.ir.support import Any, Backward, Forward, IterationSpace, Stamp
+from devito.ir.support import Any, Backward, Forward, IterationSpace
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import Queue, QueueStateful
 from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import DefaultOrderedDict, as_mapper, flatten, is_integer, timed_pass
+from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer,
+                          timed_pass)
 from devito.types import ModuloDimension
 
 __all__ = ['clusterize']

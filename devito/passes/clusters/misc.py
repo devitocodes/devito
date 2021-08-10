@@ -2,10 +2,10 @@ from collections import Counter
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue
-from devito.ir.support import TILABLE, SEQUENTIAL, Scope, Stamp
+from devito.ir.support import TILABLE, SEQUENTIAL, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
-from devito.tools import DAG, as_tuple, flatten, frozendict, timed_pass
+from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Symbol
 
 __all__ = ['Lift', 'fuse', 'optimize_pows', 'extract_increments',

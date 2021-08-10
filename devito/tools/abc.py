@@ -2,7 +2,7 @@ import abc
 from hashlib import sha1
 
 
-__all__ = ['Tag', 'Signer', 'Pickable', 'Singleton']
+__all__ = ['Tag', 'Signer', 'Pickable', 'Singleton', 'Stamp']
 
 
 class Tag(abc.ABC):
@@ -162,3 +162,15 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
+
+
+class Stamp(object):
+
+    """
+    Uniquely identify objects.
+    """
+
+    def __repr__(self):
+        return "<%s>" % str(id(self))[-3:]
+
+    __str__ = __repr__
