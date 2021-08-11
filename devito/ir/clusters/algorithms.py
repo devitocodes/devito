@@ -10,7 +10,8 @@ from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import Queue, QueueStateful
 from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import DefaultOrderedDict, as_mapper, flatten, is_integer, timed_pass
+from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer,
+                          timed_pass)
 from devito.types import ModuloDimension
 
 __all__ = ['clusterize']
@@ -138,11 +139,12 @@ class Schedule(QueueStateful):
         # Handle the backlog -- the Clusters characterized by flow- and anti-dependences
         # along one or more Dimensions
         idir = {d: Any for d in known_break}
+        stamp = Stamp()
         for i, c in enumerate(list(backlog)):
-            ispace = IterationSpace(c.ispace.intervals.lift(known_break),
+            ispace = IterationSpace(c.ispace.intervals.lift(known_break, stamp),
                                     c.ispace.sub_iterators,
                                     {**c.ispace.directions, **idir})
-            dspace = c.dspace.lift(known_break)
+            dspace = c.dspace.lift(known_break, stamp)
             backlog[i] = c.rebuild(ispace=ispace, dspace=dspace)
 
         return processed + self.callback(backlog, prefix)
