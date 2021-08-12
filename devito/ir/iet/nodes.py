@@ -22,8 +22,8 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
-           'PragmaTransfer', 'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait',
-           'CallableBody']
+           'Pragma', 'PragmaTransfer', 'DummyExpr', 'BlankLine', 'ParallelTree',
+           'BusyWait', 'CallableBody']
 
 # First-class IET nodes
 
