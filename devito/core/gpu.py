@@ -61,6 +61,9 @@ class DeviceOperatorMixin(object):
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
 
+        # Fusion
+        o['fuse-tasks'] = oo.pop('fuse-tasks', False)
+
         # Blocking
         o['blockinner'] = oo.pop('blockinner', True)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
@@ -148,7 +151,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         sregistry = kwargs['sregistry']
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
-        clusters = fuse(clusters, toposort=True)
+        clusters = fuse(clusters, toposort=True, options=options)
 
         # Fission to increase parallelism
         clusters = fission(clusters)
@@ -245,13 +248,13 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'streaming': Streaming(reads_if_on_host).process,
             'factorize': factorize,
             'fission': fission,
-            'fuse': fuse,
+            'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
-            'topofuse': lambda i: fuse(i, toposort=True)
+            'topofuse': lambda i: fuse(i, toposort=True, options=options)
         }
 
     @classmethod

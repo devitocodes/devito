@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue
@@ -91,9 +91,13 @@ class Fusion(Queue):
     Fuse Clusters with compatible IterationSpace.
     """
 
-    def __init__(self, toposort):
-        super(Fusion, self).__init__()
+    def __init__(self, toposort, options=None):
+        options = options or {}
+
         self.toposort = toposort
+        self.fusetasks = options.get('fuse-tasks', False)
+
+        super().__init__()
 
     def _make_key_hook(self, cgroup, level):
         assert level > 0
@@ -137,15 +141,24 @@ class Fusion(Queue):
 
         key = (frozenset(c.itintervals), c.guards)
 
-        # We allow fusing Clusters/ClusterGroups with WaitLocks over different Locks,
-        # while the WithLocks are to be kept separated (i.e. the remain separate tasks)
+        # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
+        # WithLocks, but not with any other SyncOps
         if isinstance(c, Cluster):
             sync_locks = (c.sync_locks,)
         else:
             sync_locks = c.sync_locks
         for i in sync_locks:
-            key += (frozendict({k: frozenset(type(i) if i.is_WaitLock else i for i in v)
-                                for k, v in i.items()}),)
+            mapper = defaultdict(set)
+            for k, v in i.items():
+                for s in v:
+                    if s.is_WaitLock or \
+                       (self.fusetasks and s.is_WithLock):
+                        mapper[k].add(type(s))
+                    else:
+                        mapper[k].add(s)
+                mapper[k] = frozenset(mapper[k])
+            mapper = frozendict(mapper)
+            key += (mapper,)
 
         return key
 
@@ -243,14 +256,14 @@ class Fusion(Queue):
 
 
 @timed_pass()
-def fuse(clusters, toposort=False):
+def fuse(clusters, toposort=False, options=None):
     """
     Clusters fusion.
 
     If ``toposort=True``, then the Clusters are reordered to maximize the likelihood
     of fusion; the new ordering is computed such that all data dependencies are honored.
     """
-    return Fusion(toposort=toposort).process(clusters)
+    return Fusion(toposort, options).process(clusters)
 
 
 @cluster_pass(mode='all')

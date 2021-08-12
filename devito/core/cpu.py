@@ -78,6 +78,9 @@ class Cpu64OperatorMixin(object):
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
 
+        # Fusion
+        o['fuse-tasks'] = oo.pop('fuse-tasks', False)
+
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
@@ -298,13 +301,13 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'blocking': lambda i: blocking(i, options),
             'factorize': factorize,
             'fission': fission,
-            'fuse': fuse,
+            'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
-            'topofuse': lambda i: fuse(i, toposort=True)
+            'topofuse': lambda i: fuse(i, toposort=True, options=options)
         }
 
     @classmethod

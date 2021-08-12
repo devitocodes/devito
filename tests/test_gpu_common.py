@@ -211,6 +211,56 @@ class TestStreaming(object):
         assert np.all(u.data[nt-1] == 9)
         assert np.all(v.data[nt-1] == 9)
 
+    def test_tasking_forcefuse(self):
+        nt = 10
+        bundle0 = Bundle()
+        grid = Grid(shape=(10, 10, 10), subdomains=bundle0)
+
+        tmp0 = Function(name='tmp0', grid=grid)
+        tmp1 = Function(name='tmp1', grid=grid)
+        u = TimeFunction(name='u', grid=grid, save=nt)
+        v = TimeFunction(name='v', grid=grid, save=nt)
+        w = TimeFunction(name='w', grid=grid)
+
+        eqns = [Eq(w.forward, w + 1),
+                Eq(tmp0, w.forward),
+                Eq(tmp1, w.forward),
+                Eq(u.forward, tmp0, subdomain=bundle0),
+                Eq(v.forward, tmp1, subdomain=bundle0)]
+
+        op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'fuse-tasks': True}))
+
+        # Check generated code
+        assert len(retrieve_iteration_tree(op)) == 5
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
+        sections = FindNodes(Section).visit(op)
+        assert len(sections) == 3
+        assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
+                'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
+        body = sections[2].body[0].body[0]
+        assert (str(body.body[1].condition) ==
+                'Ne(lock0[0], 2) | '
+                'Ne(lock1[0], 2) | '
+                'Ne(FieldFromComposite(sdata0[wi0]), 1)')  # Wait-thread
+        assert (str(body.body[1].body[0]) ==
+                'wi0 = (wi0 + 1)%(npthreads0);')
+        assert str(body.body[2]) == 'sdata0[wi0].time = time;'
+        assert str(body.body[3]) == 'lock0[0] = 0;'  # Set-lock
+        assert str(body.body[4]) == 'lock1[0] = 0;'  # Set-lock
+        assert str(body.body[5]) == 'sdata0[wi0].flag = 2;'
+        assert len(op._func_table) == 2
+        exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
+        assert len(exprs) == 22
+        assert str(exprs[15]) == 'lock0[0] = 1;'
+        assert str(exprs[16]) == 'lock1[0] = 1;'
+        assert exprs[17].write is u
+        assert exprs[18].write is v
+
+        op.apply(time_M=nt-2)
+
+        assert np.all(u.data[nt-1] == 9)
+        assert np.all(v.data[nt-1] == 9)
+
     @pytest.mark.parametrize('opt', [
         ('tasking', 'orchestrate'),
         ('tasking', 'streaming', 'orchestrate'),
