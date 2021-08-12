@@ -537,6 +537,14 @@ class PragmaLangBB(LangBB):
         return
 
     @classmethod
+    def _map_wait(cls, queueid=None):
+        try:
+            return cls.mapper['map-wait'](queueid)
+        except KeyError:
+            # Not all languages may provide an explicit wait construct
+            return None
+
+    @classmethod
     def _map_update(cls, f, imask=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.mapper['map-update'](f.name, sections)
@@ -546,14 +554,14 @@ class PragmaLangBB(LangBB):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.mapper['map-update-host'](f.name, sections)
 
-    _map_update_wait_host = _map_update_host
+    _map_update_host_async = _map_update_host
 
     @classmethod
     def _map_update_device(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
         return cls.mapper['map-update-device'](f.name, sections)
 
-    _map_update_wait_device = _map_update_device
+    _map_update_device_async = _map_update_device
 
     @classmethod
     def _map_release(cls, f, imask=None, devicerm=None):
