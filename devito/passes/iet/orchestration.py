@@ -156,8 +156,8 @@ class Orchestrator(object):
         ff = SharedData._field_flag
 
         waits = []
-        for s in sync_ops:
-            sdata, threads = pieces.objs.get(s)
+        objs = filter_ordered(pieces.objs.get(s) for s in sync_ops)
+        for sdata, threads in objs:
             wait = BusyWait(CondNe(FieldFromComposite(ff, sdata[threads.index]), 1))
             waits.append(wait)
 
