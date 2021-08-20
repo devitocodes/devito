@@ -6,7 +6,7 @@ from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
-                                    cire, cse, extract_increments, factorize,
+                                    cire, cse, extract_increments, factorize, fission,
                                     fuse, skewing, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
                                mpiize, hoist_prodders, is_on_device, linearize)

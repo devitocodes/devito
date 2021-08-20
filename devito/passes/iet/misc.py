@@ -59,6 +59,7 @@ def hoist_prodders(iet):
 
 @iet_pass
 def relax_incr_dimensions(iet, **kwargs):
+    # import pdb;pdb.set_trace()
     """
     This pass adjusts the bounds of blocked Iterations in order to include the "remainder
     regions".  Without the relaxation that occurs in this pass, the only way to iterate
@@ -96,7 +97,7 @@ def relax_incr_dimensions(iet, **kwargs):
         # A dictionary to map maximum of processed parent dimensions. Helps to neatly
         # handle bounds in hierarchical blocking and SubDimensions
         proc_parents_max = {}
-        proc_parents_min = {}
+        # proc_parents_min = {}
 
         skew_dim = 0
         if inner[0].dim.is_Time:
@@ -104,61 +105,45 @@ def relax_incr_dimensions(iet, **kwargs):
 
         # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
-            assert i.direction is Forward
+            # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
+            # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
+            # of the current Iteration's root Dimension e.g. `x_M`. The generated
+            # maximum will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
+
+            # In some corner cases an offset may be added (e.g. after CIRE passes)
+            # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
+            # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
+            # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
+
+            root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
+            root_min = roots_min[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
+
+            # The level of a given Dimension in the hierarchy of block Dimensions
+            level = lambda dim: len([j for j in dim._defines if j.is_Incr])
+
+            symbolic_max = i.symbolic_max
+            symbolic_min = i.symbolic_min
+            if skew_dim and level(i.dim) >= 2 and not i.dim.is_Time:
+                # symbolic_min = MAX(root_min, i.symbolic_min)
+                root_max = roots_max[i.dim.root] + skew_dim
+                if level(i.dim) == 2:
+                    symbolic_max = i.symbolic_max - skew_dim
+                    symbolic_min = MAX(root_min, i.symbolic_min - skew_dim)
+
+            try:
+                iter_max = min(symbolic_max, root_max)
+                bool(iter_max)  # Can it be evaluated?
+            except TypeError:
+                iter_max = MIN(symbolic_max, root_max)
 
             if i.dim.parent in proc_parents_max and i.symbolic_size == i.dim.parent.step:
-                iter_max = MIN(proc_parents_max[i.dim.parent], i.dim.symbolic_max)
+                try:
+                    iter_max = min(proc_parents_max[i.dim.parent], iter_max)
+                    bool(iter_max)  # Can it be evaluated?
+                except TypeError:
+                    iter_max = MIN(proc_parents_max[i.dim.parent], iter_max)
 
-                if skew_dim and not i.dim.is_Time:
-                    # import pdb;pdb.set_trace()
-                    # symbolic_min = i.symbolic_min - skew_dim
-                    symbolic_min = i.dim.symbolic_min  # proc_parents_min[i.dim.parent]
-                else:
-                    symbolic_min = i.symbolic_min
-            else:
-                # Most of the cases pass though this code:
-                # Candidates for upper bound calculation are:
-                # Candidate 1: symbolic_max of current iteration
-                # e.g.
-                # i.symbolic_max = x0_blk0 + x0_blk0_size
-                # symbolic_max = i.symbolic_max
-
-                # Candidate 2: The domain max. Usualy it is the max of parent/root
-                # dimension.
-                # e.g. x_M
-                # This may not always be true as the symbolic_size of an Iteration may
-                # exceed the size of a parent's block size (e.g. after CIRE passes)
-                # e.g.
-                # i.dim.parent.step = x0_blk1_size
-                # i.symbolic_size = x0_blk1_size + 4
-
-                # For this case, proper margin should be allowed
-                # in order not to drop iterations. So Candidate 2 is the maximum of the
-                # root's max and the current iteration's required max
-                # and instead of `x_M` we may need `x_M + 1` or `x_M + 2`
-                root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
-
-                if skew_dim and not i.dim.is_Time:
-                    iter_max = MIN(i.symbolic_max, root_max + skew_dim)
-                    # domain_max = MAX(upper_margin, root_max + skew_dim)
-                else:
-                    iter_max = MIN(i.symbolic_max, root_max)
-                    # Finally our upper bound is the minimum of upper bound candidates
-                # e.g. upper_bound = Min(x0_blk0 + x0_blk0_size, domain_max)
-                # iter_max = MIN(i.symbolic_max, root_max)
-
-                # Min(symbolic_max, domain_max)
-
-                if skew_dim and not i.dim.is_Time:
-                    symbolic_min = MAX(i.symbolic_min, roots_min[i.dim.root] + skew_dim)
-                else:
-                    symbolic_min = i.symbolic_min
-
-            # Store the selected maximum of this iteration's dimension for
-            # possible reference in case of children iterations
-            # Usually encountered in subdims and hierarchical blocking
             proc_parents_max[i.dim] = iter_max
-            proc_parents_min[i.dim] = symbolic_min
 
             mapper[i] = i._rebuild(limits=(symbolic_min, iter_max, i.step))
 

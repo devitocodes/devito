@@ -79,6 +79,14 @@ def autotune(operator, args, level, mode):
         timesteps = init_time_bounds(stepper, at_args, args)
         if timesteps is None:
             return args, {}
+    elif len(steppers) == 2:
+        stepper = steppers.pop()
+        # import pdb;pdb.set_trace()
+        # at_args['time_M']
+        options['squeezer'] = at_args['time_M'] - 1
+        timesteps = init_time_bounds(stepper, at_args, args)
+        if timesteps is None:
+            return args, {}
     else:
         warning("cannot perform autotuning unless there is one time loop; skipping")
         return args, {}
@@ -269,7 +277,6 @@ def calculate_nblocks(tree, blockable):
 def generate_block_shapes(blockable, args, level):
     if not blockable:
         raise ValueError
-
     mapper = OrderedDict()
     for d in blockable:
         mapper[d] = mapper.get(d.parent, -1) + 1
@@ -310,8 +317,8 @@ def generate_block_shapes(blockable, args, level):
     # Generate level-1 block shapes
     level_1 = [d for d, v in mapper.items() if v == 1]
     if level_1:
-        assert len(level_1) == len(level_0)
-        assert all(d1.parent is d0 for d0, d1 in zip(level_0, level_1))
+        assert all(i.parent in level_0 for i in level_1)
+        assert len(level_1) <= len(level_0)
         for bs in list(ret):
             handle = []
             for v in options['blocksize-l1']:
