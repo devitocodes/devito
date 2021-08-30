@@ -1,5 +1,6 @@
 FROM python:3.6
 FROM intel/oneapi-basekit:latest
+FROM intel/oneapi-hpckit:latest
 
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 

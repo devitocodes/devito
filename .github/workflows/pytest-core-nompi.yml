@@ -149,7 +149,7 @@ jobs:
       id: set-intelrun
 
     - name: Install GCC ${{ matrix.arch }}
-      if: runner.os == 'linux' and "${{ matrix.name }}" =! 'pytest-docker-py36-icc-omp'
+      if: runner.os == 'linux' || "${{ matrix.name }}" =! 'pytest-docker-py36-icc-omp'
       run : |
         sudo apt-get install -y ${{ matrix.arch }}
 
@@ -163,7 +163,7 @@ jobs:
       id: set-tests
 
     - name: Install dependencies
-      if: matrix.name != 'pytest-docker-py36-gcc-omp' && matrix.name != 'pytest-docker-py36-gcc-omp'
+      if: matrix.name != 'pytest-docker-py36-gcc-omp' && matrix.name != 'pytest-docker-py36-icc-omp'
       run: |
         pip install --upgrade pip
         pip install -e .
