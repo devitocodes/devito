@@ -149,9 +149,13 @@ jobs:
       id: set-intelrun
 
     - name: Install GCC ${{ matrix.arch }}
-      if: runner.os == 'linux' && matrix.name =! 'pytest-docker-py36-icc-omp'
+      if: runner.os == 'linux'
       run : |
-        sudo apt-get install -y ${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" == 'icc' ]; then
+              sudo apt-get install -y gcc
+          else
+              sudo apt-get install -y ${{ matrix.arch }}
+          fi
 
     - name: Set tests (reduced number for OSX)
       run : |
