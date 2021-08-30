@@ -4,7 +4,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 -q \
-    libgl1-mesa-glx \
+    libgl1-mesa-glx wget openssh-server openssh-client \
 
 RUN cd /tmp
     wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
