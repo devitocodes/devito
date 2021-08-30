@@ -28,7 +28,8 @@ jobs:
           tutos-ubuntu-gcc-py37,
           tutos-osx-gcc-py37,
           tutos-osx-clang-py37,
-          tutos-docker-gcc-py37
+          tutos-docker-gcc-py37,
+          tutos-docker-icc-py37
           ]
 
         include:
@@ -50,6 +51,11 @@ jobs:
           - name: tutos-docker-gcc-py37
             os: ubuntu-latest
             compiler: gcc
+            language: "openmp"
+
+          - name: tutos-docker-icc-py37
+            os: ubuntu-latest
+            compiler: icc
             language: "openmp"
 
     steps:
@@ -76,6 +82,11 @@ jobs:
       run: |
           docker build . --file docker/Dockerfile --tag devito_img
 
+    - name: Build docker image
+      if: matrix.name == 'tutos-docker-icc-py37'
+      run: |
+          docker build . --file docker/Dockerfile.intel --tag devito_img
+
     - name: Set run prefix
       run: |
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py37' ]; then
@@ -84,6 +95,15 @@ jobs:
               echo "::set-output name=RUN_CMD::"
           fi
       id: set-run
+
+    - name: Set run prefix
+      run: |
+          if [ "${{ matrix.name }}" == 'tutos-docker-icc-py37' ]; then
+              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_img"
+          else
+              echo "::set-output name=RUN_CMD::"
+          fi
+      id: set-intelrun
 
     - name: Install dependencies
       if: matrix.name != 'tutos-docker-gcc-py37'

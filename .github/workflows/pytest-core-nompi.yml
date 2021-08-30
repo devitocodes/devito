@@ -36,6 +36,7 @@ jobs:
            pytest-ubuntu-py38-gcc9-omp,
            pytest-osx-py37-clang-omp,
            pytest-docker-py36-gcc-omp
+           pytest-docker-py36-icc-omp
         ]
         set: [base, adjoint]
         include:
@@ -93,6 +94,12 @@ jobs:
           arch: "gcc"
           language: "openmp"
 
+        - name: pytest-docker-py36-icc-omp
+          python-version: 3.6
+          os: ubuntu-18.04
+          arch: "icc"
+          language: "openmp"
+
         - set: base
           test-set: 'not adjoint'
 
@@ -118,6 +125,11 @@ jobs:
       run: |
           docker build . --file docker/Dockerfile --tag devito_img
 
+    - name: Build docker image
+      if: matrix.name == 'pytest-docker-py36-icc-omp'
+      run: |
+          docker build . --file docker/Dockerfile.intel --tag devito_img
+
     - name: Set run prefix
       run: |
           if [ "${{ matrix.name }}" == 'pytest-docker-py36-gcc-omp' ]; then
@@ -126,6 +138,15 @@ jobs:
               echo "::set-output name=RUN_CMD::"
           fi
       id: set-run
+
+    - name: Set run prefix
+      run: |
+          if [ "${{ matrix.name }}" == 'pytest-docker-py36-icc-omp' ]; then
+              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_img"
+          else
+              echo "::set-output name=RUN_CMD::"
+          fi
+      id: set-intelrun
 
     - name: Install GCC ${{ matrix.arch }}
       if: runner.os == 'linux'
