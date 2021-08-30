@@ -95,7 +95,7 @@ jobs:
             devitocodes/devito:gpu-${{ github.event.release.tag_name }}
 
   deploy-docker-intel:
-    runs-on: [self-hosted, gpu, docker]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout devito
