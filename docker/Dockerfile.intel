@@ -1,0 +1,63 @@
+FROM python:3.8
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 -q \
+    libgl1-mesa-glx \
+
+RUN cd /tmp
+    wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+    # add to your apt sources keyring so that archives signed with this key will be trusted.
+    sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+    # remove the public key
+    rm GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+
+RUN echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+RUN add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
+
+RUN apt install -y --no-install-recommends -o=Dpkg::Use-Pty=0 -q \
+    intel-oneapi-basekit \
+    intel-oneapi-hpckit \
+
+RUN source /opt/intel/oneapi/compiler/latest/env/vars.sh \
+    source /opt/intel/oneapi/compiler/latest/env/vars.sh
+
+ADD ./requirements.txt /app/requirements.txt
+ADD ./requirements-optional.txt /app/requirements-optional.txt
+ADD ./requirements-mpi.txt /app/requirements-mpi.txt
+
+RUN python3 -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir jupyter && \
+    /venv/bin/pip install --no-cache-dir wheel && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
+    /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
+    rm -rf ~/.cache/pip
+
+ADD ./devito /app/devito
+ADD ./tests /app/tests
+ADD ./examples /app/examples
+ADD ./benchmarks /app/benchmarks
+COPY setup.cfg /app/
+
+ADD docker/run-jupyter.sh /jupyter
+ADD docker/run-tests.sh /tests
+ADD docker/run-print-defaults.sh /print-defaults
+ADD docker/entrypoint.sh /docker-entrypoint.sh
+
+RUN chmod +x \
+    /print-defaults \
+    /jupyter \
+    /tests \
+    /docker-entrypoint.sh
+
+WORKDIR /app
+
+ENV DEVITO_ARCH="icc"
+ENV DEVITO_LANGUAGE="openmp"
+
+EXPOSE 8888
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["/jupyter"]
