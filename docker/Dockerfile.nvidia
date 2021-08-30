@@ -40,15 +40,15 @@ RUN apt-get update -y && \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
         python-dev python3-dev python3-venv && \
     wget -q -P /app/ \
-         https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-21-5_21.5_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-21-5-cuda-multi_21.5_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-2021_21.5_amd64.deb && \
+         https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-21-7_21.7_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-21-7-cuda-multi_21.7_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-2021_21.7_amd64.deb && \
     wget -q -P /app/nvcomp_exts/ \
          https://developer.download.nvidia.com/compute/nvcomp/2.0/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz &&\
     apt-get install -y -q \
-         /app/nvhpc-21-5_21.5_amd64.deb \
-         /app/nvhpc-21-5-cuda-multi_21.5_amd64.deb \
-         /app/nvhpc-2021_21.5_amd64.deb && \
+         /app/nvhpc-21-7_21.7_amd64.deb \
+         /app/nvhpc-21-7-cuda-multi_21.7_amd64.deb \
+         /app/nvhpc-2021_21.7_amd64.deb && \
     tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz -C /app/nvcomp_exts && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
@@ -56,7 +56,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.2/extras/CUPTI
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.4/extras/CUPTI
 #MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX 
 
@@ -119,7 +119,7 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
     fi;  \
     if [ "x$MPI_VER" = "HPCX" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-        ln -sf $HPCSDK_HOME/comm_libs/hpcx/hpcx-2.7.4/ompi \
+        ln -sf $HPCSDK_HOME/comm_libs/hpcx/hpcx-2.8.1/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
     fi;  \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
@@ -140,10 +140,8 @@ ADD docker/entrypoint.sh /docker-entrypoint.sh
 ADD docker/nvdashboard.json /app/nvdashboard.json
 
 RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
-    /venv/bin/jupyter labextension install jupyterlab-nvdashboard && \
-    /venv/bin/jupyter labextension install dask-labextension && \
-    /venv/bin/jupyter serverextension enable dask_labextension && \
-    /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
+    /venv/bin/jupyter serverextension enable dask_labextension 
+#    /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
 
 ## Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
