@@ -12,13 +12,11 @@ RUN apt-get update -y && \
         wget \
         openssh-server \
         openssh-client \
-
-RUN cd /tmp \
     wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
     # add to your apt sources keyring so that archives signed with this key will be trusted.
     apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
     # remove the public key
-    rm GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+    rm GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
 
 RUN echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
 RUN add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
@@ -28,7 +26,7 @@ RUN apt install -y --no-install-recommends -o=Dpkg::Use-Pty=0 -q \
     intel-oneapi-hpckit \
 
 RUN source /opt/intel/oneapi/compiler/latest/env/vars.sh \
-    source /opt/intel/oneapi/compiler/latest/env/vars.sh
+    source /opt/intel/oneapi/compiler/latest/env/vars.sh \
 
 ADD ./requirements.txt /app/requirements.txt
 ADD ./requirements-optional.txt /app/requirements-optional.txt
