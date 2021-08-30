@@ -104,8 +104,6 @@ class Blocking(Queue):
                 properties = dict(c.properties)
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
-                properties.update({bd: c.properties[d] - {SKEWABLE}
-                                  for bd in block_dims[:-1]})
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            properties=properties))
@@ -257,11 +255,15 @@ class Skewing(Queue):
                 return clusters
             skew_dim = skew_dims.pop()
 
+            # The level of a given Dimension in the hierarchy of block Dimensions, used
+            # to skew over the outer level of loops.
+            level = lambda dim: len([i for i in dim._defines if i.is_Incr])
+
             # Since we are here, prefix is skewable and nested under a
             # SEQUENTIAL loop.
             intervals = []
             for i in c.ispace:
-                if i.dim is d:
+                if i.dim is d and level(d) <= 1:  # Skew only at level 0 or 1
                     intervals.append(Interval(d, skew_dim, skew_dim))
                 else:
                     intervals.append(i)
