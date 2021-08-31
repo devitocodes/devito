@@ -80,6 +80,7 @@ def test_run_mpi():
         'block_shape': [],
         'shape': (16, 16, 16),
         'tn': 4,
+        'warmup': False,
         'dump_summary': 'summary.txt',
         'dump_norms': 'norms.txt'
     }
