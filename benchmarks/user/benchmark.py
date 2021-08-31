@@ -216,6 +216,8 @@ def option_performance(f):
 @benchmark.command(name='run')
 @option_simulation
 @option_performance
+@click.option('--warmup', is_flag=True, default=False,
+              help='Perform a preliminary run to warm up the system')
 @click.option('--dump-summary', default=False,
               help='File where the performance results are saved')
 @click.option('--dump-norms', default=False,
@@ -240,6 +242,7 @@ def run(problem, **kwargs):
     options['autotune'] = autotune
     block_shapes = as_tuple(kwargs.pop('block_shape'))
     operator = kwargs.pop('operator', 'forward')
+    warmup = kwargs.pop('warmup')
 
     # Should a specific block-shape be used? Useful if one wants to skip
     # the autotuning pass as a good block-shape is already known
@@ -250,6 +253,12 @@ def run(problem, **kwargs):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
+    if warmup:
+        info("Performing warm-up run ...")
+        set_log_level('ERROR', comm=MPI.COMM_WORLD)
+        run_op(solver, operator, **options)
+        set_log_level('DEBUG', comm=MPI.COMM_WORLD)
+        info("DONE!")
     retval = run_op(solver, operator, **options)
 
     try:
