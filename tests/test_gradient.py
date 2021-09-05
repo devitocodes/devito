@@ -242,6 +242,7 @@ class TestGradient(object):
         ('OT2', (70, 80), (15., 15.), setup, 2),
         ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 2),
         ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 1),
+        ('centered', (70, 80), (15., 15.), tti_setup, 2),
     ])
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
@@ -268,7 +269,7 @@ class TestGradient(object):
         rec = wave.forward(vp=v0, save=False)[0]
 
         # Gradient: J dm
-        Jdm, _, _, _ = wave.jacobian(dm, vp=v0)
+        Jdm = wave.jacobian(dm, vp=v0)[0]
         # FWI Gradient test
         H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
         error1 = np.zeros(7)
