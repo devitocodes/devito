@@ -219,7 +219,7 @@ class Decomposition(tuple):
                 if glb_idx < 0:
                     glb_idx = self.glb_max + glb_idx + 1
                 # -> Do the actual conversion
-                if glb_idx in self.loc_abs_numb:
+                if self.loc_abs_min <= glb_idx <= self.loc_abs_max:
                     return glb_idx - base
                 elif self.glb_min <= glb_idx <= self.glb_max:
                     return None
