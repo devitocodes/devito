@@ -93,18 +93,18 @@ class AccBB(PragmaLangBB):
             c.Pragma('acc enter data create(%s%s)' % (i, j)),
         'map-present': lambda i, j:
             c.Pragma('acc data present(%s%s)' % (i, j)),
+        'map-wait': lambda i:
+            c.Pragma('acc wait(%s)' % i),
         'map-update': lambda i, j:
             c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
         'map-update-host': lambda i, j:
             c.Pragma('acc update self(%s%s)' % (i, j)),
-        'map-update-wait-host': lambda i, j, k:
-            (c.Pragma('acc update self(%s%s) async(%s)' % (i, j, k)),
-             c.Pragma('acc wait(%s)' % k)),
+        'map-update-host-async': lambda i, j, k:
+            c.Pragma('acc update self(%s%s) async(%s)' % (i, j, k)),
         'map-update-device': lambda i, j:
             c.Pragma('acc update device(%s%s)' % (i, j)),
-        'map-update-wait-device': lambda i, j, k:
-            (c.Pragma('acc update device(%s%s) async(%s)' % (i, j, k)),
-             c.Pragma('acc wait(%s)' % k)),
+        'map-update-device-async': lambda i, j, k:
+            c.Pragma('acc update device(%s%s) async(%s)' % (i, j, k)),
         'map-release': lambda i, j, k:
             c.Pragma('acc exit data delete(%s%s)%s' % (i, j, k)),
         'map-exit-delete': lambda i, j, k:
@@ -147,14 +147,14 @@ class AccBB(PragmaLangBB):
         return cls.mapper['map-exit-delete'](f.name, sections, cond)
 
     @classmethod
-    def _map_update_wait_host(cls, f, imask=None, queueid=None):
+    def _map_update_host_async(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-update-wait-host'](f.name, sections, queueid)
+        return cls.mapper['map-update-host-async'](f.name, sections, queueid)
 
     @classmethod
-    def _map_update_wait_device(cls, f, imask=None, queueid=None):
+    def _map_update_device_async(cls, f, imask=None, queueid=None):
         sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-update-wait-device'](f.name, sections, queueid)
+        return cls.mapper['map-update-device-async'](f.name, sections, queueid)
 
 
 class DeviceAccizer(PragmaDeviceAwareTransformer):

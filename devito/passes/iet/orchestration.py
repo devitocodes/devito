@@ -5,7 +5,7 @@ from sympy import Or
 
 from devito.data import FULL
 from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, FindNodes,
-                           Transformer, BlankLine, BusyWait, PragmaTransfer,
+                           Transformer, BlankLine, BusyWait, Pragma, PragmaTransfer,
                            DummyExpr, derive_parameters, make_thread_ctx)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
@@ -54,17 +54,21 @@ class Orchestrator(object):
         # will never be more than 2 threads in flight concurrently
         npthreads = min(i.size for i in locks)
 
-        preactions = []
-        postactions = []
+        preactions = [BlankLine]
         for s in sync_ops:
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
                      for d in s.target.dimensions]
-            update = PragmaTransfer(self.lang._map_update_wait_host, s.target,
+            update = PragmaTransfer(self.lang._map_update_host_async, s.target,
                                     imask=imask, queueid=SharedData._field_id)
-            preactions.append(List(body=[BlankLine, update, DummyExpr(s.handle, 1)]))
-            postactions.append(DummyExpr(s.handle, 2))
+            preactions.append(update)
+        wait = self.lang._map_wait(SharedData._field_id)
+        if wait is not None:
+            preactions.append(Pragma(wait))
+        preactions.extend([DummyExpr(s.handle, 1) for s in sync_ops])
         preactions.append(BlankLine)
-        postactions.insert(0, BlankLine)
+
+        postactions = [BlankLine]
+        postactions.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 
         # Turn `iet` into a ThreadFunction so that it can be executed
         # asynchronously by a pthread in the `npthreads` pool
@@ -120,7 +124,7 @@ class Orchestrator(object):
     def _make_prefetchupdate(self, iet, sync_ops, pieces, root):
         fid = SharedData._field_id
 
-        postactions = []
+        postactions = [BlankLine]
         for s in sync_ops:
             # `pcond` is not None, but we won't use it here because the condition
             # is actually already encoded in `iet` itself (it stems from the
@@ -129,8 +133,11 @@ class Orchestrator(object):
 
             imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]
-            postactions.append(PragmaTransfer(self.lang._map_update_wait_device,
+            postactions.append(PragmaTransfer(self.lang._map_update_device_async,
                                               s.target, imask=imask, queueid=fid))
+        wait = self.lang._map_wait(fid)
+        if wait is not None:
+            postactions.append(Pragma(wait))
 
         # Turn prefetch IET into a ThreadFunction
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
@@ -156,8 +163,8 @@ class Orchestrator(object):
         ff = SharedData._field_flag
 
         waits = []
-        for s in sync_ops:
-            sdata, threads = pieces.objs.get(s)
+        objs = filter_ordered(pieces.objs.get(s) for s in sync_ops)
+        for sdata, threads in objs:
             wait = BusyWait(CondNe(FieldFromComposite(ff, sdata[threads.index]), 1))
             waits.append(wait)
 
