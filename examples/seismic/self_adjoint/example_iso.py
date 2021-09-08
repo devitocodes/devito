@@ -11,6 +11,9 @@ from examples.seismic.self_adjoint import (setup_w_over_q,
 def acoustic_sa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
                       tn=500., space_order=8, nbl=10, **kwargs):
     # SA parameters
+    if space_order < 8:
+        info("Low space order not supported, running space_order=8")
+        space_order = 8
     qmin = 0.1
     qmax = 1000.0
     fpeak = 0.010
