@@ -1,9 +1,9 @@
 from collections import Counter
 
-from devito import configuration
 from devito.ir.clusters import Queue
-from devito.ir.support import (AFFINE, SEQUENTIAL, PARALLEL, SKEWABLE, TILABLE, Interval,
-                               IntervalGroup, IterationSpace)
+from devito.ir.support import (SEQUENTIAL, PARALLEL, SKEWABLE, TILABLE, Interval,
+                               IntervalGroup, IterationSpace, detect_accesses,
+                               build_intervals, DataSpace)
 from devito.symbolics import uxreplace, retrieve_indexed
 from devito.types import IncrDimension
 
@@ -112,24 +112,24 @@ class Blocking(Queue):
 
         processed = []
         for c in clusters:
-            if (TILABLE in c.properties[d] or
-               {AFFINE, SEQUENTIAL} <= c.properties[d] and self.wavefront):
-
+            cond1 = TILABLE in c.properties[d]
+            cond2 = SEQUENTIAL in c.properties[d] and self.wavefront
+            if cond1 or cond2:
+                mode = ('parallel' if cond1 else 'sequential')
                 # Use the innermost IncrDimension in place of `d`
                 exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
                 # The new Cluster properties
                 # TILABLE property is dropped after the blocking.
-                # SKEWABLE is dropped as well, but only from the new
-                # block dimensions.
                 properties = dict(c.properties)
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
+                ispace = decompose(c.ispace, d, block_dims, mode)
 
-                if TILABLE in c.properties[d]:
-                    ispace = decompose(c.ispace, d, block_dims)
-                else:
-                    ispace = decompose_sequential(c.ispace, d, block_dims)
+                #accesses = detect_accesses(exprs)
+                #parts = {k: IntervalGroup(build_intervals(v)).relaxed
+                #         for k, v in accesses.items() if k}
+                #dspace = DataSpace(c.dspace.intervals, parts)
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            properties=properties))
@@ -164,10 +164,21 @@ def preprocess(clusters, options):
     return processed
 
 
-def decompose(ispace, d, block_dims):
+def decompose(ispace, d, block_dims, mode='parallel'):
     """
     Create a new IterationSpace in which the `d` Interval is decomposed
     into a hierarchy of Intervals over ``block_dims``.
+
+    Parameters
+    ----------
+    ispace : IterationSpace
+        Input IterationSpace.
+    d : Dimension
+        Input Dimension.
+    block_dims : list of Dimensions
+        Input list of Dimensions.
+    mode : string
+        mode decides the type of decomposition. 'parallel' or 'sequential'
     """
     # Create the new Intervals
     intervals = []
@@ -181,7 +192,7 @@ def decompose(ispace, d, block_dims):
     # Create the relations.
     # Example: consider the relation `(t, x, y)` and assume we decompose `x` over
     # `xbb, xb, xi`; then we decompose the relation as two relations, `(t, xbb, y)`
-    # and `(xbb, xb, xi)`
+    # and `(xbb, xb, xi)`. Add doc for sequential
     relations = [block_dims]
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
@@ -196,9 +207,9 @@ def decompose(ispace, d, block_dims):
         elif i.dim.is_Incr:
             # Make sure IncrDimensions on the same level stick next to each other.
             # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
-            # `(t, xbb, xb, x, ybb, ...)`
+            # `(t, xbb, xb, x, ybb, ...)`. Add doc for sequential
             for bd in block_dims:
-                if level(i.dim) >= level(bd):
+                if mode == 'sequential' or level(i.dim) >= level(bd):
                     relations.append([bd, i.dim])
                 else:
                     relations.append([i.dim, bd])
@@ -215,77 +226,12 @@ def decompose(ispace, d, block_dims):
 
     sub_iterators = dict(ispace.sub_iterators)
     sub_iterators.pop(d, None)
-
-    if not d.is_Time:
+    if mode == 'parallel':
         sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
     else:
-        for bd in block_dims:
-            if bd.symbolic_incr.is_Symbol:
-                sub_iterators.update({bd: ()})
-            else:
-                sub_iterators.update({bd: ispace.sub_iterators.get(d, [])})
-
-    # sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
-
-    directions = dict(ispace.directions)
-    directions.pop(d)
-    directions.update({bd: ispace.directions[d] for bd in block_dims})
-
-    return IterationSpace(intervals, sub_iterators, directions)
-
-
-def decompose_sequential(ispace, d, block_dims):
-    """
-    Create a new IterationSpace in which the `d` Interval is decomposed
-    into a hierarchy of Intervals over ``block_dims``.
-    """
-    # Create the new Intervals
-    intervals = []
-    for i in ispace:
-        if i.dim is d:
-            intervals.append(i.switch(block_dims[0]))
-            intervals.extend([i.switch(bd).zero() for bd in block_dims[1:]])
-        else:
-            intervals.append(i)
-
-    # Create the relations.
-    # Example: consider the relation `(t, x, y)` and assume we decompose `x` over
-    # `xbb, xb, xi`; then we decompose the relation as two relations, `(t, xbb, y)`
-    # and `(xbb, xb, xi)`
-    relations = [block_dims]
-    for r in ispace.intervals.relations:
-        relations.append([block_dims[0] if i is d else i for i in r])
-
-    # Add more relations
-    for n, i in enumerate(ispace):
-        if i.dim is d:
-            continue
-        elif i.dim.is_Incr:
-            # Make sure IncrDimensions on the same level stick next to each other.
-            # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
-            # `(t, xbb, xb, x, ybb, ...)`
-            # pass
-            for bd in block_dims:
-                relations.append([bd, i.dim])
-        elif n > ispace.intervals.index(d):
-            # The non-Incr subsequent Dimensions must follow the block Dimensions
-            for bd in block_dims:
-                relations.append([bd, i.dim])
-        else:
-            # All other Dimensions must precede the block Dimensions
-            for bd in block_dims:
-                relations.append([i.dim, bd])
-
-    intervals = IntervalGroup(intervals, relations=relations)
-
-    sub_iterators = dict(ispace.sub_iterators)
-    sub_iterators.pop(d, None)
-
-    for bd in block_dims:
-        if bd.symbolic_incr.is_Symbol:
-            sub_iterators.update({bd: ()})
-        else:
-            sub_iterators.update({bd: ispace.sub_iterators.get(d, [])})
+        sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
+        sub_iterators.update({bd: () for bd in block_dims
+                              if bd.symbolic_incr.is_Symbol})
 
     directions = dict(ispace.directions)
     directions.pop(d)
@@ -340,7 +286,6 @@ class Skewing(Queue):
 
         processed = []
         interchanged = []
-
         for c in clusters:
             if SKEWABLE not in c.properties[d]:
                 return clusters
@@ -364,9 +309,7 @@ class Skewing(Queue):
             # Retrieve skewing factor
             functs = retrieve_indexed(c.exprs)
             functions = {i.function for i in functs}
-            sf = max([i.space_order for i in functions])
-            print(functions)
-            print(sf)
+            sf = int(max([i.space_order for i in functions])/2)
 
             # Pop skewing dim.
             skew_dim = skew_dims.pop()
@@ -397,9 +340,12 @@ class Skewing(Queue):
                     else:
                         new_relations.append(i)
 
-            # Skewing
             for i in c.ispace:
-                if i.dim is d and level(d) == 2:  # Skew only at level 0 or 1
+                # Skew at level 2 if time is blocked
+                if i.dim is d and len(skew_dims) and level(d) == 2:
+                    intervals.append(Interval(d, skew_dim, skew_dim))
+                # Skew at level <=1 if time is not blocked
+                elif i.dim is d and not len(skew_dims) and level(d) <= 1:
                     intervals.append(Interval(d, skew_dim, skew_dim))
                 else:
                     intervals.append(i)
@@ -408,14 +354,11 @@ class Skewing(Queue):
             # be parallelized later
             properties = dict(c.properties)
             properties.update({i: c.properties[i] - {PARALLEL} for i in interchanged})
-
             intervals = IntervalGroup(intervals, relations=new_relations)
             ispace = IterationSpace(intervals, c.ispace.sub_iterators,
                                     c.ispace.directions)
 
             exprs = xreplace_indices(c.exprs, {d: d - skew_dim})
-
-            # import pdb;pdb.set_trace()
             processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                        properties=properties))
 

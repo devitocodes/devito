@@ -3,7 +3,7 @@ import numpy as np
 
 from conftest import assert_blocking
 from devito.symbolics import MIN
-from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, norm # noqa
+from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, solve, norm # noqa
 from devito.ir import Expression, Iteration, FindNodes
 
 
@@ -55,16 +55,16 @@ class TestCodeGenSkewing(object):
         assert iters[1].symbolic_max == (iters[1].dim.parent.symbolic_max + time)
 
         assert iters[2].symbolic_min == iters[0].dim
-        assert (iters[2].symbolic_max == MIN(iters[0].dim +
-                                             iters[0].dim.symbolic_incr - 1,
-                                             iters[0].dim.symbolic_max + time))
+        assert iters[2].symbolic_max == MIN(iters[0].dim +
+                                            iters[0].dim.symbolic_incr - 1,
+                                            iters[0].dim.symbolic_max + time)
         assert iters[3].symbolic_min == iters[1].dim
-        assert (iters[3].symbolic_max == MIN(iters[1].dim +
-                                             iters[1].dim.symbolic_incr - 1,
-                                             iters[1].dim.symbolic_max + time))
+        assert iters[3].symbolic_max == MIN(iters[1].dim +
+                                            iters[1].dim.symbolic_incr - 1,
+                                            iters[1].dim.symbolic_max + time)
 
-        assert iters[4].symbolic_min == (iters[4].dim.symbolic_min)
-        assert iters[4].symbolic_max == (iters[4].dim.symbolic_max)
+        assert iters[4].symbolic_min == iters[4].dim.symbolic_min
+        assert iters[4].symbolic_max == iters[4].dim.symbolic_max
         skewed = [i.expr for i in FindNodes(Expression).visit(bns['x0_blk0'])]
         assert str(skewed[0]).replace(' ', '') == expected
         assert np.isclose(norm(u), norm_u, rtol=1e-5)
@@ -159,25 +159,139 @@ class TestCodeGenSkewing(object):
         skewed = [i.expr for i in FindNodes(Expression).visit(op)]
 
         if skewing and not blockinner:
-            assert (iters[1].symbolic_min == (iters[1].dim.symbolic_min + time))
-            assert (iters[1].symbolic_max == (iters[1].dim.symbolic_max + time))
-            assert (iters[2].symbolic_min == (iters[2].dim.symbolic_min + time))
-            assert (iters[2].symbolic_max == (iters[2].dim.symbolic_max + time))
-            assert (iters[3].symbolic_min == (iters[3].dim.symbolic_min))
-            assert (iters[3].symbolic_max == (iters[3].dim.symbolic_max))
+            assert iters[1].symbolic_min == (iters[1].dim.symbolic_min + time)
+            assert iters[1].symbolic_max == (iters[1].dim.symbolic_max + time)
+            assert iters[2].symbolic_min == (iters[2].dim.symbolic_min + time)
+            assert iters[2].symbolic_max == (iters[2].dim.symbolic_max + time)
+            assert iters[3].symbolic_min == iters[3].dim.symbolic_min
+            assert iters[3].symbolic_max == iters[3].dim.symbolic_max
         elif skewing and blockinner:
-            assert (iters[1].symbolic_min == (iters[1].dim.symbolic_min + time))
-            assert (iters[1].symbolic_max == (iters[1].dim.symbolic_max + time))
-            assert (iters[2].symbolic_min == (iters[2].dim.symbolic_min + time))
-            assert (iters[2].symbolic_max == (iters[2].dim.symbolic_max + time))
-            assert (iters[3].symbolic_min == (iters[3].dim.symbolic_min + time))
-            assert (iters[3].symbolic_max == (iters[3].dim.symbolic_max + time))
+            assert iters[1].symbolic_min == (iters[1].dim.symbolic_min + time)
+            assert iters[1].symbolic_max == (iters[1].dim.symbolic_max + time)
+            assert iters[2].symbolic_min == (iters[2].dim.symbolic_min + time)
+            assert iters[2].symbolic_max == (iters[2].dim.symbolic_max + time)
+            assert iters[3].symbolic_min == (iters[3].dim.symbolic_min + time)
+            assert iters[3].symbolic_max == (iters[3].dim.symbolic_max + time)
         elif not skewing and not blockinner:
-            assert (iters[1].symbolic_min == (iters[1].dim.symbolic_min))
-            assert (iters[1].symbolic_max == (iters[1].dim.symbolic_max))
-            assert (iters[2].symbolic_min == (iters[2].dim.symbolic_min))
-            assert (iters[2].symbolic_max == (iters[2].dim.symbolic_max))
-            assert (iters[3].symbolic_min == (iters[3].dim.symbolic_min))
-            assert (iters[3].symbolic_max == (iters[3].dim.symbolic_max))
+            assert iters[1].symbolic_min == iters[1].dim.symbolic_min
+            assert iters[1].symbolic_max == iters[1].dim.symbolic_max
+            assert iters[2].symbolic_min == iters[2].dim.symbolic_min
+            assert iters[2].symbolic_max == iters[2].dim.symbolic_max
+            assert iters[3].symbolic_min == iters[3].dim.symbolic_min
+            assert iters[3].symbolic_max == iters[3].dim.symbolic_max
 
         assert str(skewed[0]).replace(' ', '') == expected
+
+
+class TestSkewingCorrectness(object):
+
+    '''
+    Test numerical corectness of operators with wavefronts/skewing
+    '''
+    def test_correctness(self):
+
+        nx = 32
+        ny = 32
+        nz = 32
+        nt = 24
+        nu = .5
+        dx = 2. / (nx - 1)
+        dy = 2. / (ny - 1)
+        dz = 2. / (nz - 1)
+        sigma = .25
+        dt = sigma * dx * dz * dy / nu
+
+        # Initialise u with hat function
+        init_value = 50
+
+        # Field initialization
+        grid = Grid(shape=(nx, ny, nz))
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u.data[:, :, :] = init_value
+
+        # Create an equation with second-order derivatives
+        eq = Eq(u.dt, u.dx2 + u.dy2 + u.dz2)
+        x, y, z = grid.dimensions
+        stencil = solve(eq, u.forward)
+        eq0 = Eq(u.forward, stencil)
+        time_M = nt
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        op = Operator(eq0, opt=('advanced', {'openmp': True,
+                      'wavefront': False, 'blocklevels': 1}))
+        op.apply(time_M=time_M, dt=dt)
+        norm_u = norm(u)
+        u.data[:] = init_value
+
+        op1 = Operator(eq0, opt=('advanced', {'skewing': True, 'openmp': True,
+                                 'blocklevels': 1}))
+        op1.apply(time_M=time_M, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+        u.data[:] = init_value
+
+        op2 = Operator(eq0, opt=('advanced', {'openmp': True,
+                                              'wavefront': True, 'blocklevels': 2}))
+        op2.apply(time_M=time_M, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+        u.data[:] = init_value
+
+        op3 = Operator(eq0, opt=('advanced', {'openmp': True,
+                                              'wavefront': True, 'blocklevels': 3}))
+        op3.apply(time_M=time_M, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+        u.data[:] = init_value
+
+        op4 = Operator(eq0, opt=('advanced', {'openmp': True,
+                                              'wavefront': True, 'blocklevels': 4}))
+        op4.apply(time_M=time_M, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+
+        iters = FindNodes(Iteration).visit(op2)
+        time_iter = [i for i in iters if i.dim.is_Time]
+
+        assert len(time_iter) == 2
+
+    def test_correctness_II(self):
+        nx = 32
+        ny = 32
+        nz = 32
+        nt = 64
+        nu = .5
+        dx = 2. / (nx - 1)
+        dy = 2. / (ny - 1)
+        dz = 2. / (nz - 1)
+        sigma = .25
+        dt = sigma * dx * dz * dy / nu
+
+        # Initialise u with hat function
+        init_value = 50
+
+        # Field initialization
+        grid = Grid(shape=(nx, ny, nz))
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u.data[:, :, :] = init_value
+
+        # Create an equation with second-order derivatives
+        eq = Eq(u.dt, u.dx2 + u.dy2 + u.dz2)
+        x, y, z = grid.dimensions
+        stencil = solve(eq, u.forward)
+        eq0 = Eq(u.forward, stencil)
+        time_M = nt
+
+        op = Operator(eq0, opt=('advanced', {'openmp': True,
+                                'wavefront': False, 'blocklevels': 2}))
+
+        op.apply(time_M=time_M, dt=dt)
+        norm_u = norm(u)
+        u.data[:] = init_value
+
+        op1 = Operator(eq0, opt=('advanced', {'skewing': True, 'openmp': True,
+                                 'blocklevels': 1}))
+        op1.apply(time_M=time_M, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+        u.data[:] = init_value
+        op2 = Operator(eq0, opt=('advanced', {'openmp': True,
+                                              'wavefront': True, 'blocklevels': 2}))
+
+        op2.apply(time_M=time_M, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)

@@ -1,8 +1,7 @@
 import cgen
 
-from devito.ir.iet import (List, Prodder, FindNodes, Transformer, filter_iterations,
-                           retrieve_iteration_tree)
-from devito.ir.support import Forward
+from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
+                       filter_iterations, retrieve_iteration_tree)
 from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import MIN, MAX
@@ -59,7 +58,6 @@ def hoist_prodders(iet):
 
 @iet_pass
 def relax_incr_dimensions(iet, **kwargs):
-    # import pdb;pdb.set_trace()
     """
     This pass adjusts the bounds of blocked Iterations in order to include the "remainder
     regions".  Without the relaxation that occurs in this pass, the only way to iterate
@@ -97,11 +95,12 @@ def relax_incr_dimensions(iet, **kwargs):
         # A dictionary to map maximum of processed parent dimensions. Helps to neatly
         # handle bounds in hierarchical blocking and SubDimensions
         proc_parents_max = {}
-        # proc_parents_min = {}
 
-        skew_dim = 0
-        if inner[0].dim.is_Time:
-            skew_dim = inner[0].dim
+        # Get the dimension to skewed. 0 if not applicable
+        skew_dim = (inner[0].dim if inner[0].dim.is_Time else 0)
+
+        # The level of a given Dimension in the hierarchy of block Dimensions
+        level = lambda dim: len([j for j in dim._defines if j.is_Incr])
 
         # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
@@ -118,17 +117,19 @@ def relax_incr_dimensions(iet, **kwargs):
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
             root_min = roots_min[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
 
-            # The level of a given Dimension in the hierarchy of block Dimensions
-            level = lambda dim: len([j for j in dim._defines if j.is_Incr])
-
             symbolic_max = i.symbolic_max
             symbolic_min = i.symbolic_min
-            if skew_dim and level(i.dim) >= 2 and not i.dim.is_Time:
-                # symbolic_min = MAX(root_min, i.symbolic_min)
-                root_max = roots_max[i.dim.root] + skew_dim
+
+            if skew_dim and not i.dim.is_Time:
+                root_max = i.dim.root.symbolic_max + skew_dim
                 if level(i.dim) == 2:
-                    symbolic_max = i.symbolic_max - skew_dim
-                    symbolic_min = MAX(root_min, i.symbolic_min - skew_dim)
+                    symbolic_max = i.dim.symbolic_max  # Dim's max only
+                    symbolic_min = MAX(root_min, i.dim.symbolic_min)
+                # In TB, multiple levels need parent's symbolic_max
+                elif level(i.dim) > 2:
+                    symbolic_max = MIN(proc_parents_max[i.dim.parent], symbolic_max)
+
+            proc_parents_max[i.dim] = symbolic_max
 
             try:
                 iter_max = min(symbolic_max, root_max)
@@ -136,24 +137,13 @@ def relax_incr_dimensions(iet, **kwargs):
             except TypeError:
                 iter_max = MIN(symbolic_max, root_max)
 
-            if i.dim.parent in proc_parents_max and i.symbolic_size == i.dim.parent.step:
-                try:
-                    iter_max = min(proc_parents_max[i.dim.parent], iter_max)
-                    bool(iter_max)  # Can it be evaluated?
-                except TypeError:
-                    iter_max = MIN(proc_parents_max[i.dim.parent], iter_max)
-
-            proc_parents_max[i.dim] = iter_max
-
             mapper[i] = i._rebuild(limits=(symbolic_min, iter_max, i.step))
 
         for n, i in enumerate(outer):
-            assert i.direction is Forward
-
             if skew_dim and not i.dim.is_Time:
-                time_size = skew_dim.root.symbolic_max - skew_dim.root.symbolic_min
-                mapper[i] = i._rebuild(limits=(i.symbolic_min,
-                                               i.symbolic_max + time_size, i.step))
+                mapper[i] = i._rebuild(limits=(i.symbolic_min, i.symbolic_max +
+                                       skew_dim.root.symbolic_max -
+                                       skew_dim.root.symbolic_min, i.step))
 
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)

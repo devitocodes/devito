@@ -5,10 +5,10 @@ from matplotlib.pyplot import pause # noqa
 import matplotlib.pyplot as plt
 import numpy as np
 
-nx = 64
-ny = 64
-nz = 64
-nt = 64
+nx = 32
+ny = 32
+nz = 32
+nt = 24
 nu = .5
 dx = 2. / (nx - 1)
 dy = 2. / (ny - 1)
