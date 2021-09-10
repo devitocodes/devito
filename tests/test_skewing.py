@@ -140,10 +140,10 @@ class TestCodeGenSkewing(object):
         eqn = eval(expr)
 
         if skewing:
-            op = Operator(eqn, opt=('blocking', 'skewing', {'blocklevels': 0,
+            op = Operator(eqn, opt=('advanced', {'skewing': True, 'blocklevels': 0,
                                     'blockinner': blockinner}))
         else:
-            op = Operator(eqn, opt=('blocking', {'blocklevels': 0,
+            op = Operator(eqn, opt=('advanced', {'blocklevels': 0,
                                     'blockinner': blockinner}))
 
         op.apply(time_M=5)

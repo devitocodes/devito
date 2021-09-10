@@ -4,6 +4,7 @@ from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree)
 from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
+from devito.passes.clusters.utils import level
 from devito.symbolics import MIN, MAX
 from devito.tools import is_integer, split
 
@@ -96,14 +97,11 @@ def relax_incr_dimensions(iet, **kwargs):
         # handle bounds in hierarchical blocking and SubDimensions
         proc_parents_max = {}
 
-        # Get the dimension to skewed. 0 if not applicable
+        # Get the skew dimension. 0 if not applicable
         skew_dim = (inner[0].dim if inner[0].dim.is_Time else 0)
 
-        # The level of a given Dimension in the hierarchy of block Dimensions
-        level = lambda dim: len([j for j in dim._defines if j.is_Incr])
-
         # Process inner iterations and adjust their bounds
-        for n, i in enumerate(inner):
+        for i in inner:
             # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
             # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
             # of the current Iteration's root Dimension e.g. `x_M`. The generated
@@ -115,35 +113,27 @@ def relax_incr_dimensions(iet, **kwargs):
             # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
 
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
-            root_min = roots_min[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
-
             symbolic_max = i.symbolic_max
             symbolic_min = i.symbolic_min
 
-            if skew_dim and not i.dim.is_Time:
-                root_max = i.dim.root.symbolic_max + skew_dim
-                if level(i.dim) == 2:
-                    symbolic_max = i.dim.symbolic_max  # Dim's max only
-                    symbolic_min = MAX(root_min, i.dim.symbolic_min)
-                # In TB, multiple levels need parent's symbolic_max
-                elif level(i.dim) > 2:
-                    symbolic_max = MIN(proc_parents_max[i.dim.parent], symbolic_max)
+            if skew_dim and skew_dim is not i.dim:
+                root_max = roots_max[i.dim.root] + skew_dim
+                if level(i.dim) == 2:  # At skewing level
+                    symbolic_max = i.dim.symbolic_max
+                    root_min = roots_min[i.dim.root] + i.symbolic_min - i.dim.symbolic_min
+                    symbolic_min = evalmax(root_min, i.dim.symbolic_min)
+                elif level(i.dim) > 2:  # In TB, multiple levels need parent symbolic_max
+                    symbolic_max = evalmin(proc_parents_max[i.dim.parent], symbolic_max)
 
             proc_parents_max[i.dim] = symbolic_max
 
-            try:
-                iter_max = min(symbolic_max, root_max)
-                bool(iter_max)  # Can it be evaluated?
-            except TypeError:
-                iter_max = MIN(symbolic_max, root_max)
-
+            iter_max = evalmin(symbolic_max, root_max)
             mapper[i] = i._rebuild(limits=(symbolic_min, iter_max, i.step))
 
-        for n, i in enumerate(outer):
-            if skew_dim and not i.dim.is_Time:
+        for i in outer:
+            if skew_dim and skew_dim.parent is not i.dim:
                 mapper[i] = i._rebuild(limits=(i.symbolic_min, i.symbolic_max +
-                                       skew_dim.root.symbolic_max -
-                                       skew_dim.root.symbolic_min, i.step))
+                                       skew_dim.parent.symbolic_size, i.step))
 
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)
@@ -176,3 +166,23 @@ def is_on_device(obj, gpu_fit):
         return True
 
     return all(f in gpu_fit for f in fsave)
+
+
+def evalmin(a, b):
+    """
+    """
+    try:
+        bool(min(a, b))  # Can it be evaluated?
+        return min(a, b)
+    except TypeError:
+        return MIN(a, b)
+
+
+def evalmax(a, b):
+    """
+    """
+    try:
+        bool(max(a, b))  # Can it be evaluated?
+        return max(a, b)
+    except TypeError:
+        return MAX(a, b)

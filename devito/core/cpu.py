@@ -319,7 +319,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
-            'topofuse': lambda i: fuse(i, toposort=True),
+            'topofuse': lambda i: fuse(i, toposort=True, options=options),
             'skewing': lambda i: skewing(i, options)
         }
 
