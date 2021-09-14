@@ -3,7 +3,7 @@ from collections import Counter
 from devito.ir.clusters import Queue
 from devito.ir.support import (SEQUENTIAL, PARALLEL, SKEWABLE, TILABLE, Interval,
                                IntervalGroup, IterationSpace)
-from devito.passes.clusters.utils import level
+from devito.passes.clusters.utils import blevel
 from devito.symbolics import uxreplace, retrieve_indexed
 from devito.types import IncrDimension
 
@@ -94,7 +94,8 @@ class Blocking(Queue):
         size = bd.step
         block_dims = [bd]
 
-        levels = (self.levels if not d.is_Time else 1)
+        levels = (1 if any(SEQUENTIAL in c.properties[d] for c in clusters)
+                  else self.levels)
         for i in range(1, levels):
             bd = IncrDimension(name % i, bd, bd, bd + bd.step - 1, size=size)
             block_dims.append(bd)
@@ -194,7 +195,7 @@ def decompose(ispace, d, block_dims, mode='parallel'):
             # should result in `(tbb, tb, t, xbb, xb, x, ybb, ...)` rather than
             # `(tbb, xbb, ybb, tb, xb, yb, b, x, y)`
             for bd in block_dims:
-                if level(i.dim) >= level(bd) or mode == 'sequential':
+                if blevel(i.dim) >= blevel(bd) or mode == 'sequential':
                     relations.append([bd, i.dim])
                 else:
                     relations.append([i.dim, bd])
@@ -214,6 +215,12 @@ def decompose(ispace, d, block_dims, mode='parallel'):
     sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
     if mode == 'sequential':
         sub_iterators.update({bd: () for bd in block_dims[:-1]})
+        new_subs = []
+        for i in sub_iterators[block_dims[-1]]:
+            if i.is_Modulo:
+                new_subs.append(i.rebuild(parent=block_dims[-1]))
+
+        sub_iterators.update({block_dims[-1]: tuple(new_subs)})
 
     directions = dict(ispace.directions)
     directions.pop(d)
@@ -309,7 +316,7 @@ class Skewing(Queue):
                 return clusters
 
             # Retrieve skewing factor
-            sf = self.get_skewing_factor(c) # noqa
+            sf = self.get_skewing_factor(c)  # noqa
 
             # Here, prefix is skewable and nested under a SEQUENTIAL loop. Pop skew dim.
             skew_dim = skew_dims.pop()
@@ -318,14 +325,19 @@ class Skewing(Queue):
             skew_level = 1
 
             intervals = []
+            sub_iterators = dict(c.ispace.sub_iterators)
             for i in c.ispace:
                 if i.dim is d:
                     # Skew at skew_level + 1 if time is blocked
-                    cond1 = skew_dims and level(d) == skew_level + 1
+                    cond1 = skew_dims and blevel(d) == skew_level + 1
                     # Skew at level <=1 if time is not blocked
-                    cond2 = not skew_dims and level(d) <= skew_level
+                    cond2 = not skew_dims and blevel(d) <= skew_level
+                    cond3 = skew_dims and blevel(d) == skew_level
                     if cond1 or cond2:
                         intervals.append(Interval(d, skew_dim, skew_dim))
+                    elif cond3:
+                        intervals.append(Interval(d, 0,
+                                         sf*(skew_dim.parent.symbolic_size)))
                     else:
                         intervals.append(i)
                 else:
@@ -336,7 +348,7 @@ class Skewing(Queue):
                 relations = []
                 for i in c.ispace.relations:
                     # Interchange and drop `PARALLEL` property
-                    if i and level(i[1]) == skew_level:
+                    if i and blevel(i[1]) == skew_level:
                         relations.append((i[1], skew_dim))
                         properties.update({i[1]: c.properties[i[1]] - {PARALLEL}})
                     else:
@@ -345,7 +357,7 @@ class Skewing(Queue):
                 relations = c.ispace.relations
 
             intervals = IntervalGroup(intervals, relations)
-            ispace = IterationSpace(intervals, c.ispace.sub_iterators,
+            ispace = IterationSpace(intervals, sub_iterators,
                                     c.ispace.directions)
 
             exprs = xreplace_indices(c.exprs, {d: d - skew_dim})

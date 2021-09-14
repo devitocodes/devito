@@ -5,10 +5,10 @@ from matplotlib.pyplot import pause # noqa
 import matplotlib.pyplot as plt
 import numpy as np
 
-nx = 32
-ny = 32
-nz = 32
-nt = 24
+nx = 16
+ny = 16
+nz = 16
+nt = 18
 nu = .5
 dx = 2. / (nx - 1)
 dy = 2. / (ny - 1)
@@ -74,18 +74,18 @@ op4.apply(time_M=time_M, dt=dt)
 print(np.linalg.norm(u.data))
 
 
-fig, ax = plt.subplots()
-im = ax.imshow(u.data[:, :, -1, -1])
+# fig, ax = plt.subplots()
+# im = ax.imshow(u.data[:, :, -1, -1])
 
-ax.set_title("Wavefront coloring")
-plt.xlabel("x")
-plt.ylabel("time")
-plt.gca().invert_yaxis()
+# ax.set_title("Wavefront coloring")
+# plt.xlabel("x")
+# plt.ylabel("time")
+# plt.gca().invert_yaxis()
 
-fig.tight_layout()
+# fig.tight_layout()
 
 # fig.colorbar(im, ax=ax)
-plt.savefig('wavefront.png')
+# plt.savefig('wavefront.png')
 
 # print(u.data[0:2,0:1,:,:])
 

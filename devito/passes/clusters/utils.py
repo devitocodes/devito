@@ -4,7 +4,7 @@ from devito.symbolics import uxreplace
 from devito.tools import flatten, timed_pass
 from devito.types import Symbol
 
-__all__ = ['cluster_pass', 'makeit_ssa', 'level']
+__all__ = ['cluster_pass', 'makeit_ssa', 'blevel']
 
 
 class cluster_pass(object):
@@ -88,7 +88,7 @@ def makeit_ssa(exprs):
     return processed
 
 
-def level(dim):
+def blevel(dim):
     '''
     The level of a given Dimension in the hierarchy of block Dimensions.
     '''

@@ -316,10 +316,10 @@ def generate_block_shapes(blockable, args, level):
     # Generate level-1 block shapes
     level_1 = [d for d, v in mapper.items() if v == 1]
     if level_1:
-        try:
+        if not any(i.is_Time for i in level_0):  # Only non-Time loops
             assert len(level_1) == len(level_0)
             assert all(d1.parent is d0 for d0, d1 in zip(level_0, level_1))
-        except AssertionError:  # In wavefront, levels may not be of same len()
+        else:  # In wavefront (Time-loops exist), levels may not be of same len()
             assert len(level_1) <= len(level_0)
             assert all(i.parent in level_0 for i in level_1)
         for bs in list(ret):

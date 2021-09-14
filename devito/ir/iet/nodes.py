@@ -488,12 +488,7 @@ class Iteration(Node):
         self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
-        assert all(i.is_Derived for i in self.uindices)
-        try:
-            assert all(self.dim in i._defines for i in self.uindices)
-        except AssertionError:
-            # TOFIX time root in wavefront
-            assert all(self.dim.root in i._defines for i in self.uindices)
+        assert all(i.is_Derived and self.dim in i._defines for i in self.uindices)
 
     def __repr__(self):
         properties = ""

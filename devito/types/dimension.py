@@ -912,6 +912,18 @@ class ModuloDimension(DerivedDimension):
         self._incr = incr
         self._origin = origin
 
+    def rebuild(self, **kwargs):
+        """
+        Build a new ModuloDimension from the attributes given as keywords. All other
+        attributes are taken from ``self``.
+        """
+        return ModuloDimension(name=kwargs.get('name', self.name),
+                               parent=kwargs.get('parent', self.parent),
+                               offset=kwargs.get('offset', self.offset),
+                               modulo=kwargs.get('modulo', self.modulo),
+                               incr=kwargs.get('incr', self.incr),
+                               origin=kwargs.get('origin', self.origin))
+
     @property
     def offset(self):
         return self._offset
