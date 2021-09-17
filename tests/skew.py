@@ -5,10 +5,10 @@ from matplotlib.pyplot import pause # noqa
 import matplotlib.pyplot as plt
 import numpy as np
 
-nx = 16
-ny = 16
-nz = 16
-nt = 18
+nx = 64
+ny = 64
+nz = 64
+nt = 38
 nu = .5
 dx = 2. / (nx - 1)
 dy = 2. / (ny - 1)
@@ -21,7 +21,7 @@ init_value = 50
 
 # Field initialization
 grid = Grid(shape=(nx, ny, nz))
-u = TimeFunction(name='u', grid=grid, space_order=2)
+u = TimeFunction(name='u', grid=grid, space_order=4)
 u.data[:, :, :] = init_value
 
 # Create an equation with second-order derivatives

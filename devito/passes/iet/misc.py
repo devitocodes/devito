@@ -4,7 +4,7 @@ from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree, AFFINE, SEQUENTIAL)
 from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
-from devito.passes.clusters.utils import blevel
+from devito.passes.clusters.utils import level
 from devito.symbolics import MIN, MAX
 from devito.tools import is_integer, split
 
@@ -99,7 +99,14 @@ def relax_incr_dimensions(iet, **kwargs):
         proc_parents_max = {}
 
         # Get the skew dimension. 0 if not applicable
+        seq_dims = [i for i in tree if i.properties == (AFFINE, SEQUENTIAL)]
         skew_dim = (inner[0].dim if inner[0].properties == (AFFINE, SEQUENTIAL) else 0)
+
+        if len(seq_dims) and not skew_dim:
+            sf = (seq_dims[0].symbolic_max/seq_dims[0].dim.symbolic_max)
+            sp = seq_dims[0]
+            new = sp._rebuild(limits=(sp.symbolic_min, sp.symbolic_max, sf*sp.step))
+            mapper[sp] = new
 
         # Process inner iterations and adjust their bounds
         for i in inner:
@@ -112,24 +119,25 @@ def relax_incr_dimensions(iet, **kwargs):
             # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
             # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
-
+            sf = 1
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
             symbolic_max = i.symbolic_max
             symbolic_min = i.symbolic_min
 
             if skew_dim and skew_dim is not i.dim:
                 root_max = roots_dim_max[i.dim.root] + skew_dim
-                if blevel(i.dim) == 2:  # At skewing level
+                if level(i.dim) == 2:  # At skewing level
                     root_min = roots_min[i.dim.root] + skew_dim
                     symbolic_min = evalmax(root_min, i.dim.symbolic_min)
                     symbolic_max = i.dim.symbolic_max
-                elif blevel(i.dim) > 2:  # In TB, multiple levels need parent symbolic_max
+                elif level(i.dim) > 2:  # In TB, multiple levels need parent symbolic_max
                     symbolic_max = evalmin(proc_parents_max[i.dim.parent], symbolic_max)
-
                 proc_parents_max[i.dim] = symbolic_max
+            elif skew_dim and skew_dim is i.dim:
+                sf = (seq_dims[0].symbolic_max/seq_dims[0].dim.symbolic_max)
 
             iter_max = evalmin(symbolic_max, root_max)
-            mapper[i] = i._rebuild(limits=(symbolic_min, iter_max, i.step))
+            mapper[i] = i._rebuild(limits=(symbolic_min, iter_max, sf*i.step))
 
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)
