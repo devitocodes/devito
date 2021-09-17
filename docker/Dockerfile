@@ -35,6 +35,25 @@ RUN chmod +x \
     /tests \
     /docker-entrypoint.sh
 
+## Create App user
+# Set the home directory to our app user's home.
+ENV HOME=/app
+ENV APP_HOME=/app
+
+# Create the home directory for the new app user.
+# Create an app user so our program doesn't run as root.
+# Chown all the files to the app user.
+RUN mkdir -p /app && \
+    groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app $APP_HOME && \
+    chown app:app /docker-entrypoint.sh && \
+    chown app:app /print-defaults && \
+    chown app:app /tests && \
+    chown app:app /jupyter
+
+# Change to the app user.
+USER app
 WORKDIR /app
 
 ENV DEVITO_ARCH="gcc"
