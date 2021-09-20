@@ -1,41 +1,31 @@
 version: '2'
 
 services:
-
   devito:
-
     build:
       context: .
       dockerfile: docker/Dockerfile
-
     environment:
       DEVITO_ARCH: gcc
       DEVITO_LANGUAGE: openmp
-
-    #volumes:
-      #- ./devito:/app/devito
-      #- ./tests:/app/tests
-      #- ./examples:/app/examples
-
+    volumes:
+      - ./devito:/app/devito
+      - ./tests:/app/tests
+      - ./examples:/app/examples
     ports:
       - 8888:8888
 
   devito.nvidia:
-
     build:
       context: .
       dockerfile: docker/Dockerfile.nvidia
-
     environment:
       DEVITO_ARCH: nvcc
       DEVITO_LANGUAGE: openacc
-
-    #volumes:
-      #- ./devito:/app/devito
-      #- ./tests:/app/tests
-      #- ./examples:/app/examples
-
+    volumes:
+      - ./devito:/app/devito
+      - ./tests:/app/tests
+      - ./examples:/app/examples
     ports:
       - 8888:8888
-
     runtime: nvidia
