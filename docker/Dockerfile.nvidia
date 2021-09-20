@@ -19,6 +19,10 @@
 # RUN: 
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
+#
+# to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
+#   docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito.nvidia python examples/seismic/acoustic/acoustic_example.py
+#
 ##############################################################
 FROM python:3.6
 
