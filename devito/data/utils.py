@@ -91,7 +91,6 @@ def index_dist_to_repl(idx, decomposition):
 def convert_index(idx, decomposition, mode='glb_to_loc'):
     """Convert a global index into a local index or vise versa according to mode."""
     if is_integer(idx) or isinstance(idx, slice):
-        # FIXME: Bug in here: wrong slices are being returned when start and end are zero
         return decomposition(idx, mode=mode)
     elif isinstance(idx, (tuple, list)):
         return [decomposition(i, mode=mode) for i in idx]
