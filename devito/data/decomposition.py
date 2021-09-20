@@ -239,7 +239,13 @@ class Decomposition(tuple):
                 elif isinstance(glb_idx, slice):
                     if self.loc_empty:
                         return slice(-1, -3)
-                    if glb_idx.step >= 0:
+                    if glb_idx.step >= 0 and glb_idx.stop == 0:
+                        glb_idx_min = self.glb_min if glb_idx.start is None \
+                            else glb_idx.start
+                        glb_idx_max = self.glb_max if glb_idx.stop is None \
+                            else glb_idx.stop
+                        retfunc = lambda a, b: slice(a, b, glb_idx.step)
+                    elif glb_idx.step >= 0:
                         glb_idx_min = self.glb_min if glb_idx.start is None \
                             else glb_idx.start
                         glb_idx_max = self.glb_max if glb_idx.stop is None \
