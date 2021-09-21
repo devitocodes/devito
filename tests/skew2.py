@@ -2,10 +2,10 @@ from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, solve 
 from matplotlib.pyplot import pause # noqa
 import numpy as np
 
-nx = 40
-ny = 40
-nz = 40
-nt = 16
+nx = 400
+ny = 400
+nz = 400
+nt = 160
 nu = .5
 dx = 2. / (nx - 1)
 dy = 2. / (ny - 1)

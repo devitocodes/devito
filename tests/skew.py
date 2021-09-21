@@ -2,7 +2,6 @@ from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, solve 
 from devito.ir import Iteration, FindNodes
 
 from matplotlib.pyplot import pause # noqa
-import matplotlib.pyplot as plt
 import numpy as np
 
 nx = 64
@@ -21,11 +20,11 @@ init_value = 50
 
 # Field initialization
 grid = Grid(shape=(nx, ny, nz))
-u = TimeFunction(name='u', grid=grid, space_order=4)
+u = TimeFunction(name='u', grid=grid, space_order=8, time_order=2)
 u.data[:, :, :] = init_value
 
 # Create an equation with second-order derivatives
-eq = Eq(u.dt, u.dx2 + u.dy2 + u.dz2)
+eq = Eq(u.dt2, u.dx2 + u.dy2 + u.dz2)
 x, y, z = grid.dimensions
 stencil = solve(eq, u.forward)
 eq0 = Eq(u.forward, stencil)

@@ -355,6 +355,16 @@ def test_wavefront_blocking():
 
     # 'aggressive' mode
     op.apply(time_M=20, autotune='aggressive')
+    assert op._state['autotuning'][0]['runs'] == 4
     assert op._state['autotuning'][1]['runs'] == 21
-    assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
+    assert op._state['autotuning'][0]['tpr'] == 30
+    assert op._state['autotuning'][1]['tpr'] == 20
+    assert len(op._state['autotuning'][1]['tuned']) == 5
+
+    # 'basic' mode, more timesteps
+    op.apply(time_M=64, autotune='aggressive')
+    assert op._state['autotuning'][0]['runs'] == 4
+    assert op._state['autotuning'][1]['runs'] == 21
+    assert op._state['autotuning'][0]['tpr'] == 30
+    assert op._state['autotuning'][1]['tpr'] == 20
     assert len(op._state['autotuning'][1]['tuned']) == 5

@@ -3,7 +3,7 @@ import numpy as np
 
 from conftest import assert_blocking
 from devito.symbolics import MIN
-from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, solve, norm # noqa
+from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, solve, norm, switchconfig # noqa
 from devito.ir import Expression, Iteration, FindNodes
 
 
@@ -296,13 +296,15 @@ class TestSkewingCorrectness(object):
         op2.apply(time_M=time_M, dt=dt)
         assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
 
-    @pytest.mark.parametrize('so', [(2), (4),
-                             (8), (16)])
-    def test_correctness_III(self, so):
-        nx = 36
-        ny = 36
-        nz = 36
-        nt = 67
+    @pytest.mark.parametrize('so', [2, 4, 8, 16])
+    @pytest.mark.parametrize('shape, nt',
+                             [((35, 39, 46), 54), ((62, 16, 45), 63),
+                              ((38, 38, 38), 66), ((68, 20, 34), 61),
+                              ((39, 37, 34), 44), ((27, 25, 42), 37),
+                              ((33, 48, 42), 31), ((43, 35, 52), 31)])
+    def test_correctness_III(self, so, shape, nt):
+        nx, ny, nz = shape
+        nt = nt
         nu = .5
         dx = 2. / (nx - 1)
         dy = 2. / (ny - 1)
@@ -310,8 +312,8 @@ class TestSkewingCorrectness(object):
         sigma = .25
         dt = sigma * dx * dz * dy / nu
 
-        # Initialise u with hat function
-        init_value = 50
+        # Initialise u
+        init_value = 1
 
         # Field initialization
         grid = Grid(shape=(nx, ny, nz))
@@ -323,12 +325,11 @@ class TestSkewingCorrectness(object):
         x, y, z = grid.dimensions
         stencil = solve(eq, u.forward)
         eq0 = Eq(u.forward, stencil)
-        time_M = nt
 
         op = Operator(eq0, opt=('advanced', {'openmp': True,
                                 'wavefront': False, 'blocklevels': 2}))
 
-        op.apply(time_M=time_M, dt=dt)
+        op.apply(time_M=nt, dt=dt)
         norm_u = norm(u)
 
         u.data[:] = init_value
@@ -336,5 +337,88 @@ class TestSkewingCorrectness(object):
         op2 = Operator(eq0, opt=('advanced', {'openmp': True,
                                               'wavefront': True, 'blocklevels': 2}))
 
-        op2.apply(time_M=time_M, dt=dt)
-        assert np.isclose(norm(u), norm_u, atol=1e-4, rtol=0)
+        op2.apply(time_M=nt, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+
+    @pytest.mark.parametrize('so, to, shape, nt',
+                             [(2, 2, (35, 39, 21), 54), (2, 2, (62, 16, 45), 63),
+                              (4, 2, (38, 38, 38), 66), (4, 2, (98, 18, 34), 61),
+                              (8, 2, (27, 25, 42), 16), (8, 2, (17, 25, 42), 17),
+                              (16, 2, (33, 38, 34), 21), (16, 2, (43, 35, 52), 19)])
+    def test_correctness_IV(self, so, to, shape, nt):
+        nx, ny, nz = shape
+        nt = nt
+        nu = .5
+        dx = 2. / (nx - 1)
+        dy = 2. / (ny - 1)
+        dz = 2. / (nz - 1)
+        sigma = .25
+        dt = sigma * dx * dz * dy / nu
+
+        # Initialise u
+        init_value = 10
+
+        # Field initialization
+        grid = Grid(shape=(nx, ny, nz))
+        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to)
+        u.data[:, :, :] = init_value
+
+        # Create an equation with second-order derivatives
+        eq = Eq(u.dt2, u.dx2 + u.dy2 + u.dz2)
+        x, y, z = grid.dimensions
+        stencil = solve(eq, u.forward)
+        eq0 = Eq(u.forward, stencil)
+
+        op = Operator(eq0, opt=('advanced', {'openmp': True,
+                                'wavefront': False, 'blocklevels': 2}))
+
+        op.apply(time_M=nt, dt=dt)
+        norm_u = norm(u)
+
+        u.data[:] = init_value
+
+        op2 = Operator(eq0, opt=('advanced', {'openmp': True,
+                                              'wavefront': True, 'blocklevels': 2}))
+
+        op2.apply(time_M=nt, dt=dt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+
+    @pytest.mark.parametrize('nt', [2, 24, 8, 17, 16, 19, 41])
+    @pytest.mark.parametrize('shape',
+                             [((35, 39, 46)), ((62, 16, 45)),
+                              ((38, 38, 38)), ((68, 20, 34)),
+                              ((39, 37, 34)), ((17, 25, 42)),
+                              ((33, 28, 24)), ((43, 35, 22))])
+    def test_correctness_V(self, shape, nt):
+        nx, ny, nz = shape
+        nt = nt
+
+        # Initialise u
+        init_value = 0
+
+        # Field initialization
+        grid = Grid(shape=(nx, ny, nz))
+        u = TimeFunction(name='u', grid=grid)
+        u.data[:, :, :] = init_value
+
+        # Create an equation with second-order derivatives
+        x, y, z = grid.dimensions
+        eq0 = Eq(u.forward, u + 1)
+
+        op = Operator(eq0, opt=('advanced', {'openmp': True,
+                                'wavefront': False, 'blocklevels': 2}))
+
+        op.apply(time_M=nt)
+        val0 = u.data[0, 1, 1, 1]
+        val1 = u.data[1, 1, 1, 1]
+        norm_u = norm(u)
+
+        u.data[:] = init_value
+
+        op2 = Operator(eq0, opt=('advanced', {'openmp': True,
+                                              'wavefront': True, 'blocklevels': 2}))
+
+        op2.apply(time_M=nt)
+        assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+        assert np.all(u.data[0, :, :, :] == val0)
+        assert np.all(u.data[1, :, :, :] == val1)
