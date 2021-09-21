@@ -286,8 +286,10 @@ class Stepper(Queue):
                 exprs = [e.apply(func) for e in exprs]
 
             # Augment IterationSpace
-            ispace = IterationSpace(c.ispace.intervals,
-                                    {**c.ispace.sub_iterators, **{d: tuple(mds)}},
+            sub_iterators = dict(c.ispace.sub_iterators)
+            sub_iterators[d] = tuple(i for i in sub_iterators[d] + tuple(mds)
+                                     if i not in subiters)
+            ispace = IterationSpace(c.ispace.intervals, sub_iterators,
                                     c.ispace.directions)
 
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
