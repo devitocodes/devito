@@ -215,12 +215,12 @@ def decompose(ispace, d, block_dims, mode='parallel'):
     if mode == 'sequential' and len(block_dims) == 2:
         [b0, b1] = block_dims
         sub_iterators.update({b0: ()})
-        new_subs = []
+        sub_iters = []
         for i in sub_iterators[b1]:
-            new_subs.append(i.func(parent=b1, offset=(b1 + i.offset - d))
-                            if i.is_Modulo else i)
+            sub_iters.append(i.func(parent=b1, offset=(b1 + i.offset - d))
+                             if i.is_Modulo else i)
 
-        sub_iterators.update({block_dims[1]: tuple(new_subs)})
+        sub_iterators.update({block_dims[1]: tuple(sub_iters)})
 
     directions = dict(ispace.directions)
     directions.pop(d)
@@ -443,18 +443,19 @@ class Skewing(Queue):
         intervals = []
         for i in c.ispace:
             if i.dim is d and i.dim is skew_dim:
-                new_subs = []
+                sub_iters = []
                 # Rebuild ModuloDimensions to update their parent with skew_dim
-                for s in c.ispace.sub_iterators[d]:
-                    new_subs.append(s.func(offset=(i.dim/INT(sf)) + s.offset -
-                                    skew_dim) if s.is_Modulo and sf > 1 else s)
+                for j in c.ispace.sub_iterators[d]:
+                    sub_iters.append(j.func(offset=i.dim/INT(sf) + j.offset -
+                                     skew_dim) if j.is_Modulo and sf > 1 else j)
+                sub_iterators.update({d: tuple(sub_iters)})
 
-                sub_iterators.update({d: tuple(new_subs)})
-                if not seq_dims:
+                if not seq_dims:  # Only one time loop
                     intervals.append(Interval(d, 0,
                                      (sf-1)*(skew_dim.root.symbolic_max)))
                 else:
                     intervals.append(i)
+
             elif i.dim is d and i.dim is skew_dim.parent:
                 intervals.append(Interval(d, 0,
                                  (sf-1)*(skew_dim.root.symbolic_max)))
@@ -466,9 +467,9 @@ class Skewing(Queue):
 
 def get_skewing_factor(cluster):
     '''
-    Returns the skewing factor needed to skew a cluster of functions
-    Skewing factor is equal to half the maximum of the functions' space orders
-    and helps to preserve valid data dependencies while skewing
+    Returns the skewing factor needed to skew a cluster of expressions. Skewing factor is
+    equal to half the maximum of the functions' space orders and helps to preserve valid
+    data dependencies while skewing
 
     Parameters
     ----------

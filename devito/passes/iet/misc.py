@@ -1,7 +1,7 @@
 import cgen
 
 from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
-                       filter_iterations, retrieve_iteration_tree, AFFINE, SEQUENTIAL)
+                       filter_iterations, retrieve_iteration_tree)
 from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
 from devito.passes.clusters.utils import level
@@ -89,6 +89,10 @@ def relax_incr_dimensions(iet, **kwargs):
         assert all(i.direction is Forward for i in iterations)
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Incr)
 
+        # Get the skew dimension. 0 if not applicable
+        seq_dims = [i for i in tree if i.is_AffineSequential]
+        skew_inner = (inner[0].dim if inner[0].is_AffineSequential else 0)
+
         # Get root's `symbolic_max` and `dim.symbolic_max` out of each outer Dimension
         roots_dim_max = {i.dim.root: i.dim.symbolic_max for i in outer}
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
@@ -96,17 +100,18 @@ def relax_incr_dimensions(iet, **kwargs):
 
         # A dictionary to map maximum of processed parent dimensions. Helps to neatly
         # handle bounds in hierarchical blocking and SubDimensions
-        proc_parents_max = {}
+        parents_max = {}
 
-        # Get the skew dimension. 0 if not applicable
-        seq_dims = [i for i in tree if i.properties == (AFFINE, SEQUENTIAL)]
-        skew_dim = (inner[0].dim if inner[0].properties == (AFFINE, SEQUENTIAL) else 0)
-
-        if len(seq_dims) and not skew_dim:
+        if len(seq_dims):
             sf = (seq_dims[0].symbolic_max/seq_dims[0].dim.symbolic_max)
-            sp = seq_dims[0]
-            new = sp._rebuild(limits=(sp.symbolic_min, sp.symbolic_max, sf*sp.step))
-            mapper[sp] = new
+            if not skew_inner:
+                i = seq_dims[0]
+                mapper[i] = i._rebuild(limits=(i.symbolic_min, i.symbolic_max, sf*i.step))
+            else:
+                i = seq_dims[1]
+                mapper[i] = i._rebuild(limits=(i.symbolic_min, evalmin(i.symbolic_max,
+                                               roots_max[i.dim.root]), sf*i.step))
+                inner.remove(i)
 
         # Process inner iterations and adjust their bounds
         for i in inner:
@@ -119,25 +124,24 @@ def relax_incr_dimensions(iet, **kwargs):
             # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
             # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
-            sf = 1
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
             symbolic_max = i.symbolic_max
             symbolic_min = i.symbolic_min
 
-            if skew_dim and skew_dim is not i.dim:
-                root_max = roots_dim_max[i.dim.root] + skew_dim
+            # In case of wavefront temporal blocking
+            if skew_inner:
+                root_max = roots_dim_max[i.dim.root] + skew_inner
                 if level(i.dim) == 2:  # At skewing level
-                    root_min = roots_min[i.dim.root] + skew_dim
+                    root_min = roots_min[i.dim.root] + skew_inner
                     symbolic_min = evalmax(root_min, i.dim.symbolic_min)
                     symbolic_max = i.dim.symbolic_max
-                elif level(i.dim) > 2:  # In TB, multiple levels need parent symbolic_max
-                    symbolic_max = evalmin(proc_parents_max[i.dim.parent], symbolic_max)
-                proc_parents_max[i.dim] = symbolic_max
-            elif skew_dim and skew_dim is i.dim:
-                sf = (seq_dims[0].symbolic_max/seq_dims[0].dim.symbolic_max)
+                # In WTB, multiple levels need parent symbolic_max
+                elif level(i.dim) > 2:
+                    symbolic_max = evalmin(parents_max[i.dim.parent], symbolic_max)
+                parents_max[i.dim] = symbolic_max
 
             iter_max = evalmin(symbolic_max, root_max)
-            mapper[i] = i._rebuild(limits=(symbolic_min, iter_max, sf*i.step))
+            mapper[i] = i._rebuild(limits=(symbolic_min, iter_max, i.step))
 
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)
