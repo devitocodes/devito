@@ -89,29 +89,25 @@ def relax_incr_dimensions(iet, **kwargs):
         assert all(i.direction is Forward for i in iterations)
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Incr)
 
-        # Get the skew dimension. 0 if not applicable
-        seq_dims = [i for i in tree if i.is_AffineSequential]
-        skew_inner = (inner[0].dim if inner[0].is_AffineSequential else 0)
-
         # Get root's `symbolic_max` and `dim.symbolic_max` out of each outer Dimension
         roots_dim_max = {i.dim.root: i.dim.symbolic_max for i in outer}
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
         roots_min = {i.dim.root: i.symbolic_min for i in outer}
 
+        outer, _ = split(outer, lambda i: not i.is_AffineSequential)
+        skew_inner = (inner[0].dim if inner[0].is_AffineSequential else 0)
+        inner, _ = split(inner, lambda i: not i.is_AffineSequential)
+
+        # Get the sequential dimensions and the skewing dim, 0 if not applicable
+        seq_dims = [i for i in tree if i.is_AffineSequential and i.dim.is_Incr]
+
         # A dictionary to map maximum of processed parent dimensions. Helps to neatly
         # handle bounds in hierarchical blocking and SubDimensions
         parents_max = {}
 
-        if len(seq_dims):
-            sf = (seq_dims[0].symbolic_max/seq_dims[0].dim.symbolic_max)
-            if not skew_inner:
-                i = seq_dims[0]
-                mapper[i] = i._rebuild(limits=(i.symbolic_min, i.symbolic_max, sf*i.step))
-            else:
-                i = seq_dims[1]
-                mapper[i] = i._rebuild(limits=(i.symbolic_min, evalmin(i.symbolic_max,
-                                               roots_max[i.dim.root]), sf*i.step))
-                inner.remove(i)
+        # Take care of skewing factor in outer and seq_dims
+        if skew_inner:
+            mapper = relax_skewfactor(seq_dims, roots_dim_max, mapper, outer)
 
         # Process inner iterations and adjust their bounds
         for i in inner:
@@ -196,3 +192,27 @@ def evalmax(a, b):
         return max(a, b)
     except TypeError:
         return MAX(a, b)
+
+
+def relax_skewfactor(seq_dims, roots_dim_max, mapper, outer):
+    """
+    Simplify max(a, b) if possible
+    """
+    # Sniff skewing factor
+    skewing_offset = seq_dims[0].symbolic_max - seq_dims[0].dim.symbolic_max
+    sf = (skewing_offset if skewing_offset else 1)
+
+    i = seq_dims[0]
+    mapper[i] = i._rebuild(limits=(i.dim.symbolic_min,
+                           sf*roots_dim_max[i.dim.root], i.step))
+
+    i = seq_dims[1]
+    mapper[i] = i._rebuild(limits=(i.dim.symbolic_min, evalmin(i.symbolic_max,
+                                   sf*roots_dim_max[i.dim.root]), sf*i.step))
+
+    # Tile size should be extended by time size
+    for i in outer:
+        iter_max = i.symbolic_max + sf*seq_dims[0].symbolic_size
+        mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
+
+    return mapper

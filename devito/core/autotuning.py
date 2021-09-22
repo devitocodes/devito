@@ -80,7 +80,8 @@ def autotune(operator, args, level, mode):
         if timesteps is None:
             return args, {}
     elif len(steppers) == 2:  # When time is blocked
-        options['squeezer'] = at_args['time_M'] - 1
+        t_squeezer = (63 if at_args['time_M'] > 64 else at_args['time_M'] - 1)
+        options['squeezer'] = t_squeezer
         stepper = steppers.pop()
         timesteps = init_time_bounds(stepper, at_args, args)
         if timesteps is None:
