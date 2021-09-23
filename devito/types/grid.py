@@ -462,6 +462,10 @@ class SubDomain(object):
         return self._dimensions
 
     @property
+    def ndim(self):
+        return len(self.dimensions)
+
+    @property
     def dimension_map(self):
         return {d.root: d for d in self.dimensions}
 
