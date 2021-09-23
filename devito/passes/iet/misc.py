@@ -107,7 +107,7 @@ def relax_incr_dimensions(iet, **kwargs):
 
         # Take care of skewing factor in outer and seq_dims
         if skew_inner:
-            mapper = relax_skewfactor(seq_dims, roots_dim_max, mapper, outer)
+            mapper.update(relax_skewfactor(seq_dims, roots_dim_max, outer, skew_inner))
 
         # Process inner iterations and adjust their bounds
         for i in inner:
@@ -194,21 +194,23 @@ def evalmax(a, b):
         return MAX(a, b)
 
 
-def relax_skewfactor(seq_dims, roots_dim_max, mapper, outer):
+def relax_skewfactor(seq_dims, roots_dim_max, outer, skew_inner):
     """
     Simplify max(a, b) if possible
     """
+    mapper = {}
     # Sniff skewing factor
     skewing_offset = seq_dims[0].symbolic_max - seq_dims[0].dim.symbolic_max
     sf = (skewing_offset if skewing_offset else 1)
 
-    i = seq_dims[0]
-    mapper[i] = i._rebuild(limits=(i.dim.symbolic_min,
-                           sf*roots_dim_max[i.dim.root], i.step))
-
-    i = seq_dims[1]
-    mapper[i] = i._rebuild(limits=(i.dim.symbolic_min, evalmin(i.symbolic_max,
-                                   sf*roots_dim_max[i.dim.root]), sf*i.step))
+    for i in seq_dims:
+        symbolic_min = i.dim.symbolic_min
+        root = sf*roots_dim_max[i.dim.root]
+        if i.dim is skew_inner:
+            mapper[i] = i._rebuild(limits=(symbolic_min, evalmin(i.symbolic_max,
+                                   root), sf*i.step))
+        else:
+            mapper[i] = i._rebuild(limits=(symbolic_min, root, i.step))
 
     # Tile size should be extended by time size
     for i in outer:
