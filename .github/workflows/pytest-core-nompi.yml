@@ -27,7 +27,6 @@ jobs:
 
       matrix:
         name: [
-           pytest-ubuntu-py36-gcc49-omp,
            pytest-ubuntu-py37-gcc5-omp,
            pytest-ubuntu-py38-gcc6-omp,
            pytest-ubuntu-py36-gcc7-omp-sympy17,
@@ -39,12 +38,6 @@ jobs:
         ]
         set: [base, adjoint]
         include:
-        - name: pytest-ubuntu-py36-gcc49-omp
-          python-version: 3.6
-          os: ubuntu-16.04
-          arch: "gcc-4.9"
-          language: "openmp"
-
         - name: pytest-ubuntu-py37-gcc5-omp
           python-version: 3.7
           os: ubuntu-18.04
@@ -77,7 +70,7 @@ jobs:
 
         - name: pytest-ubuntu-py38-gcc9-omp
           python-version: 3.8
-          os: ubuntu-18.04
+          os: ubuntu-20.04
           arch: "gcc-9"
           language: "openmp"
 
