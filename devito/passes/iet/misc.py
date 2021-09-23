@@ -107,7 +107,7 @@ def relax_incr_dimensions(iet, **kwargs):
 
         # Take care of skewing factor in outer and seq_dims
         if skew_inner:
-            mapper.update(relax_skewfactor(seq_dims, roots_dim_max, outer, skew_inner))
+            mapper.update(relax_seq_n_outer(seq_dims, roots_dim_max, outer, skew_inner))
 
         # Process inner iterations and adjust their bounds
         for i in inner:
@@ -124,16 +124,10 @@ def relax_incr_dimensions(iet, **kwargs):
             symbolic_max = i.symbolic_max
             symbolic_min = i.symbolic_min
 
-            # In case of wavefront temporal blocking
+            # In case of wavefront temporal blocking adjust respectively
             if skew_inner:
                 root_max = roots_dim_max[i.dim.root] + skew_inner
-                if level(i.dim) == 2:  # At skewing level
-                    root_min = roots_min[i.dim.root] + skew_inner
-                    symbolic_min = evalmax(root_min, i.dim.symbolic_min)
-                    symbolic_max = i.dim.symbolic_max
-                # In WTB, multiple levels need parent symbolic_max
-                elif level(i.dim) > 2:
-                    symbolic_max = evalmin(parents_max[i.dim.parent], symbolic_max)
+                symbolic_min, symbolic_max = relax_skewed(i, roots_min, skew_inner, parents_max)
                 parents_max[i.dim] = symbolic_max
 
             iter_max = evalmin(symbolic_max, root_max)
@@ -194,9 +188,11 @@ def evalmax(a, b):
         return MAX(a, b)
 
 
-def relax_skewfactor(seq_dims, roots_dim_max, outer, skew_inner):
+def relax_seq_n_outer(seq_dims, roots_dim_max, outer, skew_inner):
     """
-    Simplify max(a, b) if possible
+    Adjust sequential (usually time) and outer loops by skewing factor
+
+    TO ADD EXAMPLE
     """
     mapper = {}
     # Sniff skewing factor
@@ -218,3 +214,22 @@ def relax_skewfactor(seq_dims, roots_dim_max, outer, skew_inner):
         mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
 
     return mapper
+
+
+def relax_skewed(i, roots_min, skew_inner, parents_max):
+    """
+    Return the `symbolic_min` and `symbolic_max` of inner iterations in WTB
+
+    TO ADD EXAMPLE
+    """
+
+    if level(i.dim) == 2:  # At skewing level
+        root_min = roots_min[i.dim.root] + skew_inner
+        symbolic_min = evalmax(root_min, i.dim.symbolic_min)
+        symbolic_max = i.dim.symbolic_max
+    # In WTB, multiple levels need parent symbolic_max
+    elif level(i.dim) > 2:
+        symbolic_min = i.symbolic_min
+        symbolic_max = evalmin(parents_max[i.dim.parent], i.symbolic_max)
+
+    return symbolic_min, symbolic_max

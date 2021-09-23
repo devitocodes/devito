@@ -43,6 +43,7 @@ def blocking(clusters, options):
     """
     processed = preprocess(clusters, options)
 
+    # Wavefront TB requires at least 2 "blocklevels".
     if options['wavefront'] and options['blocklevels'] < 2:
         options['blocklevels'] = 2
 
@@ -93,6 +94,7 @@ class Blocking(Queue):
         size = bd.step
         block_dims = [bd]
 
+        # When blocking SEQUENTIAL dims, only use one level.
         levels = (1 if any(SEQUENTIAL in c.properties[d] for c in clusters)
                   else self.levels)
         for i in range(1, levels):
@@ -191,8 +193,8 @@ def decompose(ispace, d, block_dims, mode='parallel'):
             # Make sure IncrDimensions on the same level stick next to each other.
             # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
             # `(t, xbb, xb, x, ybb, ...)`. In sequential blocking, IncrDimensions
-            # should result in `(tbb, tb, t, xbb, xb, x, ybb, ...)` rather than
-            # `(tbb, xbb, ybb, tb, xb, yb, b, x, y)`
+            # stick together and should result in `(tbb, tb, t, xbb, ybb, xb, yb, ...)`
+            # rather than `(tbb, xbb, ybb, tb, xb, yb, b, x, y)`
             for bd in block_dims:
                 if level(i.dim) >= level(bd) or mode == 'sequential':
                     relations.append([bd, i.dim])
@@ -212,7 +214,9 @@ def decompose(ispace, d, block_dims, mode='parallel'):
     sub_iterators = dict(ispace.sub_iterators)
     sub_iterators.pop(d, None)
     sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
-    if mode == 'sequential' and len(block_dims) == 2:
+
+    # When blocking sequentially, update modulo subiterators with new parents
+    if mode == 'sequential':
         [b0, b1] = block_dims
         sub_iterators.update({b0: ()})
         sub_iters = []
@@ -231,7 +235,8 @@ def decompose(ispace, d, block_dims, mode='parallel'):
 
 def skewing(clusters, options):
     """
-    This pass helps to skew accesses and loop bounds as well as perform loop interchange.
+    This pass helps to skew accesses and loop bounds as well as perform loop interchange
+    towards wavefront temporal blocking
 
     Parameters
     ----------
@@ -305,6 +310,7 @@ class Skewing(Queue):
 
         processed = []
         for c in clusters:
+            # Return if nothing to do
             if (SKEWABLE not in c.properties[d] and
                not c.properties[d] == {SEQUENTIAL, AFFINE}):
                 return clusters
@@ -312,7 +318,8 @@ class Skewing(Queue):
             if d is c.ispace[-1].dim and not self.skewinner:
                 return clusters
 
-            seq_dims = [i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]]
+            seq_dims = [i.dim for i in c.ispace
+                        if c.properties[i.dim] == {SEQUENTIAL, AFFINE}]
             if not len(seq_dims) in (1, 2):
                 warning("Loop structure not compatible with wavefront temporal blocking"
                         ", skipping")
@@ -345,17 +352,15 @@ class Skewing(Queue):
                     relations = c.ispace.relations
                     properties = c.properties
 
-                # Skew expressions
-                exprs = xreplace_indices(c.exprs, {d: d - skew_dim})
                 sub_iterators = dict(c.ispace.sub_iterators)
+                exprs = xreplace_indices(c.exprs, {d: d - skew_dim})  # Skew expressions
 
             # Rebuild clusters with new intervals and ispace
             intervals = IntervalGroup(intervals, relations)
-            ispace = IterationSpace(intervals, sub_iterators,
-                                    c.ispace.directions)
+            ispace = IterationSpace(intervals, sub_iterators, c.ispace.directions)
 
             processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                       properties=properties))
+                             properties=properties))
 
         return processed
 
@@ -376,7 +381,6 @@ class Skewing(Queue):
         skewlevel: int, 1
             Defines the block level in the hierarchy of IncrDimensions to skew
         '''
-        # Get cluster's skewing factor
         intervals = []
         for i in c.ispace:
             if i.dim is d:
@@ -436,7 +440,7 @@ class Skewing(Queue):
             Defines the block level in the hierarchy of IncrDimensions to interchange
         '''
         sf = get_skewing_factor(c)
-        if sf == 1:
+        if sf == 1:  # No changes needed if skewng factor is 1
             return c.ispace.sub_iterators, c.ispace
 
         sub_iterators = dict(c.ispace.sub_iterators)

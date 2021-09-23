@@ -183,12 +183,11 @@ class TestCodeGenSkewing(object):
         assert str(skewed[0]).replace(' ', '') == expected
 
 
-class TestSkewingCorrectness(object):
-
+class TestWavefrontCorrectness(object):
     '''
     Test numerical corectness of operators with wavefronts/skewing
     '''
-    def test_correctness(self):
+    def test_wave_correctness(self):
 
         nx = 32
         ny = 32
@@ -251,7 +250,7 @@ class TestSkewingCorrectness(object):
 
         assert len(time_iter) == 2
 
-    def test_correctness_II(self):
+    def test_wave_correctness_II(self):
         nx = 32
         ny = 32
         nz = 32
@@ -302,7 +301,7 @@ class TestSkewingCorrectness(object):
                               ((38, 38, 38), 66), ((68, 20, 34), 61),
                               ((39, 37, 34), 44), ((27, 25, 42), 37),
                               ((33, 48, 42), 31), ((43, 35, 52), 31)])
-    def test_correctness_III(self, so, shape, nt):
+    def test_wave_correctness_III(self, so, shape, nt):
         nx, ny, nz = shape
         nt = nt
         nu = .5
@@ -345,7 +344,7 @@ class TestSkewingCorrectness(object):
                               (4, 2, (38, 38, 38), 66), (4, 2, (98, 18, 34), 61),
                               (8, 2, (27, 25, 42), 16), (8, 2, (17, 25, 42), 17),
                               (16, 2, (33, 38, 34), 21), (16, 2, (43, 35, 52), 19)])
-    def test_correctness_IV(self, so, to, shape, nt):
+    def test_wave_correctness_IV(self, so, to, shape, nt):
         nx, ny, nz = shape
         nt = nt
         nu = .5
@@ -389,7 +388,7 @@ class TestSkewingCorrectness(object):
                               ((38, 38, 38)), ((68, 20, 34)),
                               ((39, 37, 34)), ((17, 25, 42)),
                               ((33, 28, 24)), ((43, 35, 22))])
-    def test_correctness_V(self, shape, nt):
+    def test_wave_correctness_V(self, shape, nt):
         nx, ny, nz = shape
         nt = nt
 
