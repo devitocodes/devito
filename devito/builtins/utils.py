@@ -50,18 +50,27 @@ def nbl_to_padsize(nbl, ndim):
     nb_total = as_tuple(nbl)
     if len(nb_total) == 1 and len(nb_total) < ndim:
         nb_pad = ndim*((nb_total[0], nb_total[0]),)
+        slices = ndim*(slice(nb_total[0], None, 1),) \
+            if nb_total[0] == 0 else ndim*(slice(nb_total[0], -nb_total[0], 1),)
     elif len(nb_total) == ndim:
         nb_pad = []
+        slices = []
         for nb_dim in nb_total:
             if len(as_tuple(nb_dim)) == 1:
                 nb_pad.append((nb_dim, nb_dim))
+                s = slice(nb_dim, None, 1) if nb_dim == 0 \
+                    else slice(nb_dim, -nb_dim, 1)
+                slices.append(s)
             else:
                 assert len(nb_dim) == 2
                 nb_pad.append(nb_dim)
+                s = slice(nb_dim[0], None, 1) if nb_dim[1] == 0 \
+                    else slice(nb_dim[0], -nb_dim[1], 1)
+                slices.append(s)
     else:
         raise ValueError("`nbl` must be an integer or tuple of (tuple of) integers"
                          "of length `function.ndim`.")
-    return tuple(nb_pad)
+    return tuple(nb_pad), tuple(slices)
 
 
 def pad_outhalo(function):

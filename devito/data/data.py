@@ -415,8 +415,7 @@ class Data(np.ndarray):
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
             elif self._is_distributed is True and dec is not None:
-                # Need to convert the user-provided global indices into local indices.
-                # Obviously this will have no effect if MPI is not used
+                # Convert the user-provided global indices into local indices.
                 try:
                     v = convert_index(i, dec, mode='glb_to_loc')
                 except TypeError:
