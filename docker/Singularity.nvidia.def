@@ -36,7 +36,7 @@ export NVIDIA_VISIBLE_DEVICES=all
 export NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 export HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.2/extras/CUPTI
+export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.4/extras/CUPTI
 export NVCOMP_EXTS_ROOT=/app/nvcomp_exts/ubuntu18.04/11.2
 export bitcomp_DIR=$NVCOMP_EXTS_ROOT/lib/
 
@@ -64,7 +64,7 @@ export UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 export MELLANOX_MOUNT_DRIVER=1
 
 ## Environment Variables for OpenACC Builds
-# Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and
+# Reference: https://github.com/devitocodes/devito/wiki/FAQ #can-i-manually-modify-the-c-code-generated-by-devito-and
 export DEVITO_ARCH="nvc"
 export DEVITO_LANGUAGE="openacc"
 export DEVITO_PLATFORM=nvidiaX
@@ -100,15 +100,15 @@ apt-get install -y -q \
 	texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
 	python-dev python3-dev python3-venv && \
 wget -q -P /app/ \
-	https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-21-5_21.5_amd64.deb \
-	https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-21-5-cuda-multi_21.5_amd64.deb \
-	https://developer.download.nvidia.com/hpc-sdk/21.5/nvhpc-2021_21.5_amd64.deb && \
+	https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-21-7_21.7_amd64.deb \
+	https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-21-7-cuda-multi_21.7_amd64.deb \
+	https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-2021_21.7_amd64.deb && \
 wget -q -P /app/nvcomp_exts/ \
   https://developer.download.nvidia.com/compute/nvcomp/2.0/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz &&\
 apt-get install -y -q \
-	/app/nvhpc-21-5_21.5_amd64.deb \
-	/app/nvhpc-21-5-cuda-multi_21.5_amd64.deb \
-	/app/nvhpc-2021_21.5_amd64.deb && \
+	/app/nvhpc-21-5_21.7_amd64.deb \
+	/app/nvhpc-21-7-cuda-multi_21.7_amd64.deb \
+	/app/nvhpc-2021_21.7_amd64.deb && \
 tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz -C /app/nvcomp_exts && \
 apt-get update -y && \
 rm -rf /app/nvhpc* && \
@@ -116,7 +116,7 @@ rm -rf /app/nvcomp_exts/nvcomp* && \
 rm -rf /var/lib/apt/lists/*
 
 export HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.2/extras/CUPTI
+export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.4/extras/CUPTI
   
 # Compiler, CUDA, and Library paths
 export CUDA_HOME=$HPCSDK_HOME/cuda
@@ -143,7 +143,7 @@ export CFLAGS=-noswitcherror
 #ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 $HPCSDK_HOME/comm_libs/mpi ; 
 #HPCX
 rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-ln -sf $HPCSDK_HOME/comm_libs/hpcx/hpcx-2.7.4/ompi $HPCSDK_HOME/comm_libs/mpi ; 
+ln -sf $HPCSDK_HOME/comm_libs/hpcx/hpcx-2.8.1/ompi $HPCSDK_HOME/comm_libs/mpi ; 
 
 /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
 rm -rf ~/.cache/pip
@@ -152,10 +152,8 @@ export CFLAGS=
 chmod -R 755 /app
 chmod 777 /app
 chmod 777 /print-defaults /jupyter /tests /entrypoint.sh && \
-	/venv/bin/jupyter labextension install jupyterlab-nvdashboard && \
-	/venv/bin/jupyter labextension install dask-labextension && \
-	/venv/bin/jupyter serverextension enable dask_labextension && \
-	/venv/bin/jupyter lab workspaces import /app/nvdashboard.json
+	/venv/bin/jupyter serverextension enable dask_labextension 
+#	/venv/bin/jupyter lab workspaces import /app/nvdashboard.json
 
 %runscript
 echo /jupyter "$@"
