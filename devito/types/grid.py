@@ -484,6 +484,24 @@ class SubDomain(object):
         """
         raise NotImplementedError
 
+    def union(self, other):
+        """
+        Return the union of two SubDomains as a new SubDomain.
+        """
+        raise NotImplementedError
+
+    def intersection(self, other):
+        """
+        Return the intersection of two SubDomains as a new SubDomain.
+        """
+        raise NotImplementedError
+
+    def difference(self, other):
+        """
+        Return the difference of two SubDomains as a new SubDomain.
+        """
+        raise NotImplementedError
+
 
 class Domain(SubDomain):
 
