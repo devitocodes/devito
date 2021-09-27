@@ -527,6 +527,20 @@ class Interior(SubDomain):
         return {d: ('middle', 1, 1) for d in dimensions}
 
 
+class MultiSubDimension(SubDimension):
+
+    """
+    A special SubDimension for graceful lowering of MultiSubDomains.
+    """
+
+    def __init_finalize__(self, name, parent):
+        lst, rst = self._symbolic_thickness(name)
+        left = parent.symbolic_min + lst
+        right = parent.symbolic_max - rst
+
+        super().__init_finalize__(name, parent, left, right, ((lst, 0), (rst, 0)), False)
+
+
 class MultiSubDomain(SubDomain):
 
     """
@@ -682,12 +696,10 @@ class SubDomainSet(MultiSubDomain):
 
     def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
         # Create the SubDomain's SubDimensions
-        sub_dimensions = []
-        for d in dimensions:
-            sub_dimensions.append(SubDimension.middle
-                                  ('%si_%s' % (d.name, self.implicit_dimension.name),
-                                   d, 0, 0))
-        self._dimensions = tuple(sub_dimensions)
+        self._dimensions = tuple(
+            MultiSubDimension('%si_%s' % (d.name, self.implicit_dimension.name), d)
+            for d in dimensions
+        )
 
         # Compute the SubDomainSet shapes
         global_bounds = []
