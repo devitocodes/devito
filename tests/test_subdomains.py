@@ -2,6 +2,8 @@ import pytest
 import numpy as np
 from math import floor
 
+from sympy import sin
+
 from conftest import opts_tiling
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
@@ -427,3 +429,25 @@ class TestSubdomains(object):
                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
 
         assert((np.array(f.data[:]+g.data[:]) == expected).all())
+
+    def test_issue_1761(self):
+        """
+        Test for issue #1761.
+        """
+
+        class DummySubdomains(SubDomainSet):
+            name = 'dummydomain'
+        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+        theta = Function(name='theta', grid=grid)
+        phi = Function(name='phi', grid=grid)
+
+        eqns = [Eq(f.forward, f*sin(phi), subdomain=grid.subdomains['dummydomain']),
+                Eq(g.forward, g*sin(theta), subdomain=grid.subdomains['dummydomain'])]
+
+        op = Operator(eqns)
+        from IPython import embed; embed()
