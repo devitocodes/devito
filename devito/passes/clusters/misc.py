@@ -391,25 +391,33 @@ class MSDOptimizer(Queue):
             return clusters
 
         # Remove redundant thicknesses assignments
-        candidates = flatten(list(d._thickness_map) for d in msds)
-        schedulable = set(candidates)
+
+        thicknesses = set().union(*[list(i._thickness_map) for i in msds])
+        candidates = [c for c in clusters if set(c.scope.writes) & thicknesses]
+
+        # First of all, make sure we analyze all and only the thicknesses assignments
+        # at the same depth
+        d = prefix[-1].dim
+        if any(c.itintervals[-1].dim is not d for c in candidates):
+            return clusters
+
+        # Then, attempt extirpation of redundancies
+        schedulable = set(thicknesses)
         processed = []
         for c in clusters:
-            exprs = []
-
-            for e in c.exprs:
-                if e.lhs in candidates:
+            if c in candidates:
+                exprs = []
+                for e in c.exprs:
                     try:
                         schedulable.remove(e.lhs)
                         exprs.append(e)
                     except KeyError:
                         # Already scheduled, no-op
                         pass
-                else:
-                    exprs.append(e)
-
-            if exprs:
-                processed.append(c.rebuild(exprs=exprs))
+                if exprs:
+                    processed.append(c.rebuild(exprs=exprs))
+            else:
+                processed.append(c)
 
         # Sanity check
         assert len(schedulable) == 0
