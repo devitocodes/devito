@@ -144,7 +144,7 @@ class CireTransformer(object):
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
-            processed, subs = optimize_clusters_multisubdomain(processed, subs)
+            processed = optimize_clusters_msds(processed)
 
         # [Clusters]_k -> [Clusters]_{k+n}
         for c in clusters:
@@ -905,14 +905,13 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
     return clusters, subs
 
 
-def optimize_clusters_multisubdomain(clusters, subs0):
+def optimize_clusters_msds(clusters):
     """
     Relax the clusters by letting the expressions defined over MultiSubDomains to
     rather be computed over the entire domain. This increases the likelihood of
     code lifting by later passes.
     """
     processed = []
-    subs = dict(subs0)
     for c in clusters:
         msds = [d for d in c.ispace.itdimensions if isinstance(d, MultiSubDimension)]
 
@@ -932,16 +931,12 @@ def optimize_clusters_multisubdomain(clusters, subs0):
             properties = {mapper.get(d, d): v for d, v in c.properties.items()}
             syncs = {mapper.get(d, d): v for d, v in c.syncs.items()}
 
-            candidates = retrieve_indexed(c.exprs)
-            subs = {k: uxreplace(v, mapper) if v in candidates else v
-                    for k, v in subs.items()}
-
             processed.append(c.rebuild(exprs=exprs, ispace=ispace, dspace=dspace,
                                        guards=guards, properties=properties, syncs=syncs))
         else:
             processed.append(c)
 
-    return processed, subs
+    return processed
 
 
 def pick_best(variants, schedule_strategy, eval_variants_delta):

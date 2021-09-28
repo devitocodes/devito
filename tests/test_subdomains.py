@@ -451,4 +451,7 @@ class TestSubdomains(object):
 
         op = Operator(eqns)
 
+        # Make sure it jit-compiles
+        op.cfunction
+
         assert_structure(op, ['x,y', 't,n', 't,n,xi_n,yi_n'], 'x,y,t,n,xi_n,yi_n')
