@@ -7,9 +7,10 @@ from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Symbol
+from devito.types.grid import MultiSubDimension
 
 __all__ = ['Lift', 'fuse', 'optimize_pows', 'extract_increments',
-           'fission']
+           'fission', 'optimize_msds']
 
 
 class Lift(Queue):
@@ -365,3 +366,60 @@ def fission(clusters):
                                    ..
     """
     return Fission().process(clusters)
+
+
+class MSDOptimizer(Queue):
+
+    """
+    Implement MultiSubDomains optimization.
+
+    Currently, the following optimizations are performed:
+
+        * Removal of redundant thicknesses assignments. These stem from Eqs
+          defined over the same MultiSubDomain in the very same loop nest.
+          The redundant assignments obviously do not impact correctness,
+          but they may affect other optimizations, such as fusion.
+    """
+
+    def callback(self, clusters, prefix):
+        if not prefix or any(isinstance(i.dim, MultiSubDimension) for i in prefix):
+            return clusters
+
+        msds = {d for d in set().union(*[c.dimensions for c in clusters])
+                if isinstance(d, MultiSubDimension)}
+        if not msds:
+            return clusters
+
+        # Remove redundant thicknesses assignments
+        candidates = flatten(list(d._thickness_map) for d in msds)
+        schedulable = set(candidates)
+        processed = []
+        for c in clusters:
+            exprs = []
+
+            for e in c.exprs:
+                if e.lhs in candidates:
+                    try:
+                        schedulable.remove(e.lhs)
+                        exprs.append(e)
+                    except KeyError:
+                        # Already scheduled, no-op
+                        pass
+                else:
+                    exprs.append(e)
+
+            if exprs:
+                processed.append(c.rebuild(exprs=exprs))
+
+        # Sanity check
+        assert len(schedulable) == 0
+
+        return processed
+
+
+@timed_pass()
+def optimize_msds(clusters):
+    """
+    Optimize clusters defined over MultiSubDomains.
+    """
+    return MSDOptimizer().process(clusters)

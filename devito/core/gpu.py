@@ -7,7 +7,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
                                     cire, cse, extract_increments, factorize,
-                                    fission, fuse, optimize_pows)
+                                    fission, fuse, optimize_pows, optimize_msds)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
                                mpiize, hoist_prodders, is_on_device, linearize)
 from devito.tools import as_tuple, timed_pass
@@ -149,6 +149,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
+
+        # Optimize MultiSubDomains
+        clusters = optimize_msds(clusters)
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True, options=options)

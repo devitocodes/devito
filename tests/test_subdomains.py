@@ -4,7 +4,7 @@ from math import floor
 
 from sympy import sin
 
-from conftest import opts_tiling
+from conftest import opts_tiling, assert_structure
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
                     SubDomainSet, Dimension)
 from devito.ir import FindNodes, Expression
@@ -432,7 +432,7 @@ class TestSubdomains(object):
 
     def test_issue_1761(self):
         """
-        Test for issue #1761.
+        MFE for issue #1761.
         """
 
         class DummySubdomains(SubDomainSet):
@@ -450,4 +450,5 @@ class TestSubdomains(object):
                 Eq(g.forward, g*sin(theta), subdomain=grid.subdomains['dummydomain'])]
 
         op = Operator(eqns)
-        from IPython import embed; embed()
+
+        assert_structure(op, ['x,y', 't,n', 't,n,xi_n,yi_n'], 'x,y,t,n,xi_n,yi_n')

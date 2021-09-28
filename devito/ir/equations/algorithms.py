@@ -82,7 +82,7 @@ def generate_implicit_exprs(expressions):
 
     Currently, implicit expressions stem from the following:
 
-        * ``SubDomainSet``'s attached to input equations.
+        * MultiSubDomains attached to input equations.
     """
     found = {}
     processed = []
