@@ -16,7 +16,8 @@ from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import ListInitializer, ccode
 from devito.tools import as_mapper, filter_sorted, flatten, prod
-from devito.types import DeviceRM
+from devito.types import Array, DeviceRM, Function
+from devito.types.sparse import AbstractSparseFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -286,12 +287,6 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
-        #TODO: WHAT WAS THIS MAPPER FOR EXACTLY? IN ESSENCE, IT WAS USED FOR...:
-        #symbol_names = {i.name for i in FindSymbols('free-symbols').visit(iet)}
-        #symbol_names |= {i.name for i in flatten(mapper.values())}
-        #need_cast = {i for i in need_cast if i.name in symbol_names}
-        mapper = kwargs['mapper']
-
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
         defines = set(FindSymbols('defines').visit(iet))
 
@@ -318,7 +313,7 @@ class DataManager(object):
         mapper = self.derive_transfers(graph)
         self.place_transfers(graph, mapper=mapper)
         self.place_definitions(graph)
-        self.place_casts(graph, mapper=mapper)
+        self.place_casts(graph)
 
 
 class DeviceAwareDataManager(DataManager):
@@ -412,7 +407,7 @@ class DeviceAwareDataManager(DataManager):
 
         def needs_transfer(f):
             return (is_on_device(f, self.gpu_fit) and
-                    f.is_DiscreteFunction and not f.is_AliasFunction)
+                    isinstance(f, (Array, Function, AbstractSparseFunction)))
 
         writes = set()
         reads = set()
@@ -449,7 +444,6 @@ class DeviceAwareDataManager(DataManager):
             # Special symbol which gives user code control over data deallocations
             devicerm = DeviceRM()
 
-            #TODO: CHECK THIS... ADDED IF i.is_Array... as per master...
             storage = Storage()
             for i in filter_sorted(writes):
                 if i.is_Array:
