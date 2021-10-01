@@ -3,3 +3,4 @@ dask-cuda
 jupyterlab>=3
 jupyterlab-nvdashboard
 dask_labextension
+fsspec
