@@ -462,6 +462,10 @@ class SubDomain(object):
         return self._dimensions
 
     @property
+    def ndim(self):
+        return len(self.dimensions)
+
+    @property
     def dimension_map(self):
         return {d.root: d for d in self.dimensions}
 
@@ -477,6 +481,24 @@ class SubDomain(object):
         -----
         This method should be overridden by each SubDomain subclass. For more
         information, refer to ``SubDomain.__doc__``.
+        """
+        raise NotImplementedError
+
+    def union(self, other):
+        """
+        Return the union of two SubDomains as a new SubDomain.
+        """
+        raise NotImplementedError
+
+    def intersection(self, other):
+        """
+        Return the intersection of two SubDomains as a new SubDomain.
+        """
+        raise NotImplementedError
+
+    def difference(self, other):
+        """
+        Return the difference of two SubDomains as a new SubDomain.
         """
         raise NotImplementedError
 
@@ -505,7 +527,88 @@ class Interior(SubDomain):
         return {d: ('middle', 1, 1) for d in dimensions}
 
 
-class SubDomainSet(SubDomain):
+class MultiSubDimension(SubDimension):
+
+    """
+    A special SubDimension for graceful lowering of MultiSubDomains.
+    """
+
+    def __init_finalize__(self, name, parent):
+        lst, rst = self._symbolic_thickness(name)
+        left = parent.symbolic_min + lst
+        right = parent.symbolic_max - rst
+
+        super().__init_finalize__(name, parent, left, right, ((lst, 0), (rst, 0)), False)
+
+
+class MultiSubDomain(SubDomain):
+
+    """
+    Base class for types representing a group of SubDomains.
+    """
+
+    @classmethod
+    def _bounds_glb_to_loc(cls, dec, m, M):
+        """
+        Translate a SubDomain global bounds, that is thicknesses, into local bounds.
+        """
+        bounds_m = np.zeros(m.shape, dtype=m.dtype)
+        bounds_M = np.zeros(m.shape, dtype=m.dtype)
+        for j in range(m.size):
+            lmin = dec.glb_min + m[j]
+            lmax = dec.glb_max - M[j]
+
+            # Check if the subdomain doesn't intersect with the decomposition
+            if lmin < dec.loc_abs_min and lmax < dec.loc_abs_min:
+                bounds_m[j] = dec.loc_abs_max
+                bounds_M[j] = dec.loc_abs_max
+                continue
+            if lmin > dec.loc_abs_max and lmax > dec.loc_abs_max:
+                bounds_m[j] = dec.loc_abs_max
+                bounds_M[j] = dec.loc_abs_max
+                continue
+
+            if lmin < dec.loc_abs_min:
+                bounds_m[j] = 0
+            elif lmin > dec.loc_abs_max:
+                bounds_m[j] = dec.loc_abs_max
+                bounds_M[j] = dec.loc_abs_max
+                continue
+            else:
+                bounds_m[j] = dec.index_glb_to_loc(m[j], LEFT)
+
+            if lmax < dec.loc_abs_min:
+                bounds_m[j] = dec.loc_abs_max
+                bounds_M[j] = dec.loc_abs_max
+                continue
+            elif lmax >= dec.loc_abs_max:
+                bounds_M[j] = 0
+            else:
+                bounds_M[j] = dec.index_glb_to_loc(M[j], RIGHT)
+
+        return bounds_m, bounds_M
+
+    def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
+        """
+        Must be overridded by subclasses.
+        """
+        raise NotImplementedError
+
+    def _create_implicit_exprs(self, grid):
+        """
+        Must be overridded by subclasses.
+        """
+        raise NotImplementedError
+
+    @property
+    def implicit_dimensions(self):
+        """
+        The Dimensions implicitly defined by the MultiSubDomain.
+        """
+        return ()
+
+
+class SubDomainSet(MultiSubDomain):
     """
     Class to define a set of N (a positive integer) subdomains.
 
@@ -583,22 +686,20 @@ class SubDomainSet(SubDomain):
     """The implicit dimension of the SubDomainSet."""
 
     def __init__(self, **kwargs):
-        super(SubDomainSet, self).__init__()
+        super().__init__()
+
         if self.implicit_dimension is None:
-            n = Dimension(name='n')
-            self.implicit_dimension = n
+            self.implicit_dimension = Dimension(name='n')
+
         self._n_domains = kwargs.get('N', 1)
         self._global_bounds = kwargs.get('bounds', None)
-        self._implicit_exprs = None
 
     def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
         # Create the SubDomain's SubDimensions
-        sub_dimensions = []
-        for d in dimensions:
-            sub_dimensions.append(SubDimension.middle
-                                  ('%si_%s' % (d.name, self.implicit_dimension.name),
-                                   d, 0, 0))
-        self._dimensions = tuple(sub_dimensions)
+        self._dimensions = tuple(
+            MultiSubDimension('%si_%s' % (d.name, self.implicit_dimension.name), d)
+            for d in dimensions
+        )
 
         # Compute the SubDomainSet shapes
         global_bounds = []
@@ -621,56 +722,13 @@ class SubDomainSet(SubDomain):
         if distributor and distributor.is_parallel:
             # Now create local bounds based on distributor
             processed = []
-            for dim, d, m, M in zip(dimensions, distributor.decomposition, d_m, d_M):
-                bounds_m = np.zeros(m.shape, dtype=m.dtype)
-                bounds_M = np.zeros(m.shape, dtype=m.dtype)
-                for j in range(m.size):
-                    lmin = d.glb_min + m[j]
-                    lmax = d.glb_max - M[j]
-
-                    # Check if the subdomain doesn't intersect with the decomposition
-                    if lmin < d.loc_abs_min and lmax < d.loc_abs_min:
-                        bounds_m[j] = d.loc_abs_max
-                        bounds_M[j] = d.loc_abs_max
-                        continue
-                    if lmin > d.loc_abs_max and lmax > d.loc_abs_max:
-                        bounds_m[j] = d.loc_abs_max
-                        bounds_M[j] = d.loc_abs_max
-                        continue
-
-                    if lmin < d.loc_abs_min:
-                        bounds_m[j] = 0
-                    elif lmin > d.loc_abs_max:
-                        bounds_m[j] = d.loc_abs_max
-                        bounds_M[j] = d.loc_abs_max
-                        continue
-                    else:
-                        bounds_m[j] = d.index_glb_to_loc(m[j], LEFT)
-
-                    if lmax < d.loc_abs_min:
-                        bounds_m[j] = d.loc_abs_max
-                        bounds_M[j] = d.loc_abs_max
-                        continue
-                    elif lmax >= d.loc_abs_max:
-                        bounds_M[j] = 0
-                    else:
-                        bounds_M[j] = d.index_glb_to_loc(M[j], RIGHT)
-
-                processed.append(bounds_m)
-                processed.append(bounds_M)
+            for dec, m, M in zip(distributor.decomposition, d_m, d_M):
+                processed.extend(self._bounds_glb_to_loc(dec, m, M))
             self._local_bounds = as_tuple(processed)
         else:
             # Not distributed and hence local and global bounds are
             # equivalent.
             self._local_bounds = self._global_bounds
-
-    @property
-    def n_domains(self):
-        return self._n_domains
-
-    @property
-    def bounds(self):
-        return self._local_bounds
 
     def _create_implicit_exprs(self, grid):
         if not len(self._local_bounds) == 2*len(self.dimensions):
@@ -697,3 +755,15 @@ class SubDomainSet(SubDomain):
                 func.data[:] = self._local_bounds[j]
             dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
         return as_tuple(dat)
+
+    @property
+    def n_domains(self):
+        return self._n_domains
+
+    @property
+    def bounds(self):
+        return self._local_bounds
+
+    @property
+    def implicit_dimensions(self):
+        return (self.implicit_dimension,)
