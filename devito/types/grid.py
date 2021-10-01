@@ -590,13 +590,13 @@ class MultiSubDomain(SubDomain):
 
     def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
         """
-        Must be overridded by subclasses.
+        Must be overridden by subclasses.
         """
         raise NotImplementedError
 
     def _create_implicit_exprs(self, grid):
         """
-        Must be overridded by subclasses.
+        Must be overridden by subclasses.
         """
         raise NotImplementedError
 
