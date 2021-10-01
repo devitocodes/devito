@@ -330,6 +330,7 @@ class Skewing(Queue):
             skew_dim = seq_dims.pop()
 
             # Helper variable to define the number of block levels between time loops
+            # Defaults to 1 for Wavefront Temporal Blocking
             skewlevel = 1
 
             # Add skewing factor tweaks to time-loops, no changes in relations,
