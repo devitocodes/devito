@@ -94,12 +94,12 @@ def relax_incr_dimensions(iet, **kwargs):
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
         roots_min = {i.dim.root: i.symbolic_min for i in outer}
 
+        # Get the sequential dimensions and the skewing dim (0 if not applicable)
+        # filter out sequential iterations from inner, outer
+        seq_dims = [i for i in tree if i.is_AffineSequential and i.dim.is_Incr]
         outer, _ = split(outer, lambda i: not i.is_AffineSequential)
         skew_inner = (inner[0].dim if inner[0].is_AffineSequential else 0)
         inner, _ = split(inner, lambda i: not i.is_AffineSequential)
-
-        # Get the sequential dimensions and the skewing dim, 0 if not applicable
-        seq_dims = [i for i in tree if i.is_AffineSequential and i.dim.is_Incr]
 
         # A dictionary to map maximum of processed parent dimensions. Helps to neatly
         # handle bounds in hierarchical blocking and SubDimensions
@@ -127,7 +127,8 @@ def relax_incr_dimensions(iet, **kwargs):
             # In case of wavefront temporal blocking adjust respectively
             if skew_inner:
                 root_max = roots_dim_max[i.dim.root] + skew_inner
-                symbolic_min, symbolic_max = relax_skewed(i, roots_min, skew_inner, parents_max)
+                symbolic_min, symbolic_max = relax_skewed(i, roots_min, skew_inner,
+                                                          parents_max)
                 parents_max[i.dim] = symbolic_max
 
             iter_max = evalmin(symbolic_max, root_max)
@@ -192,7 +193,25 @@ def relax_seq_n_outer(seq_dims, roots_dim_max, outer, skew_inner):
     """
     Adjust sequential (usually time) and outer loops by skewing factor
 
-    TO ADD EXAMPLE
+    A simple 1D example: nested Iterations are transformed from:
+
+    <Iteration t0_blk0; (t_m + sf, t_M + sf, t0_blk0_size)>
+        <Iteration x0_blk0; (x_m, x_M, x0_blk0_size)>
+            <Iteration t; (t0_blk0, t0_blk0 + t0_blk0_size - 1, 1)>
+
+    to:
+
+    <Iteration t0_blk0; (t_m, sf*t_M, time0_blk0_size)>
+        <Iteration x0_blk0; (x_m, sf*(t_M - t_m) + x_M + 2, x0_blk0_size)>
+            <Iteration t; (t0_blk0, MIN(t0_blk0 + t0_blk0_size - 1, sf*t_M, 1)>
+
+    Typical structure encountered:
+
+    <Iteration t0_blk0> seq_dims[0]
+        <Iteration x0_blk0> outer[0] out of 'n'
+            <Iteration t> seq_dims[1]
+              <other 'inner'> iterations not processed here
+
     """
     mapper = {}
     # Sniff skewing factor
@@ -208,7 +227,7 @@ def relax_seq_n_outer(seq_dims, roots_dim_max, outer, skew_inner):
         else:
             mapper[i] = i._rebuild(limits=(symbolic_min, root, i.step))
 
-    # Tile size should be extended by time size
+    # Tile size should be extended by time size for 'outer' iterations
     for i in outer:
         iter_max = i.symbolic_max + sf*seq_dims[0].symbolic_size
         mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
@@ -218,9 +237,8 @@ def relax_seq_n_outer(seq_dims, roots_dim_max, outer, skew_inner):
 
 def relax_skewed(i, roots_min, skew_inner, parents_max):
     """
-    Return the `symbolic_min` and `symbolic_max` of inner iterations in WTB
-
-    TO ADD EXAMPLE
+    Return the required `symbolic_min` and `symbolic_max` of inner iterations
+    used in wavefront temporal blocking
     """
 
     if level(i.dim) == 2:  # At skewing level

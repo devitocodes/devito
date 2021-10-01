@@ -107,7 +107,8 @@ class Blocking(Queue):
         processed = []
         for c in clusters:
             parblock = TILABLE in c.properties[d]
-            seqblock = SEQUENTIAL in c.properties[d] and self.wavefront
+            seqblock = (c.properties[d] == {SEQUENTIAL, AFFINE} and d.is_Time
+                        and self.wavefront)
             if parblock or seqblock:
                 mode = ('parallel' if parblock else 'sequential')
                 ispace = decompose(c.ispace, d, block_dims, mode)
@@ -318,8 +319,8 @@ class Skewing(Queue):
             if d is c.ispace[-1].dim and not self.skewinner:
                 return clusters
 
-            seq_dims = [i.dim for i in c.ispace
-                        if c.properties[i.dim] == {SEQUENTIAL, AFFINE}]
+            seq_dims = [i.dim for i in c.ispace if
+                        c.properties[i.dim] == {SEQUENTIAL, AFFINE}]
             if not len(seq_dims) in (1, 2):
                 warning("Loop structure not compatible with wavefront temporal blocking"
                         ", skipping")
@@ -347,7 +348,7 @@ class Skewing(Queue):
             elif SKEWABLE in c.properties[d]:
                 intervals = self.skew_intervals(c, d, seq_dims, skew_dim, skewlevel)
                 if seq_dims:  # Time is blocked, interchange
-                    relations, properties = self.interchange(c, skew_dim, skewlevel)
+                    relations, properties = self.interchange(c, d, skew_dim, skewlevel)
                 else:  # Time is not-blocked, remains as is
                     relations = c.ispace.relations
                     properties = c.properties
@@ -397,7 +398,7 @@ class Skewing(Queue):
 
         return intervals
 
-    def interchange(self, c, skew_dim, skewlevel):
+    def interchange(self, c, d, skew_dim, skewlevel):
         '''
         Interchange loops for skewing/wavefront optimizations.
 
@@ -410,11 +411,12 @@ class Skewing(Queue):
         skewlevel: int, 1
             Defines the block level in the hierarchy of IncrDimensions to interchange
         '''
+
         properties = dict(c.properties)
         relations = []
         for i in c.ispace.relations:
             # Interchange and drop `PARALLEL` property
-            if i and level(i[1]) == skewlevel:
+            if i and level(i[1]) == skewlevel and i[0] is skew_dim:
                 relations.append((i[1], skew_dim))
                 properties.update({i[1]: c.properties[i[1]] - {PARALLEL}})
             else:
@@ -440,7 +442,7 @@ class Skewing(Queue):
             Defines the block level in the hierarchy of IncrDimensions to interchange
         '''
         sf = get_skewing_factor(c)
-        if sf == 1:  # No changes needed if skewng factor is 1
+        if sf == 1:  # No changes needed if skewing factor is 1
             return c.ispace.sub_iterators, c.ispace
 
         sub_iterators = dict(c.ispace.sub_iterators)

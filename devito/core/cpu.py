@@ -4,7 +4,8 @@ from devito.core.operator import CoreOperator, CustomOperator
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse, skewing, fuse,
-                                    extract_increments, factorize, fission, optimize_pows)
+                                    extract_increments, factorize, fission, optimize_pows,
+                                    optimize_msds)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass

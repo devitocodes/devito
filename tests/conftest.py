@@ -186,6 +186,10 @@ opts_tiling = ['advanced',
                ('advanced', {'skewing': True}),
                ('advanced', {'skewing': True, 'blockinner': True})]
 
+opts_wavetiling = ['advanced',
+                   ('advanced', {'skewing': True}),
+                   ('advanced', {'skewing': True, 'blockinner': True}),
+                   ('advanced', {'wavefront': True, 'blockinner': True})]
 
 # Utilities for retrocompatibility
 
@@ -314,4 +318,5 @@ def assert_blocking(operator, exp_nests):
 # regarding GPU openacc spatial and/or temporal blocking.
 opts_openacc_tiling = [('openacc', 'blocking'),
                        ('openacc', 'blocking', {'skewing': True}),
-                       ('openacc', 'blocking', {'skewing': True, 'blockinner': True})]
+                       ('openacc', 'blocking', {'skewing': True, 'blockinner': True}),
+                       ('openacc', 'blocking', {'wavefront': True, 'blockinner': True})]

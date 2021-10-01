@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from conftest import assert_blocking
+from conftest import assert_blocking, assert_structure
 from devito.symbolics import MIN
 from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, solve, norm, switchconfig # noqa
 from devito.ir import Expression, Iteration, FindNodes
@@ -131,7 +131,7 @@ class TestCodeGenSkewing(object):
     ])
     def test_skewing_codegen(self, expr, expected, skewing, blockinner):
         """Tests code generation on skewed indices."""
-        grid = Grid(shape=(16, 16, 16))
+        grid = Grid(shape=(17, 17, 17))
         x, y, z = grid.dimensions
         time = grid.time_dim
 
@@ -181,6 +181,7 @@ class TestCodeGenSkewing(object):
             assert iters[3].symbolic_max == iters[3].dim.symbolic_max
 
         assert str(skewed[0]).replace(' ', '') == expected
+        assert_structure(op, ['t,x,y,z'])
 
 
 class TestWavefrontCorrectness(object):
@@ -189,9 +190,9 @@ class TestWavefrontCorrectness(object):
     '''
     def test_wave_correctness(self):
 
-        nx = 32
-        ny = 32
-        nz = 32
+        nx = 19
+        ny = 17
+        nz = 25
         nt = 24
         nu = .5
         dx = 2. / (nx - 1)
@@ -201,7 +202,7 @@ class TestWavefrontCorrectness(object):
         dt = sigma * dx * dz * dy / nu
 
         # Initialise u with hat function
-        init_value = 50
+        init_value = 6.5
 
         # Field initialization
         grid = Grid(shape=(nx, ny, nz))
@@ -249,12 +250,18 @@ class TestWavefrontCorrectness(object):
         time_iter = [i for i in iters if i.dim.is_Time]
 
         assert len(time_iter) == 2
+        assert_structure(op1, ['tx0_blk0y0_blk0xyz'])
+        assert_structure(op2, ['time0_blk0x0_blk0y0_blk0tx0_blk1y0_blk1xyz'])
+        assert_structure(op3, ['time0_blk0x0_blk0y0_blk0tx0_blk1y0_blk1x0_blk2'
+                               'y0_blk2xyz'])
+        assert_structure(op4, ['time0_blk0x0_blk0y0_blk0tx0_blk1y0_blk1x0_blk2y0_blk2'
+                               'x0_blk3y0_blk3xyz'])
 
     def test_wave_correctness_II(self):
-        nx = 32
-        ny = 32
-        nz = 32
-        nt = 64
+        nx = 29
+        ny = 27
+        nz = 58
+        nt = 10
         nu = .5
         dx = 2. / (nx - 1)
         dy = 2. / (ny - 1)
@@ -263,15 +270,15 @@ class TestWavefrontCorrectness(object):
         dt = sigma * dx * dz * dy / nu
 
         # Initialise u with hat function
-        init_value = 50
+        init_value = 5.5
 
         # Field initialization
         grid = Grid(shape=(nx, ny, nz))
-        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2)
         u.data[:, :, :] = init_value
 
         # Create an equation with second-order derivatives
-        eq = Eq(u.dt, u.dx2 + u.dy2 + u.dz2)
+        eq = Eq(u.dt2, u.dx2 + u.dy2 + u.dz2)
         x, y, z = grid.dimensions
         stencil = solve(eq, u.forward)
         eq0 = Eq(u.forward, stencil)
@@ -287,7 +294,9 @@ class TestWavefrontCorrectness(object):
         op1 = Operator(eq0, opt=('advanced', {'skewing': True, 'openmp': True,
                                  'blocklevels': 1}))
         op1.apply(time_M=time_M, dt=dt)
+
         assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+
         u.data[:] = init_value
         op2 = Operator(eq0, opt=('advanced', {'openmp': True,
                                               'wavefront': True, 'blocklevels': 2}))
@@ -297,8 +306,8 @@ class TestWavefrontCorrectness(object):
 
     @pytest.mark.parametrize('so', [2, 4, 8, 16])
     @pytest.mark.parametrize('shape, nt',
-                             [((35, 39, 46), 54), ((62, 16, 45), 63),
-                              ((38, 38, 38), 66), ((68, 20, 34), 61),
+                             [((35, 39, 46), 54), ((30, 22, 45), 57),
+                              ((38, 38, 38), 66), ((28, 24, 34), 11),
                               ((39, 37, 34), 44), ((27, 25, 42), 37),
                               ((33, 48, 42), 31), ((43, 35, 52), 31)])
     def test_wave_correctness_III(self, so, shape, nt):
@@ -312,7 +321,7 @@ class TestWavefrontCorrectness(object):
         dt = sigma * dx * dz * dy / nu
 
         # Initialise u
-        init_value = 1
+        init_value = 1.234
 
         # Field initialization
         grid = Grid(shape=(nx, ny, nz))
@@ -339,12 +348,12 @@ class TestWavefrontCorrectness(object):
         op2.apply(time_M=nt, dt=dt)
         assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
 
-    @pytest.mark.parametrize('so, to, shape, nt',
-                             [(2, 2, (35, 39, 21), 54), (2, 2, (62, 16, 45), 63),
-                              (4, 2, (38, 38, 38), 66), (4, 2, (98, 18, 34), 61),
-                              (8, 2, (27, 25, 42), 16), (8, 2, (17, 25, 42), 17),
-                              (16, 2, (33, 38, 34), 21), (16, 2, (43, 35, 52), 19)])
-    def test_wave_correctness_IV(self, so, to, shape, nt):
+    @pytest.mark.parametrize('so, shape, nt',
+                             [(2, (15, 39, 21), 10), (2, (32, 16, 45), 13),
+                              (4, (18, 38, 38), 66), (4, (28, 18, 34), 61),
+                              (8, (17, 25, 42), 16), (8, (17, 25, 42), 17),
+                              (16, (13, 38, 34), 21), (16, (13, 35, 52), 19)])
+    def test_wave_correctness_IV(self, so, shape, nt):
         nx, ny, nz = shape
         nt = nt
         nu = .5
@@ -359,7 +368,7 @@ class TestWavefrontCorrectness(object):
 
         # Field initialization
         grid = Grid(shape=(nx, ny, nz))
-        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to)
+        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=2)
         u.data[:, :, :] = init_value
 
         # Create an equation with second-order derivatives
