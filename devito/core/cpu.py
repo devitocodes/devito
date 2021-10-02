@@ -126,12 +126,13 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
 
         # Shared-memory parallelism
         if options['openmp']:
@@ -192,6 +193,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
@@ -201,7 +203,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
@@ -330,7 +332,8 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
-            'mpi': partial(mpiize, mode=options['mpi'], sregistry=sregistry),
+            'mpi': partial(mpiize, mode=options['mpi'], language=kwargs['language'],
+                           sregistry=sregistry),
             'linearize': partial(linearize, sregistry=sregistry),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,

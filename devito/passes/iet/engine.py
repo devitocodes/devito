@@ -20,6 +20,8 @@ class Graph(object):
     The `apply` method may be used to visit the Graph and apply a transformer `T`
     to all nodes. This may change the state of the Graph: node `a` gets replaced
     by `a' = T(a)`; new nodes (Callables), and therefore new edges, may be added.
+
+    The `visit` method collects info about the nodes in the Graph.
     """
 
     def __init__(self, iet, *efuncs):
@@ -67,7 +69,7 @@ class Graph(object):
 
     def apply(self, func, **kwargs):
         """
-        Apply ``func`` to all nodes in the Graph. This changes the state of the Graph.
+        Apply `func` to all nodes in the Graph. This changes the state of the Graph.
         """
         dag = self._create_call_graph()
 
@@ -145,8 +147,29 @@ class Graph(object):
         for i in range(len(self.ffuncs)):
             self.ffuncs[i], _ = func(self.ffuncs[i], **kwargs)
 
+    def visit(self, func, **kwargs):
+        """
+        Apply `func` to all nodes in the Graph. `func` gathers info about the
+        state of each node. The gathered info is returned to the called as a mapper
+        from nodes to info. Unlike `apply`, `visit` does not change the state
+        of the Graph.
+        """
+        dag = self._create_call_graph()
+        toposort = dag.topological_sort()
+
+        mapper = OrderedDict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
+
+        return mapper
+
 
 def iet_pass(func):
+    if isinstance(func, tuple):
+        assert len(func) == 2 and func[0] is iet_visit
+        call = lambda graph: graph.visit
+        func = func[1]
+    else:
+        call = lambda graph: graph.apply
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         if timed_pass.is_enabled():
@@ -156,9 +179,13 @@ def iet_pass(func):
         try:
             # Pure function case
             graph, = args
-            maybe_timed(graph.apply, func.__name__)(func, **kwargs)
+            return maybe_timed(call(graph), func.__name__)(func, **kwargs)
         except ValueError:
             # Instance method case
             self, graph = args
-            maybe_timed(graph.apply, func.__name__)(partial(func, self), **kwargs)
+            return maybe_timed(call(graph), func.__name__)(partial(func, self), **kwargs)
     return wrapper
+
+
+def iet_visit(func):
+    return iet_pass((iet_visit, func))
