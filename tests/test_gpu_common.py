@@ -4,7 +4,7 @@ import scipy.sparse
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
-                    SubDomain, TimeFunction, Operator)
+                    SubDomain, SubDomainSet, TimeFunction, Operator)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
@@ -1140,3 +1140,54 @@ class TestEdgeCases(object):
         op(time_m=0, time_M=9)
         sf.manual_gather()
         assert np.all(f.data == 1.)
+
+    @skipif('device-openmp')
+    @pytest.mark.parallel(mode=4)
+    def test_degenerate_subdomainset(self):
+        """
+        MFE for issue #1766
+        """
+        # There are four MPI ranks arranged in a 2x2 grid (default decomposition);
+        # here we defines thicknesses for two subdomains such that (i) no subdomains
+        # cross MPI-rank boundaries, (ii) the first of the two subdomains is defined
+        # entirely in the top-right MPI rank, (iii) the second of the two subdomains is
+        # defined entirely in the bottom-right MPI rank. This means that the left MPI
+        # ranks are expected to have an empty iteration space (thus reproducing the
+        # settings of issue #1766)
+        shape = (10, 10)
+        bounds_xm = np.array([2, 7], dtype=np.int32)
+        bounds_xM = np.array([7, 2], dtype=np.int32)
+        bounds_ym = np.array([5, 5], dtype=np.int32)
+        bounds_yM = np.array([0, 0], dtype=np.int32)
+
+        class MySubdomain(SubDomainSet):
+            name = 'msd'
+
+        bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
+        msd = MySubdomain(N=2, bounds=bounds)
+        grid = Grid(shape=shape, subdomains=(msd,))
+
+        # Expected two horizontal strips with 5 points each
+        assert grid.subdomains['msd'].shape == ((1, 5), (1, 5))
+
+        f = TimeFunction(name='f', grid=grid, time_order=0)
+        f.data[:] = 0.
+
+        eq = Eq(f, f + 1., subdomain=grid.subdomains['msd'])
+
+        op = Operator(eq)
+        op(time_m=0, time_M=8, dt=1)
+
+        fex = Function(name='fex', grid=grid)
+        fex.data[:] = np.array([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                [0., 0., 0., 0., 0., 9., 9., 9., 9., 9.],
+                                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                [0., 0., 0., 0., 0., 9., 9., 9., 9., 9.],
+                                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+
+        assert np.all(f.data == fex.data)
