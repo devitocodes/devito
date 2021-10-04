@@ -7,10 +7,11 @@ from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, solve,
 from devito.ir import Expression, Iteration, FindNodes
 
 
-class TestCodeGenSkewing(object):
+class TestCodeGen(object):
 
     '''
-    Test code generation with blocking+skewing, tests adapted from test_operator.py
+    Test code generation with blocking, skewing, wavefront and combinations thereof,
+    tests adapted from test_operator.py
     '''
     @pytest.mark.parametrize('expr, expected, norm_u, norm_v', [
         (['Eq(u.forward, u + 1)',
@@ -183,6 +184,49 @@ class TestCodeGenSkewing(object):
         assert str(skewed[0]).replace(' ', '') == expected
         assert_structure(op, ['t,x,y,z'])
 
+    '''
+    Test code generation with wavefront
+    '''
+    @pytest.mark.parametrize('expr', ('Eq(u.forward, u + 1)',
+                                      'Eq(u.forward, u.dx + u.dy + u.dz)',
+                                      'Eq(u.forward, u.dx2 + u.dy2 + u.dz2)',
+                                      'Eq(u.forward,  u.dx2 + u.dy + u.dz)'))
+    def test_sf_wavefront_codegen(self, expr):
+        """Tests code generation with wavefront temporal blocking."""
+        grid = Grid(shape=(17, 17, 17))
+        x, y, z = grid.dimensions
+        so = 8
+        u = TimeFunction(name='u', grid=grid, space_order = so)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+        eqn = eval(expr)
+
+        op = Operator(eqn, opt=('advanced', {'wavefront': True, 'blockinner': True}))
+        op.apply(time_M=5)
+
+        iters = FindNodes(Iteration).visit(op)
+
+        assert len(iters) == 11
+        assert_structure(op, ['time0_blk0x0_blk0y0_blk0z0_blk0tx0_blk1y0_blk1z0_blk1xyz'])
+
+        assert iters[0].symbolic_min == iters[0].dim.symbolic_min
+        assert iters[0].symbolic_max == 4*iters[0].dim.symbolic_max
+
+        assert iters[1].symbolic_min == iters[1].dim.symbolic_min
+        assert iters[1].symbolic_max == (iters[0].symbolic_max - 4*iters[0].symbolic_min +
+                                         iters[1].dim.symbolic_max + 4)
+
+        assert iters[2].symbolic_min == iters[2].dim.symbolic_min
+        assert iters[2].symbolic_max == (iters[0].symbolic_max - 4*iters[0].symbolic_min +
+                                         iters[2].dim.symbolic_max + 4)
+
+        assert iters[3].symbolic_min == iters[3].dim.symbolic_min
+        assert iters[3].symbolic_max == (iters[0].symbolic_max - 4*iters[0].symbolic_min +
+                                         iters[3].dim.symbolic_max + 4)
+
+        assert iters[4].symbolic_min == iters[4].dim.symbolic_min
+        assert iters[4].symbolic_max == MIN(iters[4].dim.symbolic_max,
+                                            iters[0].symbolic_max)
+
 
 class TestWavefrontCorrectness(object):
     '''
@@ -278,7 +322,7 @@ class TestWavefrontCorrectness(object):
         u.data[:, :, :] = init_value
 
         # Create an equation with second-order derivatives
-        eq = Eq(u.dt2, u.dx2 + u.dy2 + u.dz2)
+        eq = Eq(u.dt2 + u.dx + u.dy + u.dz)
         x, y, z = grid.dimensions
         stencil = solve(eq, u.forward)
         eq0 = Eq(u.forward, stencil)
@@ -303,6 +347,12 @@ class TestWavefrontCorrectness(object):
 
         op2.apply(time_M=time_M, dt=dt)
         assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+
+        iters = FindNodes(Iteration).visit(op2)
+        time_iter = [i for i in iters if i.dim.is_Time]
+        assert len(time_iter) == 2
+        assert_structure(op1, ['tx0_blk0y0_blk0xyz'])
+        assert_structure(op2, ['time0_blk0x0_blk0y0_blk0tx0_blk1y0_blk1xyz'])
 
     @pytest.mark.parametrize('so', [2, 4, 8, 16])
     @pytest.mark.parametrize('shape, nt',
@@ -342,11 +392,17 @@ class TestWavefrontCorrectness(object):
 
         u.data[:] = init_value
 
-        op2 = Operator(eq0, opt=('advanced', {'openmp': True,
+        op1 = Operator(eq0, opt=('advanced', {'openmp': True,
                                               'wavefront': True, 'blocklevels': 2}))
 
-        op2.apply(time_M=nt, dt=dt)
+        op1.apply(time_M=nt, dt=dt)
         assert np.isclose(norm(u), norm_u, atol=1e-3, rtol=0)
+
+        iters = FindNodes(Iteration).visit(op1)
+        time_iter = [i for i in iters if i.dim.is_Time]
+        assert len(time_iter) == 2
+        assert_structure(op, ['tx0_blk0y0_blk0x0_blk1y0_blk1xyz'])
+        assert_structure(op1, ['time0_blk0x0_blk0y0_blk0tx0_blk1y0_blk1xyz'])
 
     @pytest.mark.parametrize('so, shape, nt',
                              [(2, (15, 39, 21), 10), (2, (32, 16, 45), 13),
@@ -372,7 +428,7 @@ class TestWavefrontCorrectness(object):
         u.data[:, :, :] = init_value
 
         # Create an equation with second-order derivatives
-        eq = Eq(u.dt2, u.dx2 + u.dy2 + u.dz2)
+        eq = Eq(u.dt, u.dx2 + u.dy2 + u.dz2)
         x, y, z = grid.dimensions
         stencil = solve(eq, u.forward)
         eq0 = Eq(u.forward, stencil)
