@@ -81,10 +81,10 @@ class Cpu64OperatorMixin(object):
         # Fusion
         o['fuse-tasks'] = oo.pop('fuse-tasks', False)
 
-        # Blocking
+        # Loop Blocking (Spatial and Temporal)
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
-        o['wavefront'] = oo.pop('wavefront', False)
+        o['wavefront'] = oo.pop('wavefront', False) and not o['mpi']
         o['skewing'] = oo.pop('skewing', False) or o['wavefront']
 
         # CIRE
