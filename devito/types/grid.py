@@ -552,6 +552,14 @@ class MultiSubDomain(SubDomain):
         """
         Translate a SubDomain global bounds, that is thicknesses, into local bounds.
         """
+
+        # There are infinite ways to set `bounds_m` and `bounds_M` to set the size
+        # of an MPI-decomposed local subdomain to 0 iterations, meaning that after
+        # domain decomposition and for the given thicknesses there are 0 iterations
+        # left to execute. However, due to issue #1766, we only have one choice, or
+        # SubDomainSets might break on GPUs
+        NOITER = (dec.loc_abs_max, 1)
+
         bounds_m = np.zeros(m.shape, dtype=m.dtype)
         bounds_M = np.zeros(m.shape, dtype=m.dtype)
         for j in range(m.size):
@@ -560,26 +568,22 @@ class MultiSubDomain(SubDomain):
 
             # Check if the subdomain doesn't intersect with the decomposition
             if lmin < dec.loc_abs_min and lmax < dec.loc_abs_min:
-                bounds_m[j] = dec.loc_abs_max
-                bounds_M[j] = dec.loc_abs_max
+                bounds_m[j], bounds_M[j] = NOITER
                 continue
             if lmin > dec.loc_abs_max and lmax > dec.loc_abs_max:
-                bounds_m[j] = dec.loc_abs_max
-                bounds_M[j] = dec.loc_abs_max
+                bounds_m[j], bounds_M[j] = NOITER
                 continue
 
             if lmin < dec.loc_abs_min:
                 bounds_m[j] = 0
             elif lmin > dec.loc_abs_max:
-                bounds_m[j] = dec.loc_abs_max
-                bounds_M[j] = dec.loc_abs_max
+                bounds_m[j], bounds_M[j] = NOITER
                 continue
             else:
                 bounds_m[j] = dec.index_glb_to_loc(m[j], LEFT)
 
             if lmax < dec.loc_abs_min:
-                bounds_m[j] = dec.loc_abs_max
-                bounds_M[j] = dec.loc_abs_max
+                bounds_m[j], bounds_M[j] = NOITER
                 continue
             elif lmax >= dec.loc_abs_max:
                 bounds_M[j] = 0
