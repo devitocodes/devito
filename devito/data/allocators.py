@@ -298,7 +298,7 @@ class NumaAllocator(MemoryAllocator):
             return None, None
         else:
             # Convert it back to a void * - this is
-            # _very_ important when later # passing it to numa_free
+            # _very_ important when later passing it to `numa_free`
             c_pointer = ctypes.c_void_p(c_pointer)
             return c_pointer, (c_pointer, c_bytesize)
 
@@ -375,19 +375,37 @@ ALLOC_KNL_MCDRAM = NumaAllocator(1)
 ALLOC_NUMA_ANY = NumaAllocator('any')
 ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
+custom_allocators = {}
+"""User-defined allocators."""
+
+
+def register_allocator(name, allocator):
+    """
+    Register a custom MemoryAllocator.
+    """
+    if not isinstance(name, str):
+        raise TypeError("name must be a str, not `%s`" % type(name))
+    if name in custom_allocators:
+        raise ValueError("A MemoryAllocator for `%s` already exists" % name)
+    if not isinstance(allocator, MemoryAllocator):
+        raise TypeError("Expected a MemoryAllocator, not `%s`" % type(allocator))
+
+    custom_allocators[name] = allocator
+
 
 def infer_knl_mode():
     path = os.path.join('/sys', 'bus', 'node', 'devices', 'node1')
     return 'flat' if os.path.exists(path) else 'cache'
 
 
-def default_allocator():
+def default_allocator(name=None):
     """
-    Return a suitable MemoryAllocator for the architecture on which the process
-    is running. Possible allocators are: ::
+    Return a MemoryAllocator for the underlying architecture.
 
+        * ALLOC_GUARD: Only used in so-called "develop mode", to trigger SIGSEGV as
+                       soon as OOB accesses are performed.
         * ALLOC_FLAT: Align memory to page boundaries using the posix function
-                      ``posix_memalign``
+                      `posix_memalign`.
         * ALLOC_NUMA_LOCAL: Allocate memory in the "closest" NUMA node. This only
                             makes sense on a NUMA architecture. Falls back to
                             allocation in an arbitrary NUMA node if there isn't
@@ -397,16 +415,14 @@ def default_allocator():
                             Falls back to DRAM if there isn't enough space.
         * ALLOC_KNL_DRAM: On a Knights Landing platform, allocate memory in DRAM.
 
-    The default allocator is chosen based on the following algorithm: ::
-
-        * If running in DEVELOP mode (env var DEVITO_DEVELOP), return ALLOC_FLAT;
-        * If ``libnuma`` is not available on the system, return ALLOC_FLAT (though
-          it typically is available, at least on relatively recent Linux distributions);
-        * If on a Knights Landing platform (codename ``knl``, see ``print_defaults()``)
-          return ALLOC_KNL_MCDRAM;
-        * If on a multi-socket Intel Xeon platform, return ALLOC_NUMA_LOCAL;
-        * In all other cases, return ALLOC_FLAT.
+    Custom allocators may be added with `register_allocator`.
     """
+    if name is not None:
+        try:
+            return custom_allocators[name]
+        except KeyError:
+            pass
+
     if configuration['develop-mode']:
         return ALLOC_GUARD
     elif NumaAllocator.available():
