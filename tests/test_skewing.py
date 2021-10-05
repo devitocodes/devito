@@ -487,10 +487,6 @@ class TestWavefrontCorrectness(object):
     def test_wave_correctness_VI(self, shape, nt, so1, so2):
         "Test coupled equations"
         nx, ny, nz = shape
-        nt = nt
-
-        so1 = so1
-        so2 = so2
 
         # Initialise u
         init_value = 0
@@ -518,6 +514,6 @@ class TestWavefrontCorrectness(object):
         u.data[:] = init_value
 
         op2 = Operator(eqns, opt=('advanced', {'openmp': True, 'wavefront': True}))
-
         op2.apply(time_M=nt)
+
         assert np.isclose(norm(u), norm_u, atol=1e-5, rtol=0)

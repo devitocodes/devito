@@ -509,7 +509,7 @@ class Iteration(Node):
         return SEQUENTIAL in self.properties
 
     @property
-    def is_AffineSequential(self):
+    def is_onlyAffineSequential(self):
         return self.properties == (AFFINE, SEQUENTIAL)
 
     @property

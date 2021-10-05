@@ -4,7 +4,7 @@ import numpy as np
 from sympy import And
 import pytest
 
-from conftest import assert_blocking, skipif, opts_wavetiling
+from conftest import assert_blocking, skipif, opts_tiling, opts_wavetiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer)
@@ -140,7 +140,7 @@ class TestSubDimension(object):
         xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
         assert xright.symbolic_size == xright.thickness.right[0]
 
-    @pytest.mark.parametrize('opt', opts_wavetiling)
+    @pytest.mark.parametrize('opt', opts_tiling)
     def test_bcs(self, opt):
         """
         Tests application of an Operator consisting of multiple equations

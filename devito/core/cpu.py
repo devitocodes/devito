@@ -188,7 +188,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # Reduce flops
         clusters = cse(clusters, sregistry)
 
-        # Skewing
+        # Skewing/Wavefront optimisation
         if options['skewing']:
             clusters = skewing(clusters, options)
 

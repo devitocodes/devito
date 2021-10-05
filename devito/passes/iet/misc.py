@@ -89,19 +89,19 @@ def relax_incr_dimensions(iet, **kwargs):
         assert all(i.direction is Forward for i in iterations)
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Incr)
 
-        # Get root's `symbolic_max` and `dim.symbolic_max` out of each outer Dimension
+        # Get root's `symbolic_max` out of each outer Dimension
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
         # Get the sequential dimensions and the skewing dim (0 if not applicable) filter
         # out sequential iterations from inner, outer, take care of skewing factor in
         # outer and seq_dims
-        skew_inner = (inner[0].dim if inner[0].is_AffineSequential else 0)
+        skew_inner = (inner[0].dim if inner[0].is_onlyAffineSequential else 0)
         if skew_inner:
             roots_dim_max = {i.dim.root: i.dim.symbolic_max for i in outer}
             roots_min = {i.dim.root: i.symbolic_min for i in outer}
-            seq_dims = [i for i in tree if i.is_AffineSequential and i.dim.is_Incr]
-            outer, _ = split(outer, lambda i: not i.is_AffineSequential)
-            inner, _ = split(inner, lambda i: not i.is_AffineSequential)
+            seq_dims = [i for i in tree if i.is_onlyAffineSequential and i.dim.is_Incr]
+            outer, _ = split(outer, lambda i: not i.is_onlyAffineSequential)
+            inner, _ = split(inner, lambda i: not i.is_onlyAffineSequential)
             mapper.update(relax_seq_n_outer(seq_dims, roots_dim_max, outer, skew_inner))
 
         # A dictionary to map maximum of processed parent dimensions. Helps to neatly

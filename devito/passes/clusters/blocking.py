@@ -1,12 +1,11 @@
 from collections import Counter
 
-from devito.ir import (SEQUENTIAL, PARALLEL, SKEWABLE, TILABLE, Interval,
-                       Queue, IntervalGroup, IterationSpace, AFFINE)
+from devito.ir import (AFFINE, PARALLEL, SEQUENTIAL, SKEWABLE, TILABLE, Interval,
+                       IntervalGroup, IterationSpace, Queue)
+from devito.logger import warning
 from devito.passes.clusters.utils import level
 from devito.symbolics import uxreplace, retrieve_indexed, xreplace_indices, INT
 from devito.types import IncrDimension, SteppingDimension
-from devito.logger import warning
-
 
 __all__ = ['blocking', 'skewing']
 
@@ -107,7 +106,7 @@ class Blocking(Queue):
         processed = []
         for c in clusters:
             parblock = TILABLE in c.properties[d]
-            seqblock = (c.properties[d] == {SEQUENTIAL, AFFINE} and d.is_Time
+            seqblock = (c.properties[d] == {SEQUENTIAL, AFFINE}
                         and self.wavefront)
             if parblock or seqblock:
                 mode = ('parallel' if parblock else 'sequential')
@@ -223,12 +222,12 @@ def decompose(ispace, d, block_dims, mode='parallel'):
         sub_iters = []
         for i in sub_iterators[b1]:
             if i.parent.is_Stepping:
-                stepper = SteppingDimension(name = i.parent.name, parent=b1)
-                sub_iters.append(i.func(parent=stepper, offset=(b1 + i.offset - d))
-                                 if i.is_Modulo else i)
+                parent = SteppingDimension(name=i.parent.name, parent=b1)
             else:
-                sub_iters.append(i.func(parent=b1, offset=(b1 + i.offset - d))
-                                if i.is_Modulo else i)
+                parent = b1
+
+            sub_iters.append(i.func(parent=parent, offset=(b1 + i.offset - d))
+                             if i.is_Modulo else i)
 
         sub_iterators.update({block_dims[1]: tuple(sub_iters)})
 
@@ -254,6 +253,7 @@ def skewing(clusters, options):
            innermost loop.
 
     """
+
     return Skewing(options).process(clusters)
 
 
@@ -327,8 +327,8 @@ class Skewing(Queue):
             seq_dims = [i.dim for i in c.ispace if
                         c.properties[i.dim] == {SEQUENTIAL, AFFINE}]
             if not len(seq_dims) in (1, 2):
-                warning("Loop structure not compatible with skewing/wavefront temporal blocking"
-                        ", skipping")
+                warning("Loop structure not compatible with skewing/wavefront temporal"
+                        "blocking, skipping")
                 return clusters
 
             # Here, prefix is skewable and nested under a SEQUENTIAL loop. Pop skew dim.

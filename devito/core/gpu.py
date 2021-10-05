@@ -177,7 +177,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Reduce flops
         clusters = cse(clusters, sregistry)
 
-        # Skewing
+        # Skewing #TOFIX
         if options['skewing']:
             clusters = skewing(clusters, options)
 
