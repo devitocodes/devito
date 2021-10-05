@@ -1,5 +1,7 @@
 import sympy
 
+from distutils import version
+
 from devito.finite_differences.differentiable import DifferentiableFunction, diffify
 
 
@@ -646,7 +648,7 @@ class mathieucprime(DifferentiableFunction, sympy.mathieucprime):
 
 
 # New elementary functions in sympy 1.8
-if float(sympy.__version__) >= 1.8:
+if version.LooseVersion(sympy.__version__) >= version.LooseVersion('1.8'):
 
     class motzkin(DifferentiableFunction, sympy.motzkin):
         __sympy_class__ = sympy.motzkin

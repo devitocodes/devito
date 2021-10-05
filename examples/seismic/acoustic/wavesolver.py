@@ -157,7 +157,7 @@ class AcousticWaveSolver(object):
                                       dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, v, summary
 
-    def jacobian_adjoint(self, rec, u, v=None, grad=None, model=None,
+    def jacobian_adjoint(self, rec, u, src=None, v=None, grad=None, model=None,
                          checkpointing=False, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
@@ -200,7 +200,8 @@ class AcousticWaveSolver(object):
                              time_order=2, space_order=self.space_order)
             cp = DevitoCheckpoint([u])
             n_checkpoints = None
-            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False),
+                                         src=src or self.geometry.src,
                                          u=u, dt=dt, **kwargs)
             wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v,
                                           rec=rec, dt=dt, grad=grad, **kwargs)
