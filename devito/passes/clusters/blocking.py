@@ -4,7 +4,7 @@ from devito.ir import (SEQUENTIAL, PARALLEL, SKEWABLE, TILABLE, Interval,
                        Queue, IntervalGroup, IterationSpace, AFFINE)
 from devito.passes.clusters.utils import level
 from devito.symbolics import uxreplace, retrieve_indexed, xreplace_indices, INT
-from devito.types import IncrDimension
+from devito.types import IncrDimension, SteppingDimension
 from devito.logger import warning
 
 
@@ -222,8 +222,13 @@ def decompose(ispace, d, block_dims, mode='parallel'):
         sub_iterators.update({b0: ()})
         sub_iters = []
         for i in sub_iterators[b1]:
-            sub_iters.append(i.func(parent=b1, offset=(b1 + i.offset - d))
-                             if i.is_Modulo else i)
+            if i.parent.is_Stepping:
+                stepper = SteppingDimension(name = i.parent.name, parent=b1)
+                sub_iters.append(i.func(parent=stepper, offset=(b1 + i.offset - d))
+                                 if i.is_Modulo else i)
+            else:
+                sub_iters.append(i.func(parent=b1, offset=(b1 + i.offset - d))
+                                if i.is_Modulo else i)
 
         sub_iterators.update({block_dims[1]: tuple(sub_iters)})
 
@@ -322,7 +327,7 @@ class Skewing(Queue):
             seq_dims = [i.dim for i in c.ispace if
                         c.properties[i.dim] == {SEQUENTIAL, AFFINE}]
             if not len(seq_dims) in (1, 2):
-                warning("Loop structure not compatible with wavefront temporal blocking"
+                warning("Loop structure not compatible with skewing/wavefront temporal blocking"
                         ", skipping")
                 return clusters
 
@@ -412,7 +417,6 @@ class Skewing(Queue):
         skewlevel: int, 1
             Defines the block level in the hierarchy of IncrDimensions to interchange
         '''
-
         properties = dict(c.properties)
         relations = []
         for i in c.ispace.relations:
