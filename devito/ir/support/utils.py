@@ -78,7 +78,7 @@ def build_iterators(mapper):
     iterators = OrderedDict()
     for k, v in mapper.items():
         for d in v:
-            if d.is_Stepping:
+            if d.is_Stepping or d.is_Incr:
                 values = iterators.setdefault(d.root, [])
                 if d not in values:
                     values.append(d)
@@ -98,7 +98,7 @@ def build_intervals(stencil):
     for d, offs in stencil.items():
         if d.is_Stepping:
             mapper[d.root].update(offs)
-        elif d.is_Conditional:
+        elif d.is_Conditional or d.is_Incr:
             mapper[d.parent].update(offs)
         elif d.is_Modulo:
             mapper[d.root].update({d.offset - d.root + i for i in offs})

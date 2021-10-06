@@ -1034,6 +1034,21 @@ class TestDataDistributed(object):
         expected2 = np.full(result2.shape, 1)
         assert(np.all(result2 == expected2))
 
+    def test_empty_slicing(self):
+        grid = Grid(shape=(2, 2), extent=(1, 1))
+        f = Function(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+        assert(f.data[0:0].shape == (0, 2))
+        assert(f.data[0:0, 0:0].shape == (0, 0))
+        assert(g.data[0:0].shape == (0, 2, 2))
+        assert(g.data[0:0, 0:0].shape == (0, 0, 2))
+        assert(g.data[0:0, 0:0, 0:0].shape == (0, 0, 0))
+        assert(f.data[1:1].shape == (0, 2))
+        assert(f.data[0:0, 1:1].shape == (0, 0))
+        assert(g.data[1:1].shape == (0, 2, 2))
+        assert(g.data[1:1, 0:0].shape == (0, 0, 2))
+        assert(g.data[1:1, 0:0, 1:1].shape == (0, 0, 0))
+
     @pytest.mark.parallel(mode=4)
     def test_neg_start_stop(self):
         grid0 = Grid(shape=(8, 8))

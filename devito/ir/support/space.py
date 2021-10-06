@@ -815,6 +815,15 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, self.sub_iterators, self.directions)
 
+    def relaxed(self, dims):
+        f = lambda d: d in as_tuple(dims)
+
+        intervals = [i.relaxed if f(i.dim) else i for i in self.intervals]
+        sub_iterators = {k.root if f(k) else k: v for k, v in self.sub_iterators.items()}
+        directions = {k.root if f(k) else k: v for k, v in self.directions.items()}
+
+        return IterationSpace(intervals, sub_iterators, directions)
+
     def is_compatible(self, other):
         """
         A relaxed version of ``__eq__``, in which only non-derived dimensions

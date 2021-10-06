@@ -1,5 +1,5 @@
 cupy-cuda110
 dask-cuda
-jupyterlab==1.2.1
+jupyterlab>=3
 jupyterlab-nvdashboard
 dask_labextension

@@ -18,6 +18,7 @@ from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, gener
                           split)
 from devito.types import (Array, TempFunction, Eq, Symbol, ModuloDimension,
                           CustomDimension, IncrDimension, Indexed)
+from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
 
@@ -108,6 +109,7 @@ class CireTransformer(object):
         self.opt_rotate = options['cire-rotate']
         self.opt_ftemps = options['cire-ftemps']
         self.opt_mingain = options['cire-mingain']
+        self.opt_multisubdomain = True
 
     def _aliases_from_clusters(self, clusters, exclude, meta):
         exprs = flatten([c.exprs for c in clusters])
@@ -139,6 +141,10 @@ class CireTransformer(object):
 
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry, self.opt_ftemps)
+
+        # [Clusters]_k -> [Clusters]_k (optimization)
+        if self.opt_multisubdomain:
+            processed = optimize_clusters_msds(processed)
 
         # [Clusters]_k -> [Clusters]_{k+n}
         for c in clusters:
@@ -315,6 +321,7 @@ class CireSops(CireTransformer):
 
         self.opt_maxpar = options['cire-maxpar']
         self.opt_schedule_strategy = options['cire-schedule']
+        self.opt_multisubdomain = False
 
     def process(self, clusters):
         processed = []
@@ -896,6 +903,40 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         clusters.append(Cluster(expression, ispace, dspace, meta.guards, properties))
 
     return clusters, subs
+
+
+def optimize_clusters_msds(clusters):
+    """
+    Relax the clusters by letting the expressions defined over MultiSubDomains to
+    rather be computed over the entire domain. This increases the likelihood of
+    code lifting by later passes.
+    """
+    processed = []
+    for c in clusters:
+        msds = [d for d in c.ispace.itdimensions if isinstance(d, MultiSubDimension)]
+
+        if msds:
+            mapper = {d: d.root for d in msds}
+            exprs = [uxreplace(e, mapper) for e in c.exprs]
+
+            ispace = c.ispace.relaxed(msds)
+
+            accesses = detect_accesses(exprs)
+            parts = {k: IntervalGroup(build_intervals(v)).relaxed
+                     for k, v in accesses.items() if k}
+            intervals = [i for i in c.dspace if i.dim not in msds]
+            dspace = DataSpace(intervals, parts)
+
+            guards = {mapper.get(d, d): v for d, v in c.guards.items()}
+            properties = {mapper.get(d, d): v for d, v in c.properties.items()}
+            syncs = {mapper.get(d, d): v for d, v in c.syncs.items()}
+
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace, dspace=dspace,
+                                       guards=guards, properties=properties, syncs=syncs))
+        else:
+            processed.append(c)
+
+    return processed
 
 
 def pick_best(variants, schedule_strategy, eval_variants_delta):

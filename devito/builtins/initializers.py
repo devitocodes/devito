@@ -283,9 +283,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
             pad_outhalo(function)
         return
 
-    nbl = nbl_to_padsize(nbl, function.ndim)
-    slices = tuple([slice(nl, -nr) for _, (nl, nr) in zip(range(function.grid.dim),
-                                                          as_tuple(nbl))])
+    nbl, slices = nbl_to_padsize(nbl, function.ndim)
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
     else:
