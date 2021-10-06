@@ -23,9 +23,8 @@ class CheckpointOperator(Operator):
 
     def __init__(self, op, **kwargs):
         self.op = op
-        self.args = kwargs
-        op_default_args = self.op._prepare_arguments(**kwargs)
-        self.start_offset = op_default_args[self.t_arg_names['t_start']]
+        self.args = self.op._prepare_arguments(**kwargs)
+        self.start_offset = self.args[self.t_arg_names['t_start']]
 
     def _prepare_args(self, t_start, t_end):
         args = self.args.copy()
@@ -40,7 +39,7 @@ class CheckpointOperator(Operator):
             this method passes them on correctly to devito.Operator
         """
         # Build the arguments list to invoke the kernel function
-        args = self.op.arguments(**self._prepare_args(t_start, t_end))
+        args = self._prepare_args(t_start, t_end)
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.op.parameters]
         self.op.cfunction(*arg_values)
