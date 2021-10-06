@@ -308,6 +308,8 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
+    is_Atom = True
+
     def __new__(cls, name, arguments=None):
         arguments = as_tuple(arguments)
         obj = Function.__new__(cls, name, *arguments)
