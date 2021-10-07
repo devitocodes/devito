@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
 from sympy.tensor.indexed import IndexException
@@ -6,7 +6,7 @@ from sympy.tensor.indexed import IndexException
 from devito.ir.iet import Call, FindNodes, MetaCall, Transformer
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 
-__all__ = ['Graph', 'iet_pass']
+__all__ = ['Graph', 'iet_pass', 'Jitting']
 
 
 class Graph(object):
@@ -83,6 +83,18 @@ class Graph(object):
             self.ffuncs.extend(as_tuple(metadata.get('ffuncs', [])))
             self.efuncs.update(OrderedDict([(i.name, i)
                                             for i in metadata.get('efuncs', [])]))
+
+            # Update compiler if necessary
+            try:
+                jitting = metadata['jitting']
+                self.includes.extend(jitting.includes)
+
+                compiler = kwargs['compiler']
+                compiler.add_include_dirs(jitting.include_dirs)
+                compiler.add_libraries(jitting.libs)
+                compiler.add_library_dirs(jitting.lib_dirs)
+            except KeyError:
+                pass
 
             # If there's a change to the `args` and the `iet` is an efunc, then
             # we must update the call sites as well, as the arguments dropped down
@@ -184,3 +196,6 @@ def iet_pass(func):
 
 def iet_visit(func):
     return iet_pass((iet_visit, func))
+
+
+Jitting = namedtuple('Jitting', 'includes include_dirs libs lib_dirs')
