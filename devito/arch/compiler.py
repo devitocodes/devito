@@ -16,7 +16,7 @@ from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
-from devito.tools import (as_tuple, change_directory, filter_ordered,
+from devito.tools import (as_list, change_directory, filter_ordered,
                           memoized_meth, make_tempdir)
 
 __all__ = ['sniff_mpi_distro', 'compiler_registry']
@@ -338,16 +338,16 @@ class Compiler(GCCToolchain):
         return self.__dict__
 
     def add_include_dirs(self, dirs):
-        self.include_dirs = filter_ordered(self.include_dirs + list(as_tuple(dirs)))
+        self.include_dirs = filter_ordered(self.include_dirs + as_list(dirs))
 
     def add_library_dirs(self, dirs):
-        self.library_dirs = filter_ordered(self.library_dirs + list(as_tuple(dirs)))
+        self.library_dirs = filter_ordered(self.library_dirs + as_list(dirs))
 
     def add_libraries(self, libs):
-        self.libraries = filter_ordered(self.libraries + list(as_tuple(libs)))
+        self.libraries = filter_ordered(self.libraries + as_list(libs))
 
     def add_ldflags(self, flags):
-        self.ldflags = filter_ordered(self.ldflags + list(as_tuple(flags)))
+        self.ldflags = filter_ordered(self.ldflags + as_list(flags))
 
 
 class GNUCompiler(Compiler):
