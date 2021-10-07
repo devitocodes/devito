@@ -183,7 +183,7 @@ class Compiler(GCCToolchain):
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
 
-    def __new_from__(self, **kwargs):
+    def __new_with__(self, **kwargs):
         """
         Create a new Compiler from an existing one, inherenting from it
         the flags that are not specified via ``kwargs``.

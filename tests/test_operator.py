@@ -35,7 +35,7 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     return s.indexify() if mode == 'indexed' else s
 
 
-class TestOperatorArguments(object):
+class TestOperatorSetup(object):
 
     def test_platform_compiler_language(self):
         """
@@ -114,6 +114,21 @@ class TestOperatorArguments(object):
             assert False
         except InvalidOperator:
             assert True
+
+    def test_compiler_uniqueness(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eqns = [Eq(u.forward, u + 1)]
+
+        op0 = Operator(eqns)
+        op1 = Operator(eqns)
+        op2 = Operator(eqns, compiler='gcc')
+
+        assert op0._compiler is not op1._compiler
+        assert op0._compiler is not op2._compiler
+        assert op1._compiler is not op2._compiler
 
 
 class TestCodeGen(object):
