@@ -1,10 +1,10 @@
 # coding: utf-8
 from devito import Function, TimeFunction, warning
 from devito.tools import memoized_meth
+from devito.checkpointing import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
-from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from pyrevolve import Revolver
 
 

@@ -6,8 +6,8 @@ from devito.tools import flatten
 class CheckpointOperator(Operator):
     """Devito's concrete implementation of the ABC pyrevolve.Operator. This class wraps
        devito.Operator so it conforms to the pyRevolve API. pyRevolve will call apply
-       with arguments t_start and t_end. Devito calls these arguments t_s and t_e so
-       the following dict is used to perform the translations between different names.
+       with arguments t_start and t_end. Devito calls these arguments time_m and time_M
+       so the following dict is used to perform the translations between different names.
 
        Parameters
        ----------
