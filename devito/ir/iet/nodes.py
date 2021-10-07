@@ -19,11 +19,11 @@ from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot',
-           'IterationTree', 'ExpressionBundle', 'AugmentedExpression',
-           'Increment', 'Return', 'While', 'ParallelIteration', 'ParallelBlock',
-           'Dereference', 'Lambda', 'SyncSpot', 'Pragma', 'PragmaTransfer',
-           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'CallableBody']
+           'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree',
+           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return',
+           'While', 'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
+           'SyncSpot', 'Pragma', 'PragmaTransfer', 'DummyExpr', 'BlankLine',
+           'ParallelTree', 'BusyWait', 'CallableBody']
 
 # First-class IET nodes
 
@@ -39,7 +39,6 @@ class Node(Signer):
     is_While = False
     is_Expression = False
     is_Increment = False
-    is_ForeignExpression = False
     is_Callable = False
     is_CallableBody = False
     is_Lambda = False
@@ -899,45 +898,6 @@ class Dereference(ExprStmt, Node):
             return ()
         else:
             return (self.pointee,)
-
-
-class ForeignExpression(Expression):
-
-    """A node representing a SymPy FunctionFromPointer expression."""
-
-    is_ForeignExpression = True
-
-    def __init__(self, expr, dtype, **kwargs):
-        self._dtype = dtype
-        self._is_increment = kwargs.get('is_Increment', False)
-        super().__init__(expr)
-
-    @property
-    def dtype(self):
-        return self._dtype
-
-    @property
-    def output(self):
-        return self.expr.base
-
-    @property
-    def write(self):
-        if isinstance(self.output, (Symbol, Indexed)):
-            return self.output.function
-        else:
-            return None
-
-    @property
-    def is_Increment(self):
-        return self._is_increment
-
-    @property
-    def is_scalar(self):
-        return False
-
-    @property
-    def is_tensor(self):
-        return False
 
 
 class Lambda(Node):

@@ -146,12 +146,6 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
-    def visit_ForeignExpression(self, o):
-        if self.verbose:
-            return self.indent + "<Expression %s>" % o.expr
-        else:
-            return self.indent + str(o)
-
     def visit_HaloSpot(self, o):
         self._depth += 1
         body = self._visit(o.children)
@@ -301,9 +295,6 @@ class CGen(Visitor):
         if o.pragmas:
             code = c.Module(list(o.pragmas) + [code])
         return code
-
-    def visit_ForeignExpression(self, o):
-        return c.Statement(ccode(o.expr))
 
     def visit_Call(self, o, nested_call=False):
         arguments = self._args_call(o.arguments)
