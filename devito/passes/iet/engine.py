@@ -24,10 +24,9 @@ class Graph(object):
     The `visit` method collects info about the nodes in the Graph.
     """
 
-    def __init__(self, iet, *efuncs):
+    def __init__(self, iet):
         # Internal "known" functions
         self.efuncs = OrderedDict([('root', iet)])
-        self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
 
         # Foreign functions
         self.ffuncs = []
@@ -77,20 +76,11 @@ class Graph(object):
         for i in dag.topological_sort():
             self.efuncs[i], metadata = func(self.efuncs[i], **kwargs)
 
-            # Track any new Dimensions introduced by `func`
-            self.dimensions.extend(list(metadata.get('dimensions', [])))
-
-            # Track any new #include and #define required by `func`
-            self.includes.extend(list(metadata.get('includes', [])))
-            self.includes = filter_ordered(self.includes)
-            self.headers.extend(list(metadata.get('headers', [])))
-            self.headers = filter_ordered(self.headers, key=str)
-
-            # Tracky any new external function
-            self.ffuncs.extend(list(metadata.get('ffuncs', [])))
-            self.ffuncs = filter_ordered(self.ffuncs)
-
-            # Track any new ElementalFunctions
+            # Track all objects introduced by `func`
+            self.dimensions.extend(as_tuple(metadata.get('dimensions')))
+            self.includes.extend(as_tuple(metadata.get('includes')))
+            self.headers.extend(as_tuple(metadata.get('headers')))
+            self.ffuncs.extend(as_tuple(metadata.get('ffuncs', [])))
             self.efuncs.update(OrderedDict([(i.name, i)
                                             for i in metadata.get('efuncs', [])]))
 
@@ -142,6 +132,11 @@ class Graph(object):
                 efunc = efunc._rebuild(parameters=parameters)
 
                 self.efuncs[n] = efunc
+
+        # Uniqueness
+        self.includes = filter_ordered(self.includes)
+        self.headers = filter_ordered(self.headers, key=str)
+        self.ffuncs = filter_ordered(self.ffuncs)
 
         # Apply `func` to the external functions
         for i in range(len(self.ffuncs)):
