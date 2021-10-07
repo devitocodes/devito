@@ -299,8 +299,8 @@ class CGen(Visitor):
     def visit_Call(self, o, nested_call=False):
         arguments = self._args_call(o.arguments)
         if o.retobj is not None:
-            return c.Assign(ccode(o.retobj), MultilineCall(o.name, arguments,
-                                                           True, o.is_indirect))
+            return c.Initializer(c.Value(o.retobj._C_typedata, ccode(o.retobj)),
+                                 MultilineCall(o.name, arguments, True, o.is_indirect))
         else:
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect)
 
