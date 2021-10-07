@@ -6,10 +6,9 @@ import sympy
 
 from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
                     switchconfig)
-from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Conditional, Expression, Iteration, List, Lambda,
-                           LocalExpression, ElementalFunction, CGen, FindSymbols,
-                           filter_iterations, make_efunc, retrieve_iteration_tree)
+from devito.ir.iet import (Call, Conditional, DummyExpr, Iteration, List, Lambda,
+                           ElementalFunction, CGen, FindSymbols, filter_iterations,
+                           make_efunc, retrieve_iteration_tree)
 from devito.symbolics import Byref, FieldFromComposite, InlineIf
 from devito.tools import as_tuple
 from devito.types import Array, LocalObject, Symbol
@@ -28,8 +27,8 @@ def fc(grid):
 
 def test_conditional(fc, grid):
     x, y, _ = grid.dimensions
-    then_body = Expression(DummyEq(fc[x, y], fc[x, y] + 1))
-    else_body = Expression(DummyEq(fc[x, y], fc[x, y] + 2))
+    then_body = DummyExpr(fc[x, y], fc[x, y] + 1)
+    else_body = DummyExpr(fc[x, y], fc[x, y] + 2)
     conditional = Conditional(x < 3, then_body, else_body)
     assert str(conditional) == """\
 if (x < 3)
@@ -192,9 +191,9 @@ def test_make_cpp_parfor():
     threadpush = Call(FieldFromComposite('push_back', threads), threadobj)
     it = Dimension(name='it')
     iteration = Iteration([
-        LocalExpression(DummyEq(begin, it)),
-        LocalExpression(DummyEq(l, it + portion)),
-        LocalExpression(DummyEq(end, InlineIf(l > last, last, l))),
+        DummyExpr(begin, it, init=True),
+        DummyExpr(l, it + portion, init=True),
+        DummyExpr(end, InlineIf(l > last, last, l), init=True),
         threadpush
     ], it, (first, last, portion))
     thread = STDThread('x')
@@ -204,8 +203,8 @@ def test_make_cpp_parfor():
         Lambda(Call(FieldFromComposite('join', thread.name)), [], [thread])
     ])
     body = [
-        LocalExpression(DummyEq(threshold, 1)),
-        LocalExpression(DummyEq(portion, stdmax(threshold, (last - first) / nthreads))),
+        DummyExpr(threshold, 1, init=True),
+        DummyExpr(portion, stdmax(threshold, (last - first) / nthreads), init=True),
         Call(FieldFromComposite('reserve', threads), nthreads),
         iteration,
         waitcall

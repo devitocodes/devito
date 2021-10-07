@@ -282,10 +282,17 @@ class CGen(Visitor):
         return o.element
 
     def visit_Expression(self, o):
-        code = (c.Assign(ccode(o.expr.lhs, dtype=o.dtype),
-                         ccode(o.expr.rhs, dtype=o.dtype)))
+        lhs = ccode(o.expr.lhs, dtype=o.dtype)
+        rhs = ccode(o.expr.rhs, dtype=o.dtype)
+
+        if o.init:
+            code = c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs), rhs)
+        else:
+            code = c.Assign(lhs, rhs)
+
         if o.pragmas:
             code = c.Module(list(o.pragmas) + [code])
+
         return code
 
     def visit_AugmentedExpression(self, o):
@@ -294,18 +301,6 @@ class CGen(Visitor):
         if o.pragmas:
             code = c.Module(list(o.pragmas) + [code])
         return code
-
-    def visit_LocalExpression(self, o):
-        if o.write.is_Array:
-            lhs = '%s%s' % (
-                o.expr.lhs.name,
-                ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
-            )
-        else:
-            lhs = ccode(o.expr.lhs, dtype=o.dtype)
-
-        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
-                             ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):
         return c.Statement(ccode(o.expr))

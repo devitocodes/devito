@@ -17,13 +17,13 @@ from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, cc
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
-__all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
-           'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
-           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While',
-           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot',
-           'Pragma', 'PragmaTransfer', 'DummyExpr', 'BlankLine', 'ParallelTree',
-           'BusyWait', 'CallableBody']
+__all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
+           'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
+           'MetaCall', 'PointerCast', 'ForeignExpression', 'HaloSpot',
+           'IterationTree', 'ExpressionBundle', 'AugmentedExpression',
+           'Increment', 'Return', 'While', 'ParallelIteration', 'ParallelBlock',
+           'Dereference', 'Lambda', 'SyncSpot', 'Pragma', 'PragmaTransfer',
+           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'CallableBody']
 
 # First-class IET nodes
 
@@ -40,7 +40,6 @@ class Node(Signer):
     is_Expression = False
     is_Increment = False
     is_ForeignExpression = False
-    is_LocalExpression = False
     is_Callable = False
     is_CallableBody = False
     is_Lambda = False
@@ -332,29 +331,20 @@ class Expression(ExprStmt, Node):
         The encapsulated expression.
     pragmas : cgen.Pragma or list of cgen.Pragma, optional
         A bag of pragmas attached to this Expression.
+    init : bool, optional
+        True if an initialization, False otherwise (default).
     """
 
     is_Expression = True
 
-    def __init__(self, expr, pragmas=None):
-        self.__expr_finalize__(expr, pragmas)
-
-    def __expr_finalize__(self, expr, pragmas):
-        """Finalize the Expression initialization."""
-        self._expr = expr
-        self._pragmas = as_tuple(pragmas)
+    def __init__(self, expr, pragmas=None, init=False):
+        self.expr = expr
+        self.pragmas = as_tuple(pragmas)
+        self.init = init
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
                              filter_ordered([f.func for f in self.functions]))
-
-    @property
-    def expr(self):
-        return self._expr
-
-    @property
-    def pragmas(self):
-        return self._pragmas
 
     @property
     def dtype(self):
@@ -391,16 +381,17 @@ class Expression(ExprStmt, Node):
         return not self.is_scalar
 
     @property
-    def is_definition(self):
+    def is_initializable(self):
         """
-        True if it is an assignment, False otherwise
+        True if it can be an initializing assignment, False otherwise.
         """
-        return ((self.is_scalar and not self.is_Increment) or
-                (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
+        return (not self.init and
+                ((self.is_scalar and not self.is_Increment) or
+                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer))))
 
     @property
     def defines(self):
-        return (self.write,) if self.is_definition else ()
+        return (self.write,) if (self.init or self.is_initializable) else ()
 
     @property
     def expr_symbols(self):
@@ -910,23 +901,6 @@ class Dereference(ExprStmt, Node):
             return (self.pointee,)
 
 
-class LocalExpression(Expression):
-
-    """
-    A node encapsulating a SymPy equation which also defines its LHS.
-    """
-
-    is_LocalExpression = True
-
-    @cached_property
-    def write(self):
-        return self.expr.lhs.function
-
-    @property
-    def defines(self):
-        return (self.write, )
-
-
 class ForeignExpression(Expression):
 
     """A node representing a SymPy FunctionFromPointer expression."""
@@ -936,7 +910,7 @@ class ForeignExpression(Expression):
     def __init__(self, expr, dtype, **kwargs):
         self._dtype = dtype
         self._is_increment = kwargs.get('is_Increment', False)
-        self.__expr_finalize__(expr)
+        super().__init__(expr)
 
     @property
     def dtype(self):
@@ -1326,8 +1300,8 @@ class CBlankLine(List):
         return ""
 
 
-def DummyExpr(*args):
-    return Expression(DummyEq(*args))
+def DummyExpr(*args, init=False):
+    return Expression(DummyEq(*args), init=init)
 
 
 BlankLine = CBlankLine()

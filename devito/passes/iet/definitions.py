@@ -9,8 +9,8 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (EntryFunction, List, LocalExpression, PragmaTransfer,
-                       FindSymbols, MapExprStmts, Transformer)
+from devito.ir import (EntryFunction, List, PragmaTransfer, FindSymbols,
+                       MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
@@ -95,7 +95,7 @@ class DataManager(object):
         Allocate a Scalar in the low latency memory.
         """
         key = (site, expr.write)  # Ensure a scalar isn't redeclared in the given site
-        storage.map(key, expr, LocalExpression(**expr.args))
+        storage.map(key, expr, expr._rebuild(init=True))
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
@@ -204,11 +204,8 @@ class DataManager(object):
         placed = list(iet.parameters)
 
         for k, v in MapExprStmts().visit(iet).items():
-            if k.is_LocalExpression:
-                placed.append(k.write)
-                objs = []
-            elif k.is_Expression:
-                if k.is_definition:
+            if k.is_Expression:
+                if k.is_initializable:
                     site = v[-1] if v else iet
                     self._alloc_scalar_on_low_lat_mem(site, k, storage)
                     continue
