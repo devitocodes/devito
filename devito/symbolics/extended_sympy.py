@@ -254,6 +254,11 @@ class Byref(sympy.Expr, Pickable):
         if self.base.is_Symbol:
             return "&%s" % ccode(self.base)
         else:
+            try:
+                if self.base.is_AbstractFunction:
+                    return "&%s" % self.base.name
+            except AttributeError:
+                pass
             return "&(%s)" % ccode(self.base)
 
     __repr__ = __str__
