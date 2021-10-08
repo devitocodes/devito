@@ -192,15 +192,15 @@ class CustomOperator(BasicOperator):
         if passes_mapper['parallel'] not in applied and options['parallel']:
             passes_mapper['parallel'](graph)
 
+        # Initialize the target-language runtime
+        if passes_mapper['init'] not in applied:
+            passes_mapper['init'](graph)
+
         # Symbol definitions
         cls._Target.DataManager(sregistry, options).process(graph)
 
         # Linearize n-dimensional Indexeds
         if passes_mapper['linearize'] not in applied and options['linearize']:
             passes_mapper['linearize'](graph)
-
-        # Initialize the target-language runtime
-        if passes_mapper['init'] not in applied:
-            passes_mapper['init'](graph)
 
         return graph
