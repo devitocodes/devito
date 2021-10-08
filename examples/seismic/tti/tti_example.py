@@ -40,11 +40,10 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
 
+@pytest.mark.parametrize('shape', [(51, 51), (16, 16, 16)])
 @pytest.mark.parametrize('kernel', ['centered', 'staggered'])
-@pytest.mark.parametrize('ndim', [2, 3])
-def test_tti_stability(kernel, ndim):
-    shape = tuple([11]*ndim)
-    spacing = tuple([20]*ndim)
+def test_tti_stability(shape, kernel):
+    spacing = tuple([20]*len(shape))
     _, _, _, [rec, _, _] = run(shape=shape, spacing=spacing, kernel=kernel,
                                tn=16000.0, nbl=0)
     assert np.isfinite(norm(rec))
