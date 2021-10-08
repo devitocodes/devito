@@ -23,7 +23,6 @@ jobs:
     env:
       DEVITO_ARCH: gcc
       DEVITO_LANGUAGE: "openmp"
-      PYTHON_VERSION: "3.7"
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -36,6 +35,7 @@ jobs:
     - name: Setup conda
       uses: conda-incubator/setup-miniconda@v2
       with:
+       python-version: 3.8
        activate-environment: devito
        environment-file: environment-dev.yml
        auto-activate-base: false
