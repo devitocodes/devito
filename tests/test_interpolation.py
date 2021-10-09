@@ -2,12 +2,12 @@ from math import sin, floor
 
 import numpy as np
 import pytest
+from sympy import Float
 
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
                     MatrixSparseTimeFunction)
-from devito.symbolics import FLOAT
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -192,7 +192,7 @@ def test_precomputed_injection():
                                    gridpoints=gridpoints,
                                    interpolation_coeffs=interpolation_coeffs)
 
-    expr = sf.inject(m, FLOAT(1.))
+    expr = sf.inject(m, Float(1.))
 
     Operator(expr)()
 
@@ -368,7 +368,7 @@ def test_inject(shape, coords, result, npoints=19):
     a.data[:] = 0.
     p = points(a.grid, ranges=coords, npoints=npoints)
 
-    expr = p.inject(a, FLOAT(1.))
+    expr = p.inject(a, Float(1.))
 
     Operator(expr)(a=a)
 
@@ -390,7 +390,7 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     a.data[:] = 0.
     p = time_points(a.grid, ranges=coords, npoints=npoints)
 
-    expr = p.inject(a, FLOAT(1.), u_t=a.indices[0]+1)
+    expr = p.inject(a, Float(1.), u_t=a.indices[0]+1)
 
     Operator(expr)(a=a, time=1)
 
@@ -399,7 +399,7 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
     a.data[:] = 0.
-    expr = p.inject(a, FLOAT(1.), p_t=p.indices[0]+1)
+    expr = p.inject(a, Float(1.), p_t=p.indices[0]+1)
 
     Operator(expr)(a=a, time=1)
 
@@ -408,7 +408,7 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
     a.data[:] = 0.
-    expr = p.inject(a, FLOAT(1.), u_t=a.indices[0]+1, p_t=p.indices[0]+1)
+    expr = p.inject(a, Float(1.), u_t=a.indices[0]+1, p_t=p.indices[0]+1)
 
     Operator(expr)(a=a, time=1)
 

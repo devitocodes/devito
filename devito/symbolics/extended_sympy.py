@@ -10,8 +10,8 @@ from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
-           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
-           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal',
+           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
+           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
            'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'cast_mapper']
 
 
@@ -231,13 +231,15 @@ class ListInitializer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class Byref(sympy.Expr, Pickable):
+class UnaryOp(sympy.Expr, Pickable):
 
     """
-    Symbolic representation of the C notation ``&symbol``.
+    Symbolic representation of a unary C operator.
     """
 
-    def __new__(cls, base):
+    _op = ''
+
+    def __new__(cls, base, **kwargs):
         if isinstance(base, str):
             base = Symbol(base)
         elif not isinstance(base, sympy.Expr):
@@ -252,20 +254,67 @@ class Byref(sympy.Expr, Pickable):
 
     def __str__(self):
         if self.base.is_Symbol:
-            return "&%s" % ccode(self.base)
+            return "%s%s" % (self._op, ccode(self.base))
         else:
             try:
                 if self.base.is_AbstractFunction:
-                    return "&%s" % self.base.name
+                    return "%s%s" % (self._op, self.base.name)
             except AttributeError:
                 pass
-            return "&(%s)" % ccode(self.base)
+            return "%s(%s)" % (self._op, ccode(self.base))
 
     __repr__ = __str__
 
     # Pickling support
     _pickle_args = ['base']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Byref(UnaryOp):
+
+    """
+    Symbolic representation of the C notation `&expr`.
+    """
+
+    _op = '&'
+
+
+class Deref(UnaryOp):
+
+    """
+    Symbolic representation of the C notation `*expr`.
+    """
+
+    _op = '*'
+
+
+class Cast(UnaryOp):
+
+    """
+    Symbolic representation of the C notation `(type)expr`.
+    """
+
+    _base_typ = ''
+
+    def __new__(cls, base, stars=None, **kwargs):
+        obj = super().__new__(cls, base)
+        obj._stars = stars
+        return obj
+
+    @property
+    def stars(self):
+        return self._stars
+
+    @property
+    def typ(self):
+        return '%s%s' % (self._base_typ, self.stars or '')
+
+    @property
+    def _op(self):
+        return '(%s)' % self.typ
+
+    # Pickling support
+    _pickle_kwargs = ['stars']
 
 
 class IndexedPointer(sympy.Expr, Pickable):
@@ -414,17 +463,43 @@ class Literal(sympy.Symbol):
     pass
 
 
-INT = Function('INT')
-FLOAT = Function('FLOAT')
-DOUBLE = Function('DOUBLE')
+# Shortcuts (mostly for retrocompatibility)
 
-INTP = Function('INTP')
-FLOATP = Function('FLOATP')
-DOUBLEP = Function('DOUBLEP')
+class INT(Cast):
+    _base_typ = 'int'
+
+
+class FLOAT(Cast):
+    _base_typ = 'float'
+
+
+class DOUBLE(Cast):
+    _base_typ = 'double'
+
+
+class CastStar(object):
+
+    base = None
+
+    def __new__(cls, base):
+        return cls.base(base, '*')
+
+
+class INTP(CastStar):
+    base = INT
+
+
+class FLOATP(CastStar):
+    base = FLOAT
+
+
+class DOUBLEP(CastStar):
+    base = DOUBLE
+
+
+# Some other utility functions
 
 FLOOR = Function('floor')
-
-# Functions used for adjusting loop bounds
 MAX = Function('MAX')
 MIN = Function('MIN')
 
