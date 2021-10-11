@@ -403,7 +403,8 @@ class DefFunction(Function, Pickable):
 
     @property
     def free_symbols(self):
-        return {i for i in self.arguments if isinstance(i, Expr)}
+        return set().union(*[i.free_symbols for i in self.arguments
+                             if isinstance(i, Expr)])
 
     def __str__(self):
         return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.arguments))
