@@ -4,7 +4,7 @@ Extended SymPy hierarchy.
 
 import numpy as np
 import sympy
-from sympy import Expr, Integer, Function, Symbol
+from sympy import Expr, Integer, Function, Symbol, sympify
 
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
@@ -331,9 +331,13 @@ class IndexedPointer(sympy.Expr, Pickable):
             return sympy.Indexed(base, index)
         elif not isinstance(base, sympy.Basic):
             raise ValueError("`base` must be of type sympy.Basic")
-        obj = sympy.Expr.__new__(cls, base)
+
+        index = tuple(sympify(i) for i in as_tuple(index))
+
+        obj = sympy.Expr.__new__(cls, base, *index)
         obj._base = base
-        obj._index = as_tuple(index)
+        obj._index = index
+
         return obj
 
     @property
@@ -345,7 +349,25 @@ class IndexedPointer(sympy.Expr, Pickable):
         return self._index
 
     def __str__(self):
-        return "%s%s" % (self.base, ''.join('[%s]' % i for i in self.index))
+        base = self.base
+        try:
+            if base.is_AbstractFunction:
+                base = base.name
+        except AttributeError:
+            pass
+        return "%s%s" % (base, ''.join('[%s]' % i for i in self.index))
+
+    @property
+    def free_symbols(self):
+        ret = {self.base}
+        for i in self.index:
+            if i.is_Number:
+                continue
+            elif i.is_Atom:
+                ret.add(i)
+            else:
+                ret.update(i.free_symbols)
+        return ret
 
     __repr__ = __str__
 
