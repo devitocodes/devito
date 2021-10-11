@@ -265,6 +265,18 @@ class UnaryOp(sympy.Expr, Pickable):
 
     __repr__ = __str__
 
+    @property
+    def free_symbols(self):
+        if self.base.is_Symbol:
+            return {self.base}
+        else:
+            try:
+                if self.base.is_AbstractFunction:
+                    return set()
+            except AttributeError:
+                pass
+            return self.base.free_symbols
+
     # Pickling support
     _pickle_args = ['base']
     __reduce_ex__ = Pickable.__reduce_ex__
