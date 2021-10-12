@@ -240,12 +240,18 @@ class UnaryOp(sympy.Expr, Pickable):
     _op = ''
 
     def __new__(cls, base, **kwargs):
-        if isinstance(base, str):
-            base = Symbol(base)
-        elif not isinstance(base, sympy.Expr):
-            raise ValueError("`base` must be sympy.Expr or str")
+        try:
+            # If an AbstractFunction, pull the underlying Symbol
+            base = base.indexed.label
+        except AttributeError:
+            if isinstance(base, str):
+                base = Symbol(base)
+            elif not isinstance(base, sympy.Expr):
+                raise ValueError("`base` must be sympy.Expr or str")
+
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base
+
         return obj
 
     @property
@@ -256,26 +262,9 @@ class UnaryOp(sympy.Expr, Pickable):
         if self.base.is_Symbol:
             return "%s%s" % (self._op, ccode(self.base))
         else:
-            try:
-                if self.base.is_AbstractFunction:
-                    return "%s%s" % (self._op, self.base.name)
-            except AttributeError:
-                pass
             return "%s(%s)" % (self._op, ccode(self.base))
 
     __repr__ = __str__
-
-    @property
-    def free_symbols(self):
-        if self.base.is_Symbol:
-            return {self.base}
-        else:
-            try:
-                if self.base.is_AbstractFunction:
-                    return set()
-            except AttributeError:
-                pass
-            return self.base.free_symbols
 
     # Pickling support
     _pickle_args = ['base']
@@ -341,8 +330,12 @@ class IndexedPointer(sympy.Expr, Pickable):
     def __new__(cls, base, index):
         if isinstance(base, (str, sympy.IndexedBase, sympy.Symbol)):
             return sympy.Indexed(base, index)
-        elif not isinstance(base, sympy.Basic):
-            raise ValueError("`base` must be of type sympy.Basic")
+        try:
+            # If an AbstractFunction, pull the underlying Symbol
+            base = base.indexed.label
+        except AttributeError:
+            if not isinstance(base, sympy.Basic):
+                raise ValueError("`base` must be of type sympy.Basic")
 
         index = tuple(sympify(i) for i in as_tuple(index))
 
@@ -361,25 +354,7 @@ class IndexedPointer(sympy.Expr, Pickable):
         return self._index
 
     def __str__(self):
-        base = self.base
-        try:
-            if base.is_AbstractFunction:
-                base = base.name
-        except AttributeError:
-            pass
-        return "%s%s" % (base, ''.join('[%s]' % i for i in self.index))
-
-    @property
-    def free_symbols(self):
-        ret = {self.base}
-        for i in self.index:
-            if i.is_Number:
-                continue
-            elif i.is_Atom:
-                ret.add(i)
-            else:
-                ret.update(i.free_symbols)
-        return ret
+        return "%s%s" % (self.base, ''.join('[%s]' % i for i in self.index))
 
     __repr__ = __str__
 
