@@ -197,15 +197,14 @@ def dtype_to_cstr(dtype):
 
 def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
-    return {np.int32: ctypes.c_int,
-            np.float32: ctypes.c_float,
-            np.int64: ctypes.c_int64,
-            np.float64: ctypes.c_double}[dtype]
+    return np.ctypeslib.as_ctypes_type(dtype)
 
 
 def dtype_to_mpitype(dtype):
     """Map numpy types to MPI datatypes."""
-    return {np.int32: 'MPI_INT',
+    return {np.ubyte: 'MPI_BYTE',
+            np.ushort: 'MPI_UNSIGNED_SHORT',
+            np.int32: 'MPI_INT',
             np.float32: 'MPI_FLOAT',
             np.int64: 'MPI_LONG',
             np.float64: 'MPI_DOUBLE'}[dtype]
