@@ -4,14 +4,14 @@ Extended SymPy hierarchy.
 
 import numpy as np
 import sympy
-from sympy import Expr, Integer, Function, Symbol
+from sympy import Expr, Integer, Function, Symbol, sympify
 
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
-           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
-           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal',
+           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
+           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
            'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'cast_mapper']
 
 
@@ -231,19 +231,27 @@ class ListInitializer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class Byref(sympy.Expr, Pickable):
+class UnaryOp(sympy.Expr, Pickable):
 
     """
-    Symbolic representation of the C notation ``&symbol``.
+    Symbolic representation of a unary C operator.
     """
 
-    def __new__(cls, base):
-        if isinstance(base, str):
-            base = Symbol(base)
-        elif not isinstance(base, sympy.Expr):
-            raise ValueError("`base` must be sympy.Expr or str")
+    _op = ''
+
+    def __new__(cls, base, **kwargs):
+        try:
+            # If an AbstractFunction, pull the underlying Symbol
+            base = base.indexed.label
+        except AttributeError:
+            if isinstance(base, str):
+                base = Symbol(base)
+            elif not isinstance(base, sympy.Expr):
+                raise ValueError("`base` must be sympy.Expr or str")
+
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base
+
         return obj
 
     @property
@@ -252,15 +260,62 @@ class Byref(sympy.Expr, Pickable):
 
     def __str__(self):
         if self.base.is_Symbol:
-            return "&%s" % ccode(self.base)
+            return "%s%s" % (self._op, ccode(self.base))
         else:
-            return "&(%s)" % ccode(self.base)
+            return "%s(%s)" % (self._op, ccode(self.base))
 
     __repr__ = __str__
 
     # Pickling support
     _pickle_args = ['base']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Byref(UnaryOp):
+
+    """
+    Symbolic representation of the C notation `&expr`.
+    """
+
+    _op = '&'
+
+
+class Deref(UnaryOp):
+
+    """
+    Symbolic representation of the C notation `*expr`.
+    """
+
+    _op = '*'
+
+
+class Cast(UnaryOp):
+
+    """
+    Symbolic representation of the C notation `(type)expr`.
+    """
+
+    _base_typ = ''
+
+    def __new__(cls, base, stars=None, **kwargs):
+        obj = super().__new__(cls, base)
+        obj._stars = stars
+        return obj
+
+    @property
+    def stars(self):
+        return self._stars
+
+    @property
+    def typ(self):
+        return '%s%s' % (self._base_typ, self.stars or '')
+
+    @property
+    def _op(self):
+        return '(%s)' % self.typ
+
+    # Pickling support
+    _pickle_kwargs = ['stars']
 
 
 class IndexedPointer(sympy.Expr, Pickable):
@@ -275,11 +330,19 @@ class IndexedPointer(sympy.Expr, Pickable):
     def __new__(cls, base, index):
         if isinstance(base, (str, sympy.IndexedBase, sympy.Symbol)):
             return sympy.Indexed(base, index)
-        elif not isinstance(base, sympy.Basic):
-            raise ValueError("`base` must be of type sympy.Basic")
-        obj = sympy.Expr.__new__(cls, base)
+        try:
+            # If an AbstractFunction, pull the underlying Symbol
+            base = base.indexed.label
+        except AttributeError:
+            if not isinstance(base, sympy.Basic):
+                raise ValueError("`base` must be of type sympy.Basic")
+
+        index = tuple(sympify(i) for i in as_tuple(index))
+
+        obj = sympy.Expr.__new__(cls, base, *index)
         obj._base = base
-        obj._index = as_tuple(index)
+        obj._index = index
+
         return obj
 
     @property
@@ -308,6 +371,8 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
+    is_Atom = True
+
     def __new__(cls, name, arguments=None):
         arguments = as_tuple(arguments)
         obj = Function.__new__(cls, name, *arguments)
@@ -325,7 +390,8 @@ class DefFunction(Function, Pickable):
 
     @property
     def free_symbols(self):
-        return {i for i in self.arguments if isinstance(i, Expr)}
+        return set().union(*[i.free_symbols for i in self.arguments
+                             if isinstance(i, Expr)])
 
     def __str__(self):
         return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.arguments))
@@ -407,17 +473,43 @@ class Literal(sympy.Symbol):
     pass
 
 
-INT = Function('INT')
-FLOAT = Function('FLOAT')
-DOUBLE = Function('DOUBLE')
+# Shortcuts (mostly for retrocompatibility)
 
-INTP = Function('INTP')
-FLOATP = Function('FLOATP')
-DOUBLEP = Function('DOUBLEP')
+class INT(Cast):
+    _base_typ = 'int'
+
+
+class FLOAT(Cast):
+    _base_typ = 'float'
+
+
+class DOUBLE(Cast):
+    _base_typ = 'double'
+
+
+class CastStar(object):
+
+    base = None
+
+    def __new__(cls, base):
+        return cls.base(base, '*')
+
+
+class INTP(CastStar):
+    base = INT
+
+
+class FLOATP(CastStar):
+    base = FLOAT
+
+
+class DOUBLEP(CastStar):
+    base = DOUBLE
+
+
+# Some other utility functions
 
 FLOOR = Function('floor')
-
-# Functions used for adjusting loop bounds
 MAX = Function('MAX')
 MIN = Function('MIN')
 

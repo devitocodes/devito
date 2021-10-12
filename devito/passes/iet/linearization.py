@@ -3,8 +3,9 @@ from collections import defaultdict
 import numpy as np
 
 from devito.data import FULL
-from devito.ir import (BlankLine, DummyEq, Dereference, Expression, List, LocalExpression,
-                       PointerCast, PragmaTransfer, FindNodes, FindSymbols, Transformer)
+from devito.ir import (BlankLine, DummyExpr, Dereference, Expression, List,
+                       PointerCast, PragmaTransfer, FindNodes, FindSymbols,
+                       Transformer)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.parpragma import PragmaLangBB
 from devito.symbolics import (DefFunction, MacroArgument, ccode, retrieve_indexed,
@@ -74,10 +75,10 @@ def linearize_accesses(iet, cache, sregistry):
         name = sregistry.make_name(prefix='%s_fsz' % d.name)
         s = Symbol(name=name, dtype=np.int32, is_const=True)
         try:
-            expr = LocalExpression(DummyEq(s, v[0]._C_get_field(FULL, d).size))
+            expr = DummyExpr(s, v[0]._C_get_field(FULL, d).size, init=True)
         except AttributeError:
             assert v[0].is_Array
-            expr = LocalExpression(DummyEq(s, v[0].symbolic_shape[d]))
+            expr = DummyExpr(s, v[0].symbolic_shape[d], init=True)
         for f in v:
             imapper[f].append((d, s))
             cache[f].stmts0.append(expr)
@@ -93,7 +94,7 @@ def linearize_accesses(iet, cache, sregistry):
             except KeyError:
                 name = sregistry.make_name(prefix='%s_slc' % d.name)
                 s = Symbol(name=name, dtype=np.int32, is_const=True)
-                stmt = built[expr] = LocalExpression(DummyEq(s, expr))
+                stmt = built[expr] = DummyExpr(s, expr, init=True)
             mapper[f].append(stmt.write)
             cache[f].stmts1.append(stmt)
     mapper.update([(f, []) for f in functions if f not in mapper])
@@ -213,7 +214,7 @@ def linearize_transfers(iet, sregistry):
                                                                           imask)
                 assert len(symsect) == 1
                 start, _ = symsect[0]
-                exprs.append(LocalExpression(DummyEq(wildcard, start)))
+                exprs.append(DummyExpr(wildcard, start, init=True))
 
                 imask = [(wildcard, size)]
 

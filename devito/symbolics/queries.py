@@ -25,7 +25,7 @@ def q_symbol(expr):
 
 
 def q_leaf(expr):
-    return expr.is_Number or expr.is_Symbol or expr.is_Indexed
+    return expr.is_Atom or expr.is_Indexed
 
 
 def q_indexed(expr):
