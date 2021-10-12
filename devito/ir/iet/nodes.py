@@ -384,13 +384,13 @@ class Expression(ExprStmt, Node):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return (not self.init and
-                ((self.is_scalar and not self.is_Increment) or
-                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer))))
+        return (self.init or
+                (self.is_scalar and not self.is_Increment) or
+                (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
     def defines(self):
-        return (self.write,) if (self.init or self.is_initializable) else ()
+        return (self.write,) if self.is_initializable else ()
 
     @property
     def expr_symbols(self):
