@@ -72,10 +72,11 @@ RUN mkdir -p /app && \
     groupadd -r app && \
     useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
     chown -R app:app $APP_HOME && \
-    chown app:app /docker-entrypoint.sh && \
-    chown app:app /print-defaults && \
-    chown app:app /tests && \
-    chown app:app /jupyter
+    chown -R app:app /docker-entrypoint.sh && \
+    chown -R app:app /print-defaults && \
+    chown -R app:app /tests && \
+    chown -R app:app /jupyter && \
+    chown -R app:app /venv
 
 # Change to the app user.
 USER app
