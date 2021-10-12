@@ -49,12 +49,11 @@ def test_viscoacoustic(kernel, time_order, normrec, atol):
     assert np.isclose(norm(rec), normrec, atol=atol, rtol=0)
 
 
-@pytest.mark.parametrize('ndim', [2, 3])
+@pytest.mark.parametrize('shape', [(51, 51), (16, 16, 16)])
 @pytest.mark.parametrize('kernel', ['sls', 'ren', 'deng_mcmechan'])
 @pytest.mark.parametrize('time_order', [1, 2])
-def test_viscoacoustic_stability(ndim, kernel, time_order):
-    shape = tuple([11]*ndim)
-    spacing = tuple([20]*ndim)
+def test_viscoacoustic_stability(shape, kernel, time_order):
+    spacing = tuple([20]*len(shape))
     _, _, _, [rec, _, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0,
                                kernel=kernel, time_order=time_order)
     assert np.isfinite(norm(rec))
