@@ -146,12 +146,6 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
-    def visit_ForeignExpression(self, o):
-        if self.verbose:
-            return self.indent + "<Expression %s>" % o.expr
-        else:
-            return self.indent + str(o)
-
     def visit_HaloSpot(self, o):
         self._depth += 1
         body = self._visit(o.children)
@@ -282,10 +276,17 @@ class CGen(Visitor):
         return o.element
 
     def visit_Expression(self, o):
-        code = (c.Assign(ccode(o.expr.lhs, dtype=o.dtype),
-                         ccode(o.expr.rhs, dtype=o.dtype)))
+        lhs = ccode(o.expr.lhs, dtype=o.dtype)
+        rhs = ccode(o.expr.rhs, dtype=o.dtype)
+
+        if o.init:
+            code = c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs), rhs)
+        else:
+            code = c.Assign(lhs, rhs)
+
         if o.pragmas:
             code = c.Module(list(o.pragmas) + [code])
+
         return code
 
     def visit_AugmentedExpression(self, o):
@@ -295,26 +296,11 @@ class CGen(Visitor):
             code = c.Module(list(o.pragmas) + [code])
         return code
 
-    def visit_LocalExpression(self, o):
-        if o.write.is_Array:
-            lhs = '%s%s' % (
-                o.expr.lhs.name,
-                ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
-            )
-        else:
-            lhs = ccode(o.expr.lhs, dtype=o.dtype)
-
-        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
-                             ccode(o.expr.rhs, dtype=o.dtype))
-
-    def visit_ForeignExpression(self, o):
-        return c.Statement(ccode(o.expr))
-
     def visit_Call(self, o, nested_call=False):
         arguments = self._args_call(o.arguments)
         if o.retobj is not None:
-            return c.Assign(ccode(o.retobj), MultilineCall(o.name, arguments,
-                                                           True, o.is_indirect))
+            return c.Initializer(c.Value(o.retobj._C_typedata, ccode(o.retobj)),
+                                 MultilineCall(o.name, arguments, True, o.is_indirect))
         else:
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect)
 

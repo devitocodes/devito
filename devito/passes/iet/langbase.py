@@ -3,9 +3,9 @@ from abc import ABC
 
 import cgen as c
 
-from devito.ir import (BlankLine, DummyEq, Call, Conditional, List, LocalExpression,
-                       Prodder, ParallelIteration, ParallelBlock, PointerCast,
-                       EntryFunction, ThreadFunction)
+from devito.ir import (BlankLine, DummyExpr, Call, Conditional, List, Prodder,
+                       ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
+                       ThreadFunction)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe
@@ -251,12 +251,12 @@ class DeviceAwareMixin(object):
 
             if objcomm is not None:
                 rank = Symbol(name='rank')
-                rank_decl = LocalExpression(DummyEq(rank, 0))
+                rank_decl = DummyExpr(rank, 0)
                 rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
 
                 ngpus = Symbol(name='ngpus')
                 call = self.lang['num-devices'](devicetype)
-                ngpus_init = LocalExpression(DummyEq(ngpus, call))
+                ngpus_init = DummyExpr(ngpus, call)
 
                 osdd_then = self.lang['set-device']([deviceid] + devicetype)
                 osdd_else = self.lang['set-device']([rank % ngpus] + devicetype)

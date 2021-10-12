@@ -125,12 +125,10 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_parallel(graph)
+        parizer.initialize(graph)
 
         # Symbol definitions
         cls._Target.DataManager(sregistry, options).process(graph)
-
-        # Initialize the target-language runtime
-        parizer.initialize(graph)
 
         return graph
 
@@ -194,6 +192,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_parallel(graph)
+        parizer.initialize(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -204,9 +203,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Linearize n-dimensional Indexeds
         if options['linearize']:
             linearize(graph, sregistry=sregistry)
-
-        # Initialize the target-language runtime
-        parizer.initialize(graph)
 
         return graph
 

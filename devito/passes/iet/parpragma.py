@@ -178,10 +178,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
-        # Collect expressions inducing reductions
-        exprs = FindNodes(Expression).visit(partree)
-        exprs = [i for i in exprs if i.is_Increment and not i.is_ForeignExpression]
-
+        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_Increment]
         reduction = [i.output for i in exprs]
         if all(i.is_Affine for i in partree.collapsed) or \
            all(not i.is_Indexed for i in reduction):

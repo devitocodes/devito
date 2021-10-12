@@ -212,6 +212,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
+        parizer.initialize(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -222,9 +223,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # Linearize n-dimensional Indexeds
         if options['linearize']:
             linearize(graph, sregistry=sregistry)
-
-        # Initialize the target-language runtime
-        parizer.initialize(graph)
 
         return graph
 

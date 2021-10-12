@@ -14,15 +14,6 @@ __all__ = ['ccode']
 
 class CodePrinter(C99CodePrinter):
 
-    custom_functions = {
-        'INT': '(int)',
-        'INTP': '(int*)',
-        'FLOAT': '(float)',
-        'FLOATP': '(float*)',
-        'DOUBLE': '(double)',
-        'DOUBLEP': '(double*)',
-    }
-
     """
     Decorator for sympy.printing.ccode.CCodePrinter.
 
@@ -34,7 +25,6 @@ class CodePrinter(C99CodePrinter):
     def __init__(self, dtype=np.float32, settings={}):
         self.dtype = dtype
         C99CodePrinter.__init__(self, settings)
-        self.known_functions.update(self.custom_functions)
 
     def _print_Function(self, expr):
         # There exist no unknown Functions
@@ -146,7 +136,7 @@ class CodePrinter(C99CodePrinter):
     def _print_IntDiv(self, expr):
         return expr.__str__()
 
-    _print_Byref = _print_IntDiv
+    _print_UnaryOp = _print_IntDiv
     _print_IndexedPointer = _print_IntDiv
     _print_DefFunction = _print_IntDiv
     _print_InlineIf = _print_IntDiv

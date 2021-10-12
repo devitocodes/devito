@@ -969,9 +969,9 @@ def parse_kwargs(**kwargs):
                                                          language=kwargs['language'])
     elif any([platform, language]):
         kwargs['compiler'] =\
-            configuration['compiler'].__new_from__(platform=kwargs['platform'],
+            configuration['compiler'].__new_with__(platform=kwargs['platform'],
                                                    language=kwargs['language'])
     else:
-        kwargs['compiler'] = configuration['compiler']
+        kwargs['compiler'] = configuration['compiler'].__new_with__()
 
     return kwargs

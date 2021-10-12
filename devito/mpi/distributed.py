@@ -367,11 +367,11 @@ class Distributor(AbstractDistributor):
         # Set up diagonal neighbours
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
             neighbor = [c + s.val for c, s in zip(self.mycoords, i)]
-            try:
-                ret[i] = self.comm.Get_cart_rank(neighbor)
-            except:
-                # Fallback for MPI ranks at the grid boundary
+
+            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology)):
                 ret[i] = MPI.PROC_NULL
+            else:
+                ret[i] = self.comm.Get_cart_rank(neighbor)
 
         return ret
 
