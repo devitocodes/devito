@@ -22,6 +22,7 @@ from devito.operator import Operator  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.mpi import MPI  # noqa
+from devito.checkpointing import DevitoCheckpoint, CheckpointOperator  # noqa
 
 # Imports required to initialize Devito
 from devito.arch import compiler_registry, platform_registry
