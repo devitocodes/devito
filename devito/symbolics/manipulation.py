@@ -7,13 +7,14 @@ from sympy import Number, Indexed, Symbol, LM, LC
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
+from devito.symbolics import MIN
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split
 from devito.types.equation import Eq
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
            'split_affine', 'subs_op_args', 'uxreplace', 'aligned_indices',
-           'Uxmapper', 'reuse_if_untouched']
+           'Uxmapper', 'reuse_if_untouched', 'evalmin']
 
 
 def uxreplace(expr, rule):
@@ -316,3 +317,14 @@ def reuse_if_untouched(expr, args, evaluate=False):
         return expr
     else:
         return expr.func(*args, evaluate=evaluate)
+
+
+def evalmin(a, b):
+    """
+    Simplify min(a, b) if possible.
+    """
+    try:
+        bool(min(a, b))  # Can it be evaluated or simplified?
+        return min(a, b)
+    except TypeError:
+        return MIN(a, b)
