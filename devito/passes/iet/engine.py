@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
 from sympy.tensor.indexed import IndexException
@@ -6,7 +6,7 @@ from sympy.tensor.indexed import IndexException
 from devito.ir.iet import Call, FindNodes, MetaCall, Transformer
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 
-__all__ = ['Graph', 'iet_pass']
+__all__ = ['Graph', 'iet_pass', 'Jitting']
 
 
 class Graph(object):
@@ -20,12 +20,13 @@ class Graph(object):
     The `apply` method may be used to visit the Graph and apply a transformer `T`
     to all nodes. This may change the state of the Graph: node `a` gets replaced
     by `a' = T(a)`; new nodes (Callables), and therefore new edges, may be added.
+
+    The `visit` method collects info about the nodes in the Graph.
     """
 
-    def __init__(self, iet, *efuncs):
+    def __init__(self, iet):
         # Internal "known" functions
         self.efuncs = OrderedDict([('root', iet)])
-        self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
 
         # Foreign functions
         self.ffuncs = []
@@ -67,7 +68,7 @@ class Graph(object):
 
     def apply(self, func, **kwargs):
         """
-        Apply ``func`` to all nodes in the Graph. This changes the state of the Graph.
+        Apply `func` to all nodes in the Graph. This changes the state of the Graph.
         """
         dag = self._create_call_graph()
 
@@ -75,22 +76,25 @@ class Graph(object):
         for i in dag.topological_sort():
             self.efuncs[i], metadata = func(self.efuncs[i], **kwargs)
 
-            # Track any new Dimensions introduced by `func`
-            self.dimensions.extend(list(metadata.get('dimensions', [])))
-
-            # Track any new #include and #define required by `func`
-            self.includes.extend(list(metadata.get('includes', [])))
-            self.includes = filter_ordered(self.includes)
-            self.headers.extend(list(metadata.get('headers', [])))
-            self.headers = filter_ordered(self.headers, key=str)
-
-            # Tracky any new external function
-            self.ffuncs.extend(list(metadata.get('ffuncs', [])))
-            self.ffuncs = filter_ordered(self.ffuncs)
-
-            # Track any new ElementalFunctions
+            # Track all objects introduced by `func`
+            self.dimensions.extend(as_tuple(metadata.get('dimensions')))
+            self.includes.extend(as_tuple(metadata.get('includes')))
+            self.headers.extend(as_tuple(metadata.get('headers')))
+            self.ffuncs.extend(as_tuple(metadata.get('ffuncs', [])))
             self.efuncs.update(OrderedDict([(i.name, i)
                                             for i in metadata.get('efuncs', [])]))
+
+            # Update compiler if necessary
+            try:
+                jitting = metadata['jitting']
+                self.includes.extend(jitting.includes)
+
+                compiler = kwargs['compiler']
+                compiler.add_include_dirs(jitting.include_dirs)
+                compiler.add_libraries(jitting.libs)
+                compiler.add_library_dirs(jitting.lib_dirs)
+            except KeyError:
+                pass
 
             # If there's a change to the `args` and the `iet` is an efunc, then
             # we must update the call sites as well, as the arguments dropped down
@@ -141,12 +145,38 @@ class Graph(object):
 
                 self.efuncs[n] = efunc
 
+        # Uniqueness
+        self.includes = filter_ordered(self.includes)
+        self.headers = filter_ordered(self.headers, key=str)
+        self.ffuncs = filter_ordered(self.ffuncs)
+
         # Apply `func` to the external functions
         for i in range(len(self.ffuncs)):
             self.ffuncs[i], _ = func(self.ffuncs[i], **kwargs)
 
+    def visit(self, func, **kwargs):
+        """
+        Apply `func` to all nodes in the Graph. `func` gathers info about the
+        state of each node. The gathered info is returned to the called as a mapper
+        from nodes to info. Unlike `apply`, `visit` does not change the state
+        of the Graph.
+        """
+        dag = self._create_call_graph()
+        toposort = dag.topological_sort()
+
+        mapper = OrderedDict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
+
+        return mapper
+
 
 def iet_pass(func):
+    if isinstance(func, tuple):
+        assert len(func) == 2 and func[0] is iet_visit
+        call = lambda graph: graph.visit
+        func = func[1]
+    else:
+        call = lambda graph: graph.apply
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         if timed_pass.is_enabled():
@@ -156,9 +186,16 @@ def iet_pass(func):
         try:
             # Pure function case
             graph, = args
-            maybe_timed(graph.apply, func.__name__)(func, **kwargs)
+            return maybe_timed(call(graph), func.__name__)(func, **kwargs)
         except ValueError:
             # Instance method case
             self, graph = args
-            maybe_timed(graph.apply, func.__name__)(partial(func, self), **kwargs)
+            return maybe_timed(call(graph), func.__name__)(partial(func, self), **kwargs)
     return wrapper
+
+
+def iet_visit(func):
+    return iet_pass((iet_visit, func))
+
+
+Jitting = namedtuple('Jitting', 'includes include_dirs libs lib_dirs')

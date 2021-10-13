@@ -261,8 +261,13 @@ def split_affine(expr):
 
     # Fallback
     poly = expr.as_poly()
-    if not (poly.is_univariate and poly.is_linear) or not LM(poly).is_Symbol:
+    try:
+        if not (poly.is_univariate and poly.is_linear) or not LM(poly).is_Symbol:
+            raise ValueError
+    except AttributeError:
+        # `poly` might be None
         raise ValueError
+
     return AffineFunction(LM(poly), LC(poly), poly.TC())
 
 

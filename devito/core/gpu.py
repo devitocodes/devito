@@ -7,7 +7,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
                                     cire, cse, extract_increments, factorize,
-                                    fission, fuse, optimize_pows)
+                                    fission, fuse, optimize_pows, optimize_msds)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
                                mpiize, hoist_prodders, is_on_device, linearize)
 from devito.tools import as_tuple, timed_pass
@@ -114,22 +114,21 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_parallel(graph)
+        parizer.initialize(graph)
 
         # Symbol definitions
         cls._Target.DataManager(sregistry, options).process(graph)
-
-        # Initialize the target-language runtime
-        parizer.initialize(graph)
 
         return graph
 
@@ -149,6 +148,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
+
+        # Optimize MultiSubDomains
+        clusters = optimize_msds(clusters)
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True, options=options)
@@ -178,17 +180,19 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_parallel(graph)
+        parizer.initialize(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -199,9 +203,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Linearize n-dimensional Indexeds
         if options['linearize']:
             linearize(graph, sregistry=sregistry)
-
-        # Initialize the target-language runtime
-        parizer.initialize(graph)
 
         return graph
 
@@ -260,6 +261,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
+        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
@@ -270,7 +272,8 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'optcomms': partial(optimize_halospots),
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
-            'mpi': partial(mpiize, mode=options['mpi'], sregistry=sregistry),
+            'mpi': partial(mpiize, mode=options['mpi'], language=language,
+                           sregistry=sregistry),
             'linearize': partial(linearize, sregistry=sregistry),
             'prodders': partial(hoist_prodders),
             'init': parizer.initialize

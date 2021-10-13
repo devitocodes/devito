@@ -12,10 +12,10 @@ __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals
 
 def detect_accesses(exprs):
     """
-    Return a mapper ``M : F -> S``, where F are Functions appearing
-    in ``exprs`` and S are Stencils. ``M[f]`` represents all data accesses
-    to ``f`` within ``exprs``. Also map ``M[None]`` to all Dimensions used in
-    ``exprs`` as plain symbols, rather than as array indices.
+    Return a mapper `M : F -> S`, where F are Functions appearing in `exprs`
+    and S are Stencils. `M[f]` represents all data accesses to `f` within
+    `exprs`. Also map `M[None]` to all Dimensions used in `exprs` as plain
+    symbols, rather than as array indices.
     """
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
@@ -35,8 +35,10 @@ def detect_accesses(exprs):
                 mapper[f][d].update(off or [0])
 
     # Compute M[None]
-    other_dims = [i for i in retrieve_terminals(exprs) if isinstance(i, Dimension)]
-    other_dims.extend(list(flatten(expr.implicit_dims for expr in as_tuple(exprs))))
+    other_dims = set()
+    for e in as_tuple(exprs):
+        other_dims.update(i for i in e.free_symbols if isinstance(i, Dimension))
+        other_dims.update(e.implicit_dims)
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper
@@ -78,7 +80,7 @@ def build_iterators(mapper):
     iterators = OrderedDict()
     for k, v in mapper.items():
         for d in v:
-            if d.is_Stepping:
+            if d.is_Stepping or d.is_Incr:
                 values = iterators.setdefault(d.root, [])
                 if d not in values:
                     values.append(d)
@@ -98,7 +100,7 @@ def build_intervals(stencil):
     for d, offs in stencil.items():
         if d.is_Stepping:
             mapper[d.root].update(offs)
-        elif d.is_Conditional:
+        elif d.is_Conditional or d.is_Incr:
             mapper[d.parent].update(offs)
         elif d.is_Modulo:
             mapper[d.root].update({d.offset - d.root + i for i in offs})

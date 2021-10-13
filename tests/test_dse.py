@@ -2500,7 +2500,7 @@ class TestIsoAcoustic(object):
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 151
+        assert summary0[('section1', None)].ops == 139
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 31
@@ -2565,7 +2565,7 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 90
-        assert np.isclose(summary[('section1', None)].oi, 1.508, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 1.511, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd()

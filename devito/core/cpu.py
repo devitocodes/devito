@@ -5,7 +5,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
                                     extract_increments, factorize, fission, fuse,
-                                    optimize_pows)
+                                    optimize_pows, optimize_msds)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
                                optimize_halospots, hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
@@ -126,12 +126,13 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
 
         # Shared-memory parallelism
         if options['openmp']:
@@ -161,6 +162,9 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
+        # Optimize MultiSubDomains
+        clusters = optimize_msds(clusters)
+
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 
@@ -189,6 +193,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
+        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
@@ -198,7 +203,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
 
         # Lower IncrDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
@@ -207,6 +212,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         parizer = cls._Target.Parizer(sregistry, options, platform)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
+        parizer.initialize(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -217,9 +223,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # Linearize n-dimensional Indexeds
         if options['linearize']:
             linearize(graph, sregistry=sregistry)
-
-        # Initialize the target-language runtime
-        parizer.initialize(graph)
 
         return graph
 
@@ -246,6 +249,9 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
+
+        # Optimize MultiSubDomains
+        clusters = optimize_msds(clusters)
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
@@ -324,7 +330,8 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
-            'mpi': partial(mpiize, mode=options['mpi'], sregistry=sregistry),
+            'mpi': partial(mpiize, mode=options['mpi'], language=kwargs['language'],
+                           sregistry=sregistry),
             'linearize': partial(linearize, sregistry=sregistry),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
