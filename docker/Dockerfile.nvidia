@@ -20,17 +20,15 @@
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
 ##############################################################
-FROM python:3.6
+FROM python:3.8
 
 ENV DEBIAN_FRONTEND noninteractive 
 
 # nodesource: nvdashboard requires nodejs>=10  
 RUN apt-get update -y && \
     apt-get install -y -q \
-        apt-utils \
-        vim \
-        curl \
-        mpich libmpich-dev && \    
+        apt-utils curl\   
+        vim && \
     curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
         nodejs \
@@ -38,17 +36,17 @@ RUN apt-get update -y && \
         libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
-        python-dev python3-dev python3-venv && \
+        ffmpeg && \
     wget -q -P /app/ \
-         https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-21-7_21.7_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-21-7-cuda-multi_21.7_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.7/nvhpc-2021_21.7_amd64.deb && \
+         https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-21-9_21.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-21-9-cuda-multi_21.9_amd64.deb \
+         https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-2021_21.9_amd64.deb && \
     wget -q -P /app/nvcomp_exts/ \
          https://developer.download.nvidia.com/compute/nvcomp/2.0/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz &&\
     apt-get install -y -q \
-         /app/nvhpc-21-7_21.7_amd64.deb \
-         /app/nvhpc-21-7-cuda-multi_21.7_amd64.deb \
-         /app/nvhpc-2021_21.7_amd64.deb && \
+         /app/nvhpc-21-9_21.9_amd64.deb \
+         /app/nvhpc-21-9-cuda-multi_21.9_amd64.deb \
+         /app/nvhpc-2021_21.9_amd64.deb && \
     tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz -C /app/nvcomp_exts && \
     apt-get update -y && \
     rm -rf /app/nvhpc* && \
@@ -99,6 +97,7 @@ RUN python3 -m venv /venv && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV OMPI_MCA_rmaps_base_oversubscribe=1
+ENV OMPI_MCA_btl_base_warn_component_unused=0
 ENV UCX_MEMTYPE_CACHE=no
 ENV UCX_NET_DEVICES=all
 ENV UCX_SHM_DEVICES=all
@@ -119,7 +118,7 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
     fi;  \
     if [ "x$MPI_VER" = "HPCX" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-        ln -sf $HPCSDK_HOME/comm_libs/hpcx/hpcx-2.8.1/ompi \
+        ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
     fi;  \
     /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
