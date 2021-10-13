@@ -53,6 +53,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     is_Input = True
     is_DiscreteFunction = True
 
+    _DataType = Data
+    """
+    The type of the underlying data object.
+    """
+
     def __init_finalize__(self, *args, **kwargs):
         # A `Distributor` to handle domain decomposition (only relevant for MPI)
         self._distributor = self.__distributor_setup__(**kwargs)
@@ -117,9 +122,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 CacheManager.clear(force=False)
 
                 # Allocate the actual data object
-                self._data = Data(self.shape_allocated, self.dtype,
-                                  modulo=self._mask_modulo, allocator=self._allocator,
-                                  distributor=self._distributor)
+                self._data = self._DataType(self.shape_allocated, self.dtype,
+                                            modulo=self._mask_modulo,
+                                            allocator=self._allocator,
+                                            distributor=self._distributor)
 
                 # Initialize data
                 if self._first_touch:
