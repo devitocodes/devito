@@ -125,6 +125,11 @@
     <span class="n">is_Input</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_DiscreteFunction</span> <span class="o">=</span> <span class="kc">True</span>
 
+    <span class="n">_DataType</span> <span class="o">=</span> <span class="n">Data</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The type of the underlying data object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># A `Distributor` to handle domain decomposition (only relevant for MPI)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__distributor_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -189,9 +194,10 @@
                 <span class="n">CacheManager</span><span class="o">.</span><span class="n">clear</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
                 <span class="c1"># Allocate the actual data object</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
-                                  <span class="n">modulo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_modulo</span><span class="p">,</span> <span class="n">allocator</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">,</span>
-                                  <span class="n">distributor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_DataType</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+                                            <span class="n">modulo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_modulo</span><span class="p">,</span>
+                                            <span class="n">allocator</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">,</span>
+                                            <span class="n">distributor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="p">)</span>
 
                 <span class="c1"># Initialize data</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
