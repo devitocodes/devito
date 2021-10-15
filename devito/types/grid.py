@@ -132,8 +132,7 @@ class Grid(ArgProvider):
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self.dimensions, self.shape,
-                                     distributor=self._distributor, counter=counter)
+            i.__subdomain_finalize__(self, counter=counter)
         self._subdomains = subdomains
 
         self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -343,7 +342,100 @@ class Grid(ArgProvider):
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
-class SubDomain(object):
+class AbstractSubDomain(object):
+
+    """
+    Abstract base class for subdomains.
+
+    Currently, the class hierarchy is as follows:
+
+                            AbstractSubDomain
+                                    |
+                          -------------------
+                          |                 |
+                      SubDomain      MultiSubDomain
+                                            |
+                                      SubDomainSet
+    """
+
+    name = None
+    """A unique name for the SubDomain."""
+
+    def __init__(self):
+        if self.name is None:
+            raise ValueError("`%s` requires a `name`" % self.__class__.__name__)
+
+        # All other attributes get initialized upon `__subdomain_finalize__`
+        self._dimensions = None
+        self._shape = None
+        self._dtype = None  # Inherited by all Functions defined on this SubDomain
+
+    def __subdomain_finalize__(self, grid, **kwargs):
+        """
+        Finalize the subdomain initialization.
+
+        Notes
+        -----
+        Must be overridden by subclasses.
+        """
+        raise NotImplementedError
+
+    def __eq__(self, other):
+        if not isinstance(other, AbstractSubDomain):
+            return False
+        return (self.name == other.name and
+                self.dimensions == other.dimensions and
+                self.shape == other.shape and
+                self.dtype == other.dtype)
+
+    def __hash__(self):
+        return hash((self.name, self.dimensions, self.shape, self.dtype))
+
+    def __str__(self):
+        return "%s[%s%s]" % (self.__class__.__name__, self.name, self.dimensions)
+
+    __repr__ = __str__
+
+    def union(self, other):
+        """
+        Return the union of two subdomains as a new subdomain.
+        """
+        raise NotImplementedError
+
+    def intersection(self, other):
+        """
+        Return the intersection of two subdomains as a new subdomain.
+        """
+        raise NotImplementedError
+
+    def difference(self, other):
+        """
+        Return the difference of two subdomains as a new subdomain.
+        """
+        raise NotImplementedError
+
+    @property
+    def dimensions(self):
+        return self._dimensions
+
+    @property
+    def ndim(self):
+        return len(self.dimensions)
+
+    @property
+    def dimension_map(self):
+        return {d.root: d for d in self.dimensions}
+
+    @property
+    def shape(self):
+        return self._shape
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+
+class SubDomain(AbstractSubDomain):
 
     """
     Base class to define Grid subdomains.
@@ -389,21 +481,13 @@ class SubDomain(object):
     Interior : An example of preset Subdomain.
     """
 
-    name = None
-    """A unique name for the SubDomain."""
-
-    def __init__(self):
-        if self.name is None:
-            raise ValueError("SubDomain requires a `name`")
-        self._dimensions = None
-
-    def __subdomain_finalize__(self, dimensions, shape, **kwargs):
+    def __subdomain_finalize__(self, grid, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
         counter = kwargs.get('counter', 0) - 1
-        for k, v, s in zip(self.define(dimensions).keys(),
-                           self.define(dimensions).values(), shape):
+        for k, v, s in zip(self.define(grid.dimensions).keys(),
+                           self.define(grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
@@ -439,39 +523,10 @@ class SubDomain(object):
                         sdshape.append(thickness)
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
+
         self._dimensions = tuple(sub_dimensions)
-
-        # Compute the SubDomain shape
         self._shape = tuple(sdshape)
-
-    def __eq__(self, other):
-        if not isinstance(other, SubDomain):
-            return False
-        return self.name == other.name and self.dimensions == other.dimensions
-
-    def __hash__(self):
-        return hash((self.name, self.dimensions))
-
-    def __str__(self):
-        return "SubDomain %s[%s]" % (self.name, self.dimensions)
-
-    __repr__ = __str__
-
-    @property
-    def dimensions(self):
-        return self._dimensions
-
-    @property
-    def ndim(self):
-        return len(self.dimensions)
-
-    @property
-    def dimension_map(self):
-        return {d.root: d for d in self.dimensions}
-
-    @property
-    def shape(self):
-        return self._shape
+        self._dtype = grid.dtype
 
     def define(self, dimensions):
         """
@@ -483,48 +538,6 @@ class SubDomain(object):
         information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
-
-    def union(self, other):
-        """
-        Return the union of two SubDomains as a new SubDomain.
-        """
-        raise NotImplementedError
-
-    def intersection(self, other):
-        """
-        Return the intersection of two SubDomains as a new SubDomain.
-        """
-        raise NotImplementedError
-
-    def difference(self, other):
-        """
-        Return the difference of two SubDomains as a new SubDomain.
-        """
-        raise NotImplementedError
-
-
-class Domain(SubDomain):
-
-    """
-    The entire computational domain (== boundary + interior).
-    """
-
-    name = 'domain'
-
-    def define(self, dimensions):
-        return dict(zip(dimensions, dimensions))
-
-
-class Interior(SubDomain):
-
-    """
-    The interior of the computational domain (i.e., boundaries are excluded).
-    """
-
-    name = 'interior'
-
-    def define(self, dimensions):
-        return {d: ('middle', 1, 1) for d in dimensions}
 
 
 class MultiSubDimension(SubDimension):
@@ -541,10 +554,10 @@ class MultiSubDimension(SubDimension):
         super().__init_finalize__(name, parent, left, right, ((lst, 0), (rst, 0)), False)
 
 
-class MultiSubDomain(SubDomain):
+class MultiSubDomain(AbstractSubDomain):
 
     """
-    Base class for types representing a group of SubDomains.
+    Abstract base class for types representing groups of SubDomains.
     """
 
     @classmethod
@@ -591,12 +604,6 @@ class MultiSubDomain(SubDomain):
                 bounds_M[j] = dec.index_glb_to_loc(M[j], RIGHT)
 
         return bounds_m, bounds_M
-
-    def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
-        """
-        Must be overridden by subclasses.
-        """
-        raise NotImplementedError
 
     def _create_implicit_exprs(self, grid):
         """
@@ -698,11 +705,13 @@ class SubDomainSet(MultiSubDomain):
         self._n_domains = kwargs.get('N', 1)
         self._global_bounds = kwargs.get('bounds', None)
 
-    def __subdomain_finalize__(self, dimensions, shape, distributor=None, **kwargs):
-        # Create the SubDomain's SubDimensions
+    def __subdomain_finalize__(self, grid, **kwargs):
+        self._grid = grid
+
+        # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
             MultiSubDimension('%si_%s' % (d.name, self.implicit_dimension.name), d)
-            for d in dimensions
+            for d in grid.dimensions
         )
 
         # Compute the SubDomainSet shapes
@@ -717,12 +726,13 @@ class SubDomainSet(MultiSubDomain):
         shapes = []
         for i in range(self._n_domains):
             dshape = []
-            for s, m, M in zip(shape, d_m, d_M):
+            for s, m, M in zip(grid.shape, d_m, d_M):
                 assert(m.size == M.size)
                 dshape.append(s-m[i]-M[i])
             shapes.append(as_tuple(dshape))
         self._shape = as_tuple(shapes)
 
+        distributor = grid.distributor
         if distributor and distributor.is_parallel:
             # Now create local bounds based on distributor
             processed = []
@@ -761,6 +771,10 @@ class SubDomainSet(MultiSubDomain):
         return as_tuple(dat)
 
     @property
+    def dtype(self):
+        return self._grid.dtype
+
+    @property
     def n_domains(self):
         return self._n_domains
 
@@ -771,3 +785,30 @@ class SubDomainSet(MultiSubDomain):
     @property
     def implicit_dimensions(self):
         return (self.implicit_dimension,)
+
+
+# Preset SubDomains
+
+
+class Domain(SubDomain):
+
+    """
+    The entire computational domain (== boundary + interior).
+    """
+
+    name = 'domain'
+
+    def define(self, dimensions):
+        return dict(zip(dimensions, dimensions))
+
+
+class Interior(SubDomain):
+
+    """
+    The interior of the computational domain (i.e., boundaries are excluded).
+    """
+
+    name = 'interior'
+
+    def define(self, dimensions):
+        return {d: ('middle', 1, 1) for d in dimensions}
