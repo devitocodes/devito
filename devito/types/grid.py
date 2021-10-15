@@ -380,9 +380,9 @@ class AbstractSubDomain(DomainDiscretization):
     name = None
     """A unique name for the SubDomain."""
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         if self.name is None:
-            raise ValueError("`%s` requires a `name`" % self.__class__.__name__)
+            self.name = self.__class__.__name__
 
         # All other attributes get initialized upon `__subdomain_finalize__`
         super().__init__()
