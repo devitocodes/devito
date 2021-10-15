@@ -1,3 +1,4 @@
+from abc import ABC
 from collections import namedtuple
 from math import floor
 
@@ -21,7 +22,64 @@ __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
 
 
-class Grid(ArgProvider):
+class DomainDiscretization(ABC):
+
+    """
+    Abstract base class for objects representing discretizations of n-dimensional
+    physical domains by congruent parallelotopes (e.g., "tiles" or "bricks").
+    """
+
+    def __init__(self, shape=None, dimensions=None, dtype=None, distributor=None):
+        self._shape = as_tuple(shape)
+        self._dimensions = as_tuple(dimensions)
+        self._dtype = dtype
+        self._distributor = distributor
+
+    @property
+    def shape(self):
+        """Shape of the physical domain."""
+        return self._shape
+
+    @property
+    def dimensions(self):
+        """Spatial dimensions of the computational domain."""
+        return self._dimensions
+
+    @property
+    def dim(self):
+        """Problem dimension, or number of spatial dimensions."""
+        return len(self.shape)
+
+    @property
+    def dtype(self):
+        """Data type inherited by all Functions defined on this DomainDiscretization."""
+        return self._dtype
+
+    @property
+    def distributor(self):
+        """The Distributor used for MPI-decomposing the DomainDiscretization."""
+        return self._distributor
+
+    @property
+    def comm(self):
+        """The MPI communicator inherited from the distributor."""
+        try:
+            return self._distributor.comm
+        except AttributeError:
+            return None
+
+    def is_distributed(self, dim):
+        """
+        True if `dim` is a distributed Dimension for this DomainDiscretization,
+        False otherwise.
+        """
+        try:
+            return any(dim is d for d in self.distributor.dimensions)
+        except AttributeError:
+            return None
+
+
+class Grid(DomainDiscretization, ArgProvider):
 
     """
     A cartesian grid that encapsulates a computational domain over which
@@ -104,20 +162,18 @@ class Grid(ArgProvider):
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
                  time_dimension=None, dtype=np.float32, subdomains=None,
                  comm=None, topology=None):
-        self._shape = as_tuple(shape)
-        self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
-        self._dtype = dtype
+        shape = as_tuple(shape)
 
+        # Create or pull the SpaceDimensions
         if dimensions is None:
-            # Create the spatial dimensions and constant spacing symbols
-            assert(self.dim <= 3)
-            dim_names = self._default_dimensions[:self.dim]
-            dim_spacing = tuple(Scalar(name='h_%s' % n, dtype=self.dtype, is_const=True)
+            ndim = len(shape)
+            assert ndim <= 3
+            dim_names = self._default_dimensions[:ndim]
+            dim_spacing = tuple(Scalar(name='h_%s' % n, dtype=dtype, is_const=True)
                                 for n in dim_names)
-            self._dimensions = tuple(SpaceDimension(name=n, spacing=s)
-                                     for n, s in zip(dim_names, dim_spacing))
+            dimensions = tuple(SpaceDimension(name=n, spacing=s)
+                               for n, s in zip(dim_names, dim_spacing))
         else:
-            # Sanity check
             for d in dimensions:
                 if not d.is_Space:
                     raise ValueError("Cannot create Grid with Dimension `%s` "
@@ -125,9 +181,16 @@ class Grid(ArgProvider):
                 if d.is_Derived and not d.is_Conditional:
                     raise ValueError("Cannot create Grid with derived Dimension `%s` "
                                      "of type `%s`" % (d, type(d)))
-            self._dimensions = dimensions
+            dimensions = dimensions
 
-        self._distributor = Distributor(self.shape, self.dimensions, comm, topology)
+        # Create a Distributor, used internally to implement domain decomposition
+        # by all Functions defined on this Grid
+        distributor = Distributor(shape, dimensions, comm, topology)
+
+        super().__init__(shape, dimensions, dtype, distributor)
+
+        # The physical extent
+        self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
 
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
@@ -166,11 +229,6 @@ class Grid(ArgProvider):
         return self._extent
 
     @property
-    def dtype(self):
-        """Data type inherited by all Functions defined on this Grid."""
-        return self._dtype
-
-    @property
     def origin(self):
         """Physical coordinates of the domain origin."""
         return self._origin
@@ -191,16 +249,6 @@ class Grid(ArgProvider):
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
         return tuple(i*h for i, h in zip(grid_origin, self.spacing))
-
-    @property
-    def dimensions(self):
-        """Spatial dimensions of the computational domain."""
-        return self._dimensions
-
-    @property
-    def dim(self):
-        """Problem dimension, or number of spatial dimensions."""
-        return len(self.shape)
 
     @property
     def time_dim(self):
@@ -258,11 +306,6 @@ class Grid(ArgProvider):
         return mapper
 
     @property
-    def shape(self):
-        """Shape of the physical domain."""
-        return self._shape
-
-    @property
     def shape_local(self):
         """Shape of the local (per-process) physical domain."""
         return self._distributor.shape
@@ -272,20 +315,6 @@ class Grid(ArgProvider):
         """Map between SpaceDimensions and their global/local size."""
         return {d: GlobalLocal(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
-
-    @property
-    def distributor(self):
-        """The Distributor used for domain decomposition."""
-        return self._distributor
-
-    @property
-    def comm(self):
-        """The MPI communicator used for domain decomposition."""
-        return self._distributor.comm
-
-    def is_distributed(self, dim):
-        """True if ``dim`` is a distributed Dimension, False otherwise."""
-        return any(dim is d for d in self.distributor.dimensions)
 
     @cached_property
     def _arg_names(self):
@@ -342,20 +371,10 @@ class Grid(ArgProvider):
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
-class AbstractSubDomain(object):
+class AbstractSubDomain(DomainDiscretization):
 
     """
     Abstract base class for subdomains.
-
-    Currently, the class hierarchy is as follows:
-
-                            AbstractSubDomain
-                                    |
-                          -------------------
-                          |                 |
-                      SubDomain      MultiSubDomain
-                                            |
-                                      SubDomainSet
     """
 
     name = None
@@ -366,9 +385,7 @@ class AbstractSubDomain(object):
             raise ValueError("`%s` requires a `name`" % self.__class__.__name__)
 
         # All other attributes get initialized upon `__subdomain_finalize__`
-        self._dimensions = None
-        self._shape = None
-        self._dtype = None  # Inherited by all Functions defined on this SubDomain
+        super().__init__()
 
     def __subdomain_finalize__(self, grid, **kwargs):
         """
@@ -415,24 +432,8 @@ class AbstractSubDomain(object):
         raise NotImplementedError
 
     @property
-    def dimensions(self):
-        return self._dimensions
-
-    @property
-    def ndim(self):
-        return len(self.dimensions)
-
-    @property
     def dimension_map(self):
         return {d.root: d for d in self.dimensions}
-
-    @property
-    def shape(self):
-        return self._shape
-
-    @property
-    def dtype(self):
-        return self._dtype
 
 
 class SubDomain(AbstractSubDomain):
@@ -524,8 +525,8 @@ class SubDomain(AbstractSubDomain):
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
 
-        self._dimensions = tuple(sub_dimensions)
         self._shape = tuple(sdshape)
+        self._dimensions = tuple(sub_dimensions)
         self._dtype = grid.dtype
 
     def define(self, dimensions):
@@ -706,7 +707,8 @@ class SubDomainSet(MultiSubDomain):
         self._global_bounds = kwargs.get('bounds', None)
 
     def __subdomain_finalize__(self, grid, **kwargs):
-        self._grid = grid
+        self._dtype = grid.dtype
+        self._distributor = grid.distributor
 
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
@@ -732,11 +734,10 @@ class SubDomainSet(MultiSubDomain):
             shapes.append(as_tuple(dshape))
         self._shape = as_tuple(shapes)
 
-        distributor = grid.distributor
-        if distributor and distributor.is_parallel:
+        if self.distributor and self.distributor.is_parallel:
             # Now create local bounds based on distributor
             processed = []
-            for dec, m, M in zip(distributor.decomposition, d_m, d_M):
+            for dec, m, M in zip(self.distributor.decomposition, d_m, d_M):
                 processed.extend(self._bounds_glb_to_loc(dec, m, M))
             self._local_bounds = as_tuple(processed)
         else:
@@ -769,10 +770,6 @@ class SubDomainSet(MultiSubDomain):
                 func.data[:] = self._local_bounds[j]
             dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
         return as_tuple(dat)
-
-    @property
-    def dtype(self):
-        return self._grid.dtype
 
     @property
     def n_domains(self):
