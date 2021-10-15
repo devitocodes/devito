@@ -4,7 +4,7 @@ from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree)
 from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import MIN, MAX, evalmin
+from devito.symbolics import MIN, MAX
 from devito.tools import is_integer, split
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
@@ -102,10 +102,16 @@ def relax_incr_dimensions(iet, **kwargs):
             # In some corner cases an offset may be added (e.g. after CIRE passes)
             # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
-            # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
-
+            # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`. `rmapper` is
+            # used to track these offsets and `xreplace` in the `symbolic_rmax`
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
-            iter_max = evalmin(i.symbolic_max, root_max)
+
+            rmapper = {}
+            rmapper[i.dim.root.symbolic_max] = root_max
+            rmapper[i.dim.symbolic_max] = i.symbolic_max
+
+            iter_max = i.dim.relaxed_max.xreplace(rmapper)
+
             mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
 
     if mapper:

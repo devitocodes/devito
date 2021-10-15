@@ -3,7 +3,7 @@ from collections import Counter
 from devito.ir.clusters import Queue
 from devito.ir.support import (SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
                                IterationSpace)
-from devito.symbolics import uxreplace
+from devito.symbolics import uxreplace, evalmin
 from devito.types import IncrDimension
 
 from devito.symbolics import xreplace_indices
@@ -96,10 +96,12 @@ class Blocking(Queue):
         block_dims = [bd]
 
         for i in range(1, self.levels):
-            bd = IncrDimension(name % i, bd, bd, bd + bd.step - 1, size=size)
+            bd = IncrDimension(name % i, bd, bd, bd + bd.step - 1, size=size,
+                               _rmax=evalmin(bd + bd.step - 1, bd.root.symbolic_max))
             block_dims.append(bd)
 
-        bd = IncrDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=size)
+        bd = IncrDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=size,
+                           _rmax=evalmin(bd + bd.step - 1, bd.root.symbolic_max))
         block_dims.append(bd)
 
         processed = []

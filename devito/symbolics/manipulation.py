@@ -12,7 +12,7 @@ from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split
 from devito.types.equation import Eq
 
-__all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
+__all__ = ['evalmin', 'xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
            'split_affine', 'subs_op_args', 'uxreplace', 'aligned_indices',
            'Uxmapper', 'reuse_if_untouched', 'evalmin']
 
