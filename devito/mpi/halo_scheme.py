@@ -8,6 +8,7 @@ from sympy import Max, Min
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
 from devito.tools import Tag, as_tuple, filter_ordered, flatten, frozendict, is_integer
+from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException']
 
@@ -351,7 +352,7 @@ def classify(exprs, ispace):
     for f, r in scope.reads.items():
         if not f.is_DiscreteFunction:
             continue
-        elif f.grid is None:
+        elif not isinstance(f.grid, Grid):
             # TODO: improve me
             continue
 
