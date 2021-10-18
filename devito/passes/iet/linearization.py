@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import singledispatch
 
 import numpy as np
 
@@ -11,8 +12,9 @@ from devito.passes.iet.parpragma import PragmaLangBB
 from devito.symbolics import (DefFunction, MacroArgument, ccode, retrieve_indexed,
                               uxreplace)
 from devito.tools import Bunch, DefaultOrderedDict, filter_ordered, flatten, prod
-from devito.types import Symbol, FIndexed, Indexed, Wildcard
+from devito.types import Array, Symbol, FIndexed, Indexed, Wildcard
 from devito.types.basic import IndexedData
+from devito.types.dense import DiscreteFunction
 
 
 __all__ = ['linearize']
@@ -35,26 +37,36 @@ def linearization(iet, **kwargs):
     """
     Carry out the actual work of `linearize`.
     """
+    mode = kwargs['mode']
     sregistry = kwargs['sregistry']
     cache = kwargs['cache']
 
-    iet, headers = linearize_accesses(iet, cache, sregistry)
+    # Pre-process the `mode` opt option
+    # `mode` may be a callback describing what Function types, and under what
+    # conditions, should linearization be applied
+    if not mode:
+        return iet, {}
+    elif callable(mode):
+        key = mode
+    else:
+        # Default
+        key = lambda f: f.is_DiscreteFunction or f.is_Array
+
+    iet, headers = linearize_accesses(iet, key, cache, sregistry)
     iet = linearize_pointers(iet)
     iet = linearize_transfers(iet, sregistry)
 
     return iet, {'headers': headers}
 
 
-def linearize_accesses(iet, cache, sregistry):
+def linearize_accesses(iet, key, cache, sregistry):
     """
     Turn Indexeds into FIndexeds and create the necessary access Macros.
     """
     # Find all objects amenable to linearization
     symbol_names = {i.name for i in FindSymbols('indexeds').visit(iet)}
     functions = [f for f in FindSymbols().visit(iet)
-                 if ((f.is_DiscreteFunction or f.is_Array) and
-                     f.ndim > 1 and
-                     f.name in symbol_names)]
+                 if key(f) and f.ndim > 1 and f.name in symbol_names]
     functions = sorted(functions, key=lambda f: len(f.dimensions), reverse=True)
 
     # Find unique sizes (unique -> minimize necessary registers)
@@ -72,16 +84,11 @@ def linearize_accesses(iet, cache, sregistry):
     # Build all exprs such as `x_fsz0 = u_vec->size[1]`
     imapper = DefaultOrderedDict(list)
     for (d, halo, _), v in mapper.items():
-        name = sregistry.make_name(prefix='%s_fsz' % d.name)
-        s = Symbol(name=name, dtype=np.int32, is_const=True)
-        try:
-            expr = DummyExpr(s, v[0]._C_get_field(FULL, d).size, init=True)
-        except AttributeError:
-            assert v[0].is_Array
-            expr = DummyExpr(s, v[0].symbolic_shape[d], init=True)
-        for f in v:
-            imapper[f].append((d, s))
-            cache[f].stmts0.append(expr)
+        expr = _generate_fsz(v[0], d, sregistry)
+        if expr:
+            for f in v:
+                imapper[f].append((d, expr.write))
+                cache[f].stmts0.append(expr)
 
     # Build all exprs such as `y_slc0 = y_fsz0*z_fsz0`
     built = {}
@@ -100,7 +107,7 @@ def linearize_accesses(iet, cache, sregistry):
     mapper.update([(f, []) for f in functions if f not in mapper])
 
     # Build defines. For example:
-    # `define uL(t, x, y, z) u[(t)*t_slice_sz + (x)*x_slice_sz + (y)*y_slice_sz + (z)]`
+    # `define uL(t, x, y, z) u[(t)*t_slc0 + (x)*x_slc0 + (y)*y_slc0 + (z)]`
     headers = []
     findexeds = {}
     for f, szs in mapper.items():
@@ -108,16 +115,9 @@ def linearize_accesses(iet, cache, sregistry):
             # Perhaps we've already built an access macro for `f` through another efunc
             findexeds[f] = cache[f].cbk
         else:
-            assert len(szs) == len(f.dimensions) - 1
-            pname = sregistry.make_name(prefix='%sL' % f.name)
-
-            expr = sum([MacroArgument(d.name)*s for d, s in zip(f.dimensions, szs)])
-            expr += MacroArgument(f.dimensions[-1].name)
-            expr = Indexed(IndexedData(f.name, None, f), expr)
-            define = DefFunction(pname, f.dimensions)
-            headers.append((ccode(define), ccode(expr)))
-
-            cache[f].cbk = findexeds[f] = lambda i, pname=pname: FIndexed(i, pname)
+            header, cbk = _generate_macro(f, szs, sregistry)
+            headers.append(header)
+            cache[f].cbk = findexeds[f] = cbk
 
     # Build "functional" Indexeds. For example:
     # `u[t2, x+8, y+9, z+7] => uL(t2, x+8, y+9, z+7)`
@@ -144,6 +144,47 @@ def linearize_accesses(iet, cache, sregistry):
     iet = iet._rebuild(body=body)
 
     return iet, headers
+
+
+@singledispatch
+def _generate_fsz(f, d, sregistry):
+    return
+
+
+@_generate_fsz.register(DiscreteFunction)
+def _(f, d, sregistry):
+    name = sregistry.make_name(prefix='%s_fsz' % d.name)
+    s = Symbol(name=name, dtype=np.int32, is_const=True)
+    return DummyExpr(s, f._C_get_field(FULL, d).size, init=True)
+
+
+@_generate_fsz.register(Array)
+def _(f, d, sregistry):
+    name = sregistry.make_name(prefix='%s_fsz' % d.name)
+    s = Symbol(name=name, dtype=np.int32, is_const=True)
+    return DummyExpr(s, f.symbolic_shape[d], init=True)
+
+
+@singledispatch
+def _generate_macro(f, szs, sregistry):
+    return
+
+
+@_generate_macro.register(DiscreteFunction)
+@_generate_macro.register(Array)
+def _(f, szs, sregistry):
+    assert len(szs) == len(f.dimensions) - 1
+
+    pname = sregistry.make_name(prefix='%sL' % f.name)
+    cbk = lambda i, pname=pname: FIndexed(i, pname)
+
+    expr = sum([MacroArgument(d.name)*s for d, s in zip(f.dimensions, szs)])
+    expr += MacroArgument(f.dimensions[-1].name)
+    expr = Indexed(IndexedData(f.name, None, f), expr)
+    define = DefFunction(pname, f.dimensions)
+    header = (ccode(define), ccode(expr))
+
+    return header, cbk
 
 
 def linearize_pointers(iet):

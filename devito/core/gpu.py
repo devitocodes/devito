@@ -201,8 +201,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         cls._Target.DataManager(sregistry, options).process(graph)
 
         # Linearize n-dimensional Indexeds
-        if options['linearize']:
-            linearize(graph, sregistry=sregistry)
+        linearize(graph, mode=options['linearize'], sregistry=sregistry)
 
         return graph
 
@@ -274,7 +273,8 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi'], language=language,
                            sregistry=sregistry),
-            'linearize': partial(linearize, sregistry=sregistry),
+            'linearize': partial(linearize, mode=options['linearize'],
+                                 sregistry=sregistry),
             'prodders': partial(hoist_prodders),
             'init': parizer.initialize
         }

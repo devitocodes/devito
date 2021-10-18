@@ -221,8 +221,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         cls._Target.DataManager(sregistry).process(graph)
 
         # Linearize n-dimensional Indexeds
-        if options['linearize']:
-            linearize(graph, sregistry=sregistry)
+        linearize(graph, mode=options['linearize'], sregistry=sregistry)
 
         return graph
 
@@ -332,7 +331,8 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, mode=options['mpi'], language=kwargs['language'],
                            sregistry=sregistry),
-            'linearize': partial(linearize, sregistry=sregistry),
+            'linearize': partial(linearize, mode=options['linearize'],
+                                 sregistry=sregistry),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
             'init': parizer.initialize
