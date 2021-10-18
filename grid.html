@@ -91,7 +91,7 @@
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.Grid">
 <em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">Grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">shape</span></em>, <em class="sig-param"><span class="pre">extent=None</span></em>, <em class="sig-param"><span class="pre">origin=None</span></em>, <em class="sig-param"><span class="pre">dimensions=None</span></em>, <em class="sig-param"><span class="pre">time_dimension=None</span></em>, <em class="sig-param"><span class="pre">dtype=&lt;class</span> <span class="pre">'numpy.float32'&gt;</span></em>, <em class="sig-param"><span class="pre">subdomains=None</span></em>, <em class="sig-param"><span class="pre">comm=None</span></em>, <em class="sig-param"><span class="pre">topology=None</span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#Grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.Grid" title="Permalink to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.args.ArgProvider</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.grid.CartesianDiscretization</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.args.ArgProvider</span></code></p>
 <p>A cartesian grid that encapsulates a computational domain over which
 to discretize a Function.</p>
 <dl class="field-list simple">
@@ -162,13 +162,7 @@ conventions for defining the coordinate space in 2D are:</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.comm">
 <em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">comm</span></span><a class="headerlink" href="#devito.types.Grid.comm" title="Permalink to this definition"></a></dt>
-<dd><p>The MPI communicator used for domain decomposition.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="devito.types.Grid.dim">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">dim</span></span><a class="headerlink" href="#devito.types.Grid.dim" title="Permalink to this definition"></a></dt>
-<dd><p>Problem dimension, or number of spatial dimensions.</p>
+<dd><p>The MPI communicator inherited from the distributor.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -178,21 +172,9 @@ conventions for defining the coordinate space in 2D are:</p>
 </dd></dl>
 
 <dl class="py property">
-<dt class="sig sig-object py" id="devito.types.Grid.dimensions">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.types.Grid.dimensions" title="Permalink to this definition"></a></dt>
-<dd><p>Spatial dimensions of the computational domain.</p>
-</dd></dl>
-
-<dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.distributor">
 <em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">distributor</span></span><a class="headerlink" href="#devito.types.Grid.distributor" title="Permalink to this definition"></a></dt>
-<dd><p>The Distributor used for domain decomposition.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="devito.types.Grid.dtype">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#devito.types.Grid.dtype" title="Permalink to this definition"></a></dt>
-<dd><p>Data type inherited by all Functions defined on this Grid.</p>
+<dd><p>The Distributor used for MPI-decomposing the CartesianDiscretization.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -210,7 +192,8 @@ conventions for defining the coordinate space in 2D are:</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.Grid.is_distributed">
 <span class="sig-name descname"><span class="pre">is_distributed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dim</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#Grid.is_distributed"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.Grid.is_distributed" title="Permalink to this definition"></a></dt>
-<dd><p>True if <code class="docutils literal notranslate"><span class="pre">dim</span></code> is a distributed Dimension, False otherwise.</p>
+<dd><p>True if <cite>dim</cite> is a distributed Dimension for this CartesianDiscretization,
+False otherwise.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -235,12 +218,6 @@ conventions for defining the coordinate space in 2D are:</p>
 <dt class="sig sig-object py" id="devito.types.Grid.origin_symbols">
 <em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">origin_symbols</span></span><a class="headerlink" href="#devito.types.Grid.origin_symbols" title="Permalink to this definition"></a></dt>
 <dd><p>Symbols representing the grid origin in each SpaceDimension.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="devito.types.Grid.shape">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#devito.types.Grid.shape" title="Permalink to this definition"></a></dt>
-<dd><p>Shape of the physical domain.</p>
 </dd></dl>
 
 <dl class="py property">

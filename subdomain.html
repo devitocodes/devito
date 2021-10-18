@@ -90,8 +90,8 @@
 <h1>SubDomain<a class="headerlink" href="#subdomain" title="Permalink to this headline"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.SubDomain">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">SubDomain</span></span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain" title="Permalink to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">SubDomain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.grid.AbstractSubDomain</span></code></p>
 <p>Base class to define Grid subdomains.</p>
 <p>To create a new SubDomain, all one needs to do is overriding <a class="reference internal" href="#devito.types.SubDomain.define" title="devito.types.SubDomain.define"><code class="xref py py-meth docutils literal notranslate"><span class="pre">define()</span></code></a>.
 This method takes as input a set of Dimensions and produce a mapper</p>
@@ -145,30 +145,6 @@ grid</p>
 <p class="rubric">Notes</p>
 <p>This method should be overridden by each SubDomain subclass. For more
 information, refer to <code class="docutils literal notranslate"><span class="pre">SubDomain.__doc__</span></code>.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="devito.types.SubDomain.difference">
-<span class="sig-name descname"><span class="pre">difference</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain.difference"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain.difference" title="Permalink to this definition"></a></dt>
-<dd><p>Return the difference of two SubDomains as a new SubDomain.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="devito.types.SubDomain.intersection">
-<span class="sig-name descname"><span class="pre">intersection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain.intersection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain.intersection" title="Permalink to this definition"></a></dt>
-<dd><p>Return the intersection of two SubDomains as a new SubDomain.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="devito.types.SubDomain.name">
-<span class="sig-name descname"><span class="pre">name</span></span><em class="property"> <span class="pre">=</span> <span class="pre">None</span></em><a class="headerlink" href="#devito.types.SubDomain.name" title="Permalink to this definition"></a></dt>
-<dd><p>A unique name for the SubDomain.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="devito.types.SubDomain.union">
-<span class="sig-name descname"><span class="pre">union</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain.union"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SubDomain.union" title="Permalink to this definition"></a></dt>
-<dd><p>Return the union of two SubDomains as a new SubDomain.</p>
 </dd></dl>
 
 </dd></dl>
