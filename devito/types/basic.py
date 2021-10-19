@@ -1139,14 +1139,12 @@ class Object(AbstractObject, ArgProvider):
         else:
             return {self.name: self.value}
 
-    def _arg_values(self, args=None, **kwargs):
+    def _arg_values(self, **kwargs):
         """
         Produce runtime values for this Object after evaluating user input.
 
         Parameters
         ----------
-        args : dict, optional
-            Known argument values.
         **kwargs
             Dictionary of user-provided argument overrides.
         """

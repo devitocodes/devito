@@ -426,7 +426,7 @@ class Operator(Callable):
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
         # Process data-carrier overrides
-        args = ReducerMap()
+        args = kwargs['args'] = ReducerMap()
         for p in overrides:
             args.update(p._arg_values(**kwargs))
             try:
@@ -446,7 +446,7 @@ class Operator(Callable):
                                      "forgot to override `%s`?" %
                                      (p, k, v, k, args[k], p))
                 args[k] = v
-        args = args.reduce_all()
+        args = kwargs['args'] = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
         grids = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
@@ -467,11 +467,11 @@ class Operator(Callable):
         dag = DAG(self.dimensions,
                   [(i, i.parent) for i in self.dimensions if i.is_Derived])
         for d in reversed(dag.topological_sort()):
-            args.update(d._arg_values(args, self._dspace[d], grid, **kwargs))
+            args.update(d._arg_values(self._dspace[d], grid, **kwargs))
 
-        # Process Objects (which may need some `args`)
+        # Process Objects
         for o in self.objects:
-            args.update(o._arg_values(args, grid=grid, **kwargs))
+            args.update(o._arg_values(grid=grid, **kwargs))
 
         # Sanity check
         for p in self.parameters:
@@ -495,6 +495,7 @@ class Operator(Callable):
 
         # Check all user-provided keywords are known to the Operator
         if not configuration['ignore-unknowns']:
+            kwargs.pop('args')
             for k, v in kwargs.items():
                 if k not in self._known_arguments:
                     raise ValueError("Unrecognized argument %s=%s" % (k, v))

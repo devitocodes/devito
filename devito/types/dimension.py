@@ -226,7 +226,7 @@ class Dimension(ArgProvider):
                 dim.size_name: size,
                 dim.max_name: size if size is None else size-1}
 
-    def _arg_values(self, args, interval, grid, **kwargs):
+    def _arg_values(self, interval, grid, args=None, **kwargs):
         """
         Produce a map of argument values after evaluating user input. If no user
         input is provided, get a known value in ``args`` and adjust it so that no
@@ -236,8 +236,6 @@ class Dimension(ArgProvider):
 
         Parameters
         ----------
-        args : dict
-            Known argument values.
         interval : Interval
             Description of the Dimension data space.
         grid : Grid
@@ -637,7 +635,7 @@ class SubDimension(DerivedDimension):
     def _arg_defaults(self, grid=None, **kwargs):
         return {}
 
-    def _arg_values(self, args, interval, grid, **kwargs):
+    def _arg_values(self, interval, grid, **kwargs):
         # Allow override of thickness values to disable BCs
         # However, arguments from the user are considered global
         # So overriding the thickness to a nonzero value should not cause
@@ -1109,12 +1107,13 @@ class IncrDimension(DerivedDimension):
             # `step` not a Symbol
             return {}
 
-    def _arg_values(self, args, interval, grid, **kwargs):
+    def _arg_values(self, interval, grid, args=None, **kwargs):
         try:
             name = self.step.name
         except AttributeError:
             # `step` not a Symbol
             return {}
+
         if name in kwargs:
             return {name: kwargs.pop(name)}
         elif isinstance(self.parent, IncrDimension):
