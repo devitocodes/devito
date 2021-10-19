@@ -37,8 +37,7 @@ class ArmAdvOperator(Cpu64AdvOperator):
         cls._Target.DataManager(sregistry).process(graph)
 
         # Linearize n-dimensional Indexeds
-        if options['linearize']:
-            linearize(graph, sregistry=sregistry)
+        linearize(graph, mode=options['linearize'], sregistry=sregistry)
 
         return graph
 

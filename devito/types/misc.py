@@ -26,8 +26,8 @@ class Timer(CompositeObject):
     def sections(self):
         return self.fields
 
-    def _arg_values(self, args=None, **kwargs):
-        values = super()._arg_values(args=args, **kwargs)
+    def _arg_values(self, **kwargs):
+        values = super()._arg_values(**kwargs)
 
         # Reset timer
         for i in self.fields:

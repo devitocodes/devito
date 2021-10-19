@@ -1117,7 +1117,7 @@ class MPIMsg(CompositeObject):
 
         return {self.name: self.value}
 
-    def _arg_values(self, args=None, **kwargs):
+    def _arg_values(self, **kwargs):
         return self._arg_defaults(alias=kwargs.get(self.target.name, self.target))
 
     def _arg_apply(self, *args, **kwargs):
@@ -1225,7 +1225,7 @@ class MPIRegion(CompositeObject):
     def nregions(self):
         return len(self.owned)
 
-    def _arg_values(self, args, **kwargs):
+    def _arg_values(self, args=None, **kwargs):
         values = self._arg_defaults()
         for i, (_, mapper) in enumerate(self.owned):
             entry = values[self.name][i]

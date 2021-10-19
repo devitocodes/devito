@@ -13,7 +13,7 @@ from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq,
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
 
 
-class UnevaluatedSparseOperation(Evaluable):
+class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
 
     """
     Represents an Injection or an Interpolation operation performed on a
@@ -29,9 +29,13 @@ class UnevaluatedSparseOperation(Evaluable):
 
     subdomain = None
 
-    def __init__(self, interpolator, callback):
-        self.interpolator = interpolator
-        self.callback = callback
+    def __new__(cls, interpolator, callback):
+        obj = super().__new__(cls)
+
+        obj.interpolator = interpolator
+        obj.callback = callback
+
+        return obj
 
     @property
     def evaluate(self):
@@ -53,14 +57,16 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __init__(self, expr, offset, increment, self_subs, interpolator, callback):
-        # TODO: unused now, but will be necessary to compute the adjoint
-        self.expr = expr
-        self.offset = offset
-        self.increment = increment
-        self.self_subs = self_subs
+    def __new__(cls, expr, offset, increment, self_subs, interpolator, callback):
+        obj = super().__new__(cls, interpolator, callback)
 
-        super(Interpolation, self).__init__(interpolator, callback)
+        # TODO: unused now, but will be necessary to compute the adjoint
+        obj.expr = expr
+        obj.offset = offset
+        obj.increment = increment
+        obj.self_subs = self_subs
+
+        return obj
 
     def __repr__(self):
         return "Interpolation(%s into %s)" % (repr(self.expr),
@@ -74,13 +80,15 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __init__(self, field, expr, offset, interpolator, callback):
-        # TODO: unused now, but will be necessary to compute the adjoint
-        self.field = field
-        self.expr = expr
-        self.offset = offset
+    def __new__(cls, field, expr, offset, interpolator, callback):
+        obj = super().__new__(cls, interpolator, callback)
 
-        super(Injection, self).__init__(interpolator, callback)
+        # TODO: unused now, but will be necessary to compute the adjoint
+        obj.field = field
+        obj.expr = expr
+        obj.offset = offset
+
+        return obj
 
     def __repr__(self):
         return "Injection(%s into %s)" % (repr(self.expr), repr(self.field))
