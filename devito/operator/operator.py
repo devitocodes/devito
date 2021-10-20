@@ -22,7 +22,7 @@ from devito.passes import Graph, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
-from devito.types import Evaluable
+from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
 
@@ -451,7 +451,7 @@ class Operator(Callable):
         # All DiscreteFunctions should be defined on the same Grid
         grids = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
         grids.update({getattr(p, 'grid', None) for p in defaults})
-        grids.discard(None)
+        grids = {i for i in grids if isinstance(i, Grid)}
         if len(grids) > 1 and configuration['mpi']:
             raise ValueError("Multiple Grids found")
         try:
