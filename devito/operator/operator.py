@@ -570,10 +570,14 @@ class Operator(Callable):
     @property
     def cfunction(self):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
-        if self._lib is None:
+        try:
+            # Load the library
+            self._lib = self._compiler.load(self._soname)
+        except OSError:
+            # Recompile the library if it failed to load
             self._jit_compile()
             self._lib = self._compiler.load(self._soname)
-            self._lib.name = self._soname
+        self._lib.name = self._soname
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
