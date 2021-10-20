@@ -598,14 +598,14 @@ class DataSpace(Space):
     ----------
     intervals : tuple of Intervals
         Data space description.
-    parts : dict
+    parts : dict, optional
         A mapper from Functions to IntervalGroup, describing the individual
         components of the data space.
     """
 
-    def __init__(self, intervals, parts):
+    def __init__(self, intervals, parts=None):
         super(DataSpace, self).__init__(intervals)
-        self._parts = frozendict(parts)
+        self._parts = frozendict(parts or {})
 
     def __eq__(self, other):
         return isinstance(other, DataSpace) and\
