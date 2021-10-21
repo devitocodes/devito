@@ -6,13 +6,14 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 
 from collections import OrderedDict
 from collections.abc import Iterable
-from itertools import chain
+from itertools import chain, groupby
 
 import cgen as c
 from sympy import IndexedBase
 
 from devito.exceptions import VisitorException
-from devito.ir.iet.nodes import Node, Iteration, Expression, Call, Lambda
+from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
+                                 Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
@@ -183,8 +184,9 @@ class CGen(Visitor):
         return ret
 
     def _args_call(self, args):
-        """Generate cgen function call arguments from an iterable of symbols and
-        expressions."""
+        """
+        Generate cgen function call arguments from an iterable of symbols and expressions.
+        """
         ret = []
         for i in args:
             try:
@@ -199,6 +201,37 @@ class CGen(Visitor):
             except AttributeError:
                 ret.append(ccode(i))
         return ret
+
+    def _blankline_logic(self, children):
+        """
+        Generate cgen blank lines in between logical units.
+        """
+        candidates = (ExpressionBundle, Iteration, Section)
+
+        processed = []
+        for child in children:
+            prev = None
+            rebuilt = []
+            for k, group in groupby(child, key=type):
+                g = list(group)
+
+                if k in (ExpressionBundle, Section) and len(g) >= 2:
+                    # Separate consecutive Sections/ExpressionBundles with BlankLine
+                    for i in g[:-1]:
+                        rebuilt.append(i)
+                        rebuilt.append(BlankLine)
+                    rebuilt.append(g[-1])
+                elif prev in candidates and k in candidates:
+                    rebuilt.append(BlankLine)
+                    rebuilt.extend(g)
+                else:
+                    rebuilt.extend(g)
+
+                prev = k
+
+            processed.append(tuple(rebuilt))
+
+        return tuple(processed)
 
     def visit_Generable(self, o):
         return o
@@ -255,11 +288,11 @@ class CGen(Visitor):
         return tuple(self._visit(i) for i in o)
 
     def visit_Block(self, o):
-        body = flatten(self._visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
         return c.Module(o.header + (c.Block(body),) + o.footer)
 
     def visit_List(self, o):
-        body = flatten(self._visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
         return c.Module(o.header + (c.Collection(body),) + o.footer)
 
     def visit_Section(self, o):
@@ -305,15 +338,21 @@ class CGen(Visitor):
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect)
 
     def visit_Conditional(self, o):
-        then_body = c.Block(self._visit(o.then_body))
-        if o.else_body:
-            else_body = c.Block(self._visit(o.else_body))
+        try:
+            then_body, else_body = self._blankline_logic(o.children)
+        except ValueError:
+            # Some special subclasses of Conditional such as ThreadedProdder
+            # have zero children actually
+            then_body, else_body = o.then_body, o.else_body
+        then_body = c.Block(self._visit(then_body))
+        if else_body:
+            else_body = c.Block(self._visit(else_body))
             return c.If(ccode(o.condition), then_body, else_body)
         else:
             return c.If(ccode(o.condition), then_body)
 
     def visit_Iteration(self, o):
-        body = flatten(self._visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
 
         _min = o.limits[0]
         _max = o.limits[1]
