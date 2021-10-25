@@ -779,6 +779,10 @@ class ConditionalDimension(DerivedDimension):
         retval = set(super(ConditionalDimension, self).free_symbols)
         if self.condition is not None:
             retval |= self.condition.free_symbols
+        try:
+            retval |= self.factor.free_symbols
+        except AttributeError:
+            pass
         return retval
 
     # Pickling support
