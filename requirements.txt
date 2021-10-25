@@ -18,3 +18,4 @@ distributed<2022.3
 pytest>=3.6,<8.0
 pytest-runner
 pytest-cov
+xdsl==0.3.0
