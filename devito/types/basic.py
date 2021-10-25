@@ -333,6 +333,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     _pickle_kwargs = ['name', 'dtype', 'is_const']
     __reduce_ex__ = Pickable.__reduce_ex__
 
+    def __getnewargs_ex__(self):
+        return ((self.name,), {**self.assumptions0,
+                **{i.lstrip('_'): getattr(self, i) for i in self._pickle_kwargs}})
+
 
 class Symbol(AbstractSymbol, Cached):
 
@@ -536,20 +540,9 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 newobj = super(AbstractTensor, cls)._new(args[2])
 
             # Filter grid and dimensions
-            grids = {getattr(c, 'grid', None) for c in newobj.flat()} - {None}
-            dimensions = {d for c in newobj.flat()
-                          for d in getattr(c, 'dimensions', ())} - {None}
-            # If none of the components are devito objects, returns a sympy Matrix
-            if len(grids) == 0 and len(dimensions) == 0:
+            grid, dimensions = newobj._infer_dims(newobj.flat())
+            if grid is None and dimensions is None:
                 return sympy.ImmutableDenseMatrix(*args)
-            elif len(grids) > 0:
-                dimensions = None
-                assert len(grids) == 1
-                grid = grids.pop()
-            else:
-                grid = None
-                dimensions = tuple(dimensions)
-
             # Initialized with constructed object
             newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
                                      grid=grid, dimensions=dimensions)
@@ -569,13 +562,38 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         Standard new object go through `_new` but arithmetic operation directly us
         the representation one.
         This class method is only accessible from an existing AbstractTensor
-        that contains a grid.
+        that contains a grid or dimensions.
         """
         newobj = super(AbstractTensor, cls)._fromrep(rep)
-        grids = {getattr(c, 'grid', None) for c in newobj.flat()} - {None}
-        grid = grids.pop()
-        newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(), grid=grid)
+        grid, dimensions = newobj._infer_dims(newobj.flat())
+        try:
+            # This is needed when `_fromrep` is called directly in 1.9
+            # for example with mul.
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
+                                     grid=grid, dimensions=dimensions)
+        except TypeError:
+            # We can end up here when `_fromrep` is called through new line 553
+            # above but input `comps` don't have grid or dimensions. For example
+            # `test_non_devito_tens` in `test_tensor.py`.
+            pass
         return newobj
+
+    def _infer_dims(self, mat):
+        grids = {getattr(c, 'grid', None) for c in mat} - {None}
+        dimensions = {d for c in mat
+                      for d in getattr(c, 'dimensions', ())} - {None}
+        # If none of the components are devito objects, returns a sympy Matrix
+        if len(grids) == 0 and len(dimensions) == 0:
+            return None, None
+        elif len(grids) > 0:
+            dimensions = None
+            assert len(grids) == 1
+            grid = grids.pop()
+        else:
+            grid = None
+            dimensions = tuple(dimensions)
+
+        return grid, dimensions
 
     def flat(self):
         try:
@@ -605,7 +623,10 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         if self.cols != 0 and other.rows != 0:
             self_cols = self.cols
             mat = self.flat()
-            other_mat = other.flat()
+            try:
+                other_mat = other.flat()
+            except AttributeError:
+                other_mat = other._mat
             for i in range(new_len):
                 row, col = i // other.cols, i % other.cols
                 row_indices = range(self_cols*row, self_cols*(row+1))
@@ -1067,6 +1088,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     # Pickling support
     _pickle_kwargs = ['name', 'dtype', 'halo', 'padding']
     __reduce_ex__ = Pickable.__reduce_ex__
+    __getnewargs_ex__ = Pickable.__getnewargs_ex__
 
     @property
     def _pickle_reconstruct(self):
@@ -1136,6 +1158,7 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     # Pickling support
     _pickle_args = ['name', 'dtype']
     __reduce_ex__ = Pickable.__reduce_ex__
+    __getnewargs_ex__ = Pickable.__getnewargs_ex__
 
 
 class Object(AbstractObject, ArgProvider):
@@ -1264,6 +1287,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
     # Pickling support
     _pickle_kwargs = ['label', 'shape', 'function']
     __reduce_ex__ = Pickable.__reduce_ex__
+    __getnewargs_ex__ = Pickable.__getnewargs_ex__
 
 
 class BoundSymbol(AbstractSymbol):

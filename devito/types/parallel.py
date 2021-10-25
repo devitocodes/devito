@@ -33,7 +33,7 @@ class NThreadsBase(Scalar):
     is_Input = True
     is_PerfKnob = True
 
-    def __new__(cls, **kwargs):
+    def __new__(cls, *args, **kwargs):
         kwargs.setdefault('name', cls.name)
         kwargs['is_const'] = True
         return super().__new__(cls, **kwargs)
@@ -71,7 +71,7 @@ class NPThreads(NThreadsBase):
 
     name = 'npthreads'
 
-    def __new__(cls, **kwargs):
+    def __new__(cls, *args, **kwargs):
         obj = super().__new__(cls, **kwargs)
 
         # Size of the thread pool
@@ -388,7 +388,7 @@ class DeviceSymbol(Scalar):
     is_Input = True
     is_PerfKnob = True
 
-    def __new__(cls, **kwargs):
+    def __new__(cls, *args, **kwargs):
         kwargs['name'] = cls.name
         kwargs['is_const'] = True
         return super().__new__(cls, **kwargs)

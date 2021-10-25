@@ -579,7 +579,7 @@ def test_mpi_fullmode_objects():
     for n, i in enumerate(new_obj.owned):
         d, v = list(i[1].items())[0]
         assert d is new_obj.arguments[n]
-        assert v[0] is d.symbolic_min
+        assert v[0] == d.symbolic_min
         assert v[1] == Min(d.symbolic_max, d.symbolic_min)
 
 

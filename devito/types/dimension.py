@@ -310,6 +310,7 @@ class Dimension(ArgProvider):
     _pickle_args = ['name']
     _pickle_kwargs = ['spacing']
     __reduce_ex__ = Pickable.__reduce_ex__
+    __getnewargs_ex__ = Pickable.__getnewargs_ex__
 
 
 class BasicDimension(Dimension, Symbol):
