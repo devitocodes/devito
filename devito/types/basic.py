@@ -536,8 +536,8 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 newobj = super(AbstractTensor, cls)._new(args[2])
 
             # Filter grid and dimensions
-            grids = {getattr(c, 'grid', None) for c in newobj._mat} - {None}
-            dimensions = {d for c in newobj._mat
+            grids = {getattr(c, 'grid', None) for c in newobj.flat()} - {None}
+            dimensions = {d for c in newobj.flat()
                           for d in getattr(c, 'dimensions', ())} - {None}
             # If none of the components are devito objects, returns a sympy Matrix
             if len(grids) == 0 and len(dimensions) == 0:
@@ -551,7 +551,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 dimensions = tuple(dimensions)
 
             # Initialized with constructed object
-            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj._mat,
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
                                      grid=grid, dimensions=dimensions)
         else:
             # Initialize components and create new Matrix from standard
@@ -561,6 +561,27 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             newobj.__init_finalize__(*args, **kwargs)
 
         return newobj
+
+    @classmethod
+    def _fromrep(cls, rep):
+        """
+        This the new constructor mechanism for matrices in sympy 1.9.
+        Standard new object go through `_new` but arithmetic operation directly us
+        the representation one.
+        This class method is only accessible from an existing AbstractTensor
+        that contains a grid.
+        """
+        newobj = super(AbstractTensor, cls)._fromrep(rep)
+        grids = {getattr(c, 'grid', None) for c in newobj.flat()} - {None}
+        grid = grids.pop()
+        newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(), grid=grid)
+        return newobj
+
+    def flat(self):
+        try:
+            return super(AbstractTensor, self).flat()
+        except AttributeError:
+            return self._mat
 
     def __init_finalize__(self, *args, **kwargs):
         pass
@@ -583,8 +604,8 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         # expected behavior is to produce an n x m matrix of zeros
         if self.cols != 0 and other.rows != 0:
             self_cols = self.cols
-            mat = self._mat
-            other_mat = other._mat
+            mat = self.flat()
+            other_mat = other.flat()
             for i in range(new_len):
                 row, col = i // other.cols, i % other.cols
                 row_indices = range(self_cols*row, self_cols*(row+1))
