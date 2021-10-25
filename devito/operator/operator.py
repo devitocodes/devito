@@ -448,15 +448,24 @@ class Operator(Callable):
                 args[k] = v
         args = kwargs['args'] = args.reduce_all()
 
-        # All DiscreteFunctions should be defined on the same Grid
-        grids = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
-        grids.update({getattr(p, 'grid', None) for p in defaults})
-        grids = {i for i in grids if isinstance(i, Grid)}
-        if len(grids) > 1 and configuration['mpi']:
-            raise ValueError("Multiple Grids found")
+        # DiscreteFunctions may be created from CartesianDiscretizations, which in
+        # turn could be Grids or SubDomains. Both may provide arguments
+        discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
+        discretizations.update({getattr(p, 'grid', None) for p in defaults})
+        discretizations.discard(None)
+        for i in discretizations:
+            args.update(i._arg_values(**kwargs))
+
+        # There can only be one Grid from which DiscreteFunctions were created
+        grids = {i for i in discretizations if isinstance(i, Grid)}
+        if len(grids) > 1:
+            # We loosely tolerate multiple Grids for backwards compatibility
+            # with spacial subsampling, which should be revisited however. And
+            # With MPI it would definitely break!
+            if configuration['mpi']:
+                raise ValueError("Multiple Grids found")
         try:
             grid = grids.pop()
-            args.update(grid._arg_values(**kwargs))
         except KeyError:
             grid = None
 
