@@ -1,9 +1,5 @@
 import pytest
 
-from ctypes import c_void_p
-import cgen
-import sympy
-
 from xdsl.dialects.builtin import *
 from xdsl.parser import Printer, Parser
 from xdsl.util import module
