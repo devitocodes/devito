@@ -17,10 +17,10 @@ class IET:
         self.i32 = IntegerType.get(32)
 
     # TODO make this generic in the type
-    def constant(self, val: int, typ: Attribute) -> Operation:
+    def constant(self, val: int) -> Operation:
         return Operation.with_result_types(
-            Constant, [], [typ],
-            attributes={"value": IntegerAttr.get(val, typ)})
+            Constant, [], [self.i32],
+            attributes={"value": IntegerAttr.get(val, self.i32)})
 
     def constant_from_attr(self, attr: Attribute, typ: Attribute) -> Operation:
         return Operation.with_result_types(Constant, [], [typ],
