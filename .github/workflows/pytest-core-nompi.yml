@@ -19,7 +19,6 @@ jobs:
       DEVITO_ARCH: "${{ matrix.arch }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
       OMP_NUM_THREADS: 2
-      PYTHON_VERSION: "${{ matrix.python-version }}"
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -147,10 +146,7 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -e .
-
-    - name: Sympy version
-      if: matrix.name != 'pytest-docker-py36-gcc-omp'
-      run: pip install sympy==${{matrix.sympy}}
+        pip install sympy==${{matrix.sympy}}
 
     - name: Test with pytest
       run: |
