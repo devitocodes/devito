@@ -1,1 +1,1 @@
-from devito.ir.ietxdsl.operations import *
+from devito.ir.ietxdsl.operations import * # noqa
