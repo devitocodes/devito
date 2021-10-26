@@ -772,6 +772,10 @@ class Scope(object):
         return [i for group in groups for i in group]
 
     @cached_property
+    def indexeds(self):
+        return tuple(i.indexed for i in self.accesses if i.access.is_Indexed)
+
+    @cached_property
     def functions(self):
         return set(self.reads) | set(self.writes)
 
