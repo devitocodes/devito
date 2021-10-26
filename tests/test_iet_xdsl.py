@@ -31,4 +31,3 @@ def test_expression():
     # can only print to stdout, so this is not yet supported.
     printer = Printer()
     printer.print_op(mod)
-    assert(False)
