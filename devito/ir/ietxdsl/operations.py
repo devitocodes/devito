@@ -26,6 +26,7 @@ class IET:
         return Operation.with_result_types(
             Addi, [get_ssa_value(x), get_ssa_value(y)], [self.i32], {})
 
+
 @irdl_op_definition
 class Constant:
     name: str = "iet.constant"
