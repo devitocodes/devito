@@ -1,8 +1,8 @@
 import io
 from devito.ir.ietxdsl.operations import *
 
-class CGeneration:
 
+class CGeneration:
     def __init__(self):
         self.output = io.StringIO()
 
@@ -22,11 +22,11 @@ class CGeneration:
         if (isinstance(operation, Constant)):
             self.print(operation.value.parameters[0].data, end='')
             return
-        
+
         if (isinstance(operation, Addi)):
             self.printOperation(operation.operands[0].op)
             self.print(" + ", end='')
             self.printOperation(operation.operands[1].op)
             return
-    
-        assert False,  "Trying to generate C for an unsupported operation"
+
+        assert False, "Trying to generate C for an unsupported operation"
