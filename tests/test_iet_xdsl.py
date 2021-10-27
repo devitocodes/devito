@@ -5,10 +5,24 @@ from devito.ir.ietxdsl import *
 
 
 def test_expression():
+    # Register the devito-specific dialects in xdsl context
+    #
+    # This initialization should be hidden somewhere in the ir.ietxdsl class
+    # and does not need to be user-facing.
     ctx = MLContext()
     Builtin(ctx)
     iet = IET(ctx)
 
+    # This is a very explicit encoding of the expression tree representing
+    # 42 + 3. There are a couple of issues with this encoding:
+    #
+    # - A list of operations does not necessarily encode a single tree,
+    #   but can contain disconnected operations.
+    # - Printing this recursively is just by walking over the set of operations
+    #   will result in rather length code.
+    #
+    # We might want to consider a mode where we can transparently move between
+    # a sequential and a tree representation of such an ir.
     mod = module([
         cst42 := iet.constant(42),
         cst3 := iet.constant(3),
