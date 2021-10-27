@@ -94,7 +94,7 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">estimate_cost</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">DAG</span><span class="p">,</span> <span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span>
                           <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">split</span><span class="p">,</span> <span class="n">timed_pass</span><span class="p">,</span> <span class="n">timed_region</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="kn">import</span> <span class="n">Evaluable</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="kn">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">Evaluable</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Operator&#39;</span><span class="p">]</span>
 
@@ -520,15 +520,24 @@
                 <span class="n">args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
         <span class="n">args</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;args&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
 
-        <span class="c1"># All DiscreteFunctions should be defined on the same Grid</span>
-        <span class="n">grids</span> <span class="o">=</span> <span class="p">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">}</span>
-        <span class="n">grids</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="nb">getattr</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">defaults</span><span class="p">})</span>
-        <span class="n">grids</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">grids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Multiple Grids found&quot;</span><span class="p">)</span>
+        <span class="c1"># DiscreteFunctions may be created from CartesianDiscretizations, which in</span>
+        <span class="c1"># turn could be Grids or SubDomains. Both may provide arguments</span>
+        <span class="n">discretizations</span> <span class="o">=</span> <span class="p">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">}</span>
+        <span class="n">discretizations</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="nb">getattr</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">defaults</span><span class="p">})</span>
+        <span class="n">discretizations</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">discretizations</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+
+        <span class="c1"># There can only be one Grid from which DiscreteFunctions were created</span>
+        <span class="n">grids</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">discretizations</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Grid</span><span class="p">)}</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">grids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># We loosely tolerate multiple Grids for backwards compatibility</span>
+            <span class="c1"># with spacial subsampling, which should be revisited however. And</span>
+            <span class="c1"># With MPI it would definitely break!</span>
+            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Multiple Grids found&quot;</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">grid</span> <span class="o">=</span> <span class="n">grids</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">_arg_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
         <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
             <span class="n">grid</span> <span class="o">=</span> <span class="kc">None</span>
 
