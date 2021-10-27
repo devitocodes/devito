@@ -10,10 +10,10 @@ def test_expression():
     iet = IET(ctx)
 
     mod = module([
-            cst42 := iet.constant(42),
-            cst3 := iet.constant(3),
-            addi := iet.addi(cst42, cst3),
-          ])
+        cst42 := iet.constant(42),
+        cst3 := iet.constant(3),
+        iet.addi(cst42, cst3),
+    ])
 
     # result_string = """
     #    module() {
