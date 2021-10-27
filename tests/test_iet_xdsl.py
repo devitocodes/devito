@@ -9,13 +9,11 @@ def test_expression():
     Builtin(ctx)
     iet = IET(ctx)
 
-    cst42 = iet.constant(42)
-    cst3 = iet.constant(3)
-    addi = iet.addi(cst42, cst3)
-
-    # Having to construct a module is not very beautiful.
-    # Maybe add sth like an IRBuilder?
-    mod = module([cst42, cst3, addi])
+    mod = module([
+            cst42 := iet.constant(42),
+            cst3 := iet.constant(3),
+            addi := iet.addi(cst42, cst3),
+          ])
 
     # result_string = """
     #    module() {
