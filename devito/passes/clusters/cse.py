@@ -65,7 +65,7 @@ def _cse(maybe_exprs, make, mode='default'):
     #
     # `a[i] + 1` will be excluded, as there's a flow Dimension-independent data
     # dependence involving `a`
-    exclude = {i.source.indexed for i in scope.d_flow.independent()}
+    exclude = {i.source.access for i in scope.d_flow.independent()}
 
     mapped = []
     while True:

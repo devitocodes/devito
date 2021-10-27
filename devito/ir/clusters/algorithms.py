@@ -223,7 +223,7 @@ class Stepper(Queue):
         # a SteppingDimension for `d = time`
         mapper = DefaultOrderedDict(lambda: DefaultOrderedDict(set))
         for c in clusters:
-            indexeds = [a.indexed for a in c.scope.accesses if a.function.is_Tensor]
+            indexeds = c.scope.indexeds
 
             for i in indexeds:
                 try:

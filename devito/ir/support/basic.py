@@ -62,15 +62,14 @@ class IterationInstance(LabeledVector):
         * obj5 is irregular, as two findices appear in the same index function.
     """
 
-    def __new__(cls, indexed):
-        findices = tuple(indexed.function.dimensions)
+    def __new__(cls, access):
+        findices = tuple(access.function.dimensions)
         if len(findices) != len(set(findices)):
             raise ValueError("Illegal non-unique `findices`")
-        return super(IterationInstance, cls).__new__(cls,
-                                                     list(zip(findices, indexed.indices)))
+        return super().__new__(cls, list(zip(findices, access.indices)))
 
     def __hash__(self):
-        return super(IterationInstance, self).__hash__()
+        return super().__hash__()
 
     @cached_property
     def index_mode(self):
@@ -180,14 +179,14 @@ class TimedAccess(IterationInstance):
 
     _modes = ('R', 'W', 'RI', 'WI')
 
-    def __new__(cls, indexed, mode, timestamp, ispace=None):
+    def __new__(cls, access, mode, timestamp, ispace=None):
         assert mode in cls._modes
         assert is_integer(timestamp)
 
-        obj = super(TimedAccess, cls).__new__(cls, indexed)
+        obj = super().__new__(cls, access)
 
-        obj.indexed = indexed
-        obj.function = indexed.function
+        obj.access = access
+        obj.function = access.function
         obj.mode = mode
         obj.timestamp = timestamp
 
@@ -207,12 +206,12 @@ class TimedAccess(IterationInstance):
         # which might require expensive comparisons of Vector entries (i.e.,
         # SymPy expressions)
 
-        return (self.indexed is other.indexed and  # => self.function is other.function
+        return (self.access is other.access and  # => self.function is other.function
                 self.mode == other.mode and
                 self.ispace == other.ispace)
 
     def __hash__(self):
-        return super(TimedAccess, self).__hash__()
+        return super().__hash__()
 
     @property
     def name(self):
@@ -256,7 +255,7 @@ class TimedAccess(IterationInstance):
 
     @cached_property
     def is_regular(self):
-        if not super(TimedAccess, self).is_regular:
+        if not super().is_regular:
             return False
 
         # The order of the `aindices` must match the order of the iteration
@@ -276,7 +275,7 @@ class TimedAccess(IterationInstance):
             raise TypeError("Cannot compare due to mismatching `direction`")
         if self.intervals != other.intervals:
             raise TypeError("Cannot compare due to mismatching `intervals`")
-        return super(TimedAccess, self).__lt__(other)
+        return super().__lt__(other)
 
     def lex_eq(self, other):
         return self.timestamp == other.timestamp
@@ -770,6 +769,10 @@ class Scope(object):
     def accesses(self):
         groups = list(self.reads.values()) + list(self.writes.values())
         return [i for group in groups for i in group]
+
+    @cached_property
+    def indexeds(self):
+        return tuple(i.access for i in self.accesses if i.access.is_Indexed)
 
     @cached_property
     def functions(self):

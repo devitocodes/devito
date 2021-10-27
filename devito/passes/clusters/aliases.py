@@ -333,7 +333,7 @@ class CireSops(CireTransformer):
             # Rule out Dimension-independent dependencies, e.g.:
             # r0 = ...
             # u[x, y] = ... r0*a[x, y] ...
-            exclude = {i.source.indexed for i in c.scope.d_flow.independent()}
+            exclude = {i.source.access for i in c.scope.d_flow.independent()}
 
             # TODO: to process third- and higher-order derivatives, we could
             # extend this by calling `_aliases_from_clusters` repeatedly until

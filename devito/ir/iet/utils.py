@@ -73,7 +73,10 @@ def derive_parameters(iet, drop_locals=False):
     """
     # Extract all candidate parameters
     candidates = FindSymbols().visit(iet)
-    candidates.extend(FindSymbols('basics').visit(iet))
+
+    # Symbols, Objects, etc, become input parameters as well
+    basics = FindSymbols('basics').visit(iet)
+    candidates.extend(i.function for i in basics)
 
     # Filter off duplicates (e.g., `x_size` is extracted by both calls to FindSymbols)
     candidates = filter_ordered(candidates)
