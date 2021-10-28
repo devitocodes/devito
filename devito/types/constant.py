@@ -56,6 +56,10 @@ class Constant(DataSymbol, ArgProvider):
         return True
 
     @property
+    def value(self):
+        return self.data
+
+    @property
     def data(self):
         """The value of the data object, as a scalar (int, float, ...)."""
         return self.dtype(self._value)
@@ -108,4 +112,4 @@ class Constant(DataSymbol, ArgProvider):
         except AttributeError:
             pass
 
-    _pickle_kwargs = DataSymbol._pickle_kwargs + ['_value']
+    _pickle_kwargs = DataSymbol._pickle_kwargs + ['value']

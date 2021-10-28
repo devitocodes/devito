@@ -338,8 +338,9 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
     def __getnewargs_ex__(self):
-        return (tuple(), {**self.assumptions0,
-                **{i.lstrip('_'): getattr(self, i) for i in self._pickle_kwargs}})
+        args, kwargs = Pickable.__getnewargs_ex__(self)
+        kwargs.update(self.assumptions0)
+        return args, kwargs
 
 
 class Symbol(AbstractSymbol, Cached):
