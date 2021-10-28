@@ -220,6 +220,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def _filter_assumptions(cls, **kwargs):
         """Extract sympy.Symbol-specific kwargs."""
         assumptions = {}
+        # pop predefined assumptions
+        for key in ('real', 'imaginary', 'commutative'):
+            kwargs.pop(key, None)
+        # extract sympy.Symbol-specific kwargs
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)
@@ -333,6 +337,11 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     _pickle_kwargs = ['name', 'dtype', 'is_const']
     __reduce_ex__ = Pickable.__reduce_ex__
 
+    def __getnewargs_ex__(self):
+        args, kwargs = Pickable.__getnewargs_ex__(self)
+        kwargs.update(self.assumptions0)
+        return args, kwargs
+
 
 class Symbol(AbstractSymbol, Cached):
 
@@ -368,22 +377,23 @@ class Symbol(AbstractSymbol, Cached):
         return frozendict(key)
 
     def __new__(cls, *args, **kwargs):
-        key = cls._cache_key(*args, **kwargs)
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
+        key = cls._cache_key(*args, **{**assumptions, **kwargs})
         obj = cls._cache_get(key)
 
         if obj is not None:
             return obj
 
         # Not in cache. Create a new Symbol via sympy.Symbol
-        name = kwargs.get('name') or args[0]
-        assumptions, kwargs = cls._filter_assumptions(**kwargs)
+        args = list(args)
+        name = kwargs.pop('name', None) or args.pop(0)
 
         # Note: use __xnew__ to bypass sympy caching
         newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
 
         # Initialization
         newobj._dtype = cls.__dtype_setup__(**kwargs)
-        newobj.__init_finalize__(*args, **kwargs)
+        newobj.__init_finalize__(name, *args, **kwargs)
 
         # Store new instance in symbol cache
         Cached.__init__(newobj, key)
@@ -536,22 +546,11 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 newobj = super(AbstractTensor, cls)._new(args[2])
 
             # Filter grid and dimensions
-            grids = {getattr(c, 'grid', None) for c in newobj._mat} - {None}
-            dimensions = {d for c in newobj._mat
-                          for d in getattr(c, 'dimensions', ())} - {None}
-            # If none of the components are devito objects, returns a sympy Matrix
-            if len(grids) == 0 and len(dimensions) == 0:
+            grid, dimensions = newobj._infer_dims()
+            if grid is None and dimensions is None:
                 return sympy.ImmutableDenseMatrix(*args)
-            elif len(grids) > 0:
-                dimensions = None
-                assert len(grids) == 1
-                grid = grids.pop()
-            else:
-                grid = None
-                dimensions = tuple(dimensions)
-
             # Initialized with constructed object
-            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj._mat,
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
                                      grid=grid, dimensions=dimensions)
         else:
             # Initialize components and create new Matrix from standard
@@ -561,6 +560,52 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             newobj.__init_finalize__(*args, **kwargs)
 
         return newobj
+
+    @classmethod
+    def _fromrep(cls, rep):
+        """
+        This the new constructor mechanism for matrices in sympy 1.9.
+        Standard new object go through `_new` but arithmetic operations directly use
+        the representation based one.
+        This class method is only accessible from an existing AbstractTensor
+        that contains a grid or dimensions.
+        """
+        newobj = super(AbstractTensor, cls)._fromrep(rep)
+        grid, dimensions = newobj._infer_dims()
+        try:
+            # This is needed when `_fromrep` is called directly in 1.9
+            # for example with mul.
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
+                                     grid=grid, dimensions=dimensions)
+        except TypeError:
+            # We can end up here when `_fromrep` is called through the default _new
+            # when input `comps` don't have grid or dimensions. For example
+            # `test_non_devito_tens` in `test_tensor.py`.
+            pass
+        return newobj
+
+    def _infer_dims(self):
+        grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
+        dimensions = {d for c in self.flat()
+                      for d in getattr(c, 'dimensions', ())} - {None}
+        # If none of the components are devito objects, returns a sympy Matrix
+        if len(grids) == 0 and len(dimensions) == 0:
+            return None, None
+        elif len(grids) > 0:
+            dimensions = None
+            assert len(grids) == 1
+            grid = grids.pop()
+        else:
+            grid = None
+            dimensions = tuple(dimensions)
+
+        return grid, dimensions
+
+    def flat(self):
+        try:
+            return super().flat()
+        except AttributeError:
+            return self._mat
 
     def __init_finalize__(self, *args, **kwargs):
         pass
@@ -583,8 +628,11 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         # expected behavior is to produce an n x m matrix of zeros
         if self.cols != 0 and other.rows != 0:
             self_cols = self.cols
-            mat = self._mat
-            other_mat = other._mat
+            mat = self.flat()
+            try:
+                other_mat = other.flat()
+            except AttributeError:
+                other_mat = other._mat
             for i in range(new_len):
                 row, col = i // other.cols, i % other.cols
                 row_indices = range(self_cols*row, self_cols*(row+1))

@@ -147,7 +147,7 @@ class Pickable(object):
 
     def __getnewargs_ex__(self):
         return (tuple(getattr(self, i) for i in self._pickle_args),
-                {i.lstrip('_'): getattr(self, i) for i in self._pickle_kwargs})
+                {i: getattr(self, i) for i in self._pickle_kwargs})
 
 
 class Singleton(type):
