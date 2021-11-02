@@ -1431,6 +1431,23 @@ def test_external_allocator():
     assert(np.array_equal(f.data, numpy_array))
 
 
+def test_boolean_masking_array():
+    """
+    Test truth value of array, raised in Python 3.9 (MFE for issue #1788)
+    """
+    shape = (5,)
+    extent = (6)
+
+    grid = Grid(shape=shape, extent=extent)
+    f = Function(name='f', grid=grid, dtype=np.int32)
+
+    bool_arr = np.array([True, True, False, False, True])
+
+    f.data[bool_arr] = 1
+
+    assert all(f.data == [1, 1, 0, 0, 1])
+
+
 if __name__ == "__main__":
     configuration['mpi'] = True
     TestDataDistributed().test_misc_data()
