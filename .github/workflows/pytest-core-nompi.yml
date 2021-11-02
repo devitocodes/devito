@@ -30,8 +30,8 @@ jobs:
            pytest-ubuntu-py38-gcc6-omp,
            pytest-ubuntu-py36-gcc7-omp,
            pytest-ubuntu-py37-gcc7-noomp,
-           pytest-ubuntu-py37-gcc8-omp,
-           pytest-ubuntu-py38-gcc9-omp,
+           pytest-ubuntu-py38-gcc8-omp,
+           pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
            pytest-docker-py36-gcc-omp
         ]
@@ -65,15 +65,15 @@ jobs:
           language: "C"
           sympy: 1.8
 
-        - name: pytest-ubuntu-py37-gcc8-omp
-          python-version: 3.7
+        - name: pytest-ubuntu-py38-gcc8-omp
+          python-version: 3.8
           os: ubuntu-18.04
           arch: "gcc-8"
           language: "openmp"
           sympy: 1.9
 
-        - name: pytest-ubuntu-py38-gcc9-omp
-          python-version: 3.8
+        - name: pytest-ubuntu-py39-gcc9-omp
+          python-version: 3.9
           os: ubuntu-20.04
           arch: "gcc-9"
           language: "openmp"
