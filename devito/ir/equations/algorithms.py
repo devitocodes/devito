@@ -134,7 +134,7 @@ def lower_exprs(expressions, **kwargs):
             dimension_map = {}
 
         # Handle Functions (typical case)
-        mapper = {f: f.indexify(lshift=True, subs=dimension_map)
+        mapper = {f: lower_exprs(f.indexify(subs=dimension_map), **kwargs)
                   for f in retrieve_functions(expr)}
 
         # Handle Indexeds (from index notation)
@@ -160,6 +160,7 @@ def lower_exprs(expressions, **kwargs):
         mapper.update(dimension_map)
         # Add the user-supplied substitutions
         mapper.update(subs)
+        # Apply mapper to expression
         processed.append(uxreplace(expr, mapper))
 
     if isinstance(expressions, Iterable):

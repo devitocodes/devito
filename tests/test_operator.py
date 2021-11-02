@@ -317,6 +317,34 @@ class TestCodeGen(object):
         assert np.all(u0.data[:2, :2] == 1) and np.all(u0.data[1:3, 1:3] == 1)
         assert np.all(u0.data[2:3, 3] == 2) and np.all(u0.data[3, 2:3] == 2)
 
+    def test_nested_lowering_indexify(self):
+        """
+        Tests that nested function are lowered if only used as index.
+        """
+        grid = Grid(shape=(4, 4), dtype=np.int32)
+        x, y = grid.dimensions
+
+        u0 = Function(name="u0", grid=grid)
+        u1 = Function(name="u1", grid=grid)
+        u2 = Function(name="u2", grid=grid)
+
+        u0.data[:, :] = 2
+        u1.data[:, :] = 1
+        u2.data[:, :] = 1
+
+        # Function as index only
+        eq0 = Eq(u0._subs(x, u1), 2*u0)
+        # Function as part of expression as index only
+        eq1 = Eq(u0._subs(x, u1._subs(y, u2) + 1), 4*u0)
+
+        op0 = Operator(eq0)
+        op0.apply()
+        op1 = Operator(eq1)
+        op1.apply()
+        assert np.all(np.all(u0.data[i, :] == 2) for i in [0, 3])
+        assert np.all(u0.data[1, :] == 4)
+        assert np.all(u0.data[2, :] == 8)
+
 
 class TestArithmetic(object):
 
