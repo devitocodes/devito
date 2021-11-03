@@ -88,7 +88,7 @@ class TestCodeGenSkewing(object):
         (['Eq(u, v + 1)',
           'Eq(u[x+1,y+1,z+1],v[x+1,y+1,z+1]+1)']),
     ])
-    def test_no_sequential(self, expr, expected):
+    def test_no_skewing(self, expr, expected):
         """Tests code generation on skewed indices."""
         grid = Grid(shape=(16, 16, 16))
         x, y, z = grid.dimensions
@@ -129,16 +129,16 @@ class TestCodeGenSkewing(object):
           'Eq(u[t0,x-time+1,y-time+1,z-time+1],v[t0,x-time+1,y-time+1,z-time+1]+1)',
           True, True]),
     ])
-    def test_skewing_codegen(self, expr, expected, skewing, blockinner):
-        """Tests code generation on skewed indices."""
+    def test_skewing_zero_blocklevels(self, expr, expected, skewing, blockinner):
+        """Tests code generation is skewed only."""
         grid = Grid(shape=(16, 16, 16))
         x, y, z = grid.dimensions
         time = grid.time_dim
 
         u = TimeFunction(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid)  # noqa
+
         eqn = eval(expr)
-        # List comprehension would need explicit locals/globals mappings to eval
         op = Operator(eqn, opt=('blocking', {'blocklevels': 0, 'skewing': skewing,
                                              'blockinner': blockinner}))
         op.apply(time_M=5)
