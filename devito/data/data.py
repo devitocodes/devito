@@ -432,7 +432,7 @@ class Data(np.ndarray):
             loc_idx.append(v)
 
         # Deal with NONLOCAL accesses
-        if NONLOCAL in loc_idx:
+        if any(j is NONLOCAL for j in loc_idx):
             if len(loc_idx) == self.ndim and index_is_basic(loc_idx):
                 # Caller expecting a scalar -- it will eventually get None
                 loc_idx = [NONLOCAL]
