@@ -175,6 +175,10 @@ class Dimension(ArgProvider):
     def max_name(self):
         return "%s_M" % self.name
 
+    @cached_property
+    def level(self):
+        return 0
+
     @property
     def is_const(self):
         return False
@@ -1094,6 +1098,11 @@ class IncrDimension(DerivedDimension):
             return sympy.Number(self.step)
         except (TypeError, ValueError):
             return self.step
+
+    @cached_property
+    def level(self):
+        # The depth in the hierarchy of dimensions
+        return len([i for i in self._defines if i.is_Incr])
 
     @cached_property
     def _arg_names(self):

@@ -27,6 +27,19 @@ def blocking(clusters, options):
            hierarchical blocking.
         * `skewing` (boolean, False): enable/disable loop skewing.
 
+    Examples
+    -------
+    A typical use case, e.g.
+
+                    Classical   +blockinner  2-level Hierarchical
+    for x            for xb        for xb         for xbb
+      for y    -->    for yb        for yb         for ybb
+        for z          for x         for zb         for xb
+                        for y         for x          for yb
+                         for z         for y          for x
+                                        for z          for y
+                                                        for z
+
     Notes
     ------
     In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed.
@@ -99,8 +112,6 @@ class Blocking(Queue):
 
                 # The new Cluster properties
                 # TILABLE property is dropped after the blocking.
-                # SKEWABLE is dropped as well, but only from the new
-                # block dimensions.
                 properties = dict(c.properties)
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
@@ -160,9 +171,6 @@ def decompose(ispace, d, block_dims):
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
 
-    # The level of a given Dimension in the hierarchy of block Dimensions
-    level = lambda dim: len([i for i in dim._defines if i.is_Incr])
-
     # Add more relations
     for n, i in enumerate(ispace):
         if i.dim is d:
@@ -172,7 +180,7 @@ def decompose(ispace, d, block_dims):
             # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
             # `(t, xbb, xb, x, ybb, ...)`
             for bd in block_dims:
-                if level(i.dim) >= level(bd):
+                if i.dim.level >= bd.level:
                     relations.append([bd, i.dim])
                 else:
                     relations.append([i.dim, bd])
@@ -255,15 +263,11 @@ class Skewing(Queue):
                 return clusters
             skew_dim = skew_dims.pop()
 
-            # The level of a given Dimension in the hierarchy of block Dimensions, used
-            # to skew over the outer level of loops.
-            level = lambda dim: len([i for i in dim._defines if i.is_Incr])
-
             # Since we are here, prefix is skewable and nested under a
             # SEQUENTIAL loop.
             intervals = []
             for i in c.ispace:
-                if i.dim is d and level(d) <= 1:  # Skew only at level 0 or 1
+                if i.dim is d and d.level <= 1:  # Skew only at level 0 or 1
                     intervals.append(Interval(d, skew_dim, skew_dim))
                 else:
                     intervals.append(i)
