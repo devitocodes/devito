@@ -1,0 +1,40 @@
+##############################################################
+# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) and Devito
+# It also sets up Devito with GPU offloading via OpenACC
+#
+# BUILD:
+#   docker build --network=host --file docker/Dockerfile.nvidia.nvc --tag devito:nvidia-nvc .
+#
+# RUN:
+#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia-nvc
+#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia-nvc 
+#
+# to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
+#   docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito:nvidia-nvc python examples/seismic/acoustic/acoustic_example.py
+#
+##############################################################
+FROM devito:nvidia
+
+## Environment Variables for OpenACC Builds
+# Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
+# Set arch to PGI (pgcc)
+ENV DEVITO_ARCH="nvc"
+ENV DEVITO_LANGUAGE="openacc"
+ENV DEVITO_PLATFORM=nvidiaX
+# Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
+# ENV DEVITO_JIT_BACKDOOR=1
+
+# Enable logging, Options: [unset, PERF, DEBUG]
+ENV DEVITO_LOGGING=DEBUG
+#ENV PGI_ACC_TIME=1
+
+## Change to the app user.
+ENV HOME=/devito
+RUN mkdir -p /app && \
+    groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app /devito
+USER app
+
+EXPOSE 8888
+CMD jupyter-lab --ip=0.0.0.0 --port=8888 --allow-root --NotebookApp.token=''

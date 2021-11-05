@@ -1,0 +1,70 @@
+
+##############################################################
+# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) and Devito
+# It also sets up Devito with GPU offloading via OpenMP
+#
+# BUILD:
+#   docker build --network=host -t devito:nvidia-clang -f docker/Dockerfile.nvidia.clang .
+#
+# RUN
+#   docker run --gpus all --rm -it devito:nvidia-clang
+# python examples/seismic/acoustic/acoustic_example.py
+#
+##############################################################
+FROM devito:nvidia
+
+## Environment Variables for OpenMP Builds
+
+ENV DEVITO_ARCH="clang"
+ENV DEVITO_LANGUAGE="openmp"
+ENV DEVITO_PLATFORM="nvidiaX"
+ENV DEVITO_LOGGING="DEBUG"
+ENV OMPI_CC="clang"
+
+# Enable logging, Options: [unset, PERF, DEBUG]
+ENV DEVITO_LOGGING=DEBUG
+
+## INSTALL CLANG PREREQUISITES
+
+RUN apt-get -y update && \
+    apt-get install -y -q \
+    libelf-dev libffi-dev \
+    gcc-multilib gcc-multilib \
+    cmake
+
+## SET UP CUDA 11.0
+
+ENV CUDA_HOME /opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.0
+ENV CUDA_ROOT $CUDA_HOME/bin
+ENV PATH $CUDA_ROOT:$PATH
+ENV LD_LIBRARY_PATH $CUDA_HOME/lib64:$LD_LIBRARY_PATH
+
+## INSTALL CLANG 13
+
+WORKDIR /
+RUN git clone https://github.com/llvm/llvm-project.git
+WORKDIR /llvm-project
+RUN git -c advice.detachedHead=false checkout llvmorg-13.0.0
+RUN mkdir build
+WORKDIR /llvm-project/build
+RUN cmake ../llvm/ -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
+    -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=all \
+    -DLLVM_ENABLE_PROJECTS="clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
+    -DCMAKE_INSTALL_PREFIX=/llvm
+RUN make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') ))
+RUN make install
+WORKDIR /
+RUN rm -rf llvm-project
+ENV PATH /llvm/bin:${PATH}
+ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
+
+## Change to the app user.
+WORKDIR /devito
+ENV HOME=/devito
+RUN mkdir -p /app && \
+    groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app /devito
+USER app

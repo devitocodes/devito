@@ -1,7 +1,5 @@
 ##############################################################
-# This Dockerfile contains the additional NVIDIA compilers, 
-# libraries, and plugins to enable OpenACC and NVIDIA GPU 
-# acceleration of Devito codes.
+# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) and Devito
 #
 # BUILD: 
 #   docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
@@ -17,22 +15,19 @@
 #   docker build --network=host --build-arg MPI_VER=4 --file docker/Dockerfile.nvidia --tag devito:nvidia .
 #
 # RUN: 
-#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
-#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
-#
-# to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
-#   docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito.nvidia python examples/seismic/acoustic/acoustic_example.py
+#   docker run --gpus all --rm -it devito:nvidia
 #
 ##############################################################
 FROM python:3.8
 
-ENV DEBIAN_FRONTEND noninteractive 
+ENV DEBIAN_FRONTEND noninteractive
 
+## NVIDIA HPC SDK (CUDA + OpenMPI)
 # nodesource: nvdashboard requires nodejs>=10  
 RUN apt-get update -y && \
     apt-get install -y -q \
         apt-utils curl\   
-        vim && \
+        vim nano && \
     curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
         nodejs \
@@ -84,19 +79,6 @@ ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
 ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
 ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
 
-ADD ./requirements.txt /app/requirements.txt
-ADD ./requirements-optional.txt /app/requirements-optional.txt
-ADD ./requirements-nvidia.txt /app/requirements-nvidia.txt
-ADD ./requirements-mpi.txt /app/requirements-mpi.txt
-
-RUN python3 -m venv /venv && \
-    /venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /venv/bin/pip install --no-cache-dir wheel && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt && \
-    rm -rf ~/.cache/pip
-
 # MPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
@@ -124,62 +106,19 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
-    fi;  \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
-    rm -rf ~/.cache/pip
+    fi;
 ENV CFLAGS=
 
-ADD ./devito /app/devito
-ADD ./tests /app/tests
-ADD ./scripts /app/scripts
-ADD ./examples /app/examples
-ADD ./benchmarks /app/benchmarks
-COPY setup.cfg /app/
+## DEVITO
+RUN git clone https://github.com/devitocodes/devito.git
+WORKDIR /devito
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-optional.txt && \
+    pip install --no-cache-dir -r requirements-nvidia.txt && \
+    OMPI_CC=gcc pip install --no-cache-dir -r requirements-mpi.txt && \
+    rm -rf ~/.cache/pip
+RUN pip install -e .
 
-ADD docker/run-jupyterlab.sh /jupyter
-ADD docker/run-tests.sh /tests
-ADD docker/run-print-defaults.sh /print-defaults
-ADD docker/entrypoint.sh /docker-entrypoint.sh
-ADD docker/nvdashboard.json /app/nvdashboard.json
-
-RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
-    /venv/bin/jupyter serverextension enable dask_labextension 
-#    /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
-
-## Environment Variables for OpenACC Builds
-# Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
-# Set arch to PGI (pgcc)
-ENV DEVITO_ARCH="nvc" 
-ENV DEVITO_LANGUAGE="openacc"
-ENV DEVITO_PLATFORM=nvidiaX
-# Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
-# ENV DEVITO_JIT_BACKDOOR=1 
-
-# Enable logging, Options: [unset, PERF, DEBUG]
-ENV DEVITO_LOGGING=DEBUG 
-#ENV PGI_ACC_TIME=1 
-
-## Create App user 
-# Set the home directory to our app user's home.
-ENV HOME=/app
-ENV APP_HOME=/app
-
-# Create the home directory for the new app user.
-# Create an app user so our program doesn't run as root.
-# Chown all the files to the app user.
-RUN mkdir -p /app && \
-    groupadd -r app && \
-    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
-    chown -R app:app $APP_HOME && \
-    chown app:app /docker-entrypoint.sh && \
-    chown app:app /print-defaults && \
-    chown app:app /tests && \
-    chown app:app /jupyter
-    
-# Change to the app user.
-USER app
-WORKDIR /app
-
-EXPOSE 8888
-ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["/jupyter"]
+CMD ["/bin/bash"]
