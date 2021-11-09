@@ -5,7 +5,7 @@ from sympy import S
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import retrieve_terminals, q_constant, q_affine
+from devito.symbolics import retrieve_terminals, q_constant, q_affine, q_terminal
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
 from devito.types import Dimension, DimensionTuple
@@ -699,9 +699,10 @@ class Scope(object):
                 v.append(TimedAccess(j, mode, i, e.ispace))
 
             # Write
-            v = self.writes.setdefault(e.lhs.function, [])
-            mode = 'WI' if e.is_Increment else 'W'
-            v.append(TimedAccess(e.lhs, mode, i, e.ispace))
+            if q_terminal(e.lhs):
+                v = self.writes.setdefault(e.lhs.function, [])
+                mode = 'WI' if e.is_Increment else 'W'
+                v.append(TimedAccess(e.lhs, mode, i, e.ispace))
 
             # If an increment, we got one implicit read
             if e.is_Increment:
