@@ -82,7 +82,7 @@ jobs:
         python examples/cfd/example_diffusion.py
 
     - name: Upload coverage to Codecov
-      if: matrix.name != 'pytest-docker-py36-gcc-omp'
+      if: matrix.name != 'pytest-docker-py37-gcc-omp'
       uses: codecov/codecov-action@v1.0.6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
