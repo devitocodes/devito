@@ -120,7 +120,7 @@ class CodePrinter(C99CodePrinter):
 
     _print_EvalDerivative = C99CodePrinter._print_Add
 
-    def _print_FunctionFromPointer(self, expr):
+    def _print_CallFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
         return "%s->%s(%s)" % (expr.pointer, expr.function, ', '.join(indices))
 
@@ -133,11 +133,13 @@ class CodePrinter(C99CodePrinter):
     def _print_ListInitializer(self, expr):
         return "{%s}" % ', '.join([self._print(i) for i in expr.params])
 
+    def _print_IndexedPointer(self, expr):
+        return "%s%s" % (expr.base, ''.join('[%s]' % self._print(i) for i in expr.index))
+
     def _print_IntDiv(self, expr):
         return expr.__str__()
 
     _print_UnaryOp = _print_IntDiv
-    _print_IndexedPointer = _print_IntDiv
     _print_DefFunction = _print_IntDiv
     _print_InlineIf = _print_IntDiv
     _print_MacroArgument = _print_IntDiv

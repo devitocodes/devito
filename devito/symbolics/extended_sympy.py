@@ -9,7 +9,7 @@ from sympy import Expr, Integer, Function, Symbol, sympify
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
+__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
            'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'cast_mapper']
@@ -93,21 +93,49 @@ class IntDiv(sympy.Expr):
     __repr__ = __str__
 
 
-class FunctionFromPointer(sympy.Expr, Pickable):
+class BasicWrapperMixin(object):
 
     """
-    Symbolic representation of the C notation ``pointer->function(params)``.
+    Abstract mixin class for objects wrapping types.Basic objects.
     """
 
-    def __new__(cls, function, pointer, params=None):
+    @property
+    def base(self):
+        """
+        The wrapped object.
+        """
+        raise NotImplementedError
+
+    @property
+    def function(self):
+        """
+        The underlying function.
+        """
+        return self.base.function
+
+    @property
+    def dtype(self):
+        """
+        The wrapped object data type.
+        """
+        return self.function.dtype
+
+
+class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
+
+    """
+    Symbolic representation of the C notation ``pointer->call(params)``.
+    """
+
+    def __new__(cls, call, pointer, params=None):
         args = []
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
         args.append(pointer)
-        if isinstance(function, (DefFunction, FunctionFromPointer)):
-            args.append(function)
-        elif not isinstance(function, str):
-            raise ValueError("`function` must be FunctionFromPointer or str")
+        if isinstance(call, (DefFunction, CallFromPointer)):
+            args.append(call)
+        elif not isinstance(call, str):
+            raise ValueError("`call` must be CallFromPointer or str")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):
@@ -118,54 +146,50 @@ class FunctionFromPointer(sympy.Expr, Pickable):
                 _params.append(p)
         args.extend(_params)
         obj = sympy.Expr.__new__(cls, *args)
-        obj.function = function
+        obj.call = call
         obj.pointer = pointer
         obj.params = tuple(_params)
         return obj
 
     def __str__(self):
-        return '%s->%s(%s)' % (self.pointer, self.function,
+        return '%s->%s(%s)' % (self.pointer, self.call,
                                ", ".join(str(i) for i in as_tuple(self.params)))
 
     __repr__ = __str__
 
     def _hashable_content(self):
-        return super(FunctionFromPointer, self)._hashable_content() +\
-            (self.function, self.pointer) + self.params
+        return super(CallFromPointer, self)._hashable_content() +\
+            (self.call, self.pointer) + self.params
 
     @property
     def base(self):
-        if isinstance(self.pointer, FunctionFromPointer):
-            # FunctionFromPointer may be nested
+        if isinstance(self.pointer, CallFromPointer):
+            # CallFromPointer may be nested
             return self.pointer.base
         else:
             return self.pointer
 
-    @property
-    def dtype(self):
-        return self.base.function.dtype
-
     # Pickling support
-    _pickle_args = ['function', 'pointer']
+    _pickle_args = ['call', 'pointer']
     _pickle_kwargs = ['params']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class FieldFromPointer(FunctionFromPointer, Pickable):
+class FieldFromPointer(CallFromPointer, Pickable):
 
     """
     Symbolic representation of the C notation ``pointer->field``.
     """
 
     def __new__(cls, field, pointer):
-        return FunctionFromPointer.__new__(cls, field, pointer)
+        return CallFromPointer.__new__(cls, field, pointer)
 
     def __str__(self):
         return '%s->%s' % (self.pointer, self.field)
 
     @property
     def field(self):
-        return self.function
+        return self.call
 
     # Our __new__ cannot accept the params argument
     _pickle_kwargs = []
@@ -173,7 +197,7 @@ class FieldFromPointer(FunctionFromPointer, Pickable):
     __repr__ = __str__
 
 
-class FieldFromComposite(FunctionFromPointer, Pickable):
+class FieldFromComposite(CallFromPointer, Pickable):
 
     """
     Symbolic representation of the C notation ``composite.field``,
@@ -181,14 +205,14 @@ class FieldFromComposite(FunctionFromPointer, Pickable):
     """
 
     def __new__(cls, field, composite):
-        return FunctionFromPointer.__new__(cls, field, composite)
+        return CallFromPointer.__new__(cls, field, composite)
 
     def __str__(self):
         return '%s.%s' % (self.composite, self.field)
 
     @property
     def field(self):
-        return self.function
+        return self.call
 
     @property
     def composite(self):
@@ -318,7 +342,7 @@ class Cast(UnaryOp):
     _pickle_kwargs = ['stars']
 
 
-class IndexedPointer(sympy.Expr, Pickable):
+class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
     """
     Symbolic representation of the C notation ``symbol[...]``
