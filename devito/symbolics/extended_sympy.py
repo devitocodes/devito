@@ -96,18 +96,18 @@ class IntDiv(sympy.Expr):
 class CallFromPointer(sympy.Expr, Pickable):
 
     """
-    Symbolic representation of the C notation ``pointer->function(params)``.
+    Symbolic representation of the C notation ``pointer->call(params)``.
     """
 
-    def __new__(cls, function, pointer, params=None):
+    def __new__(cls, call, pointer, params=None):
         args = []
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
         args.append(pointer)
-        if isinstance(function, (DefFunction, CallFromPointer)):
-            args.append(function)
-        elif not isinstance(function, str):
-            raise ValueError("`function` must be CallFromPointer or str")
+        if isinstance(call, (DefFunction, CallFromPointer)):
+            args.append(call)
+        elif not isinstance(call, str):
+            raise ValueError("`call` must be CallFromPointer or str")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):
@@ -118,20 +118,20 @@ class CallFromPointer(sympy.Expr, Pickable):
                 _params.append(p)
         args.extend(_params)
         obj = sympy.Expr.__new__(cls, *args)
-        obj.function = function
+        obj.call = call
         obj.pointer = pointer
         obj.params = tuple(_params)
         return obj
 
     def __str__(self):
-        return '%s->%s(%s)' % (self.pointer, self.function,
+        return '%s->%s(%s)' % (self.pointer, self.call,
                                ", ".join(str(i) for i in as_tuple(self.params)))
 
     __repr__ = __str__
 
     def _hashable_content(self):
         return super(CallFromPointer, self)._hashable_content() +\
-            (self.function, self.pointer) + self.params
+            (self.call, self.pointer) + self.params
 
     @property
     def base(self):
@@ -146,7 +146,7 @@ class CallFromPointer(sympy.Expr, Pickable):
         return self.base.function.dtype
 
     # Pickling support
-    _pickle_args = ['function', 'pointer']
+    _pickle_args = ['call', 'pointer']
     _pickle_kwargs = ['params']
     __reduce_ex__ = Pickable.__reduce_ex__
 
@@ -165,7 +165,7 @@ class FieldFromPointer(CallFromPointer, Pickable):
 
     @property
     def field(self):
-        return self.function
+        return self.call
 
     # Our __new__ cannot accept the params argument
     _pickle_kwargs = []
@@ -188,7 +188,7 @@ class FieldFromComposite(CallFromPointer, Pickable):
 
     @property
     def field(self):
-        return self.function
+        return self.call
 
     @property
     def composite(self):
