@@ -9,7 +9,7 @@ from sympy import Expr, Integer, Function, Symbol, sympify
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'FunctionFromPointer', 'FieldFromPointer',
+__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
            'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'cast_mapper']
@@ -93,7 +93,7 @@ class IntDiv(sympy.Expr):
     __repr__ = __str__
 
 
-class FunctionFromPointer(sympy.Expr, Pickable):
+class CallFromPointer(sympy.Expr, Pickable):
 
     """
     Symbolic representation of the C notation ``pointer->function(params)``.
@@ -104,10 +104,10 @@ class FunctionFromPointer(sympy.Expr, Pickable):
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
         args.append(pointer)
-        if isinstance(function, (DefFunction, FunctionFromPointer)):
+        if isinstance(function, (DefFunction, CallFromPointer)):
             args.append(function)
         elif not isinstance(function, str):
-            raise ValueError("`function` must be FunctionFromPointer or str")
+            raise ValueError("`function` must be CallFromPointer or str")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):
@@ -130,13 +130,13 @@ class FunctionFromPointer(sympy.Expr, Pickable):
     __repr__ = __str__
 
     def _hashable_content(self):
-        return super(FunctionFromPointer, self)._hashable_content() +\
+        return super(CallFromPointer, self)._hashable_content() +\
             (self.function, self.pointer) + self.params
 
     @property
     def base(self):
-        if isinstance(self.pointer, FunctionFromPointer):
-            # FunctionFromPointer may be nested
+        if isinstance(self.pointer, CallFromPointer):
+            # CallFromPointer may be nested
             return self.pointer.base
         else:
             return self.pointer
@@ -151,14 +151,14 @@ class FunctionFromPointer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class FieldFromPointer(FunctionFromPointer, Pickable):
+class FieldFromPointer(CallFromPointer, Pickable):
 
     """
     Symbolic representation of the C notation ``pointer->field``.
     """
 
     def __new__(cls, field, pointer):
-        return FunctionFromPointer.__new__(cls, field, pointer)
+        return CallFromPointer.__new__(cls, field, pointer)
 
     def __str__(self):
         return '%s->%s' % (self.pointer, self.field)
@@ -173,7 +173,7 @@ class FieldFromPointer(FunctionFromPointer, Pickable):
     __repr__ = __str__
 
 
-class FieldFromComposite(FunctionFromPointer, Pickable):
+class FieldFromComposite(CallFromPointer, Pickable):
 
     """
     Symbolic representation of the C notation ``composite.field``,
@@ -181,7 +181,7 @@ class FieldFromComposite(FunctionFromPointer, Pickable):
     """
 
     def __new__(cls, field, composite):
-        return FunctionFromPointer.__new__(cls, field, composite)
+        return CallFromPointer.__new__(cls, field, composite)
 
     def __str__(self):
         return '%s.%s' % (self.composite, self.field)

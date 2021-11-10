@@ -120,7 +120,7 @@ class CodePrinter(C99CodePrinter):
 
     _print_EvalDerivative = C99CodePrinter._print_Add
 
-    def _print_FunctionFromPointer(self, expr):
+    def _print_CallFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
         return "%s->%s(%s)" % (expr.pointer, expr.function, ', '.join(indices))
 

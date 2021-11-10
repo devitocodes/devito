@@ -13,7 +13,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
-from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
+from devito.symbolics import ListInitializer, CallFromPointer, as_symbol, ccode
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
@@ -230,7 +230,7 @@ class Call(ExprStmt, Node):
 
     Parameters
     ----------
-    name : str or FunctionFromPointer
+    name : str or CallFromPointer
         The called function.
     arguments : list of Basic, optional
         The objects in input to the function call.
@@ -245,7 +245,7 @@ class Call(ExprStmt, Node):
     is_Call = True
 
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False):
-        if isinstance(name, FunctionFromPointer):
+        if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
             self.base = None
