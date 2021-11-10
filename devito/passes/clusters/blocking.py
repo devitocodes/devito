@@ -136,12 +136,12 @@ def preprocess(clusters, options):
         ntilable = len([i for i in c.properties.values() if TILABLE in i])
         ntilable -= int(not inner)
         if ntilable <= 1:
-            properties = {k: v - {TILABLE} for k, v in c.properties.items()}
+            properties = {k: v - {TILABLE, SKEWABLE} for k, v in c.properties.items()}
             processed.append(c.rebuild(properties=properties))
         elif not inner:
             d = c.itintervals[-1].dim
             properties = dict(c.properties)
-            properties[d] = properties[d] - {TILABLE}
+            properties[d] = properties[d] - {TILABLE, SKEWABLE}
             processed.append(c.rebuild(properties=properties))
         else:
             processed.append(c)
@@ -180,7 +180,7 @@ def decompose(ispace, d, block_dims):
             # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
             # `(t, xbb, xb, x, ybb, ...)`
             for bd in block_dims:
-                if i.dim.level >= bd.level:
+                if i.dim._depth >= bd._depth:
                     relations.append([bd, i.dim])
                 else:
                     relations.append([i.dim, bd])
@@ -255,9 +255,6 @@ class Skewing(Queue):
             if SKEWABLE not in c.properties[d]:
                 return clusters
 
-            if d is c.ispace[-1].dim and not self.skewinner:
-                return clusters
-
             skew_dims = {i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]}
             if len(skew_dims) > 1:
                 return clusters
@@ -267,7 +264,7 @@ class Skewing(Queue):
             # SEQUENTIAL loop.
             intervals = []
             for i in c.ispace:
-                if i.dim is d and d.level <= 1:  # Skew only at level 0 or 1
+                if i.dim is d and (not d.is_Incr or d._depth == 1):
                     intervals.append(Interval(d, skew_dim, skew_dim))
                 else:
                     intervals.append(i)
