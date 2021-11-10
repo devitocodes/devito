@@ -93,7 +93,35 @@ class IntDiv(sympy.Expr):
     __repr__ = __str__
 
 
-class CallFromPointer(sympy.Expr, Pickable):
+class BasicWrapperMixin(object):
+
+    """
+    Abstract mixin class for objects wrapping types.Basic objects.
+    """
+
+    @property
+    def base(self):
+        """
+        The wrapped object.
+        """
+        raise NotImplementedError
+
+    @property
+    def function(self):
+        """
+        The underlying function.
+        """
+        return self.base.function
+
+    @property
+    def dtype(self):
+        """
+        The wrapped object data type.
+        """
+        return self.function.dtype
+
+
+class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
     """
     Symbolic representation of the C notation ``pointer->call(params)``.
@@ -140,10 +168,6 @@ class CallFromPointer(sympy.Expr, Pickable):
             return self.pointer.base
         else:
             return self.pointer
-
-    @property
-    def dtype(self):
-        return self.base.function.dtype
 
     # Pickling support
     _pickle_args = ['call', 'pointer']
@@ -318,7 +342,7 @@ class Cast(UnaryOp):
     _pickle_kwargs = ['stars']
 
 
-class IndexedPointer(sympy.Expr, Pickable):
+class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
     """
     Symbolic representation of the C notation ``symbol[...]``
