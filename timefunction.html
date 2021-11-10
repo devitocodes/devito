@@ -100,7 +100,7 @@
 <h1>TimeFunction<a class="headerlink" href="#timefunction" title="Permalink to this headline"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.TimeFunction">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">TimeFunction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#TimeFunction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.TimeFunction" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">TimeFunction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dense.html#TimeFunction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.TimeFunction" title="Permalink to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="function.html#devito.types.Function" title="devito.types.dense.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dense.Function</span></code></a></p>
 <p>Tensor symbol representing a discrete function in symbolic equations.</p>
 <p>A TimeFunction carries multi-dimensional data and provides operations to create
@@ -213,13 +213,13 @@ along the spatial dimensions <code class="docutils literal notranslate"><span cl
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.backward">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">backward</span></span><a class="headerlink" href="#devito.types.TimeFunction.backward" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">backward</span></span><a class="headerlink" href="#devito.types.TimeFunction.backward" title="Permalink to this definition"></a></dt>
 <dd><p>Symbol for the time-backward state of the TimeFunction.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.data">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#devito.types.TimeFunction.data" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#devito.types.TimeFunction.data" title="Permalink to this definition"></a></dt>
 <dd><p>The domain data values, as a numpy.ndarray.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -230,7 +230,7 @@ instead.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.data_domain">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">data_domain</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_domain" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_domain</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_domain" title="Permalink to this definition"></a></dt>
 <dd><p>The domain data values.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -242,19 +242,19 @@ get back. If you only need to look at the values, use
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.data_ro_domain">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">data_ro_domain</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_ro_domain" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_ro_domain</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_ro_domain" title="Permalink to this definition"></a></dt>
 <dd><p>Read-only view of the domain data values.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.data_ro_with_halo">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">data_ro_with_halo</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_ro_with_halo" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_ro_with_halo</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_ro_with_halo" title="Permalink to this definition"></a></dt>
 <dd><p>Read-only view of the domain+outhalo data values.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.data_with_halo">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">data_with_halo</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_with_halo" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_with_halo</span></span><a class="headerlink" href="#devito.types.TimeFunction.data_with_halo" title="Permalink to this definition"></a></dt>
 <dd><p>The domain+outhalo data values.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -265,31 +265,31 @@ get back. If you only need to look at the values, use
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.dimensions">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.types.TimeFunction.dimensions" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.types.TimeFunction.dimensions" title="Permalink to this definition"></a></dt>
 <dd><p>Tuple of Dimensions representing the object indices.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.dtype">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#devito.types.TimeFunction.dtype" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#devito.types.TimeFunction.dtype" title="Permalink to this definition"></a></dt>
 <dd><p>The data type of the object.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.forward">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">forward</span></span><a class="headerlink" href="#devito.types.TimeFunction.forward" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">forward</span></span><a class="headerlink" href="#devito.types.TimeFunction.forward" title="Permalink to this definition"></a></dt>
 <dd><p>Symbol for the time-forward state of the TimeFunction.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.grid">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">grid</span></span><a class="headerlink" href="#devito.types.TimeFunction.grid" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">grid</span></span><a class="headerlink" href="#devito.types.TimeFunction.grid" title="Permalink to this definition"></a></dt>
 <dd><p>The Grid on which the discretization occurred.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.name">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#devito.types.TimeFunction.name" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#devito.types.TimeFunction.name" title="Permalink to this definition"></a></dt>
 <dd><p>The name of the object.</p>
 </dd></dl>
 
@@ -341,7 +341,7 @@ on the rank position in the decomposed grid (corner, side, …).</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.space_order">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">space_order</span></span><a class="headerlink" href="#devito.types.TimeFunction.space_order" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">space_order</span></span><a class="headerlink" href="#devito.types.TimeFunction.space_order" title="Permalink to this definition"></a></dt>
 <dd><p>The space order.</p>
 </dd></dl>
 
@@ -363,7 +363,7 @@ along the spatial dimensions <code class="docutils literal notranslate"><span cl
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TimeFunction.time_order">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">time_order</span></span><a class="headerlink" href="#devito.types.TimeFunction.time_order" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">time_order</span></span><a class="headerlink" href="#devito.types.TimeFunction.time_order" title="Permalink to this definition"></a></dt>
 <dd><p>The time order.</p>
 </dd></dl>
 
