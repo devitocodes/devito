@@ -1050,6 +1050,13 @@ class IncrDimension(DerivedDimension):
     def size(self):
         return self._size
 
+    @property
+    def _depth(self):
+        """
+        The depth of `self` in the hierarchy of IncrDimensions.
+        """
+        return len([i for i in self._defines if i.is_Incr])
+
     @cached_property
     def step(self):
         if self._step is not None:
