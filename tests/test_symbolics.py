@@ -2,7 +2,7 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import Symbol, Min
+from sympy import Symbol
 from devito import Grid, Function, solve, TimeFunction, Eq, Operator, norm, Le, Ge # noqa
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalmin,  # noqa
@@ -118,16 +118,10 @@ def test_multibounds_op():
     f = TimeFunction(name='f', grid=grid, space_order=2)
 
     f.data[:] = 0.1
-    eqns = [Eq(f.forward, f.laplace + f * Min(f, b, c, d))]
-    op = Operator(eqns, opt=('advanced'))
-    op.apply(time_M=5)
-    fnorm = norm(f)
-
-    f.data[:] = 0.1
     eqns = [Eq(f.forward, f.laplace + f * evalmin([f, b, c, d]))]
     op = Operator(eqns, opt=('advanced'))
     op.apply(time_M=5)
-    fnorm2 = norm(f)
+    fnorm = norm(f)
 
     c2 = Function(name='c2', grid=grid)
     d2 = Function(name='d2', grid=grid)
@@ -136,10 +130,9 @@ def test_multibounds_op():
     eqns = [Eq(f.forward, f.laplace + f * evalmin([f, b, c2, d2], [Ge(d, c)]))]
     op = Operator(eqns, opt=('advanced'))
     op.apply(time_M=5)
-    fnorm3 = norm(f)
+    fnorm2 = norm(f)
 
     assert fnorm == fnorm2
-    assert fnorm == fnorm3
 
 
 @pytest.mark.parametrize('op, expr, assumptions, expected', [
