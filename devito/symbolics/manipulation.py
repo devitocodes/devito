@@ -2,19 +2,19 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 from functools import singledispatch
 
-import sympy
-from sympy import Number, Indexed, Symbol, LM, LC
+from sympy import Number, Indexed, Symbol, LM, LC, Min, Max, Pow, Add, Mul
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.symbolics import MIN
+from devito.symbolics import MIN, MAX
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split
 from devito.types.equation import Eq
+from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
            'split_affine', 'subs_op_args', 'uxreplace', 'aligned_indices',
-           'Uxmapper', 'reuse_if_untouched', 'evalmin']
+           'Uxmapper', 'reuse_if_untouched', 'evalmin', 'evalmax']
 
 
 def uxreplace(expr, rule):
@@ -72,15 +72,15 @@ def _uxreplace_handle(expr, args):
     return expr.func(*args)
 
 
-@_uxreplace_handle.register(sympy.Min)
-@_uxreplace_handle.register(sympy.Max)
-@_uxreplace_handle.register(sympy.Pow)
+@_uxreplace_handle.register(Min)
+@_uxreplace_handle.register(Max)
+@_uxreplace_handle.register(Pow)
 def _(expr, args):
     evaluate = all(i.is_Number for i in args)
     return expr.func(*args, evaluate=evaluate)
 
 
-@_uxreplace_handle.register(sympy.Add)
+@_uxreplace_handle.register(Add)
 def _(expr, args):
     if all(i.is_commutative for i in args):
         _addsort(args)
@@ -90,7 +90,7 @@ def _(expr, args):
         return expr._new_rawargs(*args)
 
 
-@_uxreplace_handle.register(sympy.Mul)
+@_uxreplace_handle.register(Mul)
 def _(expr, args):
     if all(i.is_commutative for i in args):
         _mulsort(args)
@@ -202,13 +202,13 @@ def pow_to_mul(expr):
             # looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
-            return sympy.Mul(*[base]*int(exp), evaluate=False)
+            return Mul(*[base]*int(exp), evaluate=False)
         else:
             # SymPy represents 1/x as Pow(x,-1). Also, it represents
             # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
             # but just in case SymPy changes its internal conventions...
-            posexpr = sympy.Mul(*[base]*(-int(exp)), evaluate=False)
-            return sympy.Pow(posexpr, -1, evaluate=False)
+            posexpr = Mul(*[base]*(-int(exp)), evaluate=False)
+            return Pow(posexpr, -1, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
 
@@ -319,12 +319,152 @@ def reuse_if_untouched(expr, args, evaluate=False):
         return expr.func(*args, evaluate=evaluate)
 
 
-def evalmin(a, b):
+def evalmin(input=None, assumptions=None):
     """
-    Simplify min(a, b) if possible.
+    Simplify evalmin if possible and return nested MIN/MAX expression.
+
+    Parameters
+    ----------
+    input : a list of the symbols to be simplified
+        The candidates to be evaluated. Defaults to None.
+    assumptions : A list of assumptions formed as relationals, assumed to be True
+        Defaults to None.
+
+    Examples
+    --------
+    'Assuming no values are know for a, b, c, d but we know that d<=a and c>=b we can'
+    'safely drop `a` and `c` from the cancidate list'
+
+    >>> a = Symbol('a')
+    >>> b = Symbol('b')
+    >>> c = Symbol('c')
+    >>> d = Symbol('d')
+
+    >>> evalmin([a, b, c, d], [[Le(d, a), Ge(c, b)]])
+    MIN(b, d)
     """
+
+    if len(input) == 1:
+        return input[0]
+
+    mapper = {}
+    if assumptions:
+        for asm in assumptions:
+            if set(asm.args).issubset(input):
+                if (asm.__class__ in (Le, Lt)):
+                    mapper.update({asm.args[1]: asm.args[0]})
+                elif (asm.__class__ in (Ge, Gt)):
+                    mapper.update({asm.args[0]: asm.args[1]})
+
+    mapper = transitive_closure(mapper)
+    input = [i.subs(mapper) for i in input]
+
     try:
-        bool(min(a, b))  # Can it be evaluated or simplified?
-        return min(a, b)
+        bool(Min(*input))  # Can it be evaluated or simplified?
+        simplified = Min(*input)
+        if not simplified.args:
+            return simplified
+        else:
+            input = list(simplified.args)
+            exp = MIN(input[0], input[1])
+            for i in input[2:]:
+                exp = MIN(exp, i)
+            return exp
     except TypeError:
-        return MIN(a, b)
+        exp = MIN(input[0], input[1])
+        for i in input[2:]:
+            exp = MIN(exp, i)
+        return exp
+
+
+def evalmax(input=None, assumptions=None):
+    """
+    Simplify evalmin if possible and return nested MIN/MAX expression.
+
+    Parameters
+    ----------
+    input : a list of the symbols to be simplified
+        The candidates to be evaluated. Defaults to None.
+    assumptions : A list of assumptions formed as relationals, assumed to be True
+        Defaults to None.
+
+    Examples
+    --------
+    'Assuming no values are know for a, b, c, d but we know that d<=a and c>=b we can'
+    'safely drop `a` and `c` from the cancidate list'
+
+    >>> from devito import Symbol
+    >>> a = Symbol('a')
+    >>> b = Symbol('b')
+    >>> c = Symbol('c')
+    >>> d = Symbol('d')
+
+    >>> evalmax([a, b, c, d], [[Le(d, a), Ge(c, b)]])
+    MAX(a, c)
+    """
+    if len(input) == 1:
+        return input[0]
+
+    mapper = {}
+    if assumptions:
+        for asm in assumptions:
+            if set(asm.args).issubset(input):
+                if (asm.__class__ in (Ge, Gt)):
+                    mapper.update({asm.args[1]: asm.args[0]})
+                elif (asm.__class__ in (Le, Lt)):
+                    mapper.update({asm.args[0]: asm.args[1]})
+
+    # Update mapper connections (graph vertices)
+    mapper = transitive_closure(mapper)
+    input = [i.subs(mapper) for i in input]
+
+    try:
+        bool(Max(*input))  # Can it be evaluated or simplified?
+        simplified = Max(*input)
+        if not simplified.args:
+            return simplified
+        else:
+            input = list(simplified.args)
+            exp = MAX(input[0], input[1])
+            for i in input[2:]:
+                exp = MAX(exp, i)
+            return exp
+    except TypeError:
+        exp = MAX(input[0], input[1])
+        for i in input[2:]:
+            exp = MAX(exp, i)
+        return exp
+
+
+def reachable_items(R, k):
+    try:
+        ans = R[k]
+        if ans != []:
+            ans = reachable_items(R, ans)
+        return ans
+    except:
+        return k
+
+
+def transitive_closure(R):
+    '''
+    Partially inherited from: https://www.buzzphp.com/posts/transitive-closure
+    Helps to collapse paths in a graph. In other words, helps to simplfiy a mapper's
+    keys and values when values also appears in keys.
+
+    Example
+    -------
+    >>> from devito import Symbol
+    >>> a = Symbol('a')
+    >>> b = Symbol('b')
+    >>> c = Symbol('c')
+    >>> d = Symbol('d')
+    >>> mapper = {a:b, b:c, c:d}
+    >>> mapper = transitive_closure(mapper)
+    >>> mapper
+    {a:d, b:d, c:d}
+    '''
+    ans = dict()
+    for k in R.keys():
+        ans[k] = reachable_items(R, k)
+    return ans
