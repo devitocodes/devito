@@ -141,7 +141,7 @@ def test_multibounds_op():
     (['min', '[a]', 'None', 'a']),
     (['min', '[a, b]', '[Le(d, a), Ge(c, b)]', 'MIN(a, b)']),
     (['min', '[a, b, c]', 'None', 'MIN(MIN(a, b), c)']),
-    (['min', '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'MIN(b, d)']),
+    (['min', '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'MIN(d, b)']),
     (['min', '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'c']),
     (['max', '[a]', '[Le(a, a)]', 'a']),
     (['max', '[a, b]', '[Le(a, b)]', 'b']),

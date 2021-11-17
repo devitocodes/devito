@@ -361,11 +361,11 @@ def evalmin(input=None, assumptions=None):
 
     try:
         bool(Min(*input))  # Can it be evaluated or simplified?
-        simplified = Min(*input)
-        if not simplified.args:
-            return simplified
+        input = list(OrderedDict.fromkeys(input))
+        if len(input) == 1:
+            return input[0]
         else:
-            input = list(simplified.args)
+            input = list(input)
             exp = MIN(input[0], input[1])
             for i in input[2:]:
                 exp = MIN(exp, i)
@@ -420,11 +420,11 @@ def evalmax(input=None, assumptions=None):
 
     try:
         bool(Max(*input))  # Can it be evaluated or simplified?
-        simplified = Max(*input)
-        if not simplified.args:
-            return simplified
+        input = list(OrderedDict.fromkeys(input))
+        if len(input) == 1:
+            return input[0]
         else:
-            input = list(simplified.args)
+            input = list(input)
             exp = MAX(input[0], input[1])
             for i in input[2:]:
                 exp = MAX(exp, i)
