@@ -149,15 +149,36 @@ def test_multibounds_op():
     ([max, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'd']),
     ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'MAX(MAX(a, c), d)']),
     ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'MAX(a, d)']),
-    ([max, '[a, b, c, d]', '[Ge(a, b), Ge(b, a)]', 'MAX(MAX(MAX(a, b), c), d)']),
+    ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'MAX(MAX(a, c), d)']),
+    ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, a)]', 'MIN(c, d)']),
+    ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
+    ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(MIN(a, d), c)']),
 ])
 def test_relations_w_complex_assumptions(op, expr, assumptions, expected):
     """
     Tests evalmin/evalmax with multiple args and assumtpions"""
-    a = Symbol('a')  # noqa
-    b = Symbol('b')  # noqa
-    c = Symbol('c')  # noqa
-    d = Symbol('d')  # noqa
+    a = Symbol('a', positive=True)  # noqa
+    b = Symbol('b', positive=True)  # noqa
+    c = Symbol('c', positive=True)  # noqa
+    d = Symbol('d', positive=True)  # noqa
+
+    eqn = eval(expr)
+    assumptions = eval(assumptions)
+    expected = eval(expected)
+    assert evalrel(op, eqn, assumptions) == expected
+
+
+@pytest.mark.parametrize('op, expr, assumptions, expected', [
+    ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
+    ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(MIN(MIN(a, b), c), d)']),
+])
+def test_relations_w_complex_assumptions_II(op, expr, assumptions, expected):
+    """
+    Tests evalmin/evalmax with multiple args and assumtpions"""
+    a = Symbol('a', positive=False)  # noqa
+    b = Symbol('b', positive=False)  # noqa
+    c = Symbol('c', positive=True)  # noqa
+    d = Symbol('d', positive=True)  # noqa
 
     eqn = eval(expr)
     assumptions = eval(assumptions)

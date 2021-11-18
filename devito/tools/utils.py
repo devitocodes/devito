@@ -309,9 +309,11 @@ def indices_to_sections(inputlist):
 
 def reachable_items(R, k):
     try:
+        visited = []
         ans = R[k]
-        if ans != []:
+        if ans != [] and ans not in visited:
             ans = reachable_items(R, ans)
+            visited.append(ans)
         return ans
     except:
         return k

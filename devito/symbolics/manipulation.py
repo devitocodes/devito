@@ -354,7 +354,20 @@ def evalrel(func=min, input=None, assumptions=None):
         return input[0]
 
     mapper = {}
+
     if assumptions:
+        temp = []
+        # Drop one in mutual pairs [(a, b) , (b, a)] == > [(a, b)]
+        for asm in assumptions:
+            if (asm.__class__ in (Ge, Gt)) and asm.rhs.is_Add and all(i.is_positive
+               for i in asm.rhs.args):
+                for j in asm.rhs.args:
+                    temp.append(Ge(asm.lhs, j))
+
+        for i in temp:
+            assumptions.append(i)
+
+        # Symmetry/ Antisymmetry
         for asm in assumptions:
             if set(asm.args).issubset(input):
                 if (asm.__class__ in (Ge, Gt)) and func is max:
@@ -365,6 +378,15 @@ def evalrel(func=min, input=None, assumptions=None):
                     mapper.update({asm.args[0]: asm.args[1]})
                 elif (asm.__class__ in (Le, Lt)) and func is min:
                     mapper.update({asm.args[1]: asm.args[0]})
+
+    # Drop one in mutual pairs [(a, b) , (b, a)] == > [(a, b)]
+    temp = mapper.copy()
+    for k, v in mapper.items():
+        if mapper[k] is v and v in temp:
+            if temp[v] is k:
+                temp.pop(k)
+
+    mapper = temp
 
     # Update mapper connections (graph vertices)
     mapper = transitive_closure(mapper)
