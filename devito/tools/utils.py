@@ -14,7 +14,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'r
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
            'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list',
-           'indices_to_slices', 'indices_to_sections']
+           'indices_to_slices', 'indices_to_sections', 'transitive_closure']
 
 
 def prod(iterable, initial=1):
@@ -305,3 +305,33 @@ def indices_to_sections(inputlist):
     slices = indices_to_slices(inputlist)
     sections = [(i, j - i) for i, j in slices]
     return sections
+
+
+def reachable_items(R, k):
+    try:
+        ans = R[k]
+        if ans != []:
+            ans = reachable_items(R, ans)
+        return ans
+    except:
+        return k
+
+
+def transitive_closure(R):
+    '''
+    Partially inherited from: https://www.buzzphp.com/posts/transitive-closure
+    Helps to collapse paths in a graph. In other words, helps to simplfiy a mapper's
+    keys and values when values also appears in keys.
+
+    Example
+    -------
+    mapper = {a:b, b:c, c:d}
+    mapper = transitive_closure(mapper)
+
+    mapper
+    {a:d, b:d, c:d}
+    '''
+    ans = dict()
+    for k in R.keys():
+        ans[k] = reachable_items(R, k)
+    return ans
