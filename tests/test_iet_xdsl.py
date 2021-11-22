@@ -46,3 +46,37 @@ def test_expression():
     cgen.printModule(mod)
 
     assert cgen.str() == "42 + 3", "Unexpected C output"
+
+
+def test_example():
+    ctx = MLContext()
+    Builtin(ctx)
+    iet = IET(ctx)
+
+    mod = module([
+        iet.callable("kernel", ["u"], block([iet.i32], lambda u: [
+            iet.iteration(["affine", "sequential"], ("time_m", "time_M", "1"),
+                          block([iet.i32, iet.i32, iet.i32], lambda time, t0, t1: [
+                iet.iteration(["affine", "parallel", "skewable"], ("x_m", "x_M", "1"),
+                              block(iet.i32, lambda x: [
+                    iet.iteration(["affine", "parallel", "skewable", "vector-dim"], ("y_m", "y_M", "1"),
+                                  block(iet.i32, lambda y: [
+                        cst1    := iet.constant(1),
+                        x1      := iet.addi(x, cst1),
+                        y1      := iet.addi(y, cst1),
+                        ut0     := iet.idx(u, t0),
+                        ut0x1   := iet.idx(ut0, x1),
+                        ut0x1y1 := iet.idx(ut0x1, y1),
+                        rhs     := iet.addi(ut0x1y1, cst1),
+                        ut1     := iet.idx(u, t1),
+                        ut1x1   := iet.idx(ut1, x1),
+                        lhs     := iet.idx(ut1x1, y1),
+                        iet.assign(lhs, rhs)
+                    ]))
+                ]))
+            ]))
+        ]))
+    ])
+
+    printer = Printer()
+    printer.print_op(mod)
