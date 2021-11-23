@@ -9,7 +9,8 @@ from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering
                                     cire, cse, extract_increments, factorize,
                                     fission, fuse, optimize_pows, optimize_msds)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
-                               mpiize, hoist_prodders, is_on_device, linearize)
+                               mpiize, hoist_prodders, is_on_device, linearize,
+                               relax_incr_dimensions)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -269,6 +270,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
         return {
             'optcomms': partial(optimize_halospots),
+            'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, mode=options['mpi'], language=language,

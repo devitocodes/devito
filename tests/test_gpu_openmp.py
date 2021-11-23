@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from conftest import skipif
+from conftest import skipif, opts_openmp_tiling
 from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
                     Operator, norm, cos)
 from devito.exceptions import InvalidOperator
@@ -86,6 +86,28 @@ class TestCodeGeneration(object):
             assert True
         except:
             assert False
+
+    @pytest.mark.parametrize('opt', opts_openmp_tiling)
+    def test_blocking_customop(self, opt):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1),
+                      platform='nvidiaX', language='openmp', opt=opt)
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+        tree = trees[0]
+        assert len(tree) == 7
+        assert all(i.dim.is_Incr for i in tree[1:7])
+
+        assert op.parameters[3] is tree[1].step
+        assert op.parameters[6] is tree[2].step
+        assert op.parameters[9] is tree[3].step
+
+        assert tree[1].pragmas[0].value ==\
+            'omp target teams distribute parallel for collapse(3)'
 
     def test_multiple_eqns(self):
         grid = Grid(shape=(3, 3, 3))
@@ -265,7 +287,7 @@ class TestOperator(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
-    def iso_acoustic(self, **opt_options):
+    def iso_acoustic(self, opt):
         shape = (101, 101)
         extent = (1000, 1000)
         origin = (0., 0.)
@@ -304,8 +326,7 @@ class TestOperator(object):
         src_term = src.inject(field=u.forward, expr=src * dt**2 / m)
         rec_term = rec.interpolate(expr=u.forward)
 
-        op = Operator([stencil] + src_term + rec_term, opt=('advanced', opt_options),
-                      language='openmp')
+        op = Operator([stencil] + src_term + rec_term, opt=opt, language='openmp')
 
         # Make sure we've indeed generated OpenMP offloading code
         assert 'omp target' in str(op)
@@ -314,12 +335,12 @@ class TestOperator(object):
 
         assert np.isclose(norm(rec), 490.55, atol=1e-2, rtol=0)
 
-    @pytest.mark.parametrize('opt_options', [
-        {},
-        {'linearize': True},
+    @pytest.mark.parametrize('opt', [
+        'advanced',
+        ('blocking', {'linearize': True}),
     ])
-    def test_iso_acoustic(self, opt_options):
-        TestOperator().iso_acoustic(**opt_options)
+    def test_iso_acoustic(self, opt):
+        TestOperator().iso_acoustic(opt=opt)
 
     @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
@@ -341,4 +362,4 @@ class TestOperator(object):
     @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
     def test_mpi_iso_acoustic(self):
-        TestOperator().iso_acoustic()
+        TestOperator().iso_acoustic(opt='advanced')
