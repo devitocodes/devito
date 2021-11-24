@@ -430,7 +430,7 @@ class Operator(Callable):
         for p in overrides:
             args.update(p._arg_values(**kwargs))
             try:
-                args = ReducerMap(args.reduce_all())
+                args = kwargs['args'] = ReducerMap(args.reduce_all())
             except ValueError:
                 raise ValueError("Override `%s` is incompatible with overrides `%s`" %
                                  (p, [i for i in overrides if i.name in args]))
