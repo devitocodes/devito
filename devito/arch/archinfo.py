@@ -143,16 +143,83 @@ def get_gpu_info():
             return 'virtual' not in gpu['product'].lower()
         return list(filter(is_real_gpu, gpus))
 
-    # The following functions of the form cmd_gpu_info(...) attempt obtaining GPU
-    #   information using 'cmd'
-    # The currently supported ways of obtaining GPU information (in order of attempt) are:
-    #   - 'lshw' from the command line
-    #   - 'lspci' from the command line
+    def homogenise_gpus(gpu_infos):
+        """
+        Run homogeneity checks on a list of GPU, return GPU with count if
+        homogeneous, otherwise None.
+        """
+        if gpu_infos == []:
+            warning('No graphics cards detected')
+            return {}
 
-    def lshw_gpu_info(text):
-        def lshw_single_gpu_info(text):
+        # Check must ignore physical IDs as they may differ
+        for gpu_info in gpu_infos:
+            gpu_info.pop('physicalid', None)
+
+        if all_equal(gpu_infos):
+            gpu_infos[0]['ncards'] = len(gpu_infos)
+            return gpu_infos[0]
+
+        warning('Different models of graphics cards detected')
+
+        return {}
+
+    # Parse textual gpu info into a dict
+
+    # *** First try: `nvidia-smi`, clearly only works with NVidia cards
+    try:
+        gpu_infos = []
+
+        info_cmd = ['nvidia-smi', '-L']
+        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+        raw_info = str(proc.stdout.read())
+
+        lines = raw_info.replace('\\n', '\n').replace('b\'', '')
+        lines = lines.splitlines()
+
+        for line in lines:
+            gpu_info = {}
+            if 'GPU' in line:
+                gpu_info = {}
+                match = re.match(r'GPU *[0-9]*\: ([\w]*) (.*) \(', line)
+                if match:
+                    if match.group(1) == 'Graphics':
+                        gpu_info['architecture'] = 'unspecified'
+                    else:
+                        gpu_info['architecture'] = match.group(1)
+                    if match.group(2) == 'Device':
+                        gpu_info['product'] = 'unspecified'
+                    else:
+                        gpu_info['product'] = match.group(2)
+                    gpu_info['vendor'] = 'NVIDIA'
+                    gpu_infos.append(gpu_info)
+
+        # All attach callbacks to retrieve instantaneous memory info
+        for i in ['total', 'free', 'used']:
+            def callback():
+                info_cmd = ['nvidia-smi', '--query-gpu=memory.%s' % i, '--format=csv']
+                proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+                raw_info = str(proc.stdout.read())
+
+                lines = raw_info.replace('\\n', '\n').replace('b\'', '')
+                lines = lines.splitlines()[1:-1]
+
+                from IPython import embed; embed()
+
+        return homogenise_gpus(gpu_infos)
+
+    except OSError:
+        pass
+
+    # *** Second try: `lshw`
+    try:
+        info_cmd = ['lshw', '-C', 'video']
+        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+        raw_info = str(proc.stdout.read())
+
+        def lshw_single_gpu_info(raw_info):
             # Separate the output into lines for processing
-            lines = text.replace('\\n', '\n')
+            lines = raw_info.replace('\\n', '\n')
             lines = lines.splitlines()
 
             # Define the processing functions
@@ -180,16 +247,26 @@ def get_gpu_info():
                 return gpu_info
 
         # Parse the information for all the devices listed with lshw
-        devices = text.split('display')[1:]
+        devices = raw_info.split('display')[1:]
         gpu_infos = [lshw_single_gpu_info(device) for device in devices]
-        return filter_real_gpus(gpu_infos)
+        gpu_infos = filter_real_gpus(gpu_infos)
 
-    def lspci_gpu_info(text):
+        return homogenise_gpus(gpu_infos)
+
+    except OSError:
+        pass
+
+    # Third try: `lspci`, which is more readable but less detailed than `lshw`
+    try:
+        info_cmd = ['lspci']
+        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+        raw_info = str(proc.stdout.read())
+
         # Note: due to the single line descriptive format of lspci, 'vendor'
-        #   and 'physicalid' elements cannot be reliably extracted so are left None
+        # and 'physicalid' elements cannot be reliably extracted so are left None
 
         # Separate the output into lines for processing
-        lines = text.replace('\\n', '\n')
+        lines = raw_info.replace('\\n', '\n')
         lines = lines.splitlines()
 
         gpu_infos = []
@@ -215,86 +292,9 @@ def get_gpu_info():
                     continue
 
                 gpu_infos.append(gpu_info)
-        return filter_real_gpus(gpu_infos)
 
-    def nvidiasmi_gpu_info(text):
-        lines = text.replace('\\n', '\n').replace('b\'', '')
-        lines = lines.splitlines()
+        gpu_infos = filter_real_gpus(gpu_infos)
 
-        gpu_infos = []
-        for line in lines:
-            gpu_info = {}
-            if 'GPU' in line:
-                gpu_info = {}
-                match = re.match(r'GPU *[0-9]*\: ([\w]*) (.*) \(', line)
-                if match:
-                    if match.group(1) == 'Graphics':
-                        gpu_info['architecture'] = 'unspecified'
-                    else:
-                        gpu_info['architecture'] = match.group(1)
-                    if match.group(2) == 'Device':
-                        gpu_info['product'] = 'unspecified'
-                    else:
-                        gpu_info['product'] = match.group(2)
-                    gpu_info['vendor'] = 'NVIDIA'
-                    gpu_infos.append(gpu_info)
-
-        return gpu_infos
-
-    # Run homogeneity checks on a list of GPU, return GPU with count if homogeneous,
-    #   otherwise None
-    def homogenise_gpus(gpu_infos):
-        if gpu_infos == []:
-            warning('No graphics cards detected')
-            return {}
-
-        # Check must ignore physical IDs as they may differ
-        for gpu_info in gpu_infos:
-            gpu_info.pop('physicalid', None)
-
-        if all_equal(gpu_infos):
-            gpu_infos[0]['ncards'] = len(gpu_infos)
-            return gpu_infos[0]
-
-        warning('Different models of graphics cards detected')
-
-        return {}
-
-    # Obtain textual gpu info and delegate parsing to helper functions
-
-    try:
-        # First try is with nvidia-smi, which can have more info about NVIDIA cards
-        info_cmd = ['nvidia-smi', '-L']
-        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
-        raw_info = str(proc.stdout.read())
-
-        # Parse the information for all the devices listed with nvidia-smi
-        gpu_infos = nvidiasmi_gpu_info(raw_info)
-        return homogenise_gpus(gpu_infos)
-
-    except OSError:
-        pass
-
-    try:
-        # Second try is with detailed command lshw
-        info_cmd = ['lshw', '-C', 'video']
-        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
-        raw_info = str(proc.stdout.read())
-
-        gpu_infos = lshw_gpu_info(raw_info)
-        return homogenise_gpus(gpu_infos)
-
-    except OSError:
-        pass
-
-    try:
-        # Third try is with lspci, which is more readable and less detailed than lshw
-        info_cmd = ['lspci']
-        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
-        raw_info = str(proc.stdout.read())
-
-        # Parse the information for all the devices listed with lspci
-        gpu_infos = lspci_gpu_info(raw_info)
         return homogenise_gpus(gpu_infos)
 
     except OSError:
@@ -394,14 +394,8 @@ def get_platform():
 
 class Platform(object):
 
-    def __init__(self, name, **kwargs):
+    def __init__(self, name):
         self.name = name
-
-        cpu_info = get_cpu_info()
-
-        self.cores_logical = kwargs.get('cores_logical', cpu_info['logical'])
-        self.cores_physical = kwargs.get('cores_physical', cpu_info['physical'])
-        self.isa = kwargs.get('isa', self._detect_isa())
 
     @classmethod
     def _mro(cls):
@@ -433,10 +427,29 @@ class Platform(object):
         assert self.simd_reg_size % np.dtype(dtype).itemsize == 0
         return int(self.simd_reg_size / np.dtype(dtype).itemsize)
 
+    @property
+    def memtotal(self):
+        """Physical memory size in bytes, or None if unknown."""
+        return None
+
+    @property
+    def memavail(self):
+        """Available physical memory in bytes, or None if unknown."""
+        return None
+
 
 class Cpu64(Platform):
 
-    # The known ISAs will be overwritten in the specialized classes
+    def __init__(self, name, cores_logical=None, cores_physical=None, isa=None):
+        super().__init__(name)
+
+        cpu_info = get_cpu_info()
+
+        self.cores_logical = cores_logical or cpu_info['logical']
+        self.cores_physical = cores_physical or cpu_info['physical']
+        self.isa = isa or self._detect_isa()
+
+    # The known ISAs are to be provided by the subclasses
     known_isas = ()
 
     @classmethod
@@ -457,6 +470,14 @@ class Cpu64(Platform):
                 # appears as 'avx512f, avx512cd, ...'
                 return i
         return 'cpp'
+
+    @cached_property
+    def memtotal(self):
+        return psutil.virtual_memory().total
+
+    @property
+    def memavail(self):
+        return psutil.virtual_memory().available
 
 
 class Intel64(Cpu64):
@@ -483,7 +504,7 @@ class Power(Cpu64):
 class Device(Platform):
 
     def __init__(self, name, cores_logical=1, cores_physical=1, isa='cpp'):
-        self.name = name
+        super().__init__(name)
 
         self.cores_logical = cores_logical
         self.cores_physical = cores_physical
@@ -515,6 +536,24 @@ class NvidiaDevice(Device):
             if 'tesla' in architecture.lower():
                 return 'tesla'
         return None
+
+    @cached_property
+    def memtotal(self):
+        #TODO: MOVE TO SUPERCLASS!?
+        info = get_gpu_info()
+        try:
+            from IPython import embed; embed()
+        except (AttributeError, KeyError):
+            return None
+
+    @property
+    def memavail(self):
+        #TODO: MOVE TO SUPERCLASS!?
+        info = get_gpu_info()
+        try:
+            from IPython import embed; embed()
+        except (AttributeError, KeyError):
+            return None
 
 
 class AmdDevice(Device):
