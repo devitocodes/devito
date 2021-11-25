@@ -957,6 +957,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return reduce(mul, self.shape)
 
     @property
+    def nbytes(self):
+        return self.size*self._dtype().itemsize
+
+    @property
     def halo(self):
         return self._halo
 
