@@ -494,10 +494,10 @@ class Operator(Callable):
         # pointers to ctypes.Struct
         for p in self.parameters:
             try:
-                args.update(kwargs.get(p.name, p)._arg_as_ctype(args, alias=p))
+                args.update(kwargs.get(p.name, p)._arg_finalize(args, alias=p))
             except AttributeError:
-                # User-provided floats/ndarray obviously do not have `_arg_as_ctype`
-                args.update(p._arg_as_ctype(args, alias=p))
+                # User-provided floats/ndarray obviously do not have `_arg_finalize`
+                args.update(p._arg_finalize(args, alias=p))
 
         # Execute autotuning and adjust arguments accordingly
         args = self._autotune(args, kwargs.pop('autotune', configuration['autotuning']))

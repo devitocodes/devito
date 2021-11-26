@@ -869,9 +869,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         for i, s in zip(self.dimensions, key.shape):
             i._arg_check(args, s, intervals[i])
 
-    def _arg_as_ctype(self, args, alias=None):
+    def _arg_finalize(self, args, alias=None):
         key = alias or self
-        return ReducerMap({key.name: self._C_make_dataobj(args[key.name])})
+        return {key.name: self._C_make_dataobj(args[key.name])}
 
     # Pickling support
     _pickle_kwargs = AbstractFunction._pickle_kwargs +\
