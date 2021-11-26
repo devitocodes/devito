@@ -649,8 +649,33 @@ class DOUBLEP(CastStar):
 
 CEIL = Function('ceil')
 FLOOR = Function('floor')
-MAX = Function('MAX')
 MIN = Function('MIN')
+MAX = Function('MAX')
+
+
+class RMin(Function):
+    """
+    Utility class for recursively generating nested MIN relations.
+    """
+
+    def __new__(cls, item, *args):
+        if len(args) == 0:
+            return item
+        else:
+            return MIN(item, RMin(*args))
+
+
+class RMax(Function):
+    """
+    Utility class for recursively generating nested MAX relations.
+    """
+
+    def __new__(cls, item, *args):
+        if len(args) == 0:
+            return item
+        else:
+            return MAX(item, RMax(*args))
+
 
 Null = Macro('NULL')
 

@@ -98,6 +98,7 @@ def relax_incr_dimensions(iet, **kwargs):
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Block)
 
         # Get root's `symbolic_max` out of each outer Dimension
+        roots_min = {i.dim.root: i.symbolic_min for i in outer}
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
         # Process inner iterations and adjust their bounds
@@ -111,10 +112,37 @@ def relax_incr_dimensions(iet, **kwargs):
             # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
             # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
-
+            root_min = roots_min[i.dim.root] + i.symbolic_min - i.dim.symbolic_min
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
-            iter_max = evalrel(min, [i.symbolic_max, root_max])
-            mapper[i] = i._rebuild(limits=(i.symbolic_min, iter_max, i.step))
+            # Interval care
+            min_map = {}
+            max_map = {}
+
+            min_map[i.dim.root.symbolic_min] = root_min
+            min_map[i.dim.symbolic_min] = i.symbolic_min
+
+            defines = sorted(i.dim._defines, key=lambda x: (not x.is_Incr or -x._depth))
+
+            defmin = [j.symbolic_min for j in defines]
+            defmin = [j for j in defmin if j not in (k.symbolic_min for
+                      k in defmin if k.is_Symbol and not k.is_Scalar)]
+            defmin = [j.subs(min_map) for j in defmin if j in min_map]
+            defmin = list(dict.fromkeys(defmin))
+
+            max_map[i.dim.root.symbolic_max] = root_max
+            max_map[i.dim.symbolic_max] = i.symbolic_max
+
+            defmax = [j.symbolic_max for j in defines]
+            defmax = [j for j in defmax if j not in (k.symbolic_max for
+                      k in defmax if k.is_Symbol and not k.is_Scalar)]
+            defmax = [j.subs(max_map) for j in defmax if j in max_map]
+            defmax = list(dict.fromkeys(defmax))
+
+            # Interval care
+            iter_min = evalrel(max, defmin)
+            iter_max = evalrel(min, defmax)
+
+            mapper[i] = i._rebuild(limits=(iter_min, iter_max, i.step))
 
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)
