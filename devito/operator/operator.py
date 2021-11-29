@@ -7,6 +7,7 @@ from cached_property import cached_property
 import ctypes
 
 from devito.arch import compiler_registry, platform_registry
+from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq, lower_exprs, generate_implicit_exprs
@@ -205,6 +206,10 @@ class Operator(Callable):
         op._compiler = kwargs['compiler']
         op._lib = None
         op._cfunction = None
+
+        # Potentially required for lazily allocated Functions
+        op._language = kwargs['language']
+        op._platform = kwargs['platform']
 
         # References to local or external routines
         op._func_table = OrderedDict()
@@ -418,11 +423,17 @@ class Operator(Callable):
 
     # Arguments processing
 
-    def _prepare_arguments(self, **kwargs):
+    def _prepare_arguments(self, autotune=None, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
+        # Sanity check -- all user-provided keywords must be known to the Operator
+        if not configuration['ignore-unknowns']:
+            for k, v in kwargs.items():
+                if k not in self._known_arguments:
+                    raise ValueError("Unrecognized argument %s=%s" % (k, v))
+
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
         # Process data-carrier overrides
@@ -430,7 +441,7 @@ class Operator(Callable):
         for p in overrides:
             args.update(p._arg_values(**kwargs))
             try:
-                args = kwargs['args'] = ReducerMap(args.reduce_all())
+                args.reduce_inplace()
             except ValueError:
                 raise ValueError("Override `%s` is incompatible with overrides `%s`" %
                                  (p, [i for i in overrides if i.name in args]))
@@ -469,6 +480,10 @@ class Operator(Callable):
         except KeyError:
             grid = None
 
+        # An ArgumentsMap carries additional metadata that may be used by
+        # the subsequent phases of the arguments processing
+        args = kwargs['args'] = ArgumentsMap(grid, self._allocator, self._platform, args)
+
         # Process Dimensions
         # A topological sorting is used so that derived Dimensions are processed after
         # their parents (note that a leaf Dimension can have an arbitrary long list of
@@ -500,17 +515,7 @@ class Operator(Callable):
                 args.update(p._arg_finalize(args, alias=p))
 
         # Execute autotuning and adjust arguments accordingly
-        args = self._autotune(args, kwargs.pop('autotune', configuration['autotuning']))
-
-        # Check all user-provided keywords are known to the Operator
-        if not configuration['ignore-unknowns']:
-            kwargs.pop('args')
-            for k, v in kwargs.items():
-                if k not in self._known_arguments:
-                    raise ValueError("Unrecognized argument %s=%s" % (k, v))
-
-        # Attach `grid` to the arguments map
-        args = ArgumentsMap(grid, **args)
+        args.update(self._autotune(args, autotune or configuration['autotuning']))
 
         return args
 
@@ -797,28 +802,8 @@ class Operator(Callable):
     # Misc properties
 
     @cached_property
-    def _mem_summary(self):
-        """
-        The amount of data, in bytes, used by the Operator. This is provided as
-        symbolic expressions, one symbolic expression for each memory scope (external,
-        heap).
-        """
-        roots = [self] + [i.root for i in self._func_table.values()]
-        functions = [i for i in derive_parameters(roots) if i.is_Function]
-
-        summary = {}
-
-        external = [i.symbolic_shape for i in functions if i._mem_external]
-        external = sum(reduce(mul, i, 1) for i in external)*self._dtype().itemsize
-        summary['external'] = external
-
-        heap = [i.symbolic_shape for i in functions if i._mem_heap]
-        heap = sum(reduce(mul, i, 1) for i in heap)*self._dtype().itemsize
-        summary['heap'] = heap
-
-        summary['total'] = external + heap
-
-        return summary
+    def _allocator(self):
+        return default_allocator(self._language)
 
     # Pickling support
 
@@ -864,9 +849,12 @@ class Operator(Callable):
 
 class ArgumentsMap(dict):
 
-    def __init__(self, grid, *args, **kwargs):
-        super(ArgumentsMap, self).__init__(*args, **kwargs)
+    def __init__(self, grid, allocator, platform, args=None):
+        super().__init__(args or {})
+
         self.grid = grid
+        self.allocator = allocator
+        self.platform = platform
 
     @property
     def comm(self):
