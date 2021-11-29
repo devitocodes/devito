@@ -194,19 +194,41 @@ def get_gpu_info():
                     gpu_info['vendor'] = 'NVIDIA'
                     gpu_infos.append(gpu_info)
 
-        # All attach callbacks to retrieve instantaneous memory info
+        gpu_info = homogenise_gpus(gpu_infos)
+
+        # Also attach callbacks to retrieve instantaneous memory info
         for i in ['total', 'free', 'used']:
-            def callback():
-                info_cmd = ['nvidia-smi', '--query-gpu=memory.%s' % i, '--format=csv']
-                proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
-                raw_info = str(proc.stdout.read())
+            def make_cbk(i):
+                def cbk():
+                    info_cmd = ['nvidia-smi', '--query-gpu=memory.%s' % i, '--format=csv']
+                    proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+                    raw_info = str(proc.stdout.read())
 
-                lines = raw_info.replace('\\n', '\n').replace('b\'', '')
-                lines = lines.splitlines()[1:-1]
+                    lines = raw_info.replace('\\n', '\n').replace('b\'', '')
+                    lines = lines.splitlines()[1:-1]
 
-                from IPython import embed; embed()
+                    try:
+                        if len(lines) >= 0 and all_equal(lines):
+                            line = lines.pop()
+                            _, v, unit = re.split('([0-9]+)\s', line)
+                            assert unit == 'MiB'
+                            return int(v)*10**6
+                        else:
+                            raise ValueError
+                    except:
+                        # We shouldn't really end up here, unless nvidia-smi changes
+                        # the output format (though we still have tests in place that
+                        # will catch this)
+                        warning('Unable to detect available device memory')
+                        return None
 
-        return homogenise_gpus(gpu_infos)
+                    return lines
+
+                return cbk
+
+            gpu_info['mem.%s' % i] = make_cbk(i)
+
+        return gpu_info
 
     except OSError:
         pass
@@ -525,6 +547,22 @@ class Device(Platform):
     def march(self):
         return None
 
+    @cached_property
+    def memtotal(self):
+        info = get_gpu_info()
+        try:
+            return info['mem.total']()
+        except (AttributeError, KeyError):
+            return None
+
+    @property
+    def memavail(self):
+        info = get_gpu_info()
+        try:
+            return info['mem.free']()
+        except (AttributeError, KeyError):
+            return None
+
 
 class NvidiaDevice(Device):
 
@@ -536,24 +574,6 @@ class NvidiaDevice(Device):
             if 'tesla' in architecture.lower():
                 return 'tesla'
         return None
-
-    @cached_property
-    def memtotal(self):
-        #TODO: MOVE TO SUPERCLASS!?
-        info = get_gpu_info()
-        try:
-            from IPython import embed; embed()
-        except (AttributeError, KeyError):
-            return None
-
-    @property
-    def memavail(self):
-        #TODO: MOVE TO SUPERCLASS!?
-        info = get_gpu_info()
-        try:
-            from IPython import embed; embed()
-        except (AttributeError, KeyError):
-            return None
 
 
 class AmdDevice(Device):
