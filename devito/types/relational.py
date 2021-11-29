@@ -47,6 +47,10 @@ class Le(sympy.Le):
     def negated(self):
         return ops.get(self.func)(*self.args)
 
+    @property
+    def reversed(self):
+        return rev.get(self.func)(self.rhs, self.lhs)
+
 
 class Lt(sympy.Lt):
     """
@@ -89,6 +93,10 @@ class Lt(sympy.Lt):
     @property
     def negated(self):
         return ops.get(self.func)(*self.args)
+
+    @property
+    def reversed(self):
+        return rev.get(self.func)(self.rhs, self.lhs)
 
 
 class Ge(sympy.Ge):
@@ -134,6 +142,10 @@ class Ge(sympy.Ge):
     def negated(self):
         return ops.get(self.func)(*self.args)
 
+    @property
+    def reversed(self):
+        return rev.get(self.func)(self.rhs, self.lhs)
+
 
 class Gt(sympy.Gt):
     """
@@ -177,6 +189,10 @@ class Gt(sympy.Gt):
     @property
     def negated(self):
         return ops.get(self.func)(*self.args)
+
+    @property
+    def reversed(self):
+        return rev.get(self.func)(self.rhs, self.lhs)
 
 
 class Ne(sympy.Ne):
@@ -228,3 +244,4 @@ class Ne(sympy.Ne):
 
 
 ops = {Ge: Lt, Gt: Le, Le: Gt, Lt: Ge}
+rev = {Ge: Le, Gt: Lt, Lt: Gt, Le: Ge}

@@ -6,7 +6,7 @@ from sympy import Number, Indexed, Symbol, LM, LC, Pow, Add, Mul, Min, Max
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.symbolics import rmin, rmax
+from devito.symbolics.extended_sympy import rmin, rmax
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.equation import Eq
@@ -353,22 +353,21 @@ def evalrel(func=min, input=None, assumptions=[]):
     mapper = {}
 
     processed = []
+
+    # Form relationals so that RHS has more arguments than LHS:
+    # i.e. (a + d >= b) ---> (b <= a + d)
+    assumptions = [asm if len(asm.rhs.args) > len(asm.lhs.args) else
+                   asm.reversed for asm in assumptions]
+
     for asm in assumptions:
         if (asm.__class__ in (Ge, Gt)) and asm.rhs.is_Add and asm.lhs.is_positive:
-            # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, b>=a'
+            # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, c>=a'
             if all(i.is_positive for i in asm.rhs.args):
                 processed.extend(Ge(asm.lhs, i) for i in asm.rhs.args)
             # If `c >= a + b, a>= 0, b<=0` then add 'c>=b, c<=a'
             elif len(asm.rhs.args) == 2:
                 processed.extend(Lt(asm.lhs, i) if i.is_positive else
                                  Gt(asm.lhs, i) for i in asm.rhs.args)
-        elif (asm.__class__ in (Le, Lt)) and asm.lhs.is_Add and asm.rhs.is_positive:
-            # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, b>=a'
-            if all(i.is_positive for i in asm.lhs.args):
-                processed.extend(Le(i, asm.rhs) for i in asm.lhs.args)
-            elif len(asm.lhs.args) == 2:
-                processed.extend(Lt(i, asm.rhs) if i.is_positive else
-                                 Gt(i, asm.rhs) for i in asm.lhs.args)
         else:
             processed.append(asm)
 

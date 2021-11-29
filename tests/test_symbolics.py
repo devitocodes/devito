@@ -4,7 +4,7 @@ import numpy as np
 
 from sympy import Symbol
 from devito import (Grid, Function, solve, TimeFunction, Eq, Operator, norm,  # noqa
-                     Le, Ge, Gt, Lt)  # noqa
+                    Le, Ge, Gt, Lt)  # noqa
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel, # noqa
                               MIN, MAX) # noqa
@@ -179,6 +179,18 @@ class Test_relations_w_assumptions(object):
          'MAX(a, MAX(b, MAX(c, d)))']),
         ([max, '[a, b, c, d]', '[Le(c, a + d)]', 'MAX(a, MAX(b, MAX(c, d)))']),
         ([max, '[a, b, c, d]', '[Le(c, d), Le(a, b)]', 'MAX(b, d)']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
+        ([min, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'MIN(a, c)']),
+        ([min, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'MIN(b, d)']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MAX(a, c)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'MAX(b, d)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'MAX(a, c)']),
+        ([max, '[a, b, c, d]', '[Lt(c, d).reversed, Le(a, b).reversed]', 'MAX(b, d)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d + a).negated]', 'MAX(a, MAX(b, MAX(c, d)))']),
+        ([max, '[a, b, c, d]', '[Lt(c, d + a).negated]', 'MAX(d, b)']),
+        ([max, '[a, b, c, d]', '[Le(c, d + a).negated]', 'MAX(d, b)']),
     ])
     def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
         """
