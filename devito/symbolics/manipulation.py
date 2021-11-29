@@ -2,11 +2,11 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import Number, Indexed, Symbol, LM, LC, Min, Max, Pow, Add, Mul
+from sympy import Number, Indexed, Symbol, LM, LC, Pow, Add, Mul, Min, Max
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.symbolics import MIN, MAX
+from devito.symbolics import rmin, rmax
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.equation import Eq
@@ -319,7 +319,7 @@ def reuse_if_untouched(expr, args, evaluate=False):
         return expr.func(*args, evaluate=evaluate)
 
 
-def evalrel(func=min, input=None, assumptions=None):
+def evalrel(func=min, input=None, assumptions=[]):
     """
     Simplify evalmin if possible and return nested MIN/MAX expression. This function
     takes advantage of python's built-in `min`, Sympy's `Min` and our in-house `MIN`
@@ -336,8 +336,8 @@ def evalrel(func=min, input=None, assumptions=None):
 
     Examples
     --------
-    Assuming no values are known for a, b, c, d but we know that d<=a and c>=b we can
-    safely drop `a` and `c` from the candidate list
+    Assuming no values are known for `a`, `b`, `c`, `d` but we know that `d<=a` and
+    `c>=b` we can safely drop `a` and `c` from the candidate list.
 
     >>> from devito import Symbol
     >>> a = Symbol('a')
@@ -348,63 +348,54 @@ def evalrel(func=min, input=None, assumptions=None):
     MAX(a, c)
     """
     sfunc = (Min if func is min else Max)  # Choose sympy's Min/Max
-    rfunc = (MIN if func is min else MAX)  # Choose built-in MIN/MAX
-
-    if len(input) == 1:
-        return input[0]
+    rfunc = (rmin if func is min else rmax)  # Choose built-in MIN/MAX
 
     mapper = {}
 
-    if assumptions:
-        temp = []
-        # Drop one in mutual pairs [(a, b) , (b, a)] == > [(a, b)]
-        for asm in assumptions:
-            if (asm.__class__ in (Ge, Gt)) and asm.rhs.is_Add and all(i.is_positive
-               for i in asm.rhs.args):
-                for j in asm.rhs.args:
-                    temp.append(Ge(asm.lhs, j))
+    processed = []
+    for asm in assumptions:
+        if (asm.__class__ in (Ge, Gt)) and asm.rhs.is_Add and asm.lhs.is_positive:
+            # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, b>=a'
+            if all(i.is_positive for i in asm.rhs.args):
+                processed.extend(Ge(asm.lhs, i) for i in asm.rhs.args)
+            # If `c >= a + b, a>= 0, b<=0` then add 'c>=b, c<=a'
+            elif len(asm.rhs.args) == 2:
+                processed.extend(Lt(asm.lhs, i) if i.is_positive else
+                                 Gt(asm.lhs, i) for i in asm.rhs.args)
+        elif (asm.__class__ in (Le, Lt)) and asm.lhs.is_Add and asm.rhs.is_positive:
+            # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, b>=a'
+            if all(i.is_positive for i in asm.lhs.args):
+                processed.extend(Le(i, asm.rhs) for i in asm.lhs.args)
+            elif len(asm.lhs.args) == 2:
+                processed.extend(Lt(i, asm.rhs) if i.is_positive else
+                                 Gt(i, asm.rhs) for i in asm.lhs.args)
+        else:
+            processed.append(asm)
 
-        for i in temp:
-            assumptions.append(i)
+    # Symmetry/ Antisymmetry
+    for asm in processed:
+        if set(asm.args).issubset(input):
+            a0, a1 = asm.args
+            if (((asm.__class__ in (Ge, Gt)) and func is max) or
+               ((asm.__class__ in (Le, Lt)) and func is min)):
+                mapper[a1] = a0
+            elif (((asm.__class__ in (Le, Lt)) and func is max) or
+                  ((asm.__class__ in (Ge, Gt)) and func is min)):
+                mapper[a0] = a1
 
-        # Symmetry/ Antisymmetry
-        for asm in assumptions:
-            if set(asm.args).issubset(input):
-                if (asm.__class__ in (Ge, Gt)) and func is max:
-                    mapper.update({asm.args[1]: asm.args[0]})
-                elif (asm.__class__ in (Le, Lt)) and func is max:
-                    mapper.update({asm.args[0]: asm.args[1]})
-                elif (asm.__class__ in (Ge, Gt)) and func is min:
-                    mapper.update({asm.args[0]: asm.args[1]})
-                elif (asm.__class__ in (Le, Lt)) and func is min:
-                    mapper.update({asm.args[1]: asm.args[0]})
-
-    # Drop one in mutual pairs [(a, b) , (b, a)] == > [(a, b)]
+    # Drop one of symmetric pairs [(a, b) , (b, a)] == > [(a, b)]
     temp = mapper.copy()
     for k, v in mapper.items():
-        if mapper[k] is v and v in temp:
-            if temp[v] is k:
-                temp.pop(k)
+        if v in temp and temp[v] is k:
+            temp.pop(k)
 
-    mapper = temp
-
-    # Update mapper connections (graph vertices)
-    mapper = transitive_closure(mapper)
+    # Collapse graph paths
+    mapper = transitive_closure(temp)
     input = [i.subs(mapper) for i in input]
 
     try:
         bool(sfunc(*input))  # Can it be evaluated or simplified?
         input = list(OrderedDict.fromkeys(input))
-        if len(input) == 1:
-            return input[0]
-        else:
-            input = list(input)
-            exp = rfunc(input[0], input[1])
-            for i in input[2:]:
-                exp = rfunc(exp, i)
-            return exp
+        return rfunc(*input)
     except TypeError:
-        exp = rfunc(input[0], input[1])
-        for i in input[2:]:
-            exp = rfunc(exp, i)
-        return exp
+        return rfunc(*input)

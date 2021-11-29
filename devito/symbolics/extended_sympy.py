@@ -12,7 +12,7 @@ from devito.tools import Pickable, as_tuple, is_integer
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'cast_mapper']
+           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'rmax', 'rmin', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -536,6 +536,27 @@ class DOUBLEP(CastStar):
 FLOOR = Function('floor')
 MAX = Function('MAX')
 MIN = Function('MIN')
+
+
+def rmax(item, *args):
+    """
+    A utility function that recursively generates nested MAX relations.
+    """
+    if len(args) == 0:
+        return item
+    else:
+        return MAX(item, rmax(*args))
+
+
+def rmin(item, *args):
+    """
+    A utility function that recursively generates nested MIN relations.
+    """
+    if len(args) == 0:
+        return item
+    else:
+        return MIN(item, rmin(*args))
+
 
 cast_mapper = {
     int: INT,

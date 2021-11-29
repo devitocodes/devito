@@ -3,7 +3,8 @@ import pytest
 import numpy as np
 
 from sympy import Symbol
-from devito import Grid, Function, solve, TimeFunction, Eq, Operator, norm, Le, Ge # noqa
+from devito import (Grid, Function, solve, TimeFunction, Eq, Operator, norm,  # noqa
+                     Le, Ge, Gt, Lt)  # noqa
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel, # noqa
                               MIN, MAX) # noqa
@@ -98,89 +99,96 @@ def test_solve_time():
     assert sympy.simplify(sol - (-dt**2*u.dx/m + 2.0*u - u.backward)) == 0
 
 
-def test_multibounds_op():
-    """
-    Tests evalmin/evalmax with multiple args
-    """
+class Test_relations_w_assumptions(object):
+    def test_multibounds_op(self):
+        """
+        Tests evalmin/evalmax with multiple args
+        """
 
-    grid = Grid(shape=(16, 16, 16))
+        grid = Grid(shape=(16, 16, 16))
 
-    a = Function(name='a', grid=grid)
-    b = Function(name='b', grid=grid)
-    c = Function(name='c', grid=grid)
-    d = Function(name='d', grid=grid)
-    a.data[:] = 5
+        a = Function(name='a', grid=grid)
+        b = Function(name='b', grid=grid)
+        c = Function(name='c', grid=grid)
+        d = Function(name='d', grid=grid)
+        a.data[:] = 5
 
-    b = pow(a, 2)
-    c = a + 10
-    d = 2*a
+        b = pow(a, 2)
+        c = a + 10
+        d = 2*a
 
-    f = TimeFunction(name='f', grid=grid, space_order=2)
+        f = TimeFunction(name='f', grid=grid, space_order=2)
 
-    f.data[:] = 0.1
-    eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c, d]))]
-    op = Operator(eqns, opt=('advanced'))
-    op.apply(time_M=5)
-    fnorm = norm(f)
+        f.data[:] = 0.1
+        eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c, d]))]
+        op = Operator(eqns, opt=('advanced'))
+        op.apply(time_M=5)
+        fnorm = norm(f)
 
-    c2 = Function(name='c2', grid=grid)
-    d2 = Function(name='d2', grid=grid)
+        c2 = Function(name='c2', grid=grid)
+        d2 = Function(name='d2', grid=grid)
 
-    f.data[:] = 0.1
-    eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c2, d2], [Ge(d, c)]))]
-    op = Operator(eqns, opt=('advanced'))
-    op.apply(time_M=5)
-    fnorm2 = norm(f)
+        f.data[:] = 0.1
+        eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c2, d2], [Ge(d, c)]))]
+        op = Operator(eqns, opt=('advanced'))
+        op.apply(time_M=5)
+        fnorm2 = norm(f)
 
-    assert fnorm == fnorm2
+        assert fnorm == fnorm2
 
+    @pytest.mark.parametrize('op, expr, assumptions, expected', [
+        ([min, '[a, b, c, d]', '[]', 'MIN(a, MIN(b, MIN(c, d)))']),
+        ([max, '[a, b, c, d]', '[]', 'MAX(a, MAX(b, MAX(c, d)))']),
+        ([min, '[a]', '[]', 'a']),
+        ([min, '[a, b]', '[Le(d, a), Ge(c, b)]', 'MIN(a, b)']),
+        ([min, '[a, b, c]', '[]', 'MIN(a, MIN(b, c))']),
+        ([min, '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'MIN(d, b)']),
+        ([min, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'c']),
+        ([max, '[a]', '[Le(a, a)]', 'a']),
+        ([max, '[a, b]', '[Le(a, b)]', 'b']),
+        ([max, '[a, b, c]', '[Le(c, b), Le(c, a)]', 'MAX(a, b)']),
+        ([max, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'd']),
+        ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'MAX(a, MAX(c, d))']),
+        ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'MAX(a, d)']),
+        ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'MAX(a, MAX(c, d))']),
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, a)]', 'MIN(c, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
+        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(d, c))']),
+        ([min, '[a, b, c, d]', '[Lt(b + a, d)]', 'MIN(a, MIN(b, c))']),
+        ([max, '[a, b, c, d]', '[Lt(b + a, d)]', 'MAX(d, c)']),
+    ])
+    def test_relations_w_complex_assumptions(self, op, expr, assumptions, expected):
+        """
+        Tests evalmin/evalmax with multiple args and assumtpions"""
+        a = Symbol('a', positive=True)  # noqa
+        b = Symbol('b', positive=True)  # noqa
+        c = Symbol('c', positive=True)  # noqa
+        d = Symbol('d', positive=True)  # noqa
 
-@pytest.mark.parametrize('op, expr, assumptions, expected', [
-    ([min, '[a, b, c, d]', 'None', 'MIN(MIN(MIN(a, b), c), d)']),
-    ([max, '[a, b, c, d]', 'None', 'MAX(MAX(MAX(a, b), c), d)']),
-    ([min, '[a]', 'None', 'a']),
-    ([min, '[a, b]', '[Le(d, a), Ge(c, b)]', 'MIN(a, b)']),
-    ([min, '[a, b, c]', 'None', 'MIN(MIN(a, b), c)']),
-    ([min, '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'MIN(d, b)']),
-    ([min, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'c']),
-    ([max, '[a]', '[Le(a, a)]', 'a']),
-    ([max, '[a, b]', '[Le(a, b)]', 'b']),
-    ([max, '[a, b, c]', '[Le(c, b), Le(c, a)]', 'MAX(a, b)']),
-    ([max, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'd']),
-    ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'MAX(MAX(a, c), d)']),
-    ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'MAX(a, d)']),
-    ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'MAX(MAX(a, c), d)']),
-    ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, a)]', 'MIN(c, d)']),
-    ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
-    ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(MIN(a, d), c)']),
-])
-def test_relations_w_complex_assumptions(op, expr, assumptions, expected):
-    """
-    Tests evalmin/evalmax with multiple args and assumtpions"""
-    a = Symbol('a', positive=True)  # noqa
-    b = Symbol('b', positive=True)  # noqa
-    c = Symbol('c', positive=True)  # noqa
-    d = Symbol('d', positive=True)  # noqa
+        eqn = eval(expr)
+        assumptions = eval(assumptions)
+        expected = eval(expected)
+        assert evalrel(op, eqn, assumptions) == expected
 
-    eqn = eval(expr)
-    assumptions = eval(assumptions)
-    expected = eval(expected)
-    assert evalrel(op, eqn, assumptions) == expected
+    @pytest.mark.parametrize('op, expr, assumptions, expected', [
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
+        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(b, MIN(c, d)))']),
+        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'MIN(a, b)']),
+        ([max, '[a, b, c, d]', '[Ge(c, a + d), Gt(b, a + d)]', 'MAX(d, b)']),
+        ([max, '[a, b, c, d]', '[Ge(a + d, b), Gt(b, a + d)]',
+         'MAX(a, MAX(b, MAX(c, d)))']),
+        ([max, '[a, b, c, d]', '[Le(c, a + d)]', 'MAX(a, MAX(b, MAX(c, d)))']),
+        ([max, '[a, b, c, d]', '[Le(c, d), Le(a, b)]', 'MAX(b, d)']),
+    ])
+    def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
+        """
+        Tests evalmin/evalmax with multiple args and assumtpions"""
+        a = Symbol('a', positive=False)  # noqa
+        b = Symbol('b', positive=False)  # noqa
+        c = Symbol('c', positive=True)  # noqa
+        d = Symbol('d', positive=True)  # noqa
 
-
-@pytest.mark.parametrize('op, expr, assumptions, expected', [
-    ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
-    ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(MIN(MIN(a, b), c), d)']),
-])
-def test_relations_w_complex_assumptions_II(op, expr, assumptions, expected):
-    """
-    Tests evalmin/evalmax with multiple args and assumtpions"""
-    a = Symbol('a', positive=False)  # noqa
-    b = Symbol('b', positive=False)  # noqa
-    c = Symbol('c', positive=True)  # noqa
-    d = Symbol('d', positive=True)  # noqa
-
-    eqn = eval(expr)
-    assumptions = eval(assumptions)
-    expected = eval(expected)
-    assert evalrel(op, eqn, assumptions) == expected
+        eqn = eval(expr)
+        assumptions = eval(assumptions)
+        expected = eval(expected)
+        assert evalrel(op, eqn, assumptions) == expected
