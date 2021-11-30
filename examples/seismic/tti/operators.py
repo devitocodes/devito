@@ -109,10 +109,18 @@ def Gzz_centered_2d(model, field, costheta, sintheta, space_order):
     Rotated second order derivative w.r.t. z.
     """
     order1 = space_order // 2
-    Gz = -(sintheta * field.dx(fd_order=order1) +
-           costheta * field.dy(fd_order=order1))
-    Gzz = ((Gz * sintheta).dx(fd_order=order1).T +
-           (Gz * costheta).dy(fd_order=order1).T)
+
+    # Add rotated derivative if angles are not zero. If angles are
+    # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
+    if sintheta != 0:
+        Gz = -(sintheta * field.dx(fd_order=order1) +
+            costheta * field.dy(fd_order=order1))
+        Gzz = ((Gz * sintheta).dx(fd_order=order1).T +
+            (Gz * costheta).dy(fd_order=order1).T)
+    else:
+        Gz = costheta * field.dy(fd_order=order1)
+        Gzz = (Gz * costheta).dy(fd_order=order1).T
+
     return Gzz
 
 
@@ -542,7 +550,14 @@ def ForwardOperator(model, geometry, space_order=4,
     expr = src * dt / m if kernel == 'staggered' else src * dt**2 / m
     stencils += src.inject(field=u.forward, expr=expr)
     stencils += src.inject(field=v.forward, expr=expr)
-    stencils += rec.interpolate(expr=u + v)
+    
+    #Reciever pressure is the trace of the stress tensor.
+    #This makes the reciever values consistent with the acoustic wave equation
+    #when the Thomsen parameters are 0.
+    if model.grid.dim == 3:
+        stencils += rec.interpolate(expr=(1./3.)*(u + u + v))
+    elif model.grid.dim == 2:
+        stencils += rec.interpolate(expr=(1./2.)*(u + v))
 
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
