@@ -76,8 +76,8 @@ class DeviceOmpIteration(OmpIteration):
         kwargs['chunk_size'] = False
         clauses = super()._make_clauses(**kwargs)
 
-        symbols = FindSymbols().visit(kwargs['nodes'])
-        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_local]
+        indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
+        deviceptrs = [i.name for i in indexeds if i.function._mem_local]
         if deviceptrs:
             clauses.append("is_device_ptr(%s)" % ",".join(deviceptrs))
 

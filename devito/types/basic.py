@@ -925,6 +925,45 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return IndexedData(self.name, shape=self.shape, function=self.function)
 
     @property
+    def _mem_local(self):
+        """
+        True if the associated data is allocated in the underlying platform's
+        local memory space, False otherwise.
+
+        The local memory space is:
+
+            * the host DRAM if platform=CPU
+            * the device DRAM if platform=GPU
+
+        Defaults to False because AbstractFunctions are normally allocated in
+        the host DRAM regardless of the underlying platform, and then
+        dynamically mapped to device DRAM (directly from the generated code) if
+        the underlying platform turns out to be a device.
+        """
+        return False
+
+    @property
+    def _mem_mapped(self):
+        """
+        True if the associated data is allocated in the underlying platform's
+        local memory space and subsequently mapped to the underlying platform's
+        remote memory space, False otherwise.
+
+        The local memory space is:
+
+            * the host DRAM if platform=CPU
+            * the device DRAM if platform=GPU
+
+        The remote memory space is:
+
+            * the host DRAM if platform=GPU
+            * the device DRAM if platform=CPU
+
+        Defaults to True, thus relaxing `_mem_local`.
+        """
+        return not self._mem_local
+
+    @property
     def _mem_external(self):
         """
         True if the associated data was/is/will be allocated directly

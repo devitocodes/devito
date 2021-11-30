@@ -54,18 +54,8 @@ class Array(ArrayBasic):
     padding : iterable of 2-tuples, optional
         The padding region of the object.
     space : str, optional
-        The memory space. Allowed values: 'local', 'remote', 'mapped',
-        'uniform'.  Defaults to 'local'. The 'local' value means the Array is
-        allocated in the underlying platform's local memory space. For example,
-        this will be the thread virtual memory space if running on a CPU, or
-        the global memory if running on a GPU. 'remote' is the opposite of
-        'local' -- if running on a GPU, a 'remote' Array will be allocated on
-        the host in the virtual memory of the driving thread. 'mapped' means
-        the Array is accessible by all compute elements of the underlying node,
-        though proper synchronization is needed (i.e., will be introduced by
-        the Devito compiler) to ensure data coherence. 'uniform', instead,
-        means the Array will be used as if the underlying node had uniform
-        memory address space.
+        The memory space. Allowed values: 'local', 'mapped'.  Defaults to 'local'.
+        Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack'.
         Defaults to 'heap'. This may not have an impact on certain platforms.
@@ -88,7 +78,7 @@ class Array(ArrayBasic):
         super(Array, self).__init_finalize__(*args, **kwargs)
 
         self._space = kwargs.get('space', 'local')
-        assert self._space in ['local', 'remote', 'mapped', 'uniform']
+        assert self._space in ['local', 'remote', 'mapped']
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack']
@@ -150,16 +140,8 @@ class Array(ArrayBasic):
         return self._space == 'local'
 
     @property
-    def _mem_remote(self):
-        return self._space == 'remote'
-
-    @property
     def _mem_mapped(self):
         return self._space == 'mapped'
-
-    @property
-    def _mem_uniform(self):
-        return self._space == 'uniform'
 
     @property
     def _mem_stack(self):
