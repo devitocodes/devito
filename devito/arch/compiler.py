@@ -12,7 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
+from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9, detect_cc
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -397,7 +397,7 @@ class ClangCompiler(Compiler):
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 # TODO: Need a generic -march setup
-                # self.cflags += ['-Xopenmp-target', '-march=sm_37']
+                self.cflags += ['-Xopenmp-target', '-march=sm_'+str(detect_cc())]
                 self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
         elif platform is AMDGPUX:
             self.cflags.remove('-std=c99')
