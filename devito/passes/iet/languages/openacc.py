@@ -35,7 +35,7 @@ class DeviceAccIteration(ParallelIteration):
 
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
         deviceptrs = filter_ordered(i.name for i in indexeds
-                                    if i.function.is_Array and i.function._mem_default)
+                                    if i.function.is_Array and i.function._mem_local)
         presents = filter_ordered(i.name for i in indexeds
                                   if (i.function.is_AbstractFunction and
                                       is_on_device(i, kwargs['gpu_fit']) and

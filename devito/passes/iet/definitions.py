@@ -338,7 +338,7 @@ class DeviceAwareDataManager(DataManager):
         else:
             # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
             # on the device as it never needs to be accessed on the host
-            assert obj._mem_default
+            assert obj._mem_local
             decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
             size = "sizeof(%s[%s])" % (obj._C_typedata, prod(obj.symbolic_shape))
 
@@ -359,7 +359,7 @@ class DeviceAwareDataManager(DataManager):
         bandwidth memory.
         """
         # If Array gets allocated directly in the device memory, there's nothing to map
-        if obj._mem_default:
+        if obj._mem_local:
             return
 
         mmap = PragmaTransfer(self.lang._map_alloc, obj)

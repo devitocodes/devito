@@ -54,12 +54,12 @@ class Array(ArrayBasic):
     padding : iterable of 2-tuples, optional
         The padding region of the object.
     space : str, optional
-        The memory space. Allowed values: 'default', 'remote', 'mapped',
-        'uniform'.  Defaults to 'default'. The 'default' value means the Array
-        is allocated in the underlying platform's default memory space. For
-        example, this will be the thread virtual memory space if running on a
-        CPU, or the global memory if running on a GPU. 'remote' is the dual of
-        'default' -- if running on a GPU, a 'remote' Array will be allocated on
+        The memory space. Allowed values: 'local', 'remote', 'mapped',
+        'uniform'.  Defaults to 'local'. The 'local' value means the Array is
+        allocated in the underlying platform's local memory space. For example,
+        this will be the thread virtual memory space if running on a CPU, or
+        the global memory if running on a GPU. 'remote' is the opposite of
+        'local' -- if running on a GPU, a 'remote' Array will be allocated on
         the host in the virtual memory of the driving thread. 'mapped' means
         the Array is accessible by all compute elements of the underlying node,
         though proper synchronization is needed (i.e., will be introduced by
@@ -87,8 +87,8 @@ class Array(ArrayBasic):
     def __init_finalize__(self, *args, **kwargs):
         super(Array, self).__init_finalize__(*args, **kwargs)
 
-        self._space = kwargs.get('space', 'default')
-        assert self._space in ['default', 'remote', 'mapped', 'uniform']
+        self._space = kwargs.get('space', 'local')
+        assert self._space in ['local', 'remote', 'mapped', 'uniform']
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack']
@@ -146,8 +146,8 @@ class Array(ArrayBasic):
         return self._scope
 
     @property
-    def _mem_default(self):
-        return self._space == 'default'
+    def _mem_local(self):
+        return self._space == 'local'
 
     @property
     def _mem_remote(self):

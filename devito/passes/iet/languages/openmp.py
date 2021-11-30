@@ -77,7 +77,7 @@ class DeviceOmpIteration(OmpIteration):
         clauses = super()._make_clauses(**kwargs)
 
         symbols = FindSymbols().visit(kwargs['nodes'])
-        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
+        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_local]
         if deviceptrs:
             clauses.append("is_device_ptr(%s)" % ",".join(deviceptrs))
 
