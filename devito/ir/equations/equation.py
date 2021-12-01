@@ -10,7 +10,7 @@ from devito.symbolics import CondEq, IntDiv, uxreplace
 from devito.tools import Pickable, frozendict
 from devito.types import Eq
 
-__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
+__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'ConditionFactor']
 
 
 class IREq(sympy.Eq):
@@ -169,7 +169,7 @@ class LoweredEq(IREq):
         conditionals = {}
         for d in conditional_dimensions:
             if d.condition is None:
-                conditionals[d] = CondEq(d.parent % d.factor, 0)
+                conditionals[d] = ConditionFactor(d.parent % d.factor, 0)
             else:
                 conditionals[d] = diff2sympy(lower_exprs(d.condition))
             if d.factor is not None:
@@ -278,3 +278,10 @@ class DummyEq(ClusterizedEq):
     # Pickling support
     _pickle_args = ['lhs', 'rhs']
     _pickle_kwargs = []
+
+
+# Utilities
+
+
+class ConditionFactor(CondEq):
+    pass
