@@ -167,7 +167,7 @@ class Streaming(Asynchronous):
                 if candidates:
                     if is_memcpy(c):
                         # Case 1A (special case, leading to more efficient streaming)
-                        actions_from_init(c, prefix, actions, memcpy=True)
+                        self._actions_from_init(c, prefix, actions, memcpy=True)
                     else:
                         # Case 1B (actually, we expect to never end up here)
                         raise NotImplementedError
@@ -178,19 +178,16 @@ class Streaming(Asynchronous):
             for c in clusters:
                 candidates = self.key(c)
                 if candidates:
-                    if is_memcpy(c):
-                        mapper[c] = actions_from_update_memcpy
-                    else:
-                        mapper[c] = None
+                    mapper[c] = is_memcpy(c)
 
             # Case 2A (special case, leading to more efficient streaming)
-            if all(i is actions_from_update_memcpy for i in mapper.values()):
+            if all(mapper.values()):
                 for c in mapper:
-                    actions_from_update_memcpy(c, clusters, prefix, actions)
+                    self._actions_from_update_memcpy(c, clusters, prefix, actions)
 
             # Case 2B
             elif mapper:
-                actions_from_unstructured(clusters, self.key, prefix, actions)
+                self._actions_from_unstructured(clusters, prefix, actions)
 
         # Perform the necessary actions; this will ultimately attach SyncOps to Clusters
         processed = []
@@ -209,6 +206,15 @@ class Streaming(Asynchronous):
                 processed.extend(v.insert)
 
         return processed
+
+    def _actions_from_init(self, cluster, prefix, actions, memcpy=False):
+        return actions_from_init(cluster, prefix, actions, memcpy=memcpy)
+
+    def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
+        return actions_from_update_memcpy(cluster, clusters, prefix, actions)
+
+    def _actions_from_unstructured(self, clusters, prefix, actions):
+        return actions_from_unstructured(clusters, self.key, prefix, actions)
 
 
 # Utilities
