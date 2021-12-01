@@ -1,14 +1,13 @@
 from collections import OrderedDict, defaultdict
 
 import numpy as np
-from sympy import And, Ge, Le, Mod, Mul, true
+from sympy import And, Ge, Le, Mul, true
 
 from devito.exceptions import InvalidOperator
-from devito.ir.clusters import Queue
-from devito.ir.support import Forward, SEQUENTIAL, Vector
+from devito.ir import Forward, ConditionFactor, Queue, Vector, SEQUENTIAL
 from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
-                          indices_to_sections, timed_pass)
+                          indices_to_sections, split, timed_pass)
 from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
                           FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete,
                           normalize_syncs)
@@ -408,11 +407,19 @@ def make_cond(rel, d, direction, iteration):
         else:
             cond = Ge(iteration, d.symbolic_min)
     else:
-        # Only case we know how to deal with, today, is the one induced
-        # by a ConditionalDimension with structured condition (e.g. via `factor`)
-        if not (rel.is_Equality and rel.rhs == 0 and isinstance(rel.lhs, Mod)):
+        # We can deal with two scenarios here:
+        # `rel = ConditionFactor(...)`
+        # `rel = And(..., ConditionFactor(...))`
+        if isinstance(rel, And):
+            args = list(rel.args)
+        else:
+            args = [rel]
+
+        rel, other = split(args, lambda i: isinstance(i, ConditionFactor))
+
+        if len(rel) != 1:
             raise InvalidOperator("Unable to understand data streaming pattern")
-        _, v = rel.lhs.args
+        _, v = rel.pop().lhs.args
 
         if direction is Forward:
             # The LHS rounds `s` up to the nearest multiple of `v`
@@ -420,6 +427,12 @@ def make_cond(rel, d, direction, iteration):
         else:
             # The LHS rounds `s` down to the nearest multiple of `v`
             cond = Ge(Mul((iteration / v), v, evaluate=False), d.symbolic_min)
+
+        # NOTE:
+        # And(true, *[]) -> true
+        # And(true, *[aaa] -> aaa
+        # And(bbb, *[aaa]) -> bbb & aaa
+        cond = And(cond, *other)
 
     if cond is true:
         return None
