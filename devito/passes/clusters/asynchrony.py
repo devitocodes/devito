@@ -5,7 +5,7 @@ from sympy import And, Ge, Le, Mul, true
 
 from devito.exceptions import InvalidOperator
 from devito.ir import Forward, ConditionFactor, Queue, Vector, SEQUENTIAL
-from devito.symbolics import uxreplace
+from devito.symbolics import FLOAT, uxreplace
 from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
                           indices_to_sections, split, timed_pass)
 from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
@@ -429,10 +429,22 @@ def make_cond(rel, d, direction, iteration):
 
         if direction is Forward:
             # The LHS rounds `s` up to the nearest multiple of `v`
-            cond = Le(Mul(((iteration + v - 1) / v), v, evaluate=False), d.symbolic_max)
+            expr = Mul(((iteration + v - 1) / v), v, evaluate=False)
+            cond = Le(expr, d.symbolic_max)
         else:
             # The LHS rounds `s` down to the nearest multiple of `v`
-            cond = Ge(Mul((iteration / v), v, evaluate=False), d.symbolic_min)
+            # NOTE: we use FLOAT(v) to make sure we don't drop negative values on the
+            # floor. E.g., `iteration=time - 1`, `v=2`, then when `time=0` we want
+            # the Mul to evaluate to -1, not to 0, which is what C's integer division
+            # would give us
+            expr = Mul((iteration / FLOAT(v)), v, evaluate=False)
+            try:
+                cond = Ge(expr, d.symbolic_min)
+            except TypeError:
+                # From SymPy we might get an
+                # `TypeError: Invalid comparison of non-real
+                #  ((time - 1)*FLOAT(factor)**(-1))*factor`
+                cond = Ge(expr, d.symbolic_min, evaluate=False)
 
         # NOTE:
         # And(true, *[]) -> true
