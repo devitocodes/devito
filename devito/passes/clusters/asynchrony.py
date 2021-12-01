@@ -167,7 +167,7 @@ class Streaming(Asynchronous):
                 if candidates:
                     if is_memcpy(c):
                         # Case 1A (special case, leading to more efficient streaming)
-                        self._actions_from_init(c, prefix, actions, memcpy=True)
+                        self._actions_from_init(c, prefix, actions)
                     else:
                         # Case 1B (actually, we expect to never end up here)
                         raise NotImplementedError
@@ -207,8 +207,8 @@ class Streaming(Asynchronous):
 
         return processed
 
-    def _actions_from_init(self, cluster, prefix, actions, memcpy=False):
-        return actions_from_init(cluster, prefix, actions, memcpy=memcpy)
+    def _actions_from_init(self, cluster, prefix, actions):
+        return actions_from_init(cluster, prefix, actions)
 
     def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
         return actions_from_update_memcpy(cluster, clusters, prefix, actions)
@@ -239,7 +239,7 @@ def is_memcpy(cluster):
             cluster.exprs[0].rhs.is_Indexed)
 
 
-def actions_from_init(cluster, prefix, actions, memcpy=False):
+def actions_from_init(cluster, prefix, actions):
     it = prefix[-1]
     d = it.dim
     direction = it.direction
