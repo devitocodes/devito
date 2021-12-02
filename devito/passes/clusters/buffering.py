@@ -3,11 +3,10 @@ from itertools import combinations
 
 from cached_property import cached_property
 import numpy as np
-from sympy import Le
 
 from devito.ir import (Cluster, Forward, Interval, IntervalGroup, IterationSpace,
                        DataSpace, Queue, Vector, lower_exprs, detect_accesses,
-                       build_intervals, vmax, vmin, PARALLEL)
+                       build_intervals, vmax, vmin, PARALLEL, GuardBound)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -145,7 +144,7 @@ class Buffering(Queue):
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.writeto
                 dspace = derive_dspace(expr, ispace)
-                guards = {pd: Le(d.root.symbolic_min, d.root.symbolic_max)
+                guards = {pd: GuardBound(d.root.symbolic_min, d.root.symbolic_max)
                           for d in b.contraction_mapper}
                 properties = {d: {PARALLEL} for d in ispace.itdimensions}
 

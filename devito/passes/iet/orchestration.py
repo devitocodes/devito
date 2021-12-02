@@ -126,10 +126,9 @@ class Orchestrator(object):
 
         postactions = [BlankLine]
         for s in sync_ops:
-            # `pcond` is not None, but we won't use it here because the condition
-            # is actually already encoded in `iet` itself (it stems from the
-            # originating Cluster's guards)
-            assert s.pcond is not None
+            # The condition is already encoded in `iet` with a Conditional,
+            # which stems from the originating Cluster's guards
+            assert s.pcond is None
 
             imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]

@@ -1,13 +1,13 @@
 from collections import OrderedDict, defaultdict
 
 import numpy as np
-from sympy import And, Ge, Le, Mul, true
+from sympy import And
 
-from devito.exceptions import InvalidOperator
-from devito.ir import Forward, ConditionFactor, Queue, Vector, SEQUENTIAL
-from devito.symbolics import FLOAT, uxreplace
+from devito.ir import (Forward, AbstractGuardBound, GuardBound, GuardBoundNext,
+                       Queue, Vector, SEQUENTIAL, transform_guard)
+from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
-                          indices_to_sections, split, timed_pass)
+                          indices_to_sections, timed_pass)
 from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
                           FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete,
                           normalize_syncs)
@@ -242,7 +242,6 @@ def is_memcpy(cluster):
 def actions_from_init(cluster, prefix, actions):
     it = prefix[-1]
     d = it.dim
-    direction = it.direction
     try:
         pd = prefix[-2].dim
     except IndexError:
@@ -256,10 +255,7 @@ def actions_from_init(cluster, prefix, actions):
     function = e.rhs.function
     fetch = e.rhs.indices[d]
     ifetch = fetch.subs(d, d.symbolic_min)
-    if direction is Forward:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_min)
-    else:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_max)
+    fcond = None
 
     pfetch = None
     pcond = None
@@ -291,17 +287,13 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
     function = e.rhs.function
     fetch = e.rhs.indices[d]
     ifetch = fetch.subs(d, d.symbolic_min)
-    if direction is Forward:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_min)
-    else:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_max)
+    fcond = None
 
     if direction is Forward:
         pfetch = fetch + 1
-        pcond = make_cond(cluster.guards.get(d), d, direction, d + 1)
     else:
         pfetch = fetch - 1
-        pcond = make_cond(cluster.guards.get(d), d, direction, d - 1)
+    pcond = None
 
     target = e.lhs.function
     tstore0 = e.lhs.indices[d]
@@ -311,6 +303,7 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
         tstore = tstore0
     else:
         assert tstore0.is_Modulo
+
         subiters = [md for md in cluster.sub_iterators[d] if md.parent is tstore0.parent]
         osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
         n = osubiters.index(tstore0)
@@ -321,13 +314,26 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
 
     # Turn `cluster` into a prefetch Cluster
     expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
-    guards = {d: And(*([pcond] + as_list(cluster.guards.get(d))))}
+
+    def callback(g):
+        p0, p1 = g.args
+        if direction is Forward:
+            return g.func(p0 + 1, p1)
+        else:
+            return g.func(p0 - 1, p1)
+
+    guards = {d: And(
+        transform_guard(cluster.guards.get(d, True), AbstractGuardBound, callback),
+        GuardBoundNext(function.indices[d], direction),
+    )}
+
     syncs = {d: [PrefetchUpdate(
         d, size,
         function, fetch, ifetch, fcond,
         pfetch, pcond,
         target, tstore
     )]}
+
     pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
     # Since we're turning `e` into a prefetch, we need to:
@@ -389,70 +395,13 @@ def actions_from_unstructured(clusters, key, prefix, actions):
                 for fetch, s in indices_to_sections(v):
                     if direction is Forward:
                         ifetch = fetch.subs(d, d.symbolic_min)
-                        fcond = make_cond(c.guards.get(d), d, direction, d.symbolic_min)
                         pfetch = fetch + 1
-                        pcond = make_cond(c.guards.get(d), d, direction, d + 1)
                     else:
                         ifetch = fetch.subs(d, d.symbolic_max)
-                        fcond = make_cond(c.guards.get(d), d, direction, d.symbolic_max)
                         pfetch = fetch - 1
-                        pcond = make_cond(c.guards.get(d), d, direction, d - 1)
+
+                    fcond = GuardBound(d.symbolic_min, d.symbolic_max)
+                    pcond = GuardBoundNext(f.indices[d], direction)
 
                     syncop = callback(d, s, f, fetch, ifetch, fcond, pfetch, pcond)
                     actions[c].syncs[d].append(syncop)
-
-
-def make_cond(rel, d, direction, iteration):
-    """
-    Create a symbolic condition which, once resolved at runtime, returns True
-    if `iteration` is within the Dimension `d`'s min/max bounds, False otherwise.
-    """
-    if rel is None:
-        if direction is Forward:
-            cond = Le(iteration, d.symbolic_max)
-        else:
-            cond = Ge(iteration, d.symbolic_min)
-    else:
-        # We can deal with two scenarios here:
-        # `rel = ConditionFactor(...)`
-        # `rel = And(..., ConditionFactor(...))`
-        if isinstance(rel, And):
-            args = list(rel.args)
-        else:
-            args = [rel]
-
-        rel, other = split(args, lambda i: isinstance(i, ConditionFactor))
-
-        if len(rel) != 1:
-            raise InvalidOperator("Unable to understand data streaming pattern")
-        _, v = rel.pop().lhs.args
-
-        if direction is Forward:
-            # The LHS rounds `s` up to the nearest multiple of `v`
-            expr = Mul(((iteration + v - 1) / v), v, evaluate=False)
-            cond = Le(expr, d.symbolic_max)
-        else:
-            # The LHS rounds `s` down to the nearest multiple of `v`
-            # NOTE: we use FLOAT(v) to make sure we don't drop negative values on the
-            # floor. E.g., `iteration=time - 1`, `v=2`, then when `time=0` we want
-            # the Mul to evaluate to -1, not to 0, which is what C's integer division
-            # would give us
-            expr = Mul((iteration / FLOAT(v)), v, evaluate=False)
-            try:
-                cond = Ge(expr, d.symbolic_min)
-            except TypeError:
-                # From SymPy we might get an
-                # `TypeError: Invalid comparison of non-real
-                #  ((time - 1)*FLOAT(factor)**(-1))*factor`
-                cond = Ge(expr, d.symbolic_min, evaluate=False)
-
-        # NOTE:
-        # And(true, *[]) -> true
-        # And(true, *[aaa] -> aaa
-        # And(bbb, *[aaa]) -> bbb & aaa
-        cond = And(cond, *other)
-
-    if cond is true:
-        return None
-    else:
-        return cond

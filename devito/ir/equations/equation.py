@@ -3,14 +3,14 @@ import sympy
 
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
-                               Stencil, detect_accesses, detect_oobs, detect_io,
-                               build_intervals, build_iterators)
-from devito.symbolics import CondEq, IntDiv, uxreplace
+from devito.ir.support import (DataSpace, GuardFactor, Interval, IntervalGroup,
+                               IterationSpace, Stencil, detect_accesses, detect_oobs,
+                               detect_io, build_intervals, build_iterators)
+from devito.symbolics import IntDiv, uxreplace
 from devito.tools import Pickable, frozendict
 from devito.types import Eq
 
-__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'ConditionFactor']
+__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
 
 class IREq(sympy.Eq):
@@ -169,7 +169,7 @@ class LoweredEq(IREq):
         conditionals = {}
         for d in conditional_dimensions:
             if d.condition is None:
-                conditionals[d] = ConditionFactor(d.parent % d.factor, 0)
+                conditionals[d] = GuardFactor(d)
             else:
                 conditionals[d] = diff2sympy(lower_exprs(d.condition))
             if d.factor is not None:
@@ -278,10 +278,3 @@ class DummyEq(ClusterizedEq):
     # Pickling support
     _pickle_args = ['lhs', 'rhs']
     _pickle_kwargs = []
-
-
-# Utilities
-
-
-class ConditionFactor(CondEq):
-    pass
