@@ -12,7 +12,7 @@ import ctypes
 from devito.logger import warning
 from devito.tools import all_equal, memoized_func
 
-__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'detect_cc',
+__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
@@ -304,9 +304,7 @@ def get_gpu_info():
 
 
 @memoized_func
-def detect_cc():
-    CUDA_SUCCESS = 0
-
+def get_nvidia_cc():
     libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
     for libname in libnames:
         try:
@@ -316,26 +314,16 @@ def detect_cc():
         else:
             break
     else:
-        raise OSError("could not load any of: " + ' '.join(libnames))
+        return None
 
-    nGpus = ctypes.c_int()
     cc_major = ctypes.c_int()
     cc_minor = ctypes.c_int()
-    result = ctypes.c_int()
-    device = ctypes.c_int()
-    error_str = ctypes.c_char_p()
 
-    result = cuda.cuInit(0)
-    if result != CUDA_SUCCESS:
-        cuda.cuGetErrorString(result, ctypes.byref(error_str))
-        print("cuInit failed with error code %d: %s" % (result, error_str.value.decode()))
-        return 1
-    result = cuda.cuDeviceGetCount(ctypes.byref(nGpus))
-    print("Found %d device(s)." % nGpus.value)
-    for i in range(nGpus.value):
-        if (cuda.cuDeviceComputeCapability(ctypes.byref(cc_major),
-           ctypes.byref(cc_minor), device) == CUDA_SUCCESS):
-            return 10*cc_major.value + cc_minor.value
+    if (cuda.cuDeviceComputeCapability(ctypes.byref(cc_major), ctypes.byref(cc_minor), 0)
+       == cuda.cuInit(0)):
+        return 10*cc_major.value + cc_minor.value
+    else:
+        return None
 
 
 @memoized_func
