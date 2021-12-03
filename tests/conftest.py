@@ -315,3 +315,10 @@ def assert_blocking(operator, exp_nests):
 opts_openacc_tiling = [('openacc', 'blocking'),
                        ('openacc', 'blocking', {'skewing': True}),
                        ('openacc', 'blocking', {'skewing': True, 'blockinner': True})]
+
+
+# A list of optimization options/pipelines to be used in testing
+# regarding GPU openmp spatial and/or temporal blocking.
+opts_openmp_tiling = [('openmp', 'blocking'),
+                      ('openmp', 'blocking', {'skewing': True}),
+                      ('openmp', 'blocking', {'skewing': True, 'blockinner': True})]
