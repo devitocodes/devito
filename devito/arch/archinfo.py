@@ -7,11 +7,12 @@ import cpuinfo
 import numpy as np
 import psutil
 import re
+import ctypes
 
 from devito.logger import warning
 from devito.tools import all_equal, memoized_func
 
-__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info',
+__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
@@ -300,6 +301,29 @@ def get_gpu_info():
         pass
 
     return None
+
+
+@memoized_func
+def get_nvidia_cc():
+    libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
+    for libname in libnames:
+        try:
+            cuda = ctypes.CDLL(libname)
+        except OSError:
+            continue
+        else:
+            break
+    else:
+        return None
+
+    cc_major = ctypes.c_int()
+    cc_minor = ctypes.c_int()
+
+    if (cuda.cuDeviceComputeCapability(ctypes.byref(cc_major), ctypes.byref(cc_minor), 0)
+       == cuda.cuInit(0)):
+        return 10*cc_major.value + cc_minor.value
+    else:
+        return None
 
 
 @memoized_func
