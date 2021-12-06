@@ -712,23 +712,34 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _cache_key(cls, *args, **kwargs):
         return cls, args
 
-    def __new__(cls, *args, **kwargs):
-        options = kwargs.get('options', {'evaluate': False})
-
+    @classmethod
+    def _cache_get(cls, *args, **kwargs):
         # Is the object already in cache (e.g., f(x), f(x+1)) ?
         key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
+        obj = super()._cache_get(key)
         if obj is not None:
             return obj
 
         # Does the base object exist at least (e.g. f(x))?
-        obj = cls._cache_get(cls)
+        obj = super()._cache_get(cls)
         if obj is not None:
+            options = kwargs.get('options', {'evaluate': False})
             with sympy_mutex:
                 newobj = sympy.Function.__new__(cls, *args, **options)
             newobj.__init_cached__(obj)
             Cached.__init__(newobj, key)
             return newobj
+
+        # Not in cache
+        return None
+
+    def __new__(cls, *args, **kwargs):
+        # Only perform a construction if the object isn't in cache
+        obj = cls._cache_get(*args, **kwargs)
+        if obj is not None:
+            return obj
+
+        options = kwargs.get('options', {'evaluate': False})
 
         # Preprocess arguments
         args, kwargs = cls.__args_setup__(*args, **kwargs)
