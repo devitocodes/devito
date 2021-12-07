@@ -60,7 +60,6 @@ class TestCodeGenSkewing(object):
         assert iters[3].symbolic_min == iters[3].dim.symbolic_min
         assert iters[3].symbolic_max == MIN(iters[1].dim + iters[1].dim.symbolic_incr
                                             - 1, iters[1].dim.symbolic_max + time)
-
         assert iters[4].symbolic_min == (iters[4].dim.symbolic_min)
         assert iters[4].symbolic_max == (iters[4].dim.symbolic_max)
         skewed = [i.expr for i in FindNodes(Expression).visit(bns['x0_blk0'])]

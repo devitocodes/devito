@@ -290,10 +290,9 @@ class NumaAllocator(MemoryAllocator):
         else:
             c_pointer = self.lib.numa_alloc(c_bytesize)
 
-        # note!  even though restype was set above, ctypes returns a
-        # python integer.
+        # Note: even though restype was set above, ctypes returns a Python integer.
         # See https://stackoverflow.com/questions/17840144/
-        # edit: it apparently can return None, also!
+        # Edit: it apparently can return None, also!
         if c_pointer == 0 or c_pointer is None:
             return None, None
         else:

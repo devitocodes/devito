@@ -6,7 +6,7 @@ from sympy import Number, Indexed, Symbol, LM, LC, Pow, Add, Mul, Min, Max
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.symbolics.extended_sympy import rmin, rmax
+from devito.symbolics.extended_sympy import rfunc
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.equation import Eq
@@ -319,20 +319,21 @@ def reuse_if_untouched(expr, args, evaluate=False):
         return expr.func(*args, evaluate=evaluate)
 
 
-def evalrel(func=min, input=None, assumptions=[]):
+def evalrel(func=min, input=None, assumptions=None):
     """
-    Simplify evalmin if possible and return nested MIN/MAX expression. This function
-    takes advantage of python's built-in `min`, Sympy's `Min` and our in-house `MIN`
-    to reduce multiple candidates in relation's when possible.
+    The purpose of this function is two-fold: (i) to reduce the `input` candidates of a
+    for a MIN/MAX expression based on the given `assumptions` and (ii) return the nested
+    MIN/MAX expression of the reduced-size input.
 
     Parameters
     ----------
-    func : min or max, the operation to follow
-        Defaults to min
-    input : a list of the candidate symbols to be simplified
-        The candidates to be evaluated. Defaults to None.
-    assumptions : A list of assumptions formed as relationals between candidates,
-        assumed to be True. Defaults to None.
+    func : builtin function or method
+        min or max. Defines the operation to simplify. Defaults to `min`.
+    input : list
+        A list of the candidate symbols to be simplified. Defaults to None.
+    assumptions : list
+        A list of assumptions formed as relationals between candidates, assumed to be
+        True. Defaults to None.
 
     Examples
     --------
@@ -344,42 +345,46 @@ def evalrel(func=min, input=None, assumptions=[]):
     >>> b = Symbol('b')
     >>> c = Symbol('c')
     >>> d = Symbol('d')
-    >>> evalrel(max, [a, b, c, d], [[Le(d, a), Ge(c, b)]])
+    >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
     MAX(a, c)
     """
-    sfunc = (Min if func is min else Max)  # Choose sympy's Min/Max
-    rfunc = (rmin if func is min else rmax)  # Choose built-in MIN/MAX
-
-    mapper = {}
-
-    processed = []
+    sfunc = (Min if func is min else Max)  # Choose SymPy's Min/Max
 
     # Form relationals so that RHS has more arguments than LHS:
     # i.e. (a + d >= b) ---> (b <= a + d)
-    assumptions = [asm if len(asm.rhs.args) > len(asm.lhs.args) else
-                   asm.reversed for asm in assumptions]
+    assumptions = [a if len(a.rhs.args) > len(a.lhs.args) else
+                   a.reversed for a in as_list(assumptions)]
 
-    for asm in assumptions:
-        if (asm.__class__ in (Ge, Gt)) and asm.rhs.is_Add and asm.lhs.is_positive:
-            # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, c>=a'
-            if all(i.is_positive for i in asm.rhs.args):
-                processed.extend(Ge(asm.lhs, i) for i in asm.rhs.args)
-            # If `c >= a + b, a>= 0, b<=0` then add 'c>=b, c<=a'
-            elif len(asm.rhs.args) == 2:
-                processed.extend(Lt(asm.lhs, i) if i.is_positive else
-                                 Gt(asm.lhs, i) for i in asm.rhs.args)
+    # Break-down relations if possible
+    processed = []
+    for a in as_list(assumptions):
+        if isinstance(a, (Ge, Gt)) and a.rhs.is_Add and a.lhs.is_positive:
+            if all(i.is_positive for i in a.rhs.args):
+                # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, c>=b'
+                processed.extend(Ge(a.lhs, i) for i in a.rhs.args)
+            elif len(a.rhs.args) == 2:
+                # If `c >= a + b, a>=0, b<=0` then add 'c>=b, c<=a'
+                processed.extend(Le(a.lhs, i) if i.is_positive else
+                                 Ge(a.lhs, i) for i in a.rhs.args)
+            else:
+                processed.append(a)
         else:
-            processed.append(asm)
+            processed.append(a)
 
-    # Symmetry/ Antisymmetry
-    for asm in processed:
-        if set(asm.args).issubset(input):
-            a0, a1 = asm.args
-            if (((asm.__class__ in (Ge, Gt)) and func is max) or
-               ((asm.__class__ in (Le, Lt)) and func is min)):
+    # Apply assumptions to fill a subs mapper
+    mapper = {}
+    for a in processed:
+        if set(a.args).issubset(input):
+            # Proceed if the assumption arguments are a subset of the input candidates.
+            # If a.args=(a, b) and input=(a, b, c), condition is True.
+            # If a.args=(a, d) and input=(a, b, c), condition is False.
+            assert len(a.args) == 2
+            a0, a1 = a.args
+            if ((isinstance(a, (Ge, Gt)) and func is max) or
+               (isinstance(a, (Le, Lt)) and func is min)):
                 mapper[a1] = a0
-            elif (((asm.__class__ in (Le, Lt)) and func is max) or
-                  ((asm.__class__ in (Ge, Gt)) and func is min)):
+            elif ((isinstance(a, (Le, Lt)) and func is max) or
+                  (isinstance(a, (Ge, Gt)) and func is min)):
                 mapper[a0] = a1
 
     # Drop one of symmetric pairs [(a, b) , (b, a)] == > [(a, b)]
@@ -392,9 +397,17 @@ def evalrel(func=min, input=None, assumptions=[]):
     mapper = transitive_closure(temp)
     input = [i.subs(mapper) for i in input]
 
+    # Explore simplification opportunities that may have emerged and generate MIN/MAX
+    # expression
     try:
-        bool(sfunc(*input))  # Can it be evaluated or simplified?
-        input = list(OrderedDict.fromkeys(input))
-        return rfunc(*input)
+        exp = sfunc(*input)  # Can it be evaluated or simplified?
+        if exp.is_Function:
+            # Use the new args only if evaluation managed to reduce the number
+            # of candidates.
+            input = min(input, exp.args, key=len)
+        else:
+            # Since we are here, exp is a simplified expression
+            return exp
     except TypeError:
-        return rfunc(*input)
+        pass
+    return rfunc(func, *input)

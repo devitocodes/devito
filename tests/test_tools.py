@@ -3,8 +3,8 @@ import pytest
 from sympy.abc import a, b, c, d, e
 import time
 
-from devito.types.basic import Symbol
 from devito.tools import toposort, filter_ordered, transitive_closure
+from devito.types.basic import Symbol
 
 
 @pytest.mark.parametrize('elements, expected', [
@@ -43,11 +43,13 @@ def test_sorting():
 
 
 def test_transitive_closure():
-
     a = Symbol('a')
     b = Symbol('b')
     c = Symbol('c')
     d = Symbol('d')
-    mapper = {a: b, b: c, c: d}
+    e = Symbol('e')
+    f = Symbol('f')
+
+    mapper = {a: b, b: c, c: d, f: e}
     mapper = transitive_closure(mapper)
-    assert mapper == {a: d, b: d, c: d}
+    assert mapper == {a: d, b: d, c: d, f: e}

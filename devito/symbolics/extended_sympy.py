@@ -12,7 +12,7 @@ from devito.tools import Pickable, as_tuple, is_integer
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'rmax', 'rmin', 'cast_mapper']
+           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'rfunc', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -538,24 +538,28 @@ MAX = Function('MAX')
 MIN = Function('MIN')
 
 
-def rmax(item, *args):
+def rfunc(func, item, *args):
     """
-    A utility function that recursively generates nested MAX relations.
+    A utility function that recursively generates 'func' nested relations.
+
+    Examples
+    ----------
+    >> rfunc(min, [a, b, c, d])
+    MIN(a, MIN(b, MIN(c, d)))
+
+    >> rfunc(max, [a, b, c, d])
+    MAX(a, MAX(b, MAX(c, d)))
     """
+
+    try:
+        rf = rfunc_mapper[func]
+    except KeyError:
+        raise ValueError('Unknown function `%s`' % func)
+
     if len(args) == 0:
         return item
     else:
-        return MAX(item, rmax(*args))
-
-
-def rmin(item, *args):
-    """
-    A utility function that recursively generates nested MIN relations.
-    """
-    if len(args) == 0:
-        return item
-    else:
-        return MIN(item, rmin(*args))
+        return rf(item, rfunc(func, *args))
 
 
 cast_mapper = {
@@ -572,4 +576,9 @@ cast_mapper = {
     (np.float32, '*'): FLOATP,
     (float, '*'): DOUBLEP,
     (np.float64, '*'): DOUBLEP
+}
+
+rfunc_mapper = {
+    min: MIN,
+    max: MAX,
 }
