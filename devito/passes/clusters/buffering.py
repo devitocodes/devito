@@ -5,8 +5,8 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.ir import (Cluster, Forward, Interval, IntervalGroup, IterationSpace,
-                       DataSpace, Queue, Vector, lower_exprs, detect_accesses,
-                       build_intervals, vmax, vmin, PARALLEL, GuardBound)
+                       Queue, Vector, lower_exprs, derive_dspace, vmax, vmin,
+                       PARALLEL, GuardBound)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -143,7 +143,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.writeto
-                dspace = derive_dspace(expr, ispace)
+                dspace = derive_dspace(ispace.intervals, expr)
                 guards = {pd: GuardBound(d.root.symbolic_min, d.root.symbolic_max)
                           for d in b.contraction_mapper}
                 properties = {d: {PARALLEL} for d in ispace.itdimensions}
@@ -174,7 +174,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-                dspace = derive_dspace(expr, ispace)
+                dspace = derive_dspace(ispace.intervals, expr)
 
                 processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
 
@@ -201,7 +201,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-                dspace = derive_dspace(expr, ispace)
+                dspace = derive_dspace(ispace.intervals, expr)
 
                 processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
 
@@ -556,15 +556,6 @@ class AccessMapper(OrderedDict):
                 mapper[e.lhs.function][e].write = e.lhs
 
         super().__init__([(f, AccessValue(f, mapper[f])) for f in mapper])
-
-
-def derive_dspace(expr, ispace):
-    accesses = detect_accesses(expr)
-    parts = {k: IntervalGroup(build_intervals(v)).relaxed
-             for k, v in accesses.items() if k}
-    dspace = DataSpace(ispace.intervals, parts)
-
-    return dspace
 
 
 def offset_from_centre(d, indices):

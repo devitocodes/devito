@@ -633,8 +633,8 @@ class DataSpace(Space):
     @cached_property
     def relaxed(self):
         """
-        A view of the DataSpace assuming that any SubDimensions entirely span
-        their root Dimension.
+        A view of the DataSpace where DerivedDimensions are replaced
+        with their roots.
         """
         return DataSpace(self.intervals.relaxed,
                          {k: v.relaxed for k, v in self.parts.items()})
@@ -647,6 +647,19 @@ class DataSpace(Space):
             except KeyError:
                 ret = IntervalGroup()
         return ret
+
+    def add(self, other, parts_only=False):
+        if parts_only:
+            intervals = self.intervals
+        else:
+            intervals = self.intervals.add(other)
+        parts = {k: v.add(other) for k, v in self.parts.items()}
+        return DataSpace(intervals, parts)
+
+    def drop(self, d):
+        intervals = self.intervals.drop(d)
+        parts = {k: v.drop(d) for k, v in self.parts.items()}
+        return DataSpace(intervals, parts)
 
     def zero(self, d=None):
         intervals = self.intervals.zero(d)
@@ -666,11 +679,11 @@ class DataSpace(Space):
     def project(self, cond):
         """
         Create a new DataSpace in which only some of the Dimensions in
-        ``self`` are retained. In particular, a dimension ``d`` in ``self``
+        `self` are retained. In particular, a dimension `d` in `self`
         is retained if:
 
-            * either ``cond(d)`` is True (``cond`` is a callable),
-            * or ``d in cond`` is True (``cond`` is an iterable)
+            * either `cond(d)` is True (`cond` is a callable),
+            * or `d in cond` is True (`cond` is an iterable)
         """
         if callable(cond):
             func = cond

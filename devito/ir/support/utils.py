@@ -1,13 +1,13 @@
 from collections import OrderedDict, defaultdict
 
-from devito.ir.support.space import Interval
+from devito.ir.support.space import DataSpace, Interval, IntervalGroup
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 from devito.types import Dimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'detect_io']
+           'derive_dspace', 'detect_io']
 
 
 def detect_accesses(exprs):
@@ -107,6 +107,16 @@ def build_intervals(stencil):
         else:
             mapper[d].update(offs)
     return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
+
+
+def derive_dspace(intervals, exprs, guards=None):
+    """
+    Construct a DataSpace from a collection of `exprs`.
+    """
+    accesses = detect_accesses(exprs)
+    parts = {k: IntervalGroup(build_intervals(v)).relaxed
+             for k, v in accesses.items() if k}
+    return DataSpace(intervals, parts)
 
 
 def detect_io(exprs, relax=False):

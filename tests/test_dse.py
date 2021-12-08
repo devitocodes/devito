@@ -2565,7 +2565,7 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 90
-        assert np.isclose(summary[('section1', None)].oi, 1.511, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 1.517, atol=0.001)
 
         # With optimizations enabled, there should be exactly four IncrDimensions
         op = wavesolver.op_fwd()

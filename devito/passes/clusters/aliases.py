@@ -7,10 +7,10 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import EvalDerivative
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, DataSpace,
-                       Forward, IterationInstance, IterationSpace, Interval,
-                       Cluster, Queue, IntervalGroup, LabeledVector, detect_accesses,
-                       build_intervals, normalize_properties, relax_properties)
+from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, Forward,
+                       IterationInstance, IterationSpace, Interval, Cluster,
+                       Queue, IntervalGroup, LabeledVector, derive_dspace,
+                       normalize_properties, relax_properties)
 from devito.passes.clusters.utils import timed_pass
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               reuse_if_untouched, retrieve_indexed, search, uxreplace)
@@ -156,10 +156,7 @@ class CireTransformer(object):
             ispace = c.ispace.augment(schedule.dmapper)
             ispace = ispace.augment(schedule.rmapper)
 
-            accesses = detect_accesses(cexprs)
-            parts = {k: IntervalGroup(build_intervals(v)).relaxed
-                     for k, v in accesses.items() if k}
-            dspace = DataSpace(c.dspace.intervals, parts)
+            dspace = derive_dspace(c.dspace.intervals, cexprs)
 
             processed.append(c.rebuild(exprs=cexprs, ispace=ispace, dspace=dspace))
 
@@ -886,10 +883,8 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                      for aliased, indices in zip(aliaseds, indicess)})
 
         # Construct the alias DataSpace
-        accesses = detect_accesses(expression)
-        parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals).relaxed
-                 for k, v in accesses.items() if k}
-        dspace = DataSpace(meta.dintervals, parts)
+        dspace = derive_dspace(meta.dintervals, expression)
+        dspace = dspace.add(ispace.intervals, parts_only=True)
 
         # Drop or weaken parallelism if necessary
         properties = dict(meta.properties)
@@ -921,11 +916,8 @@ def optimize_clusters_msds(clusters):
 
             ispace = c.ispace.relaxed(msds)
 
-            accesses = detect_accesses(exprs)
-            parts = {k: IntervalGroup(build_intervals(v)).relaxed
-                     for k, v in accesses.items() if k}
-            intervals = [i for i in c.dspace if i.dim not in msds]
-            dspace = DataSpace(intervals, parts)
+            dspace = derive_dspace(c.dspace.intervals, exprs)
+            dspace = dspace.project(lambda d: d not in msds)
 
             guards = {mapper.get(d, d): v for d, v in c.guards.items()}
             properties = {mapper.get(d, d): v for d, v in c.properties.items()}
