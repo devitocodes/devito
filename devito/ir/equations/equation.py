@@ -138,31 +138,23 @@ class LoweredEq(IREq):
         # Analyze the expression
         mapper = detect_accesses(expr)
         oobs = detect_oobs(mapper)
-        conditional_dimensions = [i for i in ordering if i.is_Conditional]
-
-        # Construct Intervals for IterationSpace and DataSpace
-        intervals = build_intervals(Stencil.union(*mapper.values()))
-        iintervals = []  # iteration Intervals
-        dintervals = []  # data Intervals
-        for i in intervals:
-            iintervals.append(i.zero())
-            if i.dim in oobs:
-                dintervals.append(i)
-            else:
-                dintervals.append(i.zero())
-
-        # Construct the IterationSpace
-        iintervals = IntervalGroup(iintervals, relations=ordering.relations)
-        iterators = build_iterators(ordering)
-        ispace = IterationSpace(iintervals, iterators)
 
         # Construct the DataSpace
+        dintervals = [i if i.dim in oobs else i.zero()
+                      for i in build_intervals(Stencil.union(*mapper.values()))]
         parts = {k: IntervalGroup(build_intervals(v)) for k, v in mapper.items() if k}
         dspace = DataSpace(dintervals, parts)
 
+        # Construct the IterationSpace
+        intervals = IntervalGroup(dspace.zero().intervals, relations=ordering.relations)
+        iterators = build_iterators(ordering)
+        ispace = IterationSpace(intervals, iterators)
+
         # Construct the conditionals and replace the ConditionalDimensions in `expr`
         conditionals = {}
-        for d in conditional_dimensions:
+        for d in ordering:
+            if not d.is_Conditional:
+                continue
             if d.condition is None:
                 conditionals[d] = GuardFactor(d)
             else:
