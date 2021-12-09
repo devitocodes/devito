@@ -71,24 +71,23 @@ def detect_oobs(mapper):
     return found | set().union(*[i._defines for i in found if i.is_Derived])
 
 
-def build_iterators(mapper):
+def build_iterators(dimensions):
     """
-    Given M as produced by :func:`detect_accesses`, return a mapper ``M' : D -> V``,
-    where D is the set of Dimensions in M, and V is a set of DerivedDimensions.
-    M'[d] provides the sub-iterators along the Dimension `d`.
+    Given `C` a collection of Dimensions, return a mapper `M' : D -> V`, where
+    D are the non-derived Dimensions in C, while V the DerivedDimensions. Thus,
+    `M'[d]` provides the sub-iterators along the Dimension `d`.
     """
     iterators = OrderedDict()
-    for k, v in mapper.items():
-        for d in v:
-            if d.is_Stepping or d.is_Incr:
-                values = iterators.setdefault(d.root, [])
-                if d not in values:
-                    values.append(d)
-            elif d.is_Conditional:
-                iterators.setdefault(d.root, [])
-            else:
-                iterators.setdefault(d, [])
-    return {k: tuple(v) for k, v in iterators.items()}
+    for d in dimensions:
+        if d.is_Stepping or d.is_Incr:
+            values = iterators.setdefault(d.root, [])
+            if d not in values:
+                values.append(d)
+        elif d.is_Conditional:
+            iterators.setdefault(d.root, [])
+        else:
+            iterators.setdefault(d, [])
+    return {d: tuple(v) for d, v in iterators.items()}
 
 
 def build_intervals(stencil):

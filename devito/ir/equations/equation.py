@@ -153,7 +153,7 @@ class LoweredEq(IREq):
 
         # Construct the IterationSpace
         iintervals = IntervalGroup(iintervals, relations=ordering.relations)
-        iterators = build_iterators(mapper)
+        iterators = build_iterators(ordering)
         ispace = IterationSpace(iintervals, iterators)
 
         # Construct the DataSpace
