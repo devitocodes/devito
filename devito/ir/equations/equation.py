@@ -145,12 +145,10 @@ class LoweredEq(IREq):
         iintervals = []  # iteration Intervals
         dintervals = []  # data Intervals
         for i in intervals:
-            d = i.dim
-            if d in oobs:
-                iintervals.append(i.zero())
+            iintervals.append(i.zero())
+            if i.dim in oobs:
                 dintervals.append(i)
             else:
-                iintervals.append(i.zero())
                 dintervals.append(i.zero())
 
         # Construct the IterationSpace
@@ -159,10 +157,7 @@ class LoweredEq(IREq):
         ispace = IterationSpace(iintervals, iterators)
 
         # Construct the DataSpace
-        dintervals.extend([Interval(i, 0, 0) for i in ordering
-                           if i not in ispace.dimensions + conditional_dimensions])
-        parts = {k: IntervalGroup(build_intervals(v)).add(iintervals)
-                 for k, v in mapper.items() if k}
+        parts = {k: IntervalGroup(build_intervals(v)) for k, v in mapper.items() if k}
         dspace = DataSpace(dintervals, parts)
 
         # Construct the conditionals and replace the ConditionalDimensions in `expr`
