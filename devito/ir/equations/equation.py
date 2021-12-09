@@ -3,9 +3,8 @@ import sympy
 
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.support import (DataSpace, GuardFactor, Interval, IntervalGroup,
-                               IterationSpace, Stencil, detect_accesses, detect_oobs,
-                               detect_io, build_intervals, build_iterators)
+from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
+                               derive_dspace, detect_io, build_iterators)
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import Pickable, frozendict
 from devito.types import Eq
@@ -135,15 +134,8 @@ class LoweredEq(IREq):
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
 
-        # Analyze the expression
-        mapper = detect_accesses(expr)
-        oobs = detect_oobs(mapper)
-
         # Construct the DataSpace
-        dintervals = [i if i.dim in oobs else i.zero()
-                      for i in build_intervals(Stencil.union(*mapper.values()))]
-        parts = {k: IntervalGroup(build_intervals(v)) for k, v in mapper.items() if k}
-        dspace = DataSpace(dintervals, parts)
+        dspace = derive_dspace(expr)
 
         # Construct the IterationSpace
         intervals = IntervalGroup(dspace.zero().intervals, relations=ordering.relations)

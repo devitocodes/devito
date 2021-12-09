@@ -156,7 +156,7 @@ class CireTransformer(object):
             ispace = c.ispace.augment(schedule.dmapper)
             ispace = ispace.augment(schedule.rmapper)
 
-            dspace = derive_dspace(c.dspace.intervals, cexprs)
+            dspace = derive_dspace(cexprs, c.guards)
 
             processed.append(c.rebuild(exprs=cexprs, ispace=ispace, dspace=dspace))
 
@@ -883,7 +883,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                      for aliased, indices in zip(aliaseds, indicess)})
 
         # Construct the alias DataSpace
-        dspace = derive_dspace(meta.dintervals, expression)
+        dspace = derive_dspace(expression)
         dspace = dspace.add(ispace.intervals, parts_only=True)
 
         # Drop or weaken parallelism if necessary
@@ -916,8 +916,7 @@ def optimize_clusters_msds(clusters):
 
             ispace = c.ispace.relaxed(msds)
 
-            dspace = derive_dspace(c.dspace.intervals, exprs)
-            dspace = dspace.project(lambda d: d not in msds)
+            dspace = derive_dspace(exprs).project(lambda d: d not in msds)
 
             guards = {mapper.get(d, d): v for d, v in c.guards.items()}
             properties = {mapper.get(d, d): v for d, v in c.properties.items()}

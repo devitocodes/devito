@@ -1,10 +1,11 @@
 from collections import OrderedDict, defaultdict
 
+from devito.ir.support.guards import GuardBound
 from devito.ir.support.space import DataSpace, Interval, IntervalGroup
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
-from devito.types import Dimension
+from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'derive_dspace', 'detect_io']
@@ -20,19 +21,24 @@ def detect_accesses(exprs):
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
     for e in retrieve_indexed(exprs, deep=True):
-        f = e.function
+        v = mapper[e.function]
+
         for a in e.indices:
-            if isinstance(a, Dimension):
-                mapper[f][a].update([0])
-            d = None
-            off = []
-            for i in a.args:
-                if isinstance(i, Dimension):
-                    d = i
-                elif i.is_integer:
-                    off += [int(i)]
-            if d is not None:
-                mapper[f][d].update(off or [0])
+            if isinstance(a, ModuloDimension) and a.parent.is_Stepping:
+                # Explicitly unfold SteppingDimensions-induced ModuloDimensions
+                v[a.root].update([a.offset - a.root])
+            elif isinstance(a, Dimension):
+                v[a].update([0])
+            else:
+                d = None
+                off = []
+                for i in a.args:
+                    if isinstance(i, Dimension):
+                        d = i
+                    elif i.is_integer:
+                        off += [int(i)]
+                if d is not None:
+                    v[d].update(off or [0])
 
     # Compute M[None]
     other_dims = set()
@@ -97,24 +103,48 @@ def build_intervals(stencil):
     """
     mapper = defaultdict(set)
     for d, offs in stencil.items():
-        if d.is_Stepping:
-            mapper[d.root].update(offs)
-        elif d.is_Conditional or d.is_Incr:
+        if d.is_Conditional or d.is_Incr:
             mapper[d.parent].update(offs)
-        elif d.is_Modulo:
-            mapper[d.root].update({d.offset - d.root + i for i in offs})
+        elif d.is_NonlinearDerived:
+            mapper[d.root].update(offs)
         else:
             mapper[d].update(offs)
     return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
 
 
-def derive_dspace(intervals, exprs, guards=None):
+def derive_dspace(exprs, guards=None):
     """
     Construct a DataSpace from a collection of `exprs`.
     """
     accesses = detect_accesses(exprs)
-    parts = {k: IntervalGroup(build_intervals(v)).relaxed
-             for k, v in accesses.items() if k}
+
+    # Construct the `parts` of the DataSpace, that is a projection of the data
+    # space for each Function appearing in `exprs`
+    parts = {}
+    for f, v in accesses.items():
+        if f is None:
+            continue
+
+        intervals = IntervalGroup(build_intervals(v))
+
+        # E.g., relax `t` as `time`, but do *not* relax `xi` as `x`
+        cond = lambda d: d.is_Derived and not d.is_Sub
+        intervals = intervals.promote(cond)
+
+        parts[f] = intervals
+
+    # If the bound of a Dimension is explicitely guarded, then we should
+    # shrink the `parts` accordingly
+    for d, v in (guards or {}).items():
+        if v.find(GuardBound):
+            parts = {f: i.zero(d) for f, i in parts.items()}
+
+    # Construct the `intervals` of the DataSpace, that is a global,
+    # Dimension-centric view of the data space
+    oobs = detect_oobs(accesses)
+    v = build_intervals(Stencil.union(*accesses.values()))
+    intervals = [i if i.dim in oobs else i.zero() for i in v]
+
     return DataSpace(intervals, parts)
 
 

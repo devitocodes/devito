@@ -143,7 +143,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.writeto
-                dspace = derive_dspace(ispace.intervals, expr)
+                dspace = derive_dspace(expr)
                 guards = {pd: GuardBound(d.root.symbolic_min, d.root.symbolic_max)
                           for d in b.contraction_mapper}
                 properties = {d: {PARALLEL} for d in ispace.itdimensions}
@@ -174,7 +174,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-                dspace = derive_dspace(ispace.intervals, expr)
+                dspace = derive_dspace(expr)
 
                 processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
 
@@ -201,7 +201,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-                dspace = derive_dspace(ispace.intervals, expr)
+                dspace = derive_dspace(expr)
 
                 processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
 

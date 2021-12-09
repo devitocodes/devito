@@ -364,10 +364,6 @@ class IntervalGroup(PartialOrderTuple):
         relations = set().union(*[ig.relations for ig in interval_groups])
         return IntervalGroup(intervals, relations=relations)
 
-    @cached_property
-    def relaxed(self):
-        return IntervalGroup.generate('union', IntervalGroup(i.relaxed for i in self))
-
     def is_compatible(self, o):
         """
         Two IntervalGroups are compatible iff they can be ordered according
@@ -413,6 +409,10 @@ class IntervalGroup(PartialOrderTuple):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
         return IntervalGroup(intervals, relations=(self.relations | o.relations))
+
+    def relaxed(self, d):
+        intervals = [i.relaxed if i.dim in as_tuple(d) else i for i in self]
+        return IntervalGroup(intervals, relations=self.relations)
 
     def promote(self, cond):
         return IntervalGroup([i.promote(cond) for i in self], relations=self.relations)
@@ -639,15 +639,6 @@ class DataSpace(Space):
     def parts(self):
         return self._parts
 
-    @cached_property
-    def relaxed(self):
-        """
-        A view of the DataSpace where DerivedDimensions are replaced
-        with their roots.
-        """
-        return DataSpace(self.intervals.relaxed,
-                         {k: v.relaxed for k, v in self.parts.items()})
-
     def __getitem__(self, key):
         ret = self.intervals[key]
         if ret.is_Null:
@@ -837,12 +828,25 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, self.sub_iterators, self.directions)
 
-    def relaxed(self, dims):
-        f = lambda d: d in as_tuple(dims)
+    def relaxed(self, cond):
+        """
+        Create a new IterationSpace in which certain DerivedDimensions
+        are replaced with their roots. In particular, a Dimension `d` in
+        `self` is relaxed, and therefore replaced with `d.root`, if:
 
-        intervals = [i.relaxed if f(i.dim) else i for i in self.intervals]
-        sub_iterators = {k.root if f(k) else k: v for k, v in self.sub_iterators.items()}
-        directions = {k.root if f(k) else k: v for k, v in self.directions.items()}
+            * either `cond(d)` is true (`cond` is a callable),
+            * or `d in cond` is true (`cond` is an iterable)
+        """
+        if callable(cond):
+            dims = tuple(i.dim for i in self if cond(i.dim))
+        else:
+            dims = as_tuple(cond)
+
+        intervals = self.intervals.relaxed(dims)
+        sub_iterators = {d.root if d in dims else d: v
+                         for d, v in self.sub_iterators.items()}
+        directions = {d.root if d in dims else d: v
+                      for d, v in self.directions.items()}
 
         return IterationSpace(intervals, sub_iterators, directions)
 
