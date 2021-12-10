@@ -269,6 +269,12 @@ class Interval(AbstractInterval):
     def translate(self, v):
         return Interval(self.dim, self.lower + v, self.upper + v, self.stamp)
 
+    def promote(self, cond):
+        if cond(self.dim):
+            return self.switch(self.dim.parent).promote(cond)
+        else:
+            return self
+
 
 class IntervalGroup(PartialOrderTuple):
 
@@ -407,6 +413,9 @@ class IntervalGroup(PartialOrderTuple):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
         return IntervalGroup(intervals, relations=(self.relations | o.relations))
+
+    def promote(self, cond):
+        return IntervalGroup([i.promote(cond) for i in self], relations=self.relations)
 
     def drop(self, d):
         # Dropping
