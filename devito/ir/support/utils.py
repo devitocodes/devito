@@ -1,6 +1,6 @@
 from collections import OrderedDict, defaultdict
 
-from devito.ir.support.guards import GuardBound
+from devito.ir.support.guards import BaseGuardBoundNext
 from devito.ir.support.space import DataSpace, Interval, IntervalGroup
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
@@ -138,7 +138,7 @@ def derive_dspace(exprs, guards=None):
     # If the bound of a Dimension is explicitely guarded, then we should
     # shrink the `parts` accordingly
     for d, v in (guards or {}).items():
-        if v.find(GuardBound):
+        if v.find(BaseGuardBoundNext):
             parts = {f: i.zero(d) for f, i in parts.items()}
 
     # Construct the `intervals` of the DataSpace, that is a global,

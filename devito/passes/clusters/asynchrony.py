@@ -3,7 +3,7 @@ from collections import OrderedDict, defaultdict
 import numpy as np
 from sympy import And
 
-from devito.ir import (Forward, AbstractGuardBound, GuardBound, GuardBoundNext,
+from devito.ir import (Forward, BaseGuardBound, GuardBound, GuardBoundNext,
                        Queue, Vector, SEQUENTIAL, transform_guard, derive_dspace)
 from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
@@ -323,7 +323,7 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
             return g.func(p0 - 1, p1)
 
     guards = {d: And(
-        transform_guard(cluster.guards.get(d, True), AbstractGuardBound, callback),
+        transform_guard(cluster.guards.get(d, True), BaseGuardBound, callback),
         GuardBoundNext(function.indices[d], direction),
     )}
 

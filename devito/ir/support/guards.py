@@ -8,18 +8,32 @@ from sympy import And, Le, Gt, Mul, true
 from sympy.core.operations import LatticeOp
 
 from devito.ir.support.space import Forward, IterationDirection
-from devito.symbolics import CondEq, FLOAT
+from devito.symbolics import CondEq, CondNe, FLOAT
 from devito.types import Dimension
 
-__all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext',
-           'AbstractGuardBound', 'transform_guard']
+__all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
+           'BaseGuardBoundNext', 'transform_guard']
 
 
 class Guard(object):
-    pass
+
+    @property
+    def _args_rebuild(self):
+        return self.args
+
+    @property
+    def canonical(self):
+        return self
+
+    @property
+    def negated(self):
+        return negations[self.__class__](*self._args_rebuild)
 
 
-class GuardFactor(CondEq, Guard):
+### GuardFactor
+
+
+class GuardFactor(Guard, CondEq):
 
     """
     A guard for factor-based ConditionalDimensions.
@@ -31,14 +45,31 @@ class GuardFactor(CondEq, Guard):
     def __new__(cls, d, **kwargs):
         assert d.is_Conditional
 
-        return super().__new__(cls, d.parent % d.factor, 0)
+        obj = super().__new__(cls, d.parent % d.factor, 0)
+        obj.d = d
+
+        return obj
+
+    @property
+    def _args_rebuild(self):
+        return (self.d,)
 
 
-class AbstractGuardBound(Guard):
+class GuardFactorEq(GuardFactor, CondEq):
     pass
 
 
-class GuardBoundLe(Le, AbstractGuardBound):
+class GuardFactorNe(GuardFactor, CondNe):
+    pass
+
+
+GuardFactor = GuardFactorEq
+
+
+### GuardBound
+
+
+class BaseGuardBound(Guard):
 
     """
     A guard to avoid out-of-bounds iteration.
@@ -49,44 +80,28 @@ class GuardBoundLe(Le, AbstractGuardBound):
 
     def __new__(cls, p0, p1, **kwargs):
         try:
-            if Le._eval_relation(p0, p1) is true:
+            if cls.__base__._eval_relation(p0, p1) is true:
                 return None
         except TypeError:
             pass
         return super().__new__(cls, p0, p1, evaluate=False)
 
-    @property
-    def canonical(self):
-        return self
 
-    @property
-    def negated(self):
-        return GuardBoundGt(*reversed(self.args))
+class GuardBoundLe(BaseGuardBound, Le):
+    pass
 
 
-class GuardBoundGt(Gt, AbstractGuardBound):
-
-    def __new__(cls, p0, p1, **kwargs):
-        try:
-            if Gt._eval_relation(p0, p1) is true:
-                return None
-        except TypeError:
-            pass
-        return super().__new__(cls, p0, p1, evaluate=False)
-
-    @property
-    def canonical(self):
-        return self
-
-    @property
-    def negated(self):
-        return GuardBoundLe(*reversed(self.args))
+class GuardBoundGt(BaseGuardBound, Gt):
+    pass
 
 
 GuardBound = GuardBoundLe
 
 
-class GuardBoundNext(GuardBound):
+### GuardBoundNext
+
+
+class BaseGuardBoundNext(Guard):
 
     """
     A guard to avoid out-of-bounds iteration.
@@ -101,7 +116,7 @@ class GuardBoundNext(GuardBound):
     given `direction`.
     """
 
-    def __new__(cls, d, direction):
+    def __new__(cls, d, direction, **kwargs):
         assert isinstance(d, Dimension)
         assert isinstance(direction, IterationDirection)
 
@@ -111,28 +126,53 @@ class GuardBoundNext(GuardBound):
 
             if d.is_Conditional:
                 v = d.factor
-                # Round `p0` up to the nearest multiple of `v` to get `next_p0`
-                next_p0 = Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
+                # Round `p0` up to the nearest multiple of `v`
+                p0 = Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
             else:
-                next_p0 = p0 + 1
+                p0 = p0 + 1
 
-            return GuardBound(next_p0, p1)
         else:
             p0 = d.root.symbolic_min
             p1 = d.root
 
             if d.is_Conditional:
                 v = d.factor
-                # Round `p1` down to the nearest sub-multiple of `v` to get `next_p1`
+                # Round `p1` down to the nearest sub-multiple of `v`
                 # NOTE: we use FLOAT(d.factor) to make sure we don't drop negative
                 # values on the floor. E.g., `iteration=time - 1`, `v=2`, then when
                 # `time=0` we want the Mul to evaluate to -1, not to 0, which is
                 # what C's integer division would give us
-                next_p1 = Mul(((p1 - 1) / FLOAT(v)), v, evaluate=False)
+                p1 = Mul(((p1 - 1) / FLOAT(v)), v, evaluate=False)
             else:
-                next_p1 = p1 - 1
+                p1 = p1 - 1
 
-            return GuardBound(p0, next_p1)
+        try:
+            if cls.__base__._eval_relation(p0, p1) is true:
+                return None
+        except TypeError:
+            pass
+
+        obj = super().__new__(cls, p0, p1, evaluate=False)
+
+        obj.d = d
+        obj.direction = direction
+
+        return obj
+
+    @property
+    def _args_rebuild(self):
+        return (self.d, self.direction)
+
+
+class GuardBoundNextLe(BaseGuardBoundNext, Le):
+    pass
+
+
+class GuardBoundNextGt(BaseGuardBoundNext, Gt):
+    pass
+
+
+GuardBoundNext = GuardBoundNextLe
 
 
 def transform_guard(expr, guard_type, callback):
@@ -146,3 +186,13 @@ def transform_guard(expr, guard_type, callback):
         return expr.func(*[transform_guard(a, guard_type, callback) for a in expr.args])
     else:
         return expr
+
+
+negations = {
+    GuardFactorEq: GuardFactorNe,
+    GuardFactorNe: GuardFactorEq,
+    GuardBoundLe: GuardBoundGt,
+    GuardBoundGt: GuardBoundLe,
+    GuardBoundNextLe: GuardBoundNextGt,
+    GuardBoundNextGt: GuardBoundNextLe
+}
