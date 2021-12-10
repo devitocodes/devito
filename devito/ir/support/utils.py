@@ -107,6 +107,8 @@ def build_intervals(stencil):
             mapper[d.parent].update(offs)
         elif d.is_NonlinearDerived:
             mapper[d.root].update(offs)
+        elif d.is_Custom:
+            mapper[d.root].update({0})
         else:
             mapper[d].update(offs)
     return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
