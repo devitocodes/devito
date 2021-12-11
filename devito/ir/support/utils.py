@@ -1,14 +1,13 @@
 from collections import OrderedDict, defaultdict
 
 from devito.ir.support.guards import BaseGuardBoundNext
-from devito.ir.support.space import DataSpace, Interval, IntervalGroup
+from devito.ir.support.space import DataSpace, Forward, Interval, IntervalGroup
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
-from devito.tools import as_tuple, flatten, filter_sorted
+from devito.tools import as_tuple, flatten, filter_sorted, is_integer
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'derive_dspace', 'detect_io']
+__all__ = ['detect_accesses', 'derive_dspace', 'detect_io']
 
 
 def detect_accesses(exprs):
@@ -29,16 +28,16 @@ def detect_accesses(exprs):
                 v[a.root].update([a.offset - a.root])
             elif isinstance(a, Dimension):
                 v[a].update([0])
-            else:
+            elif a.is_Add:
                 d = None
-                off = []
+                off = 0
                 for i in a.args:
                     if isinstance(i, Dimension):
                         d = i
-                    elif i.is_integer:
-                        off += [int(i)]
-                if d is not None:
-                    v[d].update(off or [0])
+                    else:
+                        off += i
+                if d is not None and is_integer(off):
+                    v[d].update([off])
 
     # Compute M[None]
     other_dims = set()
@@ -48,70 +47,6 @@ def detect_accesses(exprs):
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper
-
-
-def detect_oobs(mapper):
-    """
-    Given M as produced by :func:`detect_accesses`, return the set of
-    Dimensions that *cannot* be iterated over the entire computational
-    domain, to avoid out-of-bounds (OOB) accesses.
-    """
-    found = set()
-    for f, stencil in mapper.items():
-        if f is None or not (f.is_DiscreteFunction or f.is_Array):
-            continue
-        for d, v in stencil.items():
-            p = d.parent if d.is_Sub else d
-            try:
-                test0 = min(v) < 0
-                test1 = max(v) > f._size_nodomain[p].left + f._size_halo[p].right
-                if test0 or test1:
-                    # It'd mean trying to access a point before the
-                    # left padding (test0) or after the right halo (test1)
-                    found.add(p)
-            except KeyError:
-                # Unable to detect presence of OOB accesses
-                # (/p/ not in /f._size_halo/, typical of indirect
-                # accesses such as A[B[i]])
-                pass
-    return found | set().union(*[i._defines for i in found if i.is_Derived])
-
-
-def build_iterators(dimensions):
-    """
-    Given `C` a collection of Dimensions, return a mapper `M' : D -> V`, where
-    D are the non-derived Dimensions in C, while V the DerivedDimensions. Thus,
-    `M'[d]` provides the sub-iterators along the Dimension `d`.
-    """
-    iterators = OrderedDict()
-    for d in dimensions:
-        if d.is_Stepping or d.is_Incr:
-            values = iterators.setdefault(d.root, [])
-            if d not in values:
-                values.append(d)
-        elif d.is_Conditional:
-            iterators.setdefault(d.root, [])
-        else:
-            iterators.setdefault(d, [])
-    return {d: tuple(v) for d, v in iterators.items()}
-
-
-def build_intervals(stencil):
-    """
-    Given a Stencil, return an iterable of Intervals, one
-    for each Dimension in the stencil.
-    """
-    mapper = defaultdict(set)
-    for d, offs in stencil.items():
-        if d.is_Conditional or d.is_Incr:
-            mapper[d.parent].update(offs)
-        elif d.is_NonlinearDerived:
-            mapper[d.root].update(offs)
-        elif d.is_Custom:
-            mapper[d.root].update({0})
-        else:
-            mapper[d].update(offs)
-    return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
 
 
 def derive_dspace(exprs, guards=None):
@@ -127,24 +62,51 @@ def derive_dspace(exprs, guards=None):
         if f is None:
             continue
 
-        intervals = IntervalGroup(build_intervals(v))
+        intervals = [Interval(d, min(offs), max(offs)) for d, offs in v.items()]
+        intervals = IntervalGroup(intervals)
 
-        # E.g., relax `t` as `time`, but do *not* relax `xi` as `x`
-        cond = lambda d: d.is_Derived and not d.is_Sub
-        intervals = intervals.promote(cond)
+        # E.g., `xs -> x -> x0_blk0 -> x` or `t0 -> t -> time`
+        intervals = intervals.promote(lambda d: d.is_SubIterator)
+
+        # Special case: if the factor of a ConditionalDimension has value 1,
+        # then we can safely resort to the parent's Interval
+        intervals = intervals.promote(lambda d: d.is_Conditional and d.factor == 1)
 
         parts[f] = intervals
 
     # If the bound of a Dimension is explicitely guarded, then we should
     # shrink the `parts` accordingly
     for d, v in (guards or {}).items():
-        if v.find(BaseGuardBoundNext):
-            parts = {f: i.zero(d) for f, i in parts.items()}
+        ret = v.find(BaseGuardBoundNext)
+        assert len(ret) <= 1
+        if len(ret) == 1:
+            if ret.pop().direction is Forward:
+                parts = {f: i.translate(d, 0, -1) for f, i in parts.items()}
+            else:
+                parts = {f: i.translate(d, 1, 0) for f, i in parts.items()}
+
+    # Determine the Dimensions requiring shifted min/max points to avoid OOB accesses
+    oobs = set()
+    for f, intervals in parts.items():
+        for i in intervals:
+            if i.dim.is_Sub:
+                d = i.dim.parent
+            else:
+                d = i.dim
+            try:
+                if i.lower < 0 or \
+                   i.upper > f._size_nodomain[d].left + f._size_halo[d].right:
+                    # It'd mean trying to access a point before the
+                    # left halo (test0) or after the right halo (test1)
+                    oobs.update(d._defines)
+            except (KeyError, TypeError):
+                # Unable to detect presence of OOB accesses (e.g., `d` not in
+                # `f._size_halo`, that is typical of indirect accesses `A[B[i]]`)
+                pass
 
     # Construct the `intervals` of the DataSpace, that is a global,
     # Dimension-centric view of the data space
-    oobs = detect_oobs(accesses)
-    v = build_intervals(Stencil.union(*accesses.values()))
+    v = IntervalGroup.generate('union', *parts.values())
     intervals = [i if i.dim in oobs else i.zero() for i in v]
 
     return DataSpace(intervals, parts)

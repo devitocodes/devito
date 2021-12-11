@@ -4,7 +4,7 @@ import sympy
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
-                               derive_dspace, detect_io, build_iterators)
+                               Stencil, derive_dspace, detect_io, detect_accesses)
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import Pickable, frozendict
 from devito.types import Eq
@@ -134,12 +134,29 @@ class LoweredEq(IREq):
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
 
+        # Analyze the expression
+        accesses = detect_accesses(expr)
+        dimensions = Stencil.union(*accesses.values())
+
         # Construct the DataSpace
         dspace = derive_dspace(expr)
 
+        # Separate out the SubIterators from the main iteration Dimensions, that
+        # is those which define an actual iteration space
+        iterators = {}
+        for d in dimensions:
+            if d.is_SubIterator:
+                iterators.setdefault(d.root, set()).add(d)
+            elif d.is_Conditional:
+                # Use `parent`, and `root`, because a ConditionalDimenion may
+                # have a SubDimension as parent
+                iterators.setdefault(d.parent, set())
+            else:
+                iterators.setdefault(d, set())
+
         # Construct the IterationSpace
-        intervals = IntervalGroup(dspace.zero().intervals, relations=ordering.relations)
-        iterators = build_iterators(ordering)
+        intervals = IntervalGroup([Interval(d, 0, 0) for d in iterators],
+                                  relations=ordering.relations)
         ispace = IterationSpace(intervals, iterators)
 
         # Construct the conditionals and replace the ConditionalDimensions in `expr`

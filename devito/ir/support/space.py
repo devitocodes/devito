@@ -191,9 +191,6 @@ class Interval(AbstractInterval):
             npoints /= n
         else:
             # Typically we end up here (Dimension, SubDimension, IncrDimension)
-            assert not self.dim.is_Modulo
-            assert not self.dim.is_Conditional
-
             upper_extreme = self.dim.symbolic_max + self.upper
             lower_extreme = self.dim.symbolic_min + self.lower
 
@@ -266,8 +263,10 @@ class Interval(AbstractInterval):
     def switch(self, d):
         return Interval(d, self.lower, self.upper, self.stamp)
 
-    def translate(self, v):
-        return Interval(self.dim, self.lower + v, self.upper + v, self.stamp)
+    def translate(self, v0, v1=None):
+        if v1 is None:
+            v1 = v0
+        return Interval(self.dim, self.lower + v0, self.upper + v1, self.stamp)
 
     def promote(self, cond):
         if cond(self.dim):
@@ -446,6 +445,10 @@ class IntervalGroup(PartialOrderTuple):
     def switch(self, d0, d1):
         return IntervalGroup([i.switch(d1) if i.dim is d0 else i for i in self],
                              relations=self.relations)
+
+    def translate(self, d, v0, v1=None):
+        intervals = [i.translate(v0, v1) if i.dim in as_tuple(d) else i for i in self]
+        return IntervalGroup(intervals, relations=self.relations)
 
     def index(self, key):
         if isinstance(key, Interval):

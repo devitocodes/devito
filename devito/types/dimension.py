@@ -101,6 +101,7 @@ class Dimension(ArgProvider):
     is_Sub = False
     is_Conditional = False
     is_Stepping = False
+    is_SubIterator = False
     is_Modulo = False
     is_Incr = False
 
@@ -810,6 +811,7 @@ class SteppingDimension(DerivedDimension):
 
     is_NonlinearDerived = True
     is_Stepping = True
+    is_SubIterator = True
 
     @property
     def symbolic_min(self):
@@ -902,6 +904,7 @@ class ModuloDimension(DerivedDimension):
 
     is_NonlinearDerived = True
     is_Modulo = True
+    is_SubIterator = True
 
     def __init_finalize__(self, name, parent,
                           offset=None, modulo=None, incr=None, origin=None):
@@ -1038,6 +1041,7 @@ class IncrDimension(DerivedDimension):
 
     is_Incr = True
     is_PerfKnob = True
+    is_SubIterator = True
 
     def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
         super().__init_finalize__(name, parent)
