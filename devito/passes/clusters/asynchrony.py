@@ -4,7 +4,7 @@ import numpy as np
 from sympy import And
 
 from devito.ir import (Forward, BaseGuardBound, GuardBound, GuardBoundNext,
-                       Queue, Vector, SEQUENTIAL, transform_guard, derive_dspace)
+                       Queue, Vector, SEQUENTIAL, transform_guard)
 from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
                           indices_to_sections, timed_pass)
@@ -327,8 +327,6 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
         GuardBoundNext(function.indices[d], direction),
     )}
 
-    dspace = derive_dspace(expr, guards)
-
     syncs = {d: [PrefetchUpdate(
         d, size,
         function, fetch, ifetch, fcond,
@@ -336,7 +334,7 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
         target, tstore
     )]}
 
-    pcluster = cluster.rebuild(exprs=expr, dspace=dspace, guards=guards, syncs=syncs)
+    pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
     # Since we're turning `e` into a prefetch, we need to:
     # 1) attach a WaitPrefetch SyncOp to the first Cluster accessing `target`

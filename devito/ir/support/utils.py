@@ -1,13 +1,11 @@
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 
-from devito.ir.support.guards import BaseGuardBoundNext
-from devito.ir.support.space import DataSpace, Forward, Interval, IntervalGroup
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
-from devito.tools import as_tuple, flatten, filter_sorted, is_integer
+from devito.tools import as_tuple, flatten, filter_sorted, split
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['detect_accesses', 'derive_dspace', 'detect_io']
+__all__ = ['detect_accesses', 'detect_io']
 
 
 def detect_accesses(exprs):
@@ -20,24 +18,56 @@ def detect_accesses(exprs):
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
     for e in retrieve_indexed(exprs, deep=True):
-        v = mapper[e.function]
+        f = e.function
 
-        for a in e.indices:
+        for a, d0 in zip(e.indices, f.dimensions):
             if isinstance(a, ModuloDimension) and a.parent.is_Stepping:
                 # Explicitly unfold SteppingDimensions-induced ModuloDimensions
-                v[a.root].update([a.offset - a.root])
+                mapper[f][a.root].update([a.offset - a.root])
             elif isinstance(a, Dimension):
-                v[a].update([0])
+                mapper[f][a].update([0])
             elif a.is_Add:
-                d = None
-                off = 0
-                for i in a.args:
-                    if isinstance(i, Dimension):
-                        d = i
+                dims = {i for i in a.free_symbols if isinstance(i, Dimension)}
+
+                if not dims:
+                    continue
+                elif len(dims) > 1:
+                    # There are two reasons we may end up here, 1) indirect
+                    # accesses (e.g., a[b[x, y] + 1, y]) or 2) as a result of
+                    # skewing-based optimizations, such as time skewing (e.g.,
+                    # `x - time + 1`) or CIRE rotation (e.g., `x + xx - 4`)
+                    d, others = split(dims, lambda i: d0 in i._defines)
+
+                    if any(i.is_Indexed for i in a.args) or len(d) != 1:
+                        # Case 1) -- with indirect accesses there's not much we can infer
+                        continue
                     else:
-                        off += i
-                if d is not None and is_integer(off):
-                    v[d].update([off])
+                        # Case 2)
+                        d, = d
+                        _, o = split(others, lambda i: i.is_Custom)
+                        off = sum(i for i in a.args if i.is_integer or i.free_symbols & o)
+                else:
+                    d, = dims
+
+                    # At this point, typically, the offset will be an integer.
+                    # In some cases though it could be an expression, e.g.
+                    # `db0 + time_m - 1` (from CustomDimensions due to buffering)
+                    # or `x + o_x` (from MPI routines) or `time - ns` (from
+                    # guarded accesses to TimeFunctions) or ... In all these cases,
+                    # what really matters is the integer part of the offset, as
+                    # any other symbols may resolve to zero at runtime, which is
+                    # the base case scenario we fallback to
+                    off = sum(i for i in a.args if i.is_integer)
+
+                    # NOTE: `d in a.args` is too restrictive because of guarded
+                    # accesses such as `time / factor - 1`
+                    assert d in a.free_symbols
+
+                if d.symbolic_size.is_integer:
+                    # Explicitly unfold Default and CustomDimensions
+                    mapper[f][d].update(range(off, d.symbolic_size + off))
+                else:
+                    mapper[f][d].add(off)
 
     # Compute M[None]
     other_dims = set()
@@ -47,69 +77,6 @@ def detect_accesses(exprs):
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper
-
-
-def derive_dspace(exprs, guards=None):
-    """
-    Construct a DataSpace from a collection of `exprs`.
-    """
-    accesses = detect_accesses(exprs)
-
-    # Construct the `parts` of the DataSpace, that is a projection of the data
-    # space for each Function appearing in `exprs`
-    parts = {}
-    for f, v in accesses.items():
-        if f is None:
-            continue
-
-        intervals = [Interval(d, min(offs), max(offs)) for d, offs in v.items()]
-        intervals = IntervalGroup(intervals)
-
-        # E.g., `xs -> x -> x0_blk0 -> x` or `t0 -> t -> time`
-        intervals = intervals.promote(lambda d: d.is_SubIterator)
-
-        # Special case: if the factor of a ConditionalDimension has value 1,
-        # then we can safely resort to the parent's Interval
-        intervals = intervals.promote(lambda d: d.is_Conditional and d.factor == 1)
-
-        parts[f] = intervals
-
-    # If the bound of a Dimension is explicitely guarded, then we should
-    # shrink the `parts` accordingly
-    for d, v in (guards or {}).items():
-        ret = v.find(BaseGuardBoundNext)
-        assert len(ret) <= 1
-        if len(ret) == 1:
-            if ret.pop().direction is Forward:
-                parts = {f: i.translate(d, 0, -1) for f, i in parts.items()}
-            else:
-                parts = {f: i.translate(d, 1, 0) for f, i in parts.items()}
-
-    # Determine the Dimensions requiring shifted min/max points to avoid OOB accesses
-    oobs = set()
-    for f, intervals in parts.items():
-        for i in intervals:
-            if i.dim.is_Sub:
-                d = i.dim.parent
-            else:
-                d = i.dim
-            try:
-                if i.lower < 0 or \
-                   i.upper > f._size_nodomain[d].left + f._size_halo[d].right:
-                    # It'd mean trying to access a point before the
-                    # left halo (test0) or after the right halo (test1)
-                    oobs.update(d._defines)
-            except (KeyError, TypeError):
-                # Unable to detect presence of OOB accesses (e.g., `d` not in
-                # `f._size_halo`, that is typical of indirect accesses `A[B[i]]`)
-                pass
-
-    # Construct the `intervals` of the DataSpace, that is a global,
-    # Dimension-centric view of the data space
-    v = IntervalGroup.generate('union', *parts.values())
-    intervals = [i if i.dim in oobs else i.zero() for i in v]
-
-    return DataSpace(intervals, parts)
 
 
 def detect_io(exprs, relax=False):

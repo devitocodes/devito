@@ -4,7 +4,7 @@ import sympy
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
-                               Stencil, derive_dspace, detect_io, detect_accesses)
+                               Stencil, detect_io, detect_accesses)
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import Pickable, frozendict
 from devito.types import Eq
@@ -14,7 +14,7 @@ __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
 class IREq(sympy.Eq):
 
-    _state = ('is_Increment', 'ispace', 'dspace', 'conditionals', 'implicit_dims')
+    _state = ('is_Increment', 'ispace', 'conditionals', 'implicit_dims')
 
     @property
     def is_Scalar(self):
@@ -34,17 +34,9 @@ class IREq(sympy.Eq):
     def ispace(self):
         return self._ispace
 
-    @property
-    def dspace(self):
-        return self._dspace
-
     @cached_property
     def dimensions(self):
-        # Note: some dimensions may be in the iteration space but not in the
-        # data space (e.g., a DerivedDimension); likewise, some dimensions may
-        # be in the data space but not in the iteration space (e.g., when a
-        # function is indexed with integers only)
-        return set(self.dspace.dimensions) | set(self.ispace.dimensions)
+        return set(self.ispace.dimensions)
 
     @property
     def implicit_dims(self):
@@ -61,18 +53,6 @@ class IREq(sympy.Eq):
     @property
     def dtype(self):
         return self.lhs.dtype
-
-    @cached_property
-    def grid(self):
-        grids = set()
-        for f in self.dspace.parts:
-            if f.is_DiscreteFunction:
-                grids.add(f.grid)
-
-        if len(grids) == 1:
-            return grids.pop()
-        else:
-            return None
 
     @property
     def state(self):
@@ -96,14 +76,13 @@ class LoweredEq(IREq):
     LoweredEq(devito.LoweredEq, **kwargs)
     LoweredEq(lhs, rhs, **kwargs)
 
-    A SymPy equation with associated IterationSpace and DataSpace.
+    A SymPy equation enriched with metadata such as an IterationSpace.
 
-    When created as ``LoweredEq(devito.Eq)``, the iteration and data spaces are
-    automatically derived from analysis of ``expr``.
+    When created as ``LoweredEq(devito.Eq)``, the iteration space is automatically
+    derived from analysis of ``expr``.
 
     When created as ``LoweredEq(devito.LoweredEq, **kwargs)``, the keyword
-    arguments can be anything that appears in ``LoweredEq._state`` (i.e.,
-    ispace, dspace, ...).
+    arguments can be anything that appears in ``LoweredEq._state`` (e.g., ispace).
 
     When created as ``LoweredEq(lhs, rhs, **kwargs)``, *all* keywords in
     ``LoweredEq._state`` must appear in ``kwargs``.
@@ -138,9 +117,6 @@ class LoweredEq(IREq):
         accesses = detect_accesses(expr)
         dimensions = Stencil.union(*accesses.values())
 
-        # Construct the DataSpace
-        dspace = derive_dspace(expr)
-
         # Separate out the SubIterators from the main iteration Dimensions, that
         # is those which define an actual iteration space
         iterators = {}
@@ -148,7 +124,7 @@ class LoweredEq(IREq):
             if d.is_SubIterator:
                 iterators.setdefault(d.root, set()).add(d)
             elif d.is_Conditional:
-                # Use `parent`, and `root`, because a ConditionalDimenion may
+                # Use `parent`, and `root`, because a ConditionalDimension may
                 # have a SubDimension as parent
                 iterators.setdefault(d.parent, set())
             else:
@@ -178,7 +154,6 @@ class LoweredEq(IREq):
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, rhs, evaluate=False)
 
-        expr._dspace = dspace
         expr._ispace = ispace
         expr._conditionals = conditionals
         expr._reads, expr._writes = detect_io(expr)
@@ -209,13 +184,13 @@ class ClusterizedEq(IREq, Pickable):
     ClusterizedEq(devito.IREq, **kwargs)
     ClusterizedEq(lhs, rhs, **kwargs)
 
-    A SymPy equation with associated IterationSpace and DataSpace.
+    A SymPy equation enriched with metadata such as an IterationSpace.
 
     There are two main differences between a LoweredEq and a
     ClusterizedEq:
 
-    * In a ClusterizedEq, the iteration and data spaces must *always*
-      be provided by the caller.
+    * In a ClusterizedEq, the IterationSpace must *always* be provided
+      by the caller.
     * A ClusterizedEq is "frozen", meaning that any call to ``xreplace``
       will not trigger re-evaluation (e.g., mathematical simplification)
       of the expression.
@@ -257,7 +232,7 @@ class DummyEq(ClusterizedEq):
     DummyEq(expr)
     DummyEq(lhs, rhs)
 
-    A special ClusterizedEq with void iteration and data spaces.
+    A special ClusterizedEq with a void iteration space.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -269,7 +244,7 @@ class DummyEq(ClusterizedEq):
             obj = LoweredEq(Eq(*args, evaluate=False))
         else:
             raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
-        return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace, dspace=obj.dspace)
+        return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)
 
     # Pickling support
     _pickle_args = ['lhs', 'rhs']

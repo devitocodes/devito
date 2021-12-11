@@ -4,9 +4,8 @@ from itertools import combinations
 from cached_property import cached_property
 import numpy as np
 
-from devito.ir import (Cluster, Forward, Interval, IntervalGroup, IterationSpace,
-                       Queue, Vector, lower_exprs, derive_dspace, vmax, vmin,
-                       PARALLEL, GuardBound)
+from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
+                       IterationSpace, PARALLEL, Queue, Vector, lower_exprs, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -143,12 +142,13 @@ class Buffering(Queue):
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.writeto
-                dspace = derive_dspace(expr)
                 guards = {pd: GuardBound(d.root.symbolic_min, d.root.symbolic_max)
                           for d in b.contraction_mapper}
                 properties = {d: {PARALLEL} for d in ispace.itdimensions}
 
-                processed.append(Cluster(expr, ispace, dspace, guards, properties))
+                processed.append(
+                    Cluster(expr, ispace, guards=guards, properties=properties)
+                )
 
         # Substitution rules to replace buffered Functions with buffers
         subs = {}
@@ -174,9 +174,8 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-                dspace = derive_dspace(expr)
 
-                processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
+                processed.append(c.rebuild(exprs=expr, ispace=ispace))
 
             # Substitute buffered Functions with the newly created buffers
             exprs = [uxreplace(e, subs) for e in c.exprs]
@@ -201,9 +200,8 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-                dspace = derive_dspace(expr)
 
-                processed.append(c.rebuild(exprs=expr, ispace=ispace, dspace=dspace))
+                processed.append(c.rebuild(exprs=expr, ispace=ispace))
 
         return processed
 

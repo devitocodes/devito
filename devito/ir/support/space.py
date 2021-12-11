@@ -264,7 +264,7 @@ class Interval(AbstractInterval):
     def switch(self, d):
         return Interval(d, self.lower, self.upper, self.stamp)
 
-    def translate(self, v0, v1=None):
+    def translate(self, v0=0, v1=None):
         if v1 is None:
             v1 = v0
         return Interval(self.dim, self.lower + v0, self.upper + v1, self.stamp)
@@ -457,7 +457,7 @@ class IntervalGroup(PartialOrderTuple):
         return IntervalGroup([i.switch(d1) if i.dim is d0 else i for i in self],
                              relations=self.relations)
 
-    def translate(self, d, v0, v1=None):
+    def translate(self, d, v0=0, v1=None):
         intervals = [i.translate(v0, v1) if i.dim in as_tuple(d) else i for i in self]
         return IntervalGroup(intervals, relations=self.relations)
 

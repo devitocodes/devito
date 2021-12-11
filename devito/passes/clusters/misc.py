@@ -75,13 +75,12 @@ class Lift(Queue):
             # The contracted iteration and data spaces
             key = lambda d: d not in hope_invariant
             ispace = c.ispace.project(key).reset()
-            dspace = c.dspace.project(key).reset()
 
             # Some properties are dropped
             properties = {d: v for d, v in c.properties.items() if key(d)}
             properties = {d: v - {TILABLE} for d, v in properties.items()}
 
-            lifted.append(c.rebuild(ispace=ispace, dspace=dspace, properties=properties))
+            lifted.append(c.rebuild(ispace=ispace, properties=properties))
 
         return lifted + processed
 
@@ -335,8 +334,7 @@ class Fission(Queue):
                 stamp = Stamp()
                 for c in group:
                     ispace = c.ispace.lift(d, stamp)
-                    dspace = c.dspace.lift(d, stamp)
-                    processed.append(c.rebuild(ispace=ispace, dspace=dspace))
+                    processed.append(c.rebuild(ispace=ispace))
 
         return processed
 

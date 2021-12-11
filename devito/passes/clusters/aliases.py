@@ -9,8 +9,8 @@ import sympy
 from devito.finite_differences import EvalDerivative
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, Forward,
                        IterationInstance, IterationSpace, Interval, Cluster,
-                       Queue, IntervalGroup, LabeledVector, derive_dspace,
-                       normalize_properties, relax_properties)
+                       Queue, IntervalGroup, LabeledVector, normalize_properties,
+                       relax_properties)
 from devito.passes.clusters.utils import timed_pass
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               reuse_if_untouched, retrieve_indexed, search, uxreplace)
@@ -156,9 +156,7 @@ class CireTransformer(object):
             ispace = c.ispace.augment(schedule.dmapper)
             ispace = ispace.augment(schedule.rmapper)
 
-            dspace = derive_dspace(cexprs, c.guards)
-
-            processed.append(c.rebuild(exprs=cexprs, ispace=ispace, dspace=dspace))
+            processed.append(c.rebuild(exprs=cexprs, ispace=ispace))
 
         assert len(exprs) == 0
 
@@ -268,10 +266,10 @@ class CireInvariants(CireTransformer, Queue):
 
     def _lookup_key(self, c, d):
         ispace = c.ispace.reset()
-        dintervals = c.dspace.intervals.drop(d).reset()
+        iintervals = c.ispace.intervals.drop(d).reset()
         properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
 
-        return AliasKey(ispace, dintervals, c.dtype, None, properties)
+        return AliasKey(ispace, iintervals, c.dtype, None, properties)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # Always prefer the Variant with fewer temporaries
@@ -380,7 +378,7 @@ class CireSops(CireTransformer):
             yield self._do_generate(exprs, exclude, cbk_search_i, cbk_compose)
 
     def _lookup_key(self, c):
-        return AliasKey(c.ispace, c.dspace.intervals, c.dtype, c.guards, c.properties)
+        return AliasKey(c.ispace, c.ispace.intervals, c.dtype, c.guards, c.properties)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # If there's a greater flop reduction using fewer temporaries, no doubts
@@ -882,10 +880,6 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         subs.update({aliased: callback(indices)
                      for aliased, indices in zip(aliaseds, indicess)})
 
-        # Construct the alias DataSpace
-        dspace = derive_dspace(expression)
-        dspace = dspace.add(ispace.intervals, parts_only=True)
-
         # Drop or weaken parallelism if necessary
         properties = dict(meta.properties)
         for d, v in meta.properties.items():
@@ -895,7 +889,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                 properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
 
         # Finally, build the alias Cluster
-        clusters.append(Cluster(expression, ispace, dspace, meta.guards, properties))
+        clusters.append(Cluster(expression, ispace, meta.guards, properties))
 
     return clusters, subs
 
@@ -916,14 +910,12 @@ def optimize_clusters_msds(clusters):
 
             ispace = c.ispace.relaxed(msds)
 
-            dspace = derive_dspace(exprs).project(lambda d: d not in msds)
-
             guards = {mapper.get(d, d): v for d, v in c.guards.items()}
             properties = {mapper.get(d, d): v for d, v in c.properties.items()}
             syncs = {mapper.get(d, d): v for d, v in c.syncs.items()}
 
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace, dspace=dspace,
-                                       guards=guards, properties=properties, syncs=syncs))
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace, guards=guards,
+                                       properties=properties, syncs=syncs))
         else:
             processed.append(c)
 
@@ -1175,7 +1167,7 @@ class Group(tuple):
         return ret
 
 
-AliasKey = namedtuple('AliasKey', 'ispace dintervals dtype guards properties')
+AliasKey = namedtuple('AliasKey', 'ispace iintervals dtype guards properties')
 Variant = namedtuple('Variant', 'schedule exprs')
 
 

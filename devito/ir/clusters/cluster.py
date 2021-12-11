@@ -4,8 +4,10 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, IterationSpace, DataSpace,
-                               Scope, detect_io, normalize_properties)
+from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBound,
+                               BaseGuardBoundNext, Forward, Interval, IntervalGroup,
+                               IterationSpace, DataSpace, Scope, detect_accesses,
+                               detect_io, normalize_properties)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
 from devito.types import normalize_syncs
@@ -24,8 +26,6 @@ class Cluster(object):
         An ordered sequence of expressions computing a tensor.
     ispace : IterationSpace
         The cluster iteration space.
-    dspace : DataSpace
-        The cluster data space.
     guards : dict, optional
         Mapper from Dimensions to expr-like, representing the conditions under
         which the Cluster should be computed.
@@ -38,11 +38,9 @@ class Cluster(object):
         Cluster asynchronously.
     """
 
-    def __init__(self, exprs, ispace, dspace, guards=None, properties=None, syncs=None):
-        self._exprs = tuple(ClusterizedEq(i, ispace=ispace, dspace=dspace)
-                            for i in as_tuple(exprs))
+    def __init__(self, exprs, ispace, guards=None, properties=None, syncs=None):
+        self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
-        self._dspace = dspace
         self._guards = frozendict(guards or {})
         self._syncs = frozendict(syncs or {})
 
@@ -70,7 +68,6 @@ class Cluster(object):
 
         exprs = chain(*[c.exprs for c in clusters])
         ispace = IterationSpace.union(*[c.ispace for c in clusters])
-        dspace = DataSpace.union(*[c.dspace for c in clusters])
 
         guards = root.guards
 
@@ -85,7 +82,7 @@ class Cluster(object):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "non-compatible synchronization operations")
 
-        return Cluster(exprs, ispace, dspace, guards, properties, syncs)
+        return Cluster(exprs, ispace, guards, properties, syncs)
 
     def rebuild(self, *args, **kwargs):
         """
@@ -102,7 +99,6 @@ class Cluster(object):
 
         return Cluster(exprs=kwargs.get('exprs', self.exprs),
                        ispace=kwargs.get('ispace', self.ispace),
-                       dspace=kwargs.get('dspace', self.dspace),
                        guards=kwargs.get('guards', self.guards),
                        properties=kwargs.get('properties', self.properties),
                        syncs=kwargs.get('syncs', self.syncs))
@@ -126,10 +122,6 @@ class Cluster(object):
     @property
     def directions(self):
         return self.ispace.directions
-
-    @property
-    def dspace(self):
-        return self._dspace
 
     @property
     def guards(self):
@@ -183,6 +175,14 @@ class Cluster(object):
         return not any(f.is_Function for f in self.scope.writes)
 
     @cached_property
+    def grid(self):
+        grids = set(f.grid for f in self.functions if f.is_DiscreteFunction) - {None}
+        if len(grids) == 1:
+            return grids.pop()
+        else:
+            raise ValueError("Cluster has no unique Grid")
+
+    @cached_property
     def is_dense(self):
         """
         A Cluster is dense if at least one of the following conditions is True:
@@ -212,19 +212,6 @@ class Cluster(object):
                 all(a.is_regular for a in self.scope.accesses))
 
     @cached_property
-    def grid(self):
-        if len(self.grids) == 1:
-            return self.grids[0]
-        raise ValueError("Cluster has no unique Grid")
-
-    @cached_property
-    def grids(self):
-        """
-        The Grid's over which the Cluster is defined.
-        """
-        return tuple(set(i.grid for i in self.exprs if i.grid is not None))
-
-    @cached_property
     def dtype(self):
         """
         The arithmetic data type of the Cluster. If the Cluster performs
@@ -245,6 +232,85 @@ class Cluster(object):
             return dtypes.pop()
         else:
             raise ValueError("Unsupported Cluster [mixed integer arithmetic ?]")
+
+    @cached_property
+    def dspace(self):
+        """
+        Derive the DataSpace of the Cluster from its expressions, IterationSpace,
+        and Guards.
+        """
+        accesses = detect_accesses(self.exprs)
+
+        # Construct the `parts` of the DataSpace, that is a projection of the data
+        # space for each Function appearing in `self.exprs`
+        parts = {}
+        for f, v in accesses.items():
+            if f is None:
+                continue
+
+            intervals = [Interval(d, min(offs), max(offs)) for d, offs in v.items()]
+            intervals = IntervalGroup(intervals)
+
+            # Factor in the IterationSpace -- if the min/max points aren't zero,
+            # then the data intervals need to shrink/expand accordingly
+            key = lambda d: d.is_SubIterator and not self.ispace.is_sub_iterator(d)
+            intervals = intervals.promote(key)
+            shift = self.ispace.intervals.promote(key)
+            intervals = intervals.add(shift)
+
+            # Map SubIterators to the corresponding data space Dimension
+            # E.g., `xs -> x -> x0_blk0 -> x` or `t0 -> t -> time`
+            intervals = intervals.promote(lambda d: d.is_SubIterator)
+
+            # Special case: if the factor of a ConditionalDimension has value 1,
+            # then we can safely resort to the parent's Interval
+            intervals = intervals.promote(lambda d: d.is_Conditional and d.factor == 1)
+
+            parts[f] = intervals
+
+        # If the bound of a Dimension is explicitely guarded, then we should
+        # shrink the `parts` accordingly
+        for d, v in self.guards.items():
+            ret = v.find(BaseGuardBoundNext)
+            assert len(ret) <= 1
+            if len(ret) == 1:
+                if ret.pop().direction is Forward:
+                    parts = {f: i.translate(d, v1=-1) for f, i in parts.items()}
+                else:
+                    parts = {f: i.translate(d, 1) for f, i in parts.items()}
+
+        # Determine the Dimensions requiring shifted min/max points to avoid
+        # OOB accesses
+        oobs = set()
+        for f, v in parts.items():
+            for i in v:
+                if i.dim.is_Sub:
+                    d = i.dim.parent
+                else:
+                    d = i.dim
+                try:
+                    if i.lower < 0 or \
+                       i.upper > f._size_nodomain[d].left + f._size_halo[d].right:
+                        # It'd mean trying to access a point before the
+                        # left halo (test0) or after the right halo (test1)
+                        oobs.update(d._defines)
+                except (KeyError, TypeError):
+                    # Unable to detect presence of OOB accesses (e.g., `d` not in
+                    # `f._size_halo`, that is typical of indirect accesses `A[B[i]]`)
+                    pass
+
+        # Construct the `intervals` of the DataSpace, that is a global,
+        # Dimension-centric view of the data space
+        intervals = IntervalGroup()
+        for f, v in parts.items():
+            intervals = IntervalGroup.generate('union', intervals, v)
+
+            # E.g., `db0 -> time`, but `xi NOT-> x`
+            intervals = intervals.promote(lambda d: not d.is_Sub)
+
+            intervals = intervals.zero(set(intervals.dimensions) - oobs)
+
+        return DataSpace(intervals, parts)
 
     @cached_property
     def ops(self):
