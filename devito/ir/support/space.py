@@ -1,6 +1,7 @@
 import abc
 from collections import OrderedDict
 from functools import reduce
+from itertools import chain
 from operator import mul
 
 from cached_property import cached_property
@@ -270,9 +271,11 @@ class Interval(AbstractInterval):
 
     def promote(self, cond):
         if cond(self.dim):
-            return self.switch(self.dim.parent).promote(cond)
-        else:
-            return self
+            try:
+                return self.switch(self.dim.parent).promote(cond)
+            except AttributeError:
+                pass
+        return self
 
 
 class IntervalGroup(PartialOrderTuple):
@@ -409,12 +412,20 @@ class IntervalGroup(PartialOrderTuple):
         intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
         return IntervalGroup(intervals, relations=(self.relations | o.relations))
 
-    def relaxed(self, d):
-        intervals = [i.relaxed if i.dim in as_tuple(d) else i for i in self]
+    def relaxed(self, d=None):
+        d = set(self.dimensions if d is None else as_tuple(d))
+        intervals = [i.relaxed if i.dim in d else i for i in self]
         return IntervalGroup(intervals, relations=self.relations)
 
     def promote(self, cond):
-        return IntervalGroup([i.promote(cond) for i in self], relations=self.relations)
+        intervals = IntervalGroup([i.promote(cond) for i in self],
+                                  relations=self.relations)
+
+        # There could be duplicate Dimensions at this point, so we sum up the Intervals
+        # defined over the same Dimension to produce a well-defined IntervalGroup
+        intervals = IntervalGroup.generate('add', intervals)
+
+        return intervals
 
     def drop(self, d):
         # Dropping
@@ -819,6 +830,7 @@ class IterationSpace(Space):
         intervals = [i for i in self.intervals if func(i.dim)]
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
         directions = {k: v for k, v in self.directions.items() if func(k)}
+
         return IterationSpace(intervals, sub_iterators, directions)
 
     def zero(self, d=None):
@@ -863,6 +875,9 @@ class IterationSpace(Space):
 
     def is_forward(self, dim):
         return self.directions[dim] is Forward
+
+    def is_sub_iterator(self, dim):
+        return dim in chain(*self.sub_iterators.values())
 
     @property
     def itdimensions(self):
