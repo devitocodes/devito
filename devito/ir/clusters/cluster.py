@@ -4,10 +4,9 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBound,
-                               BaseGuardBoundNext, Forward, Interval, IntervalGroup,
-                               IterationSpace, DataSpace, Scope, detect_accesses,
-                               detect_io, normalize_properties)
+from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward,
+                               Interval, IntervalGroup, IterationSpace, DataSpace, Scope,
+                               detect_accesses, detect_io, normalize_properties)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
 from devito.types import normalize_syncs
@@ -253,6 +252,7 @@ class Cluster(object):
 
             # Factor in the IterationSpace -- if the min/max points aren't zero,
             # then the data intervals need to shrink/expand accordingly
+            # E.g., `xi -> xi0_blk0 -> xi` (the last `xi` being a SubDimension)
             key = lambda d: d.is_SubIterator and not self.ispace.is_sub_iterator(d)
             intervals = intervals.promote(key)
             shift = self.ispace.intervals.promote(key)
@@ -262,22 +262,23 @@ class Cluster(object):
             # E.g., `xs -> x -> x0_blk0 -> x` or `t0 -> t -> time`
             intervals = intervals.promote(lambda d: d.is_SubIterator)
 
+            # If the bound of a Dimension is explicitely guarded, then we should
+            # shrink the `parts` accordingly
+            for d, v in self.guards.items():
+                ret = v.find(BaseGuardBoundNext)
+                assert len(ret) <= 1
+                if len(ret) != 1:
+                    continue
+                if ret.pop().direction is Forward:
+                    intervals = intervals.translate(d, v1=-1)
+                else:
+                    intervals = intervals.translate(d, 1)
+
             # Special case: if the factor of a ConditionalDimension has value 1,
             # then we can safely resort to the parent's Interval
             intervals = intervals.promote(lambda d: d.is_Conditional and d.factor == 1)
 
             parts[f] = intervals
-
-        # If the bound of a Dimension is explicitely guarded, then we should
-        # shrink the `parts` accordingly
-        for d, v in self.guards.items():
-            ret = v.find(BaseGuardBoundNext)
-            assert len(ret) <= 1
-            if len(ret) == 1:
-                if ret.pop().direction is Forward:
-                    parts = {f: i.translate(d, v1=-1) for f, i in parts.items()}
-                else:
-                    parts = {f: i.translate(d, 1) for f, i in parts.items()}
 
         # Determine the Dimensions requiring shifted min/max points to avoid
         # OOB accesses
@@ -301,14 +302,10 @@ class Cluster(object):
 
         # Construct the `intervals` of the DataSpace, that is a global,
         # Dimension-centric view of the data space
-        intervals = IntervalGroup()
-        for f, v in parts.items():
-            intervals = IntervalGroup.generate('union', intervals, v)
-
-            # E.g., `db0 -> time`, but `xi NOT-> x`
-            intervals = intervals.promote(lambda d: not d.is_Sub)
-
-            intervals = intervals.zero(set(intervals.dimensions) - oobs)
+        intervals = IntervalGroup.generate('union', *parts.values())
+        # E.g., `db0 -> time`, but `xi NOT-> x`
+        intervals = intervals.promote(lambda d: not d.is_Sub)
+        intervals = intervals.zero(set(intervals.dimensions) - oobs)
 
         return DataSpace(intervals, parts)
 
