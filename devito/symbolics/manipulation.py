@@ -352,8 +352,8 @@ def evalrel(func=min, input=None, assumptions=None):
 
     # Form relationals so that RHS has more arguments than LHS:
     # i.e. (a + d >= b) ---> (b <= a + d)
-    assumptions = [a if len(a.rhs.args) > len(a.lhs.args) else
-                   a.reversed for a in as_list(assumptions)]
+    assumptions = [a.reversed if len(a.lhs.args) > len(a.rhs.args) else a for a in
+                   as_list(assumptions)]
 
     # Break-down relations if possible
     processed = []
@@ -364,8 +364,8 @@ def evalrel(func=min, input=None, assumptions=None):
                 processed.extend(Ge(a.lhs, i) for i in a.rhs.args)
             elif len(a.rhs.args) == 2:
                 # If `c >= a + b, a>=0, b<=0` then add 'c>=b, c<=a'
-                processed.extend(Le(a.lhs, i) if i.is_positive else
-                                 Ge(a.lhs, i) for i in a.rhs.args)
+                processed.extend(Ge(a.lhs, i) if not i.is_positive else
+                                 Le(a.lhs, i) for i in a.rhs.args)
             else:
                 processed.append(a)
         else:
@@ -375,26 +375,23 @@ def evalrel(func=min, input=None, assumptions=None):
     mapper = {}
     for a in processed:
         if set(a.args).issubset(input):
-            # Proceed if the assumption arguments are a subset of the input candidates.
-            # If a.args=(a, b) and input=(a, b, c), condition is True.
-            # If a.args=(a, d) and input=(a, b, c), condition is False.
+            # Proceed if the assumption arguments are a subset of the input candidates
+            # If a.args=(a, b) and input=(a, b, c), condition is True,
+            # if a.args=(a, d) and input=(a, b, c), condition is False
+            # Do not add a pair e.g. (a:b) if symmetric (b:a)
             assert len(a.args) == 2
             a0, a1 = a.args
-            if ((isinstance(a, (Ge, Gt)) and func is max) or
-               (isinstance(a, (Le, Lt)) and func is min)):
+            if any(((a1, a0), (a0, a1)) is k for k in mapper.items()):
+                pass
+            elif ((isinstance(a, (Ge, Gt)) and func is max) or
+                  (isinstance(a, (Le, Lt)) and func is min)):
                 mapper[a1] = a0
             elif ((isinstance(a, (Le, Lt)) and func is max) or
                   (isinstance(a, (Ge, Gt)) and func is min)):
                 mapper[a0] = a1
 
-    # Drop one of symmetric pairs [(a, b) , (b, a)] == > [(a, b)]
-    temp = mapper.copy()
-    for k, v in mapper.items():
-        if v in temp and temp[v] is k:
-            temp.pop(k)
-
     # Collapse graph paths
-    mapper = transitive_closure(temp)
+    mapper = transitive_closure(mapper)
     input = [i.subs(mapper) for i in input]
 
     # Explore simplification opportunities that may have emerged and generate MIN/MAX

@@ -5,7 +5,25 @@ import sympy
 __all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne']
 
 
-class Le(sympy.Le):
+class AbstractRel(object):
+    """
+    Abstract mixin class for objects subclassing sympy Relationals.
+    """
+    @property
+    def negated(self):
+        return ops.get(self.func)(*self.args)
+
+    @property
+    def reversed(self):
+        return rev.get(self.func)(self.rhs, self.lhs)
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which self is defined."""
+        return self._subdomain
+
+
+class Le(AbstractRel, sympy.Le):
     """
     A less-than or equal ("<=") relation between two objects, the left-hand side and the
     right-hand side. It can be used to build conditionals but not directly to
@@ -36,23 +54,11 @@ class Le(sympy.Le):
         kwargs.update({'evaluate': False})
         obj = sympy.Le.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
+
         return obj
 
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Le is defined."""
-        return self._subdomain
 
-    @property
-    def negated(self):
-        return ops.get(self.func)(*self.args)
-
-    @property
-    def reversed(self):
-        return rev.get(self.func)(self.rhs, self.lhs)
-
-
-class Lt(sympy.Lt):
+class Lt(AbstractRel, sympy.Lt):
     """
     A less-than ("<") relation between two objects, the left-hand side and the
     right-hand side.It can be used to build conditionals but not directly to
@@ -83,23 +89,11 @@ class Lt(sympy.Lt):
         kwargs.update({'evaluate': False})
         obj = sympy.Lt.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
+
         return obj
 
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Lt is defined."""
-        return self._subdomain
 
-    @property
-    def negated(self):
-        return ops.get(self.func)(*self.args)
-
-    @property
-    def reversed(self):
-        return rev.get(self.func)(self.rhs, self.lhs)
-
-
-class Ge(sympy.Ge):
+class Ge(AbstractRel, sympy.Ge):
     """
     A greater-than or equal (">=") relation between two objects, the left-hand side and
     the right-hand side. It can be used to build conditionals but not directly to
@@ -133,21 +127,8 @@ class Ge(sympy.Ge):
 
         return obj
 
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Ge is defined."""
-        return self._subdomain
 
-    @property
-    def negated(self):
-        return ops.get(self.func)(*self.args)
-
-    @property
-    def reversed(self):
-        return rev.get(self.func)(self.rhs, self.lhs)
-
-
-class Gt(sympy.Gt):
+class Gt(AbstractRel, sympy.Gt):
     """
     A greater-than (">") relation between two objects, the left-hand side and the
     right-hand side. It can be used to build conditionals but not directly to
@@ -181,21 +162,8 @@ class Gt(sympy.Gt):
 
         return obj
 
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Gt is defined."""
-        return self._subdomain
 
-    @property
-    def negated(self):
-        return ops.get(self.func)(*self.args)
-
-    @property
-    def reversed(self):
-        return rev.get(self.func)(self.rhs, self.lhs)
-
-
-class Ne(sympy.Ne):
+class Ne(AbstractRel, sympy.Ne):
     """
     A not-equal ("!=") relation between two objects (see Notes below), the left-hand side
     and the right-hand side. It can be used to build conditionals but not directly to
@@ -236,11 +204,6 @@ class Ne(sympy.Ne):
         obj._subdomain = subdomain
 
         return obj
-
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Ne is defined."""
-        return self._subdomain
 
 
 ops = {Ge: Lt, Gt: Le, Le: Gt, Lt: Ge}

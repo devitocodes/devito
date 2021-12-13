@@ -151,8 +151,8 @@ class TestRelationsWithAssumptions(object):
         ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'MAX(a, MAX(c, d))']),
         ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'MAX(a, d)']),
         ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'MAX(a, MAX(c, d))']),
-        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, a)]', 'MIN(c, d)']),
-        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, a)]', 'MIN(c, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
         ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(c, d))']),
         ([min, '[a, b, c, d]', '[Lt(b + a, d)]', 'MIN(a, MIN(b, c))']),
         ([max, '[a, b, c, d]', '[Lt(b + a, d)]', 'MAX(c, d)']),
@@ -172,7 +172,7 @@ class TestRelationsWithAssumptions(object):
         assert evalrel(op, eqn, assumptions) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
-        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b) ,Le(c, b), Le(b, d)]', 'c']),
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
         ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(b, MIN(c, d)))']),
         ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'MIN(a, b)']),
         ([max, '[a, b, c, d]', '[Ge(c, a + d), Gt(b, a + d)]', 'MAX(b, d)']),

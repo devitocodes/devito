@@ -551,15 +551,10 @@ def rfunc(func, item, *args):
     MAX(a, MAX(b, MAX(c, d)))
     """
 
-    try:
-        rf = rfunc_mapper[func]
-    except KeyError:
-        raise ValueError('Unknown function `%s`' % func)
+    assert func in rfunc_mapper
+    rf = rfunc_mapper[func]
 
-    if len(args) == 0:
-        return item
-    else:
-        return rf(item, rfunc(func, *args))
+    return rf(item, rfunc(func, *args)) if len(args) > 0 else item
 
 
 cast_mapper = {
