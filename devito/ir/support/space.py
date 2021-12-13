@@ -607,7 +607,7 @@ class Space(object):
     @property
     def dimension_map(self):
         """
-        Map between the Space Dimensions and the size of their iterated region.
+        Map between the Space Dimensions and the size of their Interval.
         """
         return OrderedDict([(i.dim, i.size) for i in self.intervals])
 
@@ -615,7 +615,7 @@ class Space(object):
 class DataSpace(Space):
 
     """
-    Represent a data space as an enriched Space.
+    Represent a data space as a Space with additional metadata and operations.
 
     Parameters
     ----------
@@ -641,12 +641,15 @@ class DataSpace(Space):
     def union(cls, *others):
         if not others:
             return DataSpace(IntervalGroup(), {})
+
         intervals = IntervalGroup.generate('union', *[i.intervals for i in others])
+
         parts = {}
         for i in others:
             for k, v in i.parts.items():
                 parts.setdefault(k, []).append(v)
         parts = {k: IntervalGroup.generate('union', *v) for k, v in parts.items()}
+
         return DataSpace(intervals, parts)
 
     @property
@@ -662,55 +665,17 @@ class DataSpace(Space):
                 ret = IntervalGroup()
         return ret
 
-    def add(self, other, parts_only=False):
-        if parts_only:
-            intervals = self.intervals
-        else:
-            intervals = self.intervals.add(other)
-        parts = {k: v.add(other) for k, v in self.parts.items()}
-        return DataSpace(intervals, parts)
-
-    def drop(self, d):
-        intervals = self.intervals.drop(d)
-        parts = {k: v.drop(d) for k, v in self.parts.items()}
-        return DataSpace(intervals, parts)
-
-    def zero(self, d=None):
-        intervals = self.intervals.zero(d)
-        parts = {k: v.zero(d) for k, v in self.parts.items()}
-        return DataSpace(intervals, parts)
-
-    def lift(self, d=None, v=None):
-        intervals = self.intervals.lift(d, v)
-        parts = {k: p.lift(d, v) for k, p in self.parts.items()}
-        return DataSpace(intervals, parts)
-
     def reset(self):
         intervals = self.intervals.reset()
         parts = {k: v.reset() for k, v in self.parts.items()}
+
         return DataSpace(intervals, parts)
-
-    def project(self, cond):
-        """
-        Create a new DataSpace in which only some of the Dimensions in
-        `self` are retained. In particular, a dimension `d` in `self`
-        is retained if:
-
-            * either `cond(d)` is True (`cond` is a callable),
-            * or `d in cond` is True (`cond` is an iterable)
-        """
-        if callable(cond):
-            func = cond
-        else:
-            func = lambda i: i in cond
-        intervals = [i for i in self.intervals if func(i.dim)]
-        return DataSpace(intervals, self.parts)
 
 
 class IterationSpace(Space):
 
     """
-    Represent an iteration space as an enriched Space.
+    Represent an iteration space as a Space with additional metadata and operations.
 
     Parameters
     ----------
