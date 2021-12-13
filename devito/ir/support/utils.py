@@ -1,11 +1,42 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
-from devito.ir.support.stencil import Stencil
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
-from devito.tools import as_tuple, flatten, filter_sorted, split
+from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['detect_accesses', 'detect_io']
+__all__ = ['Stencil', 'detect_accesses', 'detect_io']
+
+
+class Stencil(DefaultOrderedDict):
+
+    """
+    A mapping between Dimensions and symbolic expressions representing the
+    points of the stencil.
+
+    Typically the values are just integers.
+
+    Parameters
+    ----------
+    entries : iterable of 2-tuples, optional
+        The Stencil entries.
+    """
+
+    def __init__(self, items=None):
+        # Normalize input
+        items = [(d, set(as_tuple(v))) for d, v in as_tuple(items)]
+
+        super().__init__(set, items)
+
+    @classmethod
+    def union(cls, *dicts):
+        """
+        Compute the union of a collection of Stencils.
+        """
+        output = Stencil()
+        for i in dicts:
+            for k, v in i.items():
+                output[k] |= v
+        return output
 
 
 def detect_accesses(exprs):
