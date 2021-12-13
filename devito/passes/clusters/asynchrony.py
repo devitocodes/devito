@@ -6,7 +6,7 @@ from sympy import And
 from devito.ir import (Forward, BaseGuardBound, GuardBound, GuardBoundNext,
                        Queue, Vector, SEQUENTIAL, transform_guard)
 from devito.symbolics import uxreplace
-from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
+from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
                           indices_to_sections, timed_pass)
 from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
                           FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete,

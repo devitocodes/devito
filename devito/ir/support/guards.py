@@ -4,7 +4,7 @@ of the compiler to express the conditions under which a certain object
 (e.g., Eq, Cluster, ...) should be evaluated at runtime.
 """
 
-from sympy import And, Le, Gt, Mul, true
+from sympy import Le, Gt, Mul, true
 from sympy.core.operations import LatticeOp
 
 from devito.ir.support.space import Forward, IterationDirection
@@ -30,7 +30,7 @@ class Guard(object):
         return negations[self.__class__](*self._args_rebuild)
 
 
-### GuardFactor
+# *** GuardFactor
 
 
 class GuardFactor(Guard, CondEq):
@@ -66,7 +66,7 @@ class GuardFactorNe(GuardFactor, CondNe):
 GuardFactor = GuardFactorEq
 
 
-### GuardBound
+# *** GuardBound
 
 
 class BaseGuardBound(Guard):
@@ -98,7 +98,7 @@ class GuardBoundGt(BaseGuardBound, Gt):
 GuardBound = GuardBoundLe
 
 
-### GuardBoundNext
+# *** GuardBoundNext
 
 
 class BaseGuardBoundNext(Guard):

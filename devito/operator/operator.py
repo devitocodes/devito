@@ -1,6 +1,5 @@
 from collections import OrderedDict
-from functools import reduce
-from operator import attrgetter, mul
+from operator import attrgetter
 from math import ceil
 
 from cached_property import cached_property

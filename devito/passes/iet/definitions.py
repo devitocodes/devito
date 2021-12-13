@@ -16,7 +16,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import ListInitializer, ccode
 from devito.tools import as_mapper, filter_sorted, flatten, prod
-from devito.types import Array, DeviceRM, Function
+from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
