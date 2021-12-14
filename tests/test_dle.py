@@ -561,7 +561,15 @@ class TestNodeParallelism(object):
         op = Operator(Inc(f, u + 1), opt=('openmp', {'par-collapse-ncores': 1}))
 
         iterations = FindNodes(Iteration).visit(op)
-        assert "reduction(+:f[0:f_vec->size[0]])" in iterations[1].pragmas[0].value
+        parallelized = iterations[dim+1]
+        assert parallelized.pragmas
+        if parallelized is iterations[-1]:
+            # With the `f[z] += u[t0][x + 1][y + 1][z + 1] + 1` expr, the innermost
+            # `z` Iteration gets parallelized, nothing is collapsed, hence no
+            # reduction is required
+            assert "reduction" not in parallelized.pragmas[0].value
+        else:
+            assert "reduction(+:f[0:f_vec->size[0]])" in parallelized.pragmas[0].value
 
         try:
             op(time_M=1)
@@ -792,9 +800,9 @@ class TestNestedParallelism(object):
     @pytest.mark.parametrize('exprs,collapsed,scheduling', [
         (['Eq(u.forward, u + 2)'], '2', 'static'),
         (['Eq(u.forward, u.dx)'], '2', 'static'),
-        (['Eq(u.forward, u.dy)'], '1', 'static'),
+        (['Eq(u.forward, u.dy)'], '2', 'static'),
         (['Eq(u.forward, u.dx.dx)'], '2', 'dynamic'),
-        (['Eq(u.forward, u.dy.dy)'], '1', 'dynamic'),
+        (['Eq(u.forward, u.dy.dy)'], '2', 'dynamic'),
     ])
     def test_collapsing_w_wo_halo(self, exprs, collapsed, scheduling):
         """
@@ -808,7 +816,7 @@ class TestNestedParallelism(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns, opt=('blocking', 'openmp',
+        op = Operator(eqns, opt=('optcomms', 'blocking', 'openmp',
                                  {'par-collapse-ncores': 1,
                                   'par-dynamic-work': 20}))
 

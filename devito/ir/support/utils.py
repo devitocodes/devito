@@ -1,4 +1,4 @@
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split

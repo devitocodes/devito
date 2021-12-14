@@ -696,7 +696,7 @@ class TestAliases(object):
 
     def test_min_storage_in_isolation(self):
         """
-        Test that if running with ``opt=(..., opt=('cire-sops', {'min-storage': True})``,
+        Test that if running with ``opt=('cire-sops', {'min-storage': True})``,
         then, when possible, aliasing expressions are assigned to (n-k)D Arrays (k>0)
         rather than nD Arrays.
         """
@@ -714,8 +714,14 @@ class TestAliases(object):
         eqn = Eq(u.forward, u.dy.dy + u.dx.dx)
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('cire-sops', {'openmp': True, 'min-storage': True}))
+        op1 = Operator(eqn, opt=('cire-sops', 'simd', {'openmp': True,
+                                                       'min-storage': True}))
         op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True}))
+
+        # NOTE: `op1` uses the `simd` pass as well simply so that the
+        # parallelization heuristics, seeing that the innermost Iteration was
+        # vectorized, stick to parallelizing the outermost loop instead of
+        # the two inner loops (which would normally be preferred due to collapse(2))
 
         # Check code generation
         # `min-storage` leads to one 2D and one 3D Arrays
@@ -736,8 +742,9 @@ class TestAliases(object):
 
         # Check that `cire-rotate=True` has no effect in this code has there's
         # no blocking
-        op3 = Operator(eqn, opt=('cire-sops', {'openmp': True, 'min-storage': True,
-                                               'cire-rotate': True}))
+        op3 = Operator(eqn, opt=('cire-sops', 'simd', {'openmp': True,
+                                                       'min-storage': True,
+                                                       'cire-rotate': True}))
         assert str(op3) == str(op1)
 
         # Check numerical output

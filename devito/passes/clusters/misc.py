@@ -322,11 +322,10 @@ class Fission(Queue):
             return clusters
 
         processed = []
-        for k, g in groupby(clusters, key=lambda c: self._key(c, len(prefix))):
-            it, _ = k
+        for (it, guards), g in groupby(clusters, key=lambda c: self._key(c, prefix)):
             group = list(g)
 
-            if any(SEQUENTIAL in c.properties[it.dim] for c in group):
+            if any(SEQUENTIAL in c.properties[it.dim] for c in group) or guards:
                 # Heuristic: no gain from fissioning if unable to ultimately
                 # increase the number of collapsable iteration spaces, hence give up
                 processed.extend(group)
@@ -338,9 +337,15 @@ class Fission(Queue):
 
         return processed
 
-    def _key(self, c, index):
+    def _key(self, c, prefix):
         try:
-            return (c.itintervals[index], c.guards)
+            index = len(prefix)
+            dims = tuple(i.dim for i in prefix)
+
+            it = c.itintervals[index]
+            guards = frozendict({d: v for d, v in c.guards.items() if d in dims})
+
+            return (it, guards)
         except IndexError:
             return (None, c.guards)
 

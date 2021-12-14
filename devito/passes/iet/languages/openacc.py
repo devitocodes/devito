@@ -161,9 +161,8 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
-        root = candidates[0]
 
-        collapsable = self._find_collapsable(root, candidates)
+        root, collapsable = self._select_candidates(candidates)
         ncollapsable = len(collapsable)
 
         if self._is_offloadable(root) and \
