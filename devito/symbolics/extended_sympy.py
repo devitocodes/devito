@@ -653,37 +653,7 @@ MIN = Function('MIN')
 MAX = Function('MAX')
 
 
-class RMin(Function):
-    """
-    Utility class for recursively generating nested MIN relations.
-    """
-
-    def __new__(cls, item, *args):
-        if len(args) == 0:
-            return item
-        else:
-            return MIN(item, RMin(*args))
-
-
-class RMax(Function):
-    """
-    Utility class for recursively generating nested MAX relations.
-    """
-
-    def __new__(cls, item, *args):
-        if len(args) == 0:
-            return item
-        else:
-            return MAX(item, RMax(*args))
-
-
-Null = Macro('NULL')
-
-# DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
-SizeOf = lambda *args: DefFunction('sizeof', tuple(args))
-
-
-def rfunc(func, item, *args):
+def rfunc(func=None, item=None, *args):
     """
     A utility function that recursively generates 'func' nested relations.
 

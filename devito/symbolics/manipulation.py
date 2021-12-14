@@ -295,7 +295,7 @@ def reuse_if_untouched(expr, args, evaluate=False):
         return expr.func(*args, evaluate=evaluate)
 
 
-def evalrel(func=min, input=None, assumptions=None):
+def evalrel(func=min, input=None, assumptions=None, eval=True):
     """
     The purpose of this function is two-fold: (i) to reduce the `input` candidates of a
     for a MIN/MAX expression based on the given `assumptions` and (ii) return the nested
@@ -310,6 +310,9 @@ def evalrel(func=min, input=None, assumptions=None):
     assumptions : list
         A list of assumptions formed as relationals between candidates, assumed to be
         True. Defaults to None.
+    eval : bool, optional
+        Return the nested MIN/MAX expression if True. Otherwise return only the
+        reduced `input`. Defaults to True.
 
     Examples
     --------
@@ -323,6 +326,8 @@ def evalrel(func=min, input=None, assumptions=None):
     >>> d = Symbol('d')
     >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
     MAX(a, c)
+    >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)], eval=False)
+    [a, c]
     """
     sfunc = (Min if func is min else Max)  # Choose SymPy's Min/Max
 
@@ -381,4 +386,6 @@ def evalrel(func=min, input=None, assumptions=None):
             return exp
     except TypeError:
         pass
-    return rfunc(func, *input)
+
+    # If eval=False return only the simplified list
+    return rfunc(func, *input) if eval else input
