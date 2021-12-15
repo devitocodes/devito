@@ -207,7 +207,7 @@ class Operator(Callable):
         op._cfunction = None
 
         # Potentially required for lazily allocated Functions
-        op._language = kwargs['language']
+        op._allocator = kwargs['allocator']
         op._platform = kwargs['platform']
 
         # References to local or external routines
@@ -798,12 +798,6 @@ class Operator(Callable):
 
         return summary
 
-    # Misc properties
-
-    @cached_property
-    def _allocator(self):
-        return default_allocator(self._language)
-
     # Pickling support
 
     def __getstate__(self):
@@ -970,5 +964,10 @@ def parse_kwargs(**kwargs):
                                                    language=kwargs['language'])
     else:
         kwargs['compiler'] = configuration['compiler'].__new_with__()
+
+    # `allocator`
+    kwargs['allocator'] = default_allocator(
+        '%s.%s' % (kwargs['compiler'].__class__.__name__, kwargs['language'])
+    )
 
     return kwargs

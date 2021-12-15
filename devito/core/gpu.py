@@ -115,13 +115,12 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -181,14 +180,13 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
-            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
+            mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -261,7 +259,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
@@ -273,8 +270,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
-            'mpi': partial(mpiize, mode=options['mpi'], language=language,
-                           sregistry=sregistry),
+            'mpi': partial(mpiize, mode=options['mpi'], sregistry=sregistry),
             'linearize': partial(linearize, mode=options['linearize'],
                                  sregistry=sregistry),
             'prodders': partial(hoist_prodders),

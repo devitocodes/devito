@@ -7,7 +7,7 @@ from operator import mul
 
 from sympy import Integer
 
-from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
+from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
                            AugmentedExpression, Iteration, List, Prodder, Return,
@@ -29,10 +29,9 @@ class HaloExchangeBuilder(object):
     Build IET-based routines to implement MPI halo exchange.
     """
 
-    def __new__(cls, mode, language, sregistry, **generators):
+    def __new__(cls, mode, sregistry, **generators):
         obj = object.__new__(mpi_registry[mode])
 
-        obj._language = language
         obj._sregistry = sregistry
 
         # Unique name generators
@@ -531,7 +530,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsg('msg%d' % key, f, halos, self._language)
+        return MPIMsg('msg%d' % key, f, halos)
 
     def _make_all(self, f, hse, msg):
         df = AliasFunction(name=self.sregistry.make_name(prefix='a'),
@@ -704,7 +703,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsgEnriched('msg%d' % key, f, halos, self._language)
+        return MPIMsgEnriched('msg%d' % key, f, halos)
 
     def _make_all(self, f, hse, msg):
         df = AliasFunction(name=self.sregistry.make_name(prefix='a'),
@@ -1051,16 +1050,15 @@ class MPIMsg(CompositeObject):
         (_C_field_rsend, c_mpirequest_p),
     ]
 
-    def __init__(self, name, target, halos, language=None):
+    def __init__(self, name, target, halos):
         self._target = target
         self._halos = halos
-        self._language = language
 
         super().__init__(name, 'msg', self.fields)
 
         # Required for buffer allocation/deallocation before/after jumping/returning
         # to/from C-land
-        self._allocator = default_allocator(language)
+        self._allocator = None
         self._memfree_args = []
 
     def __del__(self):
@@ -1086,17 +1084,18 @@ class MPIMsg(CompositeObject):
         return self._halos
 
     @property
-    def language(self):
-        return self._language
-
-    @property
     def npeers(self):
         return len(self._halos)
 
-    def _arg_defaults(self, alias=None):
+    def _arg_defaults(self, allocator, alias=None):
+        # Lazy initialization if `allocator` is necessary as the `allocator`
+        # type isn't really known until an Operator is constructed
+        self._allocator = allocator
+
         target = alias or self.target
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
+
             # Buffer size for this peer
             shape = []
             for dim, side in zip(*halo):
@@ -1106,26 +1105,30 @@ class MPIMsg(CompositeObject):
                     assert side is CENTER
                     shape.append(target._size_domain[dim])
             entry.sizes = (c_int*len(shape))(*shape)
+
             # Allocate the send/recv buffers
             size = reduce(mul, shape)
             ctype = dtype_to_ctype(target.dtype)
-            entry.bufg, bufg_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
-            entry.bufs, bufs_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
+            entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
+            entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
+
             # The `memfree_args` will be used to deallocate the buffer upon returning
             # from C-land
             self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
 
         return {self.name: self.value}
 
-    def _arg_values(self, **kwargs):
-        return self._arg_defaults(alias=kwargs.get(self.target.name, self.target))
+    def _arg_values(self, args=None, **kwargs):
+        return self._arg_defaults(
+            args.allocator,
+            alias=kwargs.get(self.target.name, self.target)
+        )
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
 
     # Pickling support
     _pickle_args = ['name', 'target', 'halos']
-    _pickle_kwargs = CompositeObject._pickle_kwargs + ['language']
 
 
 class MPIMsgEnriched(MPIMsg):
@@ -1142,8 +1145,8 @@ class MPIMsgEnriched(MPIMsg):
         (_C_field_to, c_int)
     ]
 
-    def _arg_defaults(self, alias=None):
-        super()._arg_defaults(alias)
+    def _arg_defaults(self, allocator, alias=None):
+        super()._arg_defaults(allocator, alias)
 
         function = alias or self.function
         neighborhood = function.grid.distributor.neighborhood
