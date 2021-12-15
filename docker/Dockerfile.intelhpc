@@ -1,0 +1,88 @@
+##############################################################
+# This Dockerfile contains Devito codes + Intel HPC toolkit.
+#
+# BUILD:
+#   docker build --network=host --file docker/Dockerfile.intel --tag devito/intel:1.0 .
+#
+# RUN:
+#   docker run --rm -it devito/intel:1.0
+##############################################################
+# Inherited from: https://github.com/intel/oneapi-containers/blob/master/images/docker/hpckit/Dockerfile.ubuntu-18.04
+# Copyright (c) 2019-2020 Intel Corporation.
+# SPDX-License-Identifier: BSD-3-Clause
+
+FROM intel/oneapi-hpckit:devel-ubuntu18.04
+
+RUN apt-get update -y && \
+apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
+python3-dev \
+python3-venv
+
+## INSTALL DEVITO
+
+ADD ./requirements.txt /app/requirements.txt
+ADD ./requirements-optional.txt /app/requirements-optional.txt
+ADD ./requirements-mpi.txt /app/requirements-mpi.txt
+
+RUN python3 -m venv /venv
+RUN /venv/bin/pip install --no-cache-dir --upgrade pip
+RUN /venv/bin/pip install --no-cache-dir jupyter
+RUN /venv/bin/pip install --no-cache-dir wheel
+RUN /venv/bin/pip install --no-cache-dir -r /app/requirements.txt
+RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt
+RUN . /opt/intel/oneapi/mpi/latest/env/vars.sh && /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt
+RUN rm -rf ~/.cache/pip
+
+ADD ./devito /app/devito
+ADD ./tests /app/tests
+ADD ./scripts /app/scripts
+ADD ./examples /app/examples
+ADD ./benchmarks /app/benchmarks
+COPY setup.cfg /app/
+
+ADD docker/run-jupyterlab.sh /jupyter
+ADD docker/run-tests.sh /tests
+ADD docker/run-print-defaults.sh /print-defaults
+ADD docker/entrypoint.sh /docker-entrypoint.sh
+ADD docker/nvdashboard.json /app/nvdashboard.json
+
+RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
+    /venv/bin/jupyter serverextension enable dask_labextension 
+
+## Environment Variables for Intel Compilers use
+# Set arch to Intel (icc)
+ENV DEVITO_ARCH="intel" 
+ENV DEVITO_LANGUAGE="openmp"
+
+# Enable logging, Options: [unset, PERF, DEBUG]
+ENV DEVITO_LOGGING=DEBUG 
+ 
+## Create App user 
+# Set the home directory to our app user's home.
+ENV HOME=/app
+ENV APP_HOME=/app
+
+# Create the home directory for the new app user.
+# Create an app user so our program doesn't run as root.
+# Chown all the files to the app user.
+RUN mkdir -p /app && \
+    groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app $APP_HOME && \
+    chown app:app /docker-entrypoint.sh && \
+    chown app:app /print-defaults && \
+    chown app:app /tests && \
+    chown app:app /jupyter
+
+# Change to the app user.
+USER app
+WORKDIR /app
+
+CMD ["/bin/bash"]
+
+ARG ICC_HOME=/opt/intel/oneapi/compiler/latest/
+ARG MPICC_HOME=/opt/intel/oneapi/mpi/latest/
+ENV PATH $MPICC_HOME/bin:$MPICC_HOME/include:$ICC_HOME/linux/bin/intel64:$ICC_HOME/libfabric/bin:${PATH}
+ENV LD_LIBRARY_PATH $ICC_HOME/linux/lib:$ICC_HOME/linux/compiler/lib/intel64_lin:$MPICC_HOME/lib:$MPICC_HOME/include:${LD_LIBRARY_PATH}
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

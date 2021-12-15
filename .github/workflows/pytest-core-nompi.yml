@@ -33,7 +33,8 @@ jobs:
            pytest-ubuntu-py38-gcc8-omp,
            pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
-           pytest-docker-py37-gcc-omp
+           pytest-docker-py37-gcc-omp,
+           pytest-docker-py38-icc-omp
         ]
         set: [base, adjoint]
         include:
@@ -93,6 +94,12 @@ jobs:
           language: "openmp"
           sympy: "1.10"
 
+        - name: pytest-docker-py38-icc-omp
+          python-version: 3.8
+          os: ubuntu-18.04
+          arch: "icc"
+          language: "openmp"
+
         - set: base
           test-set: 'not adjoint'
 
@@ -127,10 +134,28 @@ jobs:
           fi
       id: set-run
 
+    - name: Build docker intel image
+      if: matrix.name == 'pytest-docker-py38-icc-omp'
+      run: |
+          docker build . --file docker/Dockerfile.intel --tag devito_intel_img
+
+    - name: Set run prefix
+      run: |
+          if [ "${{ matrix.name }}" == 'pytest-docker-py38-icc-omp' ]; then
+              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_intel_img"
+          else
+              echo "::set-output name=RUN_CMD::"
+          fi
+      id: set-intelrun
+
     - name: Install GCC ${{ matrix.arch }}
       if: runner.os == 'linux'
       run : |
-        sudo apt-get install -y ${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" == 'icc' ]; then
+              sudo apt-get install -y gcc
+          else
+              sudo apt-get install -y ${{ matrix.arch }}
+          fi
 
     - name: Set tests (reduced number for OSX)
       run : |
@@ -142,7 +167,7 @@ jobs:
       id: set-tests
 
     - name: Install dependencies
-      if: matrix.name != 'pytest-docker-py37-gcc-omp'
+      if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
       run: |
         pip install --upgrade pip
         pip install -e .
