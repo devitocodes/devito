@@ -62,14 +62,10 @@ jobs:
       with:
         python-version: 3.7
 
-    - name: Install compilers for OSX
+    - uses: maxim-lobanov/setup-xcode@v1
       if: runner.os == 'macOS'
-      run: |
-        if [ "${{ matrix.compiler }}" = "gcc-9" ]; then
-          brew install gcc@9
-        else
-          sudo xcode-select -s /Applications/Xcode_12.2.app/Contents/Developer
-        fi
+      with:
+        xcode-version: latest-stable
 
     - name: Build docker image
       if: matrix.name == 'tutos-docker-gcc-py37'
