@@ -3,8 +3,7 @@ from collections import OrderedDict, defaultdict
 import numpy as np
 from sympy import And
 
-from devito.ir import (Forward, BaseGuardBound, GuardBound, GuardBoundNext,
-                       Queue, Vector, SEQUENTIAL, transform_guard)
+from devito.ir import Forward, GuardBound, GuardBoundNext, Queue, Vector, SEQUENTIAL
 from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
                           indices_to_sections, timed_pass)
@@ -303,7 +302,6 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
         tstore = tstore0
     else:
         assert tstore0.is_Modulo
-
         subiters = [md for md in cluster.sub_iterators[d] if md.parent is tstore0.parent]
         osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
         n = osubiters.index(tstore0)
@@ -315,15 +313,8 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
     # Turn `cluster` into a prefetch Cluster
     expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
 
-    def callback(g):
-        p0, p1 = g.args
-        if direction is Forward:
-            return g.func(p0 + 1, p1)
-        else:
-            return g.func(p0 - 1, p1)
-
     guards = {d: And(
-        transform_guard(cluster.guards.get(d, True), BaseGuardBound, callback),
+        cluster.guards.get(d, True),
         GuardBoundNext(function.indices[d], direction),
     )}
 
@@ -358,6 +349,8 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
     ))
     actions[last].insert.append(pcluster)
     actions[cluster].drop = True
+
+    return last, pcluster
 
 
 def actions_from_unstructured(clusters, key, prefix, actions):
