@@ -12,7 +12,7 @@ from devito.tools import Pickable, as_tuple, is_integer
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'cast_mapper']
+           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'rfunc', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -537,6 +537,29 @@ FLOOR = Function('floor')
 MAX = Function('MAX')
 MIN = Function('MIN')
 
+
+def rfunc(func, item, *args):
+    """
+    A utility function that recursively generates 'func' nested relations.
+
+    Examples
+    ----------
+    >> rfunc(min, [a, b, c, d])
+    MIN(a, MIN(b, MIN(c, d)))
+
+    >> rfunc(max, [a, b, c, d])
+    MAX(a, MAX(b, MAX(c, d)))
+    """
+
+    assert func in rfunc_mapper
+    rf = rfunc_mapper[func]
+
+    if len(args) == 0:
+        return item
+    else:
+        return rf(item, rfunc(func, *args))
+
+
 cast_mapper = {
     int: INT,
     np.int32: INT,
@@ -551,4 +574,9 @@ cast_mapper = {
     (np.float32, '*'): FLOATP,
     (float, '*'): DOUBLEP,
     (np.float64, '*'): DOUBLEP
+}
+
+rfunc_mapper = {
+    min: MIN,
+    max: MAX,
 }

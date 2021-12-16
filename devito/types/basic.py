@@ -525,7 +525,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         * VectorTimeFunction: A time-space-varying vector valued function.
     """
 
-    # Sympy attributes
+    # SymPy attributes
     is_MatrixLike = True
     is_Matrix = True
 
@@ -696,7 +696,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     """
 
-    # Sympy attributes, explicitly say these are not Matrices
+    # SymPy attributes, explicitly say these are not Matrices
     is_MatrixLike = False
     is_Matrix = False
 

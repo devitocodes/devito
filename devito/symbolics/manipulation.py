@@ -2,19 +2,19 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 from functools import singledispatch
 
-import sympy
-from sympy import Number, Indexed, Symbol, LM, LC
+from sympy import Number, Indexed, Symbol, LM, LC, Pow, Add, Mul, Min, Max
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.symbolics import MIN
+from devito.symbolics.extended_sympy import rfunc
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.tools import as_list, as_tuple, flatten, split
+from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.equation import Eq
+from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
            'split_affine', 'subs_op_args', 'uxreplace', 'aligned_indices',
-           'Uxmapper', 'reuse_if_untouched', 'evalmin']
+           'Uxmapper', 'reuse_if_untouched', 'evalrel']
 
 
 def uxreplace(expr, rule):
@@ -72,15 +72,15 @@ def _uxreplace_handle(expr, args):
     return expr.func(*args)
 
 
-@_uxreplace_handle.register(sympy.Min)
-@_uxreplace_handle.register(sympy.Max)
-@_uxreplace_handle.register(sympy.Pow)
+@_uxreplace_handle.register(Min)
+@_uxreplace_handle.register(Max)
+@_uxreplace_handle.register(Pow)
 def _(expr, args):
     evaluate = all(i.is_Number for i in args)
     return expr.func(*args, evaluate=evaluate)
 
 
-@_uxreplace_handle.register(sympy.Add)
+@_uxreplace_handle.register(Add)
 def _(expr, args):
     if all(i.is_commutative for i in args):
         _addsort(args)
@@ -90,7 +90,7 @@ def _(expr, args):
         return expr._new_rawargs(*args)
 
 
-@_uxreplace_handle.register(sympy.Mul)
+@_uxreplace_handle.register(Mul)
 def _(expr, args):
     if all(i.is_commutative for i in args):
         _mulsort(args)
@@ -202,13 +202,13 @@ def pow_to_mul(expr):
             # looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
-            return sympy.Mul(*[base]*int(exp), evaluate=False)
+            return Mul(*[base]*int(exp), evaluate=False)
         else:
             # SymPy represents 1/x as Pow(x,-1). Also, it represents
             # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
             # but just in case SymPy changes its internal conventions...
-            posexpr = sympy.Mul(*[base]*(-int(exp)), evaluate=False)
-            return sympy.Pow(posexpr, -1, evaluate=False)
+            posexpr = Mul(*[base]*(-int(exp)), evaluate=False)
+            return Pow(posexpr, -1, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
 
@@ -319,12 +319,90 @@ def reuse_if_untouched(expr, args, evaluate=False):
         return expr.func(*args, evaluate=evaluate)
 
 
-def evalmin(a, b):
+def evalrel(func=min, input=None, assumptions=None):
     """
-    Simplify min(a, b) if possible.
+    The purpose of this function is two-fold: (i) to reduce the `input` candidates of a
+    for a MIN/MAX expression based on the given `assumptions` and (ii) return the nested
+    MIN/MAX expression of the reduced-size input.
+
+    Parameters
+    ----------
+    func : builtin function or method
+        min or max. Defines the operation to simplify. Defaults to `min`.
+    input : list
+        A list of the candidate symbols to be simplified. Defaults to None.
+    assumptions : list
+        A list of assumptions formed as relationals between candidates, assumed to be
+        True. Defaults to None.
+
+    Examples
+    --------
+    Assuming no values are known for `a`, `b`, `c`, `d` but we know that `d<=a` and
+    `c>=b` we can safely drop `a` and `c` from the candidate list.
+
+    >>> from devito import Symbol
+    >>> a = Symbol('a')
+    >>> b = Symbol('b')
+    >>> c = Symbol('c')
+    >>> d = Symbol('d')
+    >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
+    MAX(a, c)
     """
+    sfunc = (Min if func is min else Max)  # Choose SymPy's Min/Max
+
+    # Form relationals so that RHS has more arguments than LHS:
+    # i.e. (a + d >= b) ---> (b <= a + d)
+    assumptions = [a.reversed if len(a.lhs.args) > len(a.rhs.args) else a
+                   for a in as_list(assumptions)]
+
+    # Break-down relations if possible
+    processed = []
+    for a in as_list(assumptions):
+        if isinstance(a, (Ge, Gt)) and a.rhs.is_Add and a.lhs.is_positive:
+            if all(i.is_positive for i in a.rhs.args):
+                # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, c>=b'
+                processed.extend(Ge(a.lhs, i) for i in a.rhs.args)
+            elif len(a.rhs.args) == 2:
+                # If `c >= a + b, a>=0, b<=0` then add 'c>=b, c<=a'
+                processed.extend(Ge(a.lhs, i) if not i.is_positive else Le(a.lhs, i)
+                                 for i in a.rhs.args)
+            else:
+                processed.append(a)
+        else:
+            processed.append(a)
+
+    # Apply assumptions to fill a subs mapper
+    # e.g. When looking for 'max' and Gt(a, b), mapper is filled with {b: a} so that `b`
+    # is subsituted by `a`
+    mapper = {}
+    for a in processed:
+        if set(a.args).issubset(input):
+            # If a.args=(a, b) and input=(a, b, c), condition is True,
+            # if a.args=(a, d) and input=(a, b, c), condition is False
+            assert len(a.args) == 2
+            a0, a1 = a.args
+            if ((isinstance(a, (Ge, Gt)) and func is max) or
+               (isinstance(a, (Le, Lt)) and func is min)):
+                mapper[a1] = a0
+            elif ((isinstance(a, (Le, Lt)) and func is max) or
+                  (isinstance(a, (Ge, Gt)) and func is min)):
+                mapper[a0] = a1
+
+    # Collapse graph paths
+    mapper = transitive_closure(mapper)
+    input = [i.subs(mapper) for i in input]
+
+    # Explore simplification opportunities that may have emerged and generate MIN/MAX
+    # expression
     try:
-        bool(min(a, b))  # Can it be evaluated or simplified?
-        return min(a, b)
+        exp = sfunc(*input)  # Can it be evaluated or simplified?
+        if exp.is_Function:
+            # Use the new args only if evaluation managed to reduce the number
+            # of candidates.
+            input = min(input, exp.args, key=len)
+        else:
+            # Since we are here, exp is a simplified expression
+            return exp
     except TypeError:
-        return MIN(a, b)
+        pass
+    return rfunc(func, *input)
