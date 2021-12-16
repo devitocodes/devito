@@ -554,7 +554,10 @@ def rfunc(func, item, *args):
     assert func in rfunc_mapper
     rf = rfunc_mapper[func]
 
-    return rf(item, rfunc(func, *args)) if len(args) > 0 else item
+    if len(args) == 0:
+        return item
+    else:
+        return rf(item, rfunc(func, *args))
 
 
 cast_mapper = {

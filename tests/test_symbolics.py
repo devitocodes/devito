@@ -100,6 +100,7 @@ def test_solve_time():
 
 
 class TestRelationsWithAssumptions(object):
+
     def test_multibounds_op(self):
         """
         Tests evalrel function on a simple example.
@@ -180,6 +181,7 @@ class TestRelationsWithAssumptions(object):
          'MAX(a, MAX(b, MAX(c, d)))']),
         ([max, '[a, b, c, d]', '[Le(c, a + d)]', 'MAX(a, MAX(b, MAX(c, d)))']),
         ([max, '[a, b, c, d]', '[Le(c, d), Le(a, b)]', 'MAX(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d), Le(d, c)]', 'MAX(a, MAX(b, c))']),
         ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
         ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
         ([min, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'MIN(a, c)']),
@@ -196,6 +198,8 @@ class TestRelationsWithAssumptions(object):
           'MAX(a, MAX(b, MAX(c, d)))']),
         ([max, '[a, b, c, d, e]', '[Gt(a, b + c + e)]',
           'MAX(a, MAX(b, MAX(c, MAX(d, e))))']),
+        ([max, '[a, b, c, d, e]', '[Ge(c, a), Ge(b, a), Ge(a, c), Ge(e, c), Ge(d, e)]',
+          'MAX(b, d)']),
     ])
     def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
         """

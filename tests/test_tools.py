@@ -53,3 +53,34 @@ def test_transitive_closure():
     mapper = {a: b, b: c, c: d, f: e}
     mapper = transitive_closure(mapper)
     assert mapper == {a: d, b: d, c: d, f: e}
+
+
+def test_loops_in_transitive_closure():
+    a = Symbol('a')
+    b = Symbol('b')
+    c = Symbol('c')
+    d = Symbol('d')
+    e = Symbol('e')
+
+    mapper = {a: b, b: c, c: d, d: e, e: b}
+    mapper = transitive_closure(mapper)
+    assert mapper == {a: b, b: c, c: d, d: e, e: b}
+
+
+@pytest.mark.parametrize('mapper, expected', [
+    ([{a: b, b: a, c: d, d: e, e: c}, [a, a, c, c, c]]),
+    ([{a: b, b: c, c: b, d: e, e: d}, [b, b, b, d, d]]),
+    ([{a: c, b: a, c: a, d: e, e: d}, [a, a, a, d, d]]),
+    ([{c: a, b: a, a: c, e: c, d: e}, [a, a, a, c, c]]),
+    ([{a: b, b: c, c: d, d: e, e: b}, [b, b, b, b, b]]),
+])
+def test_sympy_subs_symmetric(mapper, expected):
+    a = Symbol('a')
+    b = Symbol('b')
+    c = Symbol('c')
+    d = Symbol('d')
+    e = Symbol('e')
+
+    input = [a, b, c, d, e]
+    input = [i.subs(mapper) for i in input]
+    assert input == expected

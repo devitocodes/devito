@@ -7,7 +7,7 @@ __all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne']
 
 class AbstractRel(object):
     """
-    Abstract mixin class for objects subclassing sympy Relationals.
+    Abstract mixin class for objects subclassing sympy.Relational.
     """
     @property
     def negated(self):

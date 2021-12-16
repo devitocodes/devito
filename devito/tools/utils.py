@@ -307,13 +307,12 @@ def indices_to_sections(inputlist):
     return sections
 
 
-def reachable_items(R, k):
+def reachable_items(R, k, visited):
     try:
-        visited = []
         ans = R[k]
         if ans != [] and ans not in visited:
-            ans = reachable_items(R, ans)
             visited.append(ans)
+            ans = reachable_items(R, ans, visited)
         return ans
     except:
         return k
@@ -335,5 +334,6 @@ def transitive_closure(R):
     '''
     ans = dict()
     for k in R.keys():
-        ans[k] = reachable_items(R, k)
+        visited = []
+        ans[k] = reachable_items(R, k, visited)
     return ans
