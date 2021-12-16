@@ -13,7 +13,7 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
-           'dimensions', 'ModuloDimension', 'IncrDimension']
+           'dimensions', 'ModuloDimension', 'IncrDimension', 'BlockDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -36,13 +36,11 @@ class Dimension(ArgProvider):
                                            |
                               ---------------------------
                               |                         |
-                       BasicDimension            DefaultDimension
+                       DerivedDimension            DefaultDimension
                               |
-                      DerivedDimension
-                              |
-            ---------------------------------------
-            |                 |                   |
-      SteppingDimension   SubDimension   ConditionalDimension
+                   ---------------------
+                   |                   |
+              SubDimension   ConditionalDimension
 
     Parameters
     ----------
@@ -104,6 +102,7 @@ class Dimension(ArgProvider):
     is_SubIterator = False
     is_Modulo = False
     is_Incr = False
+    is_Block = False
 
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
@@ -459,6 +458,11 @@ class DerivedDimension(BasicDimension):
     _pickle_kwargs = []
 
 
+# ***
+# The Dimensions below are exposed in the user API. They can only be created by
+# the user
+
+
 class SubDimension(DerivedDimension):
 
     """
@@ -791,77 +795,9 @@ class ConditionalDimension(DerivedDimension):
     _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition', 'indirect']
 
 
-class SteppingDimension(DerivedDimension):
-
-    """
-    Symbol defining a convex iteration sub-space derived from a ``parent``
-    Dimension, which cyclically produces a finite range of values, such
-    as ``0, 1, 2, 0, 1, 2, 0, ...`` (also referred to as "modulo buffered
-    iteration").
-
-    SteppingDimension is most commonly used to represent a time-stepping Dimension.
-
-    Parameters
-    ----------
-    name : str
-        Name of the dimension.
-    parent : Dimension
-        The parent Dimension.
-    """
-
-    is_NonlinearDerived = True
-    is_Stepping = True
-    is_SubIterator = True
-
-    @property
-    def symbolic_min(self):
-        return self.parent.symbolic_min
-
-    @property
-    def symbolic_max(self):
-        return self.parent.symbolic_max
-
-    @property
-    def _arg_names(self):
-        return (self.min_name, self.max_name, self.name) + self.parent._arg_names
-
-    def _arg_defaults(self, _min=None, **kwargs):
-        """
-        A map of default argument values defined by this dimension.
-
-        Parameters
-        ----------
-        _min : int, optional
-            Minimum point as provided by data-carrying objects.
-
-        Notes
-        -----
-        A SteppingDimension does not know its max point and therefore
-        does not have a size argument.
-        """
-        return {self.parent.min_name: _min}
-
-    def _arg_values(self, *args, **kwargs):
-        """
-        The argument values provided by a SteppingDimension are those
-        of its parent, as it acts as an alias.
-        """
-        values = {}
-
-        if self.min_name in kwargs:
-            values[self.parent.min_name] = kwargs.pop(self.min_name)
-
-        if self.max_name in kwargs:
-            values[self.parent.max_name] = kwargs.pop(self.max_name)
-
-        # Let the dimension name be an alias for `dim_e`
-        if self.name in kwargs:
-            values[self.parent.max_name] = kwargs.pop(self.name)
-
-        return values
-
-
-# The Dimensions below are for internal use only
+# ***
+# The Dimensions below are for internal use only. They are created by the compiler
+# during the construction of an Operator
 
 
 class ModuloDimension(DerivedDimension):
@@ -1010,7 +946,7 @@ class ModuloDimension(DerivedDimension):
     _pickle_kwargs = ['offset', 'modulo', 'incr', 'origin']
 
 
-class IncrDimension(DerivedDimension):
+class AbstractIncrDimension(DerivedDimension):
 
     """
     Dimension symbol representing a non-contiguous sub-region of a given
@@ -1040,8 +976,6 @@ class IncrDimension(DerivedDimension):
     """
 
     is_Incr = True
-    is_PerfKnob = True
-    is_SubIterator = True
 
     def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
         super().__init_finalize__(name, parent)
@@ -1106,83 +1040,34 @@ class IncrDimension(DerivedDimension):
         except (TypeError, ValueError):
             return self.step
 
-    @cached_property
-    def _arg_names(self):
-        try:
-            return (self.step.name,)
-        except AttributeError:
-            # `step` not a Symbol
-            return ()
-
-    def _arg_defaults(self, **kwargs):
-        # TODO: need a heuristic to pick a default incr size
-        # TODO: move default value to __new__
-        try:
-            return {self.step.name: 8}
-        except AttributeError:
-            # `step` not a Symbol
-            return {}
-
-    def _arg_values(self, interval, grid, args=None, **kwargs):
-        try:
-            name = self.step.name
-        except AttributeError:
-            # `step` not a Symbol
-            return {}
-
-        if name in kwargs:
-            return {name: kwargs.pop(name)}
-        elif isinstance(self.parent, IncrDimension):
-            # `self` is an IncrDimension within an outer IncrDimension, but
-            # no value supplied -> the sub-block will span the entire block
-            return {name: args[self.parent.step.name]}
-        else:
-            value = self._arg_defaults()[name]
-            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
-                return {name: value}
-            else:
-                # Avoid OOB (will end up here only in case of tiny iteration spaces)
-                return {name: 1}
-
-    def _arg_check(self, args, *_args):
-        try:
-            name = self.step.name
-        except AttributeError:
-            # `step` not a Symbol
-            return
-
-        value = args[name]
-        if isinstance(self.parent, IncrDimension):
-            # sub-IncrDimensions must be perfect divisors of their parent
-            parent_value = args[self.parent.step.name]
-            if parent_value % value > 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
-                                      "must divide the parent block size evenly (`%s=%d`)"
-                                      % (name, value, self.parent.step.name,
-                                         parent_value))
-        else:
-            if value < 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
-                                      % (name, value))
-            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
-                # Avoid OOB
-                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
-                                      "iteration range and it will cause an OOB access"
-                                      % (name, value))
-
     # Pickling support
     _pickle_args = ['name', 'parent', 'symbolic_min', 'symbolic_max']
     _pickle_kwargs = ['step', 'size']
 
 
-class CustomDimension(BasicDimension):
+class IncrDimension(AbstractIncrDimension):
 
     """
-    Dimension defining an iteration space with custom (known) size.
+    A concrete implementation of an AbstractIncrDimension.
 
     Notes
     -----
-    This could be extended in the future for more customization (e.g., incr.).
+    This type should not be instantiated directly in user code.
+    """
+
+    is_SubIterator = True
+
+
+class CustomDimension(BasicDimension):
+
+    """
+    Dimension defining an iteration space with known size. Unlike a DefaultDimension,
+    a CustomDimension provides more freedom -- the symbolic_{min,max,size} of the
+    # Dimension can be set at will.
+
+    Notes
+    -----
+    This type should not be instantiated directly in user code.
     """
 
     is_Custom = True
@@ -1274,7 +1159,7 @@ class CustomDimension(BasicDimension):
 class DynamicDimensionMixin(object):
 
     """
-    Avoid generation of const Symbols.
+    A mixin to create Dimensions producing non-const Symbols.
     """
 
     @cached_property
@@ -1300,6 +1185,155 @@ class DynamicSubDimension(DynamicDimensionMixin, SubDimension):
     def _symbolic_thickness(cls, name):
         return (Scalar(name="%s_ltkn" % name, dtype=np.int32, nonnegative=True),
                 Scalar(name="%s_rtkn" % name, dtype=np.int32, nonnegative=True))
+
+
+# ***
+# The Dimensions below are created by Devito and may eventually be
+# accessed in user code to e.g. construct or manipulate Eqs
+
+
+class SteppingDimension(DerivedDimension):
+
+    """
+    Symbol defining a convex iteration sub-space derived from a ``parent``
+    Dimension, which cyclically produces a finite range of values, such
+    as ``0, 1, 2, 0, 1, 2, 0, ...`` (also referred to as "modulo buffered
+    iteration").
+
+    SteppingDimension is most commonly used to represent a time-stepping Dimension.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    parent : Dimension
+        The parent Dimension.
+    """
+
+    is_NonlinearDerived = True
+    is_Stepping = True
+    is_SubIterator = True
+
+    @property
+    def symbolic_min(self):
+        return self.parent.symbolic_min
+
+    @property
+    def symbolic_max(self):
+        return self.parent.symbolic_max
+
+    @property
+    def _arg_names(self):
+        return (self.min_name, self.max_name, self.name) + self.parent._arg_names
+
+    def _arg_defaults(self, _min=None, **kwargs):
+        """
+        A map of default argument values defined by this dimension.
+
+        Parameters
+        ----------
+        _min : int, optional
+            Minimum point as provided by data-carrying objects.
+
+        Notes
+        -----
+        A SteppingDimension does not know its max point and therefore
+        does not have a size argument.
+        """
+        return {self.parent.min_name: _min}
+
+    def _arg_values(self, *args, **kwargs):
+        """
+        The argument values provided by a SteppingDimension are those
+        of its parent, as it acts as an alias.
+        """
+        values = {}
+
+        if self.min_name in kwargs:
+            values[self.parent.min_name] = kwargs.pop(self.min_name)
+
+        if self.max_name in kwargs:
+            values[self.parent.max_name] = kwargs.pop(self.max_name)
+
+        # Let the dimension name be an alias for `dim_e`
+        if self.name in kwargs:
+            values[self.parent.max_name] = kwargs.pop(self.name)
+
+        return values
+
+
+class BlockDimension(AbstractIncrDimension):
+
+    """
+    Dimension symbol for lowering TILABLE Dimensions.
+    """
+
+    is_Block = True
+    is_PerfKnob = True
+
+    @cached_property
+    def _arg_names(self):
+        try:
+            return (self.step.name,)
+        except AttributeError:
+            # `step` not a Symbol
+            return ()
+
+    def _arg_defaults(self, **kwargs):
+        # TODO: need a heuristic to pick a default incr size
+        # TODO: move default value to __new__
+        try:
+            return {self.step.name: 8}
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+
+    def _arg_values(self, interval, grid, args=None, **kwargs):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+
+        if name in kwargs:
+            return {name: kwargs.pop(name)}
+        elif isinstance(self.parent, BlockDimension):
+            # `self` is a BlockDimension within an outer BlockDimension, but
+            # no value supplied -> the sub-block will span the entire block
+            return {name: args[self.parent.step.name]}
+        else:
+            value = self._arg_defaults()[name]
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
+                return {name: value}
+            else:
+                # Avoid OOB (will end up here only in case of tiny iteration spaces)
+                return {name: 1}
+
+    def _arg_check(self, args, *_args):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return
+
+        value = args[name]
+        if isinstance(self.parent, BlockDimension):
+            # sub-BlockDimensions must be perfect divisors of their parent
+            parent_value = args[self.parent.step.name]
+            if parent_value % value > 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
+                                      "must divide the parent block size evenly (`%s=%d`)"
+                                      % (name, value, self.parent.step.name,
+                                         parent_value))
+        else:
+            if value < 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
+                                      % (name, value))
+            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
+                # Avoid OOB
+                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
+                                      "iteration range and it will cause an OOB access"
+                                      % (name, value))
 
 
 def dimensions(names):

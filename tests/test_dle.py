@@ -131,13 +131,13 @@ def test_cache_blocking_structure_subdims():
     trees = retrieve_iteration_tree(bns['i0x0_blk0'])
     tree = trees[0]
     assert len(tree) == 5
-    assert tree[0].dim.is_Incr and tree[0].dim.parent is xi and tree[0].dim.root is x
-    assert tree[1].dim.is_Incr and tree[1].dim.parent is yi and tree[1].dim.root is y
-    assert tree[2].dim.is_Incr and tree[2].dim.parent is tree[0].dim and\
+    assert tree[0].dim.is_Block and tree[0].dim.parent is xi and tree[0].dim.root is x
+    assert tree[1].dim.is_Block and tree[1].dim.parent is yi and tree[1].dim.root is y
+    assert tree[2].dim.is_Block and tree[2].dim.parent is tree[0].dim and\
         tree[2].dim.root is x
-    assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
+    assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
         tree[3].dim.root is y
-    assert not tree[4].dim.is_Incr and tree[4].dim is zi and tree[4].dim.parent is z
+    assert not tree[4].dim.is_Block and tree[4].dim is zi and tree[4].dim.parent is z
 
 
 @pytest.mark.parallel(mode=[(1, 'full')])  # Shortcut to put loops in nested efuncs
@@ -278,8 +278,8 @@ def test_cache_blocking_imperfect_nest(blockinner):
     assert len(trees[0]) == len(trees[1])
     assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4]))
     assert trees[0][4] is not trees[1][4]
-    assert trees[0].root.dim.is_Incr
-    assert trees[1].root.dim.is_Incr
+    assert trees[0].root.dim.is_Block
+    assert trees[1].root.dim.is_Block
     assert op1.parameters[7] is trees[0][0].step
     assert op1.parameters[10] is trees[0][1].step
 
@@ -324,8 +324,8 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert len(trees[0]) == len(trees[1])
     assert all(i is j for i, j in zip(trees[0][:2], trees[1][:2]))
     assert trees[0][2] is not trees[1][2]
-    assert trees[0].root.dim.is_Incr
-    assert trees[1].root.dim.is_Incr
+    assert trees[0].root.dim.is_Block
+    assert trees[1].root.dim.is_Block
     assert op2.parameters[6] is trees[0].root.step
 
     op0(time_M=0)
@@ -771,24 +771,24 @@ class TestNestedParallelism(object):
         assert len(trees) == 1
         tree = trees[0]
         assert len(tree) == 5 + (blocklevels - 1) * 2
-        assert tree[0].dim.is_Incr and tree[0].dim.parent is xi and tree[0].dim.root is x
-        assert tree[1].dim.is_Incr and tree[1].dim.parent is yi and tree[1].dim.root is y
-        assert tree[2].dim.is_Incr and tree[2].dim.parent is tree[0].dim and\
+        assert tree[0].dim.is_Block and tree[0].dim.parent is xi and tree[0].dim.root is x
+        assert tree[1].dim.is_Block and tree[1].dim.parent is yi and tree[1].dim.root is y
+        assert tree[2].dim.is_Block and tree[2].dim.parent is tree[0].dim and\
             tree[2].dim.root is x
-        assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
+        assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
             tree[3].dim.root is y
 
         if blocklevels == 1:
-            assert not tree[4].dim.is_Incr and tree[4].dim is zi and\
+            assert not tree[4].dim.is_Block and tree[4].dim is zi and\
                 tree[4].dim.parent is z
         elif blocklevels == 2:
-            assert tree[3].dim.is_Incr and tree[3].dim.parent is tree[1].dim and\
+            assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
                 tree[3].dim.root is y
-            assert tree[4].dim.is_Incr and tree[4].dim.parent is tree[2].dim and\
+            assert tree[4].dim.is_Block and tree[4].dim.parent is tree[2].dim and\
                 tree[4].dim.root is x
-            assert tree[5].dim.is_Incr and tree[5].dim.parent is tree[3].dim and\
+            assert tree[5].dim.is_Block and tree[5].dim.parent is tree[3].dim and\
                 tree[5].dim.root is y
-            assert not tree[6].dim.is_Incr and tree[6].dim is zi and\
+            assert not tree[6].dim.is_Block and tree[6].dim is zi and\
                 tree[6].dim.parent is z
 
         assert trees[0][0].pragmas[0].value ==\

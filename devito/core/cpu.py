@@ -203,7 +203,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         if options['mpi']:
             mpiize(graph, mode=options['mpi'], sregistry=sregistry)
 
-        # Lower IncrDimensions so that blocks of arbitrary shape may be used
+        # Lower BlockDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
 
         # Parallelism

@@ -252,10 +252,8 @@ class Cluster(object):
 
             # Factor in the IterationSpace -- if the min/max points aren't zero,
             # then the data intervals need to shrink/expand accordingly
-            # E.g., `xi -> xi0_blk0 -> xi` (the last `xi` being a SubDimension)
-            key = lambda d: d.is_SubIterator and not self.ispace.is_sub_iterator(d)
-            intervals = intervals.promote(key)
-            shift = self.ispace.intervals.promote(key)
+            intervals = intervals.promote(lambda d: d.is_Block)
+            shift = self.ispace.intervals.promote(lambda d: d.is_Block)
             intervals = intervals.add(shift)
 
             # Map SubIterators to the corresponding data space Dimension

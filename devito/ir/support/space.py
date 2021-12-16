@@ -191,7 +191,7 @@ class Interval(AbstractInterval):
             npoints += 1 * (n-1)
             npoints /= n
         else:
-            # Typically we end up here (Dimension, SubDimension, IncrDimension)
+            # Typically we end up here (Dimension, SubDimension, BlockDimension)
             upper_extreme = self.dim.symbolic_max + self.upper
             lower_extreme = self.dim.symbolic_min + self.lower
 

@@ -2572,11 +2572,11 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 90
-        assert np.isclose(summary[('section1', None)].oi, 1.508, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 2.031, atol=0.001)
 
-        # With optimizations enabled, there should be exactly four IncrDimensions
+        # With optimizations enabled, there should be exactly four BlockDimensions
         op = wavesolver.op_fwd()
-        block_dims = [i for i in op.dimensions if i.is_Incr]
+        block_dims = [i for i in op.dimensions if i.is_Block]
         assert len(block_dims) == 4
         x, x0_blk0, y, y0_blk0 = block_dims
         assert x.parent is x0_blk0

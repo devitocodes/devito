@@ -662,11 +662,11 @@ def lower_aliases(aliases, meta, maxpar):
             writeto.append(interval)
             intervals.append(interval)
 
-            if i.dim.is_Incr:
+            if i.dim.is_Block:
                 # Suitable IncrDimensions must be used to avoid OOB accesses.
                 # E.g., r[xs][ys][z] => both `xs` and `ys` must be initialized such
                 # that all accesses are within bounds. This requires traversing the
-                # hierarchy of IncrDimensions to set `xs` (`ys`) in a way that
+                # hierarchy of BlockDimensions to set `xs` (`ys`) in a way that
                 # consecutive blocks access consecutive regions in `r` (e.g.,
                 # `xs=x0_blk1-x0_blk0` with `blocklevels=2`; `xs=0` with
                 # `blocklevels=1`, that is it degenerates in this case)
@@ -674,9 +674,9 @@ def lower_aliases(aliases, meta, maxpar):
                     d = dmapper[i.dim]
                 except KeyError:
                     dd = i.dim.parent
-                    assert dd.is_Incr
-                    if dd.parent.is_Incr:
-                        # An IncrDimension in between IncrDimensions
+                    assert dd.is_Block
+                    if dd.parent.is_Block:
+                        # A BlockDimension in between BlockDimensions
                         m = i.dim.symbolic_min - i.dim.parent.symbolic_min
                     else:
                         m = 0
@@ -739,7 +739,7 @@ def optimize_schedule_rotations(schedule, sregistry):
         try:
             ds = schedule.dmapper[d]
         except KeyError:
-            # Can't do anything if `d` isn't an IncrDimension over a block
+            # Can't do anything if `d` isn't a BlockDimension
             processed.extend(g)
             continue
 
@@ -1301,7 +1301,7 @@ def nredundants(ispace, expr):
     redundant if it defines an iteration space for `expr` while not appearing
     among its free symbols. Note that the converse isn't generally true: there
     could be a Dimension that does not appear in the free symbols while defining
-    a non-redundant iteration space (e.g., an IncrDimension stemming from blocking).
+    a non-redundant iteration space (e.g., a BlockDimension).
     """
     iterated = {i.dim for i in ispace}
     used = {i for i in expr.free_symbols if i.is_Dimension}
