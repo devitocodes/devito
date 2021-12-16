@@ -9,6 +9,7 @@ class AbstractRel(object):
     """
     Abstract mixin class for objects subclassing sympy.Relational.
     """
+
     @property
     def negated(self):
         return ops.get(self.func)(*self.args)
@@ -49,8 +50,6 @@ class Le(AbstractRel, sympy.Le):
     >>> Le(g, 1)
     g(x, y) <= 1
     """
-    is_Le = True
-    is_Lt = False
 
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})
@@ -86,8 +85,6 @@ class Lt(AbstractRel, sympy.Lt):
     >>> Lt(g, 1)
     g(x, y) < 1
     """
-    is_Lt = True
-    is_Le = False
 
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})
@@ -123,8 +120,6 @@ class Ge(AbstractRel, sympy.Ge):
     >>> Ge(g, 1)
     g(x, y) >= 1
     """
-    is_Ge = True
-    is_Gt = False
 
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})
@@ -160,8 +155,6 @@ class Gt(AbstractRel, sympy.Gt):
     >>> Gt(g, 1)
     g(x, y) > 1
     """
-    is_Gt = True
-    is_Ge = False
 
     def __new__(cls, lhs, rhs=0, subdomain=None, **kwargs):
         kwargs.update({'evaluate': False})

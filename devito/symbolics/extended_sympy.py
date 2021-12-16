@@ -649,11 +649,11 @@ class DOUBLEP(CastStar):
 
 CEIL = Function('ceil')
 FLOOR = Function('floor')
-MIN = Function('MIN')
 MAX = Function('MAX')
+MIN = Function('MIN')
 
 
-def rfunc(func=None, item=None, *args):
+def rfunc(func, item, *args):
     """
     A utility function that recursively generates 'func' nested relations.
 

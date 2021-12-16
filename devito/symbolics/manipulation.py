@@ -387,5 +387,8 @@ def evalrel(func=min, input=None, assumptions=None, eval=True):
     except TypeError:
         pass
 
-    # If eval=False return only the simplified list
-    return rfunc(func, *input) if eval else input
+    if eval:
+        return rfunc(func, *input)
+    else:
+        # If 'eval==False' return only the simplified list
+        return input

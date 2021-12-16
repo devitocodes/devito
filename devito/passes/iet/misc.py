@@ -106,7 +106,7 @@ def relax_incr_dimensions(iet, **kwargs):
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
         # Process inner iterations and adjust their bounds
-        for n, i in enumerate(inner):
+        for i in inner:
             # This part of the code aims to collect the data necessary to build the
             # MIN/MAX bounds of an Iteration. The main challenge is to correctly
             # take care of interval offsets (incurred by several Devito optimizations),
@@ -138,18 +138,18 @@ def relax_incr_dimensions(iet, **kwargs):
             # Step 2: Generate assumptions deriving from hierarchical blocking. Assuming
             # lower blocking levels perfectly fit within outer levels, we use depth of
             # IncrDimensions as a rule to generate assumptions such as:
-            # Defines are all the ancestors of `i.dim`. Starting from the parent up the
-            # root.
             # e.g. for 2-level blocking [x (inner Incr), x0_blk1, x0_blk0, x (outer root)]
             # [x0_blk1 > x0_blk0, x0_blk1_size > x0_blk0_size]
+            # `defines` keeps all the ancestors and descendants of `i.dim`.
             defines = sorted(i.dim._defines, key=lambda x: (not x.is_Incr or -x._depth))
-            # Collect assumptions
+
+            # Collect assumptions based on hierarchy
             acs = [j for j in defines if j is not i.dim and j.is_Incr]
             assumptions = []
             assumptions.extend(chain.from_iterable((Gt(j.step, k.step), Gt(j, k)) for j, k
                                in product(acs, acs) if j._depth > k._depth))
 
-            # Reduce defines min/max candidates using assumptions on defines list
+            # Step 3: Reduce defines min/max candidates using assumptions on `defines`
             defmin = evalrel(max, defines, assumptions, eval=False)
             defmax = evalrel(min, defines, assumptions, eval=False)
 
@@ -157,38 +157,30 @@ def relax_incr_dimensions(iet, **kwargs):
             defmin = [j.symbolic_min for j in defmin]
             defmax = [j.symbolic_max for j in defmax]
 
-            # [x, x0_blk0, x0_blk0, x]
-            # [x0_blk1 + x0_blk1_size - 1, x_M, x_M, x_M]
-
             # Drop duplicates from defmin/defmax and keep them Ordered
             defmin = list(OrderedDict.fromkeys(defmin))
             defmax = list(OrderedDict.fromkeys(defmax))
 
-            # Drop a candidate if it is the symbolic_min/max of other
-            # symbol candidates
+            # Step 4: Drop a candidate if it is the symbolic_min/max of symbol candidates
             defmin = [j for j in defmin if j not in (k.symbolic_min for
                       k in defmin if k.is_Symbol and not k.is_Scalar)]
             defmax = [j for j in defmax if j not in (k.symbolic_max for
                       k in defmax if k.is_Symbol and not k.is_Scalar)]
-            # [x0_blk1]
-            # [x0_blk1 + x0_blk1_size - 1, x_M, x_M, x_M]
-            # [x0_blk1 + x0_blk1_size - 1, x_M]
 
             # At this point the candidates for the start and end of the `Iteration`
-            # comprise of candidates stemming from i.dim and candidates stemming from
-            # other dims, (in space blocking other dims is usually root.) The terms
-            # stemming from 'i.dim' can be compared and for those we need the minimum
-            # of them for the start and the maximum of them for the end so as to span
-            # the whole extent of the iteration.
+            # comprise of candidates stemming (i) from `i.dim` and (ii) candidates
+            # stemming from other dims, (in space blocking other dims is usually root.)
+            # The canidates stemming from 'i.dim' can be compared and for those we need
+            # the minimum of them for the start and the maximum of them for the end so
+            # as to span the whole extent of the Iteration's Dimension (i.dim iteration
+            # extent).
+            # We split on comparable and uncomparable. Comparable ones include
+            # subdimensions (offsets incurred) and non-comparable ones include
+            # dimensions with no clear rule of simplification
             # For the start it is MAX(uncomparable, MIN(comparable))
-            # For the end it is MAX(uncomparable, MIN(comparable))
-            # Comparable ones include subdimensions(offsets)
+            # For the end it is MIN(uncomparable, MAX(comparable))
             defmin = evalrel(min, defmin, assumptions=None, eval=False)
             defmax = evalrel(max, defmax, assumptions=None, eval=False)
-
-            # Split on comparable and uncomparable
-            # Comparable ones include subdimensions(offsets)
-            # Non-comparable ones include dimensions with no clear rule of simplification
 
             # Apply offset if needed, else leave as it is
             defmin = [j.subs(min_map) if j in min_map else j for j in as_list(defmin)]
@@ -198,6 +190,9 @@ def relax_incr_dimensions(iet, **kwargs):
             iter_min = evalrel(max, defmin)
             iter_max = evalrel(min, defmax)
 
+            # Final iteration form will look like:
+            # Iteration i <starting from MAX(uncomparable, MIN(comparable))
+            # to MIN(uncomparable, MAX(comparable))>
             mapper[i] = i._rebuild(limits=(iter_min, iter_max, i.step))
 
     if mapper:
