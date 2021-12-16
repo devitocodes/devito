@@ -452,7 +452,10 @@ class Cpu64(Platform):
 
     def _detect_isa(self):
         for i in reversed(self.known_isas):
-            if any(j.startswith(i) for j in get_cpu_info()['flags']):
+            flags = get_cpu_info()['flags']
+            if flags is None:
+                flags = []
+            if any(j.startswith(i) for j in flags):
                 # Using `startswith`, rather than `==`, as a flag such as 'avx512'
                 # appears as 'avx512f, avx512cd, ...'
                 return i

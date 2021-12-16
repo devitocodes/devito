@@ -158,7 +158,7 @@ class Compiler(GCCToolchain):
         self.ldflags = ['-shared']
 
         self.include_dirs = []
-        self.libraries = ['m']
+        self.libraries = []
         self.library_dirs = []
         self.defines = []
         self.undefines = []
@@ -414,7 +414,8 @@ class ClangCompiler(Compiler):
                 # -march isn't supported on power architectures
                 self.cflags += ['-mcpu=native']
             else:
-                self.cflags += ['-march=native']
+                pass
+                # self.cflags += ['-march=native']
             if language == 'openmp':
                 self.ldflags += ['-fopenmp']
 
