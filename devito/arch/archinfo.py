@@ -10,7 +10,7 @@ import re
 import ctypes
 
 from devito.logger import warning
-from devito.tools import all_equal, memoized_func
+from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
@@ -482,7 +482,7 @@ class Cpu64(Platform):
 
     def _detect_isa(self):
         for i in reversed(self.known_isas):
-            if any(j.startswith(i) for j in get_cpu_info()['flags']):
+            if any(j.startswith(i) for j in as_tuple(get_cpu_info()['flags'])):
                 # Using `startswith`, rather than `==`, as a flag such as 'avx512'
                 # appears as 'avx512f, avx512cd, ...'
                 return i
