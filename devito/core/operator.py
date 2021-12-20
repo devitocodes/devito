@@ -174,8 +174,16 @@ class CustomOperator(BasicOperator):
         sregistry = kwargs['sregistry']
         passes = as_tuple(kwargs['mode'])
 
-        # Run passes
         passes_mapper = cls._make_iet_passes_mapper(**kwargs)
+
+        # Always attempt `mpi` codegen before anything else to maximize the
+        # outcome of the other passes (e.g., shared-memory parallelism benefits
+        # from HaloSpot optimization)
+        # Note that if MPI is disabled then this pass will act as a no-op
+        if 'mpi' not in passes:
+            passes_mapper['mpi'](graph)
+
+        # Run passes
         applied = []
         for i in passes:
             try:
@@ -184,23 +192,19 @@ class CustomOperator(BasicOperator):
             except KeyError:
                 pass
 
-        # Force-call `mpi` if requested via global option
-        if passes_mapper['mpi'] not in applied and options['mpi']:
-            passes_mapper['mpi'](graph)
-
         # Parallelism
         if passes_mapper['parallel'] not in applied and options['parallel']:
             passes_mapper['parallel'](graph)
 
         # Initialize the target-language runtime
-        if passes_mapper['init'] not in applied:
+        if 'init' not in passes:
             passes_mapper['init'](graph)
 
         # Symbol definitions
         cls._Target.DataManager(sregistry, options).process(graph)
 
         # Linearize n-dimensional Indexeds
-        if passes_mapper['linearize'] not in applied and options['linearize']:
+        if 'linearize' not in passes and options['linearize']:
             passes_mapper['linearize'](graph)
 
         return graph

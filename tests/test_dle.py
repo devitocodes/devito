@@ -816,7 +816,7 @@ class TestNestedParallelism(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns, opt=('optcomms', 'blocking', 'openmp',
+        op = Operator(eqns, opt=('blocking', 'openmp',
                                  {'par-collapse-ncores': 1,
                                   'par-dynamic-work': 20}))
 

@@ -1,6 +1,6 @@
 from devito.core.cpu import Cpu64AdvOperator
-from devito.passes.iet import (CTarget, OmpTarget, mpiize, optimize_halospots,
-                               hoist_prodders, linearize, relax_incr_dimensions)
+from devito.passes.iet import (CTarget, OmpTarget, mpiize, hoist_prodders,
+                               linearize, relax_incr_dimensions)
 from devito.tools import timed_pass
 
 __all__ = ['ArmAdvCOperator', 'ArmAdvOmpOperator']
@@ -12,14 +12,11 @@ class ArmAdvOperator(Cpu64AdvOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
-        optimize_halospots(graph)
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
+        mpiize(graph, sregistry=sregistry, options=options)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
