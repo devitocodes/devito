@@ -94,13 +94,13 @@ class HaloExchangeBuilder(object):
         # Callable for poking the asynchronous progress engine
         key = self._gen_compkey()
         poke = self._make_poke(hs, key, msgs)
-        if poke is not None:
+        if isinstance(poke, Callable):
             self._efuncs.append(poke)
 
         # Callable for compute over the CORE region
         callpoke = self._call_poke(poke)
         compute = self._make_compute(hs, key, msgs, callpoke)
-        if compute is not None:
+        if isinstance(compute, Callable):
             self._efuncs.append(compute)
 
         # Callable for compute over the OWNED region
@@ -108,7 +108,7 @@ class HaloExchangeBuilder(object):
         region = self._regions.setdefault(hs, region)
         callcompute = self._call_compute(hs, compute, msgs)
         remainder = self._make_remainder(hs, key, callcompute, region)
-        if remainder is not None:
+        if isinstance(remainder, Callable):
             self._efuncs.append(remainder)
 
         # Now build up the HaloSpot body, with explicit Calls to the constructed Callables
@@ -866,7 +866,12 @@ class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
     def _call_compute(self, hs, compute, *args):
         return
 
-    _make_remainder = Overlap2HaloExchangeBuilder._make_compute
+    def _make_remainder(self, hs, key, callcompute, region):
+        # Just a dummy value, other than a Callable, so that we enter `_call_remainder`
+        return hs.body
+
+    def _call_remainder(self, remainder):
+        return remainder
 
 
 class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
