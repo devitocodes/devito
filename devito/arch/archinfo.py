@@ -145,7 +145,7 @@ def get_gpu_info():
 
     def homogenise_gpus(gpu_infos):
         """
-        Run homogeneity checks on a list of GPU, return GPU with count if
+        Run homogeneity checks on a list of GPUs, return GPU with count if
         homogeneous, otherwise None.
         """
         if gpu_infos == []:
@@ -199,7 +199,7 @@ def get_gpu_info():
         # Also attach callbacks to retrieve instantaneous memory info
         for i in ['total', 'free', 'used']:
             def make_cbk(i):
-                def cbk():
+                def cbk(deviceid=0):
                     info_cmd = ['nvidia-smi', '--query-gpu=memory.%s' % i, '--format=csv']
                     proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
                     raw_info = str(proc.stdout.read())
@@ -208,18 +208,14 @@ def get_gpu_info():
                     lines = lines.splitlines()[1:-1]
 
                     try:
-                        if len(lines) >= 0 and all_equal(lines):
-                            line = lines.pop()
-                            _, v, unit = re.split('([0-9]+)\s', line)
-                            assert unit == 'MiB'
-                            return int(v)*10**6
-                        else:
-                            raise ValueError
+                        line = lines.pop(deviceid)
+                        _, v, unit = re.split('([0-9]+)\s', line)
+                        assert unit == 'MiB'
+                        return int(v)*10**6
                     except:
                         # We shouldn't really end up here, unless nvidia-smi changes
                         # the output format (though we still have tests in place that
                         # will catch this)
-                        warning('Unable to detect available device memory')
                         return None
 
                     return lines
@@ -454,8 +450,7 @@ class Platform(object):
         """Physical memory size in bytes, or None if unknown."""
         return None
 
-    @property
-    def memavail(self):
+    def memavail(self, *args, **kwargs):
         """Available physical memory in bytes, or None if unknown."""
         return None
 
@@ -497,8 +492,7 @@ class Cpu64(Platform):
     def memtotal(self):
         return psutil.virtual_memory().total
 
-    @property
-    def memavail(self):
+    def memavail(self, *args, **kwargs):
         return psutil.virtual_memory().available
 
 
@@ -555,11 +549,13 @@ class Device(Platform):
         except (AttributeError, KeyError):
             return None
 
-    @property
-    def memavail(self):
+    def memavail(self, deviceid=0):
+        """
+        The amount of memory currently available on device.
+        """
         info = get_gpu_info()
         try:
-            return info['mem.free']()
+            return info['mem.free'](deviceid)
         except (AttributeError, KeyError):
             return None
 
