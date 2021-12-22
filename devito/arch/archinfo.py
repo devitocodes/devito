@@ -319,11 +319,11 @@ def get_nvidia_cc():
     cc_major = ctypes.c_int()
     cc_minor = ctypes.c_int()
 
-    if (cuda.cuDeviceComputeCapability(ctypes.byref(cc_major), ctypes.byref(cc_minor), 0)
-       == cuda.cuInit(0)):
-        return 10*cc_major.value + cc_minor.value
-    else:
+    if cuda.cuInit(0) != 0:
         return None
+    elif (cuda.cuDeviceComputeCapability(ctypes.byref(cc_major),
+          ctypes.byref(cc_minor), 0) == 0):
+        return 10*cc_major.value + cc_minor.value
 
 
 @memoized_func
