@@ -266,10 +266,10 @@ class CireInvariants(CireTransformer, Queue):
 
     def _lookup_key(self, c, d):
         ispace = c.ispace.reset()
-        iintervals = c.ispace.intervals.drop(d).reset()
+        intervals = c.ispace.intervals.drop(d).reset()
         properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
 
-        return AliasKey(ispace, iintervals, c.dtype, None, properties)
+        return AliasKey(ispace, intervals, c.dtype, None, properties)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # Always prefer the Variant with fewer temporaries
@@ -378,7 +378,7 @@ class CireSops(CireTransformer):
             yield self._do_generate(exprs, exclude, cbk_search_i, cbk_compose)
 
     def _lookup_key(self, c):
-        return AliasKey(c.ispace, c.ispace.intervals, c.dtype, c.guards, c.properties)
+        return AliasKey(c.ispace, None, c.dtype, c.guards, c.properties)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # If there's a greater flop reduction using fewer temporaries, no doubts
@@ -1167,7 +1167,7 @@ class Group(tuple):
         return ret
 
 
-AliasKey = namedtuple('AliasKey', 'ispace iintervals dtype guards properties')
+AliasKey = namedtuple('AliasKey', 'ispace intervals dtype guards properties')
 Variant = namedtuple('Variant', 'schedule exprs')
 
 
