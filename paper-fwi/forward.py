@@ -94,22 +94,29 @@ if (__name__=='__main__'):
         client = Client(cluster)
         
     # FWI Solver Class
-    if (settings_config.settings.case=='fwd_reference_u' 
-        or settings_config.settings.case=='fwd_test'):
-        fwisolver = solver.FWISolver(set_time,setup, setting,grid,utils,v0, test="forward")
-
-    else:
-        fwisolver = solver.FWISolver(set_time,setup, setting,grid,utils,v0)
+    fwisolver = solver.FWISolver(set_time,setup, setting,grid,utils,v0)
 
     def run():
         rec_true  = []
         work_true = []
         print("Running forward wave equation")
         for sn in range(0, nshots): 
+            
+            if(setting["dask"]):
+                work_true.append(client.submit(fwisolver.forward_true,sn))
+
+            else:
+                rec_data, u_data = fwisolver.forward_true(sn)
+                
+                # np.save('u_ref',u_data)
+                # np.save('rec_ref',rec_data)
+
+        if(setting["dask"]):
+            wait(work_true)
+            for i in range(nshots):
+                np.save('rec_ref' + str(i),work_true[i].result()[0])
+                np.save('u_ref' + str(i),work_true[i].result()[1])
     
-            u_data = fwisolver.forward_true(sn)
-    
-            np.save('rec_ref',u_data)
     
     
     

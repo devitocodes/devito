@@ -26,7 +26,7 @@ class solverABCs():
 #==============================================================================
 # Damping Solver
 #==============================================================================
-    def solvedamp(rec,src,vp,geramdamp,u,grid,setup,system,true_model,save=False,**kwargs):    
+    def solvedamp(rec,src,vp,geramdamp,u,grid,setup,system,save=False,**kwargs):    
         
         nptx = setup.nptx
         nptz = setup.nptz
@@ -66,7 +66,7 @@ class solverABCs():
             
                 op = Operator([stencil0, stencil1] + src_term + bc + bc1 + rec_term,subs=grid.spacing_map)
             
-        elif(system=='gradient'):    
+        elif(system=='gradient' or system=='adjoint'):    
              
             grad  = kwargs.get('grad')
             usave = kwargs.get('usave')
@@ -81,9 +81,15 @@ class solverABCs():
             
             # src_term = src.interpolate(expr=u)
             rec_term = rec.inject(field=u.backward, expr=rec* dt**2*vp**2)
-            grad_update = Eq(grad, grad - usave * u.dt2)
-            op  = Operator([stencil0, stencil1] + bc + bc1 + rec_term + [grad_update],subs=grid.spacing_map)             
-       
+            
+            if system=='adjoint':
+                op  = Operator([stencil0, stencil1] + bc + bc1 + rec_term,subs=grid.spacing_map)             
+
+            else:
+                grad_update = Eq(grad, grad - usave * u.dt2)
+                op  = Operator([stencil0, stencil1] + bc + bc1 + rec_term + [grad_update],subs=grid.spacing_map)             
+  
+                
         else:
         
             assert "Invalid option"
@@ -94,7 +100,7 @@ class solverABCs():
 #==============================================================================
 # PML Solver  
 #==============================================================================
-    def solvepml(rec,src,vp,geramdamp,vector,grid,setup,system,true_model,save=False,**kwargs):   
+    def solvepml(rec,src,vp,geramdamp,vector,grid,setup,system,save=False,**kwargs):   
 
         nptx = setup.nptx
         nptz = setup.nptz
@@ -169,7 +175,7 @@ class solverABCs():
             
                 op = Operator([stencil01,stencil02] + src_term + bc + bc1 + [stencil1,stencil2] + rec_term,subs=grid.spacing_map)
 
-        elif(system=='gradient'):    
+        elif(system=='gradient' or system=='adjoint'):    
                 
             grad  = kwargs.get('grad')
             usave = kwargs.get('usave')
@@ -201,9 +207,11 @@ class solverABCs():
             
             # source_a = src.interpolate(expr=u)
             receivers   = rec.inject(field=u.backward, expr=rec*dt**2*vp[0]**2)
-            grad_update = Eq(grad, grad - usave * u.dt2)
-            op = Operator([stencil01,stencil02] + bc + bc1 + [stencil1, stencil2] + receivers + [grad_update],subs=grid.spacing_map)
-
+            if(system=='gradient'):
+                grad_update = Eq(grad, grad - usave * u.dt2)
+                op = Operator([stencil01,stencil02] + bc + bc1 + [stencil1, stencil2] + receivers + [grad_update],subs=grid.spacing_map)
+            else:
+                op = Operator([stencil01,stencil02] + bc + bc1 + [stencil1, stencil2] + receivers,subs=grid.spacing_map)
         else:
             
             assert "Invalid option"
@@ -214,7 +222,7 @@ class solverABCs():
 #==============================================================================
 # HABC Solver
 #==============================================================================
-    def solvehabc(rec,src,vp,gerapesos,u,grid,setup,system,true_model,save=False,**kwargs):
+    def solvehabc(rec,src,vp,gerapesos,u,grid,setup,system,save=False,**kwargs):
         
         (hx,hz) = grid.spacing_map 
         (x, z)  = grid.dimensions     
@@ -383,7 +391,7 @@ class solverABCs():
             
                 op = Operator([stencil0] + src_term + [stencil01,stencil3,stencil02,stencil2,stencil1] + bc + bc1 + rec_term,subs=grid.spacing_map)
 
-        if(system=='gradient' and setup.Abcs=='habc-a1'):    
+        if((system=='gradient' or system=='adjoint') and setup.Abcs=='habc-a1'):    
              
             grad  = kwargs.get('grad')
             usave = kwargs.get('usave')
@@ -410,11 +418,14 @@ class solverABCs():
             receivers = rec.inject(field=u.backward, expr=rec*dt**2*vp**2)
             source_a  = src.interpolate(expr=u)
             bc  = []
-            bc1 = [Eq(u[t-1,x,-k],u[t-1,x,k]) for k in range(1,int(setup.sou/2)+1)]            
-            grad_update = Eq(grad, grad - usave * u.dt2)
-            op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers + [grad_update],subs=grid.spacing_map)
+            bc1 = [Eq(u[t-1,x,-k],u[t-1,x,k]) for k in range(1,int(setup.sou/2)+1)]      
+            if system=='gradient':      
+                grad_update = Eq(grad, grad - usave * u.dt2)
+                op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers + [grad_update],subs=grid.spacing_map)
+            else:
+                op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers,subs=grid.spacing_map)
 
-        if(system=='gradient' and setup.Abcs=='Higdon'):
+        if((system=='gradient' or system=='adjoint') and setup.Abcs=='Higdon'):
             
             grad  = kwargs.get('grad')
             usave = kwargs.get('usave')
@@ -516,10 +527,13 @@ class solverABCs():
             receivers = rec.inject(field=u.backward, expr=rec*dt**2*vp**2)
 
             bc  = []
-            bc1 = [Eq(u[t-1,x,-k],u[t-1,x,k]) for k in range(1,int(setup.sou/2)+1)]            
-            grad_update = Eq(grad, grad - usave * u.dt2)
-            op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers + [grad_update],subs=grid.spacing_map)
-
+            bc1 = [Eq(u[t-1,x,-k],u[t-1,x,k]) for k in range(1,int(setup.sou/2)+1)]   
+            
+            if system=='gradient':         
+                grad_update = Eq(grad, grad - usave * u.dt2)
+                op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers + [grad_update],subs=grid.spacing_map)
+            else:
+                op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers,subs=grid.spacing_map)    
         else:
             
             assert "Invalid option"
@@ -530,7 +544,7 @@ class solverABCs():
 #==============================================================================
 # CPML Solver
 #==============================================================================
-    def solvecpml(rec,src,vp,geradamp,vector,grid, setup,system,true_model,save=False,**kwargs):   
+    def solvecpml(rec,src,vp,geradamp,vector,grid, setup,system,save=False,**kwargs):   
         
         u     = vector[0]
         phi1  = vector[1]
@@ -615,7 +629,7 @@ class solverABCs():
 
                 op = Operator([stencil01,stencil02] + src_term + bc + bc1 + [stencil1,stencil2,stencil3,stencil4] + bczeta + rec_term,subs=grid.spacing_map)
 
-        elif(system=='gradient'):  
+        elif(system=='gradient' or system=='adjoint'):  
             
             grad  = kwargs.get('grad')
             usave = kwargs.get('usave')  
@@ -643,10 +657,13 @@ class solverABCs():
             bczeta += [Eq(zeta2[t-1,x,0],zeta2[t-1,x,1]),Eq(zeta2[t-1,x,nptz-1],zeta2[t-1,x,nptz-2])]
                     
             receivers = rec.inject(field=u.backward, expr=rec*dt**2*vp**2)
-            grad_update = Eq(grad, grad - usave * u.dt2)
 
-            op = Operator([stencil01,stencil02]  + bc + bc1 + [stencil1,stencil2,stencil3,stencil4] + bczeta + receivers + [grad_update],subs=grid.spacing_map)           
-  
+            if system=='gradient':
+                grad_update = Eq(grad, grad - usave * u.dt2)
+                op = Operator([stencil01,stencil02]  + bc + bc1 + [stencil1,stencil2,stencil3,stencil4] + bczeta + receivers + [grad_update],subs=grid.spacing_map)           
+            else:
+                op = Operator([stencil01,stencil02]  + bc + bc1 + [stencil1,stencil2,stencil3,stencil4] + bczeta + receivers,subs=grid.spacing_map)           
+   
         return op
 #==============================================================================
         
@@ -789,12 +806,11 @@ class FWISolver():
             
             vector = u   
 
-        op_fw = solv(rec,src,vp,g,vector,grid,setup,system='forward',true_model=True)
+        op_fw = solv(rec,src,vp,g,vector,grid,setup,system='forward')
         op_fw(dt=dt0)
-        if self.test=="forward":
-            return u.data[0]
-        else:
-            return rec.data[:]
+        
+        return rec.data[:], u.data[0]
+        
     
     #==============================================================================
     # FWI Function
@@ -815,12 +831,8 @@ class FWISolver():
         vp_guess = self.vp_g
         
         
-        # Saves Parameters  
-        if self.test=="adjoint": 
-            nsnaps = 1
-        else:
-            nsnaps = int(nt/setting["jump"])
-
+        # Sampling  
+        nsnaps = int(nt/setting["jump"])
         factor  = mt.ceil(nt/nsnaps) + 1
         time_subsampled = ConditionalDimension('t_sub', parent=grid.time_dim, factor=factor)
         usave = TimeFunction(name='usave', grid=grid, time_order=2, space_order=2,save=nsnaps, time_dim=time_subsampled)
@@ -890,17 +902,25 @@ class FWISolver():
         
 
         # Forward solver -- Wrapper
-        op_fw_guess = solv(recg, src, vp_guess,g,vector,grid,setup,system='forward',true_model=False,save=True, usave=usave) 
-        
-        # Adjoint-based gradient solver -- Wrapper
-        if(setting["Abcs"]=='habc-a1' or setting["Abcs"]=='Higdon'):
-            
-            op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='gradient',true_model=False,grad=grad,usave=usave, damp=self.gdamp)
-        
+        if self.test=="adjoint": 
+            op_fw_guess = solv(recg, src, vp_guess,g,vector,grid,setup,system='forward',save=False) 
         else:
-            
-            op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='gradient',true_model=False,grad=grad,usave=usave)
-        
+            op_fw_guess = solv(recg, src, vp_guess,g,vector,grid,setup,system='forward',save=True, usave=usave) 
+       
+        # Adjoint-based gradient solver -- Wrapper
+        if(setting["Abcs"]=='habc-a1' or setting["Abcs"]=='Higdon'): 
+            if self.test=="adjoint": 
+                op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='adjoint',grad=grad,usave=usave, damp=self.gdamp)
+            else:
+                op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='gradient',grad=grad,usave=usave, damp=self.gdamp)
+
+        else:
+            if self.test=="adjoint": 
+                op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='adjoint',grad=grad,usave=usave)
+            else:
+                op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='gradient',grad=grad,usave=usave)
+
+
         op_fw_guess(dt=dt0)
        
         residual.data[:]=rec-recg.data[:] # residual used as a forcing in the adjoint eq.

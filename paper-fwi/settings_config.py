@@ -21,10 +21,7 @@ class settings:
     parser.add_argument('--model',  type=str, 
                         help='Velocity model')
 
-    parser.add_argument('--case',  type=str, 
-                        help='Case to be simulated')
     args = parser.parse_args()
-    case = args.case
     #==============================================================================
     model = {
         "vp": args.model   # Marmousi, 2D SEG/EAGE, Circle and Horizontal Layers 
@@ -76,12 +73,13 @@ class settings:
         "nptx": 501,                        # number of points in x-axis
         "nptz": 351,                        # number of points in z-axis
         "t0": 0.,                           # initial time
-        "tn": 100.,                        # final time milliseconds
+        "tn": 100.,                         # final time milliseconds
         "CFL": 0.4,                         # cfl parameter
         "f0": args.freq/1000,               # frequency peak KHz
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "shotposition_z":1.25,              # shot position from the z0 (metters)
         "recposition_z": 2.25,              # Receiver position from the z0 (metters)
+        "jump": 5,                        # Jump to save the wave equation solution to be used in adjoint-based gradient
         "rec_n": 551,                       # Receiver number
         "shot_n":20,                        # Shot number
         "habcw": 2,                         # 1=linear , 2=nonlinear weight (used in habc-a1)
@@ -104,13 +102,14 @@ class settings:
         "lenx": 1000,                       # x-axis lenght (metters)
         "lenz": 1000,                       # z-axis lenght (metters)
         "t0": 0.,                           # initial time
-        "tn": 400.0,                       # final time milliseconds
-        "f0" : args.freq,                   # frequency peak kHz
+        "tn": 100.0,                       # final time milliseconds
+        "f0" : args.freq/1000,                   # frequency peak kHz
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "shotposition_z":30,                # shot position from the z0 (metters)
         "recposition_z": 20,                # Receiver position from the z0 (metters)
         "rec_n": 200,                       # Receiver number
         "CFL": 0.5,                         # cfl parameter
+        "jump": 5,                        # Jump to save the wave equation solution to be used in adjoint-based gradient
         "habcw": 2,                         # 1=linear , 2=nonlinear weight (used in habc-a1)
         "shots_dist":325,                   # distance between the shots in metters
         "dask": False,                      # This variable change if you start the DASK cluster
@@ -130,15 +129,16 @@ class settings:
         "lenx": 8400,                       # x-axis lenght (metters)
         "lenz": 3300,                       # z-axis lenght (metters)
         "t0": 0.,                           # initial time
-        "tn": 5000,                         # final time milliseconds
-        "f0": args.freq,                    # frequency peak KHz
+        "tn": 500,                         # final time milliseconds
+        "f0": args.freq/1000,                    # frequency peak KHz
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "CFL": 0.5,                         # cfl parameter
         "shotposition_z":2.5,               # shot position from the z0 (metters)
         "recposition_z": 5.0,               # Receiver position from the z0 (metters)
         "rec_n": 551,                       # Receiver number
+        "jump": 5,                        # Jump to save the wave equation solution to be used in adjoint-based gradient
         "habcw": 2,                         # 1=linear , 2=nonlinear weight (used in habc-a1)
-        "shots_dist": 1040,                 # distance between the shots in metters
+        "shots_dist": 4040,                 # distance between the shots in metters
         "dask": False,            # This variable change if you start the DASK cluster
         "multiscale":False,                 # Frequency multiscale: True or False
         }
@@ -157,7 +157,7 @@ class settings:
         "lenz": 3300,                       # z-axis lenght (metters)
         "t0": 0.,                           # initial time
         "tn": 5000,                         # final time milliseconds
-        "f0": args.freq,                    # frequency peak KHz
+        "f0": args.freq/1000,                    # frequency peak KHz
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "CFL": 0.5,                         # cfl parameter
         "shotposition_z":2.5,               # shot position from the z0 (metters)

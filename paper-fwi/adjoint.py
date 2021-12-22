@@ -121,7 +121,7 @@ if (__name__=='__main__'):
         grad1 = Function(name="grad1", grid=grid)
         fwisolver.vp_guess(m0)
         vp_guess = fwisolver.vp_g
-        adj = []
+       
         print("Running adjoint solver.")
         for sn in range(0, nshots):    
             clear_cache()
@@ -131,8 +131,9 @@ if (__name__=='__main__'):
                 work.append(client.submit(fwisolver.apply,sn))
             
             else:
-                adj.append(fwisolver.apply(sn))
-              
+                adj = fwisolver.apply(sn)
+
+         
         if(setting["dask"]):
             wait(work)
             for i in range(0, nshots):
@@ -141,7 +142,7 @@ if (__name__=='__main__'):
            
         return adj
 
-    adj   = shots(m0)
-    np.save('adj.npy',adj)
+    shots(m0)
+   
 
    
