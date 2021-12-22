@@ -4,6 +4,7 @@ from math import ceil
 
 from cached_property import cached_property
 import ctypes
+import numpy as np
 
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
@@ -481,7 +482,7 @@ class Operator(Callable):
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
-        args = kwargs['args'] = ArgumentsMap(grid, self._allocator, self._platform, args)
+        args = kwargs['args'] = ArgumentsMap(args, grid, self._allocator, self._platform)
 
         # Process Dimensions
         # A topological sorting is used so that derived Dimensions are processed after
@@ -842,12 +843,15 @@ class Operator(Callable):
 
 class ArgumentsMap(dict):
 
-    def __init__(self, grid, allocator, platform, args=None):
-        super().__init__(args or {})
+    def __init__(self, args, grid, allocator, platform):
+        super().__init__(args)
 
         self.grid = grid
         self.allocator = allocator
         self.platform = platform
+
+        # Compute total used memory
+        self.memused = sum(v.nbytes for v in args.values() if isinstance(v, np.ndarray))
 
     @property
     def comm(self):
