@@ -4,7 +4,7 @@ from collections import OrderedDict
 from os import environ
 from functools import wraps
 
-from devito.logger import warning
+from devito.logger import info, warning
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
@@ -261,7 +261,6 @@ class switchconfig(object):
 def print_defaults():
     """Print the environment variables accepted by Devito, their default value,
     as well as all of the accepted values."""
-    from devito.logger import info
     for k, v in env_vars_mapper.items():
         info('%s: %s. Default: %s' % (k, configuration._accepted[v],
                                       configuration._defaults[v]))
@@ -269,6 +268,5 @@ def print_defaults():
 
 def print_state():
     """Print the current configuration state."""
-    from devito.logger import info
     for k, v in configuration.items():
         info('%s: %s' % (k, v))
