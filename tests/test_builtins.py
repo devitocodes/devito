@@ -6,7 +6,7 @@ from scipy import misc
 from conftest import skipif
 from devito import Grid, Function, TimeFunction, switchconfig
 from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
-                             inner, mmin, mmax)
+                             inner, mmin, mmax, count_nonzero)
 from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
 from devito.types import SubDomain, SparseTimeFunction
@@ -369,3 +369,29 @@ class TestBuiltinsResult(object):
         term1 = np.max(rec0.data)
         term2 = mmax(rec0)
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
+
+    @pytest.mark.parametrize('shape', [(21, 21), (41, 41)])
+    def test_count_nonzero(self, shape):
+        """
+        Test that count of nonzeros works correctly
+        """
+        grid = Grid(shape=shape)
+
+        # Define function 𝑓. We will initialize f's data with ones on its diagonal.
+        f = Function(name='f', shape=shape, dimensions=grid.dimensions)
+        f.data[:] = np.eye(shape[0])
+        count = count_nonzero(f)
+        assert (count == shape[0])
+
+    @pytest.mark.parametrize('shape', [(11,), (21, 21), (41, 41, 41)])
+    def test_count_nonzero_II(self, shape):
+        """
+        Test that count of nonzeros works correctly
+        """
+        grid = Grid(shape=shape)
+
+        # Define function 𝑓. We will initialize f's data using a specific set of numbers.
+        f = TimeFunction(name='f', shape=shape, dimensions=grid.dimensions)
+        f.data[:] = np.random.choice([3, 5, 7, 9], size=shape)
+        count = count_nonzero(f)
+        assert (count == np.prod(shape))

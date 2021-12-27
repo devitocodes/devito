@@ -4,7 +4,7 @@ import devito as dv
 from devito.builtins.utils import MPIReduction
 
 
-__all__ = ['norm', 'sumall', 'inner', 'mmin', 'mmax']
+__all__ = ['norm', 'sumall', 'inner', 'mmin', 'mmax', 'count_nonzero']
 
 
 @dv.switchconfig(log_level='ERROR')
@@ -161,3 +161,21 @@ def mmax(f):
         return mr.v.item()
     else:
         raise ValueError("Expected Function, not `%s`" % type(f))
+
+
+def count_nonzero(f):
+    """
+    Retrieve the count of nonzero elements of a (Time)Function.
+
+    Parameters
+    ----------
+    f : array_like or Function
+        Input operand.
+    """
+    ci = dv.ConditionalDimension(name='ci', parent=f.dimensions[-1],
+                                 condition=dv.Ne(f, 0))
+    g = dv.Function(name='g', shape=(1,), dimensions=(ci,), dtype=np.int32)
+    eq0 = dv.Inc(g[0], 1, implicit_dims=(f.dimensions + (ci,)))
+    op0 = dv.Operator([eq0])
+    op0.apply()
+    return g.data[0]
