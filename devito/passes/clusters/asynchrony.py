@@ -60,7 +60,10 @@ class Tasker(Asynchronous):
                 continue
 
             # Prevent future writes to interfere with a task by waiting on a lock
-            may_require_lock = set(c0.scope.reads)
+            may_require_lock = c0.scope.reads
+
+            # We can ignore scalars as they're passed by value
+            may_require_lock = {f for f in may_require_lock if f.is_AbstractFunction}
 
             # Sort for deterministic code generation
             may_require_lock = sorted(may_require_lock, key=lambda i: i.name)
