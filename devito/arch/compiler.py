@@ -132,8 +132,6 @@ class Compiler(GCCToolchain):
         If True, JIT compile using a C++ compiler. Defaults to False.
     mpi : bool, optional
         If True, JIT compile using an MPI compiler. Defaults to False.
-    language : str, optional
-        The target language for shared-memory parallelism. Defaults to 'C'.
     platform : Platform, optional
         The target Platform on which the JIT compiler will be used.
     """

@@ -100,7 +100,7 @@ def linearize_accesses(iet, key, cache, sregistry):
                 stmt = built[expr]
             except KeyError:
                 name = sregistry.make_name(prefix='%s_slc' % d.name)
-                s = Symbol(name=name, dtype=np.int32, is_const=True)
+                s = Symbol(name=name, dtype=np.uint32, is_const=True)
                 stmt = built[expr] = DummyExpr(s, expr, init=True)
             mapper[f].append(stmt.write)
             cache[f].stmts1.append(stmt)
@@ -154,14 +154,14 @@ def _generate_fsz(f, d, sregistry):
 @_generate_fsz.register(DiscreteFunction)
 def _(f, d, sregistry):
     name = sregistry.make_name(prefix='%s_fsz' % d.name)
-    s = Symbol(name=name, dtype=np.int32, is_const=True)
+    s = Symbol(name=name, dtype=np.uint32, is_const=True)
     return DummyExpr(s, f._C_get_field(FULL, d).size, init=True)
 
 
 @_generate_fsz.register(Array)
 def _(f, d, sregistry):
     name = sregistry.make_name(prefix='%s_fsz' % d.name)
-    s = Symbol(name=name, dtype=np.int32, is_const=True)
+    s = Symbol(name=name, dtype=np.uint32, is_const=True)
     return DummyExpr(s, f.symbolic_shape[d], init=True)
 
 

@@ -76,7 +76,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
         tree = trees[0]
         assert len(tree) == 7
-        assert all(i.dim.is_Incr for i in tree[1:7])
+        assert all(i.dim.is_Block for i in tree[1:7])
 
         assert op.parameters[3] is tree[1].step
         assert op.parameters[6] is tree[2].step

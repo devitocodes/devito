@@ -133,6 +133,14 @@ class ReducerMap(MultiDict):
         """Returns a dictionary with reduced/unique values for all keys."""
         return {k: self.reduce(key=k) for k in self}
 
+    def reduce_inplace(self):
+        """
+        Like `reduce_all`, but it modifies self inplace, rather than
+        returning the result as a new dict.
+        """
+        for k, v in self.reduce_all().items():
+            self[k] = v
+
 
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769

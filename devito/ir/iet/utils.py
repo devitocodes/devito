@@ -44,12 +44,12 @@ def retrieve_iteration_tree(node, mode='normal'):
     if mode == 'normal':
         return trees
     else:
-        match = []
+        found = []
         for i in trees:
             if any(set(i).issubset(set(j)) for j in trees if i != j):
                 continue
-            match.append(i)
-        return IterationTree(match)
+            found.append(i)
+        return found
 
 
 def filter_iterations(tree, key=lambda i: i):

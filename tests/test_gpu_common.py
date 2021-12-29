@@ -48,7 +48,7 @@ class TestCodeGeneration(object):
         assert trees[0][1] is not trees[1][1]
 
 
-class TestOptionalPasses(object):
+class TestPassesOptional(object):
 
     def test_linearize(self):
         grid = Grid(shape=(4, 4))
@@ -65,6 +65,44 @@ class TestOptionalPasses(object):
         # Check jit-compilation and correct execution
         op.apply(time_M=10)
         assert np.all(u.data[1] == 11)
+
+
+class TestPassesEdgeCases(object):
+
+    def test_fission(self):
+        nt = 20
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        usave = TimeFunction(name='usave', grid=grid, save=nt, time_order=2)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt, time_order=2)
+
+        ctime0 = ConditionalDimension(name='ctime', parent=time, condition=time > 4)
+        ctime1 = ConditionalDimension(name='ctime', parent=time, condition=time <= 4)
+
+        eqns = [Eq(usave, time + 0.2, implicit_dims=[ctime0]),
+                Eq(vsave, time + 0.2, implicit_dims=[ctime1])]
+
+        op = Operator(eqns)
+
+        # Check generated code
+        trees = retrieve_iteration_tree(op, mode='superset')
+        assert len(trees) == 2
+        assert trees[0].root is trees[1].root
+        assert trees[0][1] is not trees[1][1]
+        assert trees[0].root.dim is time
+        assert not trees[0].root.pragmas
+        assert trees[0][1].pragmas
+        assert trees[1][1].pragmas
+
+        op.apply()
+
+        expected = np.full(shape=(20, 10, 10), fill_value=0.2, dtype=np.float32)
+        for i in range(nt):
+            expected[i] += i
+
+        assert np.all(usave.data[5:] == expected[5:])
+        assert np.all(vsave.data[:5] == expected[:5])
 
 
 class Bundle(SubDomain):

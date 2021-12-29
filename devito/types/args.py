@@ -54,10 +54,9 @@ class ArgProvider(object):
         # By default, this is a no-op
         return
 
-    def _arg_as_ctype(self, *args, **kwargs):
+    def _arg_finalize(self, args, **kwargs):
         """
-        Cast the argument values into a format suitable for the dynamically
-        executed code.
+        Finalize the arguments produced by self, eventually turning them into ctypes.
         """
         # By default, this is a no-op
         return {}

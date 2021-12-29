@@ -7,7 +7,7 @@ from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
                                     extract_increments, factorize, fission, fuse,
                                     optimize_pows, optimize_msds)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
-                               optimize_halospots, hoist_prodders, relax_incr_dimensions)
+                               hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
@@ -102,6 +102,7 @@ class Cpu64OperatorMixin(object):
         o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
 
         # Misc
+        o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
 
         # Recognised but unused by the CPU backend
@@ -126,13 +127,11 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
+        mpiize(graph, sregistry=sregistry, options=options)
 
         # Shared-memory parallelism
         if options['openmp']:
@@ -193,7 +192,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
@@ -201,11 +199,9 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         avoid_denormals(graph)
 
         # Distributed-memory parallelism
-        optimize_halospots(graph)
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
+        mpiize(graph, sregistry=sregistry, options=options)
 
-        # Lower IncrDimensions so that blocks of arbitrary shape may be used
+        # Lower BlockDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
 
         # Parallelism
@@ -325,12 +321,10 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         return {
             'denormals': avoid_denormals,
-            'optcomms': optimize_halospots,
             'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
-            'mpi': partial(mpiize, mode=options['mpi'], language=kwargs['language'],
-                           sregistry=sregistry),
+            'mpi': partial(mpiize, sregistry=sregistry, options=options),
             'linearize': partial(linearize, mode=options['linearize'],
                                  sregistry=sregistry),
             'simd': partial(parizer.make_simd),
@@ -347,7 +341,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         'blocking', 'topofuse', 'fission', 'fuse', 'factorize', 'cire-sops',
         'cse', 'lift', 'opt-pows',
         # IET
-        'denormals', 'optcomms', 'openmp', 'mpi', 'linearize', 'simd', 'prodders',
+        'denormals', 'openmp', 'mpi', 'linearize', 'simd', 'prodders',
     )
     _known_passes_disabled = ('tasking', 'streaming', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))

@@ -11,6 +11,7 @@ from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransfo
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import CondEq, DefFunction
+from devito.tools import filter_ordered
 
 __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
            'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
@@ -76,8 +77,8 @@ class DeviceOmpIteration(OmpIteration):
         kwargs['chunk_size'] = False
         clauses = super()._make_clauses(**kwargs)
 
-        symbols = FindSymbols().visit(kwargs['nodes'])
-        deviceptrs = [i.name for i in symbols if i.is_Array and i._mem_default]
+        indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
+        deviceptrs = filter_ordered(i.name for i in indexeds if i.function._mem_local)
         if deviceptrs:
             clauses.append("is_device_ptr(%s)" % ",".join(deviceptrs))
 
