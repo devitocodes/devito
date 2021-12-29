@@ -1004,7 +1004,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         Note that this would need to be combined with self.dtype to give the actual
         size in bytes.
         """
-        return reduce(mul, self.shape)
+        return reduce(mul, self.shape_allocated)
 
     @property
     def nbytes(self):
