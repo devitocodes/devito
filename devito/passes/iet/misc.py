@@ -5,8 +5,7 @@ from itertools import product, chain
 from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import MIN, MAX, evalrel
-from devito.types.dense import AliasFunction, TimeFunction
+from devito.symbolics import MIN, MAX, evaluate_relation, reduce_relation
 from devito.types.relational import Gt
 from devito.tools import is_integer, split, as_list
 
@@ -150,8 +149,8 @@ def relax_incr_dimensions(iet, **kwargs):
                                in product(acs, acs) if j._depth > k._depth))
 
             # Step 3: Reduce defines min/max candidates using assumptions on `defines`
-            defmin = evalrel(max, defines, assumptions, eval=False)
-            defmax = evalrel(min, defines, assumptions, eval=False)
+            defmin = reduce_relation(max, defines, assumptions)
+            defmax = reduce_relation(min, defines, assumptions)
 
             # Collect symbolic_min, symbolic_max from defmin/defmax lists
             defmin = [j.symbolic_min for j in defmin]
@@ -162,10 +161,19 @@ def relax_incr_dimensions(iet, **kwargs):
             defmax = list(OrderedDict.fromkeys(defmax))
 
             # Step 4: Drop a candidate if it is the symbolic_min/max of symbol candidates
-            defmin = [j for j in defmin if j not in (k.symbolic_min for
-                      k in defmin if k.is_Symbol and not k.is_Scalar)]
-            defmax = [j for j in defmax if j not in (k.symbolic_max for
-                      k in defmax if k.is_Symbol and not k.is_Scalar)]
+            for k in defmin.copy():  # TOFIX: Should not use a copy I guess?
+                try:
+                    if k.symbolic_min in defmin:
+                        defmin.remove(k.symbolic_min)
+                except:
+                    pass
+
+            for k in defmax.copy():
+                try:
+                    if k.symbolic_max in defmax:
+                        defmax.remove(k.symbolic_max)
+                except:
+                    pass
 
             # At this point the candidates for the start and end of the `Iteration`
             # comprise of candidates stemming (i) from `i.dim` and (ii) candidates
@@ -174,21 +182,22 @@ def relax_incr_dimensions(iet, **kwargs):
             # the minimum of them for the start and the maximum of them for the end so
             # as to span the whole extent of the Iteration's Dimension (i.dim iteration
             # extent).
-            # We split on comparable and uncomparable. Comparable ones include
-            # subdimensions (offsets incurred) and non-comparable ones include
-            # dimensions with no clear rule of simplification
-            # For the start it is MAX(uncomparable, MIN(comparable))
-            # For the end it is MIN(uncomparable, MAX(comparable))
-            defmin = evalrel(min, defmin, assumptions=None, eval=False)
-            defmax = evalrel(max, defmax, assumptions=None, eval=False)
+            # We split on comparable and uncomparable. Comparable ones can be further
+            # simplfied, (subdimensions, offsets incurred) and non-comparable ones
+            # include candidates that cannot be simplified more (no clear rule of
+            # further simplification exists)
+            # For the start: MAX(uncomparable, MIN(comparable)) --> MAX(uncomparable)
+            # For the end: MIN(uncomparable, MAX(comparable)) --> MIN(uncomparable)
+            defmin = reduce_relation(min, defmin, assumptions=None)
+            defmax = reduce_relation(max, defmax, assumptions=None)
 
             # Apply offset if needed, else leave as it is
             defmin = [j.subs(min_map) if j in min_map else j for j in as_list(defmin)]
             defmax = [j.subs(max_map) if j in max_map else j for j in as_list(defmax)]
 
             # Final MIN/MAX processing
-            iter_min = evalrel(max, defmin)
-            iter_max = evalrel(min, defmax)
+            iter_min = evaluate_relation(max, defmin)
+            iter_max = evaluate_relation(min, defmax)
 
             # Final iteration form will look like:
             # Iteration i <starting from MAX(uncomparable, MIN(comparable))

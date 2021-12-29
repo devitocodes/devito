@@ -313,7 +313,7 @@ class TestRelationsWithAssumptions(object):
 
     def test_multibounds_op(self):
         """
-        Tests evalrel function on a simple example.
+        Tests evaluate_relation function on a simple example.
         """
 
         grid = Grid(shape=(16, 16, 16))
@@ -331,7 +331,7 @@ class TestRelationsWithAssumptions(object):
         f = TimeFunction(name='f', grid=grid, space_order=2)
 
         f.data[:] = 0.1
-        eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c, d]))]
+        eqns = [Eq(f.forward, f.laplace + f * evaluate_relation(min, [f, b, c, d]))]
         op = Operator(eqns, opt=('advanced'))
         op.apply(time_M=5)
         fnorm = norm(f)
@@ -340,7 +340,8 @@ class TestRelationsWithAssumptions(object):
         d2 = Function(name='d2', grid=grid)
 
         f.data[:] = 0.1
-        eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c2, d2], [Ge(d, c)]))]
+        eqns = [Eq(f.forward, f.laplace + f * evaluate_relation(min, [f, b, c2, d2],
+                [Ge(d, c)]))]
         op = Operator(eqns, opt=('advanced'))
         op.apply(time_M=5)
         fnorm2 = norm(f)
@@ -380,7 +381,7 @@ class TestRelationsWithAssumptions(object):
         eqn = eval(expr)
         assumptions = eval(assumptions)
         expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert evaluate_relation(op, eqn, assumptions) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
@@ -423,7 +424,7 @@ class TestRelationsWithAssumptions(object):
         eqn = eval(expr)
         assumptions = eval(assumptions)
         expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert evaluate_relation(op, eqn, assumptions) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a)]', 'a']),
@@ -446,4 +447,4 @@ class TestRelationsWithAssumptions(object):
         eqn = eval(expr)
         assumptions = eval(assumptions)
         expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert evaluate_relation(op, eqn, assumptions) == expected

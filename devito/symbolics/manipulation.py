@@ -295,11 +295,10 @@ def reuse_if_untouched(expr, args, evaluate=False):
         return expr.func(*args, evaluate=evaluate)
 
 
-def evalrel(func=min, input=None, assumptions=None, eval=True):
+def reduce_relation(func=min, input=None, assumptions=None):
     """
-    The purpose of this function is two-fold: (i) to reduce the `input` candidates of a
-    for a MIN/MAX expression based on the given `assumptions` and (ii) return the nested
-    MIN/MAX expression of the reduced-size input.
+    The purpose of this function is to reduce the `input` candidates for a MIN/MAX
+    expression based on the given `assumptions`.
 
     Parameters
     ----------
@@ -310,9 +309,6 @@ def evalrel(func=min, input=None, assumptions=None, eval=True):
     assumptions : list
         A list of assumptions formed as relationals between candidates, assumed to be
         True. Defaults to None.
-    eval : bool, optional
-        Return the nested MIN/MAX expression if True. Otherwise return only the
-        reduced `input`. Defaults to True.
 
     Examples
     --------
@@ -324,9 +320,7 @@ def evalrel(func=min, input=None, assumptions=None, eval=True):
     >>> b = Symbol('b')
     >>> c = Symbol('c')
     >>> d = Symbol('d')
-    >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
-    MAX(a, c)
-    >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)], eval=False)
+    >>> reduce_relation(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
     [a, c]
     """
     sfunc = (Min if func is min else Max)  # Choose SymPy's Min/Max
@@ -383,12 +377,42 @@ def evalrel(func=min, input=None, assumptions=None, eval=True):
             input = min(input, exp.args, key=len)
         else:
             # Since we are here, exp is a simplified expression
-            return exp
+            return as_list(exp)
     except TypeError:
         pass
 
-    if eval:
-        return rfunc(func, *input)
-    else:
-        # If 'eval==False' return only the simplified list
-        return input
+    return input
+
+
+def evaluate_relation(func=min, input=None, assumptions=None):
+    """
+    The purpose of this function is to return the nested MIN/MAX expression of the
+    reduced-size input.
+
+    Parameters
+    ----------
+    func : builtin function or method
+        min or max. Defines the operation to simplify. Defaults to `min`.
+    input : list
+        A list of the candidate symbols to be simplified. Defaults to None.
+    assumptions : list
+        A list of assumptions formed as relationals between candidates, assumed to be
+        True. Defaults to None.
+
+
+    Examples
+    --------
+    Assuming no values are known for `a`, `b`, `c`, `d` but we know that `d<=a` and
+    `c>=b` we can safely drop `a` and `c` from the candidate list.
+
+    >>> from devito import Symbol
+    >>> a = Symbol('a')
+    >>> b = Symbol('b')
+    >>> c = Symbol('c')
+    >>> d = Symbol('d')
+    >>> evaluate_relation(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
+    MAX(a, c)
+    """
+    input = reduce_relation(func, input, assumptions)
+
+    return rfunc(func, *input)
