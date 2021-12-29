@@ -941,9 +941,9 @@
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">key</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
             <span class="n">i</span><span class="o">.</span><span class="n">_arg_check</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
 
-    <span class="k">def</span> <span class="nf">_arg_as_ctype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_finalize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
-        <span class="k">return</span> <span class="n">ReducerMap</span><span class="p">({</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_dataobj</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">])})</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_dataobj</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">])}</span>
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span>\
@@ -1703,6 +1703,10 @@
 
     <span class="n">__indices_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span>
     <span class="n">__shape_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__shape_setup__</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_mem_mapped</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

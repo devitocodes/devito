@@ -85,7 +85,7 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;DefaultDimension&#39;</span><span class="p">,</span>
            <span class="s1">&#39;CustomDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;ModuloDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;IncrDimension&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;ModuloDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;IncrDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;BlockDimension&#39;</span><span class="p">]</span>
 
 
 <span class="n">Thickness</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Thickness&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
@@ -108,13 +108,11 @@
 <span class="sd">                                           |</span>
 <span class="sd">                              ---------------------------</span>
 <span class="sd">                              |                         |</span>
-<span class="sd">                       BasicDimension            DefaultDimension</span>
+<span class="sd">                       DerivedDimension            DefaultDimension</span>
 <span class="sd">                              |</span>
-<span class="sd">                      DerivedDimension</span>
-<span class="sd">                              |</span>
-<span class="sd">            ---------------------------------------</span>
-<span class="sd">            |                 |                   |</span>
-<span class="sd">      SteppingDimension   SubDimension   ConditionalDimension</span>
+<span class="sd">                   ---------------------</span>
+<span class="sd">                   |                   |</span>
+<span class="sd">              SubDimension   ConditionalDimension</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -173,8 +171,10 @@
     <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Conditional</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_SubIterator</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Modulo</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Incr</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Block</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="n">_C_typename</span> <span class="o">=</span> <span class="s1">&#39;const </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">dtype_to_cstr</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
     <span class="n">_C_typedata</span> <span class="o">=</span> <span class="n">_C_typename</span>
@@ -530,6 +530,11 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span>
 
 
+<span class="c1"># ***</span>
+<span class="c1"># The Dimensions below are exposed in the user API. They can only be created by</span>
+<span class="c1"># the user</span>
+
+
 <div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
@@ -862,76 +867,9 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;factor&#39;</span><span class="p">,</span> <span class="s1">&#39;condition&#39;</span><span class="p">,</span> <span class="s1">&#39;indirect&#39;</span><span class="p">]</span></div>
 
 
-<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
-<span class="sd">    Dimension, which cyclically produces a finite range of values, such</span>
-<span class="sd">    as ``0, 1, 2, 0, 1, 2, 0, ...`` (also referred to as &quot;modulo buffered</span>
-<span class="sd">    iteration&quot;).</span>
-
-<span class="sd">    SteppingDimension is most commonly used to represent a time-stepping Dimension.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    name : str</span>
-<span class="sd">        Name of the dimension.</span>
-<span class="sd">    parent : Dimension</span>
-<span class="sd">        The parent Dimension.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">symbolic_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">symbolic_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
-
-    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        A map of default argument values defined by this dimension.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        _min : int, optional</span>
-<span class="sd">            Minimum point as provided by data-carrying objects.</span>
-
-<span class="sd">        Notes</span>
-<span class="sd">        -----</span>
-<span class="sd">        A SteppingDimension does not know its max point and therefore</span>
-<span class="sd">        does not have a size argument.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">_min</span><span class="p">}</span>
-
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The argument values provided by a SteppingDimension are those</span>
-<span class="sd">        of its parent, as it acts as an alias.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">)</span>
-
-        <span class="c1"># Let the dimension name be an alias for `dim_e`</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">values</span></div>
-
-
-<span class="c1"># The Dimensions below are for internal use only</span>
+<span class="c1"># ***</span>
+<span class="c1"># The Dimensions below are for internal use only. They are created by the compiler</span>
+<span class="c1"># during the construction of an Operator</span>
 
 
 <div class="viewcode-block" id="ModuloDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ModuloDimension">[docs]</a><span class="k">class</span> <span class="nc">ModuloDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -974,6 +912,7 @@
 
     <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Modulo</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_SubIterator</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span>
                           <span class="n">offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modulo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">incr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -1079,7 +1018,7 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;offset&#39;</span><span class="p">,</span> <span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="s1">&#39;incr&#39;</span><span class="p">,</span> <span class="s1">&#39;origin&#39;</span><span class="p">]</span></div>
 
 
-<div class="viewcode-block" id="IncrDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.IncrDimension">[docs]</a><span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">AbstractIncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing a non-contiguous sub-region of a given</span>
@@ -1109,7 +1048,6 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Incr</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">is_PerfKnob</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">_min</span><span class="p">,</span> <span class="n">_max</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
@@ -1174,83 +1112,34 @@
         <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">,)</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="c1"># `step` not a Symbol</span>
-            <span class="k">return</span> <span class="p">()</span>
-
-    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="c1"># TODO: need a heuristic to pick a default incr size</span>
-        <span class="c1"># TODO: move default value to __new__</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="mi">8</span><span class="p">}</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="c1"># `step` not a Symbol</span>
-            <span class="k">return</span> <span class="p">{}</span>
-
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="c1"># `step` not a Symbol</span>
-            <span class="k">return</span> <span class="p">{}</span>
-
-        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">name</span><span class="p">)}</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">IncrDimension</span><span class="p">):</span>
-            <span class="c1"># `self` is an IncrDimension within an outer IncrDimension, but</span>
-            <span class="c1"># no value supplied -&gt; the sub-block will span the entire block</span>
-            <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">]}</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">()[</span><span class="n">name</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># Avoid OOB (will end up here only in case of tiny iteration spaces)</span>
-                <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
-
-    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="o">*</span><span class="n">_args</span><span class="p">):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="c1"># `step` not a Symbol</span>
-            <span class="k">return</span>
-
-        <span class="n">value</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">IncrDimension</span><span class="p">):</span>
-            <span class="c1"># sub-IncrDimensions must be perfect divisors of their parent</span>
-            <span class="n">parent_value</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">parent_value</span> <span class="o">%</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal block size `</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`: sub-block sizes &quot;</span>
-                                      <span class="s2">&quot;must divide the parent block size evenly (`</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`)&quot;</span>
-                                      <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-                                         <span class="n">parent_value</span><span class="p">))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal block size `</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`: it should be &gt; 0&quot;</span>
-                                      <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="c1"># Avoid OOB</span>
-                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal block size `</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`: it&#39;s greater than the &quot;</span>
-                                      <span class="s2">&quot;iteration range and it will cause an OOB access&quot;</span>
-                                      <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
-
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">]</span></div>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="IncrDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.IncrDimension">[docs]</a><span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A concrete implementation of an AbstractIncrDimension.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This type should not be instantiated directly in user code.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_SubIterator</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
 <div class="viewcode-block" id="CustomDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.CustomDimension">[docs]</a><span class="k">class</span> <span class="nc">CustomDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Dimension defining an iteration space with custom (known) size.</span>
+<span class="sd">    Dimension defining an iteration space with known size. Unlike a DefaultDimension,</span>
+<span class="sd">    a CustomDimension provides more freedom -- the symbolic_{min,max,size} of the</span>
+<span class="sd">    # Dimension can be set at will.</span>
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
-<span class="sd">    This could be extended in the future for more customization (e.g., incr.).</span>
+<span class="sd">    This type should not be instantiated directly in user code.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Custom</span> <span class="o">=</span> <span class="kc">True</span>
@@ -1342,7 +1231,7 @@
 <span class="k">class</span> <span class="nc">DynamicDimensionMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Avoid generation of const Symbols.</span>
+<span class="sd">    A mixin to create Dimensions producing non-const Symbols.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@cached_property</span>
@@ -1368,6 +1257,155 @@
     <span class="k">def</span> <span class="nf">_symbolic_thickness</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_ltkn&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">nonnegative</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
                 <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_rtkn&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">nonnegative</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+
+<span class="c1"># ***</span>
+<span class="c1"># The Dimensions below are created by Devito and may eventually be</span>
+<span class="c1"># accessed in user code to e.g. construct or manipulate Eqs</span>
+
+
+<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
+<span class="sd">    Dimension, which cyclically produces a finite range of values, such</span>
+<span class="sd">    as ``0, 1, 2, 0, 1, 2, 0, ...`` (also referred to as &quot;modulo buffered</span>
+<span class="sd">    iteration&quot;).</span>
+
+<span class="sd">    SteppingDimension is most commonly used to represent a time-stepping Dimension.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Name of the dimension.</span>
+<span class="sd">    parent : Dimension</span>
+<span class="sd">        The parent Dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_SubIterator</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A map of default argument values defined by this dimension.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        _min : int, optional</span>
+<span class="sd">            Minimum point as provided by data-carrying objects.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        A SteppingDimension does not know its max point and therefore</span>
+<span class="sd">        does not have a size argument.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">_min</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The argument values provided by a SteppingDimension are those</span>
+<span class="sd">        of its parent, as it acts as an alias.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">)</span>
+
+        <span class="c1"># Let the dimension name be an alias for `dim_e`</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">values</span></div>
+
+
+<div class="viewcode-block" id="BlockDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.BlockDimension">[docs]</a><span class="k">class</span> <span class="nc">BlockDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol for lowering TILABLE Dimensions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Block</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_PerfKnob</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">,)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># `step` not a Symbol</span>
+            <span class="k">return</span> <span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># TODO: need a heuristic to pick a default incr size</span>
+        <span class="c1"># TODO: move default value to __new__</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="mi">8</span><span class="p">}</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># `step` not a Symbol</span>
+            <span class="k">return</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># `step` not a Symbol</span>
+            <span class="k">return</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">name</span><span class="p">)}</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">BlockDimension</span><span class="p">):</span>
+            <span class="c1"># `self` is a BlockDimension within an outer BlockDimension, but</span>
+            <span class="c1"># no value supplied -&gt; the sub-block will span the entire block</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">]}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">()[</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Avoid OOB (will end up here only in case of tiny iteration spaces)</span>
+                <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="o">*</span><span class="n">_args</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># `step` not a Symbol</span>
+            <span class="k">return</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">BlockDimension</span><span class="p">):</span>
+            <span class="c1"># sub-BlockDimensions must be perfect divisors of their parent</span>
+            <span class="n">parent_value</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">parent_value</span> <span class="o">%</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal block size `</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`: sub-block sizes &quot;</span>
+                                      <span class="s2">&quot;must divide the parent block size evenly (`</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`)&quot;</span>
+                                      <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                         <span class="n">parent_value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal block size `</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`: it should be &gt; 0&quot;</span>
+                                      <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c1"># Avoid OOB</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal block size `</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">`: it&#39;s greater than the &quot;</span>
+                                      <span class="s2">&quot;iteration range and it will cause an OOB access&quot;</span>
+                                      <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span></div>
 
 
 <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="n">names</span><span class="p">):</span>

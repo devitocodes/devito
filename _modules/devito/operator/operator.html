@@ -71,14 +71,15 @@
              
   <h1>Source code for devito.operator.operator</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
-<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">reduce</span>
-<span class="kn">from</span> <span class="nn">operator</span> <span class="kn">import</span> <span class="n">attrgetter</span><span class="p">,</span> <span class="n">mul</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="kn">import</span> <span class="n">attrgetter</span>
 <span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">ceil</span>
 
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 <span class="kn">import</span> <span class="nn">ctypes</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 
 <span class="kn">from</span> <span class="nn">devito.arch</span> <span class="kn">import</span> <span class="n">compiler_registry</span><span class="p">,</span> <span class="n">platform_registry</span>
+<span class="kn">from</span> <span class="nn">devito.data</span> <span class="kn">import</span> <span class="n">default_allocator</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="kn">import</span> <span class="n">InvalidOperator</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span><span class="p">,</span> <span class="n">lower_exprs</span><span class="p">,</span> <span class="n">generate_implicit_exprs</span>
@@ -277,6 +278,10 @@
         <span class="n">op</span><span class="o">.</span><span class="n">_compiler</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Potentially required for lazily allocated Functions</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;allocator&#39;</span><span class="p">]</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_platform</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
 
         <span class="c1"># References to local or external routines</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_func_table</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
@@ -490,11 +495,17 @@
 
     <span class="c1"># Arguments processing</span>
 
-    <span class="k">def</span> <span class="nf">_prepare_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_prepare_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">autotune</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Process runtime arguments passed to ``.apply()` and derive</span>
 <span class="sd">        default values for any remaining arguments.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Sanity check -- all user-provided keywords must be known to the Operator</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;ignore-unknowns&#39;</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_known_arguments</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognized argument </span><span class="si">%s</span><span class="s2">=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+
         <span class="n">overrides</span><span class="p">,</span> <span class="n">defaults</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Process data-carrier overrides</span>
@@ -502,7 +513,7 @@
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">:</span>
             <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">_arg_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">())</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">reduce_inplace</span><span class="p">()</span>
             <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Override `</span><span class="si">%s</span><span class="s2">` is incompatible with overrides `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span>
                                  <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">overrides</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]))</span>
@@ -541,6 +552,10 @@
         <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
             <span class="n">grid</span> <span class="o">=</span> <span class="kc">None</span>
 
+        <span class="c1"># An ArgumentsMap carries additional metadata that may be used by</span>
+        <span class="c1"># the subsequent phases of the arguments processing</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;args&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ArgumentsMap</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_platform</span><span class="p">)</span>
+
         <span class="c1"># Process Dimensions</span>
         <span class="c1"># A topological sorting is used so that derived Dimensions are processed after</span>
         <span class="c1"># their parents (note that a leaf Dimension can have an arbitrary long list of</span>
@@ -566,23 +581,13 @@
         <span class="c1"># pointers to ctypes.Struct</span>
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_as_ctype</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">p</span><span class="p">))</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_finalize</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">p</span><span class="p">))</span>
             <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-                <span class="c1"># User-provided floats/ndarray obviously do not have `_arg_as_ctype`</span>
-                <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">_arg_as_ctype</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">p</span><span class="p">))</span>
+                <span class="c1"># User-provided floats/ndarray obviously do not have `_arg_finalize`</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">_arg_finalize</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">p</span><span class="p">))</span>
 
         <span class="c1"># Execute autotuning and adjust arguments accordingly</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]))</span>
-
-        <span class="c1"># Check all user-provided keywords are known to the Operator</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;ignore-unknowns&#39;</span><span class="p">]:</span>
-            <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;args&#39;</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_known_arguments</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognized argument </span><span class="si">%s</span><span class="s2">=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
-
-        <span class="c1"># Attach `grid` to the arguments map</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="n">ArgumentsMap</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">autotune</span> <span class="ow">or</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]))</span>
 
         <span class="k">return</span> <span class="n">args</span>
 
@@ -866,32 +871,6 @@
 
         <span class="k">return</span> <span class="n">summary</span>
 
-    <span class="c1"># Misc properties</span>
-
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">_mem_summary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The amount of data, in bytes, used by the Operator. This is provided as</span>
-<span class="sd">        symbolic expressions, one symbolic expression for each memory scope (external,</span>
-<span class="sd">        heap).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">roots</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
-        <span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">roots</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Function</span><span class="p">]</span>
-
-        <span class="n">summary</span> <span class="o">=</span> <span class="p">{}</span>
-
-        <span class="n">external</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">]</span>
-        <span class="n">external</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">external</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
-        <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;external&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">external</span>
-
-        <span class="n">heap</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_heap</span><span class="p">]</span>
-        <span class="n">heap</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">heap</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
-        <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;heap&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">heap</span>
-
-        <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;total&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">external</span> <span class="o">+</span> <span class="n">heap</span>
-
-        <span class="k">return</span> <span class="n">summary</span>
-
     <span class="c1"># Pickling support</span>
 
     <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -936,9 +915,15 @@
 
 <span class="k">class</span> <span class="nc">ArgumentsMap</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">ArgumentsMap</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">allocator</span><span class="p">,</span> <span class="n">platform</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="n">grid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">allocator</span> <span class="o">=</span> <span class="n">allocator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c1"># Compute total used memory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">memused</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">nbytes</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">))</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1055,6 +1040,11 @@
                                                    <span class="n">language</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">])</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__new_with__</span><span class="p">()</span>
+
+    <span class="c1"># `allocator`</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;allocator&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_allocator</span><span class="p">(</span>
+        <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">])</span>
+    <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">kwargs</span>
 </pre></div>
