@@ -282,6 +282,14 @@ class LinearInterpolator(GenericInterpolator):
         """
         implicit_dims = as_tuple(implicit_dims) + self.sfunction.dimensions
 
+        def get_field_offset(field):
+            # In case of nested Functions, use them as a field
+            for ind in field.indices:
+                if ind.is_Function:
+                    return ind.origin
+
+            return field.origin
+
         def callback():
             # Derivatives must be evaluated before the introduction of indirect accesses
             try:
@@ -293,7 +301,8 @@ class LinearInterpolator(GenericInterpolator):
             variables = list(retrieve_function_carriers(_expr)) + [field]
 
             # Need to get origin of the field in case it is staggered
-            field_offset = field.origin
+            field_offset = get_field_offset(field)
+
             # List of indirection indices for all adjacent grid points
             idx_subs, temps = self._interpolation_indices(
                 variables, offset, field_offset=field_offset, implicit_dims=implicit_dims
