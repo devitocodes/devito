@@ -20,7 +20,7 @@ __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
 
 class DeviceOperatorMixin(object):
 
-    BLOCK_LEVELS = 1
+    BLOCK_LEVELS = 0
     """
     Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
@@ -161,6 +161,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
+        # Loop tiling
+        clusters = blocking(clusters, options)
+
         # Reduce flops
         clusters = extract_increments(clusters, sregistry)
         clusters = cire(clusters, 'sops', sregistry, options, platform)
@@ -184,6 +187,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
         # Distributed-memory parallelism
         mpiize(graph, sregistry=sregistry, options=options)
+
+        # Loop tiling
+        relax_incr_dimensions(graph)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -263,7 +269,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         orchestrator = cls._Target.Orchestrator(sregistry)
 
         return {
-            'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, sregistry=sregistry, options=options),
