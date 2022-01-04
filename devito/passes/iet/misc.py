@@ -5,7 +5,7 @@ from itertools import product, chain
 from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import MIN, MAX, evaluate_relation, reduce_relation
+from devito.symbolics import MIN, MAX, reduce_relation, rfunc
 from devito.types.relational import Gt
 from devito.tools import is_integer, split, as_list
 
@@ -124,15 +124,17 @@ def relax_incr_dimensions(iet, **kwargs):
             # Step 1: Interval offset care
             # Here we create two dictionaries to keep track of offsets incurring in
             # 'i' and 'i.root' iteration
-            min_map = {}  # For the Iteration minimum
             root_min = roots_min[i.dim.root] + i.symbolic_min - i.dim.symbolic_min
-            min_map[i.dim.root.symbolic_min] = root_min
-            min_map[i.dim.symbolic_min] = i.symbolic_min
+            min_map = {
+                i.dim.root.symbolic_min: root_min,
+                i.dim.symbolic_min: i.symbolic_min
+            }
 
-            max_map = {}  # For the Iteration maximum
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
-            max_map[i.dim.root.symbolic_max] = root_max
-            max_map[i.dim.symbolic_max] = i.symbolic_max
+            max_map = {
+                i.dim.root.symbolic_max: root_max,
+                i.dim.symbolic_max: i.symbolic_max
+            }
 
             # Step 2: Generate assumptions deriving from hierarchical blocking. Assuming
             # lower blocking levels perfectly fit within outer levels, we use depth of
@@ -144,9 +146,8 @@ def relax_incr_dimensions(iet, **kwargs):
 
             # Collect assumptions based on hierarchy
             acs = [j for j in defines if j is not i.dim and j.is_Incr]
-            assumptions = []
-            assumptions.extend(chain.from_iterable((Gt(j.step, k.step), Gt(j, k)) for j, k
-                               in product(acs, acs) if j._depth > k._depth))
+            assumptions = as_list(chain.from_iterable((Gt(j.step, k.step), Gt(j, k))
+                                  for j, k in product(acs, acs) if j._depth > k._depth))
 
             # Step 3: Reduce defines min/max candidates using assumptions on `defines`
             defmin = reduce_relation(max, defines, assumptions)
@@ -196,8 +197,8 @@ def relax_incr_dimensions(iet, **kwargs):
             defmax = [j.subs(max_map) if j in max_map else j for j in as_list(defmax)]
 
             # Final MIN/MAX processing
-            iter_min = evaluate_relation(max, defmin)
-            iter_max = evaluate_relation(min, defmax)
+            iter_min = rfunc(max, *defmin)
+            iter_max = rfunc(min, *defmax)
 
             # Final iteration form will look like:
             # Iteration i <starting from MAX(uncomparable, MIN(comparable))
