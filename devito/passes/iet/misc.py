@@ -106,11 +106,6 @@ def relax_incr_dimensions(iet, **kwargs):
 
         # Process inner iterations and adjust their bounds
         for i in inner:
-            # This part of the code aims to collect the data necessary to build the
-            # MIN/MAX bounds of an Iteration. The main challenge is to correctly
-            # take care of interval offsets (incurred by several Devito optimizations),
-            # subdimension offsets and blocking loops (main and remainder areas).
-
             # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
             # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
             # of the current Iteration's root Dimension e.g. `x_M`. The generated
@@ -121,7 +116,7 @@ def relax_incr_dimensions(iet, **kwargs):
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
             # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
 
-            # Step 1: Interval offset care
+            # Step 1: Manage interval offsets
             # Here we create two dictionaries to keep track of offsets incurring in
             # 'i' and 'i.root' iteration
             root_min = roots_min[i.dim.root] + i.symbolic_min - i.dim.symbolic_min
@@ -161,7 +156,9 @@ def relax_incr_dimensions(iet, **kwargs):
             defmin = list(OrderedDict.fromkeys(defmin))
             defmax = list(OrderedDict.fromkeys(defmax))
 
-            # Step 4: Drop a candidate if it is the symbolic_min/max of symbol candidates
+            # Step 4: Drop a candidate if it is the symbolic_min of other candidates
+            # Applies to defmin only. e.g. defmin = [x0_blk0, x_m] and
+            # (x0_blk0.symbolic_min is x_m), then drop `x_m`, defmin = [x0_blk0]
             for k in defmin.copy():  # TOFIX: Should not use a copy I guess?
                 try:
                     if k.symbolic_min in defmin:
@@ -169,40 +166,22 @@ def relax_incr_dimensions(iet, **kwargs):
                 except:
                     pass
 
-            for k in defmax.copy():
-                try:
-                    if k.symbolic_max in defmax:
-                        defmax.remove(k.symbolic_max)
-                except:
-                    pass
+            # Drop candidates that reduce the iteration space
+            # Usually due to presence of offsets due to subdomains and/or subdimensions
+            # From [i0x0_blk0 + i0x0_blk0_size - 1, -i0x_rtkn + x_M, x_M] to
+            # [x_M, i0x0_blk0 + i0x0_blk0_size - 1]
+            defmin = reduce_relation(min, defmin)
+            defmax = reduce_relation(max, defmax)
 
-            # At this point the candidates for the start and end of the `Iteration`
-            # comprise of candidates stemming (i) from `i.dim` and (ii) candidates
-            # stemming from other dims, (in space blocking other dims is usually root.)
-            # The canidates stemming from 'i.dim' can be compared and for those we need
-            # the minimum of them for the start and the maximum of them for the end so
-            # as to span the whole extent of the Iteration's Dimension (i.dim iteration
-            # extent).
-            # We split on comparable and uncomparable. Comparable ones can be further
-            # simplfied, (subdimensions, offsets incurred) and non-comparable ones
-            # include candidates that cannot be simplified more (no clear rule of
-            # further simplification exists)
-            # For the start: MAX(uncomparable, MIN(comparable)) --> MAX(uncomparable)
-            # For the end: MIN(uncomparable, MAX(comparable)) --> MIN(uncomparable)
-            defmin = reduce_relation(min, defmin, assumptions=None)
-            defmax = reduce_relation(max, defmax, assumptions=None)
-
-            # Apply offset if needed, else leave as it is
+            # Subsistute offsets if needed, else leave as it is
             defmin = [j.subs(min_map) if j in min_map else j for j in as_list(defmin)]
             defmax = [j.subs(max_map) if j in max_map else j for j in as_list(defmax)]
 
-            # Final MIN/MAX processing
+            # At this point, no more simplifications are possible. Final iteration form
+            # will be: Iteration i <starting from MAX(defmin) to MIN(defmax)>
             iter_min = rfunc(max, *defmin)
             iter_max = rfunc(min, *defmax)
 
-            # Final iteration form will look like:
-            # Iteration i <starting from MAX(uncomparable, MIN(comparable))
-            # to MIN(uncomparable, MAX(comparable))>
             mapper[i] = i._rebuild(limits=(iter_min, iter_max, i.step))
 
     if mapper:
