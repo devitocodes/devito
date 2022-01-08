@@ -6,7 +6,7 @@ from scipy import misc
 from conftest import skipif
 from devito import Grid, Function, TimeFunction, switchconfig
 from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
-                             inner, mmin, mmax, count_nonzero)
+                             inner, mmin, mmax, count_nonzero, nonzero)
 from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
 from devito.types import SubDomain, SparseTimeFunction
@@ -395,3 +395,35 @@ class TestBuiltinsResult(object):
         f.data[:] = np.random.choice([3, 5, 7, 9], size=shape)
         count = count_nonzero(f)
         assert (count == np.prod(shape))
+
+    @pytest.mark.parametrize('shape', [(21, 21), (41, 41)])
+    def test_nonzero(self, shape):
+        """
+        Test nonzero positions are found correctly
+        """
+        grid = Grid(shape=shape)
+
+        # Define function 𝑓. We will initialize f's data with ones on its diagonal.
+        f = Function(name='f', shape=shape, dimensions=grid.dimensions)
+        f.data[:] = np.eye(shape[0])
+        ids = nonzero(f)
+        ids_np = np.nonzero(f.data[:])
+        assert (ids.shape == (shape[0], len(shape)))
+        for i in range(len(shape)-1):
+            assert all(ids[:, i] == ids_np[i])
+
+    @pytest.mark.parametrize('shape', [(11,), (21, 21), (41, 41, 41)])
+    def test_nonzero_II(self, shape):
+        """
+        Test nonzero positions are found correctly
+        """
+        grid = Grid(shape=shape)
+
+        # Define function 𝑓. We will initialize f's data using a specific set of numbers.
+        f = TimeFunction(name='f', shape=shape, dimensions=grid.dimensions)
+        f.data[:] = np.random.choice([3, 5, 7, 9], size=shape)
+        ids = nonzero(f)
+        ids_np = np.nonzero(f.data[:])
+        assert (ids.shape == (np.prod(shape), len(shape)))
+        for i in range(len(shape)-1):
+            assert all(ids[:, i] == ids_np[i])

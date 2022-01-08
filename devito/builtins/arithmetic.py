@@ -4,7 +4,7 @@ import devito as dv
 from devito.builtins.utils import MPIReduction
 
 
-__all__ = ['norm', 'sumall', 'inner', 'mmin', 'mmax', 'count_nonzero']
+__all__ = ['norm', 'sumall', 'inner', 'mmin', 'mmax', 'count_nonzero', 'nonzero']
 
 
 @dv.switchconfig(log_level='ERROR')
@@ -174,8 +174,53 @@ def count_nonzero(f):
     """
     ci = dv.ConditionalDimension(name='ci', parent=f.dimensions[-1],
                                  condition=dv.Ne(f, 0))
-    g = dv.Function(name='g', shape=(1,), dimensions=(ci,), dtype=np.int32)
-    eq0 = dv.Inc(g[0], 1, implicit_dims=(f.dimensions + (ci,)))
-    op0 = dv.Operator([eq0])
+    g = dv.Function(name='g', shape=(1,), dimensions=(ci,), space_order=0, dtype=np.int32)
+
+    # Extra Scalar used to avoid reduction in gcc-5
+    i = dv.types.Scalar(name='i', dtype=np.int32)
+    eqi = dv.Eq(i, 0)
+
+    eq0 = dv.Inc(g[i], 1, implicit_dims=(f.dimensions + (ci,)))
+    op0 = dv.Operator([eqi, eq0], opt=('advanced', {'par-collapse-ncores': 1000}))
     op0.apply()
+
     return g.data[0]
+
+
+def nonzero(f):
+    """
+    Retrieve the count of nonzero elements of a (Time)Function.
+
+    Parameters
+    ----------
+    f : array_like or Function
+        Input operand.
+    """
+
+    # Get the nonzero count to allocate only the necessary space for nonzero elements
+    count = count_nonzero(f)
+
+    # Dimension used only to nest different size of Functions under the same dim
+    id_dim = dv.Dimension(name='id_dim')
+
+    # Conditional for nonzero element
+    ci = dv.ConditionalDimension(name='ci', parent=f.dimensions[-1],
+                                 condition=dv.Ne(f, 0))
+    g = dv.Function(name='g', shape=(count, len(f.dimensions)),
+                    dimensions=(ci, id_dim), dtype=np.int32, space_order=0)
+
+    eqs = []
+
+    # Extra Scalar used to avoid reduction in gcc-5
+    k = dv.types.Scalar(name='k', dtype=np.int32)
+    eqi = dv.Eq(k, -1)
+    eqs.append(eqi)
+    eqii = dv.Inc(k, 1, implicit_dims=(f.dimensions + (ci,)))
+    eqs.append(eqii)
+
+    for n, i in enumerate(f.dimensions):
+        eqs.append(dv.Eq(g[k, n], f.dimensions[n], implicit_dims=(f.dimensions + (ci,))))
+
+    op0 = dv.Operator(eqs)
+    op0.apply()
+    return g.data[:]
