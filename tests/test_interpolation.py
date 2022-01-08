@@ -627,10 +627,11 @@ def test_sparse_first():
     assert np.allclose(s.data, expected)
 
 
+@pytest.mark.parametrize('inj', ('s_id', '1 + s_id', 's_id[0, 0, s_id]'))
 @pytest.mark.parametrize('shape', [(50, 50, 50)])
 @pytest.mark.parametrize('so', (2, 4, 8))
-@pytest.mark.parametrize('tn', (40, 40, 200))
-def test_decompose_to_aligned(shape, so, tn):
+@pytest.mark.parametrize('tn', (20, 40, 100))
+def test_decompose_src_to_aligned(shape, so, tn, inj):
     """ Test decomposition of non-aligned source wavelets to equivalent
         aligned to grid points source wavelets
     """
@@ -669,29 +670,25 @@ def test_decompose_to_aligned(shape, so, tn):
 
     src.coordinates.data[:, -1] = 20  # Depth is 20m
 
-    # Perform source injection to empty grid f (all data equal to 0)
-    f = TimeFunction(name="f", grid=model.grid, space_order=so, time_order=2)
-    src_f = src.inject(field=f.forward, expr=src * dt**2 / model.m)
-    op_f = Operator(src_f)
-    op_f.apply()
-
-    # Get the nonzero indices (nzinds)
-    nzinds = np.nonzero(f.data[0])
-    assert len(nzinds) == len(shape)
+    # Get positions affected by sparse operator
+    arr = src.gridpoints_all
 
     # Source ID function to hold unique id for each point affected
     s_id = Function(name='s_id', shape=model.grid.shape, dimensions=model.grid.dimensions,
                     space_order=0, dtype=np.int32)
+
+    nzinds = (arr[:, 0], arr[:, 1], arr[:, 2])
     s_id.data[nzinds] = tuple(np.arange(len(nzinds[0])))
 
     # Helper dimension to schedule loops of different sizes together
     id_dim = Dimension(name='id_dim')
 
     time = model.grid.time_dim
-    save_src = TimeFunction(name='save_src', shape=(src.shape[0],
-                            nzinds[1].shape[0]), dimensions=(time, id_dim))
+    save_src = TimeFunction(name='save_src', shape=(src.shape[0], len(arr)),
+                            dimensions=(time, id_dim))
 
-    save_src_term = src.inject(field=save_src[time, s_id],
+    inj = eval(inj)
+    save_src_term = src.inject(field=save_src[time, inj],
                                expr=src * dt**2 / model.m)
 
     op1 = Operator(save_src_term)
@@ -702,8 +699,7 @@ def test_decompose_to_aligned(shape, so, tn):
     assert(s_id.data[nzinds[0][-1], nzinds[1][-1], nzinds[2][-1]] == len(nzinds[0])-1)
     assert(s_id.data[nzinds[0][len(nzinds[0])-1], nzinds[1][len(nzinds[0])-1],
            nzinds[2][len(nzinds[0])-1]] == len(nzinds[0])-1)
-    assert(np.all(np.nonzero(s_id.data)) == np.all(np.nonzero(f.data[0])))
 
     # Assert that first, last as well as other indices are as expected
     assert (src.shape[0] == save_src.shape[0])
-    assert (4*src.shape[1] == save_src.shape[1])
+    assert (8*src.shape[1] == save_src.shape[1])

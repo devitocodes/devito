@@ -572,6 +572,16 @@ class SparseFunction(AbstractSparseFunction):
             np.floor(self.coordinates.data._local - self.grid.origin) / self.grid.spacing
         ).astype(int)
 
+    @property
+    def gridpoints_all(self):
+        if self.coordinates._data is None:
+            raise ValueError("No coordinates attached to this SparseFunction")
+
+        arr = np.moveaxis(self._support, -1, 0)
+        arr = arr.reshape(np.prod(arr.shape[:-1]), arr.shape[-1])
+        arr = np.unique(arr, axis=0)
+        return arr
+
     def guard(self, expr=None, offset=0):
         """
         Generate guarded expressions, that is expressions that are evaluated
