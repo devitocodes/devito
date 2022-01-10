@@ -1,13 +1,11 @@
 from collections import OrderedDict, defaultdict
 
 import numpy as np
-from sympy import And, Ge, Le, Mod, Mul, true
+from sympy import And
 
-from devito.exceptions import InvalidOperator
-from devito.ir.clusters import Queue
-from devito.ir.support import Forward, SEQUENTIAL, Vector
+from devito.ir import Forward, GuardBound, GuardBoundNext, Queue, Vector, SEQUENTIAL
 from devito.symbolics import uxreplace
-from devito.tools import (DefaultOrderedDict, as_list, frozendict, is_integer,
+from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
                           indices_to_sections, timed_pass)
 from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
                           FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete,
@@ -62,7 +60,10 @@ class Tasker(Asynchronous):
                 continue
 
             # Prevent future writes to interfere with a task by waiting on a lock
-            may_require_lock = set(c0.scope.reads)
+            may_require_lock = c0.scope.reads
+
+            # We can ignore scalars as they're passed by value
+            may_require_lock = {f for f in may_require_lock if f.is_AbstractFunction}
 
             # Sort for deterministic code generation
             may_require_lock = sorted(may_require_lock, key=lambda i: i.name)
@@ -168,7 +169,7 @@ class Streaming(Asynchronous):
                 if candidates:
                     if is_memcpy(c):
                         # Case 1A (special case, leading to more efficient streaming)
-                        actions_from_init(c, prefix, actions, memcpy=True)
+                        self._actions_from_init(c, prefix, actions)
                     else:
                         # Case 1B (actually, we expect to never end up here)
                         raise NotImplementedError
@@ -179,19 +180,16 @@ class Streaming(Asynchronous):
             for c in clusters:
                 candidates = self.key(c)
                 if candidates:
-                    if is_memcpy(c):
-                        mapper[c] = actions_from_update_memcpy
-                    else:
-                        mapper[c] = None
+                    mapper[c] = is_memcpy(c)
 
             # Case 2A (special case, leading to more efficient streaming)
-            if all(i is actions_from_update_memcpy for i in mapper.values()):
+            if all(mapper.values()):
                 for c in mapper:
-                    actions_from_update_memcpy(c, clusters, prefix, actions)
+                    self._actions_from_update_memcpy(c, clusters, prefix, actions)
 
             # Case 2B
             elif mapper:
-                actions_from_unstructured(clusters, self.key, prefix, actions)
+                self._actions_from_unstructured(clusters, prefix, actions)
 
         # Perform the necessary actions; this will ultimately attach SyncOps to Clusters
         processed = []
@@ -210,6 +208,15 @@ class Streaming(Asynchronous):
                 processed.extend(v.insert)
 
         return processed
+
+    def _actions_from_init(self, cluster, prefix, actions):
+        return actions_from_init(cluster, prefix, actions)
+
+    def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
+        return actions_from_update_memcpy(cluster, clusters, prefix, actions)
+
+    def _actions_from_unstructured(self, clusters, prefix, actions):
+        return actions_from_unstructured(clusters, self.key, prefix, actions)
 
 
 # Utilities
@@ -234,10 +241,9 @@ def is_memcpy(cluster):
             cluster.exprs[0].rhs.is_Indexed)
 
 
-def actions_from_init(cluster, prefix, actions, memcpy=False):
+def actions_from_init(cluster, prefix, actions):
     it = prefix[-1]
     d = it.dim
-    direction = it.direction
     try:
         pd = prefix[-2].dim
     except IndexError:
@@ -251,10 +257,7 @@ def actions_from_init(cluster, prefix, actions, memcpy=False):
     function = e.rhs.function
     fetch = e.rhs.indices[d]
     ifetch = fetch.subs(d, d.symbolic_min)
-    if direction is Forward:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_min)
-    else:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_max)
+    fcond = None
 
     pfetch = None
     pcond = None
@@ -286,17 +289,13 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
     function = e.rhs.function
     fetch = e.rhs.indices[d]
     ifetch = fetch.subs(d, d.symbolic_min)
-    if direction is Forward:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_min)
-    else:
-        fcond = make_cond(cluster.guards.get(d), d, direction, d.symbolic_max)
+    fcond = None
 
     if direction is Forward:
         pfetch = fetch + 1
-        pcond = make_cond(cluster.guards.get(d), d, direction, d + 1)
     else:
         pfetch = fetch - 1
-        pcond = make_cond(cluster.guards.get(d), d, direction, d - 1)
+    pcond = None
 
     target = e.lhs.function
     tstore0 = e.lhs.indices[d]
@@ -316,13 +315,19 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
 
     # Turn `cluster` into a prefetch Cluster
     expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
-    guards = {d: And(*([pcond] + as_list(cluster.guards.get(d))))}
+
+    guards = {d: And(
+        cluster.guards.get(d, True),
+        GuardBoundNext(function.indices[d], direction),
+    )}
+
     syncs = {d: [PrefetchUpdate(
         d, size,
         function, fetch, ifetch, fcond,
         pfetch, pcond,
         target, tstore
     )]}
+
     pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
     # Since we're turning `e` into a prefetch, we need to:
@@ -347,6 +352,8 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
     ))
     actions[last].insert.append(pcluster)
     actions[cluster].drop = True
+
+    return last, pcluster
 
 
 def actions_from_unstructured(clusters, key, prefix, actions):
@@ -384,44 +391,13 @@ def actions_from_unstructured(clusters, key, prefix, actions):
                 for fetch, s in indices_to_sections(v):
                     if direction is Forward:
                         ifetch = fetch.subs(d, d.symbolic_min)
-                        fcond = make_cond(c.guards.get(d), d, direction, d.symbolic_min)
                         pfetch = fetch + 1
-                        pcond = make_cond(c.guards.get(d), d, direction, d + 1)
                     else:
                         ifetch = fetch.subs(d, d.symbolic_max)
-                        fcond = make_cond(c.guards.get(d), d, direction, d.symbolic_max)
                         pfetch = fetch - 1
-                        pcond = make_cond(c.guards.get(d), d, direction, d - 1)
+
+                    fcond = GuardBound(d.symbolic_min, d.symbolic_max)
+                    pcond = GuardBoundNext(f.indices[d], direction)
 
                     syncop = callback(d, s, f, fetch, ifetch, fcond, pfetch, pcond)
                     actions[c].syncs[d].append(syncop)
-
-
-def make_cond(rel, d, direction, iteration):
-    """
-    Create a symbolic condition which, once resolved at runtime, returns True
-    if `iteration` is within the Dimension `d`'s min/max bounds, False otherwise.
-    """
-    if rel is None:
-        if direction is Forward:
-            cond = Le(iteration, d.symbolic_max)
-        else:
-            cond = Ge(iteration, d.symbolic_min)
-    else:
-        # Only case we know how to deal with, today, is the one induced
-        # by a ConditionalDimension with structured condition (e.g. via `factor`)
-        if not (rel.is_Equality and rel.rhs == 0 and isinstance(rel.lhs, Mod)):
-            raise InvalidOperator("Unable to understand data streaming pattern")
-        _, v = rel.lhs.args
-
-        if direction is Forward:
-            # The LHS rounds `s` up to the nearest multiple of `v`
-            cond = Le(Mul(((iteration + v - 1) / v), v, evaluate=False), d.symbolic_max)
-        else:
-            # The LHS rounds `s` down to the nearest multiple of `v`
-            cond = Ge(Mul((iteration / v), v, evaluate=False), d.symbolic_min)
-
-    if cond is true:
-        return None
-    else:
-        return cond

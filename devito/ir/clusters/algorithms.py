@@ -22,7 +22,7 @@ def clusterize(exprs):
     Turn a sequence of LoweredEqs into a sequence of Clusters.
     """
     # Initialization
-    clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
+    clusters = [Cluster(e, e.ispace) for e in exprs]
 
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
@@ -144,8 +144,7 @@ class Schedule(QueueStateful):
             ispace = IterationSpace(c.ispace.intervals.lift(known_break, stamp),
                                     c.ispace.sub_iterators,
                                     {**c.ispace.directions, **idir})
-            dspace = c.dspace.lift(known_break, stamp)
-            backlog[i] = c.rebuild(ispace=ispace, dspace=dspace)
+            backlog[i] = c.rebuild(ispace=ispace)
 
         return processed + self.callback(backlog, prefix)
 

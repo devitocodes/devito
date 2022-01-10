@@ -8,9 +8,8 @@ from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
                                     cire, cse, extract_increments, factorize,
                                     fission, fuse, optimize_pows, optimize_msds)
-from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, optimize_halospots,
-                               mpiize, hoist_prodders, is_on_device, linearize,
-                               relax_incr_dimensions)
+from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize, hoist_prodders,
+                               is_on_device, linearize, relax_incr_dimensions)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -21,7 +20,7 @@ __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
 
 class DeviceOperatorMixin(object):
 
-    BLOCK_LEVELS = 1
+    BLOCK_LEVELS = 0
     """
     Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
@@ -89,6 +88,7 @@ class DeviceOperatorMixin(object):
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
 
         # Misc
+        o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
 
         if oo:
@@ -115,13 +115,11 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
+        mpiize(graph, sregistry=sregistry, options=options)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -163,6 +161,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
+        # Loop tiling
+        clusters = blocking(clusters, options)
+
         # Reduce flops
         clusters = extract_increments(clusters, sregistry)
         clusters = cire(clusters, 'sops', sregistry, options, platform)
@@ -181,14 +182,14 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
-        optimize_halospots(graph)
-        if options['mpi']:
-            mpiize(graph, mode=options['mpi'], language=language, sregistry=sregistry)
+        mpiize(graph, sregistry=sregistry, options=options)
+
+        # Loop tiling
+        relax_incr_dimensions(graph)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform)
@@ -261,7 +262,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
-        language = kwargs['language']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
@@ -269,12 +269,9 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         orchestrator = cls._Target.Orchestrator(sregistry)
 
         return {
-            'optcomms': partial(optimize_halospots),
-            'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
-            'mpi': partial(mpiize, mode=options['mpi'], language=language,
-                           sregistry=sregistry),
+            'mpi': partial(mpiize, sregistry=sregistry, options=options),
             'linearize': partial(linearize, mode=options['linearize'],
                                  sregistry=sregistry),
             'prodders': partial(hoist_prodders),
@@ -290,7 +287,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fission', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'optcomms', 'orchestrate', 'parallel', 'mpi', 'linearize', 'prodders'
+        'orchestrate', 'parallel', 'mpi', 'linearize', 'prodders'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))

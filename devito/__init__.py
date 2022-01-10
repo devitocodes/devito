@@ -21,13 +21,14 @@ from devito.operator import Operator  # noqa
 # Other stuff exposed to the user
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
+from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.mpi import MPI  # noqa
 from devito.checkpointing import DevitoCheckpoint, CheckpointOperator  # noqa
 
 # Imports required to initialize Devito
 from devito.arch import compiler_registry, platform_registry
 from devito.core import *   # noqa
-from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
+from devito.logger import logger_registry, _set_log_level  # noqa
 from devito.mpi.routines import mpi_registry
 from devito.operator import profiler_registry, operator_registry
 
@@ -70,7 +71,7 @@ configuration.add('ignore-unknowns', 0, [0, 1], preprocessor=bool, impacts_jit=F
 
 # Setup log level
 configuration.add('log-level', 'INFO', list(logger_registry),
-                  callback=set_log_level, impacts_jit=False)
+                  callback=_set_log_level, impacts_jit=False)
 
 # Escape hatch for custom kernels. The typical use case is as follows: one lets
 # Devito generate code for an Operator; then, once the session is over, the

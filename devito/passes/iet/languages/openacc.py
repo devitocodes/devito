@@ -34,11 +34,9 @@ class DeviceAccIteration(ParallelIteration):
             clauses.append(make_clause_reduction(reduction))
 
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
-        deviceptrs = filter_ordered(i.name for i in indexeds
-                                    if i.function.is_Array and i.function._mem_default)
+        deviceptrs = filter_ordered(i.name for i in indexeds if i.function._mem_local)
         presents = filter_ordered(i.name for i in indexeds
-                                  if (i.function.is_AbstractFunction and
-                                      is_on_device(i, kwargs['gpu_fit']) and
+                                  if (is_on_device(i, kwargs['gpu_fit']) and
                                       i.name not in deviceptrs))
 
         # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
@@ -163,9 +161,8 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
-        root = candidates[0]
 
-        collapsable = self._find_collapsable(root, candidates)
+        root, collapsable = self._select_candidates(candidates)
         ncollapsable = len(collapsable)
 
         if self._is_offloadable(root) and \

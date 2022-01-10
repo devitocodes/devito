@@ -1211,6 +1211,23 @@ class TestCodeGeneration(object):
             # W/o OpenMP, it's a different story
             assert call._single_thread
 
+    @pytest.mark.parallel(mode=[(1, 'diag2')])
+    def test_diag2_quality(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+
+        eqn = Eq(f.forward, f.dx2 + 1.)
+
+        op = Operator(eqn)
+
+        assert len(op._func_table) == 4  # gather, scatter, haloupdate, halowait
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        assert calls[0].name == 'haloupdate0'
+        assert calls[1].name == 'halowait0'
+        assert_blocking(op, {'x0_blk0'})
+
 
 class TestOperatorAdvanced(object):
 

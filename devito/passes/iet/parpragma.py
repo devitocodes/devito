@@ -137,10 +137,17 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def threadid(self):
         return self.sregistry.threadid
 
-    def _find_collapsable(self, root, candidates):
-        collapsable = []
-        if self.ncores >= self.collapse_ncores:
-            for n, i in enumerate(candidates[1:], 1):
+    def _select_candidates(self, candidates):
+        assert candidates
+
+        if self.ncores < self.collapse_ncores:
+            return candidates[0], []
+
+        mapper = {}
+        for n0, root in enumerate(candidates):
+
+            collapsable = []
+            for n, i in enumerate(candidates[n0+1:], n0+1):
                 # The Iteration nest [root, ..., i] must be perfect
                 if not IsPerfectIteration(depth=i).visit(root):
                     break
@@ -154,7 +161,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 #     ...
                 #
                 # Here, we make sure this won't happen
-                if any(j.dim in i.symbolic_min.free_symbols for j in candidates[:n]):
+                if any(j.dim in i.symbolic_min.free_symbols for j in candidates[n0:n]):
                     break
 
                 # Also, we do not want to collapse SIMD-vectorized Iterations
@@ -172,7 +179,22 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                         pass
 
                 collapsable.append(i)
-        return collapsable
+
+            # Give a score to this candidate, based on the number of fully-parallel
+            # Iterations and their position (i.e. outermost to innermost) in the nest
+            score = (
+                int(root.is_ParallelNoAtomic),
+                int(len([i for i in collapsable if i.is_ParallelNoAtomic]) >= 1),
+                int(len([i for i in collapsable if i.is_ParallelRelaxed]) >= 1),
+                -(n0 + 1)  # The outermost, the better
+            )
+
+            mapper[(root, tuple(collapsable))] = score
+
+        # Retrieve the candidates with highest score
+        root, collapsable = max(mapper, key=mapper.get)
+
+        return root, list(collapsable)
 
     def _make_reductions(self, partree):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
@@ -199,10 +221,9 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
-        root = candidates[0]
 
         # Get the collapsable Iterations
-        collapsable = self._find_collapsable(root, candidates)
+        root, collapsable = self._select_candidates(candidates)
         ncollapse = 1 + len(collapsable)
 
         # Prepare to build a ParallelTree
@@ -318,7 +339,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_parallel(self, iet):
         mapper = {}
         parrays = {}
-        for tree in retrieve_iteration_tree(iet):
+        for tree in retrieve_iteration_tree(iet, mode='superset'):
             # Get the parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
             if not candidates:
@@ -404,14 +425,12 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
               offloaded to the device.
         """
         assert candidates
-        root = candidates[0]
+
+        root, collapsable = self._select_candidates(candidates)
 
         if self._is_offloadable(root):
-            # Get the collapsable Iterations
-            collapsable = self._find_collapsable(root, candidates)
-            ncollapse = 1 + len(collapsable)
-
-            body = self.DeviceIteration(gpu_fit=self.gpu_fit, ncollapse=ncollapse,
+            body = self.DeviceIteration(gpu_fit=self.gpu_fit,
+                                        ncollapse=len(collapsable) + 1,
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
 
