@@ -466,7 +466,7 @@ class CGen(Visitor):
                 cdefs.extend([j._C_typedecl for j in i.root.parameters
                               if j._C_typedecl is not None])
         cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
-        if o._compiler.src_ext == 'cpp':
+        if o._compiler.src_ext in ('cpp', 'cu'):
             cdefs += [c.Extern('C', signature)]
         cdefs = [i for j in cdefs for i in (j, blankline)]
 
