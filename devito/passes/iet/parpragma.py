@@ -9,7 +9,6 @@ from devito.ir import (Conditional, DummyEq, Dereference, Expression, Expression
                        VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
-from devito.passes.iet.misc import is_on_device
 from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, prod
 from devito.types import Symbol, NThreadsBase, Wildcard
@@ -394,16 +393,6 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         self.gpu_fit = options['gpu-fit']
         self.par_tile = options['par-tile']
         self.par_disabled = options['par-disabled']
-
-    def _is_offloadable(self, iet):
-        expressions = FindNodes(Expression).visit(iet)
-        if any(not is_on_device(e.write, self.gpu_fit) for e in expressions):
-            return False
-
-        functions = FindSymbols().visit(iet)
-        buffers = [f for f in functions if f.is_Array and f._mem_mapped]
-        hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
-        return not (buffers and hostfuncs)
 
     def _make_threaded_prodders(self, partree):
         if isinstance(partree.root, self.DeviceIteration):

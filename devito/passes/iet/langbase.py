@@ -3,11 +3,13 @@ from abc import ABC
 
 import cgen as c
 
-from devito.ir import (BlankLine, DummyExpr, Call, Conditional, List, Prodder,
-                       ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
-                       ThreadFunction)
+from devito.ir import (BlankLine, DummyExpr, Call, Conditional, Expression,
+                       List, Prodder, ParallelIteration, ParallelBlock,
+                       PointerCast, EntryFunction, ThreadFunction, FindNodes,
+                       FindSymbols)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.misc import is_on_device
 from devito.symbolics import Byref, CondNe
 from devito.tools import as_list
 from devito.types import Symbol
@@ -298,3 +300,16 @@ class DeviceAwareMixin(object):
             return iet, {}
 
         return _initialize(iet)
+
+    def _is_offloadable(self, iet):
+        """
+        True if the IET computation is offloadable to device, False otherwise.
+        """
+        expressions = FindNodes(Expression).visit(iet)
+        if any(not is_on_device(e.write, self.gpu_fit) for e in expressions):
+            return False
+
+        functions = FindSymbols().visit(iet)
+        buffers = [f for f in functions if f.is_Array and f._mem_mapped]
+        hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
+        return not (buffers and hostfuncs)
