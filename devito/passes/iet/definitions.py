@@ -9,8 +9,8 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (EntryFunction, List, PragmaTransfer, FindSymbols,
-                       MapExprStmts, Transformer)
+from devito.ir import (EntryFunction, DeviceFunction, List, PragmaTransfer,
+                       FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
@@ -413,7 +413,8 @@ class DeviceAwareDataManager(DataManager):
             if not i.is_Expression:
                 # No-op
                 continue
-            if not any(isinstance(j, self.lang.DeviceIteration) for j in v):
+            if not any(isinstance(j, self.lang.DeviceIteration) for j in v) and \
+               not isinstance(iet, DeviceFunction):
                 # Not an offloaded Iteration tree
                 continue
 
