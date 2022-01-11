@@ -283,6 +283,10 @@ class UnaryOp(sympy.Expr, Pickable):
     def base(self):
         return self._base
 
+    @property
+    def free_symbols(self):
+        return self.base.free_symbols
+
     def __str__(self):
         if self.base.is_Symbol:
             return "%s%s" % (self._op, ccode(self.base))

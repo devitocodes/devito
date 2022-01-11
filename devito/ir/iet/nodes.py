@@ -7,6 +7,7 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 
 import cgen as c
+from sympy import IndexedBase
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq
@@ -266,7 +267,7 @@ class Call(ExprStmt, Node):
     def functions(self):
         retval = []
         for i in self.arguments:
-            if isinstance(i, (AbstractFunction, Indexed, LocalObject)):
+            if isinstance(i, (AbstractFunction, Indexed, IndexedBase, LocalObject)):
                 retval.append(i.function)
             elif isinstance(i, Call):
                 retval.extend(i.functions)
@@ -294,7 +295,7 @@ class Call(ExprStmt, Node):
         for i in self.arguments:
             if isinstance(i, AbstractFunction):
                 continue
-            elif isinstance(i, (Indexed, LocalObject, Symbol)):
+            elif isinstance(i, (Indexed, IndexedBase, LocalObject, Symbol)):
                 retval.append(i)
             elif isinstance(i, Call):
                 retval.extend(i.expr_symbols)
