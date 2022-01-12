@@ -405,7 +405,8 @@ class CGen(Visitor):
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
-        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        prefix = ' '.join(o.prefix + (o.retval,))
+        signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
 
     def visit_CallableBody(self, o):
@@ -451,7 +452,8 @@ class CGen(Visitor):
         efuncs = [blankline]
         for i in o._func_table.values():
             if i.local:
-                esigns.append(c.FunctionDeclaration(c.Value(i.root.retval, i.root.name),
+                prefix = ' '.join(i.root.prefix + (i.root.retval,))
+                esigns.append(c.FunctionDeclaration(c.Value(prefix, i.root.name),
                                                     self._args_decl(i.root.parameters)))
                 efuncs.extend([i.root.ccode, blankline])
 

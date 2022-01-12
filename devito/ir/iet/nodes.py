@@ -646,15 +646,14 @@ class Callable(Node):
     parameters : list of Basic, optional
         The objects in input to the Callable.
     prefix : list of str, optional
-        Qualifiers to prepend to the Callable signature. Defaults to ``('static',
-        'inline')``.
+        Qualifiers to prepend to the Callable signature. None by defaults.
     """
 
     is_Callable = True
 
     _traversable = ['body']
 
-    def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline')):
+    def __init__(self, name, body, retval, parameters=None, prefix=None):
         self.name = name
         if not isinstance(body, CallableBody):
             self.body = CallableBody(body)

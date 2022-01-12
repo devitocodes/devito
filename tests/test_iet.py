@@ -214,6 +214,7 @@ def test_make_cpp_parfor():
                                [first, last, func, nthreads])
 
     assert str(parfor) == """\
+static inline \
 void parallel_for(const int first, const int last, FuncType&& func, const int nthreads)
 {
   const int threshold = 1;
