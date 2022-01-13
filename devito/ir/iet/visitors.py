@@ -313,7 +313,7 @@ class CGen(Visitor):
         rhs = ccode(o.expr.rhs, dtype=o.dtype)
 
         if o.init:
-            code = c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs), rhs)
+            code = c.Initializer(c.Value(o.expr.lhs._C_typename, lhs), rhs)
         else:
             code = c.Assign(lhs, rhs)
 
