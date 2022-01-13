@@ -290,7 +290,9 @@ class DataManager(object):
         # The _C_name represents the name of the Function among the
         # `iet.parameters`). If this differs from the name used within the
         # expressions, then it implies a cast is required
-        needs_cast = lambda f: f not in defines and f._C_name != f.name
+        needs_cast = lambda f: (f not in defines and
+                                f.indexed not in iet.parameters and
+                                f._C_name != f.name)
 
         # Create Function -> n-dimensional array casts
         # E.g. `float (*u)[u_vec->size[1]] = (float (*)[u_vec->size[1]]) u_vec->data`

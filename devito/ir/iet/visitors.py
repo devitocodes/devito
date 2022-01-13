@@ -17,7 +17,7 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
-from devito.types.basic import Basic
+from devito.types.basic import AbstractFunction, Basic, IndexedData
 from devito.types import ArrayObject, VoidPointer
 
 
@@ -175,7 +175,7 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_Tensor:
+            if isinstance(i, (AbstractFunction, IndexedData)):
                 ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
             elif i.is_AbstractObject or i.is_Symbol:
                 ret.append(c.Value(i._C_typename, i._C_name))

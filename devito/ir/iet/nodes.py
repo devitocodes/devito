@@ -669,7 +669,8 @@ class Callable(Node):
 
     @property
     def functions(self):
-        return tuple(i for i in self.parameters if isinstance(i, AbstractFunction))
+        return tuple(i.function for i in self.parameters
+                     if isinstance(i, (AbstractFunction, IndexedBase)))
 
 
 class CallableBody(Node):
