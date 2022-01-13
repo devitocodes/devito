@@ -587,11 +587,6 @@ class Iteration(Node):
         """All Dimensions appearing in the Iteration header."""
         return tuple(self.dim._defines) + self.uindices
 
-    @property
-    def write(self):
-        """All Functions written to in this Iteration"""
-        return []
-
     @cached_property
     def expr_symbols(self):
         return tuple(self.symbolic_min.free_symbols) \
