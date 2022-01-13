@@ -142,7 +142,7 @@ class TestCodeGen(object):
         op = Operator(eqn, openmp=False)
         assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
-        assert op.parameters[0].is_Tensor
+        assert op.parameters[0].is_AbstractFunction
         assert op.parameters[1].name == 'constant'
         assert op.parameters[1].is_Scalar
         assert op.parameters[2].name == 'x_M'

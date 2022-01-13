@@ -181,7 +181,6 @@ class Basic(CodeSymbol):
 
     # Basic symbolic object properties
     is_Scalar = False
-    is_Tensor = False
 
     # Some other properties
     is_PerfKnob = False  # Does it impact the Operator performance?
@@ -709,7 +708,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     is_Matrix = False
 
     is_AbstractFunction = True
-    is_Tensor = True
 
     # SymPy default assumptions
     is_real = True
