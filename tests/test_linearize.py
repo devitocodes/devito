@@ -4,7 +4,9 @@ import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
                     MatrixSparseTimeFunction)
-from devito.ir import Expression, FindNodes
+from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes
+from devito.operator import SymbolRegistry
+from devito.passes import Graph, linearize
 
 
 def test_basic():
@@ -235,3 +237,32 @@ def test_different_halos():
     op1.apply(time_M=4, u=u1)
 
     assert np.all(u.data == u1.data)
+
+
+def test_strides_forwarding():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+
+    bar = Callable('bar', DummyExpr(f[0, 0], 0), 'void', parameters=[f.indexed])
+    call = Call(bar.name, [f.indexed])
+    foo = Callable('foo', call, 'void', parameters=[f])
+
+    # Emulate what the compiler would do
+    graph = Graph(foo)
+    graph.efuncs['bar'] = bar
+
+    linearize(graph, mode=True, sregistry=SymbolRegistry())
+
+    # Since `f` is passed via `f.indexed`, we expect the stride exprs to be
+    # lifted in `foo` and then passed down to `bar` as arguments
+    foo = graph.root
+    bar = graph.efuncs['bar']
+
+    assert foo.body.body[0].write.name == 'y_fsz0'
+    assert foo.body.body[2].write.name == 'y_slc0'
+    assert len(foo.body.body[4].arguments) == 2
+
+    assert len(bar.parameters) == 2
+    assert bar.parameters[1].name == 'y_slc0'
+    assert len(bar.body.body) == 1

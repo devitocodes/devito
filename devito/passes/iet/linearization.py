@@ -4,7 +4,7 @@ from functools import singledispatch
 import numpy as np
 
 from devito.data import FULL
-from devito.ir import (BlankLine, DummyExpr, Dereference, Expression, List,
+from devito.ir import (BlankLine, Call, DummyExpr, Dereference, Expression, List,
                        PointerCast, PragmaTransfer, FindNodes, FindSymbols,
                        Transformer)
 from devito.passes.iet.engine import iet_pass
@@ -52,34 +52,32 @@ def linearization(iet, **kwargs):
         # Default
         key = lambda f: f.is_DiscreteFunction or f.is_Array
 
-    iet, headers = linearize_accesses(iet, key, cache, sregistry)
+    iet, headers, args = linearize_accesses(iet, key, cache, sregistry)
     iet = linearize_pointers(iet)
     iet = linearize_transfers(iet, sregistry)
 
-    return iet, {'headers': headers}
+    return iet, {'headers': headers, 'args': args}
 
 
 def linearize_accesses(iet, key, cache, sregistry):
     """
     Turn Indexeds into FIndexeds and create the necessary access Macros.
     """
-    # Find all objects amenable to linearization
-    symbol_names = {i.name for i in FindSymbols('indexeds').visit(iet)}
+    # `functions` are all unseen Functions that `iet` may need linearizing
     functions = [f for f in FindSymbols().visit(iet)
-                 if key(f) and f.ndim > 1 and f.name in symbol_names]
+                 if f not in cache and key(f) and f.ndim > 1]
     functions = sorted(functions, key=lambda f: len(f.dimensions), reverse=True)
 
     # Find unique sizes (unique -> minimize necessary registers)
     mapper = DefaultOrderedDict(list)
     for f in functions:
-        if f not in cache:
-            # NOTE: the outermost dimension is unnecessary
-            for d in f.dimensions[1:]:
-                # TODO: same grid + same halo => same padding, however this is
-                # never asserted throughout the compiler yet... maybe should do
-                # it when in debug mode at `prepare_arguments` time, ie right
-                # before jumping to C?
-                mapper[(d, f._size_halo[d], getattr(f, 'grid', None))].append(f)
+        # NOTE: the outermost dimension is unnecessary
+        for d in f.dimensions[1:]:
+            # TODO: same grid + same halo => same padding, however this is
+            # never asserted throughout the compiler yet... maybe should do
+            # it when in debug mode at `prepare_arguments` time, ie right
+            # before jumping to C?
+            mapper[(d, f._size_halo[d], getattr(f, 'grid', None))].append(f)
 
     # Build all exprs such as `x_fsz0 = u_vec->size[1]`
     imapper = DefaultOrderedDict(list)
@@ -131,19 +129,42 @@ def linearize_accesses(iet, key, cache, sregistry):
                 pass
         mapper[n] = n._rebuild(expr=uxreplace(n.expr, subs))
 
-    # Put together all of the necessary exprs for `y_fsz0`, ..., `y_slc0`, ...
-    stmts0 = filter_ordered(flatten(cache[f].stmts0 for f in functions))
-    if stmts0:
-        stmts0.append(BlankLine)
-    stmts1 = filter_ordered(flatten(cache[f].stmts1 for f in functions))
-    if stmts1:
-        stmts1.append(BlankLine)
-
+    # Introduce the linearized expressions
     iet = Transformer(mapper).visit(iet)
-    body = iet.body._rebuild(body=tuple(stmts0) + tuple(stmts1) + iet.body.body)
-    iet = iet._rebuild(body=body)
 
-    return iet, headers
+    # `candidates` are all Functions actually requiring linearization in `iet`
+    candidates = []
+
+    indexeds = FindSymbols('indexeds').visit(iet)
+    candidates.extend(filter_ordered(i.function for i in indexeds))
+
+    calls = FindNodes(Call).visit(iet)
+    symbols = filter_ordered(flatten(i.expr_symbols for i in calls))
+    candidates.extend(i.function for i in symbols if isinstance(i, IndexedData))
+
+    # `defines` are all Functions that can be linearized in `iet`
+    defines = FindSymbols('defines').visit(iet)
+
+    # Place the linearization expressions or delegate to ancestor efunc
+    stmts0 = []
+    stmts1 = []
+    args = []
+    for f in candidates:
+        if f in defines:
+            stmts0.extend(cache[f].stmts0)
+            stmts1.extend(cache[f].stmts1)
+        else:
+            args.extend([e.write for e in cache[f].stmts1])
+    if stmts0:
+        assert len(stmts1) > 0
+        stmts0 = filter_ordered(stmts0) + [BlankLine]
+        stmts1 = filter_ordered(stmts1) + [BlankLine]
+        body = iet.body._rebuild(body=tuple(stmts0) + tuple(stmts1) + iet.body.body)
+        iet = iet._rebuild(body=body)
+    else:
+        assert len(stmts0) == 0
+
+    return iet, headers, args
 
 
 @singledispatch
