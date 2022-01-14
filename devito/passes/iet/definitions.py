@@ -285,7 +285,7 @@ class DataManager(object):
             The input Iteration/Expression tree.
         """
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
-        defines = set(FindSymbols('defines').visit(iet))
+        defines = set(FindSymbols('defines').visit(iet.body))
 
         # The _C_name represents the name of the Function among the
         # `iet.parameters`). If this differs from the name used within the
