@@ -233,8 +233,14 @@ class CGen(Visitor):
 
         return tuple(processed)
 
-    def visit_Generable(self, o):
+    def visit_object(self, o):
         return o
+
+    visit_Generable = visit_object
+    visit_Collection = visit_object
+
+    def visit_tuple(self, o):
+        return tuple(self._visit(i) for i in o)
 
     def visit_PointerCast(self, o):
         f = o.function
@@ -283,9 +289,6 @@ class CGen(Visitor):
             rvalue = '%s->%s' % (a1.name, a0._C_name)
             lvalue = c.Value(a0._C_typename, a0._C_name)
         return c.Initializer(lvalue, rvalue)
-
-    def visit_tuple(self, o):
-        return tuple(self._visit(i) for i in o)
 
     def visit_Block(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
