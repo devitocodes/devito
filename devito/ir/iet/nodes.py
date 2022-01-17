@@ -871,8 +871,8 @@ class Dereference(ExprStmt, Node):
     A node encapsulating a dereference from a `pointer` to a `pointee`.
     The following cases are supported:
 
-        * `pointer` is a PointerArray and `pointee` is an Array.
-        * `pointer` is an ArrayObject representing a pointer to a C struct while
+        * `pointer` is a PointerArray or TempFunction, and `pointee` is an Array.
+        * `pointer` is an ArrayObject representing a pointer to a C struct, and
           `pointee` is a field in `pointer`.
     """
 
@@ -906,7 +906,7 @@ class Dereference(ExprStmt, Node):
             # define the `a` `Function`
             return ()
         else:
-            return (self.pointee,)
+            return (self.pointee.indexed,)
 
 
 class Lambda(Node):

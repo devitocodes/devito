@@ -287,18 +287,19 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
+        # Candidates
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
-        defines = set(FindSymbols('defines').visit(iet.body))
 
-        # The _C_name represents the name of the Function among the
-        # `iet.parameters`). If this differs from the name used within the
-        # expressions, then it implies a cast is required
-        needs_cast = lambda f: (f not in defines and
-                                f.indexed not in iet.parameters and
-                                f._C_name != f.name)
+        # A cast is needed only if the underlying Function object isn't already
+        # defined inside the kernel, which happens in:
+        # (i) Dereference of PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
+        # (ii) Linearized mallocs, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
+        defines = set(FindSymbols('defines').visit(iet))
+        defines = {i._C_name for i in defines}
+        needs_cast = lambda f: f.name not in defines and f._C_name != f.name
 
         # Create Function -> n-dimensional array casts
-        # E.g. `float (*u)[u_vec->size[1]] = (float (*)[u_vec->size[1]]) u_vec->data`
+        # E.g. `float (*u)[.] = (float (*)[.]) u_vec->data`
         functions = sorted({i.function for i in indexeds}, key=lambda i: i.name)
         casts = [self.lang.PointerCast(f) for f in functions if needs_cast(f)]
 
