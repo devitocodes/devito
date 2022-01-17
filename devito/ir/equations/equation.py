@@ -23,10 +23,6 @@ class IREq(sympy.Eq):
     is_scalar = is_Scalar
 
     @property
-    def is_Tensor(self):
-        return self.lhs.is_Indexed
-
-    @property
     def is_Increment(self):
         return self._is_Increment
 

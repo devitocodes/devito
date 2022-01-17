@@ -54,7 +54,7 @@ configuration.add('compiler', 'custom', list(compiler_registry),
 
 # Setup language for shared-memory parallelism
 preprocessor = lambda i: {0: 'C', 1: 'openmp'}.get(i, i)  # Handles DEVITO_OPENMP deprec
-configuration.add('language', 'C', [0, 1, 'C', 'openmp', 'openacc'],
+configuration.add('language', 'C', [0, 1] + list(operator_registry._languages),
                   preprocessor=preprocessor, callback=reinit_compiler, deprecate='openmp')
 
 # MPI mode (0 => disabled, 1 == basic)

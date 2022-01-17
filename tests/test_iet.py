@@ -6,10 +6,10 @@ import sympy
 
 from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
                     switchconfig)
-from devito.ir.iet import (Call, Conditional, DummyExpr, Iteration, List, Lambda,
-                           ElementalFunction, CGen, FindSymbols, filter_iterations,
-                           make_efunc, retrieve_iteration_tree)
-from devito.symbolics import Byref, FieldFromComposite, InlineIf
+from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, List,
+                           Lambda, ElementalFunction, CGen, FindSymbols,
+                           filter_iterations, make_efunc, retrieve_iteration_tree)
+from devito.symbolics import Byref, FieldFromComposite, InlineIf, Macro
 from devito.tools import as_tuple
 from devito.types import Array, LocalObject, Symbol
 
@@ -214,6 +214,7 @@ def test_make_cpp_parfor():
                                [first, last, func, nthreads])
 
     assert str(parfor) == """\
+static inline \
 void parallel_for(const int first, const int last, FuncType&& func, const int nthreads)
 {
   const int threshold = 1;
@@ -237,3 +238,30 @@ void parallel_for(const int first, const int last, FuncType&& func, const int nt
     x.join();
   });
 }"""
+
+
+def test_call_indexed():
+    grid = Grid(shape=(10, 10))
+
+    u = Function(name='u', grid=grid)
+
+    foo = Callable('foo', DummyExpr(u, 1), 'void', parameters=[u, u.indexed])
+    call = Call(foo.name, [u, u.indexed])
+
+    assert str(call) == "foo(u_vec,u);"
+    assert str(foo) == """\
+void foo(struct dataobj *restrict u_vec, float *restrict u)
+{
+  u(x, y) = 1;
+}"""
+
+
+def test_null_init():
+    grid = Grid(shape=(10, 10))
+
+    u = Function(name='u', grid=grid)
+
+    expr = DummyExpr(u.indexed, Macro('NULL'), init=True)
+
+    assert str(expr) == "float * u = NULL;"
+    assert expr.defines == (u,)

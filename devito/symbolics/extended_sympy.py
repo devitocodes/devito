@@ -12,7 +12,7 @@ from devito.tools import Pickable, as_tuple, is_integer
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'MAX', 'MIN', 'SizeOf', 'rfunc',
+           'INT', 'FLOAT', 'DOUBLE', 'CEIL', 'FLOOR', 'MAX', 'MIN', 'SizeOf', 'rfunc',
            'cast_mapper']
 
 
@@ -283,6 +283,10 @@ class UnaryOp(sympy.Expr, Pickable):
     def base(self):
         return self._base
 
+    @property
+    def free_symbols(self):
+        return self.base.free_symbols
+
     def __str__(self):
         if self.base.is_Symbol:
             return "%s%s" % (self._op, ccode(self.base))
@@ -534,6 +538,7 @@ class DOUBLEP(CastStar):
 
 # Some other utility functions
 
+CEIL = Function('ceil')
 FLOOR = Function('floor')
 MAX = Function('MAX')
 MIN = Function('MIN')

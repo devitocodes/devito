@@ -9,8 +9,8 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (EntryFunction, List, PragmaTransfer, FindSymbols,
-                       MapExprStmts, Transformer)
+from devito.ir import (EntryFunction, DeviceFunction, List, PragmaTransfer,
+                       FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
@@ -285,12 +285,14 @@ class DataManager(object):
             The input Iteration/Expression tree.
         """
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
-        defines = set(FindSymbols('defines').visit(iet))
+        defines = set(FindSymbols('defines').visit(iet.body))
 
         # The _C_name represents the name of the Function among the
         # `iet.parameters`). If this differs from the name used within the
         # expressions, then it implies a cast is required
-        needs_cast = lambda f: f not in defines and f._C_name != f.name
+        needs_cast = lambda f: (f not in defines and
+                                f.indexed not in iet.parameters and
+                                f._C_name != f.name)
 
         # Create Function -> n-dimensional array casts
         # E.g. `float (*u)[u_vec->size[1]] = (float (*)[u_vec->size[1]]) u_vec->data`
@@ -413,7 +415,8 @@ class DeviceAwareDataManager(DataManager):
             if not i.is_Expression:
                 # No-op
                 continue
-            if not any(isinstance(j, self.lang.DeviceIteration) for j in v):
+            if not any(isinstance(j, self.lang.DeviceIteration) for j in v) and \
+               not isinstance(iet, DeviceFunction):
                 # Not an offloaded Iteration tree
                 continue
 
