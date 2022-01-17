@@ -63,10 +63,13 @@ def linearize_accesses(iet, key, cache, sregistry):
     """
     Turn Indexeds into FIndexeds and create the necessary access Macros.
     """
-    # `functions` are all unseen Functions that `iet` may need linearizing
-    functions = [f for f in FindSymbols().visit(iet)
-                 if f not in cache and key(f) and f.ndim > 1]
+    # `functions` are all Functions that `iet` may need linearizing
+    functions = [f for f in FindSymbols().visit(iet) if key(f) and f.ndim > 1]
     functions = sorted(functions, key=lambda f: len(f.dimensions), reverse=True)
+
+    # `functions_unseen` are all Functions that `iet` may need linearizing
+    # that have not been seen while processing other IETs
+    functions_unseen = [f for f in functions if f not in cache]
 
     # Find unique sizes (unique -> minimize necessary registers)
     mapper = DefaultOrderedDict(list)
@@ -79,16 +82,21 @@ def linearize_accesses(iet, key, cache, sregistry):
             # before jumping to C?
             mapper[(d, f._size_halo[d], getattr(f, 'grid', None))].append(f)
 
-    # Build all exprs such as `x_fsz0 = u_vec->size[1]`
+    # For all unseen Functions, build the size exprs. For example:
+    # `x_fsz0 = u_vec->size[1]`
     imapper = DefaultOrderedDict(list)
     for (d, halo, _), v in mapper.items():
-        expr = _generate_fsz(v[0], d, sregistry)
+        v_unseen = [f for f in v if f in functions_unseen]
+        if not v_unseen:
+            continue
+        expr = _generate_fsz(v_unseen[0], d, sregistry)
         if expr:
-            for f in v:
+            for f in v_unseen:
                 imapper[f].append((d, expr.write))
                 cache[f].stmts0.append(expr)
 
-    # Build all exprs such as `y_slc0 = y_fsz0*z_fsz0`
+    # For all unseen Functions, build the stride exprs. For example:
+    # `y_stride0 = y_fsz0*z_fsz0`
     built = {}
     mapper = DefaultOrderedDict(list)
     for f, v in imapper.items():
@@ -97,25 +105,24 @@ def linearize_accesses(iet, key, cache, sregistry):
             try:
                 stmt = built[expr]
             except KeyError:
-                name = sregistry.make_name(prefix='%s_slc' % d.name)
+                name = sregistry.make_name(prefix='%s_stride' % d.name)
                 s = Symbol(name=name, dtype=np.uint32, is_const=True)
                 stmt = built[expr] = DummyExpr(s, expr, init=True)
             mapper[f].append(stmt.write)
             cache[f].stmts1.append(stmt)
-    mapper.update([(f, []) for f in functions if f not in mapper])
+    mapper.update([(f, []) for f in functions_unseen if f not in mapper])
 
-    # Build defines. For example:
-    # `define uL(t, x, y, z) u[(t)*t_slc0 + (x)*x_slc0 + (y)*y_slc0 + (z)]`
+    # For all unseen Functions, build defines. For example:
+    # `#define uL(t, x, y, z) u[(t)*t_stride0 + (x)*x_stride0 + (y)*y_stride0 + (z)]`
     headers = []
     findexeds = {}
-    for f, szs in mapper.items():
-        if cache[f].cbk is not None:
-            # Perhaps we've already built an access macro for `f` through another efunc
-            findexeds[f] = cache[f].cbk
-        else:
-            header, cbk = _generate_macro(f, szs, sregistry)
+    for f in functions:
+        if cache[f].cbk is None:
+            header, cbk = _generate_macro(f, mapper[f], sregistry)
             headers.append(header)
             cache[f].cbk = findexeds[f] = cbk
+        else:
+            findexeds[f] = cache[f].cbk
 
     # Build "functional" Indexeds. For example:
     # `u[t2, x+8, y+9, z+7] => uL(t2, x+8, y+9, z+7)`

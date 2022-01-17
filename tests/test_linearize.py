@@ -260,9 +260,9 @@ def test_strides_forwarding():
     bar = graph.efuncs['bar']
 
     assert foo.body.body[0].write.name == 'y_fsz0'
-    assert foo.body.body[2].write.name == 'y_slc0'
+    assert foo.body.body[2].write.name == 'y_stride0'
     assert len(foo.body.body[4].arguments) == 2
 
     assert len(bar.parameters) == 2
-    assert bar.parameters[1].name == 'y_slc0'
+    assert bar.parameters[1].name == 'y_stride0'
     assert len(bar.body.body) == 1
