@@ -330,12 +330,17 @@ class CGen(Visitor):
         return code
 
     def visit_Call(self, o, nested_call=False):
+        retobj = o.retobj
+        cast = o.cast and retobj._C_typename
         arguments = self._args_call(o.arguments)
-        if o.retobj is not None:
-            return c.Initializer(c.Value(o.retobj._C_typedata, ccode(o.retobj)),
-                                 MultilineCall(o.name, arguments, True, o.is_indirect))
+        if retobj is None:
+            return MultilineCall(o.name, arguments, nested_call, o.is_indirect, cast)
         else:
-            return MultilineCall(o.name, arguments, nested_call, o.is_indirect)
+            call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
+            if retobj.is_AbstractFunction:
+                return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
+            else:
+                return c.Initializer(c.Value(retobj._C_typedata, ccode(retobj)), call)
 
     def visit_Conditional(self, o):
         try:
@@ -487,6 +492,9 @@ class FindSections(Visitor):
     from an Iteration nest to the enclosed statements (e.g., Expressions,
     Conditionals, Calls, ...).
     """
+
+    def visit_object(self, o, ret=None, queue=None):
+        return ret
 
     def visit_tuple(self, o, ret=None, queue=None):
         if ret is None:
@@ -882,11 +890,12 @@ class LambdaCollection(c.Collection):
 
 class MultilineCall(c.Generable):
 
-    def __init__(self, name, arguments, is_expr, is_indirect):
+    def __init__(self, name, arguments, is_expr, is_indirect, cast):
         self.name = name
         self.arguments = as_tuple(arguments)
         self.is_expr = is_expr
         self.is_indirect = is_indirect
+        self.cast = cast
 
     def generate(self):
         if not self.is_indirect:
@@ -913,4 +922,6 @@ class MultilineCall(c.Generable):
             tip += ")"
         if not self.is_expr:
             tip += ";"
+        if self.cast:
+            tip = '(%s)%s' % (self.cast, tip)
         yield tip

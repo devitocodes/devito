@@ -157,11 +157,11 @@ class OmpBB(PragmaLangBB):
                                        DefFunction('omp_get_device_num'),
                                        DefFunction('omp_get_initial_device')]),
         'device-get':
-            'omp_get_default_device()',
-        'device-alloc': lambda i, j:
-            'omp_target_alloc(%s, %s)' % (i, j),
+            Call('omp_get_default_device'),
+        'device-alloc': lambda i, j, *a, **kw:
+            Call('omp_target_alloc', (i, j)),
         'device-free': lambda i, j:
-            'omp_target_free(%s, %s)' % (i, j)
+            Call('omp_target_free', (i, j))
     }
     mapper.update(CBB.mapper)
 

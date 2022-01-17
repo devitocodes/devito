@@ -14,7 +14,7 @@ from devito.ir import (EntryFunction, DeviceFunction, List, PragmaTransfer,
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import ListInitializer, ccode
+from devito.symbolics import DefFunction, ListInitializer, SizeOf, ccode
 from devito.tools import as_mapper, filter_sorted, flatten, prod
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
@@ -344,17 +344,15 @@ class DeviceAwareDataManager(DataManager):
             # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
             # on the device as it never needs to be accessed on the host
             assert obj._mem_local
-            decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
-            size = "sizeof(%s[%s])" % (obj._C_typedata, prod(obj.symbolic_shape))
 
-            deviceid = self.lang['device-get']
+            deviceid = DefFunction(self.lang['device-get'].name)
             doalloc = self.lang['device-alloc']
             dofree = self.lang['device-free']
 
-            alloc = "(%s*) %s" % (obj._C_typedata, doalloc(size, deviceid))
-            init = c.Initializer(decl, alloc)
+            size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
+            init = doalloc(size, deviceid, retobj=obj)
 
-            free = c.Statement(dofree(obj._C_name, deviceid))
+            free = dofree(obj._C_name, deviceid)
 
             storage.update(obj, site, allocs=init, frees=free)
 

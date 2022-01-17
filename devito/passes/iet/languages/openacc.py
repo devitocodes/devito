@@ -113,11 +113,11 @@ class AccBB(PragmaLangBB):
             List(body=[Call('acc_memcpy_to_device_async', [i, j, k, l]),
                        Call('acc_wait', [l])]),
         'device-get':
-            'acc_get_device_num()',
-        'device-alloc': lambda i, *args:
-            'acc_malloc(%s)' % i,
-        'device-free': lambda i, *args:
-            'acc_free(%s)' % i
+            Call('acc_get_device_num'),
+        'device-alloc': lambda i, *a, retobj=None:
+            Call('acc_malloc', (i,), retobj=retobj, cast=True),
+        'device-free': lambda i, *a:
+            Call('acc_free', (i,))
     }
     mapper.update(CBB.mapper)
 

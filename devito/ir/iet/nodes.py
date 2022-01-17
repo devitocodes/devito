@@ -241,11 +241,14 @@ class Call(ExprStmt, Node):
         If True, the object represents an indirect function call. The emitted
         code will be `name, arg1, ..., argN` rather than `name(arg1, ..., argN)`.
         Defaults to False.
+    cast : bool, optional
+        If True, the Call return value is explicitely casted to the `retobj` type.
+        Defaults to False.
     """
 
     is_Call = True
 
-    def __init__(self, name, arguments=None, retobj=None, is_indirect=False):
+    def __init__(self, name, arguments=None, retobj=None, is_indirect=False, cast=False):
         if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
@@ -254,6 +257,7 @@ class Call(ExprStmt, Node):
         self.arguments = as_tuple(arguments)
         self.retobj = retobj
         self.is_indirect = is_indirect
+        self.cast = cast
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj
@@ -701,7 +705,8 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['init', 'unpacks', 'casts', 'maps', 'body', 'unmaps']
+    _traversable = ['init', 'unpacks', 'allocs', 'casts', 'maps', 'body',
+                    'unmaps', 'frees']
 
     def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
                  maps=None, unmaps=None, frees=None):
