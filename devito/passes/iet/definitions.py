@@ -201,7 +201,10 @@ class DataManager(object):
         storage = Storage()
 
         refmap = FindSymbols().visit(iet).mapper
-        placed = list(iet.parameters)
+
+        # All objects for which a definition is already available
+        placed = set(iet.parameters)
+        placed.update({i.function for i in placed})
 
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression:
@@ -211,7 +214,7 @@ class DataManager(object):
                     continue
                 objs = [k.write]
             elif k.is_Dereference:
-                placed.append(k.pointee)
+                placed.add(k.pointee)
                 if k.pointer in placed:
                     objs = []
                 else:
@@ -219,9 +222,9 @@ class DataManager(object):
             elif k.is_Call:
                 objs = list(k.functions)
                 if k.retobj is not None:
-                    objs.append(k.retobj.function)
+                    placed.add(k.retobj.function)
             elif k.is_PointerCast:
-                placed.append(k.function)
+                placed.add(k.function)
                 objs = []
 
             for i in objs:
