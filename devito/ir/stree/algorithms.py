@@ -2,7 +2,7 @@ from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import SEQUENTIAL, IterationSpace, normalize_properties
+from devito.ir.support import IMPLICIT, SEQUENTIAL, IterationSpace, normalize_properties
 from devito.mpi.halo_scheme import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
 from devito.tools import Bunch, DefaultOrderedDict, flatten
@@ -83,8 +83,12 @@ def stree_schedule(clusters):
         # Add in Iterations, Conditionals, and Syncs
         for it in c.itintervals[index:]:
             d = it.dim
-            tip = NodeIteration(c.ispace.project([d]), tip, c.properties.get(d))
-            mapper[it].top = tip
+            properties = c.properties.get(d, ())
+
+            if IMPLICIT not in properties:
+                tip = NodeIteration(c.ispace.project([d]), tip, properties)
+                mapper[it].top = tip
+
             tip = attach_metadata(c, d, tip)
             mapper[it].bottom = tip
 

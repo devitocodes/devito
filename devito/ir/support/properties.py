@@ -58,6 +58,12 @@ accesses functions. See :mod:`basic.py` for rigorous definitions of "affine"
 and "regular".
 """
 
+IMPLICIT = Property('implicit')
+"""
+A Dimension defining an implicit iteration space, which, as such, does not need
+to be implemented with classic constructs (e.g., loops).
+"""
+
 
 def normalize_properties(*args):
     if not args:
