@@ -463,7 +463,7 @@ class CGen(Visitor):
                 prefix = ' '.join(i.root.prefix + (i.root.retval,))
                 esigns.append(c.FunctionDeclaration(c.Value(prefix, i.root.name),
                                                     self._args_decl(i.root.parameters)))
-                efuncs.extend([i.root.ccode, blankline])
+                efuncs.extend([self.visit(i.root), blankline])
 
         # Header files, extra definitions, ...
         header = [c.Define(*i) for i in o._headers] + [blankline]
