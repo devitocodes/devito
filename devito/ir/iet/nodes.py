@@ -42,6 +42,7 @@ class Node(Signer):
     is_Increment = False
     is_Callable = False
     is_CallableBody = False
+    is_Conditional = False
     is_Lambda = False
     is_ElementalFunction = False
     is_Call = False
