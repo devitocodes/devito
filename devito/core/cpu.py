@@ -23,6 +23,11 @@ class Cpu64OperatorMixin(object):
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
     """
 
+    BLOCK_EAGER = True
+    """
+    Apply loop blocking as early as possible, and in particular prior to CIRE.
+    """
+
     CIRE_MINGAIN = 10
     """
     Minimum operation count reduction for a redundant expression to be optimized
@@ -84,6 +89,8 @@ class Cpu64OperatorMixin(object):
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+        o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
+        o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
@@ -172,7 +179,8 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         clusters = Lift().process(clusters)
 
         # Blocking to improve data locality
-        clusters = blocking(clusters, options)
+        if options['blockeager']:
+            clusters = blocking(clusters, options)
 
         # Reduce flops
         clusters = extract_increments(clusters, sregistry)
@@ -185,6 +193,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cse(clusters, sregistry)
+
+        # Blocking to improve data locality
+        if options['blocklazy']:
+            clusters = blocking(clusters, options)
 
         return clusters
 
@@ -228,6 +240,8 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
     Operator with performance optimizations tailored "For small grids" ("Fsg").
     """
 
+    BLOCK_EAGER = False
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         kwargs = super()._normalize_kwargs(**kwargs)
@@ -237,40 +251,6 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
                                   ' as they work in opposite directions')
 
         return kwargs
-
-    @classmethod
-    @timed_pass(name='specializing.Clusters')
-    def _specialize_clusters(cls, clusters, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        sregistry = kwargs['sregistry']
-
-        # Optimize MultiSubDomains
-        clusters = optimize_msds(clusters)
-
-        # Toposort+Fusion (the former to expose more fusion opportunities)
-        clusters = fuse(clusters, toposort=True)
-
-        # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, 'invariants', sregistry, options, platform)
-        clusters = Lift().process(clusters)
-
-        # Reduce flops (potential arithmetic alterations)
-        clusters = extract_increments(clusters, sregistry)
-        clusters = cire(clusters, 'sops', sregistry, options, platform)
-        clusters = factorize(clusters)
-        clusters = optimize_pows(clusters)
-
-        # The previous passes may have created fusion opportunities
-        clusters = fuse(clusters)
-
-        # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, sregistry)
-
-        # Blocking to improve data locality
-        clusters = blocking(clusters, options)
-
-        return clusters
 
 
 class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):

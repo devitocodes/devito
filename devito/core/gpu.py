@@ -26,6 +26,11 @@ class DeviceOperatorMixin(object):
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
     """
 
+    BLOCK_EAGER = True
+    """
+    Apply loop blocking as early as possible, and in particular prior to CIRE.
+    """
+
     CIRE_MINGAIN = 10
     """
     Minimum operation count reduction for a redundant expression to be optimized
@@ -67,6 +72,8 @@ class DeviceOperatorMixin(object):
         # Blocking
         o['blockinner'] = oo.pop('blockinner', True)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+        o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
+        o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
@@ -161,8 +168,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
-        # Loop tiling
-        clusters = blocking(clusters, options)
+        # Blocking to define thread blocks
+        if options['blockeager']:
+            clusters = blocking(clusters, options)
 
         # Reduce flops
         clusters = extract_increments(clusters, sregistry)
@@ -175,6 +183,10 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cse(clusters, sregistry)
+
+        # Blocking to define thread blocks
+        if options['blocklazy']:
+            clusters = blocking(clusters, options)
 
         return clusters
 
