@@ -1,4 +1,7 @@
 from anytree import findall
+from sympy import And
+
+from itertools import groupby
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
@@ -93,7 +96,18 @@ def stree_schedule(clusters):
             mapper[it].bottom = tip
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, tip)
+        exprs = []
+        for conditionals, g in groupby(c.exprs, key=lambda e: e.conditionals):
+            exprs = list(g)
+
+            # Indirect ConditionalDimensions induce expression-level guards
+            if conditionals:
+                guard = And(*conditionals.values(), evaluate=False)
+                parent = NodeConditional(guard, tip)
+            else:
+                parent = tip
+
+            NodeExprs(exprs, c.ispace, c.dspace, c.ops, c.traffic, parent)
 
         # Prepare for next iteration
         prev = c
