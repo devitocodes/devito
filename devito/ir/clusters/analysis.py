@@ -7,13 +7,13 @@ __all__ = ['analyze']
 
 
 @timed_pass()
-def analyze(clusters):
+def analyze(clusters, options):
     state = QueueStateful.State()
 
     # Collect properties
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
-    clusters = Tiling(state).process(clusters)
+    clusters = Tiling(state, options).process(clusters)
     clusters = Skewing(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
@@ -165,10 +165,32 @@ class Tiling(Detector):
     Detect the TILABLE Dimensions.
     """
 
+    def __init__(self, state, options):
+        super().__init__(state)
+
+        self.inner = options['blockinner']
+
+    def process(self, clusters):
+        super().process(clusters)
+
+        # Proprocess so that if there aren't at least two TILABLE Dimensions, we abort
+        for c in clusters:
+            properties = self.state.properties.get(c, {})
+            ntilable = len([TILABLE for v in properties.values() if TILABLE in v])
+            if ntilable <= 1:
+                for v in properties.values():
+                    v.discard(TILABLE)
+
+        return clusters
+
     def _callback(self, clusters, d, prefix):
         # A Dimension is TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
         if not {PARALLEL, AFFINE} <= properties[d]:
+            return
+
+        is_inner = all(d is c.itintervals[-1].dim for c in clusters)
+        if is_inner and not self.inner:
             return
 
         # In addition, we use the heuristic that we do not consider

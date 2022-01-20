@@ -17,10 +17,12 @@ from devito.types import ModuloDimension
 __all__ = ['clusterize']
 
 
-def clusterize(exprs):
+def clusterize(exprs, **kwargs):
     """
     Turn a sequence of LoweredEqs into a sequence of Clusters.
     """
+    options = kwargs['options']
+
     # Initialization
     clusters = [Cluster(e, e.ispace) for e in exprs]
 
@@ -34,7 +36,7 @@ def clusterize(exprs):
     clusters = guard(clusters)
 
     # Determine relevant computational properties (e.g., parallelism)
-    clusters = analyze(clusters)
+    clusters = analyze(clusters, options)
 
     return ClusterGroup(clusters)
 

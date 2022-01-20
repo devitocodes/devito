@@ -44,15 +44,13 @@ def blocking(clusters, options):
     ------
     In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed.
     """
-    processed = preprocess(clusters, options)
-
     if options['blocklevels'] > 0:
-        processed = Blocking(options).process(processed)
+        clusters = Blocking(options).process(clusters)
 
     if options['skewing']:
-        processed = Skewing(options).process(processed)
+        clusters = Skewing(options).process(clusters)
 
-    return processed
+    return clusters
 
 
 class Blocking(Queue):
@@ -125,28 +123,6 @@ class Blocking(Queue):
         self.nblocked[d] += int(any(TILABLE in c.properties[d] for c in clusters))
 
         return processed
-
-
-def preprocess(clusters, options):
-    # Preprocess: heuristic: drop TILABLE from innermost Dimensions to
-    # maximize vectorization
-    inner = bool(options['blockinner'])
-    processed = []
-    for c in clusters:
-        ntilable = len([i for i in c.properties.values() if TILABLE in i])
-        ntilable -= int(not inner)
-        if ntilable <= 1:
-            properties = {k: v - {TILABLE, SKEWABLE} for k, v in c.properties.items()}
-            processed.append(c.rebuild(properties=properties))
-        elif not inner:
-            d = c.itintervals[-1].dim
-            properties = dict(c.properties)
-            properties[d] = properties[d] - {TILABLE, SKEWABLE}
-            processed.append(c.rebuild(properties=properties))
-        else:
-            processed.append(c)
-
-    return processed
 
 
 def decompose(ispace, d, block_dims):

@@ -314,7 +314,7 @@ class Operator(Callable):
               as parallelism.
         """
         # Build a sequence of Clusters from a sequence of Eqs
-        clusters = clusterize(expressions)
+        clusters = clusterize(expressions, **kwargs)
 
         # Operation count before specialization
         init_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
