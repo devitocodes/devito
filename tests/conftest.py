@@ -281,7 +281,7 @@ def assert_blocking(operator, exp_nests):
 
     ['x0_blk0': Iteration x0_blk0..., 'x1_blk0': Iteration x1_blk0...]
 
-    and the ParallelBlock that encapsules the above blocking subtree
+    and the ParallelBlock that encapsulates the above blocking subtree
 
     ['x0_blk0': ParallelBlock encapsulating Iteration x0_blk0,
      'x1_blk0': ParallelBlock encapsulating Iteration x1_blk0]

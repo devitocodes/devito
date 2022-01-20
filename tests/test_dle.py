@@ -172,6 +172,26 @@ def test_cache_blocking_structure_distributed():
         assert iters[4].dim is z
 
 
+def test_cache_blocking_structure_optrelax():
+    grid = Grid(shape=(8, 8, 8))
+
+    u = TimeFunction(name="u", grid=grid, space_order=2)
+    src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1,
+                             coordinates=np.array([(0.5, 0.5, 0.5)]))
+
+    eqns = [Eq(u.forward, u.dx)]
+    eqns += src.inject(field=u.forward, expr=src)
+
+    op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
+
+    bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0'})
+
+    iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
+    assert len(iters) == 2
+    assert iters[0].dim.is_Block
+    assert iters[1].dim.is_Block
+
+
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
 @pytest.mark.parametrize("blockshape", [2, (3, 3), (9, 20), (2, 9, 11), (7, 15, 23)])

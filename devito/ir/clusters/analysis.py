@@ -169,9 +169,13 @@ class Tiling(Detector):
         super().__init__(state)
 
         self.inner = options['blockinner']
+        self.relax = options['blockrelax']
 
     def process(self, clusters):
         super().process(clusters)
+
+        if self.relax:
+            return clusters
 
         # Proprocess so that if there aren't at least two TILABLE Dimensions, we abort
         for c in clusters:
@@ -184,11 +188,21 @@ class Tiling(Detector):
         return clusters
 
     def _callback(self, clusters, d, prefix):
-        # A Dimension is TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
+
+        # If requested, ignore the heuristics that would otherwise prevent
+        # blocking in some specific contexts
+        if self.relax:
+            if {PARALLEL, PARALLEL_IF_ATOMIC}.intersection(properties[d]):
+                return TILABLE
+            else:
+                return
+
+        # At this point, a Dimension can be TILABLE only if it's PARALLEL and AFFINE
         if not {PARALLEL, AFFINE} <= properties[d]:
             return
 
+        # Innermost Dimensions may be ruled out a-priori
         is_inner = all(d is c.itintervals[-1].dim for c in clusters)
         if is_inner and not self.inner:
             return

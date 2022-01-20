@@ -28,6 +28,12 @@ class Cpu64OperatorMixin(object):
     Apply loop blocking as early as possible, and in particular prior to CIRE.
     """
 
+    BLOCK_RELAX = False
+    """
+    If set to True, bypass the compiler heuristics that prevent loop blocking in
+    situations where the performance impact might be detrimental.
+    """
+
     CIRE_MINGAIN = 10
     """
     Minimum operation count reduction for a redundant expression to be optimized
@@ -91,6 +97,7 @@ class Cpu64OperatorMixin(object):
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
+        o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
