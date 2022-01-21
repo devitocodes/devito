@@ -414,17 +414,14 @@ class DeviceAwareDataManager(DataManager):
         writes = set()
         reads = set()
         for i, v in MapExprStmts().visit(iet).items():
-            if not i.is_Expression:
-                # No-op
-                continue
             if not any(isinstance(j, self.lang.DeviceIteration) for j in v) and \
                not isinstance(iet, DeviceFunction):
                 # Not an offloaded Iteration tree
                 continue
 
-            if needs_transfer(i.write):
-                writes.add(i.write)
-            reads.update({r for r in i.reads if needs_transfer(r)})
+            writes.update({w for w in i.writes if needs_transfer(w)})
+            reads.update({f for f in i.functions
+                          if needs_transfer(f) and f not in writes})
 
         return (reads, writes)
 

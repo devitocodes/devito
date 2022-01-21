@@ -139,6 +139,11 @@ class Node(Signer):
         """All Basic objects defined by this node."""
         return ()
 
+    @property
+    def writes(self):
+        """All Basic objects modified by this node."""
+        return ()
+
     def _signature_items(self):
         return (str(self.ccode),)
 
@@ -245,11 +250,17 @@ class Call(ExprStmt, Node):
     cast : bool, optional
         If True, the Call return value is explicitely casted to the `retobj` type.
         Defaults to False.
+    writes : list, optional
+        The AbstractFunctions that will be written to by the called function.
+        Explicitly tagging these AbstractFunctions is useful in the case of external
+        calls, that is whenever the compiler would be unable to retrieve that
+        information by analysis of the IET graph.
     """
 
     is_Call = True
 
-    def __init__(self, name, arguments=None, retobj=None, is_indirect=False, cast=False):
+    def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
+                 cast=False, writes=None):
         if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
@@ -259,6 +270,7 @@ class Call(ExprStmt, Node):
         self.retobj = retobj
         self.is_indirect = is_indirect
         self.cast = cast
+        self._writes = as_tuple(writes)
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj
@@ -323,6 +335,10 @@ class Call(ExprStmt, Node):
         if self.retobj is not None:
             ret += (self.retobj,)
         return ret
+
+    @property
+    def writes(self):
+        return self._writes
 
 
 class Expression(ExprStmt, Node):
@@ -408,6 +424,10 @@ class Expression(ExprStmt, Node):
         if self.write is not None:
             functions.append(self.write)
         return tuple(filter_ordered(functions))
+
+    @property
+    def writes(self):
+        return (self.write,)
 
 
 class AugmentedExpression(Expression):
