@@ -4,13 +4,11 @@ from functools import singledispatch
 import numpy as np
 
 from devito.data import FULL
-from devito.ir import (BlankLine, Call, DummyExpr, Dereference, Expression, List,
-                       PointerCast, PragmaTransfer, FindNodes, FindSymbols,
-                       Transformer)
+from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
+                       PragmaTransfer, FindNodes, FindSymbols, Transformer, Uxreplace)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.parpragma import PragmaLangBB
-from devito.symbolics import (DefFunction, MacroArgument, ccode, retrieve_indexed,
-                              uxreplace)
+from devito.symbolics import DefFunction, MacroArgument, ccode
 from devito.tools import Bunch, DefaultOrderedDict, filter_ordered, flatten, prod
 from devito.types import Array, Symbol, FIndexed, Indexed, Wildcard
 from devito.types.basic import IndexedData
@@ -127,22 +125,19 @@ def linearize_accesses(iet, key, cache, sregistry):
     # Build "functional" Indexeds. For example:
     # `u[t2, x+8, y+9, z+7] => uL(t2, x+8, y+9, z+7)`
     mapper = {}
-    for n in FindNodes(Expression).visit(iet):
-        subs = {}
-        for i in retrieve_indexed(n.expr):
-            try:
-                subs[i] = findexeds[i.function](i)
-            except KeyError:
-                pass
-        mapper[n] = n._rebuild(expr=uxreplace(n.expr, subs))
+    indexeds = FindSymbols('indexeds').visit(iet)
+    for i in indexeds:
+        try:
+            mapper[i] = findexeds[i.function](i)
+        except KeyError:
+            pass
 
     # Introduce the linearized expressions
-    iet = Transformer(mapper).visit(iet)
+    iet = Uxreplace(mapper).visit(iet)
 
     # `candidates` are all Functions actually requiring linearization in `iet`
     candidates = []
 
-    indexeds = FindSymbols('indexeds').visit(iet)
     candidates.extend(filter_ordered(i.function for i in indexeds))
 
     calls = FindNodes(Call).visit(iet)

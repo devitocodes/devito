@@ -15,14 +15,14 @@ from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
-from devito.symbolics import ccode
+from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Basic, IndexedData
 from devito.types import ArrayObject, VoidPointer
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'printAST', 'CGen', 'Transformer']
+           'IsPerfectIteration', 'printAST', 'CGen', 'Transformer', 'Uxreplace']
 
 
 class Visitor(GenericVisitor):
@@ -879,6 +879,29 @@ class Transformer(Visitor):
 
     def visit_Operator(self, o, **kwargs):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
+
+
+class Uxreplace(Transformer):
+    """
+    Apply substitutions to SymPy objects wrapped in IET nodes.
+    This is the IET-equivalent of `uxreplace` in the expressions layer.
+
+    Parameters
+    ----------
+    mapper : dict
+        The substitution rules.
+    """
+
+    def __init__(self, mapper):
+        super().__init__()
+        self.mapper = mapper
+
+    def visit_Expression(self, o):
+        return o._rebuild(expr=uxreplace(o.expr, self.mapper))
+
+    def visit_Call(self, o):
+        arguments = [uxreplace(i, self.mapper) for i in o.arguments]
+        return o._rebuild(arguments=arguments)
 
 
 # Utils
