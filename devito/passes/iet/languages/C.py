@@ -11,7 +11,7 @@ class CBB(LangBB):
         'aligned': lambda i:
             '__attribute__((aligned(%d)))' % i,
         'host-alloc': lambda i, j, k:
-            'posix_memalign((void**)&%s, %d, %s)' % (i, j, k),
+            Call('posix_memalign', (i, j, k)),
         'host-free': lambda i:
             Call('free', (i,)),
     }

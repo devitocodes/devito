@@ -311,6 +311,28 @@ class CGen(Visitor):
     def visit_Element(self, o):
         return o.element
 
+    def visit_Definition(self, o):
+        f = o.function
+        if f.is_Array:
+            if o.shape is None:
+                decl = c.Value(f._C_typedata, "*%s" % f._C_name)
+            else:
+                if o.qualifier is None:
+                    decl = c.Value(f._C_typedata, "%s%s" % (f._C_name, o.shape))
+                else:
+                    decl = c.Value(f._C_typedata,
+                                   "%s%s %s" % (f._C_name, o.shape, o.qualifier))
+            if o.initvalue is None:
+                return decl
+            else:
+                return c.Initializer(decl, o.initvalue)
+        elif f.is_PointerArray:
+            return c.Value(f._C_typedata, "**%s" % f._C_name)
+        elif f.is_LocalObject:
+            return c.Value(f._C_typename, f.name)
+        else:
+            assert False
+
     def visit_Expression(self, o):
         lhs = ccode(o.expr.lhs, dtype=o.dtype)
         rhs = ccode(o.expr.rhs, dtype=o.dtype)

@@ -11,7 +11,7 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
-from devito.mpi.routines import HaloUpdateCall
+from devito.mpi.routines import HaloUpdateCall, MPICall
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -1934,7 +1934,7 @@ class TestOperatorAdvanced(object):
         assert len(arrays) == 3
         assert 'haloupdate0' in op1._func_table
         # We expect exactly one halo exchange
-        calls = FindNodes(Call).visit(op1)
+        calls = FindNodes(MPICall).visit(op1)
         assert len(calls) == 1
         assert calls[0].name == 'haloupdate0'
 

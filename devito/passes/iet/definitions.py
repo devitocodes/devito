@@ -9,12 +9,13 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (Block, Call, EntryFunction, DeviceFunction, List, PragmaTransfer,
-                       FindSymbols, MapExprStmts, Transformer)
+from devito.ir import (Block, Definition, DeviceFunction, EntryFunction, List,
+                       PragmaTransfer, FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import DefFunction, IndexedPointer, ListInitializer, SizeOf, ccode
+from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitializer,
+                              SizeOf, VOID, Literal, ccode)
 from devito.tools import as_mapper, filter_sorted, flatten, prod
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
@@ -74,7 +75,9 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        storage.update(obj, site, allocs=c.Value(obj._C_typename, obj.name))
+        alloc = Definition(obj)
+
+        storage.update(obj, site, allocs=alloc)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -82,13 +85,13 @@ class DataManager(object):
         """
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
         alignment = self.lang['aligned'](obj._data_alignment)
-        decl = c.Value(obj._C_typedata, "%s%s %s" % (obj._C_name, shape, alignment))
-
-        if obj.initvalue is not None:
-            storage.update(obj, site,
-                           allocs=c.Initializer(decl, ListInitializer(obj.initvalue)))
+        if obj.initvalue is None:
+            initvalue = None
         else:
-            storage.update(obj, site, allocs=decl)
+            initvalue = ListInitializer(obj.initvalue)
+        alloc = Definition(obj, shape=shape, qualifier=alignment, initvalue=initvalue)
+
+        storage.update(obj, site, allocs=alloc)
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
@@ -101,12 +104,12 @@ class DataManager(object):
         """
         Allocate an Array in the high bandwidth memory.
         """
-        decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
+        decl = Definition(obj)
 
-        shape = "".join("[%s]" % i for i in obj.symbolic_shape)
-        size = "sizeof(%s%s)" % (obj._C_typedata, shape)
-        alloc = c.Statement(self.lang['host-alloc'](obj._C_name,
-                                                    obj._data_alignment, size))
+        memptr = VOID(Byref(obj._C_symbol), '**')
+        alignment = obj._data_alignment
+        size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
+        alloc = self.lang['host-alloc'](memptr, alignment, size)
 
         free = self.lang['host-free'](obj._C_symbol)
 
@@ -133,21 +136,24 @@ class DataManager(object):
         by the owner thread.
         """
         # The pointer array
-        decl = c.Value(obj._C_typedata, "**%s" % obj._C_name)
+        decl = Definition(obj)
 
-        size = 'sizeof(%s*)*%s' % (obj._C_typedata, obj.dim.symbolic_size)
-        alloc0 = c.Statement(self.lang['host-alloc'](obj._C_name, obj._data_alignment,
-                                                     size))
+        memptr = VOID(Byref(obj._C_symbol), '**')
+        alignment = obj._data_alignment
+        size = SizeOf(Literal('%s*' % obj._C_typedata))*obj.dim.symbolic_size
+        alloc0 = self.lang['host-alloc'](memptr, alignment, size)
+
         free0 = self.lang['host-free'](obj._C_symbol)
 
         # The pointee Array
         pobj = IndexedPointer(obj._C_symbol, obj.dim)
-        pobj1 = str(pobj)  #TODO
-        shape = "".join("[%s]" % i for i in obj.array.symbolic_shape)
-        size = "sizeof(%s%s)" % (obj._C_typedata, shape)
-        alloc1 = c.Statement(self.lang['host-alloc'](pobj1, obj._data_alignment, size))
+        memptr = VOID(Byref(pobj), '**')
+        size = SizeOf(obj._C_typedata)*prod(obj.array.symbolic_shape)
+        alloc1 = self.lang['host-alloc'](memptr, alignment, size)
+
         free1 = self.lang['host-free'](pobj)
 
+        # Dump
         if obj.dim is self.sregistry.threadid:
             storage.update(obj, site, allocs=(decl, alloc0), frees=free0,
                            pallocs=(obj.dim, alloc1), pfrees=(obj.dim, free1))
@@ -166,9 +172,8 @@ class DataManager(object):
             allocs = flatten(v.allocs)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
-                init = c.Initializer(c.Value(tid._C_typedata, tid.name),
-                                     self.lang['thread-num']().ccode)
-                allocs.append(c.Module((header, c.Block([init] + body))))
+                init = self.lang['thread-num'](retobj=tid)
+                allocs.append(Block(header=header, body=[init] + body))
 
             # frees/pfrees
             frees = []

@@ -20,7 +20,7 @@ from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree',
+           'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree', 'Definition',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return',
            'While', 'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
            'SyncSpot', 'Pragma', 'PragmaTransfer', 'DummyExpr', 'BlankLine',
@@ -44,6 +44,7 @@ class Node(Signer):
     is_ElementalFunction = False
     is_Call = False
     is_List = False
+    is_Definition = False
     is_PointerCast = False
     is_Dereference = False
     is_Section = False
@@ -703,8 +704,8 @@ class CallableBody(Node):
         (e.g., to initialize the target language runtime).
     unpacks : list of Nodes, optional
         Statements unpacking data from composite types.
-    allocs : list of cgen objects, optional
-        Data allocations for `body`.
+    allocs : list of Nodes, optional
+        Data definitions and allocations for `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
     maps : Transfer or list of Transfer, optional
@@ -712,7 +713,7 @@ class CallableBody(Node):
         host to device).
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
-    frees : list of cgen objects, optional
+    frees : list of Calls, optional
         Data deallocations for `body`.
     """
 
@@ -830,6 +831,32 @@ class TimedList(List):
     @property
     def timer(self):
         return self._timer
+
+
+class Definition(ExprStmt, Node):
+
+    """
+    A node encapsulating a variable definition.
+    """
+
+    is_Definition = True
+
+    def __init__(self, function, shape=None, qualifier=None, initvalue=None):
+        self.function = function
+        self.shape = shape
+        self.qualifier = qualifier
+        self.initvalue = initvalue
+
+    def __repr__(self):
+        return "<Def(%s)>" % self.function
+
+    @property
+    def functions(self):
+        return (self.function,)
+
+    @property
+    def defines(self):
+        return (self.function,)
 
 
 class PointerCast(ExprStmt, Node):

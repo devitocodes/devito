@@ -522,7 +522,7 @@ class CastStar(object):
 
     base = None
 
-    def __new__(cls, base):
+    def __new__(cls, base=''):
         return cls.base(base, '*')
 
 

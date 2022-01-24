@@ -1265,8 +1265,8 @@ class TestDeclarator(object):
                                          '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
 
     def test_heap_perfect_2D(self):
@@ -1286,11 +1286,11 @@ class TestDeclarator(object):
              '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.allocs[2]) == 'float *c_vec;'
-        assert str(op.body.allocs[3]) == ('posix_memalign((void**)&c_vec, 64, '
-                                          'sizeof(float[i_size][j_size]));')
+        assert str(op.body.allocs[3]) == ('posix_memalign((void**)(&c_vec),64,'
+                                          'i_size*j_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
         assert str(op.body.frees[1]) == 'free(c_vec);'
 
@@ -1311,11 +1311,11 @@ class TestDeclarator(object):
              '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.allocs[2]) == 'float *c_vec;'
-        assert str(op.body.allocs[3]) == ('posix_memalign((void**)&c_vec, 64, '
-                                          'sizeof(float[i_size][j_size]));')
+        assert str(op.body.allocs[3]) == ('posix_memalign((void**)(&c_vec),64,'
+                                          'i_size*j_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
         assert str(op.body.frees[1]) == 'free(c_vec);'
 
@@ -1338,8 +1338,8 @@ class TestDeclarator(object):
              '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
 
         assert op.body.body[1].body[0].is_ExpressionBundle
