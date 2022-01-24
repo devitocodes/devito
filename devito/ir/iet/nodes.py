@@ -33,28 +33,22 @@ class Node(Signer):
 
     __metaclass__ = abc.ABCMeta
 
-    is_Node = True
     is_Block = False
     is_Iteration = False
-    is_IterationFold = False
     is_While = False
     is_Expression = False
     is_Increment = False
     is_Callable = False
     is_CallableBody = False
     is_Conditional = False
-    is_Lambda = False
     is_ElementalFunction = False
     is_Call = False
     is_List = False
     is_PointerCast = False
     is_Dereference = False
-    is_Element = False
     is_Section = False
     is_HaloSpot = False
     is_ExpressionBundle = False
-    is_ParallelIteration = False
-    is_ParallelBlock = False
     is_SyncSpot = False
 
     _traversable = []
@@ -218,8 +212,6 @@ class Element(Node):
     A generic node. Can be a comment, a statement, ... or anything that cannot
     be expressed through an IET type.
     """
-
-    is_Element = True
 
     def __init__(self, element):
         assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
@@ -952,8 +944,6 @@ class Lambda(Node):
         The objects in input to the lambda function.
     """
 
-    is_Lambda = True
-
     _traversable = ['body']
 
     def __init__(self, body, captures=None, parameters=None):
@@ -1106,8 +1096,6 @@ class ParallelIteration(Iteration):
     Implement a parallel for-loop.
     """
 
-    is_ParallelIteration = True
-
     def __init__(self, *args, **kwargs):
         pragmas, kwargs, properties = self._make_header(**kwargs)
         super().__init__(*args, pragmas=pragmas, properties=properties, **kwargs)
@@ -1212,8 +1200,6 @@ class ParallelBlock(Block):
     """
     A sequence of Nodes, wrapped in a parallel block {...}.
     """
-
-    is_ParallelBlock = True
 
     def __init__(self, body, private=None):
         # Normalize and sanity-check input. A bit ugly, but it makes everything
