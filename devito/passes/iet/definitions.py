@@ -9,12 +9,12 @@ from operator import itemgetter
 
 import cgen as c
 
-from devito.ir import (EntryFunction, DeviceFunction, List, PragmaTransfer,
+from devito.ir import (Block, Call, EntryFunction, DeviceFunction, List, PragmaTransfer,
                        FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import DefFunction, ListInitializer, SizeOf, ccode
+from devito.symbolics import DefFunction, IndexedPointer, ListInitializer, SizeOf, ccode
 from devito.tools import as_mapper, filter_sorted, flatten, prod
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
@@ -105,10 +105,10 @@ class DataManager(object):
 
         shape = "".join("[%s]" % i for i in obj.symbolic_shape)
         size = "sizeof(%s%s)" % (obj._C_typedata, shape)
-        alloc = c.Statement(self.lang['alloc-host'](obj._C_name,
+        alloc = c.Statement(self.lang['host-alloc'](obj._C_name,
                                                     obj._data_alignment, size))
 
-        free = c.Statement(self.lang['free-host'](obj._C_name))
+        free = self.lang['host-free'](obj._C_symbol)
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
 
@@ -136,16 +136,17 @@ class DataManager(object):
         decl = c.Value(obj._C_typedata, "**%s" % obj._C_name)
 
         size = 'sizeof(%s*)*%s' % (obj._C_typedata, obj.dim.symbolic_size)
-        alloc0 = c.Statement(self.lang['alloc-host'](obj._C_name, obj._data_alignment,
+        alloc0 = c.Statement(self.lang['host-alloc'](obj._C_name, obj._data_alignment,
                                                      size))
-        free0 = c.Statement(self.lang['free-host'](obj._C_name))
+        free0 = self.lang['host-free'](obj._C_symbol)
 
         # The pointee Array
-        pobj = '%s[%s]' % (obj._C_name, obj.dim.name)
+        pobj = IndexedPointer(obj._C_symbol, obj.dim)
+        pobj1 = str(pobj)  #TODO
         shape = "".join("[%s]" % i for i in obj.array.symbolic_shape)
         size = "sizeof(%s%s)" % (obj._C_typedata, shape)
-        alloc1 = c.Statement(self.lang['alloc-host'](pobj, obj._data_alignment, size))
-        free1 = c.Statement(self.lang['free-host'](pobj))
+        alloc1 = c.Statement(self.lang['host-alloc'](pobj1, obj._data_alignment, size))
+        free1 = self.lang['host-free'](pobj)
 
         if obj.dim is self.sregistry.threadid:
             storage.update(obj, site, allocs=(decl, alloc0), frees=free0,
@@ -166,16 +167,15 @@ class DataManager(object):
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
                 init = c.Initializer(c.Value(tid._C_typedata, tid.name),
-                                     self.lang['thread-num'])
+                                     self.lang['thread-num']().ccode)
                 allocs.append(c.Module((header, c.Block([init] + body))))
 
             # frees/pfrees
             frees = []
             for tid, body in as_mapper(v.pfrees, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
-                init = c.Initializer(c.Value(tid._C_typedata, tid.name),
-                                     self.lang['thread-num'])
-                frees.append(c.Module((header, c.Block([init] + body))))
+                init = self.lang['thread-num'](retobj=tid)
+                frees.append(Block(header=header, body=[init] + body))
             frees.extend(flatten(v.frees))
 
             if k is iet:

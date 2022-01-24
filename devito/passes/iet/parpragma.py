@@ -295,7 +295,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         if vexpandeds:
             init = c.Initializer(c.Value(self.threadid._C_typedata, self.threadid.name),
-                                 self.lang['thread-num'])
+                                 self.lang['thread-num']().ccode)
             prefix = List(header=init,
                           body=vexpandeds + list(partree.prefix),
                           footer=c.Line())

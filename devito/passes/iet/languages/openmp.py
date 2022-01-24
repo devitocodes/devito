@@ -99,7 +99,7 @@ class ThreadedProdder(Conditional, Prodder):
 
     def __init__(self, prodder):
         # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(Ompizer.lang['thread-num'], 0)
+        condition = CondEq(DefFunction(Ompizer.lang['thread-num']().name), 0)
 
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
@@ -123,7 +123,8 @@ class OmpBB(PragmaLangBB):
         NVIDIAX: None,
         # Runtime library
         'init': None,
-        'thread-num': DefFunction('omp_get_thread_num'),
+        'thread-num': lambda retobj=None:
+            Call('omp_get_thread_num', retobj=retobj),
         'num-devices': lambda args:
             DefFunction('omp_get_num_devices', args),
         'set-device': lambda args:

@@ -357,8 +357,6 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     """
 
     def __new__(cls, base, index):
-        if isinstance(base, (str, sympy.IndexedBase, sympy.Symbol)):
-            return sympy.Indexed(base, index)
         try:
             # If an AbstractFunction, pull the underlying Symbol
             base = base.indexed.label

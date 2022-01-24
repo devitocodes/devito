@@ -1,3 +1,4 @@
+from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.langbase import LangBB
 
@@ -9,10 +10,10 @@ class CBB(LangBB):
     mapper = {
         'aligned': lambda i:
             '__attribute__((aligned(%d)))' % i,
-        'alloc-host': lambda i, j, k:
+        'host-alloc': lambda i, j, k:
             'posix_memalign((void**)&%s, %d, %s)' % (i, j, k),
-        'free-host': lambda i:
-            'free(%s)' % i,
+        'host-free': lambda i:
+            Call('free', (i,)),
     }
 
 
