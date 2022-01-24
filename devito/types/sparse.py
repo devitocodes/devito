@@ -169,7 +169,6 @@ class AbstractSparseFunction(DiscreteFunction):
         ret = list(self._dist_scatter_mask(dmap=dmap))
         mask = ret[self._sparse_position]
         inds = np.unique(mask, return_index=True)[1]
-        inds.sort()
         ret[self._sparse_position] = inds.tolist()
 
         return tuple(ret)
