@@ -405,7 +405,7 @@ class Expression(ExprStmt, Node):
 
     @property
     def defines(self):
-        return (self.write,) if self.is_initializable else ()
+        return (self.output.base,) if self.is_initializable else ()
 
     @property
     def expr_symbols(self):
@@ -687,7 +687,7 @@ class Callable(Node):
 
     @property
     def defines(self):
-        return tuple(i for i in self.parameters if isinstance(i, AbstractFunction))
+        return self.parameters
 
 
 class CallableBody(Node):
@@ -737,9 +737,10 @@ class CallableBody(Node):
         self.frees = as_tuple(frees)
 
     def __repr__(self):
-        return ("<CallableBody <allocs=%d, casts=%d, maps=%d> <unmaps=%d, frees=%d>>" %
-                (len(self.allocs), len(self.casts), len(self.maps),
-                 len(self.unmaps), len(self.frees)))
+        return ("<CallableBody <unpacks=%d, allocs=%d, casts=%d, "
+                "maps=%d> <unmaps=%d, frees=%d>>" %
+                (len(self.unpacks), len(self.allocs), len(self.casts),
+                 len(self.maps), len(self.unmaps), len(self.frees)))
 
 
 class Conditional(Node):
@@ -837,6 +838,9 @@ class Definition(ExprStmt, Node):
 
     """
     A node encapsulating a variable definition.
+
+    If `shape` is given, then the Definition implements an array allocated
+    on the stack, otherwise it implements an uninitialized pointer.
     """
 
     is_Definition = True
@@ -856,7 +860,10 @@ class Definition(ExprStmt, Node):
 
     @property
     def defines(self):
-        return (self.function,)
+        if self.shape is None:
+            return (self.function,)
+        else:
+            return (self.function.indexed,)
 
 
 class PointerCast(ExprStmt, Node):
@@ -902,7 +909,7 @@ class PointerCast(ExprStmt, Node):
 
     @property
     def defines(self):
-        return (self.function,)
+        return (self.function.indexed,)
 
 
 class Dereference(ExprStmt, Node):
@@ -939,14 +946,12 @@ class Dereference(ExprStmt, Node):
 
     @property
     def defines(self):
-        if self.pointer.is_ObjectArray:
-            # E.g., `struct dataobj* a_vec = sdata->a_vec`, but I'm not defining
-            # the `a` `Function`, which is what `defines` is for, but rather it's
-            # carrier. It would take a `PointerCast` from `a_vec` to `a` to actually
-            # define the `a` `Function`
-            return ()
-        else:
+        if self.pointer.is_PointerArray or \
+           self.pointer.is_TempFunction or \
+           (self.pointer.is_ObjectArray and self.pointee._mem_stack):
             return (self.pointee.indexed,)
+        else:
+            return (self.pointee,)
 
 
 class Lambda(Node):

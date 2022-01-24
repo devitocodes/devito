@@ -313,25 +313,29 @@ class CGen(Visitor):
 
     def visit_Definition(self, o):
         f = o.function
-        if f.is_Array:
+
+        if f.is_AbstractFunction:
+            if f.is_PointerArray:
+                v = "*"
+            else:
+                v = ""
             if o.shape is None:
-                decl = c.Value(f._C_typedata, "*%s" % f._C_name)
+                v = "%s*%s" % (v, f._C_name)
             else:
-                if o.qualifier is None:
-                    decl = c.Value(f._C_typedata, "%s%s" % (f._C_name, o.shape))
-                else:
-                    decl = c.Value(f._C_typedata,
-                                   "%s%s %s" % (f._C_name, o.shape, o.qualifier))
-            if o.initvalue is None:
-                return decl
-            else:
-                return c.Initializer(decl, o.initvalue)
-        elif f.is_PointerArray:
-            return c.Value(f._C_typedata, "**%s" % f._C_name)
+                v = "%s%s%s" % (v, f._C_name, o.shape)
+            if o.qualifier is not None:
+                v = "%s %s" % (v, o.qualifier)
         elif f.is_LocalObject:
-            return c.Value(f._C_typename, f.name)
+            v = f._C_name
         else:
             assert False
+
+        v = c.Value(f._C_typedata, v)
+
+        if o.initvalue is not None:
+            v = c.Initializer(v, o.initvalue)
+
+        return v
 
     def visit_Expression(self, o):
         lhs = ccode(o.expr.lhs, dtype=o.dtype)
@@ -738,6 +742,7 @@ class FindSymbols(Visitor):
     def visit_Expression(self, o):
         return self.Retval([f for f in self.rule(o)])
 
+    visit_Definition = visit_Expression
     visit_PointerCast = visit_Expression
     visit_Dereference = visit_Expression
     visit_Pragma = visit_Expression

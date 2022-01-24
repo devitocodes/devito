@@ -1211,6 +1211,10 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
         return ctypes_to_cstr(self.dtype)
 
     @property
+    def _C_typedata(self):
+        return self._C_typename
+
+    @property
     def _C_ctype(self):
         return self.dtype
 

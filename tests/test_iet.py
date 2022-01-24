@@ -264,4 +264,4 @@ def test_null_init():
     expr = DummyExpr(u.indexed, Macro('NULL'), init=True)
 
     assert str(expr) == "float * u = NULL;"
-    assert expr.defines == (u,)
+    assert expr.defines == (u.indexed,)

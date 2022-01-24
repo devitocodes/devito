@@ -1356,17 +1356,13 @@ class TestDeclarator(object):
         op = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.),
                        Eq(f, c[s, q])])
 
-        assert op.body.casts[0].is_PointerCast
-        assert str(op.body.casts[0]) ==\
-            ('float (*restrict c)[j_size] __attribute__ ((aligned (64))) = '
-             '(float (*)[j_size]) c_vec;')
-        assert op.body.casts[2].is_PointerCast
-        assert str(op.body.casts[2]) ==\
+        assert op.body.casts[1].is_PointerCast
+        assert str(op.body.casts[1]) ==\
             ('float (*restrict f)[f_vec->size[1]] __attribute__ '
              '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert str(op.body.allocs[0]) ==\
-            'float c_vec[i_size][j_size] __attribute__((aligned(64)));'
+            'float c[i_size][j_size] __attribute__((aligned(64)));'
 
     def test_conditional_declarations(self):
         x = Dimension(name="x")
