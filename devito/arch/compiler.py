@@ -12,7 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9, get_nvidia_cc
+from devito.arch import AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -156,7 +156,7 @@ class Compiler(GCCToolchain):
         self.ldflags = ['-shared']
 
         self.include_dirs = []
-        self.libraries = []
+        self.libraries = ['m']
         self.library_dirs = []
         self.defines = []
         self.undefines = []
@@ -407,13 +407,17 @@ class ClangCompiler(Compiler):
                                  '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += ['-march=%s' % platform.march]
+        elif platform is M1:
+            # NOTE:
+            # -march=native unsupported
+            # openmp unusable
+            pass
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
                 self.cflags += ['-mcpu=native']
             else:
-                pass
-                # self.cflags += ['-march=native']
+                self.cflags += ['-march=native']
             if language == 'openmp':
                 self.ldflags += ['-fopenmp']
 
@@ -582,10 +586,14 @@ class CustomCompiler(Compiler):
     """
 
     def __new__(cls, *args, **kwargs):
+        platform = kwargs.pop('platform', configuration['platform'])
+
         if any(i in environ for i in ['CC', 'CXX', 'CFLAGS', 'LDFLAGS']):
             obj = super().__new__(cls, *args, **kwargs)
             obj.__init__(*args, **kwargs)
             return obj
+        elif platform is M1:
+            return ClangCompiler(*args, **kwargs)
         else:
             return GNUCompiler(*args, **kwargs)
 

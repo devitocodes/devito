@@ -16,7 +16,8 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
-           'AMD', 'ARM', 'POWER8', 'POWER9',  # Other CPU architectures
+           'AMD', 'ARM', 'M1',  # ARM
+           'POWER8', 'POWER9',  # Other loosely supported CPU architectures
            'AMDGPUX', 'NVIDIAX']  # GPUs
 
 
@@ -77,7 +78,10 @@ def get_cpu_info():
         cpu_info['flags'] = cpuinfo.get_cpu_info().get('flags')
 
     if not cpu_info.get('brand'):
-        cpu_info['brand'] = cpuinfo.get_cpu_info().get('brand')
+        try:
+            cpu_info['brand'] = cpuinfo.get_cpu_info()['brand']
+        except KeyError:
+            cpu_info['brand'] = cpuinfo.get_cpu_info().get('brand_raw')
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
@@ -401,6 +405,8 @@ def get_platform():
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']
+        elif 'm1' in brand:
+            return platform_registry['m1']
         elif 'amd' in brand:
             return platform_registry['amd']
     except:
@@ -602,6 +608,7 @@ class AmdDevice(Device):
 # CPUs
 CPU64 = Cpu64('cpu64')
 CPU64_DUMMY = Intel64('cpu64-dummy', cores_logical=2, cores_physical=1, isa='sse')
+
 INTEL64 = Intel64('intel64')
 SNB = Intel64('snb')
 IVB = Intel64('ivb')
@@ -612,8 +619,12 @@ KLX = Intel64('klx')
 CLX = Intel64('clx')
 KNL = Intel64('knl')
 KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
+
 ARM = Arm('arm')
+M1 = Arm('m1')
+
 AMD = Amd('amd')
+
 POWER8 = Power('power8')
 POWER9 = Power('power9')
 
@@ -635,6 +646,7 @@ platform_registry = {
     'knl': KNL,
     'knl7210': KNL7210,
     'arm': ARM,  # Generic ARM CPU
+    'm1': M1,
     'amd': AMD,  # Generic AMD CPU
     'power8': POWER8,
     'power9': POWER9,
