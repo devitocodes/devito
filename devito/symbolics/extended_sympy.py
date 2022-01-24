@@ -12,8 +12,8 @@ from devito.tools import Pickable, as_tuple, is_integer
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'CEIL', 'FLOOR', 'MAX', 'MIN', 'SizeOf', 'rfunc',
-           'cast_mapper']
+           'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL', 'FLOOR', 'MAX', 'MIN',
+           'SizeOf', 'rfunc', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -512,6 +512,10 @@ class FLOAT(Cast):
 
 class DOUBLE(Cast):
     _base_typ = 'double'
+
+
+class VOID(Cast):
+    _base_typ = 'void'
 
 
 class CastStar(object):
