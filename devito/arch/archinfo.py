@@ -75,12 +75,17 @@ def get_cpu_info():
         cpu_info['brand'] = get_cpu_brand()
 
     if not cpu_info.get('flags'):
-        cpu_info['flags'] = cpuinfo.get_cpu_info().get('flags')
+        try:
+            cpu_info['flags'] = cpuinfo.get_cpu_info().get('flags')
+        except:
+            # We've rarely seen cpuinfo>=8 raising exceptions at this point,
+            # while trying to fetch the cpu `flags`
+            cpu_info['flags'] = None
 
     if not cpu_info.get('brand'):
         try:
             cpu_info['brand'] = cpuinfo.get_cpu_info()['brand']
-        except KeyError:
+        except:
             cpu_info['brand'] = cpuinfo.get_cpu_info().get('brand_raw')
 
     # Detect number of logical cores
