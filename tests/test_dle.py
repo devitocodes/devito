@@ -610,54 +610,57 @@ class TestNodeParallelism(object):
         assert 'collapse(1)' in str(op1)
         assert 'atomic' not in str(op1)
 
-    @pytest.mark.parametrize('exprs,exp_simd', [
-        # none (different distance)
+    @pytest.mark.parametrize('exprs,simd_level', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
-         1),
+         2),
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Eq(h1[0, 0], y, implicit_dims=(t, x, y))'],
-         1),
+         2),
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-         1),
+         2),
         (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
          'Eq(h1[0, y], 3 - y, implicit_dims=(t, x, y))'],
-         1),
+         2),
         (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
           'Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
           'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-         1),
+         2),
         (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
           'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
           'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-         0),
+         2),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+         1),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Eq(h1[0, x], y.symbolic_max, implicit_dims=(t, x))'],
+         1),
         (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
           'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
           'Inc(h1[0, y], y, implicit_dims=(t, x, y))'],
-         0),
+         2),
         (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
           'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
           'Inc(h1[0, x], y, implicit_dims=(t, x, y))'],
-         0),
+         None),
         (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
           'Inc(h1[0, y], x, implicit_dims=(t, x, y))'],
-         1),
+         2),
         (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
           'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
-         0),
+         None),
         (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
           'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x, y))'],
-         0),
-        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
-          'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
-         0),
+         None),
         (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
           'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(t, x))',
           'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
-         0)
+         2)
     ])
-    def test_edge_cases(self, exprs, exp_simd):
+    def test_edge_cases(self, exprs, simd_level):
+        # Tests for issue #1695
         t, x, y = dimensions('t x y')
 
         g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
@@ -674,8 +677,8 @@ class TestNodeParallelism(object):
 
         iterations = FindNodes(Iteration).visit(op)
         assert 'omp for collapse' in iterations[0].pragmas[0].value
-        if exp_simd:
-            assert 'omp simd' in iterations[2].pragmas[0].value
+        if simd_level:
+            assert 'omp simd' in iterations[simd_level].pragmas[0].value
 
 
 class TestNestedParallelism(object):
