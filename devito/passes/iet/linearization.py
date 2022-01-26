@@ -141,11 +141,12 @@ def linearize_accesses(iet, key, cache, sregistry):
     candidates.extend(filter_ordered(i.function for i in indexeds))
 
     calls = FindNodes(Call).visit(iet)
-    symbols = filter_ordered(flatten(i.expr_symbols for i in calls))
-    candidates.extend(i.function for i in symbols if isinstance(i, IndexedData))
+    cfuncs = filter_ordered(flatten(i.functions for i in calls))
+    candidates.extend(i for i in cfuncs if i.function.is_DiscreteFunction)
 
     # `defines` are all Functions that can be linearized in `iet`
     defines = FindSymbols('defines').visit(iet)
+    defines.extend([i.function for i in defines if i.function.is_Array])
 
     # Place the linearization expressions or delegate to ancestor efunc
     stmts0 = []

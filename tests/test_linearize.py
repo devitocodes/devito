@@ -7,6 +7,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, 
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes
 from devito.operator import SymbolRegistry
 from devito.passes import Graph, linearize
+from devito.types import Array
 
 
 def test_basic():
@@ -239,7 +240,7 @@ def test_different_halos():
     assert np.all(u.data == u1.data)
 
 
-def test_strides_forwarding():
+def test_strides_forwarding0():
     grid = Grid(shape=(4, 4))
 
     f = Function(name='f', grid=grid)
@@ -266,3 +267,33 @@ def test_strides_forwarding():
     assert len(bar.parameters) == 2
     assert bar.parameters[1].name == 'y_stride0'
     assert len(bar.body.body) == 1
+
+
+def test_strides_forwarding1():
+    grid = Grid(shape=(4, 4))
+
+    a = Array(name='a', dimensions=grid.dimensions, shape=grid.shape)
+
+    bar = Callable('bar', DummyExpr(a[0, 0], 0), 'void', parameters=[a.indexed])
+    call = Call(bar.name, [a.indexed])
+    foo = Callable('foo', call, 'void', parameters=[a])
+
+    # Emulate what the compiler would do
+    graph = Graph(foo)
+    graph.efuncs['bar'] = bar
+
+    linearize(graph, mode=True, sregistry=SymbolRegistry())
+
+    # Despite `a` is passed via `a.indexed`, and since it's an Array (which
+    # have symbolic shape), we expect the stride exprs to be placed in `bar`,
+    # and in `bar` only, as `foo` doesn't really use `a`, it just propagates it
+    # down to `bar`
+    foo = graph.root
+    bar = graph.efuncs['bar']
+
+    assert len(foo.body.body) == 1
+    assert foo.body.body[0].is_Call
+
+    assert len(bar.body.body) == 5
+    assert bar.body.body[0].write.name == 'y_fsz0'
+    assert bar.body.body[2].write.name == 'y_stride0'
