@@ -146,22 +146,19 @@ def test_make_cpp_parfor():
     """
 
     class STDVectorThreads(LocalObject):
+
         dtype = type('std::vector<std::thread>', (c_void_p,), {})
 
         def __init__(self):
-            self.name = 'threads'
+            super().__init__('threads')
 
     class STDThread(LocalObject):
+
         dtype = type('std::thread&', (c_void_p,), {})
 
-        def __init__(self, name):
-            self.name = name
-
     class FunctionType(LocalObject):
-        dtype = type('FuncType&&', (c_void_p,), {})
 
-        def __init__(self, name):
-            self.name = name
+        dtype = type('FuncType&&', (c_void_p,), {})
 
     # Basic symbols
     nthreads = Symbol(name='nthreads', is_const=True)

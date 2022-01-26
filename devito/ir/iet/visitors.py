@@ -194,8 +194,6 @@ class CGen(Visitor):
                     ret.append(self.visit(i, nested_call=True))
                 elif isinstance(i, Lambda):
                     ret.append(self.visit(i))
-                elif i.is_LocalObject:
-                    ret.append('&%s' % i._C_name)
                 else:
                     ret.append(i._C_name)
             except AttributeError:
@@ -330,7 +328,7 @@ class CGen(Visitor):
         else:
             assert False
 
-        if o.constructor_args is not None:
+        if o.constructor_args:
             v = MultilineCall(v, o.constructor_args, True)
 
         v = c.Value(f._C_typedata, v)

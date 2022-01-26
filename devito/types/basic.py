@@ -1319,10 +1319,18 @@ class LocalObject(AbstractObject):
 
     is_LocalObject = True
 
-    def __init__(self, *args, constructor_args=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    dtype = None
+    """
+    LocalObjects encode their dtype as a class attribute.
+    """
 
+    def __init__(self, name, constructor_args=None, **kwargs):
+        self.name = name
         self.constructor_args = as_tuple(constructor_args)
+
+    # Pickling support
+    _pickle_args = ['name']
+    _pickle_kwargs = ['constructor_args']
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

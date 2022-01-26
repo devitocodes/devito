@@ -43,12 +43,6 @@ class VoidPointer(LocalObject):
 
     dtype = type('void*', (c_void_p,), {})
 
-    def __init__(self, name):
-        self.name = name
-
-    # Pickling support
-    _pickle_args = ['name']
-
 
 class VolatileInt(Symbol):
 

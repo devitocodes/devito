@@ -256,7 +256,7 @@ class ListInitializer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class UnaryOp(sympy.Expr, Pickable):
+class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
 
     """
     Symbolic representation of a unary C operator.
@@ -271,8 +271,8 @@ class UnaryOp(sympy.Expr, Pickable):
         except AttributeError:
             if isinstance(base, str):
                 base = Symbol(base)
-            elif not isinstance(base, sympy.Expr):
-                raise ValueError("`base` must be sympy.Expr or str")
+            elif not isinstance(base, sympy.Basic):
+                raise ValueError("`base` must be sympy.Basic or str")
 
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base

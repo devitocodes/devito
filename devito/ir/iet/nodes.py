@@ -289,7 +289,7 @@ class Call(ExprStmt, Node):
                 for s in v:
                     try:
                         # `try-except` necessary for e.g. Macro
-                        if isinstance(s.function, AbstractFunction):
+                        if isinstance(s.function, (AbstractFunction, LocalObject)):
                             retval.append(s.function)
                     except AttributeError:
                         continue
