@@ -12,8 +12,8 @@ from cgen import Struct, Value
 
 from devito.data import default_allocator
 from devito.symbolics import aligned_indices
-from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
-                          frozendict, memoized_meth, sympy_mutex)
+from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
+                          dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
 from devito.types.lazy import Evaluable
@@ -1318,6 +1318,11 @@ class LocalObject(AbstractObject):
     """
 
     is_LocalObject = True
+
+    def __init__(self, *args, constructor_args=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.constructor_args = as_tuple(constructor_args)
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

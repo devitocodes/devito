@@ -330,6 +330,9 @@ class CGen(Visitor):
         else:
             assert False
 
+        if o.constructor_args is not None:
+            v = MultilineCall(v, o.constructor_args, True)
+
         v = c.Value(f._C_typedata, v)
 
         if o.initvalue is not None:
@@ -943,7 +946,7 @@ class LambdaCollection(c.Collection):
 
 class MultilineCall(c.Generable):
 
-    def __init__(self, name, arguments, is_expr, is_indirect, cast):
+    def __init__(self, name, arguments, is_expr=False, is_indirect=False, cast=None):
         self.name = name
         self.arguments = as_tuple(arguments)
         self.is_expr = is_expr

@@ -73,7 +73,7 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        alloc = Definition(obj)
+        alloc = Definition(obj, constructor_args=obj.constructor_args)
 
         storage.update(obj, site, allocs=alloc)
 
