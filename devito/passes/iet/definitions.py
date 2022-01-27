@@ -207,8 +207,6 @@ class DataManager(object):
         """
         storage = Storage()
 
-        refmap = FindSymbols().visit(iet).mapper
-
         # All objects for which a definition is already available
         placed = set(iet.parameters)
         placed.update({i.function for i in placed})
@@ -239,14 +237,7 @@ class DataManager(object):
 
                 try:
                     if i.is_LocalObject:
-                        # LocalObject's get placed as close as possible to
-                        # their first occurrence
-                        site = iet
-                        for n in v:
-                            if i in refmap[n]:
-                                break
-                            site = n
-                        self._alloc_object_on_low_lat_mem(site, i, storage)
+                        self._alloc_object_on_low_lat_mem(iet, i, storage)
                     elif i.is_Array:
                         # Arrays get placed at the top of the IET
                         if i._mem_heap:
