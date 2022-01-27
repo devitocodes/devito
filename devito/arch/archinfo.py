@@ -84,9 +84,10 @@ def get_cpu_info():
 
     if not cpu_info.get('brand'):
         try:
-            cpu_info['brand'] = cpuinfo.get_cpu_info()['brand']
+            ret = cpuinfo.get_cpu_info()
+            cpu_info['brand'] = ret.get('brand', ret.get('brand_raw'))
         except:
-            cpu_info['brand'] = cpuinfo.get_cpu_info().get('brand_raw')
+            cpu_info['brand'] = None
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
