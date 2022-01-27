@@ -14,7 +14,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitializer,
                               SizeOf, VOID, Literal, ccode)
-from devito.tools import as_mapper, filter_sorted, flatten, prod
+from devito.tools import as_mapper, as_tuple, filter_sorted, flatten, prod
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
 
@@ -44,12 +44,17 @@ class Storage(OrderedDict):
 
         self.defined.add(key)
 
-    def map(self, key, k, v):
-        if key in self.defined:
+    def map(self, key, site, k, v):
+        site = as_tuple(site)
+        assert site
+
+        # Is `key` already defined in an outer scope?
+        if any((i, key) in self.defined for i in site):
             return
 
         self[k] = v
-        self.defined.add(key)
+
+        self.defined.add((site[-1], key))
 
 
 class DataManager(object):
@@ -95,8 +100,7 @@ class DataManager(object):
         """
         Allocate a Scalar in the low latency memory.
         """
-        key = (site, expr.write)  # Ensure a scalar isn't redeclared in the given site
-        storage.map(key, expr, expr._rebuild(init=True))
+        storage.map(expr.write, site, expr, expr._rebuild(init=True))
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
@@ -212,8 +216,7 @@ class DataManager(object):
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression:
                 if k.is_initializable:
-                    site = v[-1] if v else iet
-                    self._alloc_scalar_on_low_lat_mem(site, k, storage)
+                    self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
                     continue
                 objs = [k.write]
             elif k.is_Dereference:

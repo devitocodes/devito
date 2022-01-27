@@ -18,7 +18,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar  # noqa
+from devito.types import Array, Scalar, Symbol
 
 
 def dimify(dimensions):
@@ -1376,6 +1376,25 @@ class TestDeclarator(object):
             assert len(i) == 1
             assert i[0].is_Expression
             assert i[0].expr.rhs is init_value
+
+    def test_nested_scalar_assigns(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        s = Symbol(name='s', dtype=grid.dtype)
+
+        eqns = [Eq(s, 0),
+                Eq(s, s + f + 1)]
+
+        op = Operator(eqns)
+
+        exprs = FindNodes(Expression).visit(op)
+
+        assert len(exprs) == 2
+        assert exprs[0].init
+        assert 'float' in str(exprs[0])
+        assert not exprs[1].init
+        assert 'float' not in str(exprs[1])
 
 
 class TestLoopScheduling(object):
