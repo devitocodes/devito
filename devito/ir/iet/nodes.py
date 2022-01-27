@@ -399,8 +399,7 @@ class Expression(ExprStmt, Node):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return (self.init or
-                (self.is_scalar and not self.is_Increment) or
+        return ((self.is_scalar and not self.is_Increment) or
                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
