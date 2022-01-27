@@ -146,7 +146,6 @@ def linearize_accesses(iet, key, cache, sregistry):
 
     # `defines` are all Functions that can be linearized in `iet`
     defines = FindSymbols('defines').visit(iet)
-    defines.extend([i.function for i in defines if i.function.is_Array])
 
     # Place the linearization expressions or delegate to ancestor efunc
     stmts0 = []

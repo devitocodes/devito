@@ -162,7 +162,7 @@ class DataManager(object):
         else:
             storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
 
-    def _dump_definitions(self, iet, storage):
+    def _inject_definitions(self, iet, storage):
         mapper = {}
         for k, v in storage.items():
             # Expr -> LocalExpr ?
@@ -205,56 +205,36 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
+        # Process inline definitions
         storage = Storage()
 
-        # All objects for which a definition is already available
-        placed = set(iet.parameters)
-        placed.update({i.function for i in placed})
-
         for k, v in MapExprStmts().visit(iet).items():
-            if k.is_Expression:
-                if k.is_initializable:
-                    self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
-                    continue
-                objs = [k.write]
-            elif k.is_Dereference:
-                placed.add(k.pointee)
-                if k.pointer in placed:
-                    objs = []
+            if k.is_Expression and k.is_initializable:
+                self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
+
+        iet = self._inject_definitions(iet, storage)
+
+        # Process all other definitions, essentially all temporary objects
+        # created by the compiler up to this point (Array, LocalObject, etc.)
+        storage = Storage()
+        defines = FindSymbols('defines').visit(iet)
+
+        for i in FindSymbols().visit(iet):
+            if i in defines:
+                continue
+            elif i.is_LocalObject:
+                self._alloc_object_on_low_lat_mem(iet, i, storage)
+            elif i.is_Array:
+                if i._mem_heap:
+                    self._alloc_array_on_high_bw_mem(iet, i, storage)
                 else:
-                    objs = [k.pointer]
-            elif k.is_Call:
-                objs = list(k.functions)
-                if k.retobj is not None:
-                    placed.add(k.retobj.function)
-            elif k.is_PointerCast:
-                placed.add(k.function)
-                objs = []
+                    self._alloc_array_on_low_lat_mem(iet, i, storage)
+            elif i.is_ObjectArray:
+                self._alloc_object_array_on_low_lat_mem(iet, i, storage)
+            elif i.is_PointerArray:
+                self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
 
-            for i in objs:
-                if i in placed:
-                    continue
-
-                try:
-                    if i.is_LocalObject:
-                        self._alloc_object_on_low_lat_mem(iet, i, storage)
-                    elif i.is_Array:
-                        # Arrays get placed at the top of the IET
-                        if i._mem_heap:
-                            self._alloc_array_on_high_bw_mem(iet, i, storage)
-                        else:
-                            self._alloc_array_on_low_lat_mem(iet, i, storage)
-                    elif i.is_ObjectArray:
-                        # ObjectArrays get placed at the top of the IET
-                        self._alloc_object_array_on_low_lat_mem(iet, i, storage)
-                    elif i.is_PointerArray:
-                        # PointerArrays get placed at the top of the IET
-                        self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
-                except AttributeError:
-                    # E.g., a generic SymPy expression
-                    pass
-
-        iet = self._dump_definitions(iet, storage)
+        iet = self._inject_definitions(iet, storage)
 
         return iet, {}
 

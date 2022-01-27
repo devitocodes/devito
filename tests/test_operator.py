@@ -15,7 +15,7 @@ from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
-from devito.passes.iet import DataManager
+from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
 from devito.types import Array, Scalar, Symbol
@@ -1371,7 +1371,7 @@ class TestDeclarator(object):
         list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value)))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
-        iet = DataManager.place_definitions.__wrapped__(DataManager(None, None), iet)[0]
+        iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
         for i in iet.body.body[0].children:
             assert len(i) == 1
             assert i[0].is_Expression

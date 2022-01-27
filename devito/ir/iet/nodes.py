@@ -16,7 +16,8 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, as_symbol, ccode
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
+from devito.types.basic import (AbstractFunction, AbstractSymbol, Indexed,
+                                LocalObject, Symbol)
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
@@ -387,12 +388,12 @@ class Expression(ExprStmt, Node):
     @property
     def is_scalar(self):
         """True if a scalar expression, False otherwise."""
-        return self.expr.lhs.is_Symbol
+        return isinstance(self.expr.lhs, (AbstractSymbol, IndexedBase))
 
     @property
     def is_tensor(self):
         """True if a tensor expression, False otherwise."""
-        return not self.is_scalar
+        return self.expr.lhs.is_Indexed
 
     @property
     def is_initializable(self):
@@ -686,7 +687,9 @@ class Callable(Node):
 
     @property
     def defines(self):
-        return self.parameters
+        ret = list(self.parameters)
+        ret.extend([i.function for i in self.parameters if i.function.is_Array])
+        return tuple(ret)
 
 
 class CallableBody(Node):
@@ -910,7 +913,11 @@ class PointerCast(ExprStmt, Node):
 
     @property
     def defines(self):
-        return (self.function.indexed,)
+        f = self.function
+        if f.is_ArrayBasic:
+            return (f, f.indexed)
+        else:
+            return (f.indexed,)
 
 
 class Dereference(ExprStmt, Node):
@@ -950,7 +957,7 @@ class Dereference(ExprStmt, Node):
         if self.pointer.is_PointerArray or \
            self.pointer.is_TempFunction or \
            (self.pointer.is_ObjectArray and self.pointee._mem_stack):
-            return (self.pointee.indexed,)
+            return (self.pointee, self.pointee.indexed,)
         else:
             return (self.pointee,)
 
