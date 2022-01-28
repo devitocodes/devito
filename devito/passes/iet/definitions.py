@@ -7,7 +7,7 @@ from collections import OrderedDict, namedtuple
 from functools import singledispatch
 from operator import itemgetter
 
-from devito.ir import (Block, Definition, DeviceFunction, EntryFunction, List,
+from devito.ir import (Block, Definition, DeviceFunction, EntryFunction,
                        PragmaTransfer, FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
@@ -21,13 +21,14 @@ from devito.types.basic import AbstractFunction
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 
-MetaSite = namedtuple('Definition', 'allocs frees pallocs pfrees maps unmaps')
+MetaSite = namedtuple('Definition', 'allocs objs frees pallocs pfrees maps unmaps')
 
 
 class Storage(OrderedDict):
 
     def __init__(self, *args, **kwargs):
-        super(Storage, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
+
         self.defined = set()
 
     def update(self, key, site, **kwargs):
@@ -37,7 +38,7 @@ class Storage(OrderedDict):
         try:
             metasite = self[site]
         except KeyError:
-            metasite = self.setdefault(site, MetaSite([], [], [], [], [], []))
+            metasite = self.setdefault(site, MetaSite([], [], [], [], [], [], []))
 
         for k, v in kwargs.items():
             getattr(metasite, k).append(v)
@@ -78,9 +79,9 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        alloc = Definition(obj, constructor_args=obj.constructor_args)
+        decl = Definition(obj, constructor_args=obj.constructor_args)
 
-        storage.update(obj, site, allocs=alloc)
+        storage.update(obj, site, objs=decl)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -170,6 +171,9 @@ class DataManager(object):
                 mapper[k] = v
                 continue
 
+            # objects
+            objs = flatten(v.objs)
+
             # allocs/pallocs
             allocs = flatten(v.allocs)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
@@ -185,10 +189,7 @@ class DataManager(object):
                 frees.append(Block(header=header, body=[init] + body))
             frees.extend(flatten(v.frees))
 
-            if k is iet:
-                mapper[k.body] = k.body._rebuild(allocs=allocs, frees=frees)
-            else:
-                mapper[k] = k._rebuild(body=List(header=allocs, footer=frees))
+            mapper[k.body] = k.body._rebuild(allocs=allocs, objs=objs, frees=frees)
 
         processed = Transformer(mapper, nested=True).visit(iet)
 

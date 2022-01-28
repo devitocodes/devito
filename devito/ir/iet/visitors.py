@@ -447,13 +447,8 @@ class CGen(Visitor):
     def visit_CallableBody(self, o):
         body = []
         prev = None
-        for i in [o.init, o.unpacks, o.allocs, o.casts, o.maps,  # pre
-                  o.body,  # actual body
-                  o.unmaps, o.frees]:  # post
-            if i in o.children:
-                v = self.visit(i)
-            else:
-                v = i
+        for i in o.children:
+            v = self.visit(i)
             if v:
                 if prev:
                     body.append(c.Line())
