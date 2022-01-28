@@ -217,7 +217,7 @@ class DataManager(object):
         # Process all other definitions, essentially all temporary objects
         # created by the compiler up to this point (Array, LocalObject, etc.)
         storage = Storage()
-        defines = FindSymbols('defines').visit(iet)
+        defines = FindSymbols('defines-aliases').visit(iet)
 
         for i in FindSymbols().visit(iet):
             if i in defines:
@@ -267,10 +267,10 @@ class DataManager(object):
         # Candidates
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
 
-        # A cast is needed only if the underlying Function object isn't already
-        # defined inside the kernel, which happens in:
-        # (i) Dereference of PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
-        # (ii) Linearized mallocs, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
+        # A cast is needed only if the underlying data object isn't already
+        # defined inside the kernel, which happens, for example, when:
+        # (i) Dereferencing a PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
+        # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines').visit(iet))
         needs_cast = lambda f: f.indexed not in defines
 

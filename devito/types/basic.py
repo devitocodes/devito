@@ -106,6 +106,14 @@ class CodeSymbol(object):
         """
         return self
 
+    @property
+    def _C_aliases(self):
+        """
+        The symbols aliasing `self`, thus pointing to the same object in the
+        generated code.
+        """
+        return (self,)
+
 
 class Basic(CodeSymbol):
 

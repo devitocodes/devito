@@ -7,7 +7,7 @@ from cgen import Struct, Value
 
 from devito.parameters import configuration
 from devito.tools import as_tuple, ctypes_to_cstr, dtype_to_ctype
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, IndexedData
 
 __all__ = ['Array', 'ArrayObject', 'PointerArray']
 
@@ -34,10 +34,25 @@ class ArrayBasic(AbstractFunction):
         return POINTER(dtype_to_ctype(self.dtype))
 
     @property
+    def _C_aliases(self):
+        return (self, self.indexed)
+
+    @property
     def shape(self):
         return self.symbolic_shape
 
     shape_allocated = shape
+
+    @cached_property
+    def indexed(self):
+        return IndexedArray(self.name, shape=self.shape, function=self.function)
+
+
+class IndexedArray(IndexedData):
+
+    @property
+    def _C_aliases(self):
+        return (self, self.function)
 
 
 class Array(ArrayBasic):

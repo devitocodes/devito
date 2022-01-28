@@ -687,9 +687,7 @@ class Callable(Node):
 
     @property
     def defines(self):
-        ret = list(self.parameters)
-        ret.extend([i.function for i in self.parameters if i.function.is_Array])
-        return tuple(ret)
+        return self.parameters
 
 
 class CallableBody(Node):
@@ -864,10 +862,10 @@ class Definition(ExprStmt, Node):
 
     @property
     def defines(self):
-        if self.shape is None:
-            return (self.function,)
-        else:
+        if self.shape is not None:
             return (self.function.indexed,)
+        else:
+            return (self.function,)
 
 
 class PointerCast(ExprStmt, Node):
@@ -913,11 +911,7 @@ class PointerCast(ExprStmt, Node):
 
     @property
     def defines(self):
-        f = self.function
-        if f.is_ArrayBasic:
-            return (f, f.indexed)
-        else:
-            return (f.indexed,)
+        return (self.function.indexed,)
 
 
 class Dereference(ExprStmt, Node):
@@ -956,8 +950,8 @@ class Dereference(ExprStmt, Node):
     def defines(self):
         if self.pointer.is_PointerArray or \
            self.pointer.is_TempFunction or \
-           (self.pointer.is_ObjectArray and self.pointee._mem_stack):
-            return (self.pointee, self.pointee.indexed,)
+           self.pointee._mem_stack:
+            return (self.pointee.indexed,)
         else:
             return (self.pointee,)
 

@@ -135,7 +135,7 @@ def linearize_accesses(iet, key, cache, sregistry):
     # Introduce the linearized expressions
     iet = Uxreplace(mapper).visit(iet)
 
-    # `candidates` are all Functions actually requiring linearization in `iet`
+    # All Functions that actually require linearization in `iet`
     candidates = []
 
     candidates.extend(filter_ordered(i.function for i in indexeds))
@@ -144,8 +144,8 @@ def linearize_accesses(iet, key, cache, sregistry):
     cfuncs = filter_ordered(flatten(i.functions for i in calls))
     candidates.extend(i for i in cfuncs if i.function.is_DiscreteFunction)
 
-    # `defines` are all Functions that can be linearized in `iet`
-    defines = FindSymbols('defines').visit(iet)
+    # All Functions that can be linearized in `iet`
+    defines = FindSymbols('defines-aliases').visit(iet)
 
     # Place the linearization expressions or delegate to ancestor efunc
     stmts0 = []

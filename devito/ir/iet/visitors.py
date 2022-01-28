@@ -704,6 +704,7 @@ class FindSymbols(Visitor):
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
         - `defines`: Collect all defined objects
+        - `defines-aliases`: Collect all defined objects and their aliases
     """
 
     rules = {
@@ -713,6 +714,7 @@ class FindSymbols(Visitor):
         'indexedbases': lambda n: [i for i in n.expr_symbols
                                    if isinstance(i, IndexedBase)],
         'defines': lambda n: as_tuple(n.defines),
+        'defines-aliases': lambda n: as_tuple(flatten(i._C_aliases for i in n.defines)),
     }
 
     def __init__(self, mode='symbolics'):
