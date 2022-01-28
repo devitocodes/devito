@@ -10,13 +10,14 @@ import re
 import ctypes
 
 from devito.logger import warning
-from devito.tools import all_equal, memoized_func
+from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
-           'AMD', 'ARM', 'POWER8', 'POWER9',  # Other CPU architectures
+           'AMD', 'ARM', 'M1',  # ARM
+           'POWER8', 'POWER9',  # Other loosely supported CPU architectures
            'AMDGPUX', 'NVIDIAX']  # GPUs
 
 
@@ -74,10 +75,19 @@ def get_cpu_info():
         cpu_info['brand'] = get_cpu_brand()
 
     if not cpu_info.get('flags'):
-        cpu_info['flags'] = cpuinfo.get_cpu_info().get('flags')
+        try:
+            cpu_info['flags'] = cpuinfo.get_cpu_info().get('flags')
+        except:
+            # We've rarely seen cpuinfo>=8 raising exceptions at this point,
+            # while trying to fetch the cpu `flags`
+            cpu_info['flags'] = None
 
     if not cpu_info.get('brand'):
-        cpu_info['brand'] = cpuinfo.get_cpu_info().get('brand')
+        try:
+            ret = cpuinfo.get_cpu_info()
+            cpu_info['brand'] = ret.get('brand', ret.get('brand_raw'))
+        except:
+            cpu_info['brand'] = None
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
@@ -401,6 +411,8 @@ def get_platform():
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']
+        elif 'm1' in brand:
+            return platform_registry['m1']
         elif 'amd' in brand:
             return platform_registry['amd']
     except:
@@ -482,7 +494,7 @@ class Cpu64(Platform):
 
     def _detect_isa(self):
         for i in reversed(self.known_isas):
-            if any(j.startswith(i) for j in get_cpu_info()['flags']):
+            if any(j.startswith(i) for j in as_tuple(get_cpu_info()['flags'])):
                 # Using `startswith`, rather than `==`, as a flag such as 'avx512'
                 # appears as 'avx512f, avx512cd, ...'
                 return i
@@ -602,6 +614,7 @@ class AmdDevice(Device):
 # CPUs
 CPU64 = Cpu64('cpu64')
 CPU64_DUMMY = Intel64('cpu64-dummy', cores_logical=2, cores_physical=1, isa='sse')
+
 INTEL64 = Intel64('intel64')
 SNB = Intel64('snb')
 IVB = Intel64('ivb')
@@ -612,8 +625,12 @@ KLX = Intel64('klx')
 CLX = Intel64('clx')
 KNL = Intel64('knl')
 KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
+
 ARM = Arm('arm')
+M1 = Arm('m1')
+
 AMD = Amd('amd')
+
 POWER8 = Power('power8')
 POWER9 = Power('power9')
 
@@ -635,6 +652,7 @@ platform_registry = {
     'knl': KNL,
     'knl7210': KNL7210,
     'arm': ARM,  # Generic ARM CPU
+    'm1': M1,
     'amd': AMD,  # Generic AMD CPU
     'power8': POWER8,
     'power9': POWER9,
