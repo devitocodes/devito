@@ -12,7 +12,8 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc
+from devito.arch import (AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc,
+                         check_cuda_runtime)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -498,6 +499,12 @@ class CudaCompiler(Compiler):
         self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC']
 
         self.src_ext = 'cu'
+
+        # NOTE: not sure where we should place this. It definitely needs
+        # to be executed once to warn the user in case there's a CUDA/driver
+        # mismatch that would cause the program to run, but likely producing
+        # garbage, since the CUDA kernel behaviour would be undefined
+        check_cuda_runtime()
 
     def __lookup_cmds__(self):
         self.CC = 'nvcc'
