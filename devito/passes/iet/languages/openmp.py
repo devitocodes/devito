@@ -159,8 +159,8 @@ class OmpBB(PragmaLangBB):
                                        DefFunction('omp_get_initial_device')]),
         'device-get':
             Call('omp_get_default_device'),
-        'device-alloc': lambda i, j, *a, **kw:
-            Call('omp_target_alloc', (i, j)),
+        'device-alloc': lambda i, j, retobj:
+            Call('omp_target_alloc', (i, j), retobj=retobj, cast=True),
         'device-free': lambda i, j:
             Call('omp_target_free', (i, j))
     }
