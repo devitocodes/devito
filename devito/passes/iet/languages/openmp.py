@@ -97,7 +97,7 @@ class ThreadedProdder(Conditional, Prodder):
 
     _traversable = []
 
-    def __init__(self, prodder):
+    def __init__(self, prodder, arguments=None):
         # Atomic-ize any single-thread Prodders in the parallel tree
         condition = CondEq(DefFunction(Ompizer.lang['thread-num']().name), 0)
 
@@ -107,9 +107,10 @@ class ThreadedProdder(Conditional, Prodder):
         prod_until = Not(DefFunction(prodder.name, [i.name for i in prodder.arguments]))
         then_body = List(header=c.Comment('Entrap thread until comms have completed'),
                          body=While(prod_until))
-
         Conditional.__init__(self, condition, then_body)
-        Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
+
+        arguments = arguments or prodder.arguments
+        Prodder.__init__(self, prodder.name, arguments, periodic=prodder.periodic)
 
 
 class OmpBB(PragmaLangBB):

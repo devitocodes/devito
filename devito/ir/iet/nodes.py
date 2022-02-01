@@ -1063,7 +1063,7 @@ class Prodder(Call):
     """
 
     def __init__(self, name, arguments=None, single_thread=False, periodic=False):
-        super(Prodder, self).__init__(name, arguments)
+        super().__init__(name, arguments)
 
         # Prodder properties
         self._single_thread = single_thread
