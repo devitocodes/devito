@@ -6,7 +6,7 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    Dimension, SubDimension, Eq, Inc, Operator, dimensions, info)
+                    Dimension, SubDimension, Eq, Inc, Operator, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 from devito.passes.iet.languages.openmp import OmpRegion
@@ -679,6 +679,27 @@ class TestNodeParallelism(object):
 
         op.apply()
         assert (h1.data == expected).all()
+
+    def test_simd_space_invariant(self):
+        """
+        Similar to test_space_invariant_v3, testing simd vectorization happens
+        in the correct place.
+        """
+        grid = Grid(shape=(10, 10, 10))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        eq = Inc(f, cos(x*y) + cos(x*z))
+
+        op = Operator(eq, opt=('advanced', {'openmp': True}))
+        iterations = FindNodes(Iteration).visit(op)
+
+        assert 'omp for collapse(1) schedule(static,1)' in iterations[0].pragmas[0].value
+        assert 'omp simd' in iterations[1].pragmas[0].value
+        assert 'omp simd' in iterations[3].pragmas[0].value
+
+        op.apply()
+        assert np.isclose(np.linalg.norm(f.data), 37.1458, rtol=1e-5)
 
 
 class TestNestedParallelism(object):
