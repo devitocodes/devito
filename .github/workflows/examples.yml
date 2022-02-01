@@ -35,7 +35,6 @@ jobs:
     - name: Setup conda
       uses: conda-incubator/setup-miniconda@v2.1.1
       with:
-       auto-update-conda: true
        python-version: 3.8
        activate-environment: devito
        environment-file: environment-dev.yml
@@ -43,7 +42,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
         pip install -e .
         pip install matplotlib
 
