@@ -1,6 +1,7 @@
 import numpy as np
 import click
 import os
+
 from devito import configuration, info, warning, set_log_level, switchconfig, norm
 from devito.arch.compiler import IntelCompiler
 from devito.mpi import MPI
@@ -44,6 +45,23 @@ model_type = {
         'default-section': 'global'
     }
 }
+
+
+class NTuple(click.Tuple):
+    """
+    A floating subtype of click's Tuple that allows inputs with fewer elements.
+    Instead of accepting only tuples of exact length, this accepts tuples
+    of length up to the definition size.
+    For example, NTuple([int, int, int]) accepts (1,), (1, 2) and (1, 2, 3) as inputs.
+    """
+    def convert(self, value, param, ctx):
+        n_value = len(value)
+        n_type = len(self.types)
+        if n_value <= n_type:
+            warning(f"Processing {n_value} out of expected up to {n_type}")
+        else:
+            super().convert(value, param, ctx)
+        return tuple(self.types[i](value[i], param, ctx) for i in range(n_value))
 
 
 def run_op(solver, operator, **options):
@@ -103,9 +121,10 @@ def option_simulation(f):
         click.option('-P', '--problem', help='Problem name',
                      type=click.Choice(['acoustic', 'tti',
                                         'elastic', 'acoustic_sa', 'viscoelastic'])),
-        click.option('-d', '--shape', default=(50, 50, 50),
+        click.option('-d', '--shape', default=(50, 50, 50), type=NTuple([int, int, int]),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
+                     type=NTuple([float, float, float]),
                      help='Spacing between grid sizes in meters'),
         click.option('-n', '--nbl', default=10,
                      help='Number of boundary layers'),
