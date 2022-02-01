@@ -1,4 +1,5 @@
 pip>=9.0.1
+pyzmq>=22.3
 numpy>1.16
 sympy>=1.7,<=1.9
 scipy
