@@ -4,3 +4,5 @@ channels:
   - conda-forge
 dependencies:
   - pip>=21.1.2
+  - pip:
+    - -r requirements.txt
