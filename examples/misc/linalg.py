@@ -29,7 +29,7 @@ def option_basic(f):
             return 'noop'
 
     options = [
-        click.option('-ms', '--mat-shape', default=(4, 4), help='Matrix shape'),
+        click.option('-ms', '--mat-shape', default=(4, 4), nargs=2, help='Matrix shape'),
         click.option('-vs', '--vec-shape', default=4, help='Vector shape',
                      callback=callback_shape),
         click.option('-o', '--optimize', default=False, is_flag=True,

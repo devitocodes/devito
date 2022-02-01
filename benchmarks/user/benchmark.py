@@ -52,7 +52,7 @@ class NTuple(click.Tuple):
     A floating subtype of click's Tuple that allows inputs with fewer elements.
     Instead of accepting only tuples of exact length, this accepts tuples
     of length up to the definition size.
-    I.e NTuple([int, int, int]) accept (1,), (1, 2) and (1, 2, 3) as inputs.
+    For example, NTuple([int, int, int]) accepts (1,), (1, 2) and (1, 2, 3) as inputs.
     """
     def convert(self, value, param, ctx):
         n_value = len(value)
