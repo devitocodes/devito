@@ -90,7 +90,7 @@ def stree_schedule(clusters):
 
             if IMPLICIT not in properties:
                 tip = NodeIteration(c.ispace.project([d]), tip, properties)
-                mapper[it].top = tip
+            mapper[it].top = tip
 
             tip = attach_metadata(c, d, tip)
             mapper[it].bottom = tip
