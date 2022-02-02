@@ -830,6 +830,15 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def promote(self, cond):
+        intervals = self.intervals.promote(cond)
+        sub_iterators = {i.promote(cond).dim: self.sub_iterators.get(i.dim, ())
+                         for i in self.intervals}
+        directions = {i.promote(cond).dim: self.directions.get(i.dim, ())
+                      for i in self.intervals}
+
+        return IterationSpace(intervals, sub_iterators, directions)
+
     def is_compatible(self, other):
         """
         A relaxed version of ``__eq__``, in which only non-derived dimensions
