@@ -935,6 +935,14 @@ class Uxreplace(Transformer):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
         return o._rebuild(arguments=arguments)
 
+    def visit_Conditional(self, o):
+        condition = uxreplace(o.condition, self.mapper)
+        then_body = self._visit(o.then_body)
+        else_body = self._visit(o.else_body)
+        return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
+
+    visit_ThreadedProdder = visit_Call
+
 
 # Utils
 
