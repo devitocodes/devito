@@ -9,7 +9,7 @@ from sympy import Expr
 
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
-                          frozendict, is_integer, toposort)
+                          flatten, frozendict, is_integer, toposort)
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
@@ -868,8 +868,8 @@ class IterationSpace(Space):
 
     @cached_property
     def dimensions(self):
-        sub_dims = [i.parent for v in self.sub_iterators.values() for i in v]
-        return filter_ordered(self.intervals.dimensions + sub_dims)
+        sub_dims = flatten(i._defines for v in self.sub_iterators.values() for i in v)
+        return filter_ordered(self.itdimensions + sub_dims)
 
     @cached_property
     def nonderived_directions(self):

@@ -1862,7 +1862,7 @@ class TestOperatorAdvanced(object):
         op0 = Operator(eqn, opt='noop')
         op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
 
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
+        assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
         op0(time_M=1)
         u0_norm = norm(u)
@@ -1895,7 +1895,7 @@ class TestOperatorAdvanced(object):
         op0 = Operator(eqn, opt='noop')
         op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
 
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
+        assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
         op0(time_M=1)
         u0_norm = norm(u)

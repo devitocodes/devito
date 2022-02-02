@@ -12,7 +12,8 @@ from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq, lower_exprs, generate_implicit_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import Callable, EntryFunction, MetaCall, derive_parameters, iet_build
+from devito.ir.iet import (Callable, EntryFunction, FindSymbols, MetaCall,
+                           derive_parameters, iet_build)
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
@@ -21,8 +22,8 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph, instrument
 from devito.symbolics import estimate_cost
-from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
-                          filter_sorted, split, timed_pass, timed_region)
+from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_sorted,
+                          split, timed_pass, timed_region)
 from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
@@ -224,8 +225,7 @@ class Operator(Callable):
         # Produced by the various compilation passes
         op._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
         op._output = filter_sorted(flatten(e.writes for e in expressions))
-        op._dimensions = flatten(c.dimensions for c in clusters) + byproduct.dimensions
-        op._dimensions = sorted(set(op._dimensions), key=attrgetter('name'))
+        op._dimensions = set().union(*[e.dimensions for e in expressions])
         op._dtype, op._dspace = clusters.meta
         op._profiler = profiler
 
@@ -406,16 +406,23 @@ class Operator(Callable):
 
     @cached_property
     def dimensions(self):
-        return tuple(self._dimensions)
+        ret = set().union(*[d._defines for d in self._dimensions])
+
+        # During compilation other Dimensions may have been produced
+        dimensions = FindSymbols('dimensions').visit(self)
+        ret.update(d for d in dimensions if d.is_PerfKnob)
+
+        ret = tuple(sorted(ret, key=attrgetter('name')))
+
+        return ret
 
     @cached_property
     def input(self):
-        ret = [i for i in self._input + list(self.parameters) if i.is_Input]
-        return tuple(filter_ordered(ret))
+        return tuple(i for i in self.parameters if i.is_Input)
 
     @cached_property
     def temporaries(self):
-        return tuple(i for i in self.input if i.is_TempFunction)
+        return tuple(i for i in self.parameters if i.is_TempFunction)
 
     @cached_property
     def objects(self):

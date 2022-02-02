@@ -18,7 +18,7 @@ from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Basic, IndexedData
-from devito.types import ArrayObject, VoidPointer
+from devito.types import ArrayObject, Dimension, VoidPointer
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
@@ -696,6 +696,7 @@ class FindSymbols(Visitor):
         Drive the search. Accepted:
         - `symbolics`: Collect all AbstractFunction objects, default
         - `basics`: Collect all Basic objects
+        - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
         - `defines`: Collect all defined objects
@@ -705,6 +706,7 @@ class FindSymbols(Visitor):
     rules = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
+        'dimensions': lambda n: [i for i in n.expr_symbols if isinstance(i, Dimension)],
         'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
         'indexedbases': lambda n: [i for i in n.expr_symbols
                                    if isinstance(i, IndexedBase)],
@@ -750,6 +752,11 @@ class FindSymbols(Visitor):
 
     def visit_CallableBody(self, o):
         return self.Retval(self._visit(o.children), self.rule(o), node=o)
+
+    def visit_Operator(self, o):
+        ret = self._visit(o.body)
+        ret.extend(flatten(self._visit(v) for v in o._func_table.values()))
+        return self.Retval(ret, self.rule(o), node=o)
 
 
 class FindNodes(Visitor):

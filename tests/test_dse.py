@@ -2265,7 +2265,24 @@ class TestAliases(object):
                                              'cire-rotate': rotate, 'min-storage': True}))
 
         # Check code generation
-        assert len([i for i in op1.dimensions if i.is_Incr]) == 6 + (2 if rotate else 0)
+        if configuration['language'] == 'openmp':
+            prefix = ['t']
+        else:
+            prefix = []
+        if rotate:
+            assert_structure(
+                op1,
+                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xx,y,z',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,yy,z',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z'],
+                't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xx,y,z,y,yy,z,z'
+            )
+        else:
+            assert_structure(
+                op1,
+                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z']*3,
+                't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z,x,y,z,y,z'
+            )
         if configuration['language'] == 'openmp':
             bns, _ = assert_blocking(op2, {'x0_blk0'})
 
