@@ -34,6 +34,11 @@ class Cpu64OperatorMixin(object):
     situations where the performance impact might be detrimental.
     """
 
+    BLOCK_STEP = None
+    """
+    The loop blocking step size. None => symbolic.
+    """
+
     CIRE_MINGAIN = 10
     """
     Minimum operation count reduction for a redundant expression to be optimized
@@ -98,6 +103,7 @@ class Cpu64OperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
+        o['blockstep'] = oo.pop('blockstep', cls.BLOCK_STEP)
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE

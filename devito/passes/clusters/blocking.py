@@ -1,5 +1,7 @@
 from collections import Counter
 
+from sympy import sympify
+
 from devito.ir.clusters import Queue
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
                                SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
@@ -181,6 +183,7 @@ class SynthesizeBlocking(Queue):
     def __init__(self, options):
         self.inner = bool(options['blockinner'])
         self.levels = options['blocklevels']
+        self.step = options['blockstep']
 
         self.nblocked = Counter()
 
@@ -210,15 +213,16 @@ class SynthesizeBlocking(Queue):
         # Create the block Dimensions (in total `self.levels` Dimensions)
         name = self.template % (d.name, self.nblocked[d], '%d')
 
-        bd = BlockDimension(name % 0, d, d.symbolic_min, d.symbolic_max)
-        size = bd.step
+        bd = BlockDimension(name % 0, d, d.symbolic_min, d.symbolic_max,
+                            sympify(self.step))
+        step = bd.step
         block_dims = [bd]
 
         for i in range(1, self.levels):
-            bd = BlockDimension(name % i, bd, bd, bd + bd.step - 1, size=size)
+            bd = BlockDimension(name % i, bd, bd, bd + bd.step - 1, size=step)
             block_dims.append(bd)
 
-        bd = BlockDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=size)
+        bd = BlockDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=step)
         block_dims.append(bd)
 
         processed = []
