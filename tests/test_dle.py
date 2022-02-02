@@ -6,7 +6,7 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    Dimension, SubDimension, Eq, Inc, Operator, info)
+                    Dimension, SubDimension, Eq, Inc, Operator, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 from devito.passes.iet.languages.openmp import OmpRegion
@@ -609,6 +609,97 @@ class TestNodeParallelism(object):
                        opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
         assert 'collapse(1)' in str(op1)
         assert 'atomic' not in str(op1)
+
+    @pytest.mark.parametrize('exprs,simd_level,expected', [
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+         'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
+         2, [6, 0, 0]),
+        (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+         'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],  # 1695
+         2, [0, 1, 2]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+         'Eq(h1[0, y], 3 - y, implicit_dims=(t, x, y))'],
+         2, [3, 2, 1]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
+          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+         2, [0, 1, 2]),
+        (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+         None, [0, 1, 2]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Eq(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+         1, [2, 2, 2]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Eq(h1[0, x], y.symbolic_max, implicit_dims=(t, x))'],
+         1, [2, 2, 2]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, y], y, implicit_dims=(t, x, y))'],
+         2, [0, 2, 6]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, x], y, implicit_dims=(t, x, y))'],
+         None, [3, 3, 2]),
+        (['Eq(y.symbolic_min, g[0, 0], implicit_dims=(t, x))',
+          'Inc(h1[0, y], x, implicit_dims=(t, x, y))'],
+         2, [3, 3, 3]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x))'],
+         None, [2, 2, 2]),
+        (['Eq(y.symbolic_min, g[0, 2], implicit_dims=(t, x))',
+          'Inc(h1[0, x], y.symbolic_min, implicit_dims=(t, x, y))'],
+         None, [2, 2, 2]),
+        (['Eq(y.symbolic_min, g[0, x], implicit_dims=(t, x))',
+          'Eq(y.symbolic_max, g[0, x]-1, implicit_dims=(t, x))',
+          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],
+         2, [0, 0, 0])
+    ])
+    def test_edge_cases(self, exprs, simd_level, expected):
+        # Tests for issue #1695
+        t, x, y = dimensions('t x y')
+
+        g = TimeFunction(name='g', shape=(1, 3), dimensions=(t, x),
+                         time_order=0, dtype=np.int32)
+        g.data[0, :] = [0, 1, 2]
+        h1 = TimeFunction(name='h1', shape=(1, 3), dimensions=(t, y), time_order=0)
+        h1.data[0, :] = 0
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        op = Operator(exprs, opt=('advanced', {'openmp': True}))
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert 'omp for collapse' in iterations[0].pragmas[0].value
+        if simd_level:
+            assert 'omp simd' in iterations[simd_level].pragmas[0].value
+
+        op.apply()
+        assert (h1.data == expected).all()
+
+    def test_simd_space_invariant(self):
+        """
+        Similar to test_space_invariant_v3, testing simd vectorization happens
+        in the correct place.
+        """
+        grid = Grid(shape=(10, 10, 10))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        eq = Inc(f, cos(x*y) + cos(x*z))
+
+        op = Operator(eq, opt=('advanced', {'openmp': True}))
+        iterations = FindNodes(Iteration).visit(op)
+
+        assert 'omp for collapse(1) schedule(static,1)' in iterations[0].pragmas[0].value
+        assert 'omp simd' in iterations[1].pragmas[0].value
+        assert 'omp simd' in iterations[3].pragmas[0].value
+
+        op.apply()
+        assert np.isclose(np.linalg.norm(f.data), 37.1458, rtol=1e-5)
 
 
 class TestNestedParallelism(object):
