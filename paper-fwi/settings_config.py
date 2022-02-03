@@ -168,4 +168,5 @@ class settings:
         "dask": False,                      # This variable change if you start the DASK cluster   
         "multiscale":False,                 # Frequency multiscale: True or False
         "freq_bands": [5, 8, 10],           # frequence band
+        "fwi_iteration": 75,
     }

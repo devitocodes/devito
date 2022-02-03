@@ -3,13 +3,10 @@ if (__name__=='__main__'):
     # Python Imports
     #==============================================================================
     import numpy                                        as np
-    import math                                         as mt
-    import time                                         as tm
     import sys
     import segyio
     import matplotlib.pyplot                            as plot
     import psutil
-    from   numpy             import linalg              as la
     from   scipy.ndimage     import gaussian_filter
     from   scipy             import optimize
     from dask.distributed    import Client, wait
@@ -29,7 +26,6 @@ if (__name__=='__main__'):
     #==============================================================================
     import settings_config
     sys.path.insert(0, './code')
-    from   timeit import default_timer as timer
     import solver, domain2D, utils, velmodel
     import plots
    # from   plots  import plotgrad, graph2drec, graph2d, graph2dvel, graph2dvel2, graphobjv, graph2drecres, graph2dden
@@ -92,12 +88,6 @@ if (__name__=='__main__'):
         
         cluster = LocalCluster(n_workers=int(nshots),threads_per_worker=1,death_timeout=600)
         client  = Client(cluster)
-
-    # Reading true data source
-    rec_true = []
-    for sn in range(0, nshots):    
-        filename = "rec/rec_" + str(sn) + ".npy"
-        rec_true.append(np.load(filename))
            
 
     # FWI Solver Class
@@ -109,7 +99,7 @@ if (__name__=='__main__'):
     #==============================================================================
     # FWI Functions
     #==============================================================================    
-    def shots(m0):  
+    def shots(m0, rec_true):  
         objective = 0.
 
         work  = []
@@ -117,14 +107,9 @@ if (__name__=='__main__'):
         fwisolver.vp_guess(m0)
         
         vp_guess = fwisolver.vp_g
-        fwisolver.v0 = vp_guess
-        start   = tm.time()
-	
+
         for sn in range(0, nshots):    
             clear_cache()
-           
-            if setting['multiscale']:
-                utils.butter_lowpass_filter(rec_true[sn], freq, 1.0/(dt0),order=1)
     
             fwisolver.rec_true = rec_true[sn]
             
@@ -159,34 +144,54 @@ if (__name__=='__main__'):
         return objective, np.reshape(grad_grop,-1)
 
     
-    if setting['multiscale']:
-        freq_bands = setting["freq_bands"]
+   
+    ite = setting["fwi_iteration"]
 
+    if setting['multiscale']:
+
+        freq_bands = setting["freq_bands"]
+   
         for freq in freq_bands:
-     
+
+            # Reading true data source
+            rec_true = []
+            for sn in range(0, nshots):    
+                filename = "rec/rec_" + str(sn) + ".npy"
+                rec_true.append(np.load(filename))
+                utils.butter_lowpass_filter(rec_true[sn], freq, 1.0/(dt0),order=1)
+
             fwisolver.freq  = freq
             m0     = np.reshape(vini,-1)
-            bounds = [(np.amax(v0),np.amin(v0)) for _ in range(len(m0))] 
-
+            bounds = [(np.amin(v0),np.amax(v0)) for _ in range(len(m0))]
             result = optimize.minimize(shots, 
                                         m0,
+                                        args=(rec_true),
                                         method='L-BFGS-B', 
                                         jac=True, 
-                                        tol = 1e-4, 
+                                        tol = 1e-6, 
                                         bounds=bounds, 
-                                        options={"disp": True,"eps": 1e-4, "gtol": 1e-4,"maxiter": 20})    
+                                        options={"disp": True,"eps": 1e-6, "gtol": 1e-6,"maxiter": ite})    
 
             vini   = result.x
 
     else:  
+        # Reading true data source
+        rec_true = []
+        for sn in range(0, nshots):    
+            filename = "rec/rec_" + str(sn) + ".npy"
+            rec_true.append(np.load(filename))
+
+        fwisolver.freq  = setting["f0"]
+
         m0     = np.reshape(vini,-1)
-        bounds = [(np.amax(v0),np.amin(v0)) for _ in range(len(m0))] 
+        bounds = [(np.amin(v0),np.amax(v0)) for _ in range(len(m0))]
         result = optimize.minimize(shots, 
                                    m0,
+                                   args=(rec_true),
                                    method='L-BFGS-B', 
                                    jac=True, 
-                                   tol = 1e-3, 
+                                   tol = 1e-6, 
                                    bounds=bounds, 
-                                   options={"disp": True,"eps": 1e-3, "gtol": 1e-3,"maxiter": 75})
+                                   options={"disp": True,"eps": 1e-6, "gtol": 1e-6,"maxiter": ite})
     
     
