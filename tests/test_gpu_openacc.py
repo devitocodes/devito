@@ -3,7 +3,7 @@ import numpy as np
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator,
                     norm, solve)
-from conftest import skipif, opts_openacc_tiling
+from conftest import skipif, opts_device_tiling
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
 from devito.ir.iet import FindNodes, Section, retrieve_iteration_tree
@@ -63,8 +63,8 @@ class TestCodeGeneration(object):
         except:
             assert False
 
-    @pytest.mark.parametrize('opt', opts_openacc_tiling)
-    def test_blocking_customop(self, opt):
+    @pytest.mark.parametrize('opt', opts_device_tiling)
+    def test_blocking(self, opt):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
@@ -76,7 +76,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 1
         tree = trees[0]
         assert len(tree) == 7
-        assert all(i.dim.is_Incr for i in tree[1:7])
+        assert all(i.dim.is_Block for i in tree[1:7])
 
         assert op.parameters[3] is tree[1].step
         assert op.parameters[6] is tree[2].step
@@ -228,7 +228,7 @@ class TestOperator(object):
 
     @pytest.mark.parametrize('opt', [
         'advanced',
-        ('blocking', {'linearize': True}),
+        ('advanced', {'blocklevels': 1, 'linearize': True}),
     ])
     def test_iso_acoustic(self, opt):
         TestOperator().iso_acoustic(opt)

@@ -47,9 +47,19 @@ COLORS = {
 }
 
 
+def _set_log_level(level):
+    """
+    Set the level of the Devito logger.
+    """
+    if level not in logger_registry:
+        raise ValueError("Illegal logging level %s" % level)
+
+    logger.setLevel(level)
+
+
 def set_log_level(level, comm=None):
     """
-    Set the log level of the Devito logger.
+    Set the level of the Devito logger.
 
     Parameters
     ----------
@@ -63,15 +73,15 @@ def set_log_level(level, comm=None):
         to ``None``, so all ranks will use the default handlers.  This could be
         used, for example, if one wants to log to one file per rank.
     """
-    if level not in logger_registry:
-        raise ValueError("Illegal logging level %s" % level)
+    from devito import configuration
 
     if comm is not None:
         if comm.rank != 0:
             logger.removeHandler(stream_handler)
             logger.addHandler(logging.NullHandler())
 
-    logger.setLevel(level)
+    # Triggers a callback to `_set_log_level`
+    configuration['log-level'] = level
 
 
 def set_log_noperf():

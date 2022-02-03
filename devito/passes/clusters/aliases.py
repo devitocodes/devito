@@ -7,10 +7,10 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import EvalDerivative
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, DataSpace,
-                       Forward, IterationInstance, IterationSpace, Interval,
-                       Cluster, Queue, IntervalGroup, LabeledVector, detect_accesses,
-                       build_intervals, normalize_properties, relax_properties)
+from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, Forward,
+                       IterationInstance, IterationSpace, Interval, Cluster,
+                       Queue, IntervalGroup, LabeledVector, normalize_properties,
+                       relax_properties)
 from devito.passes.clusters.utils import timed_pass
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               reuse_if_untouched, retrieve_indexed, search, uxreplace)
@@ -156,12 +156,7 @@ class CireTransformer(object):
             ispace = c.ispace.augment(schedule.dmapper)
             ispace = ispace.augment(schedule.rmapper)
 
-            accesses = detect_accesses(cexprs)
-            parts = {k: IntervalGroup(build_intervals(v)).relaxed
-                     for k, v in accesses.items() if k}
-            dspace = DataSpace(c.dspace.intervals, parts)
-
-            processed.append(c.rebuild(exprs=cexprs, ispace=ispace, dspace=dspace))
+            processed.append(c.rebuild(exprs=cexprs, ispace=ispace))
 
         assert len(exprs) == 0
 
@@ -271,10 +266,10 @@ class CireInvariants(CireTransformer, Queue):
 
     def _lookup_key(self, c, d):
         ispace = c.ispace.reset()
-        dintervals = c.dspace.intervals.drop(d).reset()
+        intervals = c.ispace.intervals.drop(d).reset()
         properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
 
-        return AliasKey(ispace, dintervals, c.dtype, None, properties)
+        return AliasKey(ispace, intervals, c.dtype, None, properties)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # Always prefer the Variant with fewer temporaries
@@ -383,7 +378,7 @@ class CireSops(CireTransformer):
             yield self._do_generate(exprs, exclude, cbk_search_i, cbk_compose)
 
     def _lookup_key(self, c):
-        return AliasKey(c.ispace, c.dspace.intervals, c.dtype, c.guards, c.properties)
+        return AliasKey(c.ispace, None, c.dtype, c.guards, c.properties)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # If there's a greater flop reduction using fewer temporaries, no doubts
@@ -667,11 +662,11 @@ def lower_aliases(aliases, meta, maxpar):
             writeto.append(interval)
             intervals.append(interval)
 
-            if i.dim.is_Incr:
+            if i.dim.is_Block:
                 # Suitable IncrDimensions must be used to avoid OOB accesses.
                 # E.g., r[xs][ys][z] => both `xs` and `ys` must be initialized such
                 # that all accesses are within bounds. This requires traversing the
-                # hierarchy of IncrDimensions to set `xs` (`ys`) in a way that
+                # hierarchy of BlockDimensions to set `xs` (`ys`) in a way that
                 # consecutive blocks access consecutive regions in `r` (e.g.,
                 # `xs=x0_blk1-x0_blk0` with `blocklevels=2`; `xs=0` with
                 # `blocklevels=1`, that is it degenerates in this case)
@@ -679,9 +674,9 @@ def lower_aliases(aliases, meta, maxpar):
                     d = dmapper[i.dim]
                 except KeyError:
                     dd = i.dim.parent
-                    assert dd.is_Incr
-                    if dd.parent.is_Incr:
-                        # An IncrDimension in between IncrDimensions
+                    assert dd.is_Block
+                    if dd.parent.is_Block:
+                        # A BlockDimension in between BlockDimensions
                         m = i.dim.symbolic_min - i.dim.parent.symbolic_min
                     else:
                         m = 0
@@ -744,7 +739,7 @@ def optimize_schedule_rotations(schedule, sregistry):
         try:
             ds = schedule.dmapper[d]
         except KeyError:
-            # Can't do anything if `d` isn't an IncrDimension over a block
+            # Can't do anything if `d` isn't a BlockDimension
             processed.extend(g)
             continue
 
@@ -885,12 +880,6 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         subs.update({aliased: callback(indices)
                      for aliased, indices in zip(aliaseds, indicess)})
 
-        # Construct the alias DataSpace
-        accesses = detect_accesses(expression)
-        parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals).relaxed
-                 for k, v in accesses.items() if k}
-        dspace = DataSpace(meta.dintervals, parts)
-
         # Drop or weaken parallelism if necessary
         properties = dict(meta.properties)
         for d, v in meta.properties.items():
@@ -900,7 +889,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                 properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
 
         # Finally, build the alias Cluster
-        clusters.append(Cluster(expression, ispace, dspace, meta.guards, properties))
+        clusters.append(Cluster(expression, ispace, meta.guards, properties))
 
     return clusters, subs
 
@@ -921,18 +910,12 @@ def optimize_clusters_msds(clusters):
 
             ispace = c.ispace.relaxed(msds)
 
-            accesses = detect_accesses(exprs)
-            parts = {k: IntervalGroup(build_intervals(v)).relaxed
-                     for k, v in accesses.items() if k}
-            intervals = [i for i in c.dspace if i.dim not in msds]
-            dspace = DataSpace(intervals, parts)
-
             guards = {mapper.get(d, d): v for d, v in c.guards.items()}
             properties = {mapper.get(d, d): v for d, v in c.properties.items()}
             syncs = {mapper.get(d, d): v for d, v in c.syncs.items()}
 
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace, dspace=dspace,
-                                       guards=guards, properties=properties, syncs=syncs))
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace, guards=guards,
+                                       properties=properties, syncs=syncs))
         else:
             processed.append(c)
 
@@ -1184,7 +1167,7 @@ class Group(tuple):
         return ret
 
 
-AliasKey = namedtuple('AliasKey', 'ispace dintervals dtype guards properties')
+AliasKey = namedtuple('AliasKey', 'ispace intervals dtype guards properties')
 Variant = namedtuple('Variant', 'schedule exprs')
 
 
@@ -1318,7 +1301,7 @@ def nredundants(ispace, expr):
     redundant if it defines an iteration space for `expr` while not appearing
     among its free symbols. Note that the converse isn't generally true: there
     could be a Dimension that does not appear in the free symbols while defining
-    a non-redundant iteration space (e.g., an IncrDimension stemming from blocking).
+    a non-redundant iteration space (e.g., a BlockDimension).
     """
     iterated = {i.dim for i in ispace}
     used = {i for i in expr.free_symbols if i.is_Dimension}

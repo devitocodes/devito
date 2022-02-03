@@ -16,8 +16,8 @@ from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import ListInitializer, ccode
 from devito.tools import as_mapper, filter_sorted, flatten, prod
-from devito.types import Array, DeviceRM, Function
-from devito.types.sparse import AbstractSparseFunction
+from devito.types import DeviceRM
+from devito.types.basic import AbstractFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -338,7 +338,7 @@ class DeviceAwareDataManager(DataManager):
         else:
             # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
             # on the device as it never needs to be accessed on the host
-            assert obj._mem_default
+            assert obj._mem_local
             decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
             size = "sizeof(%s[%s])" % (obj._C_typedata, prod(obj.symbolic_shape))
 
@@ -359,7 +359,7 @@ class DeviceAwareDataManager(DataManager):
         bandwidth memory.
         """
         # If Array gets allocated directly in the device memory, there's nothing to map
-        if obj._mem_default:
+        if obj._mem_local:
             return
 
         mmap = PragmaTransfer(self.lang._map_alloc, obj)
@@ -403,8 +403,9 @@ class DeviceAwareDataManager(DataManager):
     def derive_transfers(self, iet):
 
         def needs_transfer(f):
-            return (is_on_device(f, self.gpu_fit) and
-                    isinstance(f, (Array, Function, AbstractSparseFunction)))
+            return (isinstance(f, AbstractFunction) and
+                    is_on_device(f, self.gpu_fit) and
+                    f._mem_mapped)
 
         writes = set()
         reads = set()

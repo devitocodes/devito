@@ -42,7 +42,7 @@ def hoist_prodders(iet):
         for prodder in FindNodes(Prodder).visit(tree.root):
             if prodder._periodic:
                 try:
-                    key = lambda i: i.dim.is_Incr and i.dim.step != 1
+                    key = lambda i: i.dim.is_Block and i.dim.step != 1
                     candidate = filter_iterations(tree, key)[-1]
                 except IndexError:
                     # Fallback: use the outermost Iteration
@@ -78,7 +78,7 @@ def relax_incr_dimensions(iet, **kwargs):
     """
     mapper = {}
     for tree in retrieve_iteration_tree(iet):
-        iterations = [i for i in tree if i.dim.is_Incr]
+        iterations = [i for i in tree if i.dim.is_Block]
         if not iterations:
             continue
 
@@ -87,7 +87,7 @@ def relax_incr_dimensions(iet, **kwargs):
             continue
 
         assert all(i.direction is Forward for i in iterations)
-        outer, inner = split(iterations, lambda i: not i.dim.parent.is_Incr)
+        outer, inner = split(iterations, lambda i: not i.dim.parent.is_Block)
 
         # Get root's `symbolic_max` out of each outer Dimension
         roots_max = {i.dim.root: i.symbolic_max for i in outer}

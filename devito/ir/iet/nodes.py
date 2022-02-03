@@ -511,6 +511,10 @@ class Iteration(Node):
         return PARALLEL_IF_PVT in self.properties
 
     @property
+    def is_ParallelNoAtomic(self):
+        return any([self.is_Parallel, self.is_ParallelPrivate])
+
+    @property
     def is_ParallelRelaxed(self):
         return any([self.is_Parallel, self.is_ParallelAtomic, self.is_ParallelPrivate])
 

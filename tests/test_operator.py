@@ -1647,7 +1647,7 @@ class TestLoopScheduling(object):
 
         # Note: `topofuse` is a subset of `advanced` mode. We use it merely to
         # bypass 'blocking', which would complicate the asserts below
-        op = Operator(eqns, opt=('topofuse', {'openmp': False}))
+        op = Operator(eqns, opt=('topofuse', {'openmp': False, 'optcomms': False}))
 
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)

@@ -10,7 +10,7 @@ from devito.mpi.routines import HaloExchangeBuilder
 from devito.passes.iet.engine import iet_pass
 from devito.tools import as_mapper, filter_sorted, generator
 
-__all__ = ['optimize_halospots', 'mpiize']
+__all__ = ['mpiize']
 
 
 @iet_pass
@@ -280,20 +280,19 @@ def _mark_overlappable(iet):
 
 
 @iet_pass
-def mpiize(iet, **kwargs):
+def make_mpi(iet, **kwargs):
     """
-    Add MPI routines performing halo exchanges to emit distributed-memory
-    parallel code.
+    Inject MPI Callables and Calls implementing halo exchanges for
+    distributed-memory parallelism.
     """
     mode = kwargs.pop('mode')
-    language = kwargs.pop('language')
     sregistry = kwargs.pop('sregistry')
 
     # To produce unique object names
     generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
 
-    sync_heb = HaloExchangeBuilder('basic', language, sregistry, **generators)
-    user_heb = HaloExchangeBuilder(mode, language, sregistry, **generators)
+    sync_heb = HaloExchangeBuilder('basic', sregistry, **generators)
+    user_heb = HaloExchangeBuilder(mode, sregistry, **generators)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         heb = user_heb if isinstance(hs, OverlappableHaloSpot) else sync_heb
@@ -318,3 +317,28 @@ def mpiize(iet, **kwargs):
     iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}
+
+
+def mpiize(graph, sregistry=None, options=None):
+    """
+    Perform two IET passes:
+
+        * Optimization of communications
+        * Injection of MPI code
+
+    The former is implemented by manipulating HaloSpots.
+
+    The latter resorts to creating MPI Callables and replacing HaloSpots with Calls
+    to MPI Callables.
+    """
+    assert sregistry
+    assert options
+
+    optcomms = options['optcomms']
+    mode = options['mpi']
+
+    if optcomms:
+        optimize_halospots(graph)
+
+    if mode:
+        make_mpi(graph, mode=mode, sregistry=sregistry)
