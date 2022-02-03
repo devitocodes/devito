@@ -191,9 +191,9 @@ class CGen(Visitor):
         for i in args:
             try:
                 if isinstance(i, Call):
-                    ret.append(self.visit(i, nested_call=True))
+                    ret.append(self._visit(i, nested_call=True))
                 elif isinstance(i, Lambda):
-                    ret.append(self.visit(i))
+                    ret.append(self._visit(i))
                 else:
                     ret.append(i._C_name)
             except AttributeError:
@@ -448,7 +448,7 @@ class CGen(Visitor):
         body = []
         prev = None
         for i in o.children:
-            v = self.visit(i)
+            v = self._visit(i)
             if v:
                 if prev:
                     body.append(c.Line())
@@ -485,7 +485,7 @@ class CGen(Visitor):
                 prefix = ' '.join(i.root.prefix + (i.root.retval,))
                 esigns.append(c.FunctionDeclaration(c.Value(prefix, i.root.name),
                                                     self._args_decl(i.root.parameters)))
-                efuncs.extend([self.visit(i.root), blankline])
+                efuncs.extend([self._visit(i.root), blankline])
 
         # Header files, extra definitions, ...
         header = [c.Define(*i) for i in o._headers] + [blankline]
