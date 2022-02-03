@@ -385,7 +385,7 @@ class SynthesizeSkewing(Queue):
 
 def attach_property(clusters, d, p):
     """
-    Attach `p` to the `clusters`' properties.
+    Attach `p` to `c.properties[d]` for each `c` in `clusters`.
     """
     processed = []
     for c in clusters:

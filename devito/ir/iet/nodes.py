@@ -242,7 +242,7 @@ class Call(ExprStmt, Node):
         code will be `name, arg1, ..., argN` rather than `name(arg1, ..., argN)`.
         Defaults to False.
     cast : bool, optional
-        If True, the Call return value is explicitely casted to the `retobj` type.
+        If True, the Call return value is explicitly casted to the `retobj` type.
         Defaults to False.
     writes : list, optional
         The AbstractFunctions that will be written to by the called function.
@@ -387,12 +387,12 @@ class Expression(ExprStmt, Node):
 
     @property
     def is_scalar(self):
-        """True if a scalar expression, False otherwise."""
+        """True if the LHS is a scalar, False otherwise."""
         return isinstance(self.expr.lhs, (AbstractSymbol, IndexedBase))
 
     @property
     def is_tensor(self):
-        """True if a tensor expression, False otherwise."""
+        """True if the LHS is an array entry, False otherwise."""
         return self.expr.lhs.is_Indexed
 
     @property

@@ -61,11 +61,11 @@ def linearize_accesses(iet, key, cache, sregistry):
     """
     Turn Indexeds into FIndexeds and create the necessary access Macros.
     """
-    # `functions` are all Functions that `iet` may need linearizing
+    # `functions` are all Functions that `iet` may need to linearize
     functions = [f for f in FindSymbols().visit(iet) if key(f) and f.ndim > 1]
     functions = sorted(functions, key=lambda f: len(f.dimensions), reverse=True)
 
-    # `functions_unseen` are all Functions that `iet` may need linearizing
+    # `functions_unseen` are all Functions that `iet` may need to linearize
     # that have not been seen while processing other IETs
     functions_unseen = [f for f in functions if f not in cache]
 
