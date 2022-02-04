@@ -1,21 +1,20 @@
 #==============================================================================
 # Python Imports
 #==============================================================================
-import numpy as np
-import math  as mt
-from   pyrevolve import Revolver
-from   scipy.signal            import butter, filtfilt
-import matplotlib.pyplot      as plt
+import numpy                                         as np
+import math                                         as mt
+import matplotlib.pyplot                            as plt
+from   pyrevolve           import Revolver
+from   scipy.signal        import butter, filtfilt
 #==============================================================================
 
 #==============================================================================
 # Devito Imports
 #==============================================================================
-from   devito import *
+from   devito           import *
 from   examples.seismic import RickerSource
 from   examples.seismic import Receiver
 from   examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
-
 import utils
 #==============================================================================
 
@@ -54,7 +53,7 @@ class solverABCs():
 
             src_term = src.inject(field=u.forward,expr=src*dt**2*vp**2)
             rec_term = rec.interpolate(expr=u)
-            bc = [Eq(u[t+1,0,z],0.),Eq(u[t+1,nptx-1,z],0.),Eq(u[t+1,x,nptz-1],0.)]
+            bc  = [Eq(u[t+1,0,z],0.),Eq(u[t+1,nptx-1,z],0.),Eq(u[t+1,x,nptz-1],0.)]
             bc1 = [Eq(u[t+1,x,-k],u[t+1,x,k]) for k in range(1,int(setup.sou/2)+1)]
                   
             if(save):
@@ -71,7 +70,7 @@ class solverABCs():
             grad  = kwargs.get('grad')
             usave = kwargs.get('usave')
 
-            pde1 = Eq(u.dt2 - u.laplace*vp*vp + vp*vp*damp*u.dtc.T)
+            pde1  = Eq(u.dt2 - u.laplace*vp*vp + vp*vp*damp*u.dtc.T)
 
             stencil0 =  Eq(u.backward, solve(pde0,u.backward),subdomain = grid.subdomains['d0'])
             stencil1 = [Eq(u.backward, solve(pde1,u.backward),subdomain = grid.subdomains[subds[i]]) for i in range(0,len(subds))]
@@ -82,14 +81,15 @@ class solverABCs():
             # src_term = src.interpolate(expr=u)
             rec_term = rec.inject(field=u.backward, expr=rec* dt**2*vp**2)
             
-            if system=='adjoint':
+            if(system=='adjoint'):
+                
                 op  = Operator([stencil0, stencil1] + bc + bc1 + rec_term,subs=grid.spacing_map)             
 
             else:
-                grad_update = Eq(grad, grad - usave * u.dt2)
-                op  = Operator([stencil0, stencil1] + bc + bc1 + rec_term + [grad_update],subs=grid.spacing_map)             
   
-                
+                grad_update = Eq(grad, grad - usave * u.dt2)
+                op          = Operator([stencil0, stencil1] + bc + bc1 + rec_term + [grad_update],subs=grid.spacing_map)             
+     
         else:
         
             assert "Invalid option"
@@ -129,9 +129,7 @@ class solverABCs():
         dampx1.data[0:nptx,nptz-1]     = dampx1.data[0:nptx,nptz-2]
         dampz1.data[nptx-1,0:nptz-1]   = dampz1.data[nptx-2,0:nptz-1]
         dampz1.data[0:nptx,nptz-1]     = dampz1.data[0:nptx,nptz-2]
-
-    
-                
+            
         # rho_term = 0*(1/d0)*(u.dx*d0.dx + u.dy*d0.dy)
 
         pde01   = Eq(u.dt2 - u.laplace*vp[0]*vp[0]) 
@@ -206,11 +204,16 @@ class solverABCs():
             bc1 = [Eq(u[t-1,x,-k],u[t-1,x,k]) for k in range(1,int(setup.sou/2)+1)]   
             
             # source_a = src.interpolate(expr=u)
+            
             receivers   = rec.inject(field=u.backward, expr=rec*dt**2*vp[0]**2)
+            
             if(system=='gradient'):
+            
                 grad_update = Eq(grad, grad - usave * u.dt2)
                 op = Operator([stencil01,stencil02] + bc + bc1 + [stencil1, stencil2] + receivers + [grad_update],subs=grid.spacing_map)
+           
             else:
+            
                 op = Operator([stencil01,stencil02] + bc + bc1 + [stencil1, stencil2] + receivers,subs=grid.spacing_map)
         else:
             
@@ -240,8 +243,7 @@ class solverABCs():
         u1  = Function(name="u1"   ,grid=grid,space_order=setup.sou,staggered=NODE,dtype=np.float64)
         u2  = Function(name="u2"   ,grid=grid,space_order=setup.sou,staggered=NODE,dtype=np.float64)
         u3  = Function(name="u3"   ,grid=grid,space_order=setup.sou,staggered=NODE,dtype=np.float64)
-
-      
+        
         # rho_term = 0*(1/d0)*(u.dx*d0.dx + u.dy*d0.dy)
 
         pde0 = Eq(u.dt2 - u.laplace*vp*vp)
@@ -316,9 +318,9 @@ class solverABCs():
             c231 =  gama221 - gama231
             c241 = -gama221 - gama241
 
-            aux1      = ( u2[x,z]*(-c111*c221-c121*c211) + u3[x+1,z]*(-c111*c231-c131*c211) + u2[x+1,z]*(-c111*c241-c121*c231-c141*c211-c131*c221) 
-                + u1[x,z]*(-c121*c221) + u1[x+1,z]*(-c121*c241-c141*c221) + u3[x+2,z]*(-c131*c231) +u2[x+2,z]*(-c131*c241-c141*c231)
-                + u1[x+2,z]*(-c141*c241))/(c111*c211)
+            aux1 = ( u2[x,z]*(-c111*c221-c121*c211) + u3[x+1,z]*(-c111*c231-c131*c211) + u2[x+1,z]*(-c111*c241-c121*c231-c141*c211-c131*c221) 
+                 + u1[x,z]*(-c121*c221) + u1[x+1,z]*(-c121*c241-c141*c221) + u3[x+2,z]*(-c131*c231) +u2[x+2,z]*(-c131*c241-c141*c231)
+                 + u1[x+2,z]*(-c141*c241))/(c111*c211)
             pde1      = (1-pesosx[x,z])*u3[x,z] + pesosx[x,z]*aux1
             stencil1  = Eq(u.forward,pde1,subdomain = grid.subdomains['d1'])
 
@@ -343,9 +345,9 @@ class solverABCs():
             c232 =  gama222 - gama232
             c242 = -gama222 - gama242
 
-            aux2      = ( u2[x,z]*(-c112*c222-c122*c212) + u3[x-1,z]*(-c112*c232-c132*c212) + u2[x-1,z]*(-c112*c242-c122*c232-c142*c212-c132*c222) 
-                + u1[x,z]*(-c122*c222) + u1[x-1,z]*(-c122*c242-c142*c222) + u3[x-2,z]*(-c132*c232) +u2[x-2,z]*(-c132*c242-c142*c232)
-                + u1[x-2,z]*(-c142*c242))/(c112*c212)
+            aux2 = ( u2[x,z]*(-c112*c222-c122*c212) + u3[x-1,z]*(-c112*c232-c132*c212) + u2[x-1,z]*(-c112*c242-c122*c232-c142*c212-c132*c222) 
+                 + u1[x,z]*(-c122*c222) + u1[x-1,z]*(-c122*c242-c142*c222) + u3[x-2,z]*(-c132*c232) +u2[x-2,z]*(-c132*c242-c142*c232)
+                 + u1[x-2,z]*(-c142*c242))/(c112*c212)
             pde2      = (1-pesosx[x,z])*u3[x,z] + pesosx[x,z]*aux2
             stencil2  = Eq(u.forward,pde2,subdomain = grid.subdomains['d2'])
 
@@ -417,12 +419,17 @@ class solverABCs():
 
             receivers = rec.inject(field=u.backward, expr=rec*dt**2*vp**2)
             source_a  = src.interpolate(expr=u)
+            
             bc  = []
             bc1 = [Eq(u[t-1,x,-k],u[t-1,x,k]) for k in range(1,int(setup.sou/2)+1)]      
-            if system=='gradient':      
+            
+            if(system=='gradient'):
+                
                 grad_update = Eq(grad, grad - usave * u.dt2)
                 op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers + [grad_update],subs=grid.spacing_map)
+            
             else:
+            
                 op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers,subs=grid.spacing_map)
 
         if((system=='gradient' or system=='adjoint') and setup.Abcs=='Higdon'):
@@ -529,10 +536,13 @@ class solverABCs():
             bc  = []
             bc1 = [Eq(u[t-1,x,-k],u[t-1,x,k]) for k in range(1,int(setup.sou/2)+1)]   
             
-            if system=='gradient':         
+            if(system=='gradient'):
+                
                 grad_update = Eq(grad, grad - usave * u.dt2)
                 op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers + [grad_update],subs=grid.spacing_map)
+           
             else:
+            
                 op  = Operator([stencil0] + bc + bc1 +[stencil01,stencil3,stencil02,stencil2,stencil1] + receivers,subs=grid.spacing_map)    
         else:
             
@@ -584,9 +594,7 @@ class solverABCs():
 
         b2w = Function(name="b2w", grid=grid,space_order=2,staggered=NODE ,dtype=np.float64)
         b2w.data[:,:] = B2C
-
-    
-                
+            
         # rho_term = 0*(1/d0)*(u.dx*d0.dx + u.dy*d0.dy)
             
         pde01   = Eq(u.dt2 -u.laplace*vp*vp) 
@@ -609,7 +617,6 @@ class solverABCs():
             stencil4  = [Eq(zeta2.forward, pde4,subdomain = grid.subdomains[subds[i]]) for i in range(0,len(subds))]
             
             #==============================================================================
-
             bc      = [Eq(u[t+1,0,z],0.),Eq(u[t+1,nptx-1,z],0.),Eq(u[t+1,x,nptz-1],0.)]
             bc1     = [Eq(u[t+1,x,-k],u[t+1,x,k]) for k in range(1,int(setup.sou/2)+1)]  
             bczeta  = [Eq(zeta1[t+1,0,z],zeta1[t+1,1,z]),Eq(zeta1[t+1,nptx-1,z],zeta1[t+1,nptx-2,z])]
@@ -658,10 +665,13 @@ class solverABCs():
                     
             receivers = rec.inject(field=u.backward, expr=rec*dt**2*vp**2)
 
-            if system=='gradient':
+            if(system=='gradient'):
+                
                 grad_update = Eq(grad, grad - usave * u.dt2)
                 op = Operator([stencil01,stencil02]  + bc + bc1 + [stencil1,stencil2,stencil3,stencil4] + bczeta + receivers + [grad_update],subs=grid.spacing_map)           
+            
             else:
+            
                 op = Operator([stencil01,stencil02]  + bc + bc1 + [stencil1,stencil2,stencil3,stencil4] + bczeta + receivers,subs=grid.spacing_map)           
    
         return op
@@ -711,6 +721,7 @@ class FWISolver():
             self.solv     = solverABCs.solvehabc
     #==============================================================================
     
+    #==============================================================================
     def vp_guess(self, m0):
         
         grid    = self.grid
@@ -760,7 +771,6 @@ class FWISolver():
         
         # Source Prameters
         src = RickerSource(name='src',grid=grid,f0=setting["f0"],npoint=1,time_range=self.time_range,staggered=NODE,dtype=np.float64)
-
         
         xposf = setting["x0"] + 100 + setting["shots_dist"]*sn  
         src.coordinates.data[:, 0] = xposf
@@ -810,26 +820,24 @@ class FWISolver():
         op_fw(dt=dt0)
         
         return rec.data[:], u.data[0]
-        
+    #==============================================================================    
     
     #==============================================================================
     # FWI Function
     #==============================================================================    
-   
     def apply(self,sn):
     
-        rec     = self.rec_true
-        setting = self.setting
-        nt      = self.nt
-        setup   = self.setup
-        grid    = self.grid
-        solv    = self.solv
-        dt0     = self.dt0
-        g       = self.g
-        abc     = self.abc
-        (x, z)  = grid.dimensions
+        rec      = self.rec_true
+        setting  = self.setting
+        nt       = self.nt
+        setup    = self.setup
+        grid     = self.grid
+        solv     = self.solv
+        dt0      = self.dt0
+        g        = self.g
+        abc      = self.abc
+        (x, z)   = grid.dimensions
         vp_guess = self.vp_g
-        
         
         # Sampling  
         nsnaps = int(nt/setting["jump"])
@@ -838,8 +846,7 @@ class FWISolver():
         usave = TimeFunction(name='usave', grid=grid, time_order=2, space_order=2,save=nsnaps, time_dim=time_subsampled)
         
         # Receivers Parameters
-        nrec = setting["rec_n"] #receivers numbers
-
+        nrec  = setting["rec_n"] #receivers numbers
         recg  = Receiver(name='recg',grid=grid,npoint=nrec,time_range=self.time_range,staggered=NODE,dtype=np.float64)
         recg.coordinates.data[:, 0] = np.linspace(setup.x0pml+100,setup.x1pml-100,nrec)
         recg.coordinates.data[:, 1] = setting["recposition_z"]
@@ -900,24 +907,34 @@ class FWISolver():
 
         grad = Function(name="grad", grid=grid)
         
-
         # Forward solver -- Wrapper
-        if self.test=="adjoint": 
+        if(self.test=="adjoint"):
+            
             op_fw_guess = solv(recg, src, vp_guess,g,vector,grid,setup,system='forward',save=False) 
+        
         else:
+        
             op_fw_guess = solv(recg, src, vp_guess,g,vector,grid,setup,system='forward',save=True, usave=usave) 
        
         # Adjoint-based gradient solver -- Wrapper
         if(setting["Abcs"]=='habc-a1' or setting["Abcs"]=='Higdon'): 
-            if self.test=="adjoint": 
+            
+            if(self.test=="adjoint"): 
+            
                 op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='adjoint',grad=grad,usave=usave, damp=self.gdamp)
+            
             else:
+            
                 op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='gradient',grad=grad,usave=usave, damp=self.gdamp)
 
         else:
-            if self.test=="adjoint": 
+            
+            if(self.test=="adjoint"): 
+            
                 op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='adjoint',grad=grad,usave=usave)
+            
             else:
+            
                 op_bw = solv(residual, src, vp_guess,g,vector_adj,grid,setup,system='gradient',grad=grad,usave=usave)
 
 
@@ -933,8 +950,11 @@ class FWISolver():
         grad.data[-setup.npmlx:setup.nptx,:] = 0.0
         grad.data[:,-setup.npmlz:setup.nptz] = 0.0
 
-        if self.test=="adjoint": 
+        if(self.test=="adjoint"): 
+            
             return v.data[0]
+        
         else:
+        
             return J, np.copy(grad.data)
    #==============================================================================

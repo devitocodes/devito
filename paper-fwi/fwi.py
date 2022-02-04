@@ -1,4 +1,7 @@
+#==============================================================================
 if (__name__=='__main__'):    
+#==============================================================================
+
     #==============================================================================
     # Python Imports
     #==============================================================================
@@ -9,7 +12,7 @@ if (__name__=='__main__'):
     import psutil
     from   scipy.ndimage     import gaussian_filter
     from   scipy             import optimize
-    from dask.distributed    import Client, wait
+    from  dask.distributed   import Client, wait
     #==============================================================================
 
     #==============================================================================
@@ -28,7 +31,6 @@ if (__name__=='__main__'):
     sys.path.insert(0, './code')
     import solver, domain2D, utils, velmodel
     import plots
-   # from   plots  import plotgrad, graph2drec, graph2d, graph2dvel, graph2dvel2, graphobjv, graph2drecres, graph2dden
     #==============================================================================
 
     #==============================================================================
@@ -48,8 +50,7 @@ if (__name__=='__main__'):
 
         setting = settings_config.settings.setting5
 
-    setup   = utils.ProblemSetup(setting)
-    
+    setup   = utils.ProblemSetup(setting)    
     #==============================================================================
     
     #==============================================================================
@@ -57,49 +58,68 @@ if (__name__=='__main__'):
     #==============================================================================
     grid   = domain2D.SetGrid(setup)
     (x, z) = grid.dimensions
-   
+    #==============================================================================
+
     #==============================================================================
     # Chosing the model
     #==============================================================================
-    # Chosing the model
     if(model['vp']=='Marmousi'):
     
         with segyio.open('VelModelFiles/Mar2_Vp_1.25m.segy') as segyfile:
             vp_file = segyio.tools.cube(segyfile)[0,:,:]
         v0 = velmodel.SetVel(model,setup, setting,grid,vp_file=vp_file,start_model='True')
+
     elif(model['vp']=='Salt'):
 
         vp_file = np.load("./VelModelFiles/seg_eage_xcut_338.npy")
         v0      = velmodel.SetVel(model,setup, setting,grid,vp_file=vp_file)
+
     sigma = 15
-    vini = gaussian_filter(v0,sigma=sigma)
-    # Time Parameters
+    vini  = gaussian_filter(v0,sigma=sigma)
+   #==============================================================================
+   
+   #==============================================================================
+   # Time Parameters
+   #==============================================================================
     set_time = setup.TimeDiscret(v0)
     dt0, nt, time_range = set_time   #time discretization
-
-    # Shot Properties
+   #==============================================================================
+   
+   #==============================================================================
+   # Shot Properties
+   #==============================================================================
     sd     = setting["shots_dist"]
     nshots = int((setting["lenx"]-200)/sd)+1
-    
-    # Start DASK -  sources paralelization
-    if setting["dask"]: 
+   #==============================================================================
+
+   #==============================================================================
+   # Start DASK -  sources paralelization
+   #==============================================================================
+    if(setting["dask"]): 
 
         from distributed import LocalCluster
         
         cluster = LocalCluster(n_workers=int(nshots),threads_per_worker=1,death_timeout=600)
         client  = Client(cluster)
-           
-
-    # FWI Solver Class
+   #==============================================================================
+   
+   #==============================================================================     
+   # FWI Solver Class
+   #==============================================================================
     fwisolver = solver.FWISolver(set_time,setup, setting,grid,utils,vini)
-    
-    # FWI Analisys Variables  
+   #==============================================================================
+
+   #==============================================================================
+   # FWI Analisys Variables  
+   #==============================================================================
     objvr = []
+   #==============================================================================
 
     #==============================================================================
     # FWI Functions
     #==============================================================================    
-    def shots(m0, rec_true):  
+    def shots(m0,rec_true):  
+        
         objective = 0.
 
         work  = []
@@ -109,31 +129,38 @@ if (__name__=='__main__'):
         vp_guess = fwisolver.vp_g
 
         for sn in range(0, nshots):    
+            
             clear_cache()
-    
             fwisolver.rec_true = rec_true[sn]
             
-            if(setting["dask"]):               
+            if(setting["dask"]):
+                
                 work.append(client.submit(fwisolver.apply,sn))
             
             else:
+                
                 aux0, aux1       = fwisolver.apply(sn)
                 objective       += aux0
                 grad1.data[:,:] += aux1
 
         if(setting["dask"]):
+            
             wait(work)
+            
             for i in range(0, nshots):
+            
                 objective       += work[i].result()[0]
                 grad1.data[:,:] += work[i].result()[1]
-                work[i] = None
+                work[i]          = None
         
         grad_grop = np.array(grad1.data[:])[:, :]
         
-        if(setting["Abcs"]=='pml'):  
+        if(setting["Abcs"]=='pml'):
+            
             vres = vp_guess[0].data 
         
         else:
+            
             vres = vp_guess.data 
        
         objvr.append(objective)
@@ -142,12 +169,14 @@ if (__name__=='__main__'):
         np.savetxt('misfit_'+ str(fwisolver.freq), objvr, delimiter=' ')
 
         return objective, np.reshape(grad_grop,-1)
+   #==============================================================================
 
-    
-   
+   #==============================================================================
+   # Multiscale
+   #==============================================================================
     ite = setting["fwi_iteration"]
 
-    if setting['multiscale']:
+    if(setting['multiscale']):
 
         freq_bands = setting["freq_bands"]
    
@@ -171,13 +200,16 @@ if (__name__=='__main__'):
                                         tol = 1e-6, 
                                         bounds=bounds, 
                                         options={"disp": True,"eps": 1e-6, "gtol": 1e-6,"maxiter": ite})    
-
+            
             vini   = result.x
 
-    else:  
+    else:
+        
         # Reading true data source
         rec_true = []
+        
         for sn in range(0, nshots):    
+            
             filename = "rec/rec_" + str(sn) + ".npy"
             rec_true.append(np.load(filename))
 
@@ -193,5 +225,4 @@ if (__name__=='__main__'):
                                    tol = 1e-6, 
                                    bounds=bounds, 
                                    options={"disp": True,"eps": 1e-6, "gtol": 1e-6,"maxiter": ite})
-    
-    
+    #==============================================================================

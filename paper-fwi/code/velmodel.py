@@ -55,9 +55,10 @@ def MarmoVelModel(setup,vp,abc):
         xs = Z0
         v0[i,0:nptz] = cs(xs)
 
-   
     return v0
+#==============================================================================
 
+#==============================================================================
 # Circle - Isotropic
 #==============================================================================      
 def CircleIsot(setup, abcs, r=200, vp_circle=3.0, vp_background=2.5):
@@ -134,6 +135,7 @@ def HorizontalLayers(setup,abcs):
     return v0                
 #==============================================================================
 
+#==============================================================================
 def saltvel(setup,delta,vp0,abc):
    
     compx = setup.compx
@@ -144,7 +146,6 @@ def saltvel(setup,delta,vp0,abc):
     x1    = setup.x1
     z0    = setup.z0
     z1    = setup.z1
-
     
     nptxvel =  len(vp0[:])
     nptzvel =  len(vp0[0,0:175])
@@ -153,7 +154,6 @@ def saltvel(setup,delta,vp0,abc):
     x1vel   = delta*nptxvel
     z0vel   = 0
     z1vel   = delta*nptzvel
-    
     
     Xvel = np.linspace(x0vel,x1vel,nptxvel)
     Zvel = np.linspace(z0vel,z1vel,nptzvel)
@@ -180,12 +180,12 @@ def saltvel(setup,delta,vp0,abc):
         xs = Z0
         v0[i,0:nptz] = cs(xs)
 
-    
     return v0
-
+#==============================================================================
 
 #==============================================================================
 def LinearInitModel(setup, max_vp, min_vp, abc):
+    
     nptx  = setup.nptx
     nptz  = setup.nptz
     x0    = setup.x0
@@ -244,26 +244,35 @@ def SetVel(model,setup,setting,grid, **kwargs):
             v0       = MarmoVelModel(setup, vp_file, setting["Abcs"])
         
         if kwargs.get('start_model') == 'Initial':
+        
             max_vp = 4.5
             min_vp = 1.5
             v0       = LinearInitModel(setup,max_vp,min_vp,setting["Abcs"])
                     
     elif(model['vp']=='Salt'):
+        
         vp_file = kwargs.get('vp_file')
         v0      = saltvel(setup, 20,vp_file,setting["Abcs"])
     
     elif(model['vp']=='Circle'):
+        
         if kwargs.get('start_model') == 'Initial':
+            
             v0 = CircleIsot(setup,setting["Abcs"],vp_circle=2.5)
+        
         else:
+        
             v0 = CircleIsot(setup,setting["Abcs"])
 
     elif(model['vp']=='HorizontalLayers'):
+        
         if kwargs.get('start_model') == 'Initial':
+        
             v0 = CircleIsot(setup,setting["Abcs"],vp_circle=2.5)
+        
         else:
-            v0 = HorizontalLayers(setup,setting["Abcs"])
-    
+        
+            v0 = HorizontalLayers(setup,setting["Abcs"]) 
     
     return v0
 #==============================================================================

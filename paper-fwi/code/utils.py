@@ -35,16 +35,16 @@ class ProblemSetup:
         self.hz     = setting["lenz"]/(setting["nptz"]-1)              # Delta Z
         self.npmlx  = int(self.lx /self.hx)                            # Número de Pontos no Absroving Layer em X
         self.npmlz  = int(self.lz /self.hz)                            # Número de Pontos no Absroving Layer em Z
-        self.compx = self.x1-self.x0
-        self.nptx  = setting["nptx"]  + 2*self.npmlx 
-        self.compz = self.z1 - self.z0
-        self.nptz  = setting["nptz"]  + self.npmlz 
+        self.compx  = self.x1-self.x0
+        self.nptx   = setting["nptx"]  + 2*self.npmlx 
+        self.compz  = self.z1 - self.z0
+        self.nptz   = setting["nptz"]  + self.npmlz 
         self.x0pml  = self.x0 + self.npmlx*self.hx                     # Ponto Inicial do PML em X
         self.x1pml  = self.x1 - self.npmlx*self.hx                     # Ponto Inicial do PML em X
         self.z0pml  = self.z0                                          # Ponto Inicial do PML em X
         self.z1pml  = self.z1 - self.npmlz*self.hz                     # Ponto Inicial do PML em X
         self.tou        = 2                                            # Time Order Displacement 
-        self.sou        = 12                                            # Space Order Displacement    
+        self.sou        = 12                                           # Space Order Displacement    
         self.tn         = self.set["tn"]
         self.t0         = self.set["t0"]  
         self.cfl        = 0.5 
@@ -54,7 +54,6 @@ class ProblemSetup:
         self.recposition_z  = self.set["recposition_z"] 
         self.rec_n = self.set["rec_n"] 
         self.habcw = self.set["habcw"] 
-        
 #==============================================================================
 
 #==============================================================================  
@@ -257,6 +256,7 @@ def geramdamp(setup,v0,abcs):
         return D01, D02, D11, D12    
     
     elif(abcs=='cpml'):
+        
         nptx = setup.nptx
         nptz = setup.nptz
         
@@ -358,6 +358,7 @@ def gerav1m0(setup,v0):
     return v1      
 #==============================================================================
 
+#==============================================================================
 def butter_lowpass_filter(shot, cutoff, fs, order=1):
     
     """ Low-pass filter the shot record with sampling-rate fs Hz
@@ -375,6 +376,8 @@ def butter_lowpass_filter(shot, cutoff, fs, order=1):
     for rec in range(nr):
         
         shot[:,rec] = filtfilt(b, a, shot[:,rec])
+#==============================================================================
+
 #==============================================================================
 def wavelet(rec, n, w, keep):
     

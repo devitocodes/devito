@@ -1,4 +1,7 @@
+#==============================================================================
 if (__name__=='__main__'):    
+#==============================================================================
+
     #==============================================================================
     # Python Imports
     #==============================================================================
@@ -12,8 +15,8 @@ if (__name__=='__main__'):
     from   numpy             import linalg              as la
     from   scipy.ndimage     import gaussian_filter
     from   scipy             import optimize
-    from dask.distributed    import Client, wait
-    from memory_profiler import profile
+    from   dask.distributed  import Client, wait
+    from   memory_profiler   import profile
     #==============================================================================
 
     #==============================================================================
@@ -32,7 +35,8 @@ if (__name__=='__main__'):
     sys.path.insert(0, './code')
     from   timeit import default_timer as timer
     import solver, domain2D, utils, velmodel
-     
+    #==============================================================================
+
     #==============================================================================
     # Model Properties
     #==============================================================================    
@@ -42,7 +46,6 @@ if (__name__=='__main__'):
     #==============================================================================
     # Parameters Settings
     #==============================================================================
-
     if(model['vp']=='Marmousi'):
     
         setting = settings_config.settings.setting2
@@ -54,16 +57,20 @@ if (__name__=='__main__'):
     elif(model['vp']=='Circle' or model['vp']=='HorizontalLayers'):
 
         setting = settings_config.settings.setting3
-        
-
+    
     setup   = utils.ProblemSetup(setting)
-    
-    
+    #==============================================================================
+
+    #==============================================================================
     # Grid Construction
+    #==============================================================================
     grid    = domain2D.SetGrid(setup)
     (x, z)  = grid.dimensions
+    #==============================================================================
 
+    #==============================================================================
     # Chosing the model
+    #==============================================================================
     if(model['vp']=='Marmousi'):
     
         with segyio.open('VelModelFiles/Mar2_Vp_1.25m.segy') as segyfile:
@@ -77,51 +84,64 @@ if (__name__=='__main__'):
         
     elif(model['vp']=='Circle'or model['vp']=='HorizontalLayers'):
         v0      = velmodel.SetVel(model,setup, setting,grid)
+    #==============================================================================
 
+    #==============================================================================
     # Time Parameters
+    #==============================================================================
     set_time = setup.TimeDiscret(v0)
     dt0, nt, time_range = set_time   #time discretization
-    
+    #==============================================================================
+
+    #==============================================================================
     # Shot Properties
+    #==============================================================================
     sd     = setting["shots_dist"]
     nshots = int((setting["lenx"]-200)/sd)+1
+    #==============================================================================
 
+    #==============================================================================
     # Start DASK -  sources paralelization
-    if setting["dask"]: 
+    #==============================================================================
+    if(setting["dask"]):
+        
         from distributed import LocalCluster
         
         cluster = LocalCluster(n_workers=nshots,death_timeout=600)
-        client = Client(cluster)
-        
+        client  = Client(cluster)
+   #==============================================================================
+   
+   #==============================================================================      
     # FWI Solver Class
+   #==============================================================================
     fwisolver = solver.FWISolver(set_time,setup, setting,grid,utils,v0)
 
     def run():
+        
         rec_true  = []
         work_true = []
         print("Running forward wave equation")
+        
         for sn in range(0, nshots): 
             
             if(setting["dask"]):
+        
                 work_true.append(client.submit(fwisolver.forward_true,sn))
 
             else:
-                rec_data, u_data = fwisolver.forward_true(sn)
                 
+                rec_data, u_data = fwisolver.forward_true(sn)
                 # np.save('u_ref',u_data)
                 # np.save('rec_ref',rec_data)
 
         if(setting["dask"]):
+            
             wait(work_true)
+            
             for i in range(nshots):
+            
                 np.save('rec_ref' + str(i),work_true[i].result()[0])
                 np.save('u_ref' + str(i),work_true[i].result()[1])
     
-    
-    
-    
     shot_rec = run()
-
-
-    
-
+#==============================================================================

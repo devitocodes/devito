@@ -1,4 +1,7 @@
+#==============================================================================
 if (__name__=='__main__'):    
+#==============================================================================
+
     #==============================================================================
     # Python Imports
     #==============================================================================
@@ -12,7 +15,7 @@ if (__name__=='__main__'):
     from   numpy             import linalg              as la
     from   scipy.ndimage     import gaussian_filter
     from   scipy             import optimize
-    from dask.distributed    import Client, wait
+    from   dask.distributed  import Client, wait
     #==============================================================================
 
     #==============================================================================
@@ -46,7 +49,6 @@ if (__name__=='__main__'):
     #==============================================================================
     # Parameters Settings
     #==============================================================================
-
     if(model['vp']=='Marmousi'):
     
         setting = settings_config.settings.setting2
@@ -60,12 +62,18 @@ if (__name__=='__main__'):
         setting = settings_config.settings.setting3
         
     setup  = utils.ProblemSetup(setting)
+    #==============================================================================
     
+    #==============================================================================
     # Grid Construction
+    #==============================================================================
     grid   = domain2D.SetGrid(setup)
     (x, z) = grid.dimensions
+    #==============================================================================
 
+    #==============================================================================
     # Chosing the model
+    #==============================================================================
     if(model['vp']=='Marmousi'):
     
         with segyio.open('VelModelFiles/Mar2_Vp_1.25m.segy') as segyfile:
@@ -81,33 +89,46 @@ if (__name__=='__main__'):
 
     elif(model['vp']=='Circle' or model['vp']=='HorizontalLayers'):
         v0      = velmodel.SetVel(model, setup, setting, grid, start_model='Initial')
+    #==============================================================================
 
+    #==============================================================================
     # Time Parameters
+    #==============================================================================
     set_time = setup.TimeDiscret(v0)
     dt0, nt, time_range = set_time   #time discretization
-    
+    #==============================================================================
+
+    #==============================================================================
     # Shot Properties
+    #==============================================================================
     sd     = setting["shots_dist"]
     nshots = int((setting["lenx"]-200)/sd)+1
-    
+    #==============================================================================
+
+    #==============================================================================
     # Start DASK -  sources paralelization
-    if setting["dask"]: 
+    #==============================================================================
+    if(setting["dask"]): 
+        
         from distributed import LocalCluster
         
         cluster = LocalCluster(n_workers=nshots,death_timeout=600)
-        client = Client(cluster)
-        
+        client  = Client(cluster)
+    #==============================================================================
+
+    #==============================================================================
     # FWI Solver Class
+    #==============================================================================
     fwisolver = solver.FWISolver(set_time,setup, setting,grid,utils,v0,test="adjoint")
-
-    objvr = []
-    cont  = 0 
-
-    m0   = np.reshape(v0,-1) 
+    objvr     = []
+    cont      = 0 
+    m0        = np.reshape(v0,-1) 
     
     # Reading the receivers related to the true vel. model
     rec_true = []
+    
     for sn in range(0, nshots):  
+        
         # Receivers computed in the reference domain  
         filename = "rec_ref.npy"
         rec_true.append(np.load(filename))
@@ -128,21 +149,23 @@ if (__name__=='__main__'):
             fwisolver.rec_true = rec_true[sn]
 
             if(setting["dask"]):
+                
                 work.append(client.submit(fwisolver.apply,sn))
             
             else:
+                
                 adj = fwisolver.apply(sn)
 
          
         if(setting["dask"]):
+            
             wait(work)
+            
             for i in range(0, nshots):
+            
                 adj.append(work[i].result())
                 
-           
         return adj
 
     shots(m0)
-   
-
-   
+    #==============================================================================

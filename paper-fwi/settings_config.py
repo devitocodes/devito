@@ -5,8 +5,11 @@ import numpy             as np
 import argparse
 #==============================================================================
 
+#==============================================================================
 class settings:
+#==============================================================================
 
+    #==============================================================================
     parser = argparse.ArgumentParser(description='Setup to run the simulations.')
 
     parser.add_argument('--extension',  type=int, 
@@ -23,9 +26,12 @@ class settings:
 
     args = parser.parse_args()
     #==============================================================================
+
+    #==============================================================================
     model = {
         "vp": args.model   # Marmousi, 2D SEG/EAGE, Circle and Horizontal Layers 
             }
+    #==============================================================================
 
     #==============================================================================
     # FWI Marmousi model
@@ -58,7 +64,7 @@ class settings:
         "multiscale":True,                  # Frequency multiscale: True or False
         "freq_bands": [5, 8, 10],           # frequence band
         }
-
+    #==============================================================================
 
     #==============================================================================
     # Setting used to carry out the ABCs tests with Marmousi model
@@ -79,7 +85,7 @@ class settings:
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "shotposition_z":1.25,              # shot position from the z0 (metters)
         "recposition_z": 2.25,              # Receiver position from the z0 (metters)
-        "jump": 5,                        # Jump to save the wave equation solution to be used in adjoint-based gradient
+        "jump": 5,                          # Jump to save the wave equation solution to be used in adjoint-based gradient
         "rec_n": 551,                       # Receiver number
         "shot_n":20,                        # Shot number
         "habcw": 2,                         # 1=linear , 2=nonlinear weight (used in habc-a1)
@@ -88,6 +94,7 @@ class settings:
         "dask": False,                      # This variable change if you start the DASK cluster
         "multiscale":False,                 # Frequency multiscale: True or False
         }
+    #==============================================================================
 
     #==============================================================================
     # Setup used in the ABCs test with Circle/Horizontal Layers vel. model
@@ -102,19 +109,20 @@ class settings:
         "lenx": 1000,                       # x-axis lenght (metters)
         "lenz": 1000,                       # z-axis lenght (metters)
         "t0": 0.,                           # initial time
-        "tn": 100.0,                       # final time milliseconds
-        "f0" : args.freq/1000,                   # frequency peak kHz
+        "tn": 100.0,                        # final time milliseconds
+        "f0" : args.freq/1000,              # frequency peak kHz
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "shotposition_z":30,                # shot position from the z0 (metters)
         "recposition_z": 20,                # Receiver position from the z0 (metters)
         "rec_n": 200,                       # Receiver number
         "CFL": 0.5,                         # cfl parameter
-        "jump": 5,                        # Jump to save the wave equation solution to be used in adjoint-based gradient
+        "jump": 5,                          # Jump to save the wave equation solution to be used in adjoint-based gradient
         "habcw": 2,                         # 1=linear , 2=nonlinear weight (used in habc-a1)
         "shots_dist":325,                   # distance between the shots in metters
         "dask": False,                      # This variable change if you start the DASK cluster
         "multiscale":False,                 # Frequency multiscale: True or False
         }
+    #==============================================================================
 
     #==============================================================================
     # Setup used in the ABCs test with 2D SEG/EAGE Salt Layers vel. model
@@ -129,19 +137,20 @@ class settings:
         "lenx": 8400,                       # x-axis lenght (metters)
         "lenz": 3300,                       # z-axis lenght (metters)
         "t0": 0.,                           # initial time
-        "tn": 500,                         # final time milliseconds
-        "f0": args.freq/1000,                    # frequency peak KHz
+        "tn": 500,                          # final time milliseconds
+        "f0": args.freq/1000,               # frequency peak KHz
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "CFL": 0.5,                         # cfl parameter
         "shotposition_z":2.5,               # shot position from the z0 (metters)
         "recposition_z": 5.0,               # Receiver position from the z0 (metters)
         "rec_n": 551,                       # Receiver number
-        "jump": 5,                        # Jump to save the wave equation solution to be used in adjoint-based gradient
+        "jump": 5,                          # Jump to save the wave equation solution to be used in adjoint-based gradient
         "habcw": 2,                         # 1=linear , 2=nonlinear weight (used in habc-a1)
         "shots_dist": 4040,                 # distance between the shots in metters
-        "dask": False,            # This variable change if you start the DASK cluster
+        "dask": False,                      # This variable change if you start the DASK cluster
         "multiscale":False,                 # Frequency multiscale: True or False
         }
+    #==============================================================================
 
     #==============================================================================
     # 2D SEG/EAGE Marmousi model
@@ -157,7 +166,7 @@ class settings:
         "lenz": 3300,                       # z-axis lenght (metters)
         "t0": 0.,                           # initial time
         "tn": 5000,                         # final time milliseconds
-        "f0": args.freq/1000,                    # frequency peak KHz
+        "f0": args.freq/1000,               # frequency peak KHz
         "Abcs": args.method,                # Abcs methods, options=damping, pml, cpml, habc-a1, Higdon
         "CFL": 0.5,                         # cfl parameter
         "shotposition_z":2.5,               # shot position from the z0 (metters)
@@ -170,3 +179,4 @@ class settings:
         "freq_bands": [5, 8, 10],           # frequence band
         "fwi_iteration": 75,
     }
+    #==============================================================================
