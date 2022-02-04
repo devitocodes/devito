@@ -661,18 +661,8 @@ class MapNodes(Visitor):
 class FindSymbols(Visitor):
 
     class Retval(list):
-        def __init__(self, *retvals, node=None):
-            elements = []
-            self.mapper = {}
-            for i in retvals:
-                try:
-                    self.mapper.update(i.mapper)
-                except AttributeError:
-                    pass
-                elements.extend(i)
-            elements = filter_ordered(elements, key=id)
-            if node is not None:
-                self.mapper[node] = tuple(elements)
+        def __init__(self, *retvals):
+            elements = filter_ordered(flatten(retvals), key=id)
             super().__init__(elements)
 
     @classmethod
@@ -723,35 +713,13 @@ class FindSymbols(Visitor):
 
     visit_list = visit_tuple
 
-    def visit_Iteration(self, o):
-        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o), node=o)
-
-    visit_Callable = visit_Iteration
-
-    def visit_List(self, o):
-        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o))
-
-    def visit_Conditional(self, o):
-        return self.Retval(*[self._visit(i) for i in o.children], self.rule(o), node=o)
-
-    def visit_Expression(self, o):
-        return self.Retval([f for f in self.rule(o)])
-
-    visit_Definition = visit_Expression
-    visit_PointerCast = visit_Expression
-    visit_Dereference = visit_Expression
-    visit_Pragma = visit_Expression
-
-    def visit_Call(self, o):
+    def visit_Node(self, o):
         return self.Retval(self._visit(o.children), self.rule(o))
-
-    def visit_CallableBody(self, o):
-        return self.Retval(self._visit(o.children), self.rule(o), node=o)
 
     def visit_Operator(self, o):
         ret = self._visit(o.body)
         ret.extend(flatten(self._visit(v) for v in o._func_table.values()))
-        return self.Retval(ret, self.rule(o), node=o)
+        return self.Retval(ret, self.rule(o))
 
 
 class FindNodes(Visitor):
@@ -863,9 +831,9 @@ class Transformer(Visitor):
     "extended" by pre-pending to its body the nodes in ``M[n]``.
     """
 
-    def __init__(self, mapper={}, nested=False):
+    def __init__(self, mapper, nested=False):
         super(Transformer, self).__init__()
-        self.mapper = mapper.copy()
+        self.mapper = mapper
         self.nested = nested
 
     def visit_object(self, o, **kwargs):
@@ -918,10 +886,6 @@ class Uxreplace(Transformer):
     mapper : dict
         The substitution rules.
     """
-
-    def __init__(self, mapper):
-        super().__init__()
-        self.mapper = mapper
 
     def visit_Expression(self, o):
         return o._rebuild(expr=uxreplace(o.expr, self.mapper))
