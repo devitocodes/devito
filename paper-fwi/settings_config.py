@@ -41,8 +41,8 @@ class settings:
         "z0": 0.,                           # z initial in metters
         "lenx": 17000,                      # x-axis lenght (metters)
         "lenz": 3500,                       # z-axis lenght (metters)
-        "lenpmlx": args.extension,          # pml lenght x direction 
-        "lenpmlz": args.extension,          # pml lenght z direction 
+        "lenpmlx": args.extension,          # abc lenght x direction 
+        "lenpmlz": args.extension,          # abc lenght z direction 
         "nptx": 1701,                       # number of points in x-axis
         "nptz": 351,                        # number of points in z-axis
         "t0": 0.,                           # initial time
@@ -74,8 +74,8 @@ class settings:
         "z0": 0.,                           # z initial in metters
         "lenx": 5000,                       # x-axis lenght (metters)
         "lenz": 3500,                       # z-axis lenght (metters)
-        "lenpmlx": args.extension,          # pml lenght x direction 
-        "lenpmlz": args.extension,          # pml lenght z direction 
+        "lenpmlx": args.extension,          # abc lenght x direction 
+        "lenpmlz": args.extension,          # abc lenght z direction 
         "nptx": 501,                        # number of points in x-axis
         "nptz": 351,                        # number of points in z-axis
         "t0": 0.,                           # initial time
@@ -102,8 +102,8 @@ class settings:
     setting3 = {
         "x0": 0.,                           # x initial in metters
         "z0": 0.,                           # z initial in metters
-        "lenpmlx": args.extension,          # pml lenght x direction
-        "lenpmlz": args.extension,          # pml lenght z direction
+        "lenpmlx": args.extension,          # abc lenght x direction
+        "lenpmlz": args.extension,          # abc lenght z direction
         "nptx": 101,                        # number of points in x-axis
         "nptz": 101,                        # number of points in z-axis
         "lenx": 1000,                       # x-axis lenght (metters)
@@ -130,8 +130,8 @@ class settings:
     setting4 = {
         "x0": 2000.,                        # x initial in metters
         "z0": 0.,                           # z initial in metters
-        "lenpmlx": args.extension,          # pml lenght x direction
-        "lenpmlz": args.extension,          # pml lenght z direction
+        "lenpmlx": args.extension,          # abc lenght x direction
+        "lenpmlz": args.extension,          # abc lenght z direction
         "nptx": 561,                        # number of points in x-axis
         "nptz": 331,                        # number of points in z-axis
         "lenx": 8400,                       # x-axis lenght (metters)
@@ -158,8 +158,8 @@ class settings:
     setting5 = {
         "x0": 2000.,                        # x initial in metters
         "z0": 0.,                           # z initial in metters
-        "lenpmlx": args.extension,          # pml lenght x direction
-        "lenpmlz": args.extension,          # pml lenght z direction
+        "lenpmlx": args.extension,          # abc lenght x direction
+        "lenpmlz": args.extension,          # abc lenght z direction
         "nptx": 561,                        # number of points in x-axis
         "nptz": 331,                        # number of points in z-axis
         "lenx": 8400,                       # x-axis lenght (metters)

@@ -27,24 +27,24 @@ class ProblemSetup:
         self.set    = setting
         self.lx     = setting["lenpmlx"]  
         self.lz     = setting["lenpmlz"]    
-        self.x0     = setting["x0"] - self.lx                          # Ponto Inicial Direção X
-        self.x1     = setting["lenx"] + setting["x0"] + self.lx        # Ponto Final Direção X 
-        self.z0     = setting["z0"]                                    # Ponto Inicial Direção Z
-        self.z1     = setting["lenz"] + setting["z0"] + self.lz        # Ponto Final Direção Z
-        self.hx     = setting["lenx"]/(setting["nptx"]-1)              # Delta x
-        self.hz     = setting["lenz"]/(setting["nptz"]-1)              # Delta Z
-        self.npmlx  = int(self.lx /self.hx)                            # Número de Pontos no Absroving Layer em X
-        self.npmlz  = int(self.lz /self.hz)                            # Número de Pontos no Absroving Layer em Z
+        self.x0     = setting["x0"] - self.lx                          
+        self.x1     = setting["lenx"] + setting["x0"] + self.lx        
+        self.z0     = setting["z0"]                                    
+        self.z1     = setting["lenz"] + setting["z0"] + self.lz        
+        self.hx     = setting["lenx"]/(setting["nptx"]-1)              
+        self.hz     = setting["lenz"]/(setting["nptz"]-1)
+        self.npmlx  = int(self.lx /self.hx)                            
+        self.npmlz  = int(self.lz /self.hz)                            
         self.compx  = self.x1-self.x0
         self.nptx   = setting["nptx"]  + 2*self.npmlx 
         self.compz  = self.z1 - self.z0
         self.nptz   = setting["nptz"]  + self.npmlz 
-        self.x0pml  = self.x0 + self.npmlx*self.hx                     # Ponto Inicial do PML em X
-        self.x1pml  = self.x1 - self.npmlx*self.hx                     # Ponto Inicial do PML em X
-        self.z0pml  = self.z0                                          # Ponto Inicial do PML em X
-        self.z1pml  = self.z1 - self.npmlz*self.hz                     # Ponto Inicial do PML em X
-        self.tou        = 2                                            # Time Order Displacement 
-        self.sou        = 12                                           # Space Order Displacement    
+        self.x0pml  = self.x0 + self.npmlx*self.hx                     
+        self.x1pml  = self.x1 - self.npmlx*self.hx                     
+        self.z0pml  = self.z0                                          
+        self.z1pml  = self.z1 - self.npmlz*self.hz                     
+        self.tou        = 2                                            
+        self.sou        = 12                                           
         self.tn         = self.set["tn"]
         self.t0         = self.set["t0"]  
         self.cfl        = 0.5 
@@ -66,7 +66,6 @@ class ProblemSetup:
         dtmax = np.float64((min(self.hx,self.hz)*cfl)/(vmax))
         ntmax = int((tau)/dtmax)+1
         dt0   = 1.0
-        # np.float64((tau)/ntmax) 
         time_range = TimeAxis(start=self.t0,stop=self.tn,step=dt0)
         nt         = time_range.num - 1 
 
@@ -74,24 +73,26 @@ class ProblemSetup:
 #==============================================================================
                                         
 #==============================================================================
-def gerapesos(setup, habcw):
+def makeweights(setup, habcw):
     
     nptx  = setup.nptx
     nptz  = setup.nptz
     npmlx = setup.npmlx
     npmlz = setup.npmlz
   
-    pesosx   = np.zeros(npmlx)
-    pesosz   = np.zeros(npmlz)
-    Mpesosx  = np.zeros((nptx,nptz))
-    Mpesosz  = np.zeros((nptx,nptz))
+    pesosx     = np.zeros(npmlx)
+    pesosz     = np.zeros(npmlz)
+    Mweightsx  = np.zeros((nptx,nptz))
+    Mweightsz  = np.zeros((nptx,nptz))
 
     if(habcw==1):
     
         for i in range(0,npmlx):
+            
             pesosx[i] = (npmlx-i)/(npmlx)
     
         for i in range(0,npmlz):
+            
             pesosz[i] = (npmlz-i)/(npmlz)
     
     if(habcw==2):
@@ -105,19 +106,28 @@ def gerapesos(setup, habcw):
         for i in range(0,npmlx):
                 
             if(0<=i<=(mx)):
+                
                 pesosx[i] = 1
+            
             elif((mx+1)<=i<=npmlx-1):
+            
                 pesosx[i] = ((npmlx-i)/(npmlx-mx))**(alphax)
             else:
+             
                 pesosx[i] = 0
     
         for i in range(0,npmlz):
                 
             if(0<=i<=(mz)):
+                
                 pesosz[i] = 1
+            
             elif((mz+1)<=i<=npmlz-1):
+                
                 pesosz[i] = ((npmlz-i)/(npmlz-mz))**(alphaz)
+            
             else:
+                
                 pesosz[i] = 0
       
     for k in range(0,npmlx):
@@ -126,17 +136,17 @@ def gerapesos(setup, habcw):
         af = nptx - k - 1 
         bi = 0
         bf = nptz - k
-        Mpesosx[ai,bi:bf] = pesosx[k]
-        Mpesosx[af,bi:bf] = pesosx[k]
+        Mweightsx[ai,bi:bf] = pesosx[k]
+        Mweightsx[af,bi:bf] = pesosx[k]
                         
     for k in range(0,npmlz):
             
         ai = k
         af = nptx - k 
         bf = nptz - k - 1        
-        Mpesosz[ai:af,bf] = pesosz[k]
+        Mweightsz[ai:af,bf] = pesosz[k]
         
-    return Mpesosx,Mpesosz
+    return Mweightsx,Mweightsz
 #==============================================================================
 
 #==============================================================================
@@ -214,7 +224,7 @@ def fdamp(x,z,setup,v0, abcs, **kwargs):
 #==============================================================================
 
 #==============================================================================
-def geramdamp(setup,v0,abcs):
+def makemdamp(setup,v0,abcs):
 
     x1     = setup.x1
     z1     = setup.z1
@@ -274,9 +284,9 @@ def geramdamp(setup,v0,abcs):
 #==============================================================================
 
 #==============================================================================        
-def gerapesoscpml(setup, v0, geramdamp, dt0):
+def makeweightscpml(setup, v0, makemdamp, dt0):
     
-    D01,D02 = geramdamp
+    D01,D02 = makemdamp
     nptx    = setup.nptx
     nptz    = setup.nptz
     f0      = setup.f0
@@ -319,7 +329,7 @@ def gerapesoscpml(setup, v0, geramdamp, dt0):
 #==============================================================================
 
 #==============================================================================
-def gerav1m0(setup,v0):
+def makev1m0(setup,v0):
 
     compx = setup.compx
     compz = setup.compz

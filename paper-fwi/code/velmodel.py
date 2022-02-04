@@ -122,15 +122,24 @@ def HorizontalLayers(setup,abcs):
     v0   = np.zeros((nptx,nptz))                     
   
     for i in range(nptx):
+        
         for j in range(nptz):
-            if Z0[j]<=200:
+        
+            if(Z0[j]<=200):
+                
                 v0[i,j] = 1.5
-            elif Z0[j]>200 and Z0[j]<=500:
-                v0[i,j] = 3
-            elif Z0[j]>500 and Z0[j]<=800:
-                v0[i,j] = 4
-            elif Z0[j]>800:
-                v0[i,j] = 5
+            
+            elif(Z0[j]>200 and Z0[j]<=500):
+            
+                v0[i,j] = 3.0
+            
+            elif(Z0[j]>500 and Z0[j]<=800):
+                
+                v0[i,j] = 4.0
+            
+            elif(Z0[j]>800):
+            
+                v0[i,j] = 5.0
     
     return v0                
 #==============================================================================
@@ -222,9 +231,13 @@ def LinearInitModel(setup, max_vp, min_vp, abc):
 
     b  = min_vp
     a  = (max_vp - b)/(setup.z1pml/1000) 
+    
     for i in range(setup.nptz-setup.npmlz):
+    
         z = i*setup.hz/1000
+        
         v0[:,i] = a*z + b
+    
     v0[0:setup.nptx,-setup.npmlz:setup.nptz] = max_vp
 
     return v0

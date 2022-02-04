@@ -25,12 +25,12 @@ class solverABCs():
 #==============================================================================
 # Damping Solver
 #==============================================================================
-    def solvedamp(rec,src,vp,geramdamp,u,grid,setup,system,save=False,**kwargs):    
+    def solvedamp(rec,src,vp,makemdamp,u,grid,setup,system,save=False,**kwargs):    
         
         nptx = setup.nptx
         nptz = setup.nptz
 
-        D0   = geramdamp
+        D0   = makemdamp
         damp = Function(name="damp",grid=grid,space_order=setup.sou,staggered=NODE,dtype=np.float64)
         damp.data[:,:] = D0
 
@@ -100,7 +100,7 @@ class solverABCs():
 #==============================================================================
 # PML Solver  
 #==============================================================================
-    def solvepml(rec,src,vp,geramdamp,vector,grid,setup,system,save=False,**kwargs):   
+    def solvepml(rec,src,vp,makemdamp,vector,grid,setup,system,save=False,**kwargs):   
 
         nptx = setup.nptx
         nptz = setup.nptz
@@ -114,7 +114,7 @@ class solverABCs():
         
         subds = ['d1','d2','d3']
 
-        D01, D02, D11, D12 = geramdamp
+        D01, D02, D11, D12 = makemdamp
         
         dampx0 = Function(name="dampx0", grid=grid,space_order=setup.sou,staggered=NODE ,dtype=np.float64)
         dampz0 = Function(name="dampz0", grid=grid,space_order=setup.sou,staggered=NODE ,dtype=np.float64)
@@ -225,14 +225,14 @@ class solverABCs():
 #==============================================================================
 # HABC Solver
 #==============================================================================
-    def solvehabc(rec,src,vp,gerapesos,u,grid,setup,system,save=False,**kwargs):
+    def solvehabc(rec,src,vp,makeweights,u,grid,setup,system,save=False,**kwargs):
         
         (hx,hz) = grid.spacing_map 
         (x, z)  = grid.dimensions     
         t       = grid.stepping_dim
         dt      = grid.stepping_dim.spacing
                 
-        Mpesosx,Mpesosz = gerapesos
+        Mpesosx,Mpesosz = makeweights
         
         pesosx = Function(name="pesosx",grid=grid,space_order=setup.sou,staggered=NODE,dtype=np.float64)
         pesosx.data[:,:] = Mpesosx[:,:]
@@ -698,26 +698,26 @@ class FWISolver():
     
         if(self.abc=='damping'):
         
-            self.g        = utils.geramdamp(self.setup,self.v0,self.abc)
+            self.g        = utils.makemdamp(self.setup,self.v0,self.abc)
             self.solv     = solverABCs.solvedamp
 
         elif(self.abc=='pml'):
             
-            self.g        = utils.geramdamp(self.setup,self.v0,self.abc)
+            self.g        = utils.makemdamp(self.setup,self.v0,self.abc)
             self.solv     = solverABCs.solvepml
         
         elif(self.abc=='cpml'):
             
-            g1       = utils.geramdamp(self.setup,self.v0,self.abc)
-            g2       = utils.gerapesoscpml(self.setup,self.v0,g1,self.dt0)
+            g1       = utils.makemdamp(self.setup,self.v0,self.abc)
+            g2       = utils.makeweightscpml(self.setup,self.v0,g1,self.dt0)
             self.solv     = solverABCs.solvecpml
             self.g        = [g1, g2]
               
         elif(self.abc=='habc-a1' or self.abc=='Higdon'):
             
             habcw    = setting["habcw"]
-            self.gdamp    = utils.geramdamp(self.setup,self.v0,'damping')
-            self.g        = utils.gerapesos(self.setup,habcw)
+            self.gdamp    = utils.makemdamp(self.setup,self.v0,'damping')
+            self.g        = utils.makeweights(self.setup,habcw)
             self.solv     = solverABCs.solvehabc
     #==============================================================================
     
@@ -733,7 +733,7 @@ class FWISolver():
             vp_guess0  = Function(name="vp_guess0",grid=grid,space_order=setup.sou,staggered=NODE,dtype=np.float64)
             vp_guess0.data[:,:] = m0.reshape((setup.nptx,setup.nptz))
 
-            v1loc = self.utils.gerav1m0(setup,vp_guess0.data)
+            v1loc = self.utils.makev1m0(setup,vp_guess0.data)
 
             vp_guess1  = Function(name="vp_guess1",grid=grid,space_order=setup.sou,staggered=(x,z),dtype=np.float64)
             vp_guess1.data[0:setup.nptx-1,0:setup.nptz-1]  = v1loc
@@ -781,7 +781,7 @@ class FWISolver():
             vp  = Function(name="vp",grid=grid,space_order=setup.sou,staggered=NODE,dtype=np.float64)
             vp.data[:,:] = self.v0
 
-            v1loc = self.utils.gerav1m0(setup,vp.data)
+            v1loc = self.utils.makev1m0(setup,vp.data)
 
             vp1  = Function(name="vp1",grid=grid,space_order=setup.sou,staggered=(x,z),dtype=np.float64)
             vp1.data[0:setup.nptx-1,0:setup.nptz-1]  = v1loc
