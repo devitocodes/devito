@@ -16,7 +16,7 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
-from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
+from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Basic, IndexedData
 from devito.types import ArrayObject, Dimension, VoidPointer
 
@@ -660,14 +660,6 @@ class MapNodes(Visitor):
 
 class FindSymbols(Visitor):
 
-    def quick_key(o):
-        """
-        SymPy's __str__ is horribly slow so we stay away from it for as much
-        as we can. A devito.Indexed has its own overridden __str__, which
-        relies on memoization, which is acceptable.
-        """
-        return (str(o) if o.is_Indexed else o.name, type(o))
-
     class Retval(list):
         def __init__(self, *retvals, node=None):
             elements = []
@@ -678,7 +670,7 @@ class FindSymbols(Visitor):
                 except AttributeError:
                     pass
                 elements.extend(i)
-            elements = filter_sorted(elements, key=FindSymbols.quick_key)
+            elements = filter_ordered(elements, key=id)
             if node is not None:
                 self.mapper[node] = tuple(elements)
             super().__init__(elements)
@@ -715,13 +707,16 @@ class FindSymbols(Visitor):
     }
 
     def __init__(self, mode='symbolics'):
-        super(FindSymbols, self).__init__()
+        super().__init__()
 
         modes = mode.split('|')
         if len(modes) == 1:
             self.rule = self.rules[mode]
         else:
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
+
+    def _post_visit(self, ret):
+        return sorted(ret, key=lambda i: i.name)
 
     def visit_tuple(self, o):
         return self.Retval(*[self._visit(i) for i in o])

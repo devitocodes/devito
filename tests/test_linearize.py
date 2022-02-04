@@ -3,7 +3,7 @@ import numpy as np
 import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    MatrixSparseTimeFunction)
+                    MatrixSparseTimeFunction, sin)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes
 from devito.operator import SymbolRegistry
 from devito.passes import Graph, linearize
@@ -238,6 +238,43 @@ def test_different_halos():
     op1.apply(time_M=4, u=u1)
 
     assert np.all(u.data == u1.data)
+
+
+def test_unsubstituted_indexeds():
+    """
+    This issue emerged in the context of PR #1828, after the introduction
+    of Uxreplace to substitute Indexeds with FIndexeds. Basically what happened
+    was that `FindSymbols('indexeds')` was missing syntactically identical
+    objects that however look the same. For example, as in this test,
+    we end up with two `r0[x, y, z]`, but the former's `x` and `y` are
+    SpaceDimensions, while the latter's are BlockDimensions. This means
+    that the two objects, while looking identical, are different, and in
+    partical they hash differently, hence we need two entries in a mapper
+    to perform an Uxreplace. But FindSymbols made us detect only one entry...
+    """
+    grid = Grid(shape=(8, 8, 8))
+
+    f = Function(name='f', grid=grid)
+    p = TimeFunction(name='p', grid=grid)
+    p1 = TimeFunction(name='p', grid=grid)
+
+    f.data[:] = 0.12
+    p.data[:] = 1.
+    p1.data[:] = 1.
+
+    eq = Eq(p.forward, sin(f)*p*f)
+
+    op0 = Operator(eq)
+    op1 = Operator(eq, opt=('advanced', {'linearize': True}))
+
+    # NOTE: we compare the numerical output eventually, but truly the most
+    # import check is implicit to op1.apply, and it's the fact that op1
+    # actually jit-compiles successfully, meaning that all substitutions
+    # were performed correctly
+    op0.apply(time_M=2)
+    op1.apply(time_M=2, p=p1)
+
+    assert np.allclose(p.data, p1.data, rtol=1e-7)
 
 
 def test_strides_forwarding0():
