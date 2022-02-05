@@ -16,10 +16,15 @@
 1) Install Devito Package in Linux OS following the instructions below:
 
 1.1) git clone https://github.com/devitocodes/devito.git
+
 1.2) cd devito
+
 1.3) conda env create -f environment-dev.yml
+
 1.4) source activate devito
+
 1.5) pip install -e .
+
 1.6) Install with "conda install" or "pip install" important libreries like: jupyter-notebook, Matplotlib, SEGYIO.
 
 Observation: More datails about install can be found in: https://www.devitoproject.org/devito/download.html
