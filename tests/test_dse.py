@@ -15,7 +15,7 @@ from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import Temp, _cse
 from devito.passes.iet.parpragma import VExpanded
-from devito.symbolics import estimate_cost, pow_to_mul, indexify
+from devito.symbolics import INT, FLOAT, estimate_cost, pow_to_mul, indexify  # noqa
 from devito.tools import as_tuple, generator
 from devito.types import Scalar, Array
 
@@ -51,12 +51,12 @@ def test_scheduling_after_rewrite():
     (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, t0 + t1)', 'Eq(ti1, t0 + t1)'],
      ['t0 + t1', '2/r0', 'r0', 'r0']),
     (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, 2/(t0 + t1) + 1)', 'Eq(ti1, 2/(t0 + t1) + 1)'],
-     ['1/(t0 + t1)', '2*r5', 'r3 + 1', 'r3', 'r2', 'r2']),
+     ['2/(t0 + t1)', 'r1 + 1', 'r1', 'r0', 'r0']),
     (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
      ['ti0[x, y, z] + ti1[x, y, z]',
       'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)']),
     (['Eq(tu, t0/t1)', 'Eq(ti0, 2 + t0/t1)', 'Eq(ti1, 2 + t0/t1)'],
-     ['t0/t1', 'r2 + 2', 'r2', 'r1', 'r1']),
+     ['t0/t1', 'r1 + 2', 'r1', 'r0', 'r0']),
     # Across expressions
     (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
      ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0']),
@@ -174,6 +174,19 @@ def test_pow_to_mul(expr, expected):
     ('Eq(t0, t1**t2)', 50, True),
     ('Eq(t0, 3.2/h_x)', 6, True),  # seen as `3.2*(1/h_x)`, so counts as 2
     ('Eq(t0, 3.2/h_x*fa + 2.4/h_x*fb)', 15, True),  # `pow(...constants...)` counts as 1
+    # Integer arithmetic should not count
+    ('Eq(t0, INT(t1))', 0, True),
+    ('Eq(t0, INT(t1*t0))', 1, True),
+    ('Eq(t0, 2 + INT(t1*t0))', 1, True),
+    ('Eq(t0, FLOAT(t1))', 0, True),
+    ('Eq(t0, FLOAT(t1*t2*t3))', 2, True),
+    ('Eq(t0, 1 + FLOAT(t1*t2*t3))', 3, True),  # The 1 gets casted to float
+    ('Eq(t0, 1 + t3)', 0, False),
+    ('Eq(t0, 1 + t3)', 0, True),
+    ('Eq(t0, t3 + t4)', 0, True),
+    ('Eq(t0, 2*t3)', 0, True),
+    ('Eq(t0, 2*t1)', 1, True),
+    ('Eq(t0, -4 + INT(t3*t4 + t3))', 0, True),
 ])
 def test_estimate_cost(expr, expected, estimate):
     # Note: integer arithmetic isn't counted
@@ -185,6 +198,8 @@ def test_estimate_cost(expr, expected, estimate):
     t0 = Scalar(name='t0')  # noqa
     t1 = Scalar(name='t1')  # noqa
     t2 = Scalar(name='t2')  # noqa
+    t3 = Scalar(name='t3', dtype=np.int32)  # noqa
+    t4 = Scalar(name='t4', dtype=np.int32)  # noqa
     fa = Function(name='fa', grid=grid, shape=(4,), dimensions=(x,))  # noqa
     fb = Function(name='fb', grid=grid, shape=(4,), dimensions=(x,))  # noqa
     fc = Function(name='fc', grid=grid)  # noqa
@@ -1145,7 +1160,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert sum(i.ops for i in summary1.values()) == 69
+        assert sum(i.ops for i in summary1.values()) == 75
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_from_different_nests(self, rotate):
@@ -1683,7 +1698,7 @@ class TestAliases(object):
         # all redundancies have been detected correctly
         assert summary[('section0', None)].ops == 93
 
-    @pytest.mark.parametrize('so_ops', [(4, 108)])
+    @pytest.mark.parametrize('so_ops', [(4, 113)])
     @switchconfig(profiling='advanced')
     def test_tti_J_akin_bb0(self, so_ops):
         grid = Grid(shape=(16, 16, 16))
@@ -1766,7 +1781,7 @@ class TestAliases(object):
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 6
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 3
 
-    @pytest.mark.parametrize('so_ops', [(4, 48)])
+    @pytest.mark.parametrize('so_ops', [(4, 49)])
     @switchconfig(profiling='advanced')
     def test_tti_J_akin_bb2(self, so_ops):
         grid = Grid(shape=(16, 16, 16))
@@ -1810,7 +1825,7 @@ class TestAliases(object):
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 7
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 3
 
-    @pytest.mark.parametrize('so_ops', [(4, 144), (8, 208)])
+    @pytest.mark.parametrize('so_ops', [(4, 146), (8, 210)])
     @switchconfig(profiling='advanced')
     def test_tti_J_akin_complete(self, so_ops):
         grid = Grid(shape=(16, 16, 16))
@@ -2032,7 +2047,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert summary1[('section0', None)].ops == 14
+        assert summary1[('section0', None)].ops == 16
 
     def test_undestroyed_preevaluated_derivatives_v1(self):
         grid = Grid(shape=(10, 10))
@@ -2067,9 +2082,9 @@ class TestAliases(object):
         ('v.dx.dx + p.dx.dx',
          (2, 2, (0, 2)), (61, 61, 25)),
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
-         (3, 3, (0, 3)), (217, 201, 74)),
+         (3, 3, (0, 3)), (218, 202, 74)),
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx',
-         (1, 2, (0, 1)), (50, 65, 18)),
+         (1, 2, (0, 1)), (52, 70, 20)),
         ('g*(f.dx.dx + g.dx.dx)',
          (1, 2, (0, 1)), (47, 62, 17)),
     ])
@@ -2521,7 +2536,7 @@ class TestIsoAcoustic(object):
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 139
+        assert summary0[('section1', None)].ops == 140
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 31
@@ -2572,7 +2587,7 @@ class TestTTI(object):
         # Make sure no opts were applied
         op = wavesolver.op_fwd(False)
         assert len(op._func_table) == 0
-        assert summary[('section0', None)].ops == 737
+        assert summary[('section0', None)].ops == 743
 
         return v, rec
 
@@ -2585,8 +2600,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 90
-        assert np.isclose(summary[('section1', None)].oi, 2.031, atol=0.001)
+        assert summary[('section1', None)].ops == 92
+        assert np.isclose(summary[('section1', None)].oi, 2.074, atol=0.001)
 
         # With optimizations enabled, there should be exactly four BlockDimensions
         op = wavesolver.op_fwd()
@@ -2633,7 +2648,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (8, 152), (16, 270)
+        (8, 154), (16, 272)
     ])
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
@@ -2642,7 +2657,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 111),
+        (4, 121),
     ])
     def test_opcounts_adjoint(self, space_order, expected):
         wavesolver = self.tti_operator(opt=('advanced', {'openmp': False}))
@@ -2656,7 +2671,7 @@ class TestTTIv2(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 191), (12, 383)
+        (4, 200), (12, 392)
     ])
     def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
