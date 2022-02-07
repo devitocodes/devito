@@ -126,7 +126,7 @@ def detect_io(exprs, relax=False):
     if relax is False:
         rule = lambda i: i.is_Input
     else:
-        rule = lambda i: i.is_Scalar or i.is_Tensor
+        rule = lambda i: i.is_Scalar or i.is_AbstractFunction
 
     # Don't forget the nasty case with indirections on the LHS:
     # >>> u[t, a[x]] = f[x]  -> (reads={a, f}, writes={u})

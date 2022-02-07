@@ -9,10 +9,9 @@ from devito.ir import (Conditional, DummyEq, Dereference, Expression, Expression
                        VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
-from devito.passes.iet.misc import is_on_device
 from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, prod
-from devito.types import Symbol, NThreadsBase, Wildcard
+from devito.types import Symbol, NThreadsBase
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
            'PragmaDeviceAwareTransformer', 'PragmaLangBB']
@@ -53,6 +52,20 @@ class PragmaSimdTransformer(PragmaTransformer):
             # Only fully-parallel Iterations will be SIMD-ized (ParallelRelaxed
             # might not be enough then)
             if not candidate.is_Parallel:
+                continue
+
+            # This check catches cases where an iteration appears as the vectorizable
+            # candidate in tree A but has actually less priority over a candidate in
+            # another tree B.
+            #
+            # Example:
+            #
+            # for (i = ... ) (End of tree A - i is the candidate for tree A)
+            #   Expr1
+            #   for (j = ...) (End of tree B - j is the candidate for tree B)
+            #     Expr2
+            #     ...
+            if not IsPerfectIteration(depth=candidates[-2]).visit(candidate):
                 continue
 
             # Add SIMD pragma
@@ -395,16 +408,6 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         self.par_tile = options['par-tile']
         self.par_disabled = options['par-disabled']
 
-    def _is_offloadable(self, iet):
-        expressions = FindNodes(Expression).visit(iet)
-        if any(not is_on_device(e.write, self.gpu_fit) for e in expressions):
-            return False
-
-        functions = FindSymbols().visit(iet)
-        buffers = [f for f in functions if f.is_Array and f._mem_mapped]
-        hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
-        return not (buffers and hostfuncs)
-
     def _make_threaded_prodders(self, partree):
         if isinstance(partree.root, self.DeviceIteration):
             # no-op for now
@@ -486,41 +489,6 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
 class PragmaLangBB(LangBB):
 
     @classmethod
-    def _make_symbolic_sections_from_imask(cls, f, imask):
-        datasize = cls._map_data(f)
-        if imask is None:
-            imask = [FULL]*len(datasize)
-
-        sections = []
-        for i, j in zip(imask, datasize):
-            if i is FULL:
-                start, size = 0, j
-            else:
-                try:
-                    start, size = i
-                except TypeError:
-                    start, size = i, 1
-            sections.append((start, size))
-
-        # Unroll (or "flatten") the remaining Dimensions not captured by `imask`
-        if len(imask) < len(datasize):
-            try:
-                start, size = sections.pop(-1)
-            except IndexError:
-                start, size = (0, 1)
-            remainder_size = prod(datasize[len(imask):])
-            # The reason we may see a Wildcard is detailed in the `linearize_transfer`
-            # pass, take a look there for more info. Basically, a Wildcard here means
-            # that the symbol `start` is actually a temporary whose value already
-            # represents the unrolled size
-            if not isinstance(start, Wildcard):
-                start *= remainder_size
-            size *= remainder_size
-            sections.append((start, size))
-
-        return sections
-
-    @classmethod
     def _make_sections_from_imask(cls, f, imask):
         sections = cls._make_symbolic_sections_from_imask(f, imask)
 
@@ -528,13 +496,6 @@ class PragmaLangBB(LangBB):
         sections = ''.join(sections)
 
         return sections
-
-    @classmethod
-    def _map_data(cls, f):
-        if f.is_Array:
-            return f.symbolic_shape
-        else:
-            return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
 
     @classmethod
     def _map_to(cls, f, imask=None, queueid=None):

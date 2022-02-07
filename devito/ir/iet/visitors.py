@@ -17,7 +17,7 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
-from devito.types.basic import Basic
+from devito.types.basic import AbstractFunction, Basic, IndexedData
 from devito.types import ArrayObject, VoidPointer
 
 
@@ -175,7 +175,7 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_Tensor:
+            if isinstance(i, (AbstractFunction, IndexedData)):
                 ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
             elif i.is_AbstractObject or i.is_Symbol:
                 ret.append(c.Value(i._C_typename, i._C_name))
@@ -313,7 +313,7 @@ class CGen(Visitor):
         rhs = ccode(o.expr.rhs, dtype=o.dtype)
 
         if o.init:
-            code = c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs), rhs)
+            code = c.Initializer(c.Value(o.expr.lhs._C_typename, lhs), rhs)
         else:
             code = c.Assign(lhs, rhs)
 
@@ -405,7 +405,8 @@ class CGen(Visitor):
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
-        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        prefix = ' '.join(o.prefix + (o.retval,))
+        signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
 
     def visit_CallableBody(self, o):
@@ -451,7 +452,8 @@ class CGen(Visitor):
         efuncs = [blankline]
         for i in o._func_table.values():
             if i.local:
-                esigns.append(c.FunctionDeclaration(c.Value(i.root.retval, i.root.name),
+                prefix = ' '.join(i.root.prefix + (i.root.retval,))
+                esigns.append(c.FunctionDeclaration(c.Value(prefix, i.root.name),
                                                     self._args_decl(i.root.parameters)))
                 efuncs.extend([i.root.ccode, blankline])
 
@@ -466,7 +468,7 @@ class CGen(Visitor):
                 cdefs.extend([j._C_typedecl for j in i.root.parameters
                               if j._C_typedecl is not None])
         cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
-        if o._compiler.src_ext == 'cpp':
+        if o._compiler.src_ext in ('cpp', 'cu'):
             cdefs += [c.Extern('C', signature)]
         cdefs = [i for j in cdefs for i in (j, blankline)]
 

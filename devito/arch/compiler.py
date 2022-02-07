@@ -12,7 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9, get_nvidia_cc
+from devito.arch import AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -407,6 +407,11 @@ class ClangCompiler(Compiler):
                                  '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += ['-march=%s' % platform.march]
+        elif platform is M1:
+            # NOTE:
+            # -march=native unsupported
+            # openmp unusable
+            pass
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
@@ -478,6 +483,25 @@ class NvidiaCompiler(PGICompiler):
     def __lookup_cmds__(self):
         self.CC = 'nvc++'
         self.CXX = 'nvc++'
+        self.MPICC = 'mpic++'
+        self.MPICXX = 'mpicxx'
+
+
+class CudaCompiler(Compiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, cpp=True, **kwargs)
+
+        self.cflags.remove('-std=c99')
+        self.cflags.remove('-Wall')
+        self.cflags.remove('-fPIC')
+        self.cflags += ['-std=c++11', '-Xcompiler', '-fPIC']
+
+        self.src_ext = 'cu'
+
+    def __lookup_cmds__(self):
+        self.CC = 'nvcc'
+        self.CXX = 'nvcc'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
 
@@ -562,10 +586,14 @@ class CustomCompiler(Compiler):
     """
 
     def __new__(cls, *args, **kwargs):
+        platform = kwargs.pop('platform', configuration['platform'])
+
         if any(i in environ for i in ['CC', 'CXX', 'CFLAGS', 'LDFLAGS']):
             obj = super().__new__(cls, *args, **kwargs)
             obj.__init__(*args, **kwargs)
             return obj
+        elif platform is M1:
+            return ClangCompiler(*args, **kwargs)
         else:
             return GNUCompiler(*args, **kwargs)
 
@@ -597,8 +625,9 @@ compiler_registry = {
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
     'nvc': NvidiaCompiler,
-    'nvcc': NvidiaCompiler,
+    'nvc++': NvidiaCompiler,
     'nvidia': NvidiaCompiler,
+    'cuda': CudaCompiler,
     'osx': ClangCompiler,
     'intel': IntelCompiler,
     'icpc': IntelCompiler,

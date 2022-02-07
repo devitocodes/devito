@@ -26,9 +26,92 @@ Size = namedtuple('Size', 'left right')
 Offset = namedtuple('Offset', 'left right')
 
 
-class Basic(object):
+class CodeSymbol(object):
 
     """
+    Abstract base class for objects representing symbols in the generated code.
+    """
+
+    @abc.abstractmethod
+    def __init__(self, *args, **kwargs):
+        return
+
+    @abc.abstractproperty
+    def _C_name(self):
+        """
+        The name of the object in the generated code.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
+    def _C_typename(self):
+        """
+        The type of the object in the generated code.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
+    def _C_typedata(self):
+        """
+        The type of the data values in the generated code.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
+    def _C_ctype(self):
+        """
+        The type of the object as a ctypes object, necessary for jumping
+        from Python-land to generated-code-land.
+
+        Returns
+        -------
+        ctypes type
+        """
+        return
+
+    @property
+    def _C_typedecl(self):
+        """
+        The type declaration of the object in the generated code.
+
+        Returns
+        -------
+        cgen.Struct or None
+            None if the type of the object can be expressed with a basic type,
+            such as float or int, otherwise a cgen.Struct representing a C struct.
+        """
+        return
+
+    @property
+    def _C_symbol(self):
+        """
+        The entry symbol. This may or may not coincide with the symbol used
+        to construct symbolic expressions.
+
+        Returns
+        -------
+        Basic
+        """
+        return self
+
+
+class Basic(CodeSymbol):
+
+    """
+    Abstract base class for objects to construct symbolic expressions.
+
     Four relevant types inherit from this class:
 
         * AbstractSymbol: represents a scalar; may carry data; may be used
@@ -98,85 +181,9 @@ class Basic(object):
 
     # Basic symbolic object properties
     is_Scalar = False
-    is_Tensor = False
 
     # Some other properties
     is_PerfKnob = False  # Does it impact the Operator performance?
-
-    @abc.abstractmethod
-    def __init__(self, *args, **kwargs):
-        return
-
-    @abc.abstractproperty
-    def _C_name(self):
-        """
-        The C-level name of the object.
-
-        Returns
-        -------
-        str
-        """
-        return
-
-    @abc.abstractproperty
-    def _C_typename(self):
-        """
-        The C-level type of the object.
-
-        Returns
-        -------
-        str
-        """
-        return
-
-    @abc.abstractproperty
-    def _C_typedata(self):
-        """
-        The C-level type of the data values.
-
-        Returns
-        -------
-        str
-        """
-        return
-
-    @abc.abstractproperty
-    def _C_ctype(self):
-        """
-        The C-level type of the object, as a ctypes object, suitable for type
-        checking when calling functions via ctypes.
-
-        Returns
-        -------
-        ctypes type
-        """
-        return
-
-    @property
-    def _C_typedecl(self):
-        """
-        The C-level struct declaration representing the object.
-
-        Returns
-        -------
-        cgen.Struct or None
-            None if the object C type can be expressed with a basic C type,
-            such as float or int.
-        """
-        return
-
-    @property
-    def _C_symbol(self):
-        """
-        The C-level symbol. This may or may not coincide with the symbol used
-        to make up an `Eq`. For example, if `self` provides the C code with
-        a struct, then the _C_symbol will be the symbol representing such struct.
-
-        Returns
-        -------
-        Basic
-        """
-        return self
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
@@ -701,7 +708,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     is_Matrix = False
 
     is_AbstractFunction = True
-    is_Tensor = True
 
     # SymPy default assumptions
     is_real = True
@@ -1315,7 +1321,7 @@ class LocalObject(AbstractObject):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(sympy.IndexedBase, Pickable):
+class IndexedData(sympy.IndexedBase, Pickable, CodeSymbol):
 
     """
     Wrapper class that inserts a pointer to the symbolic data object.
@@ -1339,6 +1345,30 @@ class IndexedData(sympy.IndexedBase, Pickable):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
+
+    @property
+    def _C_name(self):
+        return self.name
+
+    @cached_property
+    def _C_typename(self):
+        return ctypes_to_cstr(self._C_ctype)
+
+    @cached_property
+    def _C_typedata(self):
+        return dtype_to_cstr(self.dtype)
+
+    @cached_property
+    def _C_ctype(self):
+        return POINTER(dtype_to_ctype(self.dtype))
+
+    @property
+    def base(self):
+        return self
+
+    @property
+    def dtype(self):
+        return self.function.dtype
 
     # Pickling support
     _pickle_kwargs = ['label', 'shape', 'function']

@@ -135,7 +135,7 @@ class Rounding(Detector):
         # so that `i`'s trip count can safely be rounded up
         # Note: autopadding guarantees that the padding size along the
         # Fastest Varying Dimension is a multiple of the SIMD vector length
-        functions = [f for f in scope.functions if f.is_Tensor]
+        functions = [f for f in scope.functions if f.is_AbstractFunction]
         if any(not f._honors_autopadding for f in functions):
             return
 

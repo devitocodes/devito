@@ -13,7 +13,8 @@ from devito.tools import as_tuple
 from devito.types import PThreadArray, SharedData, Symbol, VoidPointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
-           'EntryFunction', 'ThreadFunction', 'make_thread_ctx']
+           'EntryFunction', 'ThreadFunction', 'make_thread_ctx',
+           'DeviceFunction']
 
 
 # ElementalFunction machinery
@@ -291,3 +292,16 @@ def make_thread_ctx(name, iet, root, npthreads, sync_ops, sregistry):
     finalize = _make_thread_finalize(threads, sdata)
 
     return ThreadCtx(threads, sdata, [tfunc, isdata], init, activate, finalize)
+
+
+# DeviceFunction machinery
+
+
+class DeviceFunction(Callable):
+
+    """
+    A Callable executed asynchronously on a device.
+    """
+
+    def __init__(self, name, body, retval='void', parameters=None, prefix='__global__'):
+        super().__init__(name, body, retval, parameters=parameters, prefix=prefix)

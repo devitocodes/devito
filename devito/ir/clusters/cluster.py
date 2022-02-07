@@ -326,7 +326,7 @@ class Cluster(object):
         accesses = [(i, 'r') for i in reads] + [(i, 'w') for i in writes]
         ret = {}
         for i, mode in accesses:
-            if not i.is_Tensor:
+            if not i.is_AbstractFunction:
                 continue
             elif i in self.dspace.parts:
                 # Stencils extend the data spaces beyond the iteration spaces

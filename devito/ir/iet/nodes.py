@@ -7,6 +7,7 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 
 import cgen as c
+from sympy import IndexedBase
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq
@@ -266,7 +267,7 @@ class Call(ExprStmt, Node):
     def functions(self):
         retval = []
         for i in self.arguments:
-            if isinstance(i, (AbstractFunction, Indexed, LocalObject)):
+            if isinstance(i, (AbstractFunction, Indexed, IndexedBase, LocalObject)):
                 retval.append(i.function)
             elif isinstance(i, Call):
                 retval.extend(i.functions)
@@ -294,7 +295,7 @@ class Call(ExprStmt, Node):
         for i in self.arguments:
             if isinstance(i, AbstractFunction):
                 continue
-            elif isinstance(i, (Indexed, LocalObject, Symbol)):
+            elif isinstance(i, (Indexed, IndexedBase, LocalObject, Symbol)):
                 retval.append(i)
             elif isinstance(i, Call):
                 retval.extend(i.expr_symbols)
@@ -586,11 +587,6 @@ class Iteration(Node):
         """All Dimensions appearing in the Iteration header."""
         return tuple(self.dim._defines) + self.uindices
 
-    @property
-    def write(self):
-        """All Functions written to in this Iteration"""
-        return []
-
     @cached_property
     def expr_symbols(self):
         return tuple(self.symbolic_min.free_symbols) \
@@ -645,15 +641,14 @@ class Callable(Node):
     parameters : list of Basic, optional
         The objects in input to the Callable.
     prefix : list of str, optional
-        Qualifiers to prepend to the Callable signature. Defaults to ``('static',
-        'inline')``.
+        Qualifiers to prepend to the Callable signature. None by defaults.
     """
 
     is_Callable = True
 
     _traversable = ['body']
 
-    def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline')):
+    def __init__(self, name, body, retval, parameters=None, prefix=None):
         self.name = name
         if not isinstance(body, CallableBody):
             self.body = CallableBody(body)
@@ -669,6 +664,11 @@ class Callable(Node):
 
     @property
     def functions(self):
+        return tuple(i.function for i in self.parameters
+                     if isinstance(i.function, AbstractFunction))
+
+    @property
+    def defines(self):
         return tuple(i for i in self.parameters if isinstance(i, AbstractFunction))
 
 

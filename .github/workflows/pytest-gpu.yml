@@ -60,7 +60,7 @@ jobs:
           test_file: "tests/test_gpu_openacc.py"
           env_file: "devito-ci-nvidia-openacc.env"
           test_drive_cmd: "nvidia-smi"
-          arch: "nvcc"
+          arch: "nvc"
           platform: "nvidiaX"
           language: "openacc"
           tags: ["self-hosted", "gpu", "openacc"]
@@ -113,7 +113,7 @@ jobs:
         DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1.0.6
+      uses: codecov/codecov-action@v2
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}

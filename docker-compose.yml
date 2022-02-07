@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.nvidia
     environment:
-      DEVITO_ARCH: nvcc
+      DEVITO_ARCH: nvc
       DEVITO_LANGUAGE: openacc
     volumes:
       - ./devito:/app/devito

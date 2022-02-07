@@ -3,14 +3,17 @@ from abc import ABC
 
 import cgen as c
 
-from devito.ir import (BlankLine, DummyExpr, Call, Conditional, List, Prodder,
-                       ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
-                       ThreadFunction)
+from devito.data import FULL
+from devito.ir import (BlankLine, DummyExpr, Call, Conditional, Expression,
+                       List, Prodder, ParallelIteration, ParallelBlock,
+                       PointerCast, EntryFunction, ThreadFunction, FindNodes,
+                       FindSymbols)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.misc import is_on_device
 from devito.symbolics import Byref, CondNe
-from devito.tools import as_list
-from devito.types import Symbol
+from devito.tools import as_list, prod
+from devito.types import Symbol, Wildcard
 
 __all__ = ['LangBB', 'LangTransformer']
 
@@ -42,6 +45,48 @@ class LangBB(object, metaclass=LangMeta):
     DeviceIteration = ParallelIteration
     Prodder = Prodder
     PointerCast = PointerCast
+
+    @classmethod
+    def _map_data(cls, f):
+        if f.is_Array:
+            return f.symbolic_shape
+        else:
+            return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
+
+    @classmethod
+    def _make_symbolic_sections_from_imask(cls, f, imask):
+        datasize = cls._map_data(f)
+        if imask is None:
+            imask = [FULL]*len(datasize)
+
+        sections = []
+        for i, j in zip(imask, datasize):
+            if i is FULL:
+                start, size = 0, j
+            else:
+                try:
+                    start, size = i
+                except TypeError:
+                    start, size = i, 1
+            sections.append((start, size))
+
+        # Unroll (or "flatten") the remaining Dimensions not captured by `imask`
+        if len(imask) < len(datasize):
+            try:
+                start, size = sections.pop(-1)
+            except IndexError:
+                start, size = (0, 1)
+            remainder_size = prod(datasize[len(imask):])
+            # The reason we may see a Wildcard is detailed in the `linearize_transfer`
+            # pass, take a look there for more info. Basically, a Wildcard here means
+            # that the symbol `start` is actually a temporary whose value already
+            # represents the unrolled size
+            if not isinstance(start, Wildcard):
+                start *= remainder_size
+            size *= remainder_size
+            sections.append((start, size))
+
+        return sections
 
     @classmethod
     def _map_to(cls, f, imask=None, queueid=None):
@@ -298,3 +343,16 @@ class DeviceAwareMixin(object):
             return iet, {}
 
         return _initialize(iet)
+
+    def _is_offloadable(self, iet):
+        """
+        True if the IET computation is offloadable to device, False otherwise.
+        """
+        expressions = FindNodes(Expression).visit(iet)
+        if any(not is_on_device(e.write, self.gpu_fit) for e in expressions):
+            return False
+
+        functions = FindSymbols().visit(iet)
+        buffers = [f for f in functions if f.is_Array and f._mem_mapped]
+        hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
+        return not (buffers and hostfuncs)
