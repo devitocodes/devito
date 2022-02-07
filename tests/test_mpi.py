@@ -478,6 +478,22 @@ class TestSparseFunction(object):
                 coords_loc += sf.coordinates.data[i, 0]
             assert sf.data[i] == coords_loc
 
+    @pytest.mark.parallel(mode=4)
+    def test_sparse_coords_issue1823(self):
+        grid = Grid((101, 101, 101), extent=(1000, 1000, 1000))
+        coords = np.array([[1000., 0., 900.], [1000., 300., 700.],
+                           [1000., 500., 500.], [1000., 700., 300.],
+                           [1000., 900., 0.], [1000., 0., 850.]])
+        rec = SparseTimeFunction(name="s", grid=grid, coordinates=coords,
+                                 nt=10, npoint=6)
+        ref = SparseTimeFunction(name="s1", grid=grid, coordinates=coords,
+                                 nt=10, npoint=6)
+        u = TimeFunction(name="u", grid=grid, space_order=1)
+
+        Operator([Eq(u, u+1)]+rec.interpolate(u))()
+
+        assert np.allclose(rec.coordinates.data[:], ref.coordinates.data)
+
 
 class TestOperatorSimple(object):
 
