@@ -110,7 +110,7 @@ def Gzz_centered_2d(model, field, costheta, sintheta, space_order):
     """
     order1 = space_order // 2
     Gz = -(sintheta * field.dx(fd_order=order1) +
-              costheta * field.dy(fd_order=order1))
+           costheta * field.dy(fd_order=order1))
     Gzz = (Gz * costheta).dy(fd_order=order1).T
 
     # Add rotated derivative if angles are not zero. If angles are
