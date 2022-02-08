@@ -3,10 +3,12 @@ from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.parameters import configuration
 from devito.operator import Operator
-from devito.tools import as_tuple, timed_pass
+from devito.tools import as_tuple, is_integer, timed_pass
 from devito.types import NThreads
 
-__all__ = ['CoreOperator', 'CustomOperator']
+__all__ = ['CoreOperator', 'CustomOperator',
+           # Optimization options
+           'ParTile']
 
 
 class BasicOperator(Operator):
@@ -208,3 +210,31 @@ class CustomOperator(BasicOperator):
             passes_mapper['linearize'](graph)
 
         return graph
+
+
+# Wrappers for optimization options
+
+
+class OptOption(object):
+    pass
+
+
+class ParTile(tuple, OptOption):
+
+    def __new__(cls, items, default=None):
+        if not items:
+            return None
+        elif isinstance(items, bool):
+            if not default:
+                raise ValueError("Expected `default` value, got None")
+            items = (as_tuple(default),)
+        elif isinstance(items, tuple):
+            # Normalize to tuple of tuples
+            if is_integer(items[0]):
+                items = (items,)
+            else:
+                items = tuple(tuple(i) for i in items)
+        else:
+            raise ValueError("Expected bool or tuple, got %s instead" % type(items))
+
+        return super().__new__(cls, items)

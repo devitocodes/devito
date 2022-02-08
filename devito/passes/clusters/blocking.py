@@ -1,21 +1,17 @@
-from collections import Counter
-
 from sympy import sympify
 
 from devito.ir.clusters import Queue
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
                                SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
                                IterationSpace, Scope)
-from devito.symbolics import uxreplace
-from devito.tools import as_tuple, flatten
+from devito.symbolics import uxreplace, xreplace_indices
+from devito.tools import UnboundedMultiTuple, as_tuple, flatten
 from devito.types import BlockDimension
-
-from devito.symbolics import xreplace_indices
 
 __all__ = ['blocking']
 
 
-def blocking(clusters, options):
+def blocking(clusters, sregistry, options):
     """
     Loop blocking to improve data locality.
 
@@ -58,7 +54,7 @@ def blocking(clusters, options):
     clusters = AnalyzeSkewing().process(clusters)
 
     if options['blocklevels'] > 0:
-        clusters = SynthesizeBlocking(options).process(clusters)
+        clusters = SynthesizeBlocking(sregistry, options).process(clusters)
 
     if options['skewing']:
         clusters = SynthesizeSkewing(options).process(clusters)
@@ -66,11 +62,29 @@ def blocking(clusters, options):
     return clusters
 
 
-class AnalyzeBlocking(Queue):
+class AnayzeBlockingBase(Queue):
 
     """
     Encode the TILABLE property.
     """
+
+    def process(self, clusters):
+        return self._process_fatd(clusters, 1)
+
+    def _process_fatd(self, clusters, level, prefix=None):
+        # Truncate recursion in case of TILABLE, non-perfect sub-nests, as
+        # it's an unsupported case
+        if prefix:
+            d = prefix[-1].dim
+
+            if any(TILABLE in c.properties[d] for c in clusters) and \
+               len({c.itintervals[:level] for c in clusters}) > 1:
+                return clusters
+
+        return super()._process_fatd(clusters, level, prefix)
+
+
+class AnalyzeBlocking(AnayzeBlockingBase):
 
     def callback(self, clusters, prefix):
         if not prefix:
@@ -79,7 +93,9 @@ class AnalyzeBlocking(Queue):
         d = prefix[-1].dim
 
         for c in clusters:
-            if not {PARALLEL, PARALLEL_IF_ATOMIC}.intersection(c.properties[d]):
+            if not {PARALLEL,
+                    PARALLEL_IF_ATOMIC,
+                    PARALLEL_IF_PVT}.intersection(c.properties[d]):
                 return clusters
 
         # All good, `d` is actually TILABLE
@@ -88,11 +104,7 @@ class AnalyzeBlocking(Queue):
         return processed
 
 
-class AnalyzeHeuristicBlocking(Queue):
-
-    """
-    Encode the TILABLE property based on heuristics.
-    """
+class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
 
     def __init__(self, options):
         super().__init__()
@@ -180,29 +192,24 @@ class SynthesizeBlocking(Queue):
 
     template = "%s%d_blk%s"
 
-    def __init__(self, options):
-        self.inner = bool(options['blockinner'])
-        self.levels = options['blocklevels']
-        self.step = options['blockstep']
+    def __init__(self, sregistry, options):
+        self.sregistry = sregistry
 
-        self.nblocked = Counter()
+        self.levels = options['blocklevels']
+
+        # A tool to unroll the explicit integer block shapes, should there be any
+        if options['par-tile']:
+            self.generator = UnboundedMultiTuple(*options['par-tile'])
+        else:
+            self.generator = None
 
         super().__init__()
 
+    def process(self, clusters):
+        return self._process_fatd(clusters, 1)
+
     def _make_key_hook(self, cluster, level):
         return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
-
-    def _process_fdta(self, clusters, level, prefix=None):
-        # Truncate recursion in case of TILABLE, non-perfect sub-nests, as
-        # it's an unsupported case
-        if prefix:
-            d = prefix[-1].dim
-            test0 = any(TILABLE in c.properties[d] for c in clusters)
-            test1 = len({c.itintervals[:level] for c in clusters}) > 1
-            if test0 and test1:
-                return self.callback(clusters, prefix)
-
-        return super()._process_fdta(clusters, level, prefix)
 
     def callback(self, clusters, prefix):
         if not prefix:
@@ -210,16 +217,32 @@ class SynthesizeBlocking(Queue):
 
         d = prefix[-1].dim
 
-        # Create the block Dimensions (in total `self.levels` Dimensions)
-        name = self.template % (d.name, self.nblocked[d], '%d')
+        if not any(TILABLE in c.properties[d] for c in clusters):
+            return clusters
 
-        bd = BlockDimension(name % 0, d, d.symbolic_min, d.symbolic_max,
-                            sympify(self.step))
+        # Create the block Dimensions (in total `self.levels` Dimensions)
+        base = self.sregistry.make_name(prefix=d.name)
+
+        if self.generator:
+            # An explicit integer step has been supplied
+
+            # Is a new TILABLE nest, pull what would be the next par-tile entry
+            if not any(i.dim.is_Block for i in prefix):
+                self.generator.iter()
+
+            step = sympify(self.generator.next())
+        else:
+            # This will result in a parametric step, e.g. `x0_blk0_size`
+            step = None
+
+        name = self.sregistry.make_name(prefix="%s_blk" % base)
+        bd = BlockDimension(name, d, d.symbolic_min, d.symbolic_max, step)
         step = bd.step
         block_dims = [bd]
 
-        for i in range(1, self.levels):
-            bd = BlockDimension(name % i, bd, bd, bd + bd.step - 1, size=step)
+        for _ in range(1, self.levels):
+            name = self.sregistry.make_name(prefix="%s_blk" % base)
+            bd = BlockDimension(name, bd, bd, bd + bd.step - 1, size=step)
             block_dims.append(bd)
 
         bd = BlockDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=step)
@@ -244,9 +267,6 @@ class SynthesizeBlocking(Queue):
             else:
                 processed.append(c)
 
-        # Make sure to use unique BlockDimensions
-        self.nblocked[d] += int(any(TILABLE in c.properties[d] for c in clusters))
-
         return processed
 
 
@@ -264,35 +284,36 @@ def decompose(ispace, d, block_dims):
         else:
             intervals.append(i)
 
-    # Create the relations.
-    # Example: consider the relation `(t, x, y)` and assume we decompose `x` over
-    # `xbb, xb, xi`; then we decompose the relation as two relations, `(t, xbb, y)`
-    # and `(xbb, xb, xi)`
-    relations = [block_dims]
-    for r in ispace.intervals.relations:
-        relations.append([block_dims[0] if i is d else i for i in r])
+    # Create the intervals relations
+    # 1: `bd > d`
+    relations = [tuple(block_dims)]
 
-    # Add more relations
-    for n, i in enumerate(ispace):
-        if i.dim is d:
+    # 2: Suitably replace `d` with all `bd`'s
+    for r in ispace.relations:
+        try:
+            n = r.index(d)
+        except ValueError:
+            relations.append(r)
             continue
-        elif i.dim.is_Block:
-            # Make sure BlockDimensions on the same level stick next to each other.
-            # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
-            # `(t, xbb, xb, x, ybb, ...)`
-            for bd in block_dims:
-                if i.dim._depth >= bd._depth:
-                    relations.append([bd, i.dim])
-                else:
-                    relations.append([i.dim, bd])
-        elif n > ispace.intervals.index(d):
-            # The non-Block subsequent Dimensions must follow the block Dimensions
-            for bd in block_dims:
-                relations.append([bd, i.dim])
-        else:
-            # All other Dimensions must precede the block Dimensions
-            for bd in block_dims:
-                relations.append([i.dim, bd])
+
+        for bd in block_dims:
+            # Avoid e.g. `x > yb`
+            if any(i._depth > bd._depth for i in r[:n] if i.is_Block) or \
+               any(bd._depth < i._depth for i in r[n+1:] if i.is_Block):
+                continue
+
+            relations.append(tuple(bd if i is d else i for i in r))
+
+    # 3: Make sure BlockDimensions at same depth stick next to each other
+    # E.g., `(t, xbb, ybb, xb, yb, x, y)`, and NOT e.g. `(t, xbb, xb, x, ybb, ...)`
+    # NOTE: this is perfectly legal since:
+    # TILABLE => (perfect nest & PARALLEL) => interchangeable
+    for i in ispace.itdimensions:
+        if not i.is_Block:
+            continue
+        for bd in block_dims:
+            if bd._depth < i._depth:
+                relations.append((bd, i))
 
     intervals = IntervalGroup(intervals, relations=relations)
 

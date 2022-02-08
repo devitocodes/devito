@@ -9,7 +9,8 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'PartialOrderTuple', 'DAG', 'frozendict']
+           'OrderedSet', 'PartialOrderTuple', 'DAG', 'frozendict',
+           'UnboundedMultiTuple']
 
 
 class Bunch(object):
@@ -480,3 +481,75 @@ class frozendict(Mapping):
                 h ^= hash((key, value))
             self._hash = h
         return self._hash
+
+
+class UnboundedMultiTuple(object):
+
+    """
+    An UnboundedMultiTuple is an ordered collection of tuples that can be
+    infinitely iterated over.
+
+    Examples
+    --------
+    >>> ub = UnboundedMultiTuple([1, 2], [3, 4])
+    >>> ub
+    UnboundedMultiTuple((1, 2), (3, 4))
+    >>> ub.iter()
+    >>> ub
+    UnboundedMultiTuple((1, 2)*, (3, 4))
+    >>> ub.next()
+    1
+    >>> ub.next()
+    2
+    >>> ub.next()
+    2
+    >>> ub.iter()
+    >>> ub.iter()  # No effect, tip has reached the last tuple
+    >>> ub.iter()  # No effect, tip has reached the last tuple
+    >>> ub
+    UnboundedMultiTuple((1, 2), (3, 4)*)
+    >>> ub.next()
+    3
+    >>> ub.next()
+    4
+    >>> ub.iter()  # Reloads the last iterator
+    >>> ub.next()
+    3
+    """
+
+    def __init__(self, *items):
+        # Normalize input
+        nitems = []
+        for i in as_tuple(items):
+            if isinstance(i, Iterable):
+                nitems.append(tuple(i))
+            else:
+                raise ValueError("Expected sequence, got %s" % type(i))
+
+        self.items = tuple(nitems)
+        self.tip = -1
+        self.curiter = None
+
+    def __repr__(self):
+        items = []
+        for n, i in enumerate(self.items):
+            v = str(i)
+            if self.tip == n:
+                v += "*"
+            items.append(v)
+        return "%s(%s)" % (self.__class__.__name__, ", ".join(items))
+
+    def iter(self):
+        if not self.items:
+            raise ValueError("No tuples available")
+        self.tip = min(self.tip + 1, max(len(self.items) - 1, 0))
+        self.curiter = iter(self.items[self.tip])
+
+    def next(self):
+        if self.curiter is None:
+            raise StopIteration
+        try:
+            default = self.items[self.tip][-1]
+        except IndexError:
+            default = None
+        return next(self.curiter, default)

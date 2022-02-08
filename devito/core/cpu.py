@@ -1,6 +1,6 @@
 from functools import partial
 
-from devito.core.operator import CoreOperator, CustomOperator
+from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
@@ -32,11 +32,6 @@ class Cpu64OperatorMixin(object):
     """
     If set to True, bypass the compiler heuristics that prevent loop blocking in
     situations where the performance impact might be detrimental.
-    """
-
-    BLOCK_STEP = None
-    """
-    The loop blocking step size. None => symbolic.
     """
 
     CIRE_MINGAIN = 10
@@ -103,8 +98,8 @@ class Cpu64OperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
-        o['blockstep'] = oo.pop('blockstep', cls.BLOCK_STEP)
         o['skewing'] = oo.pop('skewing', False)
+        o['par-tile'] = ParTile(oo.pop('par-tile', False), default=16)
 
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
@@ -193,7 +188,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Blocking to improve data locality
         if options['blockeager']:
-            clusters = blocking(clusters, options)
+            clusters = blocking(clusters, sregistry, options)
 
         # Reduce flops
         clusters = extract_increments(clusters, sregistry)
@@ -209,7 +204,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Blocking to improve data locality
         if options['blocklazy']:
-            clusters = blocking(clusters, options)
+            clusters = blocking(clusters, sregistry, options)
 
         return clusters
 
@@ -292,7 +287,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         return {
             'buffering': lambda i: buffering(i, callback, sregistry, options),
-            'blocking': lambda i: blocking(i, options),
+            'blocking': lambda i: blocking(i, sregistry, options),
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),
