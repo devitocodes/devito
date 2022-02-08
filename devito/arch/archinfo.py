@@ -14,11 +14,11 @@ from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
-           'NvidiaDevice', 'AmdDevice',
+           'NvidiaDevice', 'AmdDevice','IntelDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
            'AMD', 'ARM', 'M1',  # ARM
            'POWER8', 'POWER9',  # Other loosely supported CPU architectures
-           'AMDGPUX', 'NVIDIAX']  # GPUs
+           'AMDGPUX', 'NVIDIAX', 'INTELGPUX']  # GPUs
 
 
 @memoized_func
@@ -571,6 +571,11 @@ class Device(Platform):
         except (AttributeError, KeyError):
             return None
 
+class IntelDevice(Device):
+
+    @cached_property
+    def march(self):
+        return ''
 
 class NvidiaDevice(Device):
 
@@ -637,6 +642,7 @@ POWER9 = Power('power9')
 # Devices
 NVIDIAX = NvidiaDevice('nvidiaX')
 AMDGPUX = AmdDevice('amdgpuX')
+INTELGPUX = IntelDevice('intelgpuX')
 
 
 platform_registry = {
@@ -657,7 +663,8 @@ platform_registry = {
     'power8': POWER8,
     'power9': POWER9,
     'nvidiaX': NVIDIAX,  # Generic NVidia GPU
-    'amdgpuX': AMDGPUX   # Generic AMD GPU
+    'amdgpuX': AMDGPUX,   # Generic AMD GPU
+    'intelgpuX': INTELGPUX   #Generic Intel GPU
 }
 """
 Registry dict for deriving Platform classes according to the environment variable

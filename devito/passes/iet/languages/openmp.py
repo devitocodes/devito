@@ -1,7 +1,7 @@
 import cgen as c
 from sympy import Not
 
-from devito.arch import AMDGPUX, NVIDIAX
+from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
 from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration,
                        ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
@@ -121,6 +121,7 @@ class OmpBB(PragmaLangBB):
         # Platform mapping
         AMDGPUX: None,
         NVIDIAX: None,
+        INTELGPUX: None,
         # Runtime library
         'init': None,
         'thread-num': DefFunction('omp_get_thread_num'),
