@@ -1,6 +1,6 @@
 # Effectiveness and computational efficiency of absorbing boundary conditions for full-waveform inversion
 
-## Authors: Daiae Iglesia Dolci, Felipe A. G. Silva, Pedro S. Peixoto and Ernani V. Volpe
+## Authors: Daiane Iglesia Dolci, Felipe A. G. Silva, Pedro S. Peixoto and Ernani V. Volpe
 
 ## Department of Mechanical Engineering of Polytechnic School, University of São Paulo
 
