@@ -168,11 +168,16 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         if self._is_offloadable(root) and \
            all(i.is_Affine for i in [root] + collapsable) and \
            self.par_tile:
-            if isinstance(self.par_tile, tuple):
-                tile = self.par_tile[:ncollapsable + 1]
+            # TODO: still unable to exploit multiple par-tiles (one per nest)
+            # This will require unconditionally applying blocking, and then infer
+            # the tile clause shape from the BlockDimensions' step
+            tile = self.par_tile[0]
+            assert isinstance(tile, tuple)
+            nremainder = (ncollapsable + 1) - len(tile)
+            if nremainder >= 0:
+                tile += (tile[-1],)*nremainder
             else:
-                # (32,4,4,...) is typically a decent choice
-                tile = (32,) + (4,)*ncollapsable
+                tile = tile[:ncollapsable + 1]
 
             body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile, **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)

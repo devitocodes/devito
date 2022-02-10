@@ -133,7 +133,7 @@ class TestCodeGeneration(object):
         assert len(trees) == 3
         assert 'present(f)' in str(trees[0][1].pragmas[0])
 
-    @pytest.mark.parametrize('par_tile', [True, (32, 4, 4)])
+    @pytest.mark.parametrize('par_tile', [True, (32, 4), (32, 4, 4), (32, 4, 4, 8)])
     def test_tile_insteadof_collapse(self, par_tile):
         grid = Grid(shape=(3, 3, 3))
         t = grid.stepping_dim
