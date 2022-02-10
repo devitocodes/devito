@@ -666,7 +666,7 @@ platform_registry = {
     'power9': POWER9,
     'nvidiaX': NVIDIAX,  # Generic NVidia GPU
     'amdgpuX': AMDGPUX,   # Generic AMD GPU
-    'intelgpuX': INTELGPUX   #Generic Intel GPU
+    'intelgpuX': INTELGPUX   # Generic Intel GPU
 }
 """
 Registry dict for deriving Platform classes according to the environment variable
