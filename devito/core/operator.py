@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 from devito.core.autotuning import autotune
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
@@ -219,6 +221,15 @@ class OptOption(object):
     pass
 
 
+class ParTileArg(tuple):
+
+    def __new__(cls, items, shm=0, tag=None):
+        obj = super().__new__(cls, items)
+        obj.shm = shm
+        obj.tag = tag
+        return obj
+
+
 class ParTile(tuple, OptOption):
 
     def __new__(cls, items, default=None):
@@ -227,13 +238,41 @@ class ParTile(tuple, OptOption):
         elif isinstance(items, bool):
             if not default:
                 raise ValueError("Expected `default` value, got None")
-            items = (as_tuple(default),)
+            items = (ParTileArg(as_tuple(default)),)
         elif isinstance(items, tuple):
-            # Normalize to tuple of tuples
-            if is_integer(items[0]):
-                items = (items,)
+            if not items:
+                raise ValueError("Expected at least one value")
+
+            # Normalize to tuple of ParTileArgs
+
+            x = items[0]
+            if is_integer(x):
+                # E.g., (32, 4, 8)
+                items = (ParTileArg(items),)
+
+            elif isinstance(x, Iterable):
+                if not x:
+                    raise ValueError("Expected at least one value")
+
+                try:
+                    y = items[1]
+                    if is_integer(y):
+                        # E.g., ((32, 4, 8), 1)
+                        # E.g., ((32, 4, 8), 1, 'tag')
+                        items = (ParTileArg(*items),)
+                    else:
+                        try:
+                            # E.g., (((32, 4, 8), 1), ((32, 4, 4), 2))
+                            # E.g., (((32, 4, 8), 1, 'tag0'), ((32, 4, 4), 2, 'tag1'))
+                            items = tuple(ParTileArg(*i) for i in items)
+                        except TypeError:
+                            # E.g., ((32, 4, 8), (32, 4, 4))
+                            items = tuple(ParTileArg(i) for i in items)
+                except IndexError:
+                    # E.g., ((32, 4, 8),)
+                    items = (ParTileArg(x),)
             else:
-                items = tuple(tuple(i) for i in items)
+                raise ValueError("Expected int or tuple, got %s instead" % type(x))
         else:
             raise ValueError("Expected bool or tuple, got %s instead" % type(items))
 
