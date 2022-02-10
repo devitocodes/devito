@@ -455,6 +455,7 @@ class AOMPCompiler(Compiler):
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
+
 class DPCPPCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
@@ -467,6 +468,7 @@ class DPCPPCompiler(Compiler):
         self.CXX = 'icpx'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
+
 
 class PGICompiler(Compiler):
 

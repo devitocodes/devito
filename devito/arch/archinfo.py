@@ -571,11 +571,13 @@ class Device(Platform):
         except (AttributeError, KeyError):
             return None
 
+
 class IntelDevice(Device):
 
     @cached_property
     def march(self):
         return ''
+
 
 class NvidiaDevice(Device):
 
