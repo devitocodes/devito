@@ -14,7 +14,7 @@ from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
-           'NvidiaDevice', 'AmdDevice','IntelDevice',
+           'NvidiaDevice', 'AmdDevice', 'IntelDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
            'AMD', 'ARM', 'M1',  # ARM
            'POWER8', 'POWER9',  # Other loosely supported CPU architectures
