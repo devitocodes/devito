@@ -267,7 +267,7 @@ def test_unsubstituted_indexeds():
     op0 = Operator(eq)
     op1 = Operator(eq, opt=('advanced', {'linearize': True}))
 
-    # NOTE: we compare the numerical output eventually, but truly the most
+    # NOTE: Eventually we compare the numerical output, but truly the most
     # import check is implicit to op1.apply, and it's the fact that op1
     # actually jit-compiles successfully, meaning that all substitutions
     # were performed correctly

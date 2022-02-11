@@ -66,7 +66,7 @@ def linearize_accesses(iet, key, cache, sregistry):
     functions = sorted(functions, key=lambda f: len(f.dimensions), reverse=True)
 
     # `functions_unseen` are all Functions that `iet` may need to linearize
-    # that have not been seen while processing other IETs
+    # and have not been seen while processing other IETs
     functions_unseen = [f for f in functions if f not in cache]
 
     # Find unique sizes (unique -> minimize necessary registers)
