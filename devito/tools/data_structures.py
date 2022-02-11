@@ -496,7 +496,7 @@ class UnboundedMultiTuple(object):
     UnboundedMultiTuple((1, 2), (3, 4))
     >>> ub.iter()
     >>> ub
-    UnboundedMultiTuple((1, 2)*, (3, 4))
+    UnboundedMultiTuple(*(1, 2), (3, 4))
     >>> ub.next()
     1
     >>> ub.next()
@@ -507,7 +507,7 @@ class UnboundedMultiTuple(object):
     >>> ub.iter()  # No effect, tip has reached the last tuple
     >>> ub.iter()  # No effect, tip has reached the last tuple
     >>> ub
-    UnboundedMultiTuple((1, 2), (3, 4)*)
+    UnboundedMultiTuple((1, 2), *(3, 4))
     >>> ub.next()
     3
     >>> ub.next()
@@ -531,12 +531,9 @@ class UnboundedMultiTuple(object):
         self.curiter = None
 
     def __repr__(self):
-        items = []
-        for n, i in enumerate(self.items):
-            v = str(i)
-            if self.tip == n:
-                v += "*"
-            items.append(v)
+        items = [str(i) for i in self.items]
+        if self.curiter is not None:
+            items[self.tip] = "*%s" % items[self.tip]
         return "%s(%s)" % (self.__class__.__name__, ", ".join(items))
 
     def iter(self):
