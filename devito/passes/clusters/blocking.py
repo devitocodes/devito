@@ -133,7 +133,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         d = prefix[-1].dim
 
         for c in clusters:
-            # PARALLEL* and AFFINE are necessaary conditions
+            # PARALLEL* and AFFINE are necessary conditions
             if AFFINE not in c.properties[d] or \
                not ({PARALLEL, PARALLEL_IF_PVT} & c.properties[d]):
                 return clusters
@@ -143,7 +143,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             if is_inner and not self.inner:
                 return clusters
 
-            # Heuristic: TILABLE not worth it if not within SEQUENTIAL Dimension
+            # Heuristic: TILABLE not worth it if not within a SEQUENTIAL Dimension
             if not any(SEQUENTIAL in c.properties[i.dim] for i in prefix[:-1]):
                 return clusters
 
@@ -199,9 +199,9 @@ class SynthesizeBlocking(Queue):
 
         # A tool to unroll the explicit integer block shapes, should there be any
         if options['par-tile']:
-            self.generator = UnboundedMultiTuple(*options['par-tile'])
+            self.blk_size_gen = UnboundedMultiTuple(*options['par-tile'])
         else:
-            self.generator = None
+            self.blk_size_gen = None
 
         super().__init__()
 
@@ -223,14 +223,12 @@ class SynthesizeBlocking(Queue):
         # Create the block Dimensions (in total `self.levels` Dimensions)
         base = self.sregistry.make_name(prefix=d.name)
 
-        if self.generator:
-            # An explicit integer step has been supplied
-
-            # Is a new TILABLE nest, pull what would be the next par-tile entry
+        if self.blk_size_gen:
+            # If a new TILABLE nest, pull what would be the next par-tile entry
             if not any(i.dim.is_Block for i in prefix):
-                self.generator.iter()
+                self.blk_size_gen.iter()
 
-            step = sympify(self.generator.next())
+            step = sympify(self.blk_size_gen.next())
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
             step = None
