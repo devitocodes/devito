@@ -2,7 +2,7 @@ from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue
-from devito.ir.support import TILABLE, SEQUENTIAL, Scope
+from devito.ir.support import SEQUENTIAL, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
@@ -76,9 +76,7 @@ class Lift(Queue):
             key = lambda d: d not in hope_invariant
             ispace = c.ispace.project(key).reset()
 
-            # Some properties are dropped
             properties = {d: v for d, v in c.properties.items() if key(d)}
-            properties = {d: v - {TILABLE} for d, v in properties.items()}
 
             lifted.append(c.rebuild(ispace=ispace, properties=properties))
 

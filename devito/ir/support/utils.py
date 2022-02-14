@@ -94,7 +94,7 @@ def detect_accesses(exprs):
                     # accesses such as `time / factor - 1`
                     assert d in a.free_symbols
 
-                if d.symbolic_size.is_integer:
+                if (d.is_Custom or d.is_Default) and d.symbolic_size.is_integer:
                     # Explicitly unfold Default and CustomDimensions
                     mapper[f][d].update(range(off, d.symbolic_size + off))
                 else:

@@ -16,11 +16,12 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, as_symbol, ccode
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, Indexed, LocalObject, Symbol
+from devito.types.basic import (AbstractFunction, AbstractSymbol, Indexed,
+                                LocalObject, Symbol)
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree',
+           'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree', 'Definition',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return',
            'While', 'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
            'SyncSpot', 'Pragma', 'PragmaTransfer', 'DummyExpr', 'BlankLine',
@@ -33,27 +34,23 @@ class Node(Signer):
 
     __metaclass__ = abc.ABCMeta
 
-    is_Node = True
     is_Block = False
     is_Iteration = False
-    is_IterationFold = False
     is_While = False
     is_Expression = False
     is_Increment = False
     is_Callable = False
     is_CallableBody = False
-    is_Lambda = False
+    is_Conditional = False
     is_ElementalFunction = False
     is_Call = False
     is_List = False
+    is_Definition = False
     is_PointerCast = False
     is_Dereference = False
-    is_Element = False
     is_Section = False
     is_HaloSpot = False
     is_ExpressionBundle = False
-    is_ParallelIteration = False
-    is_ParallelBlock = False
     is_SyncSpot = False
 
     _traversable = []
@@ -138,6 +135,11 @@ class Node(Signer):
         """All Basic objects defined by this node."""
         return ()
 
+    @property
+    def writes(self):
+        """All Basic objects modified by this node."""
+        return ()
+
     def _signature_items(self):
         return (str(self.ccode),)
 
@@ -213,8 +215,6 @@ class Element(Node):
     be expressed through an IET type.
     """
 
-    is_Element = True
-
     def __init__(self, element):
         assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
                                     c.Pragma, c.Line, c.Assign, c.POD))
@@ -241,11 +241,20 @@ class Call(ExprStmt, Node):
         If True, the object represents an indirect function call. The emitted
         code will be `name, arg1, ..., argN` rather than `name(arg1, ..., argN)`.
         Defaults to False.
+    cast : bool, optional
+        If True, the Call return value is explicitly casted to the `retobj` type.
+        Defaults to False.
+    writes : list, optional
+        The AbstractFunctions that will be written to by the called function.
+        Explicitly tagging these AbstractFunctions is useful in the case of external
+        calls, that is whenever the compiler would be unable to retrieve that
+        information by analysis of the IET graph.
     """
 
     is_Call = True
 
-    def __init__(self, name, arguments=None, retobj=None, is_indirect=False):
+    def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
+                 cast=False, writes=None):
         if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
@@ -254,6 +263,8 @@ class Call(ExprStmt, Node):
         self.arguments = as_tuple(arguments)
         self.retobj = retobj
         self.is_indirect = is_indirect
+        self.cast = cast
+        self._writes = as_tuple(writes)
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj
@@ -279,7 +290,7 @@ class Call(ExprStmt, Node):
                 for s in v:
                     try:
                         # `try-except` necessary for e.g. Macro
-                        if isinstance(s.function, AbstractFunction):
+                        if isinstance(s.function, (AbstractFunction, LocalObject)):
                             retval.append(s.function)
                     except AttributeError:
                         continue
@@ -318,6 +329,10 @@ class Call(ExprStmt, Node):
         if self.retobj is not None:
             ret += (self.retobj,)
         return ret
+
+    @property
+    def writes(self):
+        return self._writes
 
 
 class Expression(ExprStmt, Node):
@@ -372,26 +387,25 @@ class Expression(ExprStmt, Node):
 
     @property
     def is_scalar(self):
-        """True if a scalar expression, False otherwise."""
-        return self.expr.lhs.is_Symbol
+        """True if the LHS is a scalar, False otherwise."""
+        return isinstance(self.expr.lhs, (AbstractSymbol, IndexedBase))
 
     @property
     def is_tensor(self):
-        """True if a tensor expression, False otherwise."""
-        return not self.is_scalar
+        """True if the LHS is an array entry, False otherwise."""
+        return self.expr.lhs.is_Indexed
 
     @property
     def is_initializable(self):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return (self.init or
-                (self.is_scalar and not self.is_Increment) or
+        return ((self.is_scalar and not self.is_Increment) or
                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
     def defines(self):
-        return (self.write,) if self.is_initializable else ()
+        return (self.output.base,) if self.is_initializable else ()
 
     @property
     def expr_symbols(self):
@@ -403,6 +417,10 @@ class Expression(ExprStmt, Node):
         if self.write is not None:
             functions.append(self.write)
         return tuple(filter_ordered(functions))
+
+    @property
+    def writes(self):
+        return (self.write,)
 
 
 class AugmentedExpression(Expression):
@@ -669,7 +687,7 @@ class Callable(Node):
 
     @property
     def defines(self):
-        return tuple(i for i in self.parameters if isinstance(i, AbstractFunction))
+        return self.parameters
 
 
 class CallableBody(Node):
@@ -686,8 +704,10 @@ class CallableBody(Node):
         (e.g., to initialize the target language runtime).
     unpacks : list of Nodes, optional
         Statements unpacking data from composite types.
-    allocs : list of cgen objects, optional
-        Data allocations for `body`.
+    allocs : list of Nodes, optional
+        Data definitions and allocations for `body`.
+    objs : list of Definitions, optional
+        Object definitions for `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
     maps : Transfer or list of Transfer, optional
@@ -695,16 +715,17 @@ class CallableBody(Node):
         host to device).
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
-    frees : list of cgen objects, optional
+    frees : list of Calls, optional
         Data deallocations for `body`.
     """
 
     is_CallableBody = True
 
-    _traversable = ['init', 'unpacks', 'casts', 'maps', 'body', 'unmaps']
+    _traversable = ['init', 'unpacks', 'allocs', 'objs', 'casts', 'maps',
+                    'body', 'unmaps', 'frees']
 
-    def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
-                 maps=None, unmaps=None, frees=None):
+    def __init__(self, body, init=None, unpacks=None, allocs=None, objs=None,
+                 casts=None, maps=None, unmaps=None, frees=None):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -712,15 +733,18 @@ class CallableBody(Node):
         self.init = as_tuple(init)
         self.unpacks = as_tuple(unpacks)
         self.allocs = as_tuple(allocs)
+        self.objs = as_tuple(objs)
         self.casts = as_tuple(casts)
         self.maps = as_tuple(maps)
         self.unmaps = as_tuple(unmaps)
         self.frees = as_tuple(frees)
 
     def __repr__(self):
-        return ("<CallableBody <allocs=%d, casts=%d, maps=%d> <unmaps=%d, frees=%d>>" %
-                (len(self.allocs), len(self.casts), len(self.maps),
-                 len(self.unmaps), len(self.frees)))
+        return ("<CallableBody <unpacks=%d, allocs=%d, objs=%d, casts=%d, "
+                "maps=%d> <unmaps=%d, frees=%d>>" %
+                (len(self.unpacks), len(self.allocs), len(self.objs),
+                 len(self.casts), len(self.maps), len(self.unmaps),
+                 len(self.frees)))
 
 
 class Conditional(Node):
@@ -814,6 +838,40 @@ class TimedList(List):
         return self._timer
 
 
+class Definition(ExprStmt, Node):
+
+    """
+    A node encapsulating a variable definition.
+
+    If `shape` is given, then the Definition implements an array allocated
+    on the stack, otherwise it implements an uninitialized pointer.
+    """
+
+    is_Definition = True
+
+    def __init__(self, function, shape=None, qualifier=None, initvalue=None,
+                 constructor_args=None):
+        self.function = function
+        self.shape = shape
+        self.qualifier = qualifier
+        self.initvalue = initvalue
+        self.constructor_args = as_tuple(constructor_args)
+
+    def __repr__(self):
+        return "<Def(%s)>" % self.function
+
+    @property
+    def functions(self):
+        return (self.function,)
+
+    @property
+    def defines(self):
+        if self.shape is not None:
+            return (self.function.indexed,)
+        else:
+            return (self.function,)
+
+
 class PointerCast(ExprStmt, Node):
 
     """
@@ -857,7 +915,7 @@ class PointerCast(ExprStmt, Node):
 
     @property
     def defines(self):
-        return (self.function,)
+        return (self.function.indexed,)
 
 
 class Dereference(ExprStmt, Node):
@@ -866,8 +924,8 @@ class Dereference(ExprStmt, Node):
     A node encapsulating a dereference from a `pointer` to a `pointee`.
     The following cases are supported:
 
-        * `pointer` is a PointerArray and `pointee` is an Array.
-        * `pointer` is an ArrayObject representing a pointer to a C struct while
+        * `pointer` is a PointerArray or TempFunction, and `pointee` is an Array.
+        * `pointer` is an ArrayObject representing a pointer to a C struct, and
           `pointee` is a field in `pointer`.
     """
 
@@ -894,12 +952,10 @@ class Dereference(ExprStmt, Node):
 
     @property
     def defines(self):
-        if self.pointer.is_ObjectArray:
-            # E.g., `struct dataobj* a_vec = sdata->a_vec`, but I'm not defining
-            # the `a` `Function`, which is what `defines` is for, but rather it's
-            # carrier. It would take a `PointerCast` from `a_vec` to `a` to actually
-            # define the `a` `Function`
-            return ()
+        if self.pointer.is_PointerArray or \
+           self.pointer.is_TempFunction or \
+           self.pointee._mem_stack:
+            return (self.pointee.indexed,)
         else:
             return (self.pointee,)
 
@@ -925,8 +981,6 @@ class Lambda(Node):
     parameters : list of Basic or expr-like, optional
         The objects in input to the lambda function.
     """
-
-    is_Lambda = True
 
     _traversable = ['body']
 
@@ -1009,7 +1063,7 @@ class Prodder(Call):
     """
 
     def __init__(self, name, arguments=None, single_thread=False, periodic=False):
-        super(Prodder, self).__init__(name, arguments)
+        super().__init__(name, arguments)
 
         # Prodder properties
         self._single_thread = single_thread
@@ -1079,8 +1133,6 @@ class ParallelIteration(Iteration):
     """
     Implement a parallel for-loop.
     """
-
-    is_ParallelIteration = True
 
     def __init__(self, *args, **kwargs):
         pragmas, kwargs, properties = self._make_header(**kwargs)
@@ -1186,8 +1238,6 @@ class ParallelBlock(Block):
     """
     A sequence of Nodes, wrapped in a parallel block {...}.
     """
-
-    is_ParallelBlock = True
 
     def __init__(self, body, private=None):
         # Normalize and sanity-check input. A bit ugly, but it makes everything

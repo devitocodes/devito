@@ -260,7 +260,7 @@ class Cluster(object):
             # E.g., `xs -> x -> x0_blk0 -> x` or `t0 -> t -> time`
             intervals = intervals.promote(lambda d: d.is_SubIterator)
 
-            # If the bound of a Dimension is explicitely guarded, then we should
+            # If the bound of a Dimension is explicitly guarded, then we should
             # shrink the `parts` accordingly
             for d, v in self.guards.items():
                 ret = v.find(BaseGuardBoundNext)

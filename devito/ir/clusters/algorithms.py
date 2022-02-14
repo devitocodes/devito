@@ -17,7 +17,7 @@ from devito.types import ModuloDimension
 __all__ = ['clusterize']
 
 
-def clusterize(exprs):
+def clusterize(exprs, options=None, **kwargs):
     """
     Turn a sequence of LoweredEqs into a sequence of Clusters.
     """
@@ -34,7 +34,7 @@ def clusterize(exprs):
     clusters = guard(clusters)
 
     # Determine relevant computational properties (e.g., parallelism)
-    clusters = analyze(clusters)
+    clusters = analyze(clusters, options)
 
     return ClusterGroup(clusters)
 
@@ -179,9 +179,14 @@ def guard(clusters):
                 processed.append(c.rebuild(exprs=exprs))
                 continue
 
-            # Chain together all conditions from all expressions in `c`
+            # Separate out the indirect ConditionalDimensions, which only serve
+            # the purpose of protecting from OOB accesses
+            cds = [d for d in cds if not d.indirect]
+
+            # Chain together all `cds` conditions from all expressions in `c`
             guards = {}
             for cd in cds:
+                # Pull `cd` from any expr
                 condition = guards.setdefault(cd.parent, [])
                 for e in exprs:
                     try:
@@ -189,6 +194,14 @@ def guard(clusters):
                         break
                     except KeyError:
                         pass
+
+                # Remove `cd` from all `exprs` since this will be now encoded
+                # globally at the Cluster level
+                for i, e in enumerate(list(exprs)):
+                    conditionals = dict(e.conditionals)
+                    conditionals.pop(cd, None)
+                    exprs[i] = e.func(*e.args, conditionals=conditionals)
+
             guards = {d: sympy.And(*v, evaluate=False) for d, v in guards.items()}
 
             # Construct a guarded Cluster

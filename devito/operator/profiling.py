@@ -83,7 +83,7 @@ class Profiler(object):
                     traffic += sum(j.size for j in i)
 
             # Each ExpressionBundle lives in its own iteration space
-            itermaps = [i.ispace.dimension_map for i in bundles]
+            itermaps = [i.ispace.dimension_map for i in bundles if i.ops != 0]
 
             # Track how many grid points are written within `s`
             points = set()

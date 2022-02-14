@@ -31,7 +31,6 @@ class Graph(object):
         # Foreign functions
         self.ffuncs = []
 
-        self.dimensions = []
         self.includes = []
         self.headers = []
 
@@ -77,7 +76,6 @@ class Graph(object):
             self.efuncs[i], metadata = func(self.efuncs[i], **kwargs)
 
             # Track all objects introduced by `func`
-            self.dimensions.extend(as_tuple(metadata.get('dimensions')))
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
             self.ffuncs.extend(as_tuple(metadata.get('ffuncs', [])))

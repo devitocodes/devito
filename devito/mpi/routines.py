@@ -365,12 +365,12 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         rrecv = MPIRequestObject(name='rrecv')
         rsend = MPIRequestObject(name='rsend')
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                         fromrank, Integer(13), comm, rrecv])
+                         fromrank, Integer(13), comm, Byref(rrecv)])
         send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                         torank, Integer(13), comm, rsend])
+                         torank, Integer(13), comm, Byref(rsend)])
 
-        waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
-        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
+        waitrecv = Call('MPI_Wait', [Byref(rrecv), Macro('MPI_STATUS_IGNORE')])
+        waitsend = Call('MPI_Wait', [Byref(rsend), Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         parameters = ([f] + list(bufs.shape) + ofsg + ofss + [fromrank, torank, comm])
@@ -971,14 +971,14 @@ class HaloUpdate(MPICallable):
 
 class IsendCall(Call):
 
-    def __init__(self, parameters):
-        super(IsendCall, self).__init__('MPI_Isend', parameters)
+    def __init__(self, arguments):
+        super().__init__('MPI_Isend', arguments)
 
 
 class IrecvCall(Call):
 
-    def __init__(self, parameters):
-        super(IrecvCall, self).__init__('MPI_Irecv', parameters)
+    def __init__(self, arguments):
+        super().__init__('MPI_Irecv', arguments)
 
 
 class MPICall(Call):
@@ -1016,22 +1016,10 @@ class MPIStatusObject(LocalObject):
 
     dtype = type('MPI_Status', (c_void_p,), {})
 
-    def __init__(self, name):
-        self.name = name
-
-    # Pickling support
-    _pickle_args = ['name']
-
 
 class MPIRequestObject(LocalObject):
 
     dtype = type('MPI_Request', (c_void_p,), {})
-
-    def __init__(self, name):
-        self.name = name
-
-    # Pickling support
-    _pickle_args = ['name']
 
 
 class MPIMsg(CompositeObject):

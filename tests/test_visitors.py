@@ -2,9 +2,9 @@ import cgen as c
 from sympy import Mod
 import pytest
 
-from devito import Grid, Eq, Function, Operator
+from devito import Grid, Eq, Function, TimeFunction, Operator, sin
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Expression, Callable, FindSections,
+from devito.ir.iet import (Block, Expression, Callable, FindNodes, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
                            Conditional, printAST, Iteration)
 from devito.types import SpaceDimension, Array
@@ -346,3 +346,33 @@ def test_find_symbols():
     symbols = FindSymbols('indexeds').visit(op)
 
     assert len(symbols) == 3
+
+
+def test_find_symbols_with_duplicates():
+    grid = Grid(shape=(4, 4))
+    x, y = grid.dimensions
+
+    f = TimeFunction(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    eq = Eq(f.forward, sin(g)*f + g)
+
+    op = Operator(eq)
+
+    exprs = FindNodes(Expression).visit(op)
+
+    assert len(exprs) == 2
+
+    # Two syntactically identical indexeds r0[x, y], but they're different
+    # objects because they are constructed in two different places during
+    # the CIRE pass
+    r0a = exprs[0].output
+    r0b = exprs[1].expr.rhs.args[0].args[0]
+    assert r0a.function is r0b.function
+    assert r0a.name == r0b.name == "r0"
+    assert hash(r0a) == hash(r0b)
+    assert r0a is not r0b
+
+    # So we expect FindSymbols to catch five Indexeds in total
+    symbols = FindSymbols('indexeds').visit(op)
+    assert len(symbols) == 5

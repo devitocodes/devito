@@ -15,10 +15,10 @@ from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
-from devito.passes.iet import DataManager
+from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar  # noqa
+from devito.types import Array, Scalar, Symbol
 
 
 def dimify(dimensions):
@@ -1265,8 +1265,8 @@ class TestDeclarator(object):
                                          '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
 
     def test_heap_perfect_2D(self):
@@ -1286,11 +1286,11 @@ class TestDeclarator(object):
              '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.allocs[2]) == 'float *c_vec;'
-        assert str(op.body.allocs[3]) == ('posix_memalign((void**)&c_vec, 64, '
-                                          'sizeof(float[i_size][j_size]));')
+        assert str(op.body.allocs[3]) == ('posix_memalign((void**)(&c_vec),64,'
+                                          'i_size*j_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
         assert str(op.body.frees[1]) == 'free(c_vec);'
 
@@ -1311,11 +1311,11 @@ class TestDeclarator(object):
              '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.allocs[2]) == 'float *c_vec;'
-        assert str(op.body.allocs[3]) == ('posix_memalign((void**)&c_vec, 64, '
-                                          'sizeof(float[i_size][j_size]));')
+        assert str(op.body.allocs[3]) == ('posix_memalign((void**)(&c_vec),64,'
+                                          'i_size*j_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
         assert str(op.body.frees[1]) == 'free(c_vec);'
 
@@ -1338,8 +1338,8 @@ class TestDeclarator(object):
              '((aligned (64))) = (float (*)) f_vec->data;')
 
         assert str(op.body.allocs[0]) == 'float *a_vec;'
-        assert str(op.body.allocs[1]) == ('posix_memalign((void**)&a_vec, 64, '
-                                          'sizeof(float[i_size]));')
+        assert str(op.body.allocs[1]) == ('posix_memalign((void**)(&a_vec),64,'
+                                          'i_size*sizeof(float));')
         assert str(op.body.frees[0]) == 'free(a_vec);'
 
         assert op.body.body[1].body[0].is_ExpressionBundle
@@ -1356,17 +1356,13 @@ class TestDeclarator(object):
         op = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.),
                        Eq(f, c[s, q])])
 
-        assert op.body.casts[0].is_PointerCast
-        assert str(op.body.casts[0]) ==\
-            ('float (*restrict c)[j_size] __attribute__ ((aligned (64))) = '
-             '(float (*)[j_size]) c_vec;')
-        assert op.body.casts[2].is_PointerCast
-        assert str(op.body.casts[2]) ==\
+        assert op.body.casts[1].is_PointerCast
+        assert str(op.body.casts[1]) ==\
             ('float (*restrict f)[f_vec->size[1]] __attribute__ '
              '((aligned (64))) = (float (*)[f_vec->size[1]]) f_vec->data;')
 
         assert str(op.body.allocs[0]) ==\
-            'float c_vec[i_size][j_size] __attribute__((aligned(64)));'
+            'float c[i_size][j_size] __attribute__((aligned(64)));'
 
     def test_conditional_declarations(self):
         x = Dimension(name="x")
@@ -1375,11 +1371,30 @@ class TestDeclarator(object):
         list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value)))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
-        iet = DataManager.place_definitions.__wrapped__(DataManager(None, None), iet)[0]
+        iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
         for i in iet.body.body[0].children:
             assert len(i) == 1
             assert i[0].is_Expression
             assert i[0].expr.rhs is init_value
+
+    def test_nested_scalar_assigns(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        s = Symbol(name='s', dtype=grid.dtype)
+
+        eqns = [Eq(s, 0),
+                Eq(s, s + f + 1)]
+
+        op = Operator(eqns)
+
+        exprs = FindNodes(Expression).visit(op)
+
+        assert len(exprs) == 2
+        assert exprs[0].init
+        assert 'float' in str(exprs[0])
+        assert not exprs[1].init
+        assert 'float' not in str(exprs[1])
 
 
 class TestLoopScheduling(object):

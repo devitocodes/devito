@@ -597,8 +597,8 @@ class SparseFunction(AbstractSparseFunction):
             ub = sympy.And(p <= d.symbolic_max + offset, evaluate=False)
             conditions[p] = sympy.And(lb, ub, evaluate=False)
         condition = sympy.And(*conditions.values(), evaluate=False)
-        cd = ConditionalDimension("%s_g" % self._sparse_dim, self._sparse_dim,
-                                  condition=condition)
+        cd = ConditionalDimension(self._sparse_dim.name, self._sparse_dim,
+                                  condition=condition, indirect=True)
 
         if expr is None:
             out = self.indexify().xreplace({self._sparse_dim: cd})

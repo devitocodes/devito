@@ -2,7 +2,7 @@ from functools import partial
 
 import numpy as np
 
-from devito.core.operator import CoreOperator, CustomOperator
+from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
@@ -24,6 +24,17 @@ class DeviceOperatorMixin(object):
     """
     Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
+    BLOCK_EAGER = True
+    """
+    Apply loop blocking as early as possible, and in particular prior to CIRE.
+    """
+
+    BLOCK_RELAX = False
+    """
+    If set to True, bypass the compiler heuristics that prevent loop blocking in
+    situations where the performance impact might be detrimental.
     """
 
     CIRE_MINGAIN = 10
@@ -67,6 +78,9 @@ class DeviceOperatorMixin(object):
         # Blocking
         o['blockinner'] = oo.pop('blockinner', True)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+        o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
+        o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
+        o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
@@ -78,7 +92,7 @@ class DeviceOperatorMixin(object):
         o['cire-schedule'] = oo.pop('cire-schedule', cls.CIRE_SCHEDULE)
 
         # GPU parallelism
-        o['par-tile'] = oo.pop('par-tile', False)  # Control tile parallelism
+        o['par-tile'] = ParTile(oo.pop('par-tile', False), default=(32, 4))
         o['par-collapse-ncores'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-collapse-work'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
@@ -161,8 +175,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
         clusters = Lift().process(clusters)
 
-        # Loop tiling
-        clusters = blocking(clusters, options)
+        # Blocking to define thread blocks
+        if options['blockeager']:
+            clusters = blocking(clusters, sregistry, options)
 
         # Reduce flops
         clusters = extract_increments(clusters, sregistry)
@@ -175,6 +190,10 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cse(clusters, sregistry)
+
+        # Blocking to define thread blocks
+        if options['blocklazy']:
+            clusters = blocking(clusters, sregistry, options)
 
         return clusters
 
@@ -245,7 +264,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
         return {
             'buffering': lambda i: buffering(i, callback, sregistry, options),
-            'blocking': lambda i: blocking(i, options),
+            'blocking': lambda i: blocking(i, sregistry, options),
             'tasking': Tasker(runs_on_host).process,
             'streaming': Streaming(reads_if_on_host).process,
             'factorize': factorize,
