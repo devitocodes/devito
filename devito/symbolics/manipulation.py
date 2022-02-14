@@ -49,7 +49,11 @@ def _uxreplace(expr, rule):
         args = [v[i] for i in args if v[i] is not None]
         changed = True
     else:
-        args, eargs = [], expr.args
+        try:
+            args, eargs = [], expr.args
+        except AttributeError:
+            # E.g., unsympified `int`
+            args, eargs = [], []
         changed = False
 
     if rule:

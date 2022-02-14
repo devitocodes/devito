@@ -698,7 +698,7 @@ class ConditionalDimension(DerivedDimension):
         Dimension. When it evaluates to True, the if-branch is executed. If None
         (default), ``factor`` must be provided.
     indirect : bool, optional
-        If True, use ``condition``, rather than the parent Dimension, to
+        If True, use `self`, rather than the parent Dimension, to
         index into arrays. A typical use case is when arrays are accessed
         indirectly via the ``condition`` expression. Defaults to False.
 
@@ -728,9 +728,9 @@ class ConditionalDimension(DerivedDimension):
         }
 
     Another typical use case is when one needs to constrain the execution of
-    loop iterations to make sure certain conditions are honoured. The following
-    artificial example employs indirect array accesses and uses ConditionalDimension
-    to guard against out-of-bounds accesses.
+    loop iterations so that certain conditions are honoured. The following
+    artificial example uses ConditionalDimension to guard against out-of-bounds
+    accesses in indirectly accessed arrays.
 
     >>> from sympy import And
     >>> ci = ConditionalDimension(name='ci', parent=i,

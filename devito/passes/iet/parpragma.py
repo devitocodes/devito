@@ -294,10 +294,8 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             vexpandeds.append(VExpanded(i, pi))
 
         if vexpandeds:
-            init = c.Initializer(c.Value(self.threadid._C_typedata, self.threadid.name),
-                                 self.lang['thread-num'])
-            prefix = List(header=init,
-                          body=vexpandeds + list(partree.prefix),
+            init = self.lang['thread-num'](retobj=self.threadid)
+            prefix = List(body=[init] + vexpandeds + list(partree.prefix),
                           footer=c.Line())
             partree = partree._rebuild(prefix=prefix)
 

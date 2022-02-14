@@ -7,7 +7,7 @@ from cgen import Struct, Value
 
 from devito.parameters import configuration
 from devito.tools import as_tuple, ctypes_to_cstr, dtype_to_ctype
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, IndexedData
 
 __all__ = ['Array', 'ArrayObject', 'PointerArray']
 
@@ -21,14 +21,38 @@ class ArrayBasic(AbstractFunction):
         return as_tuple(kwargs['dimensions']), as_tuple(kwargs['dimensions'])
 
     @property
+    def _C_name(self):
+        if self._mem_stack:
+            # No reason to distinguish between two different names, that is
+            # the _C_name and the name -- just `self.name` is enough
+            return self.name
+        else:
+            return super()._C_name
+
+    @property
     def _C_ctype(self):
         return POINTER(dtype_to_ctype(self.dtype))
+
+    @property
+    def _C_aliases(self):
+        return (self, self.indexed)
 
     @property
     def shape(self):
         return self.symbolic_shape
 
     shape_allocated = shape
+
+    @cached_property
+    def indexed(self):
+        return IndexedArray(self.name, shape=self.shape, function=self.function)
+
+
+class IndexedArray(IndexedData):
+
+    @property
+    def _C_aliases(self):
+        return (self, self.function)
 
 
 class Array(ArrayBasic):
@@ -211,11 +235,6 @@ class ArrayObject(ArrayBasic):
     def __pfields_setup__(cls, **kwargs):
         return [(i._C_name, i._C_ctype) for i in kwargs.get('fields', [])]
 
-    @property
-    def _C_name(self):
-        # No reason for the `_C_name` to different from the `name`
-        return self.name
-
     @cached_property
     def _C_typename(self):
         return ctypes_to_cstr(self.dtype)
@@ -251,6 +270,14 @@ class ArrayObject(ArrayBasic):
     @property
     def pname(self):
         return self._pname
+
+    @property
+    def _mem_heap(self):
+        return False
+
+    @property
+    def _mem_stack(self):
+        return True
 
     # Pickling support
     _pickle_kwargs = ArrayBasic._pickle_kwargs + ['dimensions', 'fields']

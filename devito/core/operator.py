@@ -1,12 +1,16 @@
+from collections.abc import Iterable
+
 from devito.core.autotuning import autotune
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.parameters import configuration
 from devito.operator import Operator
-from devito.tools import as_tuple, timed_pass
+from devito.tools import as_tuple, is_integer, timed_pass
 from devito.types import NThreads
 
-__all__ = ['CoreOperator', 'CustomOperator']
+__all__ = ['CoreOperator', 'CustomOperator',
+           # Optimization options
+           'ParTile']
 
 
 class BasicOperator(Operator):
@@ -208,3 +212,68 @@ class CustomOperator(BasicOperator):
             passes_mapper['linearize'](graph)
 
         return graph
+
+
+# Wrappers for optimization options
+
+
+class OptOption(object):
+    pass
+
+
+class ParTileArg(tuple):
+
+    def __new__(cls, items, shm=0, tag=None):
+        obj = super().__new__(cls, items)
+        obj.shm = shm
+        obj.tag = tag
+        return obj
+
+
+class ParTile(tuple, OptOption):
+
+    def __new__(cls, items, default=None):
+        if not items:
+            return None
+        elif isinstance(items, bool):
+            if not default:
+                raise ValueError("Expected `default` value, got None")
+            items = (ParTileArg(as_tuple(default)),)
+        elif isinstance(items, tuple):
+            if not items:
+                raise ValueError("Expected at least one value")
+
+            # Normalize to tuple of ParTileArgs
+
+            x = items[0]
+            if is_integer(x):
+                # E.g., (32, 4, 8)
+                items = (ParTileArg(items),)
+
+            elif isinstance(x, Iterable):
+                if not x:
+                    raise ValueError("Expected at least one value")
+
+                try:
+                    y = items[1]
+                    if is_integer(y):
+                        # E.g., ((32, 4, 8), 1)
+                        # E.g., ((32, 4, 8), 1, 'tag')
+                        items = (ParTileArg(*items),)
+                    else:
+                        try:
+                            # E.g., (((32, 4, 8), 1), ((32, 4, 4), 2))
+                            # E.g., (((32, 4, 8), 1, 'tag0'), ((32, 4, 4), 2, 'tag1'))
+                            items = tuple(ParTileArg(*i) for i in items)
+                        except TypeError:
+                            # E.g., ((32, 4, 8), (32, 4, 4))
+                            items = tuple(ParTileArg(i) for i in items)
+                except IndexError:
+                    # E.g., ((32, 4, 8),)
+                    items = (ParTileArg(x),)
+            else:
+                raise ValueError("Expected int or tuple, got %s instead" % type(x))
+        else:
+            raise ValueError("Expected bool or tuple, got %s instead" % type(items))
+
+        return super().__new__(cls, items)

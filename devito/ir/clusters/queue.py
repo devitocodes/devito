@@ -57,7 +57,7 @@ class Queue(object):
 
         return processed
 
-    def _process_fatd(self, clusters, level, **kwargs):
+    def _process_fatd(self, clusters, level, prefix=None, **kwargs):
         """
         fatd -> First Apply Then Divide
         """
@@ -72,7 +72,7 @@ class Queue(object):
                 # Apply callback
                 _clusters = self.callback(list(g), pfx, **kwargs)
                 # Recursion
-                processed.extend(self._process_fatd(_clusters, level + 1, **kwargs))
+                processed.extend(self._process_fatd(_clusters, level + 1, pfx, **kwargs))
 
         return processed
 

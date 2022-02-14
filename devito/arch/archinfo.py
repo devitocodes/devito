@@ -13,6 +13,7 @@ from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
+           'check_cuda_runtime',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
@@ -352,6 +353,33 @@ def get_nvidia_cc():
     elif (cuda.cuDeviceComputeCapability(ctypes.byref(cc_major),
           ctypes.byref(cc_minor), 0) == 0):
         return 10*cc_major.value + cc_minor.value
+
+
+@memoized_func
+def check_cuda_runtime():
+    libnames = ('libcudart.so', 'libcudart.dylib', 'cudart.dll')
+    for libname in libnames:
+        try:
+            cuda = ctypes.CDLL(libname)
+        except OSError:
+            continue
+        else:
+            break
+    else:
+        warning("Unable to check compatibility of NVidia driver and runtime")
+
+    driver_version = ctypes.c_int()
+    runtime_version = ctypes.c_int()
+
+    if cuda.cudaDriverGetVersion(ctypes.byref(driver_version)) == 0 and \
+       cuda.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0:
+        driver_version = driver_version.value
+        runtime_version = runtime_version.value
+        if driver_version < runtime_version:
+            warning("The NVidia driver (v%d) on this system may not be compatible "
+                    "with the CUDA runtime (v%d)" % (driver_version, runtime_version))
+    else:
+        warning("Unable to check compatibility of NVidia driver and runtime")
 
 
 @memoized_func

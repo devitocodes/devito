@@ -172,6 +172,55 @@ def test_cache_blocking_structure_distributed():
         assert iters[4].dim is z
 
 
+def test_cache_blocking_structure_optrelax():
+    grid = Grid(shape=(8, 8, 8))
+
+    u = TimeFunction(name="u", grid=grid, space_order=2)
+    src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1,
+                             coordinates=np.array([(0.5, 0.5, 0.5)]))
+
+    eqns = [Eq(u.forward, u.dx)]
+    eqns += src.inject(field=u.forward, expr=src)
+
+    op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
+
+    bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0'})
+
+    iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
+    assert len(iters) == 2
+    assert iters[0].dim.is_Block
+    assert iters[1].dim.is_Block
+
+
+@pytest.mark.parametrize('par_tile,expected', [
+    (True, ((16, 16, 16), (16, 16, 16))),
+    ((32, 4, 4), ((32, 4, 4), (32, 4, 4))),
+    (((16, 4), (16,)), ((16, 4, 4), (16, 16, 16))),
+    (((32, 4, 4), 1), ((32, 4, 4), (32, 4, 4))),
+    (((32, 4, 4), 1, 'tag0'), ((32, 4, 4), (32, 4, 4))),
+    ((((32, 4, 4), 1, 'tag0'), ((32, 4, 4), 2)), ((32, 4, 4), (32, 4, 4))),
+])
+def test_cache_blocking_structure_optpartile(par_tile, expected):
+    grid = Grid(shape=(8, 8, 8))
+
+    u = TimeFunction(name="u", grid=grid, space_order=4)
+    v = TimeFunction(name="v", grid=grid, space_order=4)
+
+    eqns = [Eq(u.forward, u.dx),
+            Eq(v.forward, u.forward.dx)]
+
+    op = Operator(eqns, opt=('advanced', {'par-tile': par_tile,
+                                          'blockinner': True}))
+
+    bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+    assert len(bns) == len(expected)
+    for root, v in zip(bns.values(), expected):
+        iters = FindNodes(Iteration).visit(root)
+        iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
+        assert len(iters) == len(v)
+        assert all(i.step == j for i, j in zip(iters, v))
+
+
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
 @pytest.mark.parametrize("blockshape", [2, (3, 3), (9, 20), (2, 9, 11), (7, 15, 23)])
@@ -315,7 +364,9 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
 
     op0 = Operator(eq, opt='noop')
     op1 = Operator(eq, opt=('cire-sops', {'blockinner': blockinner}))
-    op2 = Operator(eq, opt=('advanced-fsg', {'blockinner': blockinner}))
+    op2 = Operator(eq, opt=('advanced-fsg', {'blockinner': blockinner,
+                                             'blockrelax': True}))
+    op3 = Operator(eq, opt=('advanced-fsg', {'blockinner': blockinner}))
 
     # First, check the generated code
     bns, _ = assert_blocking(op2, {'x0_blk0'})
@@ -327,6 +378,9 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
     assert op2.parameters[6] is trees[0].root.step
+    # No blocking expected in `op3` because the blocking heuristics prevent it
+    # when there would be only one TILABLE Dimension
+    _, _ = assert_blocking(op3, {})
 
     op0(time_M=0)
 

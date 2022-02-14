@@ -3,10 +3,11 @@ import numpy as np
 import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    MatrixSparseTimeFunction)
+                    MatrixSparseTimeFunction, sin)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes
 from devito.operator import SymbolRegistry
 from devito.passes import Graph, linearize
+from devito.types import Array
 
 
 def test_basic():
@@ -239,7 +240,44 @@ def test_different_halos():
     assert np.all(u.data == u1.data)
 
 
-def test_strides_forwarding():
+def test_unsubstituted_indexeds():
+    """
+    This issue emerged in the context of PR #1828, after the introduction
+    of Uxreplace to substitute Indexeds with FIndexeds. Basically what happened
+    was that `FindSymbols('indexeds')` was missing syntactically identical
+    objects that however look the same. For example, as in this test,
+    we end up with two `r0[x, y, z]`, but the former's `x` and `y` are
+    SpaceDimensions, while the latter's are BlockDimensions. This means
+    that the two objects, while looking identical, are different, and in
+    partical they hash differently, hence we need two entries in a mapper
+    to perform an Uxreplace. But FindSymbols made us detect only one entry...
+    """
+    grid = Grid(shape=(8, 8, 8))
+
+    f = Function(name='f', grid=grid)
+    p = TimeFunction(name='p', grid=grid)
+    p1 = TimeFunction(name='p', grid=grid)
+
+    f.data[:] = 0.12
+    p.data[:] = 1.
+    p1.data[:] = 1.
+
+    eq = Eq(p.forward, sin(f)*p*f)
+
+    op0 = Operator(eq)
+    op1 = Operator(eq, opt=('advanced', {'linearize': True}))
+
+    # NOTE: Eventually we compare the numerical output, but truly the most
+    # import check is implicit to op1.apply, and it's the fact that op1
+    # actually jit-compiles successfully, meaning that all substitutions
+    # were performed correctly
+    op0.apply(time_M=2)
+    op1.apply(time_M=2, p=p1)
+
+    assert np.allclose(p.data, p1.data, rtol=1e-7)
+
+
+def test_strides_forwarding0():
     grid = Grid(shape=(4, 4))
 
     f = Function(name='f', grid=grid)
@@ -260,9 +298,39 @@ def test_strides_forwarding():
     bar = graph.efuncs['bar']
 
     assert foo.body.body[0].write.name == 'y_fsz0'
-    assert foo.body.body[2].write.name == 'y_slc0'
+    assert foo.body.body[2].write.name == 'y_stride0'
     assert len(foo.body.body[4].arguments) == 2
 
     assert len(bar.parameters) == 2
-    assert bar.parameters[1].name == 'y_slc0'
+    assert bar.parameters[1].name == 'y_stride0'
     assert len(bar.body.body) == 1
+
+
+def test_strides_forwarding1():
+    grid = Grid(shape=(4, 4))
+
+    a = Array(name='a', dimensions=grid.dimensions, shape=grid.shape)
+
+    bar = Callable('bar', DummyExpr(a[0, 0], 0), 'void', parameters=[a.indexed])
+    call = Call(bar.name, [a.indexed])
+    foo = Callable('foo', call, 'void', parameters=[a])
+
+    # Emulate what the compiler would do
+    graph = Graph(foo)
+    graph.efuncs['bar'] = bar
+
+    linearize(graph, mode=True, sregistry=SymbolRegistry())
+
+    # Despite `a` is passed via `a.indexed`, and since it's an Array (which
+    # have symbolic shape), we expect the stride exprs to be placed in `bar`,
+    # and in `bar` only, as `foo` doesn't really use `a`, it just propagates it
+    # down to `bar`
+    foo = graph.root
+    bar = graph.efuncs['bar']
+
+    assert len(foo.body.body) == 1
+    assert foo.body.body[0].is_Call
+
+    assert len(bar.body.body) == 5
+    assert bar.body.body[0].write.name == 'y_fsz0'
+    assert bar.body.body[2].write.name == 'y_stride0'

@@ -1,10 +1,9 @@
-from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
+from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
                                       q_symbol, q_dimension)
 from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_xops', 'retrieve_symbols',
-           'retrieve_dimensions', 'search']
+           'retrieve_terminals', 'retrieve_symbols', 'retrieve_dimensions', 'search']
 
 
 class Search(object):
@@ -166,11 +165,6 @@ def retrieve_function_carriers(exprs, mode='all'):
 def retrieve_terminals(exprs, mode='all', deep=False):
     """Shorthand to retrieve Indexeds and Symbols within ``exprs``."""
     return search(exprs, q_terminal, mode, 'dfs', deep)
-
-
-def retrieve_xops(exprs):
-    """Shorthand to retrieve the arithmetic operations within ``exprs``."""
-    return search(exprs, q_xop, 'all', 'dfs')
 
 
 def retrieve_dimensions(exprs, mode='all', deep=False):

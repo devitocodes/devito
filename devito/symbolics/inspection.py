@@ -1,9 +1,14 @@
 from collections import Counter
+from functools import singledispatch
+
+import numpy as np
+from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol
 
 from devito.logger import warning
+from devito.symbolics.extended_sympy import INT, Cast
 from devito.symbolics.queries import q_routine
-from devito.symbolics.search import retrieve_xops, search
-from devito.tools import as_tuple, flatten
+from devito.symbolics.search import search
+from devito.tools import as_tuple
 
 __all__ = ['compare_ops', 'count', 'estimate_cost']
 
@@ -77,10 +82,6 @@ def estimate_cost(exprs, estimate=False):
             * Powers with integer exponent `n>0` count as n-1 ops (as if
               it were a chain of multiplications).
     """
-    elementary_cost = 100
-    pow_cost = 50
-    div_cost = 5
-
     try:
         # Is it a plain symbol/array ?
         if exprs.is_Atom or exprs.is_Indexed or exprs.is_AbstractFunction:
@@ -88,47 +89,115 @@ def estimate_cost(exprs, estimate=False):
     except AttributeError:
         pass
     try:
-        # Is it a dict ?
-        exprs = exprs.values()
-    except AttributeError:
-        try:
-            # Could still be a list of dicts
-            exprs = flatten([i.values() for i in exprs])
-        except (AttributeError, TypeError):
-            pass
-    try:
         # At this point it must be a list of SymPy objects
         # We don't use SymPy's count_ops because we do not count integer arithmetic
         # (e.g., array index functions such as i+1 in A[i+1])
         # Also, the routine below is *much* faster than count_ops
-        exprs = [i.rhs if i.is_Equality else i for i in as_tuple(exprs)]
-        operations = flatten(retrieve_xops(i) for i in exprs)
         flops = 0
-        for op in operations:
-            if op.is_Function:
-                if estimate and q_routine(op):
-                    flops += elementary_cost
-                else:
-                    flops += 1
-            elif op.is_Pow:
-                if estimate:
-                    if op.exp.is_Number:
-                        if op.exp < 0:
-                            flops += div_cost
-                        elif op.exp == 0 or op.exp == 1:
-                            flops += 0
-                        elif op.exp.is_Integer:
-                            # Natural pows a**b are estimated as b-1 Muls
-                            flops += int(op.exp) - 1
-                        else:
-                            flops += pow_cost
-                    else:
-                        flops += pow_cost
-                else:
-                    flops += 1
+        for expr in as_tuple(exprs):
+            if expr.is_Equality:
+                e = expr.rhs
             else:
-                flops += len(op.args) - (1 + sum(True for i in op.args if i.is_Integer))
+                e = expr
+            flops += _estimate_cost(e, estimate)[0]
         return flops
     except:
         warning("Cannot estimate cost of `%s`" % str(exprs))
         return 0
+
+
+estimate_values = {
+    'elementary': 100,
+    'pow': 50,
+    'div': 5
+}
+
+
+@singledispatch
+def _estimate_cost(expr, estimate):
+    # Retval: flops (int), flag (bool)
+    # The flag tells wether it's an integer expression (implying flops==0) or not
+    flops, flags = zip(*[_estimate_cost(a, estimate) for a in expr.args])
+    flops = sum(flops)
+    if all(flags):
+        # `expr` is an operation involving integer operands only
+        # NOTE: one of the operands may contain, internally, non-integer
+        # operations, e.g. the `a*b` in `2 + INT(a*b)`
+        return flops, True
+    else:
+        return flops + (len(expr.args) - 1), False
+
+
+@_estimate_cost.register(Integer)
+def _(expr, estimate):
+    return 0, True
+
+
+@_estimate_cost.register(Number)
+def _(expr, estimate):
+    return 0, False
+
+
+@_estimate_cost.register(Symbol)
+@_estimate_cost.register(Indexed)
+def _(expr, estimate):
+    try:
+        if issubclass(expr.dtype, np.integer):
+            return 0, True
+    except:
+        pass
+    return 0, False
+
+
+@_estimate_cost.register(Mul)
+def _(expr, estimate):
+    flops, flags = _estimate_cost.registry[object](expr, estimate)
+    if {S.One, S.NegativeOne}.intersection(expr.args):
+        flops -= 1
+    return flops, flags
+
+
+@_estimate_cost.register(INT)
+def _(expr, estimate):
+    return _estimate_cost(expr.base, estimate)[0], True
+
+
+@_estimate_cost.register(Cast)
+def _(expr, estimate):
+    return _estimate_cost(expr.base, estimate)[0], False
+
+
+@_estimate_cost.register(Function)
+def _(expr, estimate):
+    if q_routine(expr):
+        flops, _ = zip(*[_estimate_cost(a, estimate) for a in expr.args])
+        flops = sum(flops)
+        if estimate:
+            flops += estimate_values['elementary']
+        else:
+            flops += 1
+    else:
+        flops = 0
+    return flops, False
+
+
+@_estimate_cost.register(Pow)
+def _(expr, estimate):
+    flops, _ = zip(*[_estimate_cost(a, estimate) for a in expr.args])
+    flops = sum(flops)
+    if estimate:
+        if expr.exp.is_Number:
+            if expr.exp < 0:
+                flops += estimate_values['div']
+            elif expr.exp == 0 or expr.exp == 1:
+                flops += 0
+            elif expr.exp.is_Integer:
+                # Natural pows a**b are estimated as b-1 Muls
+                flops += int(expr.exp) - 1
+            else:
+                flops += estimate_values['pow']
+        else:
+            flops += estimate_values['pow']
+    else:
+        flops += 1
+    return flops, False
