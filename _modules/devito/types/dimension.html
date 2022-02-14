@@ -770,7 +770,7 @@
 <span class="sd">        Dimension. When it evaluates to True, the if-branch is executed. If None</span>
 <span class="sd">        (default), ``factor`` must be provided.</span>
 <span class="sd">    indirect : bool, optional</span>
-<span class="sd">        If True, use ``condition``, rather than the parent Dimension, to</span>
+<span class="sd">        If True, use `self`, rather than the parent Dimension, to</span>
 <span class="sd">        index into arrays. A typical use case is when arrays are accessed</span>
 <span class="sd">        indirectly via the ``condition`` expression. Defaults to False.</span>
 
@@ -800,9 +800,9 @@
 <span class="sd">        }</span>
 
 <span class="sd">    Another typical use case is when one needs to constrain the execution of</span>
-<span class="sd">    loop iterations to make sure certain conditions are honoured. The following</span>
-<span class="sd">    artificial example employs indirect array accesses and uses ConditionalDimension</span>
-<span class="sd">    to guard against out-of-bounds accesses.</span>
+<span class="sd">    loop iterations so that certain conditions are honoured. The following</span>
+<span class="sd">    artificial example uses ConditionalDimension to guard against out-of-bounds</span>
+<span class="sd">    accesses in indirectly accessed arrays.</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy import And</span>
 <span class="sd">    &gt;&gt;&gt; ci = ConditionalDimension(name=&#39;ci&#39;, parent=i,</span>

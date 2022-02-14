@@ -122,7 +122,7 @@ within the parent Dimension’s iteration space.</p>
 <li><p><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension. When it evaluates to True, the if-branch is executed. If None
 (default), <code class="docutils literal notranslate"><span class="pre">factor</span></code> must be provided.</p></li>
-<li><p><strong>indirect</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, use <code class="docutils literal notranslate"><span class="pre">condition</span></code>, rather than the parent Dimension, to
+<li><p><strong>indirect</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, use <cite>self</cite>, rather than the parent Dimension, to
 index into arrays. A typical use case is when arrays are accessed
 indirectly via the <code class="docutils literal notranslate"><span class="pre">condition</span></code> expression. Defaults to False.</p></li>
 </ul>
@@ -151,9 +151,9 @@ Function <code class="docutils literal notranslate"><span class="pre">g</span></
 </pre></div>
 </div>
 <p>Another typical use case is when one needs to constrain the execution of
-loop iterations to make sure certain conditions are honoured. The following
-artificial example employs indirect array accesses and uses ConditionalDimension
-to guard against out-of-bounds accesses.</p>
+loop iterations so that certain conditions are honoured. The following
+artificial example uses ConditionalDimension to guard against out-of-bounds
+accesses in indirectly accessed arrays.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">And</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ci</span> <span class="o">=</span> <span class="n">ConditionalDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ci&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
 <span class="gp">... </span>                          <span class="n">condition</span><span class="o">=</span><span class="n">And</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
