@@ -459,11 +459,13 @@ class AOMPCompiler(Compiler):
 class DPCPPCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, cpp=False, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags += ['-qopenmp', '-fopenmp-targets=spir64']
 
     def __lookup_cmds__(self):
+        # OneAPI Base Kit comes with dpcpp/icpx, both are clang++,
+        # and icx, which is clang
         self.CC = 'icx'
         self.CXX = 'icpx'
         self.MPICC = 'mpic++'
