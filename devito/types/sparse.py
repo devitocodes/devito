@@ -151,37 +151,6 @@ class AbstractSparseFunction(DiscreteFunction):
         ret[self._sparse_position] = mask
         return tuple(ret)
 
-    def _dist_subfunc_scatter_mask(self, dmap=None):
-        """
-        This method is analogous to :meth:`_dist_scatter_mask`, although
-        the mask is now suitable to index into self's SubFunctions, rather
-        than into ``self.data``.
-        """
-        return self._dist_scatter_mask(dmap=dmap)[self._sparse_position]
-
-    def _dist_gather_mask(self, dmap=None):
-        """
-        A mask to index into the ``data`` received upon returning from
-        ``self._dist_alltoall``. This mask creates a new data array in which
-        duplicate sparse data values have been discarded. The resulting data
-        array can thus be used to populate ``self.data``.
-        """
-        ret = list(self._dist_scatter_mask(dmap=dmap))
-        mask = ret[self._sparse_position]
-        inds = np.unique(mask, return_index=True)[1]
-        inds.sort()
-        ret[self._sparse_position] = inds.tolist()
-
-        return tuple(ret)
-
-    def _dist_subfunc_gather_mask(self, dmap=None):
-        """
-        This method is analogous to :meth:`_dist_subfunc_scatter_mask`, although
-        the mask is now suitable to index into self's SubFunctions, rather
-        than into ``self.data``.
-        """
-        return self._dist_gather_mask(dmap=dmap)[self._sparse_position]
-
     def _dist_count(self, dmap=None):
         """
         A 2-tuple of comm-sized iterables, which tells how many sparse points
@@ -258,13 +227,6 @@ class AbstractSparseFunction(DiscreteFunction):
         A ``numpy.ndarray`` containing up-to-date data values belonging
         to the calling MPI rank. A data value belongs to a given MPI rank R
         if its coordinates fall within R's local domain.
-        """
-        raise NotImplementedError
-
-    def _dist_gather(self, data):
-        """
-        A ``numpy.ndarray`` containing up-to-date data and coordinate values
-        suitable for insertion into ``self.data``.
         """
         raise NotImplementedError
 
@@ -635,8 +597,8 @@ class SparseFunction(AbstractSparseFunction):
             ub = sympy.And(p <= d.symbolic_max + offset, evaluate=False)
             conditions[p] = sympy.And(lb, ub, evaluate=False)
         condition = sympy.And(*conditions.values(), evaluate=False)
-        cd = ConditionalDimension("%s_g" % self._sparse_dim, self._sparse_dim,
-                                  condition=condition)
+        cd = ConditionalDimension(self._sparse_dim.name, self._sparse_dim,
+                                  condition=condition, indirect=True)
 
         if expr is None:
             out = self.indexify().xreplace({self._sparse_dim: cd})
@@ -698,9 +660,10 @@ class SparseFunction(AbstractSparseFunction):
 
         # Compute dist map only once
         dmap = self._dist_datamap
+        mask = self._dist_scatter_mask(dmap=dmap)
 
         # Pack sparse data values so that they can be sent out via an Alltoallv
-        data = data[self._dist_scatter_mask(dmap=dmap)]
+        data = data[mask]
         data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
 
         # Send out the sparse point values
@@ -714,7 +677,7 @@ class SparseFunction(AbstractSparseFunction):
         data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-        coords = self.coordinates.data._local[self._dist_subfunc_scatter_mask(dmap=dmap)]
+        coords = self.coordinates.data._local[mask[self._sparse_position]]
 
         # Send out the sparse point coordinates
         _, scount, sdisp, rshape, rcount, rdisp = self._dist_subfunc_alltoall(dmap=dmap)
@@ -739,6 +702,7 @@ class SparseFunction(AbstractSparseFunction):
 
         # Compute dist map only once
         dmap = self._dist_datamap
+        mask = self._dist_scatter_mask(dmap=dmap)
 
         # Pack sparse data values so that they can be sent out via an Alltoallv
         data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
@@ -750,7 +714,7 @@ class SparseFunction(AbstractSparseFunction):
                        [gathered, scount, sdisp, mpitype])
         # Unpack data values so that they follow the expected storage layout
         gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
-        self._data[:] = gathered[self._dist_gather_mask(dmap=dmap)]
+        self._data[mask] = gathered[:]
 
         if coords is not None:
             # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
@@ -762,8 +726,7 @@ class SparseFunction(AbstractSparseFunction):
             mpitype = MPI._typedict[np.dtype(self.coordinates.dtype).char]
             comm.Alltoallv([coords, rcount, rdisp, mpitype],
                            [gathered, scount, sdisp, mpitype])
-            self._coordinates.data._local[:] = \
-                gathered[self._dist_subfunc_gather_mask(dmap=dmap)]
+            self._coordinates.data._local[mask[self._sparse_position]] = gathered[:]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in

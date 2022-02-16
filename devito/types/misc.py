@@ -5,7 +5,7 @@ from devito.types.basic import IndexedData
 from devito.tools import Pickable
 
 __all__ = ['Timer', 'VoidPointer', 'VolatileInt', 'c_volatile_int',
-           'c_volatile_int_p', 'FIndexed', 'Wildcard']
+           'c_volatile_int_p', 'FIndexed', 'Wildcard', 'Global']
 
 
 class Timer(CompositeObject):
@@ -42,12 +42,6 @@ class Timer(CompositeObject):
 class VoidPointer(LocalObject):
 
     dtype = type('void*', (c_void_p,), {})
-
-    def __init__(self, name):
-        self.name = name
-
-    # Pickling support
-    _pickle_args = ['name']
 
 
 class VolatileInt(Symbol):
@@ -108,6 +102,15 @@ class FIndexed(Indexed, Pickable):
     # Pickling support
     _pickle_args = ['indexed', 'pname']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Global(Symbol):
+
+    """
+    A special Symbol representing global variables.
+    """
+
+    pass
 
 
 # ctypes subtypes

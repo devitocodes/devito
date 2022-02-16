@@ -97,9 +97,9 @@ class ThreadedProdder(Conditional, Prodder):
 
     _traversable = []
 
-    def __init__(self, prodder):
+    def __init__(self, prodder, arguments=None):
         # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(Ompizer.lang['thread-num'], 0)
+        condition = CondEq(DefFunction(Ompizer.lang['thread-num']().name), 0)
 
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
@@ -107,9 +107,10 @@ class ThreadedProdder(Conditional, Prodder):
         prod_until = Not(DefFunction(prodder.name, [i.name for i in prodder.arguments]))
         then_body = List(header=c.Comment('Entrap thread until comms have completed'),
                          body=While(prod_until))
-
         Conditional.__init__(self, condition, then_body)
-        Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
+
+        arguments = arguments or prodder.arguments
+        Prodder.__init__(self, prodder.name, arguments, periodic=prodder.periodic)
 
 
 class OmpBB(PragmaLangBB):
@@ -124,7 +125,8 @@ class OmpBB(PragmaLangBB):
         INTELGPUX: None,
         # Runtime library
         'init': None,
-        'thread-num': DefFunction('omp_get_thread_num'),
+        'thread-num': lambda retobj=None:
+            Call('omp_get_thread_num', retobj=retobj),
         'num-devices': lambda args:
             DefFunction('omp_get_num_devices', args),
         'set-device': lambda args:
@@ -158,11 +160,11 @@ class OmpBB(PragmaLangBB):
                                        DefFunction('omp_get_device_num'),
                                        DefFunction('omp_get_initial_device')]),
         'device-get':
-            'omp_get_default_device()',
-        'device-alloc': lambda i, j:
-            'omp_target_alloc(%s, %s)' % (i, j),
+            Call('omp_get_default_device'),
+        'device-alloc': lambda i, j, retobj:
+            Call('omp_target_alloc', (i, j), retobj=retobj, cast=True),
         'device-free': lambda i, j:
-            'omp_target_free(%s, %s)' % (i, j)
+            Call('omp_target_free', (i, j))
     }
     mapper.update(CBB.mapper)
 

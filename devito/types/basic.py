@@ -12,8 +12,8 @@ from cgen import Struct, Value
 
 from devito.data import default_allocator
 from devito.symbolics import aligned_indices
-from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
-                          frozendict, memoized_meth, sympy_mutex)
+from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
+                          dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
 from devito.types.lazy import Evaluable
@@ -105,6 +105,14 @@ class CodeSymbol(object):
         Basic
         """
         return self
+
+    @property
+    def _C_aliases(self):
+        """
+        The symbols aliasing `self`, thus pointing to the same object in the
+        generated code.
+        """
+        return (self,)
 
 
 class Basic(CodeSymbol):
@@ -1211,6 +1219,10 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
         return ctypes_to_cstr(self.dtype)
 
     @property
+    def _C_typedata(self):
+        return self._C_typename
+
+    @property
     def _C_ctype(self):
         return self.dtype
 
@@ -1314,6 +1326,19 @@ class LocalObject(AbstractObject):
     """
 
     is_LocalObject = True
+
+    dtype = None
+    """
+    LocalObjects encode their dtype as a class attribute.
+    """
+
+    def __init__(self, name, constructor_args=None, **kwargs):
+        self.name = name
+        self.constructor_args = as_tuple(constructor_args)
+
+    # Pickling support
+    _pickle_args = ['name']
+    _pickle_kwargs = ['constructor_args']
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

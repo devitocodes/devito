@@ -12,8 +12,8 @@ from devito.tools import Pickable, as_tuple, is_integer
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'CEIL', 'FLOOR', 'MAX', 'MIN', 'SizeOf', 'rfunc',
-           'cast_mapper']
+           'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL', 'FLOOR', 'MAX', 'MIN',
+           'SizeOf', 'rfunc', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -256,7 +256,7 @@ class ListInitializer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class UnaryOp(sympy.Expr, Pickable):
+class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
 
     """
     Symbolic representation of a unary C operator.
@@ -271,8 +271,8 @@ class UnaryOp(sympy.Expr, Pickable):
         except AttributeError:
             if isinstance(base, str):
                 base = Symbol(base)
-            elif not isinstance(base, sympy.Expr):
-                raise ValueError("`base` must be sympy.Expr or str")
+            elif not isinstance(base, sympy.Basic):
+                raise ValueError("`base` must be sympy.Basic or str")
 
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base
@@ -357,8 +357,6 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     """
 
     def __new__(cls, base, index):
-        if isinstance(base, (str, sympy.IndexedBase, sympy.Symbol)):
-            return sympy.Indexed(base, index)
         try:
             # If an AbstractFunction, pull the underlying Symbol
             base = base.indexed.label
@@ -516,11 +514,15 @@ class DOUBLE(Cast):
     _base_typ = 'double'
 
 
+class VOID(Cast):
+    _base_typ = 'void'
+
+
 class CastStar(object):
 
     base = None
 
-    def __new__(cls, base):
+    def __new__(cls, base=''):
         return cls.base(base, '*')
 
 

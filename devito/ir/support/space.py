@@ -9,7 +9,7 @@ from sympy import Expr
 
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
-                          frozendict, is_integer, toposort)
+                          flatten, frozendict, is_integer, toposort)
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
@@ -454,8 +454,12 @@ class IntervalGroup(PartialOrderTuple):
         return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
     def switch(self, d0, d1):
-        return IntervalGroup([i.switch(d1) if i.dim is d0 else i for i in self],
-                             relations=self.relations)
+        intervals = [i.switch(d1) if i.dim is d0 else i for i in self]
+
+        # Update relations too
+        relations = {tuple(d1 if i is d0 else i for i in r) for r in self.relations}
+
+        return IntervalGroup(intervals, relations=relations)
 
     def translate(self, d, v0=0, v1=None):
         intervals = [i.translate(v0, v1) if i.dim in as_tuple(d) else i for i in self]
@@ -775,6 +779,15 @@ class IterationSpace(Space):
 
         return IterationSpace(self.intervals, items, self.directions)
 
+    def switch(self, d0, d1):
+        intervals = self.intervals.switch(d0, d1)
+        sub_iterators = {d1 if k is d0 else k: v
+                         for k, v in self.sub_iterators.items()}
+        directions = {d1 if k is d0 else k: v
+                      for k, v in self.directions.items()}
+
+        return IterationSpace(intervals, sub_iterators, directions)
+
     def reset(self):
         return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)
 
@@ -830,6 +843,15 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def promote(self, cond):
+        intervals = self.intervals.promote(cond)
+        sub_iterators = {i.promote(cond).dim: self.sub_iterators.get(i.dim, ())
+                         for i in self.intervals}
+        directions = {i.promote(cond).dim: self.directions.get(i.dim, ())
+                      for i in self.intervals}
+
+        return IterationSpace(intervals, sub_iterators, directions)
+
     def is_compatible(self, other):
         """
         A relaxed version of ``__eq__``, in which only non-derived dimensions
@@ -868,8 +890,8 @@ class IterationSpace(Space):
 
     @cached_property
     def dimensions(self):
-        sub_dims = [i.parent for v in self.sub_iterators.values() for i in v]
-        return filter_ordered(self.intervals.dimensions + sub_dims)
+        sub_dims = flatten(i._defines for v in self.sub_iterators.values() for i in v)
+        return filter_ordered(self.itdimensions + sub_dims)
 
     @cached_property
     def nonderived_directions(self):

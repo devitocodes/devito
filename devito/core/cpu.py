@@ -1,6 +1,6 @@
 from functools import partial
 
-from devito.core.operator import CoreOperator, CustomOperator
+from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
@@ -21,6 +21,17 @@ class Cpu64OperatorMixin(object):
     """
     Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
+    BLOCK_EAGER = True
+    """
+    Apply loop blocking as early as possible, and in particular prior to CIRE.
+    """
+
+    BLOCK_RELAX = False
+    """
+    If set to True, bypass the compiler heuristics that prevent loop blocking in
+    situations where the performance impact might be detrimental.
     """
 
     CIRE_MINGAIN = 10
@@ -84,7 +95,11 @@ class Cpu64OperatorMixin(object):
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
+        o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
+        o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
+        o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
         o['skewing'] = oo.pop('skewing', False)
+        o['par-tile'] = ParTile(oo.pop('par-tile', False), default=16)
 
         # CIRE
         o['min-storage'] = oo.pop('min-storage', False)
@@ -172,7 +187,8 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         clusters = Lift().process(clusters)
 
         # Blocking to improve data locality
-        clusters = blocking(clusters, options)
+        if options['blockeager']:
+            clusters = blocking(clusters, sregistry, options)
 
         # Reduce flops
         clusters = extract_increments(clusters, sregistry)
@@ -185,6 +201,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cse(clusters, sregistry)
+
+        # Blocking to improve data locality
+        if options['blocklazy']:
+            clusters = blocking(clusters, sregistry, options)
 
         return clusters
 
@@ -228,6 +248,8 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
     Operator with performance optimizations tailored "For small grids" ("Fsg").
     """
 
+    BLOCK_EAGER = False
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         kwargs = super()._normalize_kwargs(**kwargs)
@@ -237,40 +259,6 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
                                   ' as they work in opposite directions')
 
         return kwargs
-
-    @classmethod
-    @timed_pass(name='specializing.Clusters')
-    def _specialize_clusters(cls, clusters, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        sregistry = kwargs['sregistry']
-
-        # Optimize MultiSubDomains
-        clusters = optimize_msds(clusters)
-
-        # Toposort+Fusion (the former to expose more fusion opportunities)
-        clusters = fuse(clusters, toposort=True)
-
-        # Hoist and optimize Dimension-invariant sub-expressions
-        clusters = cire(clusters, 'invariants', sregistry, options, platform)
-        clusters = Lift().process(clusters)
-
-        # Reduce flops (potential arithmetic alterations)
-        clusters = extract_increments(clusters, sregistry)
-        clusters = cire(clusters, 'sops', sregistry, options, platform)
-        clusters = factorize(clusters)
-        clusters = optimize_pows(clusters)
-
-        # The previous passes may have created fusion opportunities
-        clusters = fuse(clusters)
-
-        # Reduce flops (no arithmetic alterations)
-        clusters = cse(clusters, sregistry)
-
-        # Blocking to improve data locality
-        clusters = blocking(clusters, options)
-
-        return clusters
 
 
 class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
@@ -299,7 +287,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         return {
             'buffering': lambda i: buffering(i, callback, sregistry, options),
-            'blocking': lambda i: blocking(i, options),
+            'blocking': lambda i: blocking(i, sregistry, options),
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),

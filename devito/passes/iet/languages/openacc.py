@@ -113,11 +113,11 @@ class AccBB(PragmaLangBB):
             List(body=[Call('acc_memcpy_to_device_async', [i, j, k, l]),
                        Call('acc_wait', [l])]),
         'device-get':
-            'acc_get_device_num()',
-        'device-alloc': lambda i, *args:
-            'acc_malloc(%s)' % i,
-        'device-free': lambda i, *args:
-            'acc_free(%s)' % i
+            Call('acc_get_device_num'),
+        'device-alloc': lambda i, *a, retobj=None:
+            Call('acc_malloc', (i,), retobj=retobj, cast=True),
+        'device-free': lambda i, *a:
+            Call('acc_free', (i,))
     }
     mapper.update(CBB.mapper)
 
@@ -168,11 +168,16 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         if self._is_offloadable(root) and \
            all(i.is_Affine for i in [root] + collapsable) and \
            self.par_tile:
-            if isinstance(self.par_tile, tuple):
-                tile = self.par_tile[:ncollapsable + 1]
+            # TODO: still unable to exploit multiple par-tiles (one per nest)
+            # This will require unconditionally applying blocking, and then infer
+            # the tile clause shape from the BlockDimensions' step
+            tile = self.par_tile[0]
+            assert isinstance(tile, tuple)
+            nremainder = (ncollapsable + 1) - len(tile)
+            if nremainder >= 0:
+                tile += (tile[-1],)*nremainder
             else:
-                # (32,4,4,...) is typically a decent choice
-                tile = (32,) + (4,)*ncollapsable
+                tile = tile[:ncollapsable + 1]
 
             body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile, **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)

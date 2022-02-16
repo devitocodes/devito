@@ -211,15 +211,15 @@ class TestCodeGeneration(object):
 
         assert len(op.body.allocs) == 1
         assert str(op.body.allocs[0]) ==\
-            ('float *r0_vec = (float*) '
-             'omp_target_alloc(sizeof(float[x_size*y_size*z_size]), '
+            ('float * r0_vec = (float *)'
+             'omp_target_alloc(x_size*y_size*z_size*sizeof(float),'
              'omp_get_default_device());')
         assert len(op.body.maps) == 2
         assert all('r0' not in str(i) for i in op.body.maps)
 
         assert len(op.body.frees) == 1
         assert str(op.body.frees[0]) ==\
-            'omp_target_free(r0_vec, omp_get_default_device());'
+            'omp_target_free(r0_vec,omp_get_default_device());'
         assert len(op.body.unmaps) == 3
         assert all('r0' not in str(i) for i in op.body.unmaps)
 

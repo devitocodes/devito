@@ -1,20 +1,18 @@
 from devito.ir.clusters.queue import QueueStateful
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               ROUNDABLE, SEQUENTIAL, SKEWABLE, TILABLE, Forward)
+                               ROUNDABLE, SEQUENTIAL, Forward)
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
 
 
 @timed_pass()
-def analyze(clusters):
+def analyze(clusters, options):
     state = QueueStateful.State()
 
     # Collect properties
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
-    clusters = Tiling(state).process(clusters)
-    clusters = Skewing(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
     # Reconstruct Clusters attaching the discovered properties
@@ -157,49 +155,3 @@ class Affiness(Detector):
         accesses = [a for a in scope.accesses if not a.is_scalar]
         if all(a.is_regular and a.affine_if_present(d._defines) for a in accesses):
             return AFFINE
-
-
-class Tiling(Detector):
-
-    """
-    Detect the TILABLE Dimensions.
-    """
-
-    def _callback(self, clusters, d, prefix):
-        # A Dimension is TILABLE only if it's PARALLEL and AFFINE
-        properties = self._fetch_properties(clusters, prefix)
-        if not {PARALLEL, AFFINE} <= properties[d]:
-            return
-
-        # In addition, we use the heuristic that we do not consider
-        # TILABLE a Dimension that is not embedded in at least one
-        # SEQUENTIAL Dimension. This is to rule out tiling when the
-        # computation is not expected to be expensive
-        if not any(SEQUENTIAL in properties[i.dim] for i in prefix[:-1]):
-            return
-
-        # Likewise, it won't be marked TILABLE if there's at least one
-        # local SubDimension in all Clusters
-        if all(any(i.dim.is_Sub and i.dim.local for i in c.itintervals)
-               for c in clusters):
-            return
-
-        # If it induces dynamic bounds, then it's ruled out too
-        scope = self._fetch_scope(clusters)
-        if any(i.is_lex_non_stmt for i in scope.d_all_gen()):
-            return
-
-        return TILABLE
-
-
-class Skewing(Detector):
-
-    """
-    Detect the SKEWABLE Dimensions.
-    """
-
-    def _callback(self, clusters, d, prefix):
-        # A Dimension is SKEWABLE in case it is TILABLE
-        properties = self._fetch_properties(clusters, prefix)
-        if {TILABLE} <= properties[d]:
-            return SKEWABLE

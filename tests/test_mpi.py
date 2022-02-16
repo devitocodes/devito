@@ -11,7 +11,7 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
-from devito.mpi.routines import HaloUpdateCall
+from devito.mpi.routines import HaloUpdateCall, MPICall
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -477,6 +477,22 @@ class TestSparseFunction(object):
             if coords_loc is not None:
                 coords_loc += sf.coordinates.data[i, 0]
             assert sf.data[i] == coords_loc
+
+    @pytest.mark.parallel(mode=4)
+    def test_sparse_coords_issue1823(self):
+        grid = Grid((101, 101, 101), extent=(1000, 1000, 1000))
+        coords = np.array([[1000., 0., 900.], [1000., 300., 700.],
+                           [1000., 500., 500.], [1000., 700., 300.],
+                           [1000., 900., 0.], [1000., 0., 850.]])
+        rec = SparseTimeFunction(name="s", grid=grid, coordinates=coords,
+                                 nt=10, npoint=6)
+        ref = SparseTimeFunction(name="s1", grid=grid, coordinates=coords,
+                                 nt=10, npoint=6)
+        u = TimeFunction(name="u", grid=grid, space_order=1)
+
+        Operator([Eq(u, u+1)]+rec.interpolate(u))()
+
+        assert np.allclose(rec.coordinates.data[:], ref.coordinates.data)
 
 
 class TestOperatorSimple(object):
@@ -1846,7 +1862,7 @@ class TestOperatorAdvanced(object):
         op0 = Operator(eqn, opt='noop')
         op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
 
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
+        assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
         op0(time_M=1)
         u0_norm = norm(u)
@@ -1879,7 +1895,7 @@ class TestOperatorAdvanced(object):
         op0 = Operator(eqn, opt='noop')
         op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
 
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
+        assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
         op0(time_M=1)
         u0_norm = norm(u)
@@ -1918,7 +1934,7 @@ class TestOperatorAdvanced(object):
         assert len(arrays) == 3
         assert 'haloupdate0' in op1._func_table
         # We expect exactly one halo exchange
-        calls = FindNodes(Call).visit(op1)
+        calls = FindNodes(MPICall).visit(op1)
         assert len(calls) == 1
         assert calls[0].name == 'haloupdate0'
 

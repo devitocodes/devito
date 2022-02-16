@@ -7,28 +7,28 @@ from collections import OrderedDict, namedtuple
 from functools import singledispatch
 from operator import itemgetter
 
-import cgen as c
-
-from devito.ir import (EntryFunction, DeviceFunction, List, PragmaTransfer,
-                       FindSymbols, MapExprStmts, Transformer)
+from devito.ir import (Block, Definition, DeviceFunction, EntryFunction,
+                       PragmaTransfer, FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import ListInitializer, ccode
-from devito.tools import as_mapper, filter_sorted, flatten, prod
+from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitializer,
+                              SizeOf, VOID, Literal, ccode)
+from devito.tools import as_mapper, as_tuple, filter_sorted, flatten, prod
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 
-MetaSite = namedtuple('Definition', 'allocs frees pallocs pfrees maps unmaps')
+MetaSite = namedtuple('Definition', 'allocs objs frees pallocs pfrees maps unmaps')
 
 
 class Storage(OrderedDict):
 
     def __init__(self, *args, **kwargs):
-        super(Storage, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
+
         self.defined = set()
 
     def update(self, key, site, **kwargs):
@@ -38,19 +38,24 @@ class Storage(OrderedDict):
         try:
             metasite = self[site]
         except KeyError:
-            metasite = self.setdefault(site, MetaSite([], [], [], [], [], []))
+            metasite = self.setdefault(site, MetaSite([], [], [], [], [], [], []))
 
         for k, v in kwargs.items():
             getattr(metasite, k).append(v)
 
         self.defined.add(key)
 
-    def map(self, key, k, v):
-        if key in self.defined:
+    def map(self, key, site, k, v):
+        site = as_tuple(site)
+        assert site
+
+        # Is `key` already defined in an outer scope?
+        if any((i, key) in self.defined for i in site):
             return
 
         self[k] = v
-        self.defined.add(key)
+
+        self.defined.add((site[-1], key))
 
 
 class DataManager(object):
@@ -74,7 +79,9 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        storage.update(obj, site, allocs=c.Value(obj._C_typename, obj.name))
+        decl = Definition(obj, constructor_args=obj.constructor_args)
+
+        storage.update(obj, site, objs=decl)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -82,33 +89,32 @@ class DataManager(object):
         """
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
         alignment = self.lang['aligned'](obj._data_alignment)
-        decl = c.Value(obj._C_typedata, "%s%s %s" % (obj._C_name, shape, alignment))
-
-        if obj.initvalue is not None:
-            storage.update(obj, site,
-                           allocs=c.Initializer(decl, ListInitializer(obj.initvalue)))
+        if obj.initvalue is None:
+            initvalue = None
         else:
-            storage.update(obj, site, allocs=decl)
+            initvalue = ListInitializer(obj.initvalue)
+        alloc = Definition(obj, shape=shape, qualifier=alignment, initvalue=initvalue)
+
+        storage.update(obj, site, allocs=alloc)
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
         Allocate a Scalar in the low latency memory.
         """
-        key = (site, expr.write)  # Ensure a scalar isn't redeclared in the given site
-        storage.map(key, expr, expr._rebuild(init=True))
+        storage.map(expr.write, site, expr, expr._rebuild(init=True))
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
         Allocate an Array in the high bandwidth memory.
         """
-        decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
+        decl = Definition(obj)
 
-        shape = "".join("[%s]" % i for i in obj.symbolic_shape)
-        size = "sizeof(%s%s)" % (obj._C_typedata, shape)
-        alloc = c.Statement(self.lang['alloc-host'](obj._C_name,
-                                                    obj._data_alignment, size))
+        memptr = VOID(Byref(obj._C_symbol), '**')
+        alignment = obj._data_alignment
+        size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
+        alloc = self.lang['host-alloc'](memptr, alignment, size)
 
-        free = c.Statement(self.lang['free-host'](obj._C_name))
+        free = self.lang['host-free'](obj._C_symbol)
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
 
@@ -117,9 +123,9 @@ class DataManager(object):
         Allocate an Array of Objects in the low latency memory.
         """
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-        decl = "%s%s" % (obj.name, shape)
+        decl = Definition(obj, shape=shape)
 
-        storage.update(obj, site, allocs=c.Value(obj._C_typedata, decl))
+        storage.update(obj, site, allocs=decl)
 
     def _alloc_pointed_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -133,27 +139,31 @@ class DataManager(object):
         by the owner thread.
         """
         # The pointer array
-        decl = c.Value(obj._C_typedata, "**%s" % obj._C_name)
+        decl = Definition(obj)
 
-        size = 'sizeof(%s*)*%s' % (obj._C_typedata, obj.dim.symbolic_size)
-        alloc0 = c.Statement(self.lang['alloc-host'](obj._C_name, obj._data_alignment,
-                                                     size))
-        free0 = c.Statement(self.lang['free-host'](obj._C_name))
+        memptr = VOID(Byref(obj._C_symbol), '**')
+        alignment = obj._data_alignment
+        size = SizeOf(Literal('%s*' % obj._C_typedata))*obj.dim.symbolic_size
+        alloc0 = self.lang['host-alloc'](memptr, alignment, size)
+
+        free0 = self.lang['host-free'](obj._C_symbol)
 
         # The pointee Array
-        pobj = '%s[%s]' % (obj._C_name, obj.dim.name)
-        shape = "".join("[%s]" % i for i in obj.array.symbolic_shape)
-        size = "sizeof(%s%s)" % (obj._C_typedata, shape)
-        alloc1 = c.Statement(self.lang['alloc-host'](pobj, obj._data_alignment, size))
-        free1 = c.Statement(self.lang['free-host'](pobj))
+        pobj = IndexedPointer(obj._C_symbol, obj.dim)
+        memptr = VOID(Byref(pobj), '**')
+        size = SizeOf(obj._C_typedata)*prod(obj.array.symbolic_shape)
+        alloc1 = self.lang['host-alloc'](memptr, alignment, size)
 
+        free1 = self.lang['host-free'](pobj)
+
+        # Dump
         if obj.dim is self.sregistry.threadid:
             storage.update(obj, site, allocs=(decl, alloc0), frees=free0,
                            pallocs=(obj.dim, alloc1), pfrees=(obj.dim, free1))
         else:
             storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
 
-    def _dump_definitions(self, iet, storage):
+    def _inject_definitions(self, iet, storage):
         mapper = {}
         for k, v in storage.items():
             # Expr -> LocalExpr ?
@@ -161,27 +171,25 @@ class DataManager(object):
                 mapper[k] = v
                 continue
 
+            # objects
+            objs = flatten(v.objs)
+
             # allocs/pallocs
             allocs = flatten(v.allocs)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
-                init = c.Initializer(c.Value(tid._C_typedata, tid.name),
-                                     self.lang['thread-num'])
-                allocs.append(c.Module((header, c.Block([init] + body))))
+                init = self.lang['thread-num'](retobj=tid)
+                allocs.append(Block(header=header, body=[init] + body))
 
             # frees/pfrees
             frees = []
             for tid, body in as_mapper(v.pfrees, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
-                init = c.Initializer(c.Value(tid._C_typedata, tid.name),
-                                     self.lang['thread-num'])
-                frees.append(c.Module((header, c.Block([init] + body))))
+                init = self.lang['thread-num'](retobj=tid)
+                frees.append(Block(header=header, body=[init] + body))
             frees.extend(flatten(v.frees))
 
-            if k is iet:
-                mapper[k.body] = k.body._rebuild(allocs=allocs, frees=frees)
-            else:
-                mapper[k] = k._rebuild(body=List(header=allocs, footer=frees))
+            mapper[k.body] = k.body._rebuild(allocs=allocs, objs=objs, frees=frees)
 
         processed = Transformer(mapper, nested=True).visit(iet)
 
@@ -198,63 +206,36 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
+        # Process inline definitions
         storage = Storage()
 
-        refmap = FindSymbols().visit(iet).mapper
-        placed = list(iet.parameters)
-
         for k, v in MapExprStmts().visit(iet).items():
-            if k.is_Expression:
-                if k.is_initializable:
-                    site = v[-1] if v else iet
-                    self._alloc_scalar_on_low_lat_mem(site, k, storage)
-                    continue
-                objs = [k.write]
-            elif k.is_Dereference:
-                placed.append(k.pointee)
-                if k.pointer in placed:
-                    objs = []
+            if k.is_Expression and k.is_initializable:
+                self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
+
+        iet = self._inject_definitions(iet, storage)
+
+        # Process all other definitions, essentially all temporary objects
+        # created by the compiler up to this point (Array, LocalObject, etc.)
+        storage = Storage()
+        defines = FindSymbols('defines-aliases').visit(iet)
+
+        for i in FindSymbols().visit(iet):
+            if i in defines:
+                continue
+            elif i.is_LocalObject:
+                self._alloc_object_on_low_lat_mem(iet, i, storage)
+            elif i.is_Array:
+                if i._mem_heap:
+                    self._alloc_array_on_high_bw_mem(iet, i, storage)
                 else:
-                    objs = [k.pointer]
-            elif k.is_Call:
-                objs = list(k.functions)
-                if k.retobj is not None:
-                    objs.append(k.retobj.function)
-            elif k.is_PointerCast:
-                placed.append(k.function)
-                objs = []
+                    self._alloc_array_on_low_lat_mem(iet, i, storage)
+            elif i.is_ObjectArray:
+                self._alloc_object_array_on_low_lat_mem(iet, i, storage)
+            elif i.is_PointerArray:
+                self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
 
-            for i in objs:
-                if i in placed:
-                    continue
-
-                try:
-                    if i.is_LocalObject:
-                        # LocalObject's get placed as close as possible to
-                        # their first occurrence
-                        site = iet
-                        for n in v:
-                            if i in refmap[n]:
-                                break
-                            site = n
-                        self._alloc_object_on_low_lat_mem(site, i, storage)
-                    elif i.is_Array:
-                        # Arrays get placed at the top of the IET
-                        if i._mem_heap:
-                            self._alloc_array_on_high_bw_mem(iet, i, storage)
-                        else:
-                            self._alloc_array_on_low_lat_mem(iet, i, storage)
-                    elif i.is_ObjectArray:
-                        # ObjectArrays get placed at the top of the IET
-                        self._alloc_object_array_on_low_lat_mem(iet, i, storage)
-                    elif i.is_PointerArray:
-                        # PointerArrays get placed at the top of the IET
-                        self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
-                except AttributeError:
-                    # E.g., a generic SymPy expression
-                    pass
-
-        iet = self._dump_definitions(iet, storage)
+        iet = self._inject_definitions(iet, storage)
 
         return iet, {}
 
@@ -284,18 +265,18 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
+        # Candidates
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
-        defines = set(FindSymbols('defines').visit(iet.body))
 
-        # The _C_name represents the name of the Function among the
-        # `iet.parameters`). If this differs from the name used within the
-        # expressions, then it implies a cast is required
-        needs_cast = lambda f: (f not in defines and
-                                f.indexed not in iet.parameters and
-                                f._C_name != f.name)
+        # A cast is needed only if the underlying data object isn't already
+        # defined inside the kernel, which happens, for example, when:
+        # (i) Dereferencing a PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
+        # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
+        defines = set(FindSymbols('defines').visit(iet))
+        needs_cast = lambda f: f.indexed not in defines
 
         # Create Function -> n-dimensional array casts
-        # E.g. `float (*u)[u_vec->size[1]] = (float (*)[u_vec->size[1]]) u_vec->data`
+        # E.g. `float (*u)[.] = (float (*)[.]) u_vec->data`
         functions = sorted({i.function for i in indexeds}, key=lambda i: i.name)
         casts = [self.lang.PointerCast(f) for f in functions if needs_cast(f)]
 
@@ -341,17 +322,15 @@ class DeviceAwareDataManager(DataManager):
             # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
             # on the device as it never needs to be accessed on the host
             assert obj._mem_local
-            decl = c.Value(obj._C_typedata, "*%s" % obj._C_name)
-            size = "sizeof(%s[%s])" % (obj._C_typedata, prod(obj.symbolic_shape))
 
-            deviceid = self.lang['device-get']
+            deviceid = DefFunction(self.lang['device-get'].name)
             doalloc = self.lang['device-alloc']
             dofree = self.lang['device-free']
 
-            alloc = "(%s*) %s" % (obj._C_typedata, doalloc(size, deviceid))
-            init = c.Initializer(decl, alloc)
+            size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
+            init = doalloc(size, deviceid, retobj=obj)
 
-            free = c.Statement(dofree(obj._C_name, deviceid))
+            free = dofree(obj._C_name, deviceid)
 
             storage.update(obj, site, allocs=init, frees=free)
 
@@ -412,17 +391,14 @@ class DeviceAwareDataManager(DataManager):
         writes = set()
         reads = set()
         for i, v in MapExprStmts().visit(iet).items():
-            if not i.is_Expression:
-                # No-op
-                continue
             if not any(isinstance(j, self.lang.DeviceIteration) for j in v) and \
                not isinstance(iet, DeviceFunction):
                 # Not an offloaded Iteration tree
                 continue
 
-            if needs_transfer(i.write):
-                writes.add(i.write)
-            reads.update({r for r in i.reads if needs_transfer(r)})
+            writes.update({w for w in i.writes if needs_transfer(w)})
+            reads.update({f for f in i.functions
+                          if needs_transfer(f) and f not in writes})
 
         return (reads, writes)
 

@@ -1,9 +1,9 @@
 from collections import OrderedDict
 
-from devito.ir import DummyEq, Cluster, Scope
+from devito.ir import Cluster, Scope
 from devito.passes.clusters.utils import cluster_pass, makeit_ssa
 from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace
-from devito.types import Symbol
+from devito.types import Eq, Symbol
 
 __all__ = ['cse']
 
@@ -18,9 +18,9 @@ def cse(cluster, sregistry, *args):
     Common sub-expressions elimination (CSE).
     """
     make = lambda: Temp(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
-    processed = _cse(cluster, make)
+    exprs = _cse(cluster, make)
 
-    return cluster.rebuild(processed)
+    return cluster.rebuild(exprs=exprs)
 
 
 def _cse(maybe_exprs, make, mode='default'):
@@ -88,7 +88,7 @@ def _cse(maybe_exprs, make, mode='default'):
         # Apply replacements
         processed = [uxreplace(e, mapper) for e in processed]
         mapped = [uxreplace(e, mapper) for e in mapped]
-        mapped = [DummyEq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
+        mapped = [Eq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
