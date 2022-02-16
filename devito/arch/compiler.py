@@ -457,6 +457,22 @@ class AOMPCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class DPCPPCompiler(Compiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.cflags += ['-qopenmp', '-fopenmp-targets=spir64']
+
+    def __lookup_cmds__(self):
+        # OneAPI Base Kit comes with dpcpp/icpx, both are clang++,
+        # and icx, which is clang
+        self.CC = 'icx'
+        self.CXX = 'icpx'
+        self.MPICC = 'mpic++'
+        self.MPICXX = 'mpicxx'
+
+
 class PGICompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
@@ -641,6 +657,7 @@ compiler_registry = {
     'icc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
+    'dpcpp': DPCPPCompiler,
 }
 """
 Registry dict for deriving Compiler classes according to the environment variable
