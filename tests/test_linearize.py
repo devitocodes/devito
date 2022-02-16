@@ -334,3 +334,35 @@ def test_strides_forwarding1():
     assert len(bar.body.body) == 5
     assert bar.body.body[0].write.name == 'y_fsz0'
     assert bar.body.body[2].write.name == 'y_stride0'
+
+
+def test_issue_1838():
+    """
+    MFE for issue #1838.
+    """
+    space_order = 4
+
+    grid = Grid(shape=(4, 4, 4))
+
+    f = Function(name='f', grid=grid, space_order=space_order)
+    b = Function(name='b', grid=grid, space_order=space_order)
+    p0 = TimeFunction(name='p0', grid=grid, space_order=space_order)
+    p1 = TimeFunction(name='p0', grid=grid, space_order=space_order)
+
+    f.data[:] = 2.1
+    b.data[:] = 1.3
+    p0.data[:, 2, 2, 2] = .3
+    p1.data[:, 2, 2, 2] = .3
+
+    eq = Eq(p0.forward, (sin(b)*p0.dx).dx + (sin(b)*p0.dx).dy + (sin(b)*p0.dx).dz + p0)
+
+    op0 = Operator(eq)
+    op1 = Operator(eq, opt=('advanced', {'linearize': True}))
+
+    op0.apply(time_M=3, dt=1.)
+    op1.apply(time_M=3, dt=1., p0=p1)
+
+    # Check generated code
+    assert "r4L0(x, y, z) r4[(x)*y_stride2 + (y)*z_stride1 + (z)]" in str(op1)
+
+    assert np.allclose(p0.data, p1.data, rtol=1e-6)
