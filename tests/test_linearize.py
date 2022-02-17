@@ -167,7 +167,7 @@ def test_codegen_quality0():
 
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 6
-    assert all('const unsigned int' in str(i) for i in exprs[:-2])
+    assert all('const int64_t' in str(i) for i in exprs[:-2])
 
     # Only four access macros necessary, namely `uL0`, `aL0`, `bufL0`, `bufL1` (the
     # other three obviously are _POSIX_C_SOURCE, START_TIMER, STOP_TIMER)
@@ -188,8 +188,8 @@ def test_codegen_quality1():
     # 11 expressions in total are expected, 8 of which are for the linearized accesses
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 11
-    assert all('const unsigned int' in str(i) for i in exprs[:-3])
-    assert all('const unsigned int' not in str(i) for i in exprs[-3:])
+    assert all('const int64_t' in str(i) for i in exprs[:-3])
+    assert all('const int64_t' not in str(i) for i in exprs[-3:])
 
     # Only two access macros necessary, namely `uL0` and `r1L0` (the other five
     # obviously are _POSIX_C_SOURCE, MIN, MAX, START_TIMER, STOP_TIMER)
