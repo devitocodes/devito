@@ -8,7 +8,7 @@ From: python:3.8
 # acceleration of Devito codes.
 #
 # BUILD: 
-#    singularity build --fakeroot devito.nvidia.sif docker/Singularity.nvidia.def
+#   singularity build --fakeroot devito.nvidia.sif docker/Singularity.nvidia.def
 #
 # RUN: 
 #   singularity run --nv --writable-tmpfs devito.nvidia.sif
@@ -35,9 +35,9 @@ docker/nvdashboard.json /app/nvdashboard.json
 export NVIDIA_VISIBLE_DEVICES=all
 export NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-export HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.4/extras/CUPTI
-export NVCOMP_EXTS_ROOT=/app/nvcomp_exts/ubuntu18.04/11.2
+export HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
+export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI
+export NVCOMP_EXTS_ROOT=/app/nvcomp_exts/ubuntu18.04/11.6
 export bitcomp_DIR=$NVCOMP_EXTS_ROOT/lib/
 
 export CUDA_HOME=$HPCSDK_HOME/cuda
@@ -61,8 +61,11 @@ export UCX_ACC_DEVICES=all
 export NCCL_UCX_RNDV_THRESH=0
 export NCCL_UCX_RNDV_SCHEME=get_zcopy
 export NCCL_PLUGIN_P2P=ucx
-export UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 export MELLANOX_MOUNT_DRIVER=1
+
+export UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
+#For virtual environments and cloud
+#export UCX_TLS=sm,shm,cuda_copy,cuda_ipc
 
 ## Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ #can-i-manually-modify-the-c-code-generated-by-devito-and
@@ -86,6 +89,7 @@ export APP_HOME=/app
 export DEBIAN_FRONTEND=noninteractive
 
 # nodesource: nvdashboard requires nodejs>=10  
+echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list && \
 apt-get update -y && \
 apt-get install -y -q \
 	apt-utils curl\
@@ -97,25 +101,17 @@ apt-get install -y -q \
 	libblas-dev \
 	libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
 	texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
-	ffmpeg && \
-wget -q -P /app/ \
-	https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-21-9_21.9_amd64.deb \
-	https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-21-9-cuda-multi_21.9_amd64.deb \
-	https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-2021_21.9_amd64.deb && \
+	ffmpeg \
+  nvhpc-22-2 nvhpc-22-2-cuda-multi && \
 wget -q -P /app/nvcomp_exts/ \
-  https://developer.download.nvidia.com/compute/nvcomp/2.0/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz &&\
-apt-get install -y -q \
-	/app/nvhpc-21-9_21.9_amd64.deb \
-	/app/nvhpc-21-9-cuda-multi_21.9_amd64.deb \
-	/app/nvhpc-2021_21.9_amd64.deb && \
-tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz -C /app/nvcomp_exts && \
+  http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
+tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
 apt-get update -y && \
-rm -rf /app/nvhpc* && \
 rm -rf /app/nvcomp_exts/nvcomp* && \
 rm -rf /var/lib/apt/lists/*
 
-export HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.4/extras/CUPTI
+export HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
+export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI
   
 # Compiler, CUDA, and Library paths
 export CUDA_HOME=$HPCSDK_HOME/cuda

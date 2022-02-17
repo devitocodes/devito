@@ -18,18 +18,21 @@
 #
 # RUN: 
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
+#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia python examples/seismic/acoustic/acoustic_example.py
+#
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
 #
 # to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
-#   docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito.nvidia python examples/seismic/acoustic/acoustic_example.py
+#   docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito:nvidia python examples/seismic/acoustic/acoustic_example.py
 #
 ##############################################################
 FROM python:3.8
-
+ 
 ENV DEBIAN_FRONTEND noninteractive 
-
+  
 # nodesource: nvdashboard requires nodejs>=10  
-RUN apt-get update -y && \
+RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list && \
+    apt-get update -y && \
     apt-get install -y -q \
         apt-utils curl\   
         vim && \
@@ -40,25 +43,17 @@ RUN apt-get update -y && \
         libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
-        ffmpeg && \
-    wget -q -P /app/ \
-         https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-21-9_21.9_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-21-9-cuda-multi_21.9_amd64.deb \
-         https://developer.download.nvidia.com/hpc-sdk/21.9/nvhpc-2021_21.9_amd64.deb && \
+        ffmpeg \
+        nvhpc-22-2 nvhpc-22-2-cuda-multi && \
     wget -q -P /app/nvcomp_exts/ \
-         https://developer.download.nvidia.com/compute/nvcomp/2.0/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz &&\
-    apt-get install -y -q \
-         /app/nvhpc-21-9_21.9_amd64.deb \
-         /app/nvhpc-21-9-cuda-multi_21.9_amd64.deb \
-         /app/nvhpc-2021_21.9_amd64.deb && \
-    tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.0.tar.gz -C /app/nvcomp_exts && \
+        http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
+    tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
     apt-get update -y && \
-    rm -rf /app/nvhpc* && \
     rm -rf /app/nvcomp_exts/nvcomp* && \
     rm -rf /var/lib/apt/lists/*
 
-ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2021
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2021/cuda/11.4/extras/CUPTI
+ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI
 #MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX 
 
@@ -75,7 +70,7 @@ RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf    
 
 # Compression
-ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.2
+ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.6
 ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
     
 # Compiler, CUDA, and Library paths
@@ -109,12 +104,17 @@ ENV UCX_ACC_DEVICES=all
 ENV NCCL_UCX_RNDV_THRESH=0
 ENV NCCL_UCX_RNDV_SCHEME=get_zcopy
 ENV NCCL_PLUGIN_P2P=ucx
-ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 ENV MELLANOX_MOUNT_DRIVER=1
+
+ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
+#For virtual environments and cloud
+#ENV UCX_TLS=sm,shm,cuda_copy,cuda_ipc
 
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 ENV CFLAGS=-noswitcherror
 
+#MPI 3
+# Do Nothing
 RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
