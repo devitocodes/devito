@@ -51,6 +51,14 @@ A Dimension whose upper limit may be rounded up to a multiple of the SIMD
 vector length thanks to the presence of enough padding.
 """
 
+ZEROABLE = Property('zeroable')
+"""
+A Dimension whose upper and lower limits could be safely set to zero, that is
+without altering the correctness of the computation. The reason they may
+appear different than zero is performace optimization (e.g., a slightly larger
+iteration space may promote fusion opportunities).
+"""
+
 AFFINE = Property('affine')
 """
 A Dimension used to index into tensor objects only through affine and regular
@@ -65,6 +73,10 @@ def normalize_properties(*args):
     elif len(args) == 1:
         return args[0]
 
+    # Some properties are incompatible, such as SEQUENTIAL and PARALLEL where
+    # SEQUENTIAL clearly takes precedence. The precedence chain, from the least
+    # to the most restrictive property, is:
+    # SEQUENTIAL > PARALLEL_IF_* > PARALLEL > PARALLEL_INDEP
     if any(SEQUENTIAL in p for p in args):
         drop = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
     elif any(PARALLEL_IF_ATOMIC in p for p in args):
@@ -75,6 +87,10 @@ def normalize_properties(*args):
         drop = {PARALLEL_INDEP}
     else:
         drop = set()
+
+    # ZEROABLE <=> all are ZEROABLE
+    if not all(ZEROABLE in p for p in args):
+        drop.add(ZEROABLE)
 
     properties = set()
     for p in args:

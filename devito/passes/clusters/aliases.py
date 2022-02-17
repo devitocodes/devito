@@ -7,7 +7,7 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import EvalDerivative
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, Forward,
+from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, ZEROABLE, Forward,
                        IterationInstance, IterationSpace, Interval, Cluster,
                        Queue, IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties)
@@ -880,13 +880,23 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         subs.update({aliased: callback(indices)
                      for aliased, indices in zip(aliaseds, indicess)})
 
-        # Drop or weaken parallelism if necessary
         properties = dict(meta.properties)
+
+        # Drop or weaken parallelism if necessary
         for d, v in meta.properties.items():
             if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                 properties[d] = normalize_properties(v, {SEQUENTIAL})
             elif d not in writeto.itdimensions:
                 properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
+
+        # Track artificially-relaxed iteration spaces
+        for i, indices in zip(writeto, zip(*indicess)):
+            if len(set(indices)) == 1:
+                try:
+                    properties[i.dim] = properties[i.dim] | {ZEROABLE}
+                except KeyError:
+                    # E.g., a rotation Dimension such as `ysi`
+                    continue
 
         # Finally, build the alias Cluster
         clusters.append(Cluster(expression, ispace, meta.guards, properties))

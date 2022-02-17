@@ -11,7 +11,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
-                       FindSymbols, ParallelIteration, retrieve_iteration_tree)
+                       FindSymbols, ParallelIteration, ZEROABLE, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import Temp, _cse
 from devito.passes.iet.parpragma import VExpanded
@@ -2492,6 +2492,24 @@ class TestAliases(object):
         op = Operator(eqn)
 
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
+
+    def test_zeroable_property(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        op = Operator(Eq(u.forward, u.dx.dx))
+        iterations = FindNodes(Iteration).visit(op)
+        v = iterations.pop(2)
+        assert ZEROABLE in v.properties
+        assert not any(ZEROABLE in i.properties for i in iterations)
+
+        # Fusion makes ZEROABLE disappear
+        for eq in [Eq(u.forward, u.dx.dx + u.dy.dy),
+                   Eq(u.forward, u.dx.dx + u.dx.dy)]:
+            op = Operator(eq)
+            iterations = FindNodes(Iteration).visit(op)
+            assert not any(ZEROABLE in i.properties for i in iterations)
 
 
 class TestIsoAcoustic(object):
