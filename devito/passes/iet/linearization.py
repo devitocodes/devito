@@ -54,10 +54,7 @@ def linearization(iet, **kwargs):
     iet = linearize_pointers(iet)
     iet = linearize_transfers(iet, sregistry)
 
-    # Include header files for int64_t and uint_64
-    includes = ['stdint.h']
-
-    return iet, {'headers': headers, 'includes': includes, 'args': args}
+    return iet, {'headers': headers, 'args': args}
 
 
 def linearize_accesses(iet, key, cache, sregistry):

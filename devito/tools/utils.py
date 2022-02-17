@@ -8,6 +8,7 @@ import types
 
 import numpy as np
 import sympy
+from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
@@ -190,54 +191,8 @@ def filter_sorted(elements, key=None):
 
 
 def dtype_to_cstr(dtype):
-    """
-    Translate a numpy.dtype into C string.
-
-    This is mostly copy-pasted from:
-
-        https://github.com/inducer/cgen/blob/main/cgen/__init__.py
-
-    The following changes were made:
-
-        * np.int64 => `int64_t`, NOT `long` OR `long long`
-        * np.uint64 => `uint64_t`, NOT `long` or `long long`
-
-    This is because we want to map numpy.dtypes to C types such that the
-    C equivalents have *at least* as many bits irrespective on the underlying
-    compiler and architecture.
-    """
-    if dtype is None:
-        raise ValueError("dtype may not be None")
-
-    dtype = np.dtype(dtype)
-    if dtype == np.int64:
-        return "int64_t"
-    elif dtype == np.uint64:
-        return "uint64_t"
-    elif dtype == np.int32:
-        return "int"
-    elif dtype == np.uint32:
-        return "unsigned int"
-    elif dtype == np.int16:
-        return "short int"
-    elif dtype == np.uint16:
-        return "short unsigned int"
-    elif dtype == np.int8:
-        return "signed char"
-    elif dtype == np.uint8:
-        return "unsigned char"
-    elif dtype == np.float32:
-        return "float"
-    elif dtype == np.float64:
-        return "double"
-    elif dtype == np.complex64:
-        return "std::complex<float>"
-    elif dtype == np.complex128:
-        return "std::complex<double>"
-    elif dtype == np.void:
-        return "void"
-    else:
-        raise ValueError("unable to map dtype '%s'" % dtype)
+    """Translate numpy.dtype into C string."""
+    return cgen_dtype_to_ctype(dtype)
 
 
 def dtype_to_ctype(dtype):
