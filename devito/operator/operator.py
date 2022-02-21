@@ -9,10 +9,10 @@ import numpy as np
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
-from devito.logger import info, perf, warning, is_log_enabled_for
+from devito.logger import debug, info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq, lower_exprs, generate_implicit_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import (Callable, EntryFunction, FindSymbols, MetaCall,
+from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
@@ -561,7 +561,7 @@ class Operator(Callable):
                 raise ValueError("No value found for parameter %s" % p.name)
         return args
 
-    # JIT compilation
+    # Code generation and JIT compilation
 
     @cached_property
     def _soname(self):
@@ -602,6 +602,39 @@ class Operator(Callable):
             self._cfunction.argtypes = [i._C_ctype for i in self.parameters]
 
         return self._cfunction
+
+    def cinterface(self, force=False):
+        """
+        Generate two files under the prescribed temporary directory:
+
+            * `X.c` (or `X.cpp`): the code generated for this Operator;
+            * `X.h`: an header file representing the interface of `X.c`.
+
+        Where `X=self.name`.
+
+        Parameters
+        ----------
+        force : bool, optional
+            Overwrite any existing files. Defaults to False.
+        """
+        dest = self._compiler.get_jit_dir()
+        name = dest.joinpath(self.name)
+
+        cfile = name.with_suffix(".%s" % self._compiler.src_ext)
+        hfile = name.with_suffix('.h')
+
+        # Generate the .c and .h code
+        ccode, hcode = CInterface().visit(self)
+
+        for f, code in [(cfile, ccode), (hfile, hcode)]:
+            if not force and f.is_file():
+                debug("`%s` was not saved in `%s` as it already exists" % (f.name, dest))
+            else:
+                with open(str(f), 'w') as ff:
+                    ff.write(str(code))
+                debug("`%s` successfully saved in `%s`" % (f.name, dest))
+
+        return ccode, hcode
 
     # Execution
 

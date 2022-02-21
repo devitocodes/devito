@@ -18,11 +18,12 @@ from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Basic, IndexedData
-from devito.types import ArrayObject, Dimension, VoidPointer
+from devito.types import ArrayObject, CompositeObject, Dimension, VoidPointer
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'printAST', 'CGen', 'Transformer', 'Uxreplace']
+           'IsPerfectIteration', 'printAST', 'CGen', 'CInterface', 'Transformer',
+           'Uxreplace']
 
 
 class Visitor(GenericVisitor):
@@ -467,9 +468,34 @@ class CGen(Visitor):
         body = flatten(self._visit(i) for i in o.children)
         return c.Collection(body)
 
-    def visit_Operator(self, o):
-        blankline = c.Line("")
+    # Operator-handle machinery
 
+    def _operator_includes(self, o):
+        return [c.Include(i, system=(False if i.endswith('.h') else True))
+                for i in o._includes]
+
+    def _operator_typedecls(self, o, mode='all'):
+        if mode == 'all':
+            xfilter = lambda i: True
+        else:
+            public_types = (AbstractFunction, CompositeObject)
+            if mode == 'public':
+                xfilter = lambda i: isinstance(i, public_types)
+            else:
+                xfilter = lambda i: not isinstance(i, public_types)
+
+        typedecls = [i._C_typedecl for i in o.parameters
+                     if xfilter(i) and i._C_typedecl is not None]
+        for i in o._func_table.values():
+            if not i.local:
+                continue
+            typedecls.extend([j._C_typedecl for j in i.root.parameters
+                              if xfilter(j) and j._C_typedecl is not None])
+        typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
+
+        return typedecls
+
+    def visit_Operator(self, o, mode='all'):
         # Kernel signature and body
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
@@ -487,23 +513,48 @@ class CGen(Visitor):
                                                     self._args_decl(i.root.parameters)))
                 efuncs.extend([self._visit(i.root), blankline])
 
-        # Header files, extra definitions, ...
-        header = [c.Define(*i) for i in o._headers] + [blankline]
-        includes = [c.Include(i, system=(False if i.endswith('.h') else True))
-                    for i in o._includes]
-        includes += [blankline]
-        cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
-        for i in o._func_table.values():
-            if i.local:
-                cdefs.extend([j._C_typedecl for j in i.root.parameters
-                              if j._C_typedecl is not None])
-        cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
-        if o._compiler.src_ext in ('cpp', 'cu'):
-            cdefs += [c.Extern('C', signature)]
-        cdefs = [i for j in cdefs for i in (j, blankline)]
+        # Definitions
+        headers = [c.Define(*i) for i in o._headers] + [blankline]
 
-        return c.Module(header + includes + cdefs +
+        # Header files
+        includes = self._operator_includes(o) + [blankline]
+
+        # Type declarations
+        typedecls = self._operator_typedecls(o, mode)
+        if mode in ('all', 'public') and o._compiler.src_ext in ('cpp', 'cu'):
+            typedecls.append(c.Extern('C', signature))
+        typedecls = [i for j in typedecls for i in (j, blankline)]
+
+        return c.Module(headers + includes + typedecls +
                         esigns + [blankline, kernel] + efuncs)
+
+
+class CInterface(CGen):
+
+    def _operator_includes(self, o):
+        includes = super()._operator_includes(o)
+        includes.append(c.Include("%s.h" % o.name, system=False))
+
+        return includes
+
+    def visit_Operator(self, o):
+        # Generate the code for the cfile
+        ccode = super().visit_Operator(o, mode='private')
+
+        # Generate the code for the hfile
+        typedecls = self._operator_typedecls(o, mode='public')
+        guarded_typedecls = []
+        for i in typedecls:
+            guard = "DEVITO_%s" % i.tpname.upper()
+            iflines = [c.Define(guard, ""), blankline, i, blankline]
+            guarded_typedecl = c.IfNDef(guard, iflines, [])
+            guarded_typedecls.extend([guarded_typedecl, blankline])
+
+        decls = self._args_decl(o.parameters)
+        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        hcode = c.Module(guarded_typedecls + [blankline, signature, blankline])
+
+        return ccode, hcode
 
 
 class FindSections(Visitor):
@@ -904,6 +955,9 @@ class Uxreplace(Transformer):
 
 
 # Utils
+
+blankline = c.Line("")
+
 
 def printAST(node, verbose=True):
     return PrintAST(verbose=verbose)._visit(node)
