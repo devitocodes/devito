@@ -167,7 +167,7 @@ def test_codegen_quality0():
 
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 6
-    assert all('const unsigned int' in str(i) for i in exprs[:-2])
+    assert all('const long' in str(i) for i in exprs[:-2])
 
     # Only four access macros necessary, namely `uL0`, `aL0`, `bufL0`, `bufL1` (the
     # other three obviously are _POSIX_C_SOURCE, START_TIMER, STOP_TIMER)
@@ -188,8 +188,8 @@ def test_codegen_quality1():
     # 11 expressions in total are expected, 8 of which are for the linearized accesses
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 11
-    assert all('const unsigned int' in str(i) for i in exprs[:-3])
-    assert all('const unsigned int' not in str(i) for i in exprs[-3:])
+    assert all('const long' in str(i) for i in exprs[:-3])
+    assert all('const long' not in str(i) for i in exprs[-3:])
 
     # Only two access macros necessary, namely `uL0` and `r1L0` (the other five
     # obviously are _POSIX_C_SOURCE, MIN, MAX, START_TIMER, STOP_TIMER)
@@ -334,3 +334,35 @@ def test_strides_forwarding1():
     assert len(bar.body.body) == 5
     assert bar.body.body[0].write.name == 'y_fsz0'
     assert bar.body.body[2].write.name == 'y_stride0'
+
+
+def test_issue_1838():
+    """
+    MFE for issue #1838.
+    """
+    space_order = 4
+
+    grid = Grid(shape=(4, 4, 4))
+
+    f = Function(name='f', grid=grid, space_order=space_order)
+    b = Function(name='b', grid=grid, space_order=space_order)
+    p0 = TimeFunction(name='p0', grid=grid, space_order=space_order)
+    p1 = TimeFunction(name='p0', grid=grid, space_order=space_order)
+
+    f.data[:] = 2.1
+    b.data[:] = 1.3
+    p0.data[:, 2, 2, 2] = .3
+    p1.data[:, 2, 2, 2] = .3
+
+    eq = Eq(p0.forward, (sin(b)*p0.dx).dx + (sin(b)*p0.dx).dy + (sin(b)*p0.dx).dz + p0)
+
+    op0 = Operator(eq)
+    op1 = Operator(eq, opt=('advanced', {'linearize': True}))
+
+    op0.apply(time_M=3, dt=1.)
+    op1.apply(time_M=3, dt=1., p0=p1)
+
+    # Check generated code
+    assert "r4L0(x, y, z) r4[(x)*y_stride2 + (y)*z_stride1 + (z)]" in str(op1)
+
+    assert np.allclose(p0.data, p1.data, rtol=1e-6)
