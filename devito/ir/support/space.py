@@ -311,7 +311,7 @@ class IntervalGroup(PartialOrderTuple):
 
     @cached_property
     def dimensions(self):
-        return filter_ordered([i.dim for i in self])
+        return tuple(filter_ordered([i.dim for i in self]))
 
     @property
     def size(self):
@@ -602,7 +602,7 @@ class Space(object):
 
     @cached_property
     def dimensions(self):
-        return filter_ordered(self.intervals.dimensions)
+        return tuple(filter_ordered(self.intervals.dimensions))
 
     @property
     def size(self):
@@ -891,7 +891,7 @@ class IterationSpace(Space):
     @cached_property
     def dimensions(self):
         sub_dims = flatten(i._defines for v in self.sub_iterators.values() for i in v)
-        return filter_ordered(self.itdimensions + sub_dims)
+        return tuple(filter_ordered(self.itdimensions + tuple(sub_dims)))
 
     @cached_property
     def nonderived_directions(self):
