@@ -51,19 +51,16 @@ A Dimension whose upper limit may be rounded up to a multiple of the SIMD
 vector length thanks to the presence of enough padding.
 """
 
-ZEROABLE = Property('zeroable')
-"""
-A Dimension whose upper and lower limits could be safely set to zero, that is
-without altering the correctness of the computation. The reason they may
-appear different than zero is performace optimization (e.g., a slightly larger
-iteration space may promote fusion opportunities).
-"""
-
 AFFINE = Property('affine')
 """
 A Dimension used to index into tensor objects only through affine and regular
 accesses functions. See :mod:`basic.py` for rigorous definitions of "affine"
 and "regular".
+"""
+
+STAR = Property('star')
+"""
+Two or more Dimensions defining a star-shaped stencil.
 """
 
 
@@ -88,9 +85,9 @@ def normalize_properties(*args):
     else:
         drop = set()
 
-    # ZEROABLE <=> all are ZEROABLE
-    if not all(ZEROABLE in p for p in args):
-        drop.add(ZEROABLE)
+    # STAR <=> all are STAR
+    if not all(STAR in p for p in args):
+        drop.add(STAR)
 
     properties = set()
     for p in args:

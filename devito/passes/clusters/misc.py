@@ -2,15 +2,15 @@ from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue
-from devito.ir.support import SEQUENTIAL, Scope
+from devito.ir.support import SEQUENTIAL, STAR, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
-from devito.types import Symbol
+from devito.types import Hyperplane, Symbol
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['Lift', 'fuse', 'optimize_pows', 'extract_increments',
-           'fission', 'optimize_msds']
+           'fission', 'optimize_msds', 'optimize_hyperplanes']
 
 
 class Lift(Queue):
@@ -432,3 +432,17 @@ def optimize_msds(clusters):
     Optimize clusters defined over MultiSubDomains.
     """
     return MSDOptimizer().process(clusters)
+
+
+@timed_pass()
+def optimize_hyperplanes(clusters):
+    """
+    At the moment this is just a dummy no-op pass that we only use
+    for testing purposes.
+    """
+    for c in clusters:
+        for k, v in c.properties.items():
+            if isinstance(k, Hyperplane) and STAR in v:
+                raise NotImplementedError
+
+    return clusters

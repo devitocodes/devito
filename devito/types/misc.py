@@ -5,7 +5,7 @@ from devito.types.basic import IndexedData
 from devito.tools import Pickable
 
 __all__ = ['Timer', 'VoidPointer', 'VolatileInt', 'c_volatile_int',
-           'c_volatile_int_p', 'FIndexed', 'Wildcard', 'Global']
+           'c_volatile_int_p', 'FIndexed', 'Wildcard', 'Global', 'Hyperplane']
 
 
 class Timer(CompositeObject):
@@ -111,6 +111,17 @@ class Global(Symbol):
     """
 
     pass
+
+
+class Hyperplane(tuple):
+
+    """
+    A collection of Dimensions defining an hyperplane.
+    """
+
+    @property
+    def _defines(self):
+        return frozenset().union(*[i._defines for i in self])
 
 
 # ctypes subtypes
