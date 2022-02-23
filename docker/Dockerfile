@@ -30,24 +30,17 @@ RUN apt-get update && apt-get install -y -q \
     libmpich-dev \
     libgl1-mesa-glx
 
-ADD ./requirements.txt /app/requirements.txt
-ADD ./requirements-optional.txt /app/requirements-optional.txt
-ADD ./requirements-mpi.txt /app/requirements-mpi.txt
+# Copy Devito
+ADD . /app/devito
+# Remove git files
+RUN rm -rf /app/devito/.git
 
+# Install pip dependencies and devito as a pip package
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir wheel && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
-    rm -rf ~/.cache/pip
-
-ADD ./devito /app/devito
-ADD ./tests /app/tests
-ADD ./examples /app/examples
-ADD ./benchmarks /app/benchmarks
-COPY setup.cfg /app/
+    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi]
 
 ADD docker/run-jupyter.sh /jupyter
 ADD docker/run-tests.sh /tests
@@ -80,7 +73,7 @@ RUN mkdir -p /app && \
 
 # Change to the app user.
 USER app
-WORKDIR /app
+WORKDIR /app/devito
 
 ENV DEVITO_ARCH="gcc"
 ENV DEVITO_LANGUAGE="openmp"
