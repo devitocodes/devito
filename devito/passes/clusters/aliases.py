@@ -890,7 +890,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                 properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
 
         # Track star-shaped stencils for potential future optimization
-        if writeto and schedule.is_frame:
+        if len(writeto) > 1 and schedule.is_frame:
             properties[Hyperplane(writeto.itdimensions)] = {STAR}
 
         # Finally, build the alias Cluster
