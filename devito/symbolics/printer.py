@@ -7,6 +7,7 @@ import numpy as np
 from mpmath.libmp import prec_to_dps, to_str
 from sympy.printing.precedence import precedence
 from sympy.printing.c import C99CodePrinter
+from sympy import And
 
 
 __all__ = ['ccode']
@@ -150,6 +151,19 @@ class CodePrinter(C99CodePrinter):
         if self.dtype == np.float32:
             func_name += 'f'
         return func_name + '(' + self._print(*expr.args) + ')'
+
+    def _print_Or(self, expr):
+        # Enforce parentheses if Or(And() ...)
+        # This is only to avoid compiler warnings, because technically
+        # && has precedence over || in C (see for example
+        # https://en.cppreference.com/w/c/language/operator_precedence)
+        args = []
+        for i in expr.args:
+            v = self._print(i)
+            if isinstance(i, And):
+                v = "(%s)" % v
+            args.append(v)
+        return " || ".join(args)
 
     def _print_Basic(self, expr):
         return str(expr)
