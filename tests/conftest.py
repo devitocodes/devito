@@ -162,11 +162,14 @@ def pytest_runtest_setup(item):
         # Blow away function arg in "master" process, to ensure
         # this test isn't run on only one process
         dummy_test = lambda *args, **kwargs: True
+        # For pytest <7
         if item.cls is not None:
             attr = item.originalname or item.name
             setattr(item.cls, attr, dummy_test)
         else:
             item.obj = dummy_test
+        # For pytest >= 7
+        setattr(item, '_obj', dummy_test)
 
 
 def pytest_runtest_call(item):
