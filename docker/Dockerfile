@@ -40,7 +40,8 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir wheel && \
-    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi]
+    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi] && \
+    rm -rf ~/.cache/pip
 
 ADD docker/run-jupyter.sh /jupyter
 ADD docker/run-tests.sh /tests
