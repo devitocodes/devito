@@ -116,13 +116,14 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
-    fi;  \
+    fi;
 
 # Install pip dependencies and devito as a pip package
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir wheel && \
-    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,nvidia]
+    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,nvidia] && \
+    rm -rf ~/.cache/pip
 
 ENV CFLAGS=
 
