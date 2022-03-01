@@ -103,7 +103,6 @@ ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 #ENV UCX_TLS=sm,shm,cuda_copy,cuda_ipc
 
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
-ENV CFLAGS=-noswitcherror
 
 #MPI 3
 # Do Nothing
@@ -122,10 +121,10 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir wheel && \
-    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,nvidia] && \
+    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,nvidia] && \
+    # Need extra CFLAGS for mpi4py
+    CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir -r /app/devito/requirements-mpi.txt && \
     rm -rf ~/.cache/pip
-
-ENV CFLAGS=
 
 ADD docker/run-jupyterlab.sh /jupyter
 ADD docker/run-tests.sh /tests
