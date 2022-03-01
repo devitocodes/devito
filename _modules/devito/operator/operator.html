@@ -81,10 +81,10 @@
 <span class="kn">from</span> <span class="nn">devito.arch</span> <span class="kn">import</span> <span class="n">compiler_registry</span><span class="p">,</span> <span class="n">platform_registry</span>
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="kn">import</span> <span class="n">default_allocator</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="kn">import</span> <span class="n">InvalidOperator</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span><span class="p">,</span> <span class="n">lower_exprs</span><span class="p">,</span> <span class="n">generate_implicit_exprs</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="kn">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">clusterize</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">EntryFunction</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">CInterface</span><span class="p">,</span> <span class="n">EntryFunction</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span>
                            <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="kn">import</span> <span class="n">stree_build</span>
 <span class="kn">from</span> <span class="nn">devito.operator.profiling</span> <span class="kn">import</span> <span class="n">create_profile</span>
@@ -633,7 +633,7 @@
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No value found for parameter </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">args</span></div>
 
-    <span class="c1"># JIT compilation</span>
+    <span class="c1"># Code generation and JIT compilation</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_soname</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -674,6 +674,39 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span><span class="o">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_C_ctype</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span>
+
+<div class="viewcode-block" id="Operator.cinterface"><a class="viewcode-back" href="../../../operator.html#devito.operator.operator.Operator.cinterface">[docs]</a>    <span class="k">def</span> <span class="nf">cinterface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate two files under the prescribed temporary directory:</span>
+
+<span class="sd">            * `X.c` (or `X.cpp`): the code generated for this Operator;</span>
+<span class="sd">            * `X.h`: an header file representing the interface of `X.c`.</span>
+
+<span class="sd">        Where `X=self.name`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        force : bool, optional</span>
+<span class="sd">            Overwrite any existing files. Defaults to False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">get_jit_dir</span><span class="p">()</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">dest</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="n">cfile</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">src_ext</span><span class="p">)</span>
+        <span class="n">hfile</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s1">&#39;.h&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Generate the .c and .h code</span>
+        <span class="n">ccode</span><span class="p">,</span> <span class="n">hcode</span> <span class="o">=</span> <span class="n">CInterface</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">code</span> <span class="ow">in</span> <span class="p">[(</span><span class="n">cfile</span><span class="p">,</span> <span class="n">ccode</span><span class="p">),</span> <span class="p">(</span><span class="n">hfile</span><span class="p">,</span> <span class="n">hcode</span><span class="p">)]:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">force</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` was not saved in `</span><span class="si">%s</span><span class="s2">` as it already exists&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dest</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">ff</span><span class="p">:</span>
+                    <span class="n">ff</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">code</span><span class="p">))</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` successfully saved in `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dest</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">ccode</span><span class="p">,</span> <span class="n">hcode</span></div>
 
     <span class="c1"># Execution</span>
 

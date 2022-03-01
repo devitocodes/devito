@@ -272,6 +272,24 @@ iteration point along the time dimension must be explicitly specified
 <dd><p>The JIT-compiled C function as a ctypes.FuncPtr object.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="devito.operator.operator.Operator.cinterface">
+<span class="sig-name descname"><span class="pre">cinterface</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.cinterface"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.cinterface" title="Permalink to this definition"></a></dt>
+<dd><p>Generate two files under the prescribed temporary directory:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><cite>X.c</cite> (or <cite>X.cpp</cite>): the code generated for this Operator;</p></li>
+<li><p><cite>X.h</cite>: an header file representing the interface of <cite>X.c</cite>.</p></li>
+</ul>
+</div></blockquote>
+<p>Where <cite>X=self.name</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>force</strong> (<em>bool</em><em>, </em><em>optional</em>) – Overwrite any existing files. Defaults to False.</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.dimensions">
 <span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.operator.operator.Operator.dimensions" title="Permalink to this definition"></a></dt>
