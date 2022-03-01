@@ -65,6 +65,9 @@ Key features include:
 * Generation of highly optimized parallel code (SIMD vectorization, CPU and GPU
   parallelism via OpenMP, multi-node parallelism via MPI, blocking, aggressive
   symbolic transformations for FLOP reduction, etc.).
+* Generation of highly optimized parallel code (SIMD vectorization, CPU and
+  GPU parallelism via OpenMP and OpenACC, multi-node parallelism via MPI,
+  blocking, aggressive symbolic transformations for FLOP reduction, etc.).
 * Distributed NumPy arrays over multi-node (MPI) domain decompositions.
 * Inspection and customization of the generated code.
 * Autotuning framework to ease performance tuning.
