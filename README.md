@@ -62,9 +62,6 @@ Key features include:
 * Seamless support for boundary conditions and adjoint operators.
 * A flexible API to define custom stencils, sub-domains, sub-sampling,
   and staggered grids.
-* Generation of highly optimized parallel code (SIMD vectorization, CPU and GPU
-  parallelism via OpenMP, multi-node parallelism via MPI, blocking, aggressive
-  symbolic transformations for FLOP reduction, etc.).
 * Generation of highly optimized parallel code (SIMD vectorization, CPU and
   GPU parallelism via OpenMP and OpenACC, multi-node parallelism via MPI,
   blocking, aggressive symbolic transformations for FLOP reduction, etc.).
@@ -107,7 +104,7 @@ place to start, with lots of examples and tutorials.
 The [website](https://www.devitoproject.org/) also provides access to other
 information, including documentation and instructions for citing us.
 
-Some FAQ are discussed [here](https://github.com/devitocodes/devito/wiki/FAQ).
+Some FAQs are discussed [here](https://github.com/devitocodes/devito/wiki/FAQ).
 
 ## Performance
 
@@ -121,10 +118,9 @@ then you should take a look at this
 [README](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
 
 You may also be interested in
-[TheMatrix](https://github.com/devitocodes/thematrix) -- a cross-architecture
+[TheMatrix](https://www.devitocodes.com/blog/thematrix) -- a cross-architecture
 benchmarking framework showing the performance of several production-grade
-seismic operators implemented with Devito. This is now our flagship project
-towards neat, open, and reproducible science.
+seismic operators implemented with Devito.
 
 ## Get in touch
 
