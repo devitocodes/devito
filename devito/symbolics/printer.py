@@ -5,9 +5,9 @@ Utilities to turn SymPy objects into C strings.
 import numpy as np
 
 from mpmath.libmp import prec_to_dps, to_str
+from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import precedence
 from sympy.printing.c import C99CodePrinter
-from sympy import And, Or, Not
 
 
 __all__ = ['ccode']
@@ -153,24 +153,35 @@ class CodePrinter(C99CodePrinter):
         return func_name + '(' + self._print(*expr.args) + ')'
 
     def _print_Or(self, expr):
-        # Enforce parentheses if Or(And() ...)
+        # Enforce parentheses, e.g. `if Or(And() ...)`
         # This is only to avoid compiler warnings, because technically
         # && has precedence over || in C (see for example
         # https://en.cppreference.com/w/c/language/operator_precedence)
-        args = []
-        for i in expr.args:
-            v = self._print(i)
-            if isinstance(i, (And, Or, Not)):
-                v = "(%s)" % v
-            args.append(v)
+        # and sympy printers guarantee operator precedence is honoured
 
-        # Not -> !, Or -> ||, And -> &&
-        cop = self._operators[type(expr).__name__.lower()]
+        # Avoid parenthesising leaves
+        if not any(isinstance(i, BooleanFunction) for i in expr.args):
+            return super()._print_Or(expr)
 
-        return (" %s " % cop).join(args)
+        args = ['(%s)' % self._print(i) for i in expr.args]
 
-    _print_And = _print_Or
-    _print_Not = _print_Or
+        return " || ".join(args)
+
+    def _print_And(self, expr):
+        # Avoid parenthesising leaves
+        if not any(isinstance(i, BooleanFunction) for i in expr.args):
+            return super()._print_And(expr)
+
+        args = ['(%s)' % self._print(i) for i in expr.args]
+
+        return " && ".join(args)
+
+    def _print_Not(self, expr):
+        # Avoid parenthesising leaves
+        if not isinstance(expr.args[0], BooleanFunction):
+            return super()._print_Not(expr)
+
+        return "! (%s)" % self._print(expr.args[0])
 
     def _print_Basic(self, expr):
         return str(expr)
