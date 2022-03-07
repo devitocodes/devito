@@ -2,7 +2,7 @@ from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue
-from devito.ir.support import SEQUENTIAL, STAR, Scope
+from devito.ir.support import SEQUENTIAL, SEPARABLE, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
@@ -442,7 +442,7 @@ def optimize_hyperplanes(clusters):
     """
     for c in clusters:
         for k, v in c.properties.items():
-            if isinstance(k, Hyperplane) and STAR in v:
+            if isinstance(k, Hyperplane) and SEPARABLE in v:
                 raise NotImplementedError
 
     return clusters

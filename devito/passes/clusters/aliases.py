@@ -7,7 +7,7 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import EvalDerivative
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, STAR, Forward,
+from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationInstance, IterationSpace, Interval, Cluster,
                        Queue, IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties)
@@ -891,7 +891,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
 
         # Track star-shaped stencils for potential future optimization
         if len(writeto) > 1 and schedule.is_frame:
-            properties[Hyperplane(writeto.itdimensions)] = {STAR}
+            properties[Hyperplane(writeto.itdimensions)] = {SEPARABLE}
 
         # Finally, build the alias Cluster
         clusters.append(Cluster(expression, ispace, meta.guards, properties))

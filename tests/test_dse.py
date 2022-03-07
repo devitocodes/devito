@@ -2494,11 +2494,11 @@ class TestAliases(object):
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
 
     @pytest.mark.parametrize('expr,expected', [
-        ('u.dy.dy', False),  # No STAR as hyperplane degenerates to 1D space
+        ('u.dy.dy', False),  # No SEPARABLE as hyperplane degenerates to 1D space
         ('u.dx.dx + u.dy.dy', True),
         ('u.dx.dx + u.dx.dy', True)
     ])
-    def test_star_property(self, expr, expected):
+    def test_separable_property(self, expr, expected):
         grid = Grid(shape=(10, 10))
 
         u = TimeFunction(name='u', grid=grid, space_order=4)

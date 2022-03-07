@@ -58,9 +58,27 @@ accesses functions. See :mod:`basic.py` for rigorous definitions of "affine"
 and "regular".
 """
 
-STAR = Property('star')
+SEPARABLE = Property('separable')
 """
-Two or more Dimensions defining a star-shaped stencil.
+This property is thought for Hyperplanes, that is collections of Dimensions,
+rather than individual Dimensions. A SEPARABLE Hyperplane defines an iteration
+space that could be separated into multiple smaller hyperplanes to avoid
+iterating over the unnecessary hypercorners. For example, the following
+SEPARABLE 4x4 plane, that as such needs no iteration over the corners `*`,
+
+    * a a *
+    b b b b
+    b b b b
+    * c c *
+
+could be separated into three one-dimensional iteration spaces
+
+      a a
+
+      b b b b
+      b b b b
+
+      c c
 """
 
 
@@ -85,9 +103,9 @@ def normalize_properties(*args):
     else:
         drop = set()
 
-    # STAR <=> all are STAR
-    if not all(STAR in p for p in args):
-        drop.add(STAR)
+    # SEPARABLE <=> all are SEPARABLE
+    if not all(SEPARABLE in p for p in args):
+        drop.add(SEPARABLE)
 
     properties = set()
     for p in args:
