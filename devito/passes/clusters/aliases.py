@@ -1204,6 +1204,20 @@ class Alias(object):
         In essence, any two distances are either orthogonal or one is a multiple
         of the other by a scalar constant (i.e., a "redundant" vector w.r.t. a basis).
         """
+        # NOTE: derivative => frame
+        # but: frame NOT => derivative (e.g., `(1, 0, 1)`, `(0, 1, 0)`, `(2, 0, 2)` is
+        # a frame, but clearly it doesn't stem from a derivative, at least not a classic
+        # one. Unless perhaps one uses rotated derivatives -- but this is another story,
+        # and our DSL doesn't support them yet)
+
+        # NOTE: invariants are generally not frames. They could stem from nested
+        # derivatives, thus having a non-centered access in multiple dimensions
+        # E.g., `sqrt(delta[x + 5, y + 5, z + 4])` and `sqrt(delta[x + 5, y + 3, z + 4])`
+        # with one possible pivot being `sqrt(delta[x + 4, y + 4, z + 4])`
+
+        # NOTE: below is a sufficient but not necessary condition to be a frame. In
+        # particular, it is a sufficient condition to be a derivative
+
         return all(len([e for e in i if e != 0]) <= 1 for i in self.distances)
 
 
