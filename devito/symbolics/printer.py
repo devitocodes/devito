@@ -7,7 +7,7 @@ import numpy as np
 from mpmath.libmp import prec_to_dps, to_str
 from sympy.printing.precedence import precedence
 from sympy.printing.c import C99CodePrinter
-from sympy import And
+from sympy import And, Or, Not
 
 
 __all__ = ['ccode']
@@ -160,10 +160,17 @@ class CodePrinter(C99CodePrinter):
         args = []
         for i in expr.args:
             v = self._print(i)
-            if isinstance(i, And):
+            if isinstance(i, (And, Or, Not)):
                 v = "(%s)" % v
             args.append(v)
-        return " || ".join(args)
+
+        # Not -> !, Or -> ||, And -> &&
+        cop = self._operators[type(expr).__name__.lower()]
+
+        return (" %s " % cop).join(args)
+
+    _print_And = _print_Or
+    _print_Not = _print_Or
 
     def _print_Basic(self, expr):
         return str(expr)
