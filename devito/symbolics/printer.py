@@ -27,6 +27,11 @@ class CodePrinter(C99CodePrinter):
         self.dtype = dtype
         C99CodePrinter.__init__(self, settings)
 
+    def parenthesize(self, item, level, strict=False):
+        if isinstance(item, BooleanFunction):
+            return "(%s)" % self._print(item)
+        return super().parenthesize(item, level, strict=strict)
+
     def _print_Function(self, expr):
         # There exist no unknown Functions
         if expr.func.__name__ not in self.known_functions:
@@ -151,37 +156,6 @@ class CodePrinter(C99CodePrinter):
         if self.dtype == np.float32:
             func_name += 'f'
         return func_name + '(' + self._print(*expr.args) + ')'
-
-    def _print_Or(self, expr):
-        # Enforce parentheses, e.g. `if Or(And() ...)`
-        # This is only to avoid compiler warnings, because technically
-        # && has precedence over || in C (see for example
-        # https://en.cppreference.com/w/c/language/operator_precedence)
-        # and sympy printers guarantee operator precedence is honoured
-
-        # Avoid parenthesising leaves
-        if not any(isinstance(i, BooleanFunction) for i in expr.args):
-            return super()._print_Or(expr)
-
-        args = ['(%s)' % self._print(i) for i in expr.args]
-
-        return " || ".join(args)
-
-    def _print_And(self, expr):
-        # Avoid parenthesising leaves
-        if not any(isinstance(i, BooleanFunction) for i in expr.args):
-            return super()._print_And(expr)
-
-        args = ['(%s)' % self._print(i) for i in expr.args]
-
-        return " && ".join(args)
-
-    def _print_Not(self, expr):
-        # Avoid parenthesising leaves
-        if not isinstance(expr.args[0], BooleanFunction):
-            return super()._print_Not(expr)
-
-        return "! (%s)" % self._print(expr.args[0])
 
     def _print_Basic(self, expr):
         return str(expr)
