@@ -377,6 +377,38 @@ class TestBuiltinsResult(object):
 
         f.data[:] = 1.0
 
-        assert np.isclose(norm(f),
-                          switchconfig(language='openmp')(norm)(f),
+        v = norm(f)
+        assert np.isclose(v, switchconfig(language='openmp')(norm)(f),
                           rtol=1e-5)
+        assert type(v) is f.dtype
+
+    def test_issue_1863(self):
+        grid = Grid(shape=(256, 256))
+
+        f0 = Function(name='f0', grid=grid, dtype=np.int16)
+        f1 = Function(name='f1', grid=grid, dtype=np.int32)
+        f2 = Function(name='f2', grid=grid, dtype=np.float32)
+        f3 = Function(name='f3', grid=grid, dtype=np.float64)
+
+        f0.data[:] = 1
+        f1.data[:] = 1
+        f2.data[:] = 1
+        f3.data[:] = 1
+
+        # `f0` is the critical use case here:
+        # Grid 256x256 = 2**16 = 65536 max number an int16 can represent.
+        # But the underlying accumulator is a float64, so we should be good
+        # If the accumulator were not greater than 16 bits, we would cause
+        # an overflow, which is what issue #1863 exposes
+
+        v0 = norm(f0)
+        v1 = norm(f1)
+        v2 = norm(f2)
+        v3 = norm(f3)
+        assert v0 == v1
+        assert v0 == v2
+        assert v0 == v3
+        assert type(v0) == np.int16
+        assert type(v1) == np.int32
+        assert type(v2) == np.float32
+        assert type(v3) == np.float64
