@@ -151,24 +151,24 @@ def numeric_weights(deriv_order, indices, x0):
 
 def generate_indices(func, dim, order, side=None, x0=None):
     """
-    Indices for the finite-difference scheme
+    Indices for the finite-difference scheme.
 
     Parameters
     ----------
     func: Function
-        Function that is differentiated
+        Function that is differentiated.
     dim: Dimension
-        Dimensions w.r.t which the derivative is taken
+        Dimensions w.r.t which the derivative is taken.
     order: Int
-        Order of the finite-difference scheme
+        Order of the finite-difference scheme.
     side: Side
-        Side of the scheme, (centered, left, right)
+        Side of the scheme, (centered, left, right).
     x0: Dict of {Dimension: Dimension or Expr or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
     -------
-    Ordered list of indices
+    Ordered list of indices.
     """
     # If staggered finited difference
     if func.is_Staggered and not dim.is_Time:
