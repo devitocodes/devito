@@ -369,3 +369,14 @@ class TestBuiltinsResult(object):
         term1 = np.max(rec0.data)
         term2 = mmax(rec0)
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
+
+    def test_issue_1860(self):
+        grid = Grid(shape=(401, 301, 181))
+
+        f = Function(name='f', grid=grid)
+
+        f.data[:] = 1.0
+
+        assert np.isclose(norm(f),
+                          switchconfig(language='openmp')(norm)(f),
+                          rtol=1e-5)
