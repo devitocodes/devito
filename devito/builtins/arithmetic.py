@@ -28,7 +28,7 @@ def norm(f, order=2):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
-    s = dv.types.Symbol(name='sum', dtype=f.dtype)
+    s = dv.types.Symbol(name='sum', dtype=np.float64)
 
     with MPIReduction(f) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] +

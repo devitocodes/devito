@@ -217,14 +217,13 @@ class Cluster(object):
         floating point arithmetic, then the expressions performing integer
         arithmetic are ignored, assuming that they are only carrying out array
         index calculations. If two expressions perform floating point
-        calculations with mixed precision, the data type with highest precision
-        is returned.
+        calculations with different precision, the data type with highest
+        precision is returned.
         """
         dtypes = {i.dtype for i in self.exprs}
         fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
         if len(fdtypes) > 1:
-            raise NotImplementedError("Unsupported Cluster with mixed floating "
-                                      "point arithmetic %s" % str(fdtypes))
+            return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
         elif len(fdtypes) == 1:
             return fdtypes.pop()
         elif len(dtypes) == 1:
@@ -396,14 +395,13 @@ class ClusterGroup(tuple):
         The arithmetic data type of this ClusterGroup. If at least one
         Cluster performs floating point arithmetic, then Clusters performing
         integer arithmetic are ignored. If two Clusters perform floating
-        point calculations with different precision, return the data type with
-        highest precision.
+        point calculations with different precision, the data type with highest
+        precision is returned.
         """
         dtypes = {i.dtype for i in self}
         fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
         if len(fdtypes) > 1:
-            raise NotImplementedError("Unsupported ClusterGroup with mixed floating "
-                                      "point arithmetic %s" % str(fdtypes))
+            return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
         elif len(fdtypes) == 1:
             return fdtypes.pop()
         elif len(dtypes) == 1:
