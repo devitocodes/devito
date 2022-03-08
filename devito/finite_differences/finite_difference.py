@@ -5,9 +5,8 @@ from devito.finite_differences.tools import (numeric_weights, symbolic_weights, 
                                              right, generate_indices, centered, direct,
                                              transpose, check_input, check_symbolic)
 
-__all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
-           'generic_derivative', 'left', 'right', 'centered', 'transpose',
-           'generate_indices']
+__all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
+           'left', 'right', 'centered', 'transpose', 'generate_indices']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
@@ -98,63 +97,6 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
 @check_input
 @check_symbolic
-def second_derivative(expr, dim, fd_order, **kwargs):
-    """
-    Second-order derivative of a given expression.
-
-    Parameters
-    ----------
-    expr : expr-like
-        Expression for which the derivative is produced.
-    dim : Dimension
-        The Dimension w.r.t. which to differentiate.
-    fd_order : int
-        Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil.
-    stagger : Side, optional
-        Shift of the finite-difference approximation.
-    x0 : dict, optional
-        Origin of the finite-difference scheme as a map dim: origin_dim.
-
-    Returns
-    -------
-    expr-like
-        Second-order derivative of ``expr``.
-
-    Examples
-    --------
-    >>> from devito import Function, Grid, second_derivative
-    >>> grid = Grid(shape=(4, 4))
-    >>> x, _ = grid.dimensions
-    >>> f = Function(name='f', grid=grid, space_order=2)
-    >>> g = Function(name='g', grid=grid, space_order=2)
-    >>> second_derivative(f*g, dim=x, fd_order=2)
-    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
- f(x + h_x, y)*g(x + h_x, y)/h_x**2
-
-    Semantically, this is equivalent to
-
-    >>> (f*g).dx2
-    Derivative(f(x, y)*g(x, y), (x, 2))
-
-    The only difference is that in the latter case derivatives remain unevaluated.
-    The expanded form is obtained via ``evaluate``
-
-    >>> (f*g).dx2.evaluate
-    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
- f(x + h_x, y)*g(x + h_x, y)/h_x**2
-
-    Finally the x0 argument allows to choose the origin of the finite-difference
-
-    >>> second_derivative(f, dim=x, fd_order=2, x0={x: 1})
-    -2.0*f(1, y)/h_x**2 + f(1 - h_x, y)/h_x**2 + f(h_x + 1, y)/h_x**2
-    """
-
-    return generic_derivative(expr, dim, fd_order, 2, **kwargs)
-
-
-@check_input
-@check_symbolic
 def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
@@ -182,7 +124,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
 
     Examples
     --------
-    >>> from devito import Function, Grid, second_derivative
+    >>> from devito import Function, Grid
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
@@ -249,6 +191,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     # first order fd that is a lot better
     if deriv_order == 1 and fd_order == 2 and not symbolic:
         fd_order = 1
+
     # Stencil positions
     indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
 
@@ -261,17 +204,11 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     return indices_weights_to_fd(expr, dim, indices, c, matvec=matvec.val)
 
 
-def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
+def indices_weights_to_fd(expr, dim, indices, weights, matvec=1):
     """Expression from lists of indices and weights."""
-    diff = dim.spacing
-
-    d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
-
-    mapper = {dim: d0, diff: matvec*diff}
-
-    # Loop through weights
+    mapper = {dim.spacing: matvec*dim.spacing}
     terms = []
-    for i, c in zip(inds, weights):
+    for i, c in zip(indices, weights):
         # Apply replacements to indices. Needs to be sympified in case
         # the indices are pure numbers
         try:
