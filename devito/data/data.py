@@ -104,7 +104,7 @@ class Data(np.ndarray):
         # that only one object (the "root" Data) will free the C-allocated memory
         self._memfree_args = None
 
-        if type(obj) != Data:
+        if not issubclass(type(obj), Data):
             # Definitely from view casting
             self._is_distributed = False
             self._modulo = tuple(False for i in range(self.ndim))
