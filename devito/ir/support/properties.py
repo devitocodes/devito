@@ -58,6 +58,29 @@ accesses functions. See :mod:`basic.py` for rigorous definitions of "affine"
 and "regular".
 """
 
+SEPARABLE = Property('separable')
+"""
+This property is thought for Hyperplanes, that is collections of Dimensions,
+rather than individual Dimensions. A SEPARABLE Hyperplane defines an iteration
+space that could be separated into multiple smaller hyperplanes to avoid
+iterating over the unnecessary hypercorners. For example, the following
+SEPARABLE 4x4 plane, that as such needs no iteration over the corners `*`,
+
+    * a a *
+    b b b b
+    b b b b
+    * c c *
+
+could be separated into three one-dimensional iteration spaces
+
+      a a
+
+      b b b b
+      b b b b
+
+      c c
+"""
+
 
 def normalize_properties(*args):
     if not args:
@@ -65,6 +88,10 @@ def normalize_properties(*args):
     elif len(args) == 1:
         return args[0]
 
+    # Some properties are incompatible, such as SEQUENTIAL and PARALLEL where
+    # SEQUENTIAL clearly takes precedence. The precedence chain, from the least
+    # to the most restrictive property, is:
+    # SEQUENTIAL > PARALLEL_IF_* > PARALLEL > PARALLEL_INDEP
     if any(SEQUENTIAL in p for p in args):
         drop = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
     elif any(PARALLEL_IF_ATOMIC in p for p in args):
@@ -75,6 +102,10 @@ def normalize_properties(*args):
         drop = {PARALLEL_INDEP}
     else:
         drop = set()
+
+    # SEPARABLE <=> all are SEPARABLE
+    if not all(SEPARABLE in p for p in args):
+        drop.add(SEPARABLE)
 
     properties = set()
     for p in args:

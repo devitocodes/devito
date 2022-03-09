@@ -5,6 +5,7 @@ Utilities to turn SymPy objects into C strings.
 import numpy as np
 
 from mpmath.libmp import prec_to_dps, to_str
+from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import precedence
 from sympy.printing.c import C99CodePrinter
 
@@ -25,6 +26,11 @@ class CodePrinter(C99CodePrinter):
     def __init__(self, dtype=np.float32, settings={}):
         self.dtype = dtype
         C99CodePrinter.__init__(self, settings)
+
+    def parenthesize(self, item, level, strict=False):
+        if isinstance(item, BooleanFunction):
+            return "(%s)" % self._print(item)
+        return super().parenthesize(item, level, strict=strict)
 
     def _print_Function(self, expr):
         # There exist no unknown Functions

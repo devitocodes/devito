@@ -2493,6 +2493,24 @@ class TestAliases(object):
 
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
 
+    @pytest.mark.parametrize('expr,expected', [
+        ('u.dy.dy', False),  # No SEPARABLE as hyperplane degenerates to 1D space
+        ('u.dx.dx + u.dy.dy', True),
+        ('u.dx.dx + u.dx.dy', True)
+    ])
+    def test_separable_property(self, expr, expected):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eq = Eq(u.forward, eval(expr))
+
+        if expected:
+            with pytest.raises(NotImplementedError):
+                Operator(eq, opt=('cire-sops', 'opt-hyperplanes'))
+        else:
+            Operator(eq, opt=('cire-sops', 'opt-hyperplanes'))
+
 
 class TestIsoAcoustic(object):
 
