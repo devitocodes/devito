@@ -293,8 +293,7 @@ def decompose(ispace, d, block_dims):
 
         for bd in block_dims:
             # Avoid e.g. `x > yb`
-            if any(i._depth < bd._depth for i in r[:n] if i.is_Block) or \
-               any(bd._depth > i._depth for i in r[n+1:] if i.is_Block):
+            if any(i._depth < bd._depth for i in [*r[:n], *r[n+1:]] if i.is_Block):
                 continue
 
             relations.append(tuple(bd if i is d else i for i in r))
