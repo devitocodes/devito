@@ -14,6 +14,9 @@ import math                    as mt
 import sys
 import testes_opt              as ttopt
 import macustica               as mc
+import sympy                   as sym
+from   scipy.interpolate       import interp1d 
+from sympy.polys.polyfuncs import interpolate
 #==============================================================================
 # Devito Imports
 #==============================================================================
@@ -32,42 +35,12 @@ from   examples.seismic        import Receiver
 # Yang Liu 2012 Coefficients
 #==============================================================================
 sys.path.insert(0, './coef_opt/coef_yang_liu')
-import coef_otm_versao11        as     cotm11
-import coef_otm_versao12        as     cotm12
-import coef_otm_versao13        as     cotm13
 import coef_otm_versao14        as     cotm14
-#==============================================================================
-# # Li-Liu-Ren-Sen 2017 Coefficients
-#==============================================================================
-sys.path.insert(0, './coef_opt/coef_li_liu_ren_sen')
-import coef_otm_versao21        as     cotm21
 #==============================================================================
 # # Liu-Sen 2009 Coefficients
 #==============================================================================
 sys.path.insert(0, './coef_opt/coef_liu_sen')
-import coef_otm_versao31        as     cotm31
 import coef_otm_versao32        as     cotm32
-#==============================================================================
-# Yajun 2016 Coefficients
-#==============================================================================
-sys.path.insert(0, './coef_opt/coef_yajun')
-import coef_otm_versao41        as     cotm41
-import coef_otm_versao42        as     cotm42
-#==============================================================================
-# Kastner and Finkelstein 2006 Coefficientes
-#==============================================================================
-sys.path.insert(0, './coef_opt/coef_kastner_finkelstein')
-import coef_otm_versao51        as     cotm51
-import coef_otm_versao52        as     cotm52
-#==============================================================================
-
-#==============================================================================
-# Edward Caunt - Master Dissertations Coefficients
-#==============================================================================
-sys.path.insert(0, './coef_opt/coef_edc')
-import coef_otm_versao61        as     cotm61
-#==============================================================================
-
 #==============================================================================
 # Wang, Liu and Sen - Cross/Rombus Stencils - 2016
 #==============================================================================
@@ -89,26 +62,10 @@ class coefopt1:
         self.t0, self.tn = teste.t0, teste.tn
         self.x0, self.y0 = teste.x0, teste.y0
         self.CFL = teste.CFL
-        self.dt, self.vmax = self.calcparam(teste,MV)
 #==============================================================================
 
 #==============================================================================
-    def calcparam(self,teste,MV):
-        
-        vmax  = np.amax(self.MV.C0a)
-        hx    = self.hx
-        hy    = self.hy
-        t0    = self.t0
-        tn    = self.tn
-        CFL   = self.CFL 
-        dtmax = (min(hx,hy)*CFL)/(vmax)        
-        ntmax = int((tn-t0)/dtmax)+1
-        dt    = (tn-t0)/(ntmax)
-        return dt,vmax
-#==============================================================================
-
-#==============================================================================
-    def calccoef(self,wauthor,wtype,sou,nvalue):
+    def calccoef(self,wauthor,wtype,sou,nvalue,vmax,dt):
 #==============================================================================
 
 #==============================================================================
@@ -124,7 +81,9 @@ class coefopt1:
 #==============================================================================
             if(wtype==1):
 
-                rvalliu = (self.vmax*self.dt)/(min(self.hx,self.hy)) 
+                rvalliu = (vmax*dt)/(min(self.hx,self.hy)) 
+                rvalliux = (vmax*dt)/(self.hx)
+                rvalliuy = (vmax*dt)/(self.hy)
 
                 if(nordemliu==2):
 
@@ -162,8 +121,8 @@ class coefopt1:
 
                     bint = 2.45    
                                 
-                Txx = ctex*cotm11.calccoef(nordemliu,bint,rvalliu)
-                Tyy = ctey*cotm11.calccoef(nordemliu,bint,rvalliu)
+                Txx = ctex*cotm11.calccoef(nordemliu,bint,rvalliux)
+                Tyy = ctey*cotm11.calccoef(nordemliu,bint,rvalliuy)
                 
                 npx = np.size(Txx)
                 npy = np.size(Tyy)
@@ -189,7 +148,9 @@ class coefopt1:
 #==============================================================================
             if(wtype==2):
 
-                rvalliu = (self.vmax*self.dt)/(min(self.hx,self.hy)) 
+                rvalliu = (vmax*dt)/(min(self.hx,self.hy))
+                rvalliux = (vmax*dt)/(self.hx)
+                rvalliuy = (vmax*dt)/(self.hy)
                 
                 if(nordemliu==2):
     
@@ -227,8 +188,8 @@ class coefopt1:
 
                     bint = 2.56    
 
-                Txx = ctex*cotm12.calccoef(nordemliu,bint,rvalliu)
-                Tyy = ctey*cotm12.calccoef(nordemliu,bint,rvalliu)
+                Txx = ctex*cotm12.calccoef(nordemliu,bint,rvalliux)
+                Tyy = ctey*cotm12.calccoef(nordemliu,bint,rvalliuy)
 
                 npx = np.size(Txx)
                 npy = np.size(Tyy)
@@ -254,7 +215,9 @@ class coefopt1:
 #==============================================================================
             if(wtype==3):
   
-                rvalliu = (self.vmax*self.dt)/(min(self.hx,self.hy)) 
+                rvalliu = (vmax*dt)/(min(self.hx,self.hy))
+                rvalliux = (vmax*dt)/(self.hx)
+                rvalliuy = (vmax*dt)/(self.hy)
 
                 if(nordemliu==2):
     
@@ -292,8 +255,8 @@ class coefopt1:
 
                     bint = 2.56    
                     
-                Txx = ctex*cotm13.calccoef(nordemliu,bint,rvalliu)
-                Tyy = ctey*cotm13.calccoef(nordemliu,bint,rvalliu)
+                Txx = ctex*cotm13.calccoef(nordemliu,bint,rvalliux)
+                Tyy = ctey*cotm13.calccoef(nordemliu,bint,rvalliuy)
                 
                 npx = np.size(Txx)
                 npy = np.size(Tyy)
@@ -319,7 +282,10 @@ class coefopt1:
 #==============================================================================
             if(wtype==4):
 
-                rvalliu = (self.vmax*self.dt)/(min(self.hx,self.hy)) 
+                rvalliu  = (vmax*dt)/(min(self.hx,self.hy))
+                rvalliux = (vmax*dt)/(self.hx)
+                rvalliuy = (vmax*dt)/(self.hy)
+                
                 tetaint = np.pi/4
 
                 if(nordemliu==2):
@@ -358,8 +324,8 @@ class coefopt1:
 
                     bint = 2.56    
                     
-                Txx = ctex*cotm14.calccoef(nordemliu,bint,tetaint,rvalliu)
-                Tyy = ctey*cotm14.calccoef(nordemliu,bint,tetaint,rvalliu)
+                Txx = ctex*cotm14.calccoef(nordemliu,bint,tetaint,rvalliux)
+                Tyy = ctey*cotm14.calccoef(nordemliu,bint,tetaint,rvalliuy)
                 
                 npx = np.size(Txx)
                 npy = np.size(Tyy)
@@ -394,7 +360,7 @@ class coefopt1:
                 y0       = self.y0
                 hx       = self.hx
                 hy       = self.hy
-                rvalllsr = self.dt*self.vmax
+                rvalllsr = dt*vmax
                 
                 Txx,Tyy  = cotm21.calccoef(sou,K,x0,y0,hx,hy,rvalllsr)
 #==============================================================================
@@ -412,8 +378,8 @@ class coefopt1:
 #==============================================================================
             if(wtype==1):
                 
-                rvalx = self.dt*self.vmax/self.hx
-                rvaly = self.dt*self.vmax/self.hy
+                rvalx = dt*vmax/self.hx
+                rvaly = dt*vmax/self.hy
                 Txx   = ctex*cotm31.calccoef(sou,rvalx)
                 Tyy   = ctey*cotm31.calccoef(sou,rvaly)
                 
@@ -441,11 +407,14 @@ class coefopt1:
 #==============================================================================
             if(wtype==2):
 
-                rval    = self.dt*self.vmax/min(self.hx,self.hy)
+                rval    = dt*vmax/min(self.hx,self.hy)
+                rvalx   = (vmax*dt)/(self.hx)
+                rvaly   = (vmax*dt)/(self.hy)
+                
                 tetaval = np.pi/8
                    
-                Txx = ctex*cotm32.calccoef(sou,rval,tetaval)
-                Tyy = ctey*cotm32.calccoef(sou,rval,tetaval)
+                Txx = ctex*cotm32.calccoef(sou,rvalx,tetaval)
+                Tyy = ctey*cotm32.calccoef(sou,rvaly,tetaval)
                 
                 npx = np.size(Txx)
                 npy = np.size(Tyy)
@@ -476,8 +445,8 @@ class coefopt1:
 #==============================================================================
             if(wtype==1):
 
-                rvalx   = self.dt*self.vmax/self.hx
-                rvaly   = self.dt*self.vmax/self.hy
+                rvalx   = dt*vmax/self.hx
+                rvaly   = dt*vmax/self.hy
                 knumber = 2
                 
                 Txx = cotm41.calccoef(nordem,rvalx,knumber)
@@ -506,8 +475,8 @@ class coefopt1:
 #==============================================================================
             if(wtype==2):
 
-                rvalx    = self.dt*self.vmax/self.hx
-                rvaly    = self.dt*self.vmax/self.hy
+                rvalx    = dt*vmax/self.hx
+                rvaly    = dt*vmax/self.hy
                 knumber  = 2
                 phiangle = np.pi/4
                 
@@ -543,8 +512,8 @@ class coefopt1:
 #==============================================================================
             if(wtype==1):
                
-                rvalx   = self.dt*self.vmax/self.hx
-                rvaly   = self.dt*self.vmax/self.hy
+                rvalx   = dt*vmax/self.hx
+                rvaly   = dt*vmax/self.hy
                 knumber = 2
 
                 Txx = cotm51.calccoef(nordem,rvalx,knumber)
@@ -573,8 +542,8 @@ class coefopt1:
 #==============================================================================
             if(wtype==2):
                
-                rvalx   = self.dt*self.vmax/self.hx
-                rvaly   = self.dt*self.vmax/self.hy
+                rvalx   = dt*vmax/self.hx
+                rvaly   = dt*vmax/self.hy
                 knumber = 2
 
                 Txx = cotm52.calccoef(nordem,rvalx,knumber)
@@ -638,8 +607,8 @@ class coefopt1:
             mvalue  = int(sou/2)
             nvalue  = nvalue
             if(nvalue>mvalue): sys.exit('N>M')
-            rvalx   = self.dt*self.vmax/self.hx
-            rvaly   = self.dt*self.vmax/self.hy
+            rvalx   = dt*vmax/self.hx
+            rvaly   = dt*vmax/self.hy
             ctex    = 1/(self.hx**2)
             ctey    = 1/(self.hy**2)
 #==============================================================================
@@ -654,7 +623,7 @@ class coefopt1:
                 Txx    = 0.0
                 Tyy    = 0.0
                 cte    = min(ctex,ctey)
-                mcoef  = ctex*cotm71.calccoef(mvalue,nvalue,rvalx,rvaly)            
+                mcoef  = cte*cotm71.calccoef(mvalue,nvalue,rvalx,rvaly)            
 #==============================================================================
 
 #==============================================================================
@@ -667,7 +636,7 @@ class coefopt1:
                 Txx    = 0.0
                 Tyy    = 0.0
                 cte    = min(ctex,ctey)
-                mcoef  = ctex*cotm72.calccoef(mvalue,nvalue,rvalx,rvaly)            
+                mcoef  = cte*cotm72.calccoef(mvalue,nvalue,rvalx,rvaly)            
 #==============================================================================
 
 #==============================================================================        
@@ -675,7 +644,7 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-    def eqconstuct(self,mcoef,u,t,x,y):
+    def eqconstuct1(self,mcoef,u,t,x,y):
         
         npx      = mcoef.shape[0]
         npy      = mcoef.shape[1]
@@ -694,7 +663,7 @@ class coefopt1:
                 b   = int(initialy)
                 pxs = x + a
                 pys = y + b                
-                
+                                
                 if(mcoef[i,j]!=0): contcoef = contcoef + 1
                 
                 pdeaux = pdeaux + u[t,pxs,pys]*mcoef[i,j]
@@ -703,6 +672,86 @@ class coefopt1:
 
             initialx = -npxm
             initialy =  initialy - 1
-                    
+
         return pdeaux, contcoef
+#==============================================================================
+
+#==============================================================================
+    def eqconstuct2(self,mcoefs,u,t,x,y,vrange,vmax,vel):
+        
+        npx       = mcoefs.shape[1]
+        npy       = mcoefs.shape[2]
+        npxm      = int(npx/2)
+        npym      = int(npy/2)
+        initialx  = -npxm
+        initialy  =  npym
+        pdeaux    = 0
+        contcoef  = 0 
+        mcoef_new = np.zeros((mcoefs.shape[1],mcoefs.shape[2]))
+
+        for i in range(0,npx):
+            
+            for j in range(0,npy):
+                                
+                a   = int(initialx)
+                b   = int(initialy)
+                pxs = x + a
+                pys = y + b                
+                
+                xvet             = vrange[:]
+                yvet             = mcoefs[:,i,j]
+                cs               = interp1d(xvet,yvet,kind='nearest',fill_value="extrapolate")
+                xs               = vmax
+                new_weight       = cs(vmax)               
+                mcoef_new[i,j]   = new_weight
+
+                if(mcoef_new[i,j]!=0): contcoef = contcoef + 1
+                
+                pdeaux = pdeaux + u[t,pxs,pys]*mcoef_new[i,j]
+                                
+                initialx = initialx + 1
+
+            initialx = -npxm
+            initialy =  initialy - 1
+
+        return pdeaux, contcoef, mcoef_new
+#==============================================================================
+
+#==============================================================================
+    def eqconstuct3(self,mcoefs,u,t,x,y,vel,vrange):
+        
+        npx       = mcoefs.shape[1]
+        npy       = mcoefs.shape[2]
+        npxm      = int(npx/2)
+        npym      = int(npy/2)
+        initialx  = -npxm
+        initialy  =  npym
+        pdeaux    = 0
+        contcoef  = 0 
+
+        for i in range(0,npx):
+            
+            for j in range(0,npy):
+                                
+                a   = int(initialx)
+                b   = int(initialy)
+                pxs = x + a
+                pys = y + b
+                
+                list_points = list()
+
+                for m3 in range(0,vrange.shape[0]):
+                    
+                    pair = (vrange[m3],mcoefs[m3,i,j])
+                    list_points.append(pair)
+                
+                #weight_interp    = interpolate(mcoefs[:,i,j],vel)
+                weight_interp    = interpolate(list_points,vel)
+                pdeaux           = pdeaux + u[t,pxs,pys]*weight_interp
+                initialx         = initialx + 1
+
+            initialx = -npxm
+            initialy =  initialy - 1
+
+        return pdeaux
 #==============================================================================

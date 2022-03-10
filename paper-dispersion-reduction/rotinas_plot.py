@@ -19,12 +19,14 @@ from   matplotlib              import cm
 from   matplotlib.animation    import FFMpegWriter
 from   matplotlib              import ticker
 import matplotlib.tri          as tri
+from matplotlib.colors import LogNorm
+
 #==============================================================================
 
 #==============================================================================
 # Data Save
 #==============================================================================        
-def datasave(teste,rec,solplot,rec_select,i):
+def datasave(teste,rec,solplot,rec_select,ref,ptype,dttype):
     
     sou     = teste.sou    
     npesos  = teste.npesos
@@ -32,18 +34,43 @@ def datasave(teste,rec,solplot,rec_select,i):
     nvalue  = teste.nvalue
     wauthor = teste.wauthor
     wtype   = teste.wtype
+
+    loc_save1_list = ['teste1/','teste2/','teste3/','teste5/','teste6/','teste7/','teste8/','teste9/']
+    loc_save2_list = ['dt1/','dt2/','dt3/','dt4/','dt5/','dt6/']
     
-    if(i==0):
-         
-        np.save("data_save/rec_%d%d%d%d%d"%(npesos,wauthor,wtype,mvalue,nvalue),rec)    
-        np.save("data_save/solplot_%d%d%d%d%d"%(npesos,wauthor,wtype,mvalue,nvalue),solplot)
-        np.save("data_save/rec_select_%d%d%d%d%d"%(npesos,wauthor,wtype,mvalue,nvalue),rec_select)
+    nteste = len(loc_save1_list)
+    ntimes = len(loc_save2_list)
+    
+    if(ptype==1): local_save1 = loc_save1_list[0]
+    if(ptype==2): local_save1 = loc_save1_list[1]
+    if(ptype==3): local_save1 = loc_save1_list[2]
+    if(ptype==5): local_save1 = loc_save1_list[3]
+    if(ptype==6): local_save1 = loc_save1_list[4]
+    if(ptype==7): local_save1 = loc_save1_list[5]
+    if(ptype==8): local_save1 = loc_save1_list[6]
+    if(ptype==9): local_save1 = loc_save1_list[7]
+    
+    if(ref==0):
         
-    if(i==1):
-                                
-        np.save("data_save/rec_ref",rec)   
-        np.save("data_save/solplot_ref",solplot)            
-        np.save("data_save/rec_select_ref",rec_select)   
+        if(dttype==0): local_save2 = loc_save2_list[0]
+        if(dttype==1): local_save2 = loc_save2_list[1]
+        if(dttype==2): local_save2 = loc_save2_list[2]
+        if(dttype==3): local_save2 = loc_save2_list[3]
+        if(dttype==4): local_save2 = loc_save2_list[4]
+        if(dttype==5): local_save2 = loc_save2_list[5]
+         
+        np.save("data_save/%s%srec_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),rec)    
+        np.save("data_save/%s%ssolplot_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),solplot)
+        np.save("data_save/%s%srec_select_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),rec_select)
+        
+    if(ref==1):
+        
+        for i in range(0,ntimes):
+            
+            local_save2 = loc_save2_list[i]
+            np.save("data_save/%s%srec_ref"%(local_save1,local_save2,),rec)   
+            np.save("data_save/%s%ssolplot_ref"%(local_save1,local_save2,),solplot)            
+            np.save("data_save/%s%srec_select_ref"%(local_save1,local_save2,),rec_select)   
 #==============================================================================
 
 #==============================================================================
@@ -84,10 +111,10 @@ def graph2d(U,teste,i):
     plot.figure(figsize = (14,10))
     fscale =  10**(-3)
 
-    scale = np.amax(U)/50. 
+    scale = np.amax(U)/10
     extent = [fscale*x0,fscale*x1, fscale*y1, fscale*y0]
-    fig = plot.imshow(np.transpose(U), vmin=-scale, vmax=scale, cmap=cm.gray, extent=extent)    
- 
+    fig = plot.imshow(np.transpose(U), vmin=-scale, vmax=scale, cmap=cm.gray, extent=extent,interpolation='bilinear')
+
     plot.gca().xaxis.set_major_formatter(mticker.FormatStrFormatter('%.1f km'))
     plot.gca().yaxis.set_major_formatter(mticker.FormatStrFormatter('%.1f km'))
     plot.axis('equal')
@@ -105,10 +132,11 @@ def graph2d(U,teste,i):
     cbar.update_ticks()
     plot.draw()
     
-    if(i==0): plot.savefig('figures/disp_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,nvalue),dpi=100)
-    if(i==1): plot.savefig('figures/disp_ref.png',dpi=100)
+    if(i==0): plot.savefig('figures/temporario/disp_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,nvalue),dpi=100)
+    if(i==1): plot.savefig('figures/temporario/disp_ref.png',dpi=100)
     
     plot.show()
+    plot.close()
 #==============================================================================
 
 #==============================================================================
