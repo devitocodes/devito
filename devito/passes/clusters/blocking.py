@@ -205,9 +205,6 @@ class SynthesizeBlocking(Queue):
 
         super().__init__()
 
-    def process(self, clusters):
-        return self._process_fatd(clusters, 1)
-
     def _make_key_hook(self, cluster, level):
         return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
 
@@ -283,7 +280,7 @@ def decompose(ispace, d, block_dims):
             intervals.append(i)
 
     # Create the intervals relations
-    # 1: `bd > d`
+    # 1: `bbd > bd > d`
     relations = [tuple(block_dims)]
 
     # 2: Suitably replace `d` with all `bd`'s
@@ -296,8 +293,8 @@ def decompose(ispace, d, block_dims):
 
         for bd in block_dims:
             # Avoid e.g. `x > yb`
-            if any(i._depth > bd._depth for i in r[:n] if i.is_Block) or \
-               any(bd._depth < i._depth for i in r[n+1:] if i.is_Block):
+            if any(i._depth < bd._depth for i in r[:n] if i.is_Block) or \
+               any(bd._depth > i._depth for i in r[n+1:] if i.is_Block):
                 continue
 
             relations.append(tuple(bd if i is d else i for i in r))
@@ -310,8 +307,8 @@ def decompose(ispace, d, block_dims):
         if not i.is_Block:
             continue
         for bd in block_dims:
-            if bd._depth < i._depth:
-                relations.append((bd, i))
+            if i._depth < bd._depth:
+                relations.append((i, bd))
 
     intervals = IntervalGroup(intervals, relations=relations)
 
