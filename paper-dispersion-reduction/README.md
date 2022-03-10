@@ -1,133 +1,41 @@
-# Devito: Fast Stencil Computation from Symbolic Specification
+# Analysis of High Order Finite Difference Schemes for Numerical Dispersion Reduction on Acoustic Waves
 
-[![Build Status for the Core backend](https://github.com/devitocodes/devito/workflows/CI-core/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-core)
-[![Build Status with MPI](https://github.com/devitocodes/devito/workflows/CI-mpi/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-mpi)
-[![Build Status on GPU](https://github.com/devitocodes/devito/workflows/CI-gpu/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-gpu)
-[![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)](https://codecov.io/gh/devitocodes/devito)
-[![Slack Status](https://img.shields.io/badge/chat-on%20slack-%2336C5F0)](https://join.slack.com/t/devitocodes/shared_invite/zt-gtd2yxj9-Y31YKk_7lr9AwfXeL2iMFg)
-[![asv](http://img.shields.io/badge/benchmarked%20by-asv-blue.svg?style=flat)](https://devitocodes.github.io/devito-performance)
-[![PyPI version](https://badge.fury.io/py/devito.svg)](https://badge.fury.io/py/devito)
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/master)
+## Authors: Felipe A. G. Silva and Pedro S. Peixoto
 
-[Devito](http://www.devitoproject.org) is a Python package to implement
-optimized stencil computation (e.g., finite differences, image processing,
-machine learning) from high-level symbolic problem definitions.  Devito builds
-on [SymPy](http://www.sympy.org/en/index.html) and employs automated code
-generation and just-in-time compilation to execute optimized computational
-kernels on several computer platforms, including CPUs, GPUs, and clusters
-thereof.
+## Department of Applied Mathematics, Institute of Mathematics and Statistics, University of São Paulo
 
-- [About Devito](#about-devito)
-- [Installation](#installation)
-- [Resources](#resources)
-- [Performance](#performance)
-- [Get in touch](#get-in-touch)
-- [Interactive jupyter notebooks](#interactive-jupyter-notebooks)
+## Contacts: felipe.augusto.guedes@usp.br and pedrosp@ime.usp.br
 
-## About Devito
+**Important Informations:** These codes are part of the Project Software Technologies for Modeling and Inversion (STMI) at RCGI in the  University of Sao Paulo.
 
-Devito provides a functional language to implement sophisticated operators that
-can be made up of multiple stencil computations, boundary conditions, sparse
-operations (e.g., interpolation), and much more.  A typical use case is
-explicit finite difference methods for approximating partial differential
-equations. For example, a 2D diffusion operator may be implemented with Devito
-as follows
+**Acknowledgements:** This research was carried out in association with the ongoing R&D project registered as ANP 20714-2 STMI - Software Technologies for Modelling and Inversion, with applications in seismic imaging (USP/Shell Brasil/ANP).
 
-```python
->>> grid = Grid(shape=(10, 10))
->>> f = TimeFunction(name='f', grid=grid, space_order=2)
->>> eqn = Eq(f.dt, 0.5 * f.laplace)
->>> op = Operator(Eq(f.forward, solve(eqn, f.forward)))
-```
+**Install Instructions:**
 
-An `Operator` generates low-level code from an ordered collection of `Eq` (the
-example above being for a single equation). This code may also be compiled and
-executed
+0) The Devito Package version that we used in our code is: 4.6+225.
 
-```python
->>> op(t=timesteps)
-```
+1) Install Devito Package in Linux OS following the instructions below:
 
-There is virtually no limit to the complexity of an `Operator` -- the Devito
-compiler will automatically analyze the input, detect and apply optimizations
-(including single- and multi-node parallelism), and eventually generate code
-with suitable loops and expressions.
+1.1) git clone https://github.com/devitocodes/devito.git
 
-Key features include:
+1.2) cd devito
 
-* A functional language to express finite difference operators.
-* Straightforward mechanisms to adjust the discretization.
-* Constructs to express sparse operators (e.g., interpolation), classic linear
-  operators (e.g., convolutions), and tensor contractions.
-* Seamless support for boundary conditions and adjoint operators.
-* A flexible API to define custom stencils, sub-domains, sub-sampling,
-  and staggered grids.
-* Generation of highly optimized parallel code (SIMD vectorization, CPU and GPU
-  parallelism via OpenMP, multi-node parallelism via MPI, blocking, aggressive
-  symbolic transformations for FLOP reduction, etc.).
-* Distributed NumPy arrays over multi-node (MPI) domain decompositions.
-* Inspection and customization of the generated code.
-* Autotuning framework to ease performance tuning.
-* Smooth integration with popular Python packages such as NumPy, SymPy, Dask,
-  and SciPy, as well as machine learning frameworks such as TensorFlow and
-  PyTorch.
+1.3) conda env create -f environment-dev.yml
 
-## Installation
+1.4) source activate devito
 
-The easiest way to try Devito is through Docker using the following commands:
-```
-# get the code
-git clone https://github.com/devitocodes/devito.git
-cd devito
+1.5) pip install -e .
 
-# start a jupyter notebook server on port 8888
-docker-compose up devito
-```
-After running the last command above, the terminal will display a URL such as
-`https://127.0.0.1:8888/?token=XXX`. Copy-paste this URL into a browser window
-to start a [Jupyter](https://jupyter.org/) notebook session where you can go
-through the [tutorials](https://github.com/devitocodes/devito/tree/master/examples)
-provided with Devito or create your own notebooks.
+1.6) Install with "conda install" or "pip install" important libreries like: jupyter-notebook, Matplotlib, SEGYIO.
 
-[See here](http://devitocodes.github.io/devito/download.html) for detailed installation
-instructions and other options. If you encounter a problem during installation, please
-see the
-[installation issues](https://github.com/devitocodes/devito/wiki/Installation-Issues) we
-have seen in the past. 
+Observation: More datails about install can be found in: https://www.devitoproject.org/devito/download.html
 
-## Resources
+2) To use the FWI code following the instructions below:
 
-To learn how to use Devito,
-[here](https://github.com/devitocodes/devito/blob/master/examples) is a good
-place to start, with lots of examples and tutorials.
+2.1) Download the directory "paper-dispersion-reduction" in a desired local.
 
-The [website](https://www.devitoproject.org/) also provides access to other
-information, including documentation and instructions for citing us.
+2.2) Considering the Linux S0, execute the step 1.4).
 
-Some FAQ are discussed [here](https://github.com/devitocodes/devito/wiki/FAQ).
+2.3) Using the know command "python name_file.py" execute the file of interest.
 
-## Performance
-
-If you are interested in any of the following
-
-* Generation of parallel code (CPU, GPU, multi-node via MPI);
-* Performance tuning;
-* Benchmarking operators;
-
-then you should take a look at this
-[README](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
-
-You may also be interested in
-[TheMatrix](https://github.com/devitocodes/thematrix) -- a cross-architecture
-benchmarking framework showing the performance of several production-grade
-seismic operators implemented with Devito. This is now our flagship project
-towards neat, open, and reproducible science.
-
-## Get in touch
-
-If you're using Devito, we would like to hear from you. Whether you
-are facing issues or just trying it out, join the
-[conversation](https://join.slack.com/t/devitocodes/shared_invite/zt-gtd2yxj9-Y31YKk_7lr9AwfXeL2iMFg).
-
-## Interactive jupyter notebooks
-The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/master) jupyterhub. 
+2.4) To acess the notebook execute the comand "jupyter notebook" and navegate into brownser.

@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (c) 2016, Imperial College, London
+Copyright (c) 2016, University of São Paulo, São Paulo/Brazil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
