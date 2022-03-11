@@ -8,7 +8,7 @@ from devito.symbolics import uxreplace, xreplace_indices
 from devito.tools import UnboundedMultiTuple, as_tuple, flatten
 from devito.types import BlockDimension
 
-__all__ = ['blocking']
+__all__ = ['blocking', 'skewing']
 
 
 def blocking(clusters, sregistry, options):
@@ -52,14 +52,33 @@ def blocking(clusters, sregistry, options):
         analyzer = AnalyzeHeuristicBlocking(options)
     clusters = analyzer.process(clusters)
 
-    if options['skewing']:
-        clusters = AnalyzeSkewing().process(clusters)
-
     if options['blocklevels'] > 0:
         clusters = SynthesizeBlocking(sregistry, options).process(clusters)
 
-    if options['skewing']:
-        clusters = SynthesizeSkewing(options).process(clusters)
+    return clusters
+
+
+def skewing(clusters, options):
+    """
+    This pass helps to skew accesses and loop bounds as well as perform loop interchange
+    towards wavefront temporal blocking
+    Parameters
+    ----------
+    clusters : tuple of Clusters
+        Input Clusters, subject of the optimization pass.
+    options : dict
+        The optimization options.
+        * `skewinner` (boolean, False): enable/disable loop skewing along the
+           innermost loop.
+    """
+    if options['blockrelax']:
+        analyzer = AnalyzeBlocking()
+    else:
+        analyzer = AnalyzeHeuristicBlocking(options)
+    clusters = analyzer.process(clusters)
+
+    clusters = AnalyzeSkewing().process(clusters)
+    clusters = SynthesizeSkewing(options).process(clusters)
 
     return clusters
 
