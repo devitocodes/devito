@@ -186,8 +186,24 @@ def pytest_runtest_call(item):
 # A list of optimization options/pipelines to be used in testing
 # regarding spatial and/or temporal blocking.
 opts_tiling = ['advanced',
+               ('advanced', {'skewing': True, 'blocktime': False}),
+               ('advanced', {'skewing': True, 'blockinner': True, 'blocktime': False}),
                ('advanced', {'skewing': True}),
-               ('advanced', {'skewing': True, 'blockinner': True})]
+               ('advanced', {'skewing': True, 'blocklevels': 2})]
+
+
+# A list of optimization options/pipelines to be used in testing
+# regarding GPU openacc spatial and/or temporal blocking.
+opts_openacc_tiling = [('openacc', 'blocking'),
+                       ('openacc', 'blocking', {'skewing': True}),
+                       ('openacc', 'blocking', {'skewing': True, 'blockinner': True})]
+
+
+# A list of optimization options/pipelines to be used in testing
+# regarding GPU openmp spatial and/or temporal blocking.
+opts_openmp_tiling = [('openmp', 'blocking'),
+                      ('openmp', 'blocking', {'skewing': True}),
+                      ('openmp', 'blocking', {'skewing': True, 'blockinner': True})]
 
 
 # Utilities for retrocompatibility

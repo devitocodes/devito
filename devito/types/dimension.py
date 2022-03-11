@@ -282,9 +282,12 @@ class Dimension(ArgProvider):
         """
         if self.min_name not in args:
             raise InvalidArgument("No runtime value for %s" % self.min_name)
-        if interval.is_Defined and args[self.min_name] + interval.lower < 0:
-            raise InvalidArgument("OOB detected due to %s=%d" % (self.min_name,
-                                                                 args[self.min_name]))
+        try:
+            if interval.is_Defined and args[self.min_name] + interval.lower < 0:
+                raise InvalidArgument("OOB detected due to %s=%d" % (self.min_name,
+                                      args[self.min_name]))
+        except TypeError:
+            pass
 
         if self.max_name not in args:
             raise InvalidArgument("No runtime value for %s" % self.max_name)
@@ -294,9 +297,12 @@ class Dimension(ArgProvider):
             else:
                 # Autopadding causes non-integer upper limit
                 upper = interval.upper.subs(args)
-            if args[self.max_name] + upper >= size:
-                raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
-                                                                     args[self.max_name]))
+            try:
+                if args[self.max_name] + upper >= size:
+                    raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
+                                          args[self.max_name]))
+            except TypeError:
+                pass
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
@@ -324,6 +330,13 @@ class BasicDimension(Dimension, Symbol):
 
     def __init_finalize__(self, name, spacing=None):
         self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
+
+    @property
+    def _depth(self):
+        """
+        The depth of `self` in the hierarchy of IncrDimensions.
+        """
+        return len([i for i in self._defines if i.is_Incr])
 
 
 class DefaultDimension(Dimension, DataSymbol):
@@ -681,6 +694,13 @@ class SubDimension(DerivedDimension):
 
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 
+    @property
+    def _depth(self):
+        """
+        The depth of `self` in the hierarchy of IncrDimensions.
+        """
+        return len([i for i in self._defines if i.is_Incr])
+
     # Pickling support
     _pickle_args = DerivedDimension._pickle_args +\
         ['symbolic_min', 'symbolic_max', 'thickness', 'local']
@@ -955,6 +975,16 @@ class ModuloDimension(DerivedDimension):
             pass
         return super().__sub__(other)
 
+    @property
+    def func(self):
+        return lambda **kwargs:\
+            self.__class__(name=kwargs.get('name', self.name),
+                           parent=kwargs.get('parent', self.parent),
+                           offset=kwargs.get('offset', self.offset),
+                           modulo=kwargs.get('modulo', self.modulo),
+                           incr=kwargs.get('incr', self.incr),
+                           origin=kwargs.get('origin', self.origin))
+
     # Pickling support
     _pickle_kwargs = ['offset', 'modulo', 'incr', 'origin']
 
@@ -989,6 +1019,7 @@ class AbstractIncrDimension(DerivedDimension):
     """
 
     is_Incr = True
+    is_PerfKnob = True
 
     def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
         super().__init_finalize__(name, parent)

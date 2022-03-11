@@ -298,6 +298,7 @@ class DAG(object):
             except ValueError:
                 ind_node, dep_node, label = i
                 self.labels[ind_node][dep_node] = label
+            # import pdb;pdb.set_trace()
             self.add_edge(ind_node, dep_node)
 
     def __contains__(self, key):
@@ -335,7 +336,7 @@ class DAG(object):
             if node_name in edges:
                 edges.remove(node_name)
 
-    def add_edge(self, ind_node, dep_node, force_add=False, label=None):
+    def add_edge(self, ind_node, dep_node, force_add=True, label=None):
         """Add an edge (dependency) between the specified nodes."""
         if force_add is True:
             self.add_node(ind_node, True)

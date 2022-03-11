@@ -211,6 +211,13 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 if any(j.dim in i.symbolic_min.free_symbols for j in candidates[n0:n]):
                     break
 
+                # TODO free symbols for rmax/rmin
+                try:
+                    if any(j.dim is i.dim.parent for j in candidates[:n]):
+                        break
+                except:
+                    pass
+
                 # Also, we do not want to collapse SIMD-vectorized Iterations
                 if i.is_Vectorized:
                     break
