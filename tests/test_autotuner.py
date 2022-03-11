@@ -337,3 +337,34 @@ def test_few_timesteps():
     op.apply(autotune=True)
     assert op._state['autotuning'][0]['runs'] == 2
     assert op._state['autotuning'][0]['tpr'] == 2  # Induced by `save`
+
+
+def test_wavefront_blocking():
+    grid = Grid(shape=(64, 64, 64))
+
+    u = TimeFunction(name='u', grid=grid, space_order=2)
+
+    opt = ('advanced', {'openmp': False, 'skewing': True, 'blocklevels': 2})
+    op = Operator(Eq(u.forward, u + 1), opt=opt)
+
+    # 'basic' mode
+    op.apply(time_M=30, autotune='basic')
+    assert op._state['autotuning'][0]['runs'] == 4
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
+    assert len(op._state['autotuning'][0]['tuned']) == 5
+
+    # 'aggressive' mode
+    op.apply(time_M=20, autotune='aggressive')
+    assert op._state['autotuning'][0]['runs'] == 4
+    assert op._state['autotuning'][1]['runs'] == 21
+    assert op._state['autotuning'][0]['tpr'] == 30
+    assert op._state['autotuning'][1]['tpr'] == 20
+    assert len(op._state['autotuning'][1]['tuned']) == 5
+
+    # 'basic' mode, more timesteps
+    op.apply(time_M=64, autotune='aggressive')
+    assert op._state['autotuning'][0]['runs'] == 4
+    assert op._state['autotuning'][1]['runs'] == 21
+    assert op._state['autotuning'][0]['tpr'] == 30
+    assert op._state['autotuning'][1]['tpr'] == 20
+    assert len(op._state['autotuning'][1]['tuned']) == 5
