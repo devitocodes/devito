@@ -411,13 +411,12 @@ class Operator(Callable):
     @cached_property
     def dimensions(self):
         ret = set().union(*[d._defines for d in self._dimensions])
-
         # During compilation other Dimensions may have been produced
         dimensions = FindSymbols('dimensions').visit(self)
         ret.update(d for d in dimensions if d.is_PerfKnob)
 
         ret = tuple(sorted(ret, key=attrgetter('name')))
-
+        import pdb;pdb.set_trace()
         return ret
 
     @cached_property
@@ -499,6 +498,7 @@ class Operator(Callable):
         # A topological sorting is used so that derived Dimensions are processed after
         # their parents (note that a leaf Dimension can have an arbitrary long list of
         # ancestors)
+        import pdb;pdb.set_trace()
         dag = DAG(self.dimensions,
                   [(i, i.parent) for i in self.dimensions if i.is_Derived])
         for d in reversed(dag.topological_sort()):

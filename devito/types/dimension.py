@@ -7,6 +7,7 @@ from cached_property import cached_property
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
+from devito.symbolics import evalrel
 from devito.tools import Pickable, dtype_to_cstr, is_integer
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
@@ -385,6 +386,13 @@ class SpaceDimension(BasicDimension):
     """
 
     is_Space = True
+
+    @property
+    def _depth(self):
+        """
+        The depth of `self` in the hierarchy of IncrDimensions.
+        """
+        return len([i for i in self._defines if i.is_Incr])
 
 
 class TimeDimension(BasicDimension):
@@ -1415,9 +1423,97 @@ class SteppingDimension(DerivedDimension):
 
         return values
 
+    @property
+    def _depth(self):
+        """
+        The depth of `self` in the hierarchy of IncrDimensions.
+        """
+        return len([i for i in self._defines if i.is_Incr])
+
 
 # ***
 # Utils
+
+    @cached_property
+    def symbolic_rmin(self):
+        return self.symbolic_min
+
+    @cached_property
+    def symbolic_rmax(self):
+        return evalrel(min, [self._max, self.root.symbolic_max])
+
+
+class RIncrDimension(BlockDimension):
+
+    """
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    parent : Dimension
+        The Dimension from which the IncrDimension is derived.
+    _min : expr-like
+        The minimum point of the Dimension.
+    _max : expr-like
+        The maximum point of the Dimension.
+    step : expr-like, optional
+        The distance between two consecutive points. Defaults to the
+        symbolic size.
+    size : expr-like, optional
+        The symbolic size of the Dimension. Defaults to `_max-_min+1`.
+    rmin : expr-like
+        The relaxed minimum point of the Dimension.
+    rmax : expr-like
+        The relaxed maximum point of the Dimension.
+    step : expr-like, optional
+        The relaxed step of the dimension.
+    Notes
+    -----
+    This type should not be instantiated directly in user code.
+    """
+
+    def __init_finalize__(self, name, parent, _min, _max, step=None, size=None,
+                          rmin=None, rmax=None, rstep=None):
+        super().__init_finalize__(name, parent, _min, _max, step, size)
+        self.rmin = rmin
+        self.rmax = rmax
+        self.rstep = rstep
+
+    @cached_property
+    def symbolic_rmin(self):
+        # If not provided return a default relaxed max template
+        if self.rmin is not None:
+            return self.rmin
+        else:
+            return self.symbolic_min
+
+    @cached_property
+    def symbolic_rmax(self):
+        # If not provided return a default relaxed max template
+        if self.rmax is not None:
+            return self.rmax
+        else:
+            return evalrel(min, [self._max, self.root.symbolic_max])
+
+    @cached_property
+    def symbolic_rstep(self):
+        # If not provided return self.step
+        if self.rstep is not None:
+            return self.rstep
+        else:
+            return self.step
+
+    @property
+    def func(self):
+        return lambda **kwargs:\
+            self.__class__(name=kwargs.get('name', self.name),
+                           parent=kwargs.get('parent', self.parent),
+                           _min=kwargs.get('_min', self._min),
+                           _max=kwargs.get('_max', self._max),
+                           step=kwargs.get('step', self.step),
+                           size=kwargs.get('size', self.size),
+                           rmax=kwargs.get('rmax', self.rmax),
+                           rmin=kwargs.get('rmin', self.rmin))
 
 
 def dimensions(names):

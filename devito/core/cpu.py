@@ -99,6 +99,7 @@ class Cpu64OperatorMixin(object):
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
         o['skewing'] = oo.pop('skewing', False)
+        o['blocktime'] = oo.pop('blocktime', o['skewing'])
         o['par-tile'] = ParTile(oo.pop('par-tile', False), default=16)
 
         # CIRE
@@ -205,7 +206,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Temporal blocking to improve data locality
         if options['skewing']:
-            clusters = skewing(clusters, options)
+            clusters = skewing(clusters, sregistry, options)
 
         return clusters
 
@@ -292,7 +293,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'blocking': lambda i: blocking(i, sregistry, options),
             'factorize': factorize,
             'fission': fission,
-            'skewing': lambda i: skewing(i, options),
+            'skewing': lambda i: skewing(i, sregistry, options),
             'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
