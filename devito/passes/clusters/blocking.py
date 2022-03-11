@@ -421,13 +421,13 @@ def decompose(ispace, d, block_dims):
 
     rels = relations
     # Clean stepping faults
-    # for r in relations:
-    #    if any(i for i in r if (i.is_Stepping and i.is_Time)):
-    #        rels.remove(r)
-    #        continue
+    for r in relations:
+        if any(i for i in r if (i.is_Stepping and i.is_Time)):
+            rels.remove(r)
+            continue
 
     relations = rels
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
 
     intervals = IntervalGroup(intervals, relations=relations)
     sub_iterators = dict(ispace.sub_iterators)
