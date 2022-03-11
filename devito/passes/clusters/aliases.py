@@ -848,7 +848,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
             # (e.g., MPI's comp/comm overlap does that)
             dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
 
-            # The halo must be set according to the size of writeto space
+            # The halo must be set according to the size of `writeto`
             halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
             # The indices used to write into the Array
@@ -1191,10 +1191,6 @@ class Alias(object):
     @property
     def free_symbols(self):
         return self.pivot.free_symbols
-
-    @property
-    def naliases(self):
-        return len(self.aliaseds)
 
     @property
     def is_frame(self):
