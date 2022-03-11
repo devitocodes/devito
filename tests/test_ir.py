@@ -12,6 +12,9 @@ from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, REGULAR, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
+from devito.ir.support.guards import GuardOverflow
+from devito.symbolics import ccode
+from devito.tools import prod
 from devito.types import Scalar, Array
 
 
@@ -849,3 +852,22 @@ class TestEquationAlgorithms(object):
         expr = eval(expr)
 
         assert list(dimension_sort(expr)) == eval(expected)
+
+
+class TestGuards(object):
+
+    def test_guard_overflow(self):
+        """
+        A toy test showing how to create a Guard to prevent writes to buffers
+        with not enough space to fit another snapshot.
+        """
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+
+        freespace = Scalar(name='freespace')
+        size = prod(f.symbolic_shape)
+
+        guard = GuardOverflow(freespace, size)
+
+        assert ccode(guard) == 'freespace >= (x_size + 2)*(y_size + 2)'
