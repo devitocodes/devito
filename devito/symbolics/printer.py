@@ -150,6 +150,7 @@ class CodePrinter(C99CodePrinter):
     _print_InlineIf = _print_IntDiv
     _print_MacroArgument = _print_IntDiv
     _print_IndexedData = _print_IntDiv
+    _print_IndexSum = _print_IntDiv
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)

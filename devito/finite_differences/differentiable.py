@@ -10,11 +10,11 @@ from sympy.core.evalf import evalf_table
 from cached_property import cached_property
 from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
-from devito.tools import filter_ordered, flatten, split
+from devito.tools import as_tuple, filter_ordered, flatten, is_integer, split
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Differentiable', 'EvalDerivative']
+__all__ = ['Differentiable', 'DotDerivative', 'EvalDerivative']
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -467,6 +467,64 @@ class Pow(DifferentiableOp, sympy.Pow):
 
 class Mod(DifferentiableOp, sympy.Mod):
     __sympy_class__ = sympy.Mod
+
+
+class IndexSum(DifferentiableOp):
+
+    """
+    A tensor contraction over one or more Dimensions.
+    """
+
+    is_commutative = True
+
+    def __new__(cls, expr, dimensions):
+        dimensions = as_tuple(dimensions)
+        if not dimensions:
+            return expr
+        for d in dimensions:
+            try:
+                if d.is_Dimension and is_integer(d.symbolic_size):
+                    continue
+            except AttributeError:
+                pass
+            raise ValueError("Expected Dimension with numeric size, "
+                             "got `%s` instead" % d)
+        for d in dimensions:
+            if d not in expr.free_symbols:
+                raise ValueError("Dimension `%s` must appear in `expr`" % d)
+        for i in expr.find(IndexSum):
+            for d in dimensions:
+                if d in i.dimensions:
+                    raise ValueError("Dimension `%s` already appears in a "
+                                     "nested tensor contraction" % d)
+
+        obj = sympy.Expr.__new__(cls, expr)
+        obj.dimensions = dimensions
+
+        return obj
+
+
+class Dot(IndexSum):
+
+    """
+    Dot-product, as the IndexSum of a binary Mul.
+    """
+
+    def __new__(cls, a, b, dimensions):
+        obj = super().__new__(cls, a*b, dimensions)
+        obj.a = a
+        obj.b = b
+
+        return obj
+
+    def __repr__(self):
+        return "<%s, %s>" % (self.a, self.b)
+
+    __str__ = __repr__
+
+
+class DotDerivative(Dot):
+    pass
 
 
 class EvalDerivative(DifferentiableOp, sympy.Add):
