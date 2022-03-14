@@ -849,7 +849,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     @property
     def indices(self):
-        """The indices (aka dimensions) of the object."""
+        """The indices of the object."""
         return DimensionTuple(*self.args, getters=self.dimensions)
 
     @property
@@ -882,22 +882,15 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         For example, if the original non-staggered function is f(x)
         then f(x) is on the grid and f(x + h_x/2) is off the grid.
         """
-        return self._check_indices(inds=self.indices)
-
-    @memoized_meth
-    def _check_indices(self, inds=None):
-        """
-        Check if the function indices are aligned with the dimensions.
-        """
-        inds = inds or self.indices
         return all([aligned_indices(i, j, d.spacing) for i, j, d in
-                    zip(inds, self.indices_ref, self.dimensions)])
+                    zip(self.indices, self.indices_ref, self.dimensions)])
 
     @property
     def evaluate(self):
         # Average values if at a location not on the Function's grid
         if self._is_on_grid:
             return self
+
         weight = 1.0
         avg_list = [self]
         is_averaged = False
