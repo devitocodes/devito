@@ -284,4 +284,7 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
 
     deriv = EvalDerivative(*terms, base=expr)
 
+    # Evaluate remaining part of expression
+    deriv = deriv.evaluate
+
     return deriv
