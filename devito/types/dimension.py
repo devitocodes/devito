@@ -13,7 +13,8 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
-           'dimensions', 'ModuloDimension', 'IncrDimension', 'BlockDimension']
+           'ModuloDimension', 'IncrDimension', 'BlockDimension', 'StencilDimension',
+           'dimensions']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -914,16 +915,9 @@ class ModuloDimension(DerivedDimension):
             return incr
 
     def _arg_defaults(self, **kwargs):
-        """
-        A ModuloDimension provides no arguments, so this method returns an empty dict.
-        """
         return {}
 
     def _arg_values(self, *args, **kwargs):
-        """
-        A ModuloDimension provides no arguments, so there are no argument values
-        to be derived.
-        """
         return {}
 
     # Override SymPy arithmetic operators to exploit properties of modular arithmetic
@@ -1265,6 +1259,38 @@ class DynamicSubDimension(DynamicDimensionMixin, SubDimension):
     def _symbolic_thickness(cls, name):
         return (Scalar(name="%s_ltkn" % name, dtype=np.int32, nonnegative=True),
                 Scalar(name="%s_rtkn" % name, dtype=np.int32, nonnegative=True))
+
+
+class StencilDimension(BasicDimension):
+
+    def __init_finalize__(self, name, size):
+        self._spacing = sympy.S.One
+
+        if not is_integer(size) or size < 1:
+            raise ValueError("Expected integer size greater than 0 (got %s)" % size)
+        self._size = size
+
+    @cached_property
+    def symbolic_size(self):
+        return sympy.Number(self._size)
+
+    @property
+    def symbolic_min(self):
+        return sympy.S.Zero
+
+    @property
+    def symbolic_max(self):
+        return self.symbolic_size - 1
+
+    @property
+    def _arg_names(self):
+        return ()
+
+    def _arg_defaults(self, **kwargs):
+        return {}
+
+    def _arg_values(self, *args, **kwargs):
+        return {}
 
 
 # ***
