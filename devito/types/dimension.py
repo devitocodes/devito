@@ -1064,6 +1064,80 @@ class IncrDimension(AbstractIncrDimension):
     is_SubIterator = True
 
 
+class BlockDimension(AbstractIncrDimension):
+
+    """
+    Dimension symbol for lowering TILABLE Dimensions.
+    """
+
+    is_Block = True
+    is_PerfKnob = True
+
+    @cached_property
+    def _arg_names(self):
+        try:
+            return (self.step.name,)
+        except AttributeError:
+            # `step` not a Symbol
+            return ()
+
+    def _arg_defaults(self, **kwargs):
+        # TODO: need a heuristic to pick a default incr size
+        # TODO: move default value to __new__
+        try:
+            return {self.step.name: 8}
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+
+    def _arg_values(self, interval, grid, args=None, **kwargs):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+
+        if name in kwargs:
+            return {name: kwargs.pop(name)}
+        elif isinstance(self.parent, BlockDimension):
+            # `self` is a BlockDimension within an outer BlockDimension, but
+            # no value supplied -> the sub-block will span the entire block
+            return {name: args[self.parent.step.name]}
+        else:
+            value = self._arg_defaults()[name]
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
+                return {name: value}
+            else:
+                # Avoid OOB (will end up here only in case of tiny iteration spaces)
+                return {name: 1}
+
+    def _arg_check(self, args, *_args):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return
+
+        value = args[name]
+        if isinstance(self.parent, BlockDimension):
+            # sub-BlockDimensions must be perfect divisors of their parent
+            parent_value = args[self.parent.step.name]
+            if parent_value % value > 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
+                                      "must divide the parent block size evenly (`%s=%d`)"
+                                      % (name, value, self.parent.step.name,
+                                         parent_value))
+        else:
+            if value < 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
+                                      % (name, value))
+            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
+                # Avoid OOB
+                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
+                                      "iteration range and it will cause an OOB access"
+                                      % (name, value))
+
+
 class CustomDimension(BasicDimension):
 
     """
@@ -1268,78 +1342,8 @@ class SteppingDimension(DerivedDimension):
         return values
 
 
-class BlockDimension(AbstractIncrDimension):
-
-    """
-    Dimension symbol for lowering TILABLE Dimensions.
-    """
-
-    is_Block = True
-    is_PerfKnob = True
-
-    @cached_property
-    def _arg_names(self):
-        try:
-            return (self.step.name,)
-        except AttributeError:
-            # `step` not a Symbol
-            return ()
-
-    def _arg_defaults(self, **kwargs):
-        # TODO: need a heuristic to pick a default incr size
-        # TODO: move default value to __new__
-        try:
-            return {self.step.name: 8}
-        except AttributeError:
-            # `step` not a Symbol
-            return {}
-
-    def _arg_values(self, interval, grid, args=None, **kwargs):
-        try:
-            name = self.step.name
-        except AttributeError:
-            # `step` not a Symbol
-            return {}
-
-        if name in kwargs:
-            return {name: kwargs.pop(name)}
-        elif isinstance(self.parent, BlockDimension):
-            # `self` is a BlockDimension within an outer BlockDimension, but
-            # no value supplied -> the sub-block will span the entire block
-            return {name: args[self.parent.step.name]}
-        else:
-            value = self._arg_defaults()[name]
-            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
-                return {name: value}
-            else:
-                # Avoid OOB (will end up here only in case of tiny iteration spaces)
-                return {name: 1}
-
-    def _arg_check(self, args, *_args):
-        try:
-            name = self.step.name
-        except AttributeError:
-            # `step` not a Symbol
-            return
-
-        value = args[name]
-        if isinstance(self.parent, BlockDimension):
-            # sub-BlockDimensions must be perfect divisors of their parent
-            parent_value = args[self.parent.step.name]
-            if parent_value % value > 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
-                                      "must divide the parent block size evenly (`%s=%d`)"
-                                      % (name, value, self.parent.step.name,
-                                         parent_value))
-        else:
-            if value < 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
-                                      % (name, value))
-            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
-                # Avoid OOB
-                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
-                                      "iteration range and it will cause an OOB access"
-                                      % (name, value))
+# ***
+# Utils
 
 
 def dimensions(names):
