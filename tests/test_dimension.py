@@ -642,6 +642,19 @@ class TestConditionalDimension(object):
         exprs = FindNodes(Expression).visit(op)
         assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, 2) + 1
 
+    def test_issue_1753(self):
+        grid = Grid(shape=(3, 3, 3))
+        f = TimeFunction(name='f', grid=grid)
+        p = Function(name='p', grid=grid)
+        p.data[0, 1, 0] = 1
+        condition = Ge(p, 1)
+        z_cond = ConditionalDimension(name='z_cond', parent=grid.dimensions[-1],
+                                      condition=condition)
+        eq_p = Eq(f.forward, 1, implicit_dims=z_cond)
+        op = Operator([eq_p])
+        op.apply(time_M=1)
+        assert np.all(np.flatnonzero(f.data) == [3, 30])
+
     def test_subsampled_fd(self):
         """
         Test that the FD shortcuts are handled correctly with ConditionalDimensions
