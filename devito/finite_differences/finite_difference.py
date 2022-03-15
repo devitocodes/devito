@@ -218,17 +218,20 @@ def indices_weights_to_fd(expr, dim, indices, weights, matvec=1):
     mapper = {dim.spacing: matvec*dim.spacing}
     terms = []
     for i, c in zip(indices, weights):
-        # Apply replacements to indices. Needs to be sympified in case
-        # the indices are pure numbers
+        # Transpose FD if necessary through `mapper`
         try:
             iloc = i.xreplace(mapper)
         except AttributeError:
+            # Pure number -> sympify
             iloc = sympify(i).xreplace(mapper)
+        # Shift index due to staggering, if any
+        iloc -= expr.indices_ref[dim] - dim
+
         # Enforce fixed precision FD coefficients to avoid variations in results
-        c = sympify(c).evalf(_PRECISION)
+        v = sympify(c).evalf(_PRECISION)
 
         # The FD term
-        term = expr._subs(dim, iloc - (expr.indices_ref[dim] - dim)) * c
+        term = expr._subs(dim, iloc) * v
 
         # Re-evaluate any off-the-grid Functions potentially impacted by the FD
         try:
