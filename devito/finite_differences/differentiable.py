@@ -587,7 +587,12 @@ def diff2sympy(expr):
             # Won't lower (e.g., EvalDerivative)
             pass
         if flag:
-            return obj.func(*args, evaluate=False), True
+            try:
+                return obj.func(*args, evaluate=False), True
+            except TypeError:
+                # In case of indices using other Function, evaluate
+                # may not be a supported argument.
+                return obj.func(*args), True
         else:
             return obj, False
 
