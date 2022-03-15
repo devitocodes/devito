@@ -21,8 +21,8 @@ class TestGradient(object):
     @pytest.mark.parametrize('space_order', [4, 16])
     @pytest.mark.parametrize('kernel, shape, spacing, setup_func, time_order', [
         ('OT2', (70, 80), (10., 10.), iso_setup, 2),
-        ('SLS', (70, 80), (20., 20.), viscoacoustic_setup, 2),
-        ('SLS', (70, 80), (20., 20.), viscoacoustic_setup, 1),
+        ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 2),
+        ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 1),
     ])
     def test_gradient_checkpointing(self, dtype, opt, space_order, kernel, shape, spacing,
                                     setup_func, time_order):
@@ -152,10 +152,10 @@ class TestGradient(object):
         ('OT2', (50, 60), False, iso_setup, 2),
         ('centered', (50, 60), True, tti_setup, 2),
         ('centered', (50, 60), False, tti_setup, 2),
-        ('SLS', (50, 60), True, viscoacoustic_setup, 2),
-        ('SLS', (50, 60), False, viscoacoustic_setup, 2),
-        ('SLS', (50, 60), True, viscoacoustic_setup, 1),
-        ('SLS', (50, 60), False, viscoacoustic_setup, 1),
+        ('sls', (50, 60), True, viscoacoustic_setup, 2),
+        ('sls', (50, 60), False, viscoacoustic_setup, 2),
+        ('sls', (50, 60), True, viscoacoustic_setup, 1),
+        ('sls', (50, 60), False, viscoacoustic_setup, 1),
     ])
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
@@ -240,8 +240,8 @@ class TestGradient(object):
 
     @pytest.mark.parametrize('kernel, shape, spacing, setup_func, time_order', [
         ('OT2', (70, 80), (15., 15.), iso_setup, 2),
-        ('SLS', (70, 80), (20., 20.), viscoacoustic_setup, 2),
-        ('SLS', (70, 80), (20., 20.), viscoacoustic_setup, 1),
+        ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 2),
+        ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 1),
         ('centered', (70, 80), (15., 15.), tti_setup, 2),
     ])
     @pytest.mark.parametrize('space_order', [4])

@@ -38,7 +38,7 @@ def src_rec(p, model, geometry, **kwargs):
     return src_term + rec_term
 
 
-def SLS_1st_order(model, geometry, p, r=None, **kwargs):
+def sls_1st_order(model, geometry, p, r=None, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation based on SLS model from:
     1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
@@ -122,7 +122,7 @@ def SLS_1st_order(model, geometry, p, r=None, **kwargs):
         return [u_r, u_v, u_p]
 
 
-def SLS_2nd_order(model, geometry, p, r=None, **kwargs):
+def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     """
     Implementation of the 2nd order viscoacoustic wave-equation based on SLS model from:
     1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
@@ -196,7 +196,7 @@ def SLS_2nd_order(model, geometry, p, r=None, **kwargs):
         return [u_r, u_p]
 
 
-def KV_1st_order(model, geometry, p, **kwargs):
+def kv_1st_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
     based on Kelvin-Voigt model from:
@@ -257,7 +257,7 @@ def KV_1st_order(model, geometry, p, **kwargs):
         return [u_v, u_p]
 
 
-def KV_2nd_order(model, geometry, p, **kwargs):
+def kv_2nd_order(model, geometry, p, **kwargs):
     """
     Implementation of the 2nd order viscoacoustic wave-equation
     based on Kelvin-Voigt model from:
@@ -314,7 +314,7 @@ def KV_2nd_order(model, geometry, p, **kwargs):
         return [u_p]
 
 
-def Maxwell_1st_order(model, geometry, p, **kwargs):
+def maxwell_1st_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
     based on Maxwell model from:
@@ -370,7 +370,7 @@ def Maxwell_1st_order(model, geometry, p, **kwargs):
         return [u_v, u_p]
 
 
-def Maxwell_2nd_order(model, geometry, p, **kwargs):
+def maxwell_2nd_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
     based on Maxwell model from:
@@ -420,7 +420,7 @@ def Maxwell_2nd_order(model, geometry, p, **kwargs):
         return [u_p]
 
 
-def SLS(model, geometry, p, forward=True, **kwargs):
+def sls(model, geometry, p, forward=True, **kwargs):
     """
     Implementation of the viscoacoustic wave-equation from:
     1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
@@ -440,13 +440,13 @@ def SLS(model, geometry, p, forward=True, **kwargs):
     """
     time_order = p.time_order
 
-    eq_stencil = stencils[('SLS', time_order)]
+    eq_stencil = stencils[('sls', time_order)]
     eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
 
-def KV(model, geometry, p, forward=True, **kwargs):
+def kv(model, geometry, p, forward=True, **kwargs):
     """
     Implementation of the 1st and 2nd order viscoacoustic wave-equation from:
     1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
@@ -464,13 +464,13 @@ def KV(model, geometry, p, forward=True, **kwargs):
     """
     time_order = p.time_order
 
-    eq_stencil = stencils[('KV', time_order)]
+    eq_stencil = stencils[('kv', time_order)]
     eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
 
-def Maxwell(model, geometry, p, forward=True, **kwargs):
+def maxwell(model, geometry, p, forward=True, **kwargs):
     """
     Implementation of the 1st and 2nd order viscoacoustic wave-equation from:
     1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
@@ -487,13 +487,13 @@ def Maxwell(model, geometry, p, forward=True, **kwargs):
     """
     time_order = p.time_order
 
-    eq_stencil = stencils[('Maxwell', time_order)]
+    eq_stencil = stencils[('maxwell', time_order)]
     eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
 
-def ForwardOperator(model, geometry, space_order=4, kernel='SLS', time_order=2,
+def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
                     save=False, **kwargs):
     """
     Construct method for the forward modelling operator in a viscoacoustic medium.
@@ -513,8 +513,8 @@ def ForwardOperator(model, geometry, space_order=4, kernel='SLS', time_order=2,
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        KV - Ren et al. (2014) viscoacoustic equation
-        Maxwell - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     save : int or Buffer
         Saving flag, True saves all time steps, False saves three buffered
@@ -556,12 +556,12 @@ def AdjointOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, 
     space_order : int, optional
         Space discretization order.
     kernel : selects a visco-acoustic equation from the options below:
-        SLS (Standard Linear Solid) :
+        sls (Standard Linear Solid) :
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        KV - Ren et al. (2014) viscoacoustic equation
-        Maxwell - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
     if time_order == 1:
@@ -583,7 +583,7 @@ def AdjointOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, 
                     name='Adjoint', **kwargs)
 
 
-def GradientOperator(model, geometry, space_order=4, kernel='SLS', time_order=2,
+def GradientOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
                      save=True, **kwargs):
     """
     Construct a gradient operator in an acoustic media.
@@ -600,12 +600,12 @@ def GradientOperator(model, geometry, space_order=4, kernel='SLS', time_order=2,
     save : int or Buffer, optional
         Option to store the entire (unrolled) wavefield.
     kernel : selects a visco-acoustic equation from the options below:
-        SLS (Standard Linear Solid) :
+        sls (Standard Linear Solid) :
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        KV - Ren et al. (2014) viscoacoustic equation
-        Maxwell - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
     # Gradient symbol and wavefield symbols
@@ -639,7 +639,7 @@ def GradientOperator(model, geometry, space_order=4, kernel='SLS', time_order=2,
                     name='Gradient', **kwargs)
 
 
-def BornOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, **kwargs):
+def BornOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **kwargs):
     """
     Construct an Linearized Born operator in an acoustic media.
 
@@ -699,8 +699,8 @@ def BornOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, **k
                     name='Born', **kwargs)
 
 
-kernels = {'SLS': SLS, 'KV': KV, 'Maxwell': Maxwell}
-stencils = {('SLS', 1): SLS_1st_order, ('SLS', 2): SLS_2nd_order,
-            ('Maxwell', 1): Maxwell_1st_order,
-            ('Maxwell', 2): Maxwell_2nd_order,
-            ('KV', 1): KV_1st_order, ('KV', 2): KV_2nd_order}
+kernels = {'sls': sls, 'kv': kv, 'maxwell': maxwell}
+stencils = {('sls', 1): sls_1st_order, ('sls', 2): sls_2nd_order,
+            ('maxwell', 1): maxwell_1st_order,
+            ('maxwell', 2): maxwell_2nd_order,
+            ('kv', 1): kv_1st_order, ('kv', 2): kv_2nd_order}

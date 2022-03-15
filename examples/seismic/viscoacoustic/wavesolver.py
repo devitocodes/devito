@@ -24,15 +24,15 @@ class ViscoacousticWaveSolver(object):
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
     kernel : selects a visco-acoustic equation from the options below:
-                'SLS' (Standard Linear Solid) :
+                'sls' (Standard Linear Solid) :
                 1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
                 viscoacoustic equation
                 2nd order - Bai et al. (2014) viscoacoustic equation
-                'KV' - Ren et al. (2014) viscoacoustic equation
-                'Maxwell' - Deng and McMechan (2007) viscoacoustic equation
+                'kv' - Ren et al. (2014) viscoacoustic equation
+                'maxwell' - Deng and McMechan (2007) viscoacoustic equation
                 Defaults to 'sls' 2nd order.
     """
-    def __init__(self, model, geometry, space_order=4, kernel='SLS', time_order=2,
+    def __init__(self, model, geometry, space_order=4, kernel='sls', time_order=2,
                  **kwargs):
         self.model = model
         self.model._initialize_bcs(bcs="mask")
@@ -137,7 +137,7 @@ class ViscoacousticWaveSolver(object):
         # Pick vp and physical parameters from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
 
-        if self.kernel == 'SLS':
+        if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
             summary = self.op_fwd(save).apply(src=src, rec=rec, r=r, p=p,
@@ -206,7 +206,7 @@ class ViscoacousticWaveSolver(object):
         kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
-        if self.kernel == 'SLS':
+        if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
             summary = self.op_adj().apply(src=srca, rec=rec, pa=pa, r=r,

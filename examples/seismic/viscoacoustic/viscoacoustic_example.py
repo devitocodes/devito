@@ -8,7 +8,7 @@ from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
 def viscoacoustic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
-                        nbl=40, preset='layers-viscoacoustic', kernel='SLS',
+                        nbl=40, preset='layers-viscoacoustic', kernel='sls',
                         time_order=2, **kwargs):
     model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
@@ -24,7 +24,7 @@ def viscoacoustic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_ord
 
 def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
         space_order=4, nbl=40, autotune=False, preset='layers-viscoacoustic',
-        kernel='SLS', time_order=2, **kwargs):
+        kernel='sls', time_order=2, **kwargs):
 
     solver = viscoacoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
                                  space_order=space_order, preset=preset,
@@ -37,12 +37,12 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
 
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [
-    ('SLS', 2, 684.385, 1e-2),
-    ('SLS', 1, 42.243, 1e-2),
-    ('KV', 2, 677.673, 1e-2),
-    ('KV', 1, 40.489, 1e-2),
-    ('Maxwell', 2, 673.041, 1e-2),
-    ('Maxwell', 1, 41.598, 1e-2),
+    ('sls', 2, 684.385, 1e-2),
+    ('sls', 1, 42.243, 1e-2),
+    ('kv', 2, 677.673, 1e-2),
+    ('kv', 1, 40.489, 1e-2),
+    ('maxwell', 2, 673.041, 1e-2),
+    ('maxwell', 1, 41.598, 1e-2),
 ])
 def test_viscoacoustic(kernel, time_order, normrec, atol):
     _, _, _, [rec, _, _] = run(kernel=kernel, time_order=time_order)
@@ -50,7 +50,7 @@ def test_viscoacoustic(kernel, time_order, normrec, atol):
 
 
 @pytest.mark.parametrize('shape', [(51, 51), (16, 16, 16)])
-@pytest.mark.parametrize('kernel', ['SLS', 'KV', 'Maxwell'])
+@pytest.mark.parametrize('kernel', ['sls', 'kv', 'maxwell'])
 @pytest.mark.parametrize('time_order', [1, 2])
 def test_viscoacoustic_stability(shape, kernel, time_order):
     spacing = tuple([20]*len(shape))
@@ -62,8 +62,8 @@ def test_viscoacoustic_stability(shape, kernel, time_order):
 if __name__ == "__main__":
     description = ("Example script for a set of viscoacoustic operators.")
     parser = seismic_args(description)
-    parser.add_argument("-k", dest="kernel", default='SLS',
-                        choices=['SLS', 'KV', 'Maxwell'],
+    parser.add_argument("-k", dest="kernel", default='sls',
+                        choices=['sls', 'kv', 'maxwell'],
                         help="Choice of finite-difference kernel")
     parser.add_argument("-to", "--time_order", default=2,
                         type=int, help="Time order of the equation")
