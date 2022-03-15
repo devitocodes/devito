@@ -4,7 +4,6 @@ from devito.finite_differences.differentiable import EvalDerivative
 from devito.finite_differences.tools import (numeric_weights, symbolic_weights, left,
                                              right, generate_indices, centered, direct,
                                              transpose, check_input, check_symbolic)
-from devito.tools import frozendict
 
 __all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
            'left', 'right', 'centered', 'transpose', 'generate_indices']
@@ -86,7 +85,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
     fd_order = fd_order or expr.space_order
     deriv_order = 1
 
-    return IndexedDerivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic)
+    return make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic)
 
 
 @check_input
@@ -193,24 +192,20 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     if deriv_order == 1 and fd_order == 2 and not symbolic:
         fd_order = 1
 
-    return IndexedDerivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic)
+    return make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic)
 
 
-class IndexedDerivative(frozendict):
+def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic):
+    # The stencil positions
+    indices, x0 = generate_indices(expr, dim, fd_order, side=side, x0=x0)
 
-    def __new__(cls, expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic):
-        #TODO: ATM it just returns what `indices_weights_to_fd` used to return
+    # Finite difference weights from Taylor approximation with these positions
+    if symbolic:
+        weights = symbolic_weights(expr, deriv_order, indices, x0)
+    else:
+        weights = numeric_weights(deriv_order, indices, x0)
 
-        # Stencil positions
-        indices, x0 = generate_indices(expr, dim, fd_order, side=side, x0=x0)
-
-        # Finite difference weights from Taylor approximation with these positions
-        if symbolic:
-            weights = symbolic_weights(expr, deriv_order, indices, x0)
-        else:
-            weights = numeric_weights(deriv_order, indices, x0)
-
-        return indices_weights_to_fd(expr, dim, indices, weights, matvec=matvec.val)
+    return indices_weights_to_fd(expr, dim, indices, weights, matvec=matvec.val)
 
 
 def indices_weights_to_fd(expr, dim, indices, weights, matvec=1):
