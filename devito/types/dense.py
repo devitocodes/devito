@@ -565,8 +565,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         self._is_halo_dirty = True
         offset = getattr(getattr(self, '_offset_%s' % region.name)[dim], side.name)
         size = getattr(getattr(self, '_size_%s' % region.name)[dim], side.name)
-        index_array = [slice(offset, offset+size) if d is dim else slice(None)
-                       for d in self.dimensions]
+        index_array = [
+            slice(offset, offset+size) if d is dim else slice(pl, s - pr)
+            for d, s, (pl, pr)
+            in zip(self.dimensions, self.shape_allocated, self._padding)
+        ]
         return np.asarray(self._data[index_array])
 
     @property
