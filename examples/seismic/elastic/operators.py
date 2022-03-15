@@ -1,5 +1,5 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
-from devito import div, grad, diag
+from devito import div, grad, diag, solve
 from examples.seismic import PointSource, Receiver
 
 
@@ -58,11 +58,14 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
 
     lam, mu, b = model.lam, model.mu, model.b
 
-    dt = model.critical_dt
-    u_v = Eq(v.forward, model.damp * v + model.damp * dt * b * div(tau))
-    u_t = Eq(tau.forward, model.damp * tau +
-             model.damp * dt * lam * diag(div(v.forward)) +
-             model.damp * dt * mu * (grad(v.forward) + grad(v.forward).T))
+    # Particle velocity
+    eq_v = v.dt - b * div(tau)
+    # Stress
+    e = (grad(v.forward) + grad(v.forward).T)
+    eq_tau = tau.dt - lam * diag(div(v.forward)) - mu * e
+
+    u_v = Eq(v.forward, model.damp * solve(eq_v, v.forward))
+    u_t = Eq(tau.forward, model.damp * solve(eq_tau, tau.forward))
 
     srcrec = src_rec(v, tau, model, geometry)
     op = Operator([u_v] + [u_t] + srcrec, subs=model.spacing_map, name="ForwardElastic",
