@@ -106,7 +106,7 @@ class Iteration(Operation):
             ArrayAttr.from_list([
                 StringAttr.from_str(limits[0]),
                 StringAttr.from_str(limits[1]),
-                StringAttr.from_str(limits[0])
+                StringAttr.from_str(limits[2])
             ]),
             "properties":
             ArrayAttr.from_list([StringAttr.from_str(p) for p in properties])
