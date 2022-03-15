@@ -499,9 +499,13 @@ class IndexSum(DifferentiableOp):
                                      "nested tensor contraction" % d)
 
         obj = sympy.Expr.__new__(cls, expr)
-        obj.dimensions = dimensions
+        obj._dimensions = dimensions
 
         return obj
+
+    @property
+    def dimensions(self):
+        return self._dimensions
 
 
 class Dot(IndexSum):
