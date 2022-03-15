@@ -350,7 +350,7 @@ class Derivative(sympy.Derivative, Differentiable):
             res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
                                      matvec=self.transpose, x0=self.x0)
 
-        # Step 4: Apply substitution
+        # Step 3: Apply substitutions
         for e in self._ppsubs:
             res = res.xreplace(e)
 
