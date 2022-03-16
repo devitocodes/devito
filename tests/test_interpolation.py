@@ -496,7 +496,7 @@ def test_position(shape):
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5 + 100.
     src.coordinates.data[0, -1] = 130.
 
-    # Define receiver geometry (same as source, but spread across x)
+    # Define receiver geometry (same as source, but spread across `x, y`)
     rec2 = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec2.coordinates.data[:, 0] = np.linspace(100., 100. + model.domain_size[0],
                                               num=nrec)

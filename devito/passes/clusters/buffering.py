@@ -438,7 +438,7 @@ class Buffer(object):
                 d = d.root
                 interval, si, direction = self.itintervals_mapper[d]
             intervals.append(interval)
-            sub_iterators[d] = si + as_tuple(self.sub_iterators.get(d))
+            sub_iterators[d] = si + as_tuple(self.sub_iterators[d])
             directions[d] = direction
 
         relations = (tuple(i.dim for i in intervals),)

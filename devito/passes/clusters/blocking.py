@@ -51,7 +51,9 @@ def blocking(clusters, sregistry, options):
     else:
         analyzer = AnalyzeHeuristicBlocking(options)
     clusters = analyzer.process(clusters)
-    clusters = AnalyzeSkewing().process(clusters)
+
+    if options['skewing']:
+        clusters = AnalyzeSkewing().process(clusters)
 
     if options['blocklevels'] > 0:
         clusters = SynthesizeBlocking(sregistry, options).process(clusters)
@@ -313,7 +315,8 @@ def decompose(ispace, d, block_dims):
 
     sub_iterators = dict(ispace.sub_iterators)
     sub_iterators.pop(d, None)
-    sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
+    sub_iterators.update({bd: () for bd in block_dims[:-1]})
+    sub_iterators.update({block_dims[-1]: ispace.sub_iterators[d]})
 
     directions = dict(ispace.directions)
     directions.pop(d)
@@ -384,8 +387,7 @@ class SynthesizeSkewing(Queue):
                 return clusters
             skew_dim = skew_dims.pop()
 
-            # Since we are here, prefix is skewable and nested under a
-            # SEQUENTIAL loop.
+            # Since we are here, prefix is skewable and nested under a SEQUENTIAL loop
             intervals = []
             for i in c.ispace:
                 if i.dim is d and (not d.is_Block or d._depth == 1):
@@ -397,8 +399,7 @@ class SynthesizeSkewing(Queue):
                                     c.ispace.directions)
 
             exprs = xreplace_indices(c.exprs, {d: d - skew_dim})
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                       properties=c.properties))
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
 

@@ -226,7 +226,7 @@ class Stepper(Queue):
 
         d = prefix[-1].dim
 
-        subiters = flatten([c.ispace.sub_iterators.get(d, []) for c in clusters])
+        subiters = flatten([c.ispace.sub_iterators[d] for c in clusters])
         subiters = {i for i in subiters if i.is_Stepping}
         if not subiters:
             return clusters
