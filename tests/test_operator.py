@@ -6,7 +6,8 @@ from conftest import skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
-                    TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction,
+                    TimeDimension, switchconfig)
 from devito import  Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
@@ -1929,3 +1930,34 @@ class TestLoopScheduling(object):
         assert tree[0].dim is time
         assert tree[1].dim is x
         assert tree[2].dim is y
+
+    def test_nested_time_dimensions(self):
+        """
+        This test shows that not only is issue
+
+            https://github.com/devitocodes/devito/issues/640
+
+        fixed, but also we can achieve nested time solves in a much more
+        elegant and natural way.
+        """
+        grid0 = Grid(shape=(4, 4))
+
+        time1 = TimeDimension(name='time1', spacing=Scalar(name='dt1', is_const=True))
+        grid1 = Grid(shape=(4, 4), time_dimension=time1, dimensions=grid0.dimensions)
+
+        f = TimeFunction(name='f', grid=grid0, time_order=0)
+        g = TimeFunction(name='g', grid=grid1, time_order=0)
+
+        eqns = [
+            Eq(f, f + 1.),
+            Eq(g, g + f)
+        ]
+
+        op = Operator(eqns)
+
+        # The inner time loop runs four iterations for each iteration of
+        # the outer time loop
+        op.apply(time_M=3, time1_M=3)
+
+        # So we expect 1*4 + 2*4 + 3*4 + 4*4 = 40
+        assert np.all(g.data == 40.)
