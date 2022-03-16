@@ -97,9 +97,11 @@ class Iteration(Operation):
     body = RegionDef()
     limits = AttributeDef(ArrayAttr)
     properties = AttributeDef(ArrayAttr)
+    pragmas = AttributeDef(ArrayAttr)
 
     @staticmethod
-    def get(properties: List[str], limits: Tuple[str, str, str], body: Block):
+    def get(properties: List[str], limits: Tuple[str, str, str], body: Block,
+            pragmas: List[str] = []):
         return Iteration.build(attributes={
             "limits":
             ArrayAttr.from_list([
@@ -108,5 +110,7 @@ class Iteration(Operation):
                 StringAttr.from_str(limits[2])
             ]),
             "properties":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in properties])
+            ArrayAttr.from_list([StringAttr.from_str(p) for p in properties]),
+            "pragmas":
+            ArrayAttr.from_list([StringAttr.from_str(p) for p in pragmas])
         }, regions=[Region.from_block_list([body])])
