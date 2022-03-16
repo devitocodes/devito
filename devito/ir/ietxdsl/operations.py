@@ -12,6 +12,10 @@ class IET:
         # TODO add all operations
         self.ctx.register_op(Constant)
         self.ctx.register_op(Addi)
+        self.ctx.register_op(Iteration)
+        self.ctx.register_op(Callable)
+        self.ctx.register_op(Idx)
+        self.ctx.register_op(Assign)
         self.i32 = IntegerType.from_width(32)
 
 
