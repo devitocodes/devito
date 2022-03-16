@@ -325,14 +325,15 @@ class Derivative(sympy.Derivative, Differentiable):
     def _eval_fd(self, expr):
         """
         Evaluate finite difference approximation of the Derivative.
-        Evaluation is carried out via the following four steps:
+        Evaluation is carried out via the following three steps:
 
         - 1: Evaluate derivatives within the expression. For example given
             `f.dx * g`, `f.dx` will be evaluated first.
         - 2: Evaluate the finite difference for the (new) expression.
-        - 3: Evaluate remaining terms (as `g` may need to be evaluated
-        at a different point).
-        - 4: Apply substitutions.
+             This in turn is a two-step procedure, for Functions that may
+             may need to be evaluated at a different point due to e.g. a
+             shited derivative.
+        - 3: Apply substitutions.
         """
         # Step 1: Evaluate derivatives within expression
         expr = getattr(expr, '_eval_deriv', expr)
@@ -349,10 +350,7 @@ class Derivative(sympy.Derivative, Differentiable):
             res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
                                      matvec=self.transpose, x0=self.x0)
 
-        # Step 3: Evaluate remaining part of expression
-        res = res.evaluate
-
-        # Step 4: Apply substitution
+        # Step 3: Apply substitutions
         for e in self._ppsubs:
             res = res.xreplace(e)
 

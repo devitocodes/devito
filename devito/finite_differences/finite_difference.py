@@ -280,7 +280,18 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
             iloc = sympify(i).xreplace(mapper)
         # Enforce fixed precision FD coefficients to avoid variations in results
         c = sympify(c).evalf(_PRECISION)
-        terms.append(expr._subs(dim, iloc - (expr.indices_ref[dim] - dim)) * c)
+
+        # The FD term
+        term = expr._subs(dim, iloc - (expr.indices_ref[dim] - dim)) * c
+
+        # Re-evaluate any off-the-grid Functions potentially impacted by the FD
+        try:
+            term = term.evaluate
+        except AttributeError:
+            # Pure number
+            pass
+
+        terms.append(term)
 
     deriv = EvalDerivative(*terms, base=expr)
 
