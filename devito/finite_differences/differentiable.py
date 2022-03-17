@@ -1,4 +1,5 @@
 from collections import ChainMap
+from itertools import product
 from functools import singledispatch
 
 import sympy
@@ -14,7 +15,7 @@ from devito.tools import as_tuple, filter_ordered, flatten, is_integer, split
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Differentiable', 'DotDerivative', 'EvalDerivative']
+__all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative']
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -518,50 +519,40 @@ class IndexSum(DifferentiableOp):
     def dimensions(self):
         return self._dimensions
 
-    def expand(self, **kwargs):
+    @property
+    def evaluate(self):
         # Overrides sympy.Expr.expand
+        values = product(*[list(range(d._min, d._max + 1)) for d in self.dimensions])
         terms = []
-        for d in self.dimensions:
-            for i in range(d._min, d._max + 1):
-                terms.append(self.expr.subs(d, i))
+        for i in values:
+            mapper = dict(zip(self.dimensions, i))
+            terms.append(self.expr.xreplace(mapper))
         return sum(terms)
 
 
-class Dot(IndexSum):
+class IndexDerivative(IndexSum):
 
-    """
-    Dot-product, as the IndexSum of the product between two terms with
-    compatible free variables. The IndexSum binds such free variables.
-
-    Examples
-    --------
-    Consider the following Dot object
-
-        dot = <a(i) + b(i), c(i)>
-
-    Where `i` is a StencilDimension with `min=-1` and `max=1`. The two
-    terms `a(i) + b(i)` and `c(i)` are implict vectors in R3 (since `i`'s
-    size is `max - min + 1 = 3`. Expanding the Dot, that is calling
-    `dot.expand()`, creates the following expression:
-
-        (a(-1) + b(-1))*c(-1) + (a(0) + b(0))*c(0) + (a(1) + b(1))*c(1)
-    """
-
-    def __new__(cls, a, b, dimensions):
-        obj = super().__new__(cls, a*b, dimensions)
-        obj.a = a
-        obj.b = b
+    def __new__(cls, expr, weights, **kwargs):
+        obj = super().__new__(cls, expr*weights, weights.dimension)
+        obj._weights = weights
 
         return obj
 
-    def __repr__(self):
-        return "<%s, %s>" % (self.a, self.b)
+    @property
+    def weights(self):
+        return self._weights
 
-    __str__ = __repr__
+    @property
+    def evaluate(self):
+        expr = super().evaluate
 
+        w = self.weights
+        d = w.dimension
+        mapper = {w.subs(d, i): w.weights[n]
+                  for n, i in enumerate(range(d._min, d._max + 1))}
+        expr = expr.xreplace(mapper)
 
-class DotDerivative(Dot):
-    pass
+        return expr
 
 
 class EvalDerivative(DifferentiableOp, sympy.Add):

@@ -11,7 +11,6 @@ from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.data import default_allocator
-from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
                           dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
@@ -882,8 +881,15 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         For example, if the original non-staggered function is f(x)
         then f(x) is on the grid and f(x + h_x/2) is off the grid.
         """
-        return all([aligned_indices(i, j, d.spacing) for i, j, d in
-                    zip(self.indices, self.indices_ref, self.dimensions)])
+        for i, j, d in zip(self.indices, self.indices_ref, self.dimensions):
+            # Two indices are aligned if they differ by an Integer*spacing.
+            v = i - j
+            try:
+                if int(v/d.spacing) != v/d.spacing:
+                    return False
+            except TypeError:
+                return False
+        return True
 
     @property
     def evaluate(self):

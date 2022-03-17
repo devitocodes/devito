@@ -4,7 +4,7 @@ from sympy import simplify, diff, Float
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
-from devito.finite_differences import Derivative, Differentiable
+from devito.finite_differences import Derivative, Differentiable, Weights
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative)
 from devito.symbolics import indexify, retrieve_indexed
@@ -514,7 +514,7 @@ class TestPartialEvalBuildingBlocks(object):
             # Expected Dimension with numeric size, got `x` instead
             IndexSum(u, x)
         with pytest.raises(ValueError):
-            # Dimension `i` must appear in `expr`
+            # Dimension `i` must appear in `expr`
             IndexSum(u, i)
 
     def test_index_sum_basic(self):
@@ -535,7 +535,7 @@ class TestPartialEvalBuildingBlocks(object):
         idxsum = IndexSum(term, i)
 
         # == u(x) + u(x + h_x)
-        assert idxsum.expand() == u + term0
+        assert idxsum.evaluate == u + term0
 
     def test_index_sum_2d(self):
         grid = Grid((10, 10))
@@ -555,7 +555,7 @@ class TestPartialEvalBuildingBlocks(object):
         idxsum = IndexSum(term, (i, j))
 
         # == u(x, y) + u(x, y + h_y) + u(x + h_x, y) + u(x + h_x, y + h_y)
-        assert idxsum.expand() == (u +
+        assert idxsum.evaluate == (u +
                                    u.subs(x, x + x.spacing) +
                                    u.subs(y, y + y.spacing) +
                                    term0)
@@ -575,7 +575,22 @@ class TestPartialEvalBuildingBlocks(object):
         # Sum `term` over `i`
         idxsum = IndexSum(ui*vi, i)
 
-        assert idxsum.expand() == u*v + u.subs(x, x + x.spacing)*v.subs(y, y + y.spacing)
+        assert idxsum.evaluate == u*v + u.subs(x, x + x.spacing)*v.subs(y, y + y.spacing)
+
+    def test_index_derivative_like(self):
+        grid = Grid((10,))
+        x, = grid.dimensions
+
+        i = StencilDimension('i', 0, 2)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        ui = u.subs(x, x + i*x.spacing)
+        w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
+
+        idxder = IndexDerivative(ui, w)
+
+        assert idxder.evaluate == -0.5*u + 0.5*ui.subs(i, 2)
 
 
 def bypass_uneval(expr):
