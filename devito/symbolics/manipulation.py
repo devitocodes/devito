@@ -13,8 +13,8 @@ from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
-           'split_affine', 'subs_op_args', 'uxreplace', 'aligned_indices',
-           'Uxmapper', 'reuse_if_untouched', 'evalrel']
+           'split_affine', 'subs_op_args', 'uxreplace', 'Uxmapper',
+           'reuse_if_untouched', 'evalrel']
 
 
 def uxreplace(expr, rule):
@@ -289,17 +289,6 @@ def indexify(expr):
         except AttributeError:
             pass
     return expr.xreplace(mapper)
-
-
-def aligned_indices(i, j, spacing):
-    """
-    Check if two indices are aligned. Two indices are aligned if they
-    differ by an Integer*spacing.
-    """
-    try:
-        return int((i - j)/spacing) == (i - j)/spacing
-    except TypeError:
-        return False
 
 
 def subs_op_args(expr, args):

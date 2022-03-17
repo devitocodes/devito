@@ -1289,7 +1289,7 @@ class StencilDimension(BasicDimension):
         self._size = _max - _min + 1
 
         if self._size < 1:
-            raise ValueError("Expected size greater than 0 (got %s)" % size)
+            raise ValueError("Expected size greater than 0 (got %s)" % self._size)
 
     @cached_property
     def symbolic_size(self):
