@@ -1263,24 +1263,45 @@ class DynamicSubDimension(DynamicDimensionMixin, SubDimension):
 
 class StencilDimension(BasicDimension):
 
-    def __init_finalize__(self, name, size):
+    """
+    Dimension symbol representing the points of a stencil.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    _min : expr-like
+        The minimum point of the stencil.
+    _max : expr-like
+        The maximum point of the stencil.
+    """
+
+    def __init_finalize__(self, name, _min, _max):
         self._spacing = sympy.S.One
 
-        if not is_integer(size) or size < 1:
-            raise ValueError("Expected integer size greater than 0 (got %s)" % size)
-        self._size = size
+        if not is_integer(_min):
+            raise ValueError("Expected integer `min` (got %s)" % _min)
+        if not is_integer(_max):
+            raise ValueError("Expected integer `max` (got %s)" % _max)
+
+        self._min = _min
+        self._max = _max
+        self._size = _max - _min + 1
+
+        if self._size < 1:
+            raise ValueError("Expected size greater than 0 (got %s)" % size)
 
     @cached_property
     def symbolic_size(self):
         return sympy.Number(self._size)
 
-    @property
+    @cached_property
     def symbolic_min(self):
-        return sympy.S.Zero
+        return sympy.Number(self._min)
 
-    @property
+    @cached_property
     def symbolic_max(self):
-        return self.symbolic_size - 1
+        return sympy.Number(self._max)
 
     @property
     def _arg_names(self):
