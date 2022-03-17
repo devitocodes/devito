@@ -477,7 +477,7 @@ class IndexSum(DifferentiableOp):
 
     is_commutative = True
 
-    def __new__(cls, expr, dimensions):
+    def __new__(cls, expr, dimensions, **kwargs):
         dimensions = as_tuple(dimensions)
         if not dimensions:
             return expr
@@ -498,14 +498,33 @@ class IndexSum(DifferentiableOp):
                     raise ValueError("Dimension `%s` already appears in a "
                                      "nested tensor contraction" % d)
 
-        obj = sympy.Expr.__new__(cls, expr)
+        obj = sympy.Expr.__new__(cls, expr, *dimensions)
+        obj._expr = expr
         obj._dimensions = dimensions
 
         return obj
 
+    def __repr__(self):
+        return "IndexSum(%s, (%s))" % (self.expr,
+                                       ', '.join(d.name for d in self.dimensions))
+
+    __str__ = __repr__
+
+    @property
+    def expr(self):
+        return self._expr
+
     @property
     def dimensions(self):
         return self._dimensions
+
+    def expand(self, **kwargs):
+        # Overrides sympy.Expr.expand
+        terms = []
+        for d in self.dimensions:
+            for i in range(d._min, d._max + 1):
+                terms.append(self.expr.subs(d, i))
+        return sum(terms)
 
 
 class Dot(IndexSum):
