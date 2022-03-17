@@ -530,7 +530,21 @@ class IndexSum(DifferentiableOp):
 class Dot(IndexSum):
 
     """
-    Dot-product, as the IndexSum of a binary Mul.
+    Dot-product, as the IndexSum of the product between two terms with
+    compatible free variables. The IndexSum binds such free variables.
+
+    Examples
+    --------
+    Consider the following Dot object
+
+        dot = <a(i) + b(i), c(i)>
+
+    Where `i` is a StencilDimension with `min=-1` and `max=1`. The two
+    terms `a(i) + b(i)` and `c(i)` are implict vectors in R3 (since `i`'s
+    size is `max - min + 1 = 3`. Expanding the Dot, that is calling
+    `dot.expand()`, creates the following expression:
+
+        (a(-1) + b(-1))*c(-1) + (a(0) + b(0))*c(0) + (a(1) + b(1))*c(1)
     """
 
     def __new__(cls, a, b, dimensions):
