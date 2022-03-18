@@ -1,6 +1,6 @@
 import numpy as np
 import cgen as c
-from sympy import And, Max
+from sympy import And, Max, true
 
 from devito.data import FULL
 from devito.ir import (Conditional, DummyEq, Dereference, Expression, ExpressionBundle,
@@ -469,6 +469,11 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         if sfs:
             size = [prod(f._C_get_field(FULL, d).size for d in f.dimensions) for f in sfs]
             cond.extend([i > 0 for i in size])
+
+        # Drop dynamically evaluated conditions (e.g. because the `symbolic_size`
+        # is an integer value rather than a symbol). This avoids ugly and
+        # unnecessary conditionals such as `if (true) { ...}`
+        cond = [i for i in cond if i != true]
 
         # Combine all cond elements
         if cond:
