@@ -575,6 +575,27 @@ class TestPartialEvalBuildingBlocks(object):
 
         assert idxsum.free_symbols == {x}
 
+    def test_index_sum_nested(self):
+        grid = Grid((10, 10))
+
+        x, y = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+        j = StencilDimension('j', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        term0 = u.xreplace({x: x + x.spacing, y: y + y.spacing})
+        term = term0.xreplace({x + x.spacing: x + i*x.spacing,
+                               y + y.spacing: y + j*y.spacing})
+
+        idxsum = IndexSum(IndexSum(term, j), i)
+
+        # Expect same output as `test_index_sum_2d`
+        assert idxsum.evaluate == (u +
+                                   u.subs(x, x + x.spacing) +
+                                   u.subs(y, y + y.spacing) +
+                                   term0)
+
     def test_dot_like(self):
         grid = Grid((10, 10))
 

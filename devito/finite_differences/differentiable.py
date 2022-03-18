@@ -531,12 +531,13 @@ class IndexSum(DifferentiableOp):
         return self._dimensions
 
     def _evaluate(self, **kwargs):
-        # Overrides sympy.Expr.expand
+        expr = self.expr._evaluate(**kwargs)
+
         values = product(*[list(d.range) for d in self.dimensions])
         terms = []
         for i in values:
             mapper = dict(zip(self.dimensions, i))
-            terms.append(self.expr.xreplace(mapper))
+            terms.append(expr.xreplace(mapper))
         return sum(terms)
 
     @property
