@@ -314,18 +314,17 @@ class Derivative(sympy.Derivative, Differentiable):
             # the expression as is.
             return self._new_from_self(x0=x0)
 
-    @property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         # Evaluate finite-difference.
         # NOTE: `evaluate` and `_eval_fd` split for potential future different
         # types of discretizations
-        return self._eval_fd(self.expr)
+        return self._eval_fd(self.expr, **kwargs)
 
     @property
     def _eval_deriv(self):
         return self._eval_fd(self.expr)
 
-    def _eval_fd(self, expr):
+    def _eval_fd(self, expr, **kwargs):
         """
         Evaluate the finite-difference approximation of the Derivative.
         Evaluation is carried out via the following three steps:
@@ -340,7 +339,7 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         # Step 1: Evaluate derivatives within expression
         try:
-            expr = expr._eval_deriv
+            expr = expr._evaluate(**kwargs)
         except AttributeError:
             pass
 

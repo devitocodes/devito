@@ -378,10 +378,6 @@ class DifferentiableFunction(DifferentiableOp):
     def __new__(cls, *args, **kwargs):
         return cls.__sympy_class__.__new__(cls, *args, **kwargs)
 
-    @property
-    def evaluate(self):
-        return self.func(*[getattr(a, 'evaluate', a) for a in self.args])
-
     def _eval_at(self, func):
         return self
 
@@ -534,8 +530,8 @@ class IndexSum(DifferentiableOp):
     def dimensions(self):
         return self._dimensions
 
-    @property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
+        # Overrides sympy.Expr.expand
         values = product(*[list(d.range) for d in self.dimensions])
         terms = []
         for i in values:
@@ -560,9 +556,8 @@ class IndexDerivative(IndexSum):
     def weights(self):
         return self._weights
 
-    @property
-    def evaluate(self):
-        expr = super().evaluate
+    def _evaluate(self, **kwargs):
+        expr = super()._evaluate(**kwargs)
 
         w = self.weights
         d = w.dimension
