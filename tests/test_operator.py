@@ -821,7 +821,7 @@ class TestApplyArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        mask = np.ones((5, 6, 7), dtype=np.bool)
+        mask = np.ones((5, 6, 7), dtype=bool)
         mask[1:4, 2:5, 3:6] = False
         assert (g.data[mask] == 0.).all()
         assert (g.data[1:4, 2:5, 3:6] == 1.).all()
@@ -852,7 +852,7 @@ class TestApplyArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        mask = np.ones((1, 5, 6, 7), dtype=np.bool)
+        mask = np.ones((1, 5, 6, 7), dtype=bool)
         mask[:, 1:4, 2:5, 3:6] = False
         assert (f.data[mask] == 0.).all()
         assert (f.data[:, 1:4, 2:5, 3:6] == 1.).all()
