@@ -274,7 +274,7 @@ class TestCodeGen(object):
 
         u = TimeFunction(name='u', grid=grid, save=3)
 
-        op = Operator(Eq(u, u + 1))
+        op = Operator(Eq(u, u + 1), platform='intel64')
 
         assert op.body.body[1].body[0].is_Section
         assert isinstance(op.body.body[1].body[0].body[0], TimedList)
@@ -1330,7 +1330,7 @@ class TestDeclarator(object):
         op = Operator([Eq(t0, 1.),
                        Eq(t1, 2.),
                        Eq(a[i], t0*t1*3.),
-                       Eq(f, a[j])])
+                       Eq(f, a[j])], platform='intel64')
 
         assert op.body.casts[1].is_PointerCast
         assert str(op.body.casts[1]) ==\

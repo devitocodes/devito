@@ -216,7 +216,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         sregistry = kwargs['sregistry']
 
         # Flush denormal numbers
-        avoid_denormals(graph)
+        avoid_denormals(graph, platform=platform)
 
         # Distributed-memory parallelism
         mpiize(graph, sregistry=sregistry, options=options)

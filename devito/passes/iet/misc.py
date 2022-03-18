@@ -11,13 +11,22 @@ __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_
 
 
 @iet_pass
-def avoid_denormals(iet):
+def avoid_denormals(iet, platform=None):
     """
     Introduce nodes in the Iteration/Expression tree that will expand to C
     macros telling the CPU to flush denormal numbers in hardware. Denormals
     are normally flushed when using SSE-based instruction sets, except when
     compiling shared objects.
     """
+    # There is unfortunately no known portable way of flushing denormal to zero.
+    # See for example: https://stackoverflow.com/questions/59546406/\
+    #                       a-robust-portable-way-to-set-flush-denormals-to-zero
+    try:
+        if 'sse' not in platform.known_isas:
+            return iet, {}
+    except AttributeError:
+        return iet, {}
+
     if iet.is_ElementalFunction:
         return iet, {}
 
