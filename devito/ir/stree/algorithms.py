@@ -3,6 +3,7 @@ from sympy import And
 
 from itertools import groupby
 
+from devito.ir.clusters import Cluster
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
 from devito.ir.support import SEQUENTIAL, IterationSpace, normalize_properties
@@ -35,7 +36,7 @@ def stree_schedule(clusters):
     """
     stree = ScheduleTree()
 
-    prev = None
+    prev = Cluster(None)
     mapper = DefaultOrderedDict(lambda: Bunch(top=None, bottom=None))
 
     def attach_metadata(cluster, d, tip):
@@ -46,15 +47,20 @@ def stree_schedule(clusters):
         return tip
 
     for c in clusters:
-        # Add in any Conditionals and Syncs outside of the outermost Iteration
-        tip = attach_metadata(c, None, stree)
-
-        if tip is stree:
-            pointers = list(mapper)
-        else:
-            pointers = []
-
         index = 0
+        pointers = list(mapper)
+
+        # Reuse or add in any Conditionals and Syncs outside of the outermost Iteration
+        if c.guards.get(None) != prev.guards.get(None) or \
+           c.syncs.get(None) != prev.syncs.get(None):
+            tip = attach_metadata(c, None, stree)
+        else:
+            try:
+                tip = mapper[pointers[index]].top.parent
+            except IndexError:
+                tip = stree
+                pointers = []
+
         for it0, it1 in zip(c.itintervals, pointers):
             if it0 != it1:
                 break
@@ -69,7 +75,7 @@ def stree_schedule(clusters):
             mapper[it0].top.properties = normalize_properties(mapper[it0].top.properties,
                                                               c.properties[it0.dim])
 
-            # Different guards or syncops cannot be further nested
+            # Different guards or SyncOps cannot further be nested
             if c.guards.get(d) != prev.guards.get(d) or \
                c.syncs.get(d) != prev.syncs.get(d):
                 tip = mapper[it0].top

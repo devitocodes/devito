@@ -23,7 +23,7 @@ class Cluster(object):
     ----------
     exprs : expr-like or list of expr-like
         An ordered sequence of expressions computing a tensor.
-    ispace : IterationSpace
+    ispace : IterationSpace, optional
         The cluster iteration space.
     guards : dict, optional
         Mapper from Dimensions to expr-like, representing the conditions under
@@ -37,7 +37,9 @@ class Cluster(object):
         Cluster asynchronously.
     """
 
-    def __init__(self, exprs, ispace, guards=None, properties=None, syncs=None):
+    def __init__(self, exprs, ispace=None, guards=None, properties=None, syncs=None):
+        ispace = ispace or IterationSpace([])
+
         self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
         self._guards = frozendict(guards or {})
