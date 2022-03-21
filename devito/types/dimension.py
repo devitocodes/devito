@@ -755,7 +755,13 @@ class ConditionalDimension(DerivedDimension):
 
     def __init_finalize__(self, name, parent, factor=None, condition=None,
                           indirect=False):
+        # `parent=None` degenerates to a ConditionalDimension outside of
+        # any iteration space
+        if parent is None:
+            parent = BOTTOM
+
         super().__init_finalize__(name, parent)
+
         self._factor = factor
         self._condition = condition
         self._indirect = indirect
@@ -1339,3 +1345,6 @@ class BlockDimension(AbstractIncrDimension):
 def dimensions(names):
     assert type(names) == str
     return tuple(Dimension(i) for i in names.split())
+
+
+BOTTOM = Dimension(name='B')

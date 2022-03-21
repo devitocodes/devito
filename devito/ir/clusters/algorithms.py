@@ -12,7 +12,7 @@ from devito.ir.clusters.queue import Queue, QueueStateful
 from devito.symbolics import uxreplace, xreplace_indices
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer,
                           timed_pass)
-from devito.types import ModuloDimension
+from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
 
@@ -186,8 +186,15 @@ def guard(clusters):
             # Chain together all `cds` conditions from all expressions in `c`
             guards = {}
             for cd in cds:
+                # `BOTTOM` parent implies a guard that lives outside of
+                # any iteration space, which corresponds to the placeholder None
+                if cd.parent is BOTTOM:
+                    d = None
+                else:
+                    d = cd.parent
+
                 # Pull `cd` from any expr
-                condition = guards.setdefault(cd.parent, [])
+                condition = guards.setdefault(d, [])
                 for e in exprs:
                     try:
                         condition.append(e.conditionals[cd])
