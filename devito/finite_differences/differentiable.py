@@ -2,6 +2,7 @@ from collections import ChainMap
 from itertools import product
 from functools import singledispatch
 
+import numpy as np
 import sympy
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
@@ -12,8 +13,7 @@ from cached_property import cached_property
 from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
 from devito.tools import as_tuple, filter_ordered, flatten, is_integer, split
-from devito.types.lazy import Evaluable
-from devito.types.utils import DimensionTuple
+from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 
 __all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative']
 
@@ -517,8 +517,8 @@ class IndexSum(DifferentiableOp):
         return obj
 
     def __repr__(self):
-        return "IndexSum(%s, (%s))" % (self.expr,
-                                       ', '.join(d.name for d in self.dimensions))
+        return "%s(%s, (%s))" % (self.__class__.__name__, self.expr,
+                                 ', '.join(d.name for d in self.dimensions))
 
     __str__ = __repr__
 
@@ -533,6 +533,9 @@ class IndexSum(DifferentiableOp):
     def _evaluate(self, **kwargs):
         expr = self.expr._evaluate(**kwargs)
 
+        if not kwargs.get('expand', True):
+            return self.func(expr, self.dimensions)
+
         values = product(*[list(d.range) for d in self.dimensions])
         terms = []
         for i in values:
@@ -545,10 +548,43 @@ class IndexSum(DifferentiableOp):
         return super().free_symbols - set(self.dimensions)
 
 
+class Weights(Array):
+
+    """
+    The weights (or coefficients) of a finite-difference expansion.
+    """
+
+    def __init_finalize__(self, *args, **kwargs):
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        weights = kwargs.get('initvalue')
+
+        assert len(dimensions) == 1
+        d = dimensions[0]
+        assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
+        assert isinstance(weights, (list, tuple, np.ndarray))
+
+        kwargs['scope'] = 'static'
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def dimension(self):
+        return self.dimensions[0]
+
+    weights = Array.initvalue
+
+
 class IndexDerivative(IndexSum):
 
-    def __new__(cls, expr, weights, **kwargs):
-        obj = super().__new__(cls, expr*weights, weights.dimension)
+    def __new__(cls, expr, dimensions, **kwargs):
+        try:
+            weights = expr.find(Weights).pop()
+        except KeyError:
+            raise ValueError("Couldn't find Weights")
+        if not (expr.is_Mul and len(expr.args) == 2):
+            raise ValueError("Expect expr*weights, got `%s` instead" % str(expr))
+
+        obj = super().__new__(cls, expr, dimensions)
         obj._weights = weights
 
         return obj
@@ -560,9 +596,13 @@ class IndexDerivative(IndexSum):
     def _evaluate(self, **kwargs):
         expr = super()._evaluate(**kwargs)
 
+        if not kwargs.get('expand', True):
+            return expr
+
         w = self.weights
         d = w.dimension
-        mapper = {w.subs(d, i): w.weights[n] for n, i in enumerate(d.range)}
+        mapper = {w.subs(d, i): w.weights[n]
+                  for n, i in enumerate(range(d._min, d._max + 1))}
         expr = expr.xreplace(mapper)
 
         return expr

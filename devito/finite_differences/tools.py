@@ -5,6 +5,7 @@ import numpy as np
 from sympy import S, finite_diff_weights, cacheit, sympify
 
 from devito.tools import Tag, as_tuple
+from devito.types.dimension import StencilDimension
 
 
 class Transpose(Tag):
@@ -139,6 +140,83 @@ def generate_fd_shortcuts(dims, so, to=0):
     return derivatives
 
 
+class IndexSet(tuple):
+
+    """
+    The points of a finite-difference expansion.
+    """
+
+    def __new__(cls, dim, indices=None, expr=None, fd=None):
+        if fd is None:
+            try:
+                v = {d for d in expr.free_symbols if isinstance(d, StencilDimension)}
+                assert len(v) == 1
+                fd = v.pop()
+            except AttributeError:
+                pass
+
+        if not indices:
+            assert expr is not None
+            indices = [expr.subs(fd, i) for i in fd.range]
+
+        obj = super().__new__(cls, indices)
+        obj.dim = dim
+        obj.expr = expr
+        obj.free_dim = fd
+
+        return obj
+
+    def __repr__(self):
+        return "IndexSet(%s)" % ", ".join(str(i) for i in self)
+
+    @property
+    def spacing(self):
+        return self.dim.spacing
+
+    def scale(self, v):
+        """
+        Construct a new IndexSet with all indices scaled by `v`.
+        """
+        mapper = {self.spacing: v*self.spacing}
+
+        indices = []
+        for i in self:
+            try:
+                iloc = i.xreplace(mapper)
+            except AttributeError:
+                # Pure number -> sympify
+                iloc = sympify(i).xreplace(mapper)
+            indices.append(iloc)
+
+        try:
+            expr = self.expr.xreplace(mapper)
+        except AttributeError:
+            expr = None
+
+        return IndexSet(self.dim, indices, expr=expr, fd=self.free_dim)
+
+    def shift(self, v):
+        """
+        Construct a new IndexSet with all indices shifted by `v`.
+        """
+        indices = [i + v for i in self]
+
+        try:
+            expr = self.expr + v
+        except TypeError:
+            expr = None
+
+        return IndexSet(self.dim, indices, expr=expr, fd=self.free_dim)
+
+
+def make_stencil_dimension(expr, _min, _max):
+    """
+    Create a StencilDimension for `expr` with unique name.
+    """
+    n = len(expr.find(StencilDimension))
+    return StencilDimension(name='i%d' % n, _min=_min, _max=_max)
+
+
 def symbolic_weights(function, deriv_order, indices, dim):
     return [function._coeff_symbol(indices[j], deriv_order, function, dim)
             for j in range(0, len(indices))]
@@ -149,63 +227,67 @@ def numeric_weights(deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
 
-def generate_indices(func, dim, order, side=None, x0=None):
+def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
     """
     Indices for the finite-difference scheme.
 
     Parameters
     ----------
-    func: Function
-        Function that is differentiated.
-    dim: Dimension
+    expr : expr-like
+        Expression that is differentiated.
+    dim : Dimension
         Dimensions w.r.t which the derivative is taken.
-    order: Int
+    order : int
         Order of the finite-difference scheme.
-    side: Side
-        Side of the scheme, (centered, left, right).
-    x0: Dict of {Dimension: Dimension or Expr or Number}
+    side : Side, optional
+        Side of the scheme (centered, left, right).
+    matvec : Transpose, optional
+        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
+        finite difference. Defaults to `direct`.
+    x0 : dict of {Dimension: Dimension or Expr or Number}, optional
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
     -------
-    Ordered list of indices.
+    An IndexSet, representing an ordered list of indices.
     """
-    # If staggered finited difference
-    if func.is_Staggered and not dim.is_Time:
-        x0, ind = generate_indices_staggered(func, dim, order, side=side, x0=x0)
+    if expr.is_Staggered and not dim.is_Time:
+        x0, indices = generate_indices_staggered(expr, dim, order, side=side, x0=x0)
     else:
         x0 = (x0 or {dim: dim}).get(dim, dim)
         # Check if called from first_derivative()
-        ind = generate_indices_cartesian(dim, order, side, x0)
-    return ind, x0
+        indices = generate_indices_cartesian(expr, dim, order, side, x0)
+
+    assert isinstance(indices, IndexSet)
+
+    return indices, x0
 
 
-def generate_indices_cartesian(dim, order, side, x0):
+def generate_indices_cartesian(expr, dim, order, side, x0):
     """
-    Indices for the finite-difference scheme on a cartesian grid
+    Indices for the finite-difference scheme on a cartesian grid.
 
     Parameters
     ----------
+    expr : expr-like
+        Expression that is differentiated.
     dim: Dimension
-        Dimensions w.r.t which the derivative is taken
-    order: Int
-        Order of the finite-difference scheme
+        Dimensions w.r.t which the derivative is taken.
+    order: int
+        Order of the finite-difference scheme.
     side: Side
-        Side of the scheme, (centered, left, right)
-    x0: Dict of {Dimension: Dimension or Expr or Number}
+        Side of the scheme (centered, left, right).
+    x0: dict of {Dimension: Dimension or expr-like or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
     -------
-    Ordered list of indices
+    An IndexSet, representing an ordered list of indices.
     """
     shift = 0
-    # Shift if x0 is not on the grid
+    # Shift if `x0` is not on the grid
     offset_c = 0 if sympify(x0).is_Integer else (dim - x0)/dim.spacing
     offset_c = np.sign(offset_c) * (offset_c % 1)
-    # left and right max offsets for indices
-    o_start = -order//2 + int(np.ceil(-offset_c))
-    o_end = order//2 + 1 - int(np.ceil(offset_c))
     offset = offset_c * dim.spacing
     # Spacing
     diff = dim.spacing
@@ -214,50 +296,69 @@ def generate_indices_cartesian(dim, order, side, x0):
         diff *= side.val
     # Indices
     if order < 2:
-        ind = [x0, x0 + diff] if offset == 0 else [x0 - offset, x0 + offset]
+        indices = [x0, x0 + diff] if offset == 0 else [x0 - offset, x0 + offset]
+        return IndexSet(dim, indices)
     else:
-        ind = [(x0 + (i + shift) * diff + offset) for i in range(o_start, o_end)]
-    return tuple(ind)
+        # Left and right max offsets for indices
+        o_min = -order//2 + int(np.ceil(-offset_c))
+        o_max = order//2 - int(np.ceil(offset_c))
+
+        d = make_stencil_dimension(expr, o_min, o_max)
+        iexpr = x0 + (d + shift) * diff + offset
+        return IndexSet(dim, expr=iexpr)
 
 
-def generate_indices_staggered(func, dim, order, side=None, x0=None):
+def generate_indices_staggered(expr, dim, order, side=None, x0=None):
     """
-    Indices for the finite-difference scheme on a staggered grid
+    Indices for the finite-difference scheme on a staggered grid.
 
     Parameters
     ----------
-    func: Function
-        Function that is differentiated
+    expr : expr-like
+        Expression that is differentiated.
     dim: Dimension
-        Dimensions w.r.t which the derivative is taken
-    order: Int
-        Order of the finite-difference scheme
-    side: Side
-        Side of the scheme, (centered, left, right)
-    x0: Dict of {Dimension: Dimension or Expr or Number}
+        Dimensions w.r.t which the derivative is taken.
+    order: int
+        Order of the finite-difference scheme.
+    side: Side, optional
+        Side of the scheme (centered, left, right).
+    x0: dict of {Dimension: Dimension or expr-like or Number}, optional
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
     -------
-    Ordered list of indices
+    An IndexSet, representing an ordered list of indices.
     """
     diff = dim.spacing
-    start = (x0 or {}).get(dim) or func.indices_ref[dim]
+    start = (x0 or {}).get(dim) or expr.indices_ref[dim]
     try:
-        ind0 = func.indices_ref[dim]
+        ind0 = expr.indices_ref[dim]
     except AttributeError:
         ind0 = start
     if start != ind0:
-        ind = [start - diff/2 - i * diff for i in range(0, order//2)][::-1]
-        ind += [start + diff/2 + i * diff for i in range(0, order//2)]
         if order < 2:
-            ind = [start - diff/2, start + diff/2]
-    else:
-        ind = [start + i * diff for i in range(-order//2, order//2+1)]
-        if order < 2:
-            ind = [start, start - diff]
+            indices = [start - diff/2, start + diff/2]
+            indices = IndexSet(dim, indices)
+        else:
+            o_min = -order//2+1
+            o_max = order//2
 
-    return start, tuple(ind)
+            d = make_stencil_dimension(expr, o_min, o_max)
+            iexpr = start - diff/2 + d * diff
+            indices = IndexSet(dim, expr=iexpr)
+    else:
+        if order < 2:
+            indices = [start, start - diff]
+            indices = IndexSet(dim, indices)
+        else:
+            o_min = -order//2
+            o_max = order//2
+
+            d = make_stencil_dimension(expr, o_min, o_max)
+            iexpr = start + d * diff
+            indices = IndexSet(dim, expr=iexpr)
+
+    return start, indices
 
 
 def make_shift_x0(shift, ndim):
