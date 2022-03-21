@@ -39,6 +39,10 @@ def stree_schedule(clusters):
     prev = Cluster(None)
     mapper = DefaultOrderedDict(lambda: Bunch(top=None, bottom=None))
 
+    def reuse_metadata(c0, c1, d):
+        return (c0.guards.get(d) == c1.guards.get(d) and
+                c0.syncs.get(d) == c1.syncs.get(d))
+
     def attach_metadata(cluster, d, tip):
         if d in cluster.guards:
             tip = NodeConditional(cluster.guards[d], tip)
@@ -51,15 +55,13 @@ def stree_schedule(clusters):
         pointers = list(mapper)
 
         # Reuse or add in any Conditionals and Syncs outside of the outermost Iteration
-        if c.guards.get(None) != prev.guards.get(None) or \
-           c.syncs.get(None) != prev.syncs.get(None):
+        if not reuse_metadata(c, prev, None):
             tip = attach_metadata(c, None, stree)
         else:
             try:
                 tip = mapper[pointers[index]].top.parent
             except IndexError:
                 tip = stree
-                pointers = []
 
         for it0, it1 in zip(c.itintervals, pointers):
             if it0 != it1:
@@ -70,14 +72,15 @@ def stree_schedule(clusters):
 
             # The reused sub-trees might acquire new sub-iterators as well as
             # new properties
-            mapper[it0].top.ispace = IterationSpace.union(mapper[it0].top.ispace,
-                                                          c.ispace.project([d]))
-            mapper[it0].top.properties = normalize_properties(mapper[it0].top.properties,
-                                                              c.properties[it0.dim])
+            mapper[it0].top.ispace = IterationSpace.union(
+                mapper[it0].top.ispace, c.ispace.project([d])
+            )
+            mapper[it0].top.properties = normalize_properties(
+                mapper[it0].top.properties, c.properties[it0.dim]
+            )
 
             # Different guards or SyncOps cannot further be nested
-            if c.guards.get(d) != prev.guards.get(d) or \
-               c.syncs.get(d) != prev.syncs.get(d):
+            if not reuse_metadata(c, prev, d):
                 tip = mapper[it0].top
                 tip = attach_metadata(c, d, tip)
                 mapper[it0].bottom = tip
