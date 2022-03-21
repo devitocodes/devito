@@ -52,18 +52,19 @@ def stree_schedule(clusters):
 
     for c in clusters:
         index = 0
-        pointers = list(mapper)
 
         # Reuse or add in any Conditionals and Syncs outside of the outermost Iteration
         if not reuse_metadata(c, prev, None):
             tip = attach_metadata(c, None, stree)
+            maybe_reusable = []
         else:
             try:
-                tip = mapper[pointers[index]].top.parent
+                tip = mapper[prev.itintervals[index]].top.parent
             except IndexError:
                 tip = stree
+            maybe_reusable = prev.itintervals
 
-        for it0, it1 in zip(c.itintervals, pointers):
+        for it0, it1 in zip(c.itintervals, maybe_reusable):
             if it0 != it1:
                 break
             index += 1
@@ -89,7 +90,7 @@ def stree_schedule(clusters):
                 tip = mapper[it0].bottom
 
         # Nested sub-trees, instead, will not be used anymore
-        for it in pointers[index:]:
+        for it in prev.itintervals[index:]:
             mapper.pop(it)
 
         # Add in Iterations, Conditionals, and Syncs
