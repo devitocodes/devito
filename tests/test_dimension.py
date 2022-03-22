@@ -949,7 +949,7 @@ class TestConditionalDimension(object):
         """
         grid = Grid(shape=(10, 10))
         time = grid.time_dim
-        cond = ConditionalDimension(name='cond', parent=None, condition=time < 5)
+        cond = ConditionalDimension(name='cond', condition=time < 5)
 
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
