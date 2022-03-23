@@ -158,6 +158,16 @@ class TestHashing(object):
         assert u0 is not u2
         assert hash(u0) != hash(u2)
 
+    def test_bound_symbol(self):
+        grid = Grid(shape=(4, 4))
+
+        u0 = TimeFunction(name='u', grid=grid)
+        u1 = TimeFunction(name='u', grid=grid)
+
+        assert u0._C_symbol is not u1._C_symbol  # Obviously
+        assert hash(u0._C_symbol) != hash(u1._C_symbol)
+        assert u0._C_symbol != u1._C_symbol
+
 
 class TestCaching(object):
 

@@ -688,7 +688,7 @@ class ConditionalDimension(DerivedDimension):
     ----------
     name : str
         Name of the dimension.
-    parent : Dimension
+    parent : Dimension, optional
         The parent Dimension.
     factor : int, optional
         The number of iterations between two executions of the if-branch. If None
@@ -753,9 +753,15 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
-    def __init_finalize__(self, name, parent, factor=None, condition=None,
+    def __init_finalize__(self, name, parent=None, factor=None, condition=None,
                           indirect=False):
+        # `parent=None` degenerates to a ConditionalDimension outside of
+        # any iteration space
+        if parent is None:
+            parent = BOTTOM
+
         super().__init_finalize__(name, parent)
+
         self._factor = factor
         self._condition = condition
         self._indirect = indirect
@@ -1339,3 +1345,6 @@ class BlockDimension(AbstractIncrDimension):
 def dimensions(names):
     assert type(names) == str
     return tuple(Dimension(i) for i in names.split())
+
+
+BOTTOM = Dimension(name='B')

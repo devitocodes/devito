@@ -942,6 +942,27 @@ class TestConditionalDimension(object):
         assert len(conds) == 1
         assert len(retrieve_iteration_tree(conds[0].then_body)) == 2
 
+    def test_grouping_v2(self):
+        """
+        Test that two equations sharing a strict subset of loops get scheduled
+        within the same (also shared) ConditionalDimension.
+        """
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+        cond = ConditionalDimension(name='cond', condition=time < 5)
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+
+        eqns = [Eq(u.forward, u + 1., implicit_dims=cond),
+                Eq(v.forward, v + 1., implicit_dims=cond, subdomain=grid.interior)]
+
+        op = Operator(eqns)
+
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 1
+        assert len(retrieve_iteration_tree(conds[0].then_body)) == 2
+
     def test_stepping_dim_in_condition_lowering(self):
         """
         Check that the compiler performs lowering on conditions

@@ -1417,6 +1417,9 @@ class BoundSymbol(AbstractSymbol):
     def function(self):
         return self._function
 
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.function,)
+
 
 class Indexed(sympy.Indexed):
 
