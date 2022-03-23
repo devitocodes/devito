@@ -116,7 +116,7 @@ within the parent Dimension’s iteration space.</p>
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
-<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – The parent Dimension.</p></li>
 <li><p><strong>factor</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of iterations between two executions of the if-branch. If None
 (default), <code class="docutils literal notranslate"><span class="pre">condition</span></code> must be provided.</p></li>
 <li><p><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
