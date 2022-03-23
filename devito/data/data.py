@@ -284,8 +284,21 @@ class Data(np.ndarray):
                 idx_global = []
                 for j in range(nprocs):
                     data_global.append(comm.bcast(np.array(val), root=j))
-                    idx_global.append(comm.bcast(idx, root=j))
-                # Set the data:
+                    # FIXME: Hacked up for testing so tidy up. Should maybe write a function
+                    # for this. Actually, should probably adjust `_set_global_idx` and
+                    # remove idx_global (and just use idx below).
+                    idx_temp = as_list(comm.bcast(idx, root=j))
+                    if len(idx_temp) < comm.ndim:
+                        pad = comm.ndim-len(idx_temp)
+                        ranges = self._distributor.all_ranges[j]
+                        for _ in range(pad):
+                            prange = ranges[len(idx_temp)]
+                            pslice = slice(prange.start, prange.stop, 1)
+                            #from IPython import embed; embed()
+                            idx_temp.append(pslice)
+                    idx_global.append(as_tuple(idx_temp))
+                #from IPython import embed; embed()
+                #Set the data:
                 for j in range(nprocs):
                     skip = any(i is None for i in idx_global[j]) \
                         or data_global[j].size == 0
