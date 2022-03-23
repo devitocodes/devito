@@ -283,7 +283,7 @@ class Stepper(Queue):
         def rule(size, e):
             try:
                 return e.function.shape_allocated[d] == size
-            except (AttributeError, KeyError):
+            except (AttributeError, KeyError, ValueError):
                 return False
 
         # Reconstruct the Clusters
