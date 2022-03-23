@@ -1398,4 +1398,4 @@ def dimensions(names):
     return tuple(Dimension(i) for i in names.split())
 
 
-BOTTOM = Dimension(name='B')
+BOTTOM = Dimension(name='⊥')
