@@ -797,6 +797,52 @@ class TestDataDistributed(object):
                                                [0, 0, 0, 0, 0, 0]])
 
     @pytest.mark.parallel(mode=4)
+    def test_setitem_shorthands(self):
+        # Test setitem with various slicing shorthands
+        nx = 8
+        ny = 8
+        # nz = 8
+        shape1 = (nx, ny)
+        # shape2 = (nx, ny, nz)
+        grid1 = Grid(shape=shape1, dtype=np.float32)
+        # grid2 = Grid(shape=shape2, dtype=np.float32)
+        f1 = Function(name='f1', grid=grid1)
+        f2 = Function(name='f2', grid=grid1)
+        # g = Function(name='g', grid=grid2)
+
+        dat1 = np.arange(64, dtype=np.int32).reshape(grid1.shape)
+
+        f1.data[:] = dat1
+        f2.data[:] = f1.data[:]
+        assert np.all(f2.data[:] == f1.data[:])
+
+        """
+        g.data[0, :, :] = dat1
+        f1.data[:] = g.data[0, ::-1, ::-1]
+        result = np.array(f1.data[:])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result[0] == [[63, 62, 61, 60]])
+            assert np.all(result[1] == [[55, 54, 53, 52]])
+            assert np.all(result[2] == [[47, 46, 45, 44]])
+            assert np.all(result[3] == [[39, 38, 37, 36]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(result[0] == [[59, 58, 57, 56]])
+            assert np.all(result[1] == [[51, 50, 49, 48]])
+            assert np.all(result[2] == [[43, 42, 41, 40]])
+            assert np.all(result[3] == [[35, 34, 33, 32]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result[0] == [[31, 30, 29, 28]])
+            assert np.all(result[1] == [[23, 22, 21, 20]])
+            assert np.all(result[2] == [[15, 14, 13, 12]])
+            assert np.all(result[3] == [[7, 6, 5, 4]])
+        else:
+            assert np.all(result[0] == [[27, 26, 25, 24]])
+            assert np.all(result[1] == [[19, 18, 17, 16]])
+            assert np.all(result[2] == [[11, 10, 9, 8]])
+            assert np.all(result[3] == [[3, 2, 1, 0]])
+    """
+
+    @pytest.mark.parallel(mode=4)
     def test_hd_slicing(self):
         # Test higher dimension slices
         grid = Grid(shape=(4, 4, 4))
