@@ -500,8 +500,11 @@ class TestPartialEvalBuildingBlocks(object):
         x, = grid.dimensions
 
         with pytest.raises(TypeError):
-            # missing 1 required positional argument: '_max'
+            # Missing 1 required positional argument: '_max'
             StencilDimension('i', 3)
+        with pytest.raises(ValueError):
+            # Spacing must be an integer
+            StencilDimension('i', 3, 5, spacing=0.6)
         i = StencilDimension('i', 0, 1)
         assert i.symbolic_size == 2
 

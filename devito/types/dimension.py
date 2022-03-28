@@ -1274,15 +1274,19 @@ class StencilDimension(BasicDimension):
         The minimum point of the stencil.
     _max : expr-like
         The maximum point of the stencil.
+    spacing : expr-like, optional
+        The space between two stencil points.
     """
 
-    def __init_finalize__(self, name, _min, _max):
-        self._spacing = sympy.S.One
+    def __init_finalize__(self, name, _min, _max, spacing=None):
+        self._spacing = sympy.sympify(spacing) or sympy.S.One
 
         if not is_integer(_min):
             raise ValueError("Expected integer `min` (got %s)" % _min)
         if not is_integer(_max):
             raise ValueError("Expected integer `max` (got %s)" % _max)
+        if not is_integer(self._spacing):
+            raise ValueError("Expected integer `spacing` (got %s)" % self._spacing)
 
         self._min = _min
         self._max = _max
