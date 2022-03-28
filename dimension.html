@@ -437,6 +437,38 @@ derivatives on Functions.</p>
 </dd></dl>
 
 <dl class="py class">
+<dt class="sig sig-object py" id="devito.types.dimension.StencilDimension">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.dimension.</span></span><span class="sig-name descname"><span class="pre">StencilDimension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#StencilDimension"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.dimension.StencilDimension" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.BasicDimension</span></code></p>
+<p>Dimension symbol representing the points of a stencil.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>_min</strong> (<em>expr-like</em>) – The minimum point of the stencil.</p></li>
+<li><p><strong>_max</strong> (<em>expr-like</em>) – The maximum point of the stencil.</p></li>
+<li><p><strong>spacing</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The space between two stencil points.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="devito.types.dimension.StencilDimension.symbolic_max">
+<span class="sig-name descname"><span class="pre">symbolic_max</span></span><a class="headerlink" href="#devito.types.dimension.StencilDimension.symbolic_max" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="devito.types.dimension.StencilDimension.symbolic_min">
+<span class="sig-name descname"><span class="pre">symbolic_min</span></span><a class="headerlink" href="#devito.types.dimension.StencilDimension.symbolic_min" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="devito.types.dimension.StencilDimension.symbolic_size">
+<span class="sig-name descname"><span class="pre">symbolic_size</span></span><a class="headerlink" href="#devito.types.dimension.StencilDimension.symbolic_size" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt class="sig sig-object py" id="devito.types.dimension.SteppingDimension">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.dimension.</span></span><span class="sig-name descname"><span class="pre">SteppingDimension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#SteppingDimension"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.dimension.SteppingDimension" title="Permalink to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>

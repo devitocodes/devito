@@ -223,24 +223,24 @@
 
 <div class="viewcode-block" id="generate_indices"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.generate_indices">[docs]</a><span class="k">def</span> <span class="nf">generate_indices</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Indices for the finite-difference scheme</span>
+<span class="sd">    Indices for the finite-difference scheme.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    func: Function</span>
-<span class="sd">        Function that is differentiated</span>
+<span class="sd">        Function that is differentiated.</span>
 <span class="sd">    dim: Dimension</span>
-<span class="sd">        Dimensions w.r.t which the derivative is taken</span>
+<span class="sd">        Dimensions w.r.t which the derivative is taken.</span>
 <span class="sd">    order: Int</span>
-<span class="sd">        Order of the finite-difference scheme</span>
+<span class="sd">        Order of the finite-difference scheme.</span>
 <span class="sd">    side: Side</span>
-<span class="sd">        Side of the scheme, (centered, left, right)</span>
+<span class="sd">        Side of the scheme, (centered, left, right).</span>
 <span class="sd">    x0: Dict of {Dimension: Dimension or Expr or Number}</span>
 <span class="sd">        Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    Ordered list of indices</span>
+<span class="sd">    Ordered list of indices.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># If staggered finited difference</span>
     <span class="k">if</span> <span class="n">func</span><span class="o">.</span><span class="n">is_Staggered</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">:</span>

@@ -77,9 +77,8 @@
                                              <span class="n">right</span><span class="p">,</span> <span class="n">generate_indices</span><span class="p">,</span> <span class="n">centered</span><span class="p">,</span> <span class="n">direct</span><span class="p">,</span>
                                              <span class="n">transpose</span><span class="p">,</span> <span class="n">check_input</span><span class="p">,</span> <span class="n">check_symbolic</span><span class="p">)</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;first_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;generic_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;centered&#39;</span><span class="p">,</span> <span class="s1">&#39;transpose&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;generate_indices&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;first_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;generic_derivative&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;centered&#39;</span><span class="p">,</span> <span class="s1">&#39;transpose&#39;</span><span class="p">,</span> <span class="s1">&#39;generate_indices&#39;</span><span class="p">]</span>
 
 <span class="c1"># Number of digits for FD coefficients to avoid roundup errors and non-deterministic</span>
 <span class="c1"># code generation</span>
@@ -88,8 +87,8 @@
 
 <div class="viewcode-block" id="first_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.first_derivative">[docs]</a><span class="nd">@check_input</span>
 <span class="nd">@check_symbolic</span>
-<span class="k">def</span> <span class="nf">first_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">centered</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">direct</span><span class="p">,</span>
-                     <span class="n">symbolic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">first_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">centered</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">direct</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">symbolic</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    First-order derivative of a given expression.</span>
 
@@ -101,13 +100,15 @@
 <span class="sd">        The Dimension w.r.t. which to differentiate.</span>
 <span class="sd">    fd_order : int, optional</span>
 <span class="sd">        Coefficient discretization order. Note: this impacts the width of</span>
-<span class="sd">        the resulting stencil. Defaults to ``expr.space_order``</span>
+<span class="sd">        the resulting stencil. Defaults to `expr.space_order`.</span>
 <span class="sd">    side : Side, optional</span>
 <span class="sd">        Side of the finite difference location, centered (at x), left (at x - 1)</span>
-<span class="sd">        or right (at x +1). Defaults to ``centered``.</span>
+<span class="sd">        or right (at x +1). Defaults to `centered`.</span>
 <span class="sd">    matvec : Transpose, optional</span>
 <span class="sd">        Forward (matvec=direct) or transpose (matvec=transpose) mode of the</span>
-<span class="sd">        finite difference. Defaults to ``direct``.</span>
+<span class="sd">        finite difference. Defaults to `direct`.</span>
+<span class="sd">    symbolic : bool, optional</span>
+<span class="sd">        Use default or custom coefficients (weights). Defaults to False.</span>
 <span class="sd">    x0 : dict, optional</span>
 <span class="sd">        Origin of the finite-difference scheme as a map dim: origin_dim.</span>
 
@@ -153,76 +154,10 @@
 <span class="sd">    &gt;&gt;&gt; first_derivative(f, dim=x, x0={x: 1})</span>
 <span class="sd">    -f(1, y)/h_x + f(h_x + 1, y)/h_x</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">side</span> <span class="o">=</span> <span class="n">side</span>
-    <span class="n">order</span> <span class="o">=</span> <span class="n">fd_order</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">space_order</span>
+    <span class="n">fd_order</span> <span class="o">=</span> <span class="n">fd_order</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">space_order</span>
+    <span class="n">deriv_order</span> <span class="o">=</span> <span class="mi">1</span>
 
-    <span class="c1"># Stencil positions for non-symmetric cross-derivatives with symmetric averaging</span>
-    <span class="n">ind</span> <span class="o">=</span> <span class="n">generate_indices</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">side</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="n">x0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-
-    <span class="c1"># Finite difference weights from Taylor approximation with these positions</span>
-    <span class="k">if</span> <span class="n">symbolic</span><span class="p">:</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">symbolic_weights</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">numeric_weights</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="second_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.second_derivative">[docs]</a><span class="nd">@check_input</span>
-<span class="nd">@check_symbolic</span>
-<span class="k">def</span> <span class="nf">second_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Second-order derivative of a given expression.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    expr : expr-like</span>
-<span class="sd">        Expression for which the derivative is produced.</span>
-<span class="sd">    dim : Dimension</span>
-<span class="sd">        The Dimension w.r.t. which to differentiate.</span>
-<span class="sd">    fd_order : int</span>
-<span class="sd">        Coefficient discretization order. Note: this impacts the width of</span>
-<span class="sd">        the resulting stencil.</span>
-<span class="sd">    stagger : Side, optional</span>
-<span class="sd">        Shift of the finite-difference approximation.</span>
-<span class="sd">    x0 : dict, optional</span>
-<span class="sd">        Origin of the finite-difference scheme as a map dim: origin_dim.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    expr-like</span>
-<span class="sd">        Second-order derivative of ``expr``.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; from devito import Function, Grid, second_derivative</span>
-<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
-<span class="sd">    &gt;&gt;&gt; x, _ = grid.dimensions</span>
-<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, space_order=2)</span>
-<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid, space_order=2)</span>
-<span class="sd">    &gt;&gt;&gt; second_derivative(f*g, dim=x, fd_order=2)</span>
-<span class="sd">    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\</span>
-<span class="sd"> f(x + h_x, y)*g(x + h_x, y)/h_x**2</span>
-
-<span class="sd">    Semantically, this is equivalent to</span>
-
-<span class="sd">    &gt;&gt;&gt; (f*g).dx2</span>
-<span class="sd">    Derivative(f(x, y)*g(x, y), (x, 2))</span>
-
-<span class="sd">    The only difference is that in the latter case derivatives remain unevaluated.</span>
-<span class="sd">    The expanded form is obtained via ``evaluate``</span>
-
-<span class="sd">    &gt;&gt;&gt; (f*g).dx2.evaluate</span>
-<span class="sd">    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\</span>
-<span class="sd"> f(x + h_x, y)*g(x + h_x, y)/h_x**2</span>
-
-<span class="sd">    Finally the x0 argument allows to choose the origin of the finite-difference</span>
-
-<span class="sd">    &gt;&gt;&gt; second_derivative(f, dim=x, fd_order=2, x0={x: 1})</span>
-<span class="sd">    -2.0*f(1, y)/h_x**2 + f(1 - h_x, y)/h_x**2 + f(h_x + 1, y)/h_x**2</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">return</span> <span class="n">generic_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">make_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">matvec</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">symbolic</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="cross_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.cross_derivative">[docs]</a><span class="nd">@check_input</span>
@@ -242,8 +177,11 @@
 <span class="sd">        the resulting stencil.</span>
 <span class="sd">    deriv_order : tuple of ints</span>
 <span class="sd">        Derivative order, e.g. 2 for a second-order derivative.</span>
-<span class="sd">    stagger : tuple of Side, optional</span>
-<span class="sd">        Shift of the finite-difference approximation.</span>
+<span class="sd">    matvec : Transpose, optional</span>
+<span class="sd">        Forward (matvec=direct) or transpose (matvec=transpose) mode of the</span>
+<span class="sd">        finite difference. Defaults to `direct`.</span>
+<span class="sd">    symbolic : bool, optional</span>
+<span class="sd">        Use default or custom coefficients (weights). Defaults to False.</span>
 <span class="sd">    x0 : dict, optional</span>
 <span class="sd">        Origin of the finite-difference scheme as a map dim: origin_dim.</span>
 
@@ -254,7 +192,7 @@
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; from devito import Function, Grid, second_derivative</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Function, Grid</span>
 <span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
 <span class="sd">    &gt;&gt;&gt; x, y = grid.dimensions</span>
 <span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, space_order=2)</span>
@@ -291,8 +229,8 @@
 
 <div class="viewcode-block" id="generic_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.generic_derivative">[docs]</a><span class="nd">@check_input</span>
 <span class="nd">@check_symbolic</span>
-<span class="k">def</span> <span class="nf">generic_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">symbolic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                       <span class="n">matvec</span><span class="o">=</span><span class="n">direct</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">generic_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">direct</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">symbolic</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Arbitrary-order derivative of a given expression.</span>
 
@@ -307,54 +245,60 @@
 <span class="sd">        the resulting stencil.</span>
 <span class="sd">    deriv_order : int</span>
 <span class="sd">        Derivative order, e.g. 2 for a second-order derivative.</span>
-<span class="sd">    stagger : Side, optional</span>
-<span class="sd">        Shift of the finite-difference approximation.</span>
+<span class="sd">    matvec : Transpose, optional</span>
+<span class="sd">        Forward (matvec=direct) or transpose (matvec=transpose) mode of the</span>
+<span class="sd">        finite difference. Defaults to `direct`.</span>
 <span class="sd">    x0 : dict, optional</span>
 <span class="sd">        Origin of the finite-difference scheme as a map dim: origin_dim.</span>
+<span class="sd">    symbolic : bool, optional</span>
+<span class="sd">        Use default or custom coefficients (weights). Defaults to False.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    expr-like</span>
 <span class="sd">        ``deriv-order`` derivative of ``expr``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">side</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1"># First order derivative with 2nd order FD is highly non-recommended so taking</span>
     <span class="c1"># first order fd that is a lot better</span>
     <span class="k">if</span> <span class="n">deriv_order</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">fd_order</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">symbolic</span><span class="p">:</span>
         <span class="n">fd_order</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="c1"># Stencil positions</span>
-    <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span> <span class="o">=</span> <span class="n">generate_indices</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="n">x0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">make_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">matvec</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">symbolic</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">make_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">matvec</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">symbolic</span><span class="p">):</span>
+    <span class="c1"># The stencil positions</span>
+    <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span> <span class="o">=</span> <span class="n">generate_indices</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">side</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="n">x0</span><span class="p">)</span>
 
     <span class="c1"># Finite difference weights from Taylor approximation with these positions</span>
     <span class="k">if</span> <span class="n">symbolic</span><span class="p">:</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">symbolic_weights</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">symbolic_weights</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">numeric_weights</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">numeric_weights</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">inds</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">indices_weights_to_fd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Expression from lists of indices and weights.&quot;&quot;&quot;</span>
-    <span class="n">diff</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span>
-
-    <span class="n">d0</span> <span class="o">=</span> <span class="p">([</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span> <span class="ow">is</span> <span class="n">dim</span><span class="p">]</span> <span class="ow">or</span> <span class="p">[</span><span class="n">dim</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
-
-    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">dim</span><span class="p">:</span> <span class="n">d0</span><span class="p">,</span> <span class="n">diff</span><span class="p">:</span> <span class="n">matvec</span><span class="o">*</span><span class="n">diff</span><span class="p">}</span>
-
-    <span class="c1"># Loop through weights</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">:</span> <span class="n">matvec</span><span class="o">*</span><span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">}</span>
     <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inds</span><span class="p">,</span> <span class="n">weights</span><span class="p">):</span>
-        <span class="c1"># Apply replacements to indices. Needs to be sympified in case</span>
-        <span class="c1"># the indices are pure numbers</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">):</span>
+        <span class="c1"># Transpose FD if necessary through `mapper`</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">iloc</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># Pure number -&gt; sympify</span>
             <span class="n">iloc</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+        <span class="c1"># Shift index due to staggering, if any</span>
+        <span class="n">iloc</span> <span class="o">-=</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">-</span> <span class="n">dim</span>
+
         <span class="c1"># Enforce fixed precision FD coefficients to avoid variations in results</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
 
         <span class="c1"># The FD term</span>
-        <span class="n">term</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">iloc</span> <span class="o">-</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">indices_ref</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">-</span> <span class="n">dim</span><span class="p">))</span> <span class="o">*</span> <span class="n">c</span>
+        <span class="n">term</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">iloc</span><span class="p">)</span> <span class="o">*</span> <span class="n">v</span>
 
         <span class="c1"># Re-evaluate any off-the-grid Functions potentially impacted by the FD</span>
         <span class="k">try</span><span class="p">:</span>
