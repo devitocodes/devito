@@ -50,12 +50,17 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
           implemented by other passes).
     **kwargs
         Additional compilation options.
-        Accepted: ['buf-mem-local'].
-        * 'buf-mem-local': Allocate the buffer in the local memory space, rather
-        than in the mapped memory space (default). The local memory space is:
+        Accepted: ['opt-mem-space', 'opt-dtype'].
+        * 'opt-mem-space': Allocate the buffer in the given memory space, rather
+        than in the `mapped` memory space (default). For example, one could pass
+        `local` for the local memory space (also see Array.__doc__), that is:
 
             * the host DRAM if platform=CPU
             * the device DRAM if platform=GPU
+
+        * 'opt-dtype': A callback that takes a buffering candidate as input
+        and returns the data type of the buffer, which would otherwise default
+        to the data type of the buffering candidate itself.
 
     Examples
     --------
@@ -94,7 +99,8 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
 
     options = {
         'buf-async-degree': options['buf-async-degree'],
-        'buf-mem-local': kwargs.get('buf_mem_local', False)
+        'buf-mem-space': kwargs.get('opt_mem_space', 'mapped'),
+        'buf-dtype': kwargs.get('opt_dtype', lambda f: f.dtype)
     }
 
     return Buffering(callback, sregistry, options).process(clusters)
@@ -268,10 +274,8 @@ class Buffer(object):
                  bds=None, mds=None):
         # Parse compilation options
         async_degree = options['buf-async-degree']
-        if options['buf-mem-local']:
-            space = 'local'
-        else:
-            space = 'mapped'
+        space = options['buf-mem-space']
+        dtype = options['buf-dtype'](function)
 
         self.function = function
         self.accessv = accessv
@@ -373,7 +377,7 @@ class Buffer(object):
         # Finally create the actual buffer
         self.buffer = Array(name='%sb' % function.name,
                             dimensions=dims,
-                            dtype=function.dtype,
+                            dtype=dtype,
                             halo=function.halo,
                             space=space)
 
