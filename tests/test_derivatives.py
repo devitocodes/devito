@@ -560,6 +560,18 @@ class TestPartialEvalBuildingBlocks(object):
                                    u.subs(y, y + y.spacing) +
                                    term0)
 
+    def test_index_sum_free_symbols(self):
+        grid = Grid((10,))
+
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+
+        u = Function(name="u", grid=grid)
+
+        idxsum = IndexSum(u.subs(x, x*i), i)
+
+        assert idxsum.free_symbols == {x}
+
     def test_dot_like(self):
         grid = Grid((10, 10))
 

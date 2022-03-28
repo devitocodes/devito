@@ -295,6 +295,20 @@ class Differentiable(sympy.Expr, Evaluable):
                     return True
         return super().has(*pattern)
 
+    def has_free(self, *patterns):
+        """
+        Return True if self has object(s) `patterns` as a free expression,
+        False otherwise.
+
+        Notes
+        -----
+        This is overridden in SymPy 1.10, but not in previous versions.
+        """
+        try:
+            return super().has_free(*patterns)
+        except AttributeError:
+            return all(i in self.free_symbols for i in patterns)
+
 
 def highest_priority(DiffOp):
     prio = lambda x: getattr(x, '_fd_priority', 0)
@@ -473,7 +487,8 @@ class Mod(DifferentiableOp, sympy.Mod):
 class IndexSum(DifferentiableOp):
 
     """
-    A tensor contraction over one or more Dimensions.
+    Represent the summation over a multiindex, that is a collection of
+    Dimensions, of an indexed expression.
     """
 
     is_commutative = True
@@ -490,9 +505,9 @@ class IndexSum(DifferentiableOp):
                 pass
             raise ValueError("Expected Dimension with numeric size, "
                              "got `%s` instead" % d)
-        for d in dimensions:
-            if d not in expr.free_symbols:
-                raise ValueError("Dimension `%s` must appear in `expr`" % d)
+        if not expr.has_free(*dimensions):
+            raise ValueError("All Dimensions `%s` must appear in `expr` "
+                             "as free variables" % str(dimensions))
         for i in expr.find(IndexSum):
             for d in dimensions:
                 if d in i.dimensions:
@@ -528,6 +543,10 @@ class IndexSum(DifferentiableOp):
             mapper = dict(zip(self.dimensions, i))
             terms.append(self.expr.xreplace(mapper))
         return sum(terms)
+
+    @property
+    def free_symbols(self):
+        return super().free_symbols - set(self.dimensions)
 
 
 class IndexDerivative(IndexSum):
