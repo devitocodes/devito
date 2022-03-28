@@ -536,8 +536,7 @@ class IndexSum(DifferentiableOp):
 
     @property
     def evaluate(self):
-        # Overrides sympy.Expr.expand
-        values = product(*[list(range(d._min, d._max + 1)) for d in self.dimensions])
+        values = product(*[list(d.range) for d in self.dimensions])
         terms = []
         for i in values:
             mapper = dict(zip(self.dimensions, i))
