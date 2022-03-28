@@ -8,6 +8,7 @@ from devito import (Grid, Function, solve, TimeFunction, Eq, Operator, norm,  # 
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel, # noqa
                               MIN, MAX) # noqa
+from devito.types import Array
 
 
 def test_float_indices():
@@ -47,6 +48,21 @@ def test_floatification_issue_1627(dtype, expected):
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 2
     assert str(exprs[0]) == expected
+
+
+def test_indexed_free_symbols():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid)
+
+    assert u.free_symbols == {x, y}
+    assert u.indexed.free_symbols == {u.indexed}
+
+    ub = Array(name='ub', dtype=u.dtype, dimensions=u.dimensions)
+
+    assert ub.free_symbols == {x, y}
+    assert ub.indexed.free_symbols == {ub.indexed, x.symbolic_size, y.symbolic_size}
 
 
 def test_is_on_grid():
