@@ -215,12 +215,14 @@ class Cluster(object):
     @cached_property
     def dtype(self):
         """
-        The arithmetic data type of the Cluster. If the Cluster performs
-        floating point arithmetic, then the expressions performing integer
-        arithmetic are ignored, assuming that they are only carrying out array
-        index calculations. If two expressions perform floating point
-        calculations with different precision, the data type with highest
-        precision is returned.
+        The arithmetic data type of the Cluster.
+
+        If the Cluster performs floating point arithmetic, then the expressions
+        performing integer arithmetic are ignored, assuming that they are only
+        carrying out array index calculations.
+
+        If two expressions perform calculations with different precision, the
+        data type with highest precision is returned.
         """
         dtypes = {i.dtype for i in self.exprs}
         fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
@@ -231,7 +233,8 @@ class Cluster(object):
         elif len(dtypes) == 1:
             return dtypes.pop()
         else:
-            raise ValueError("Unsupported Cluster [mixed integer arithmetic ?]")
+            # E.g., mixed integer arithmetic
+            return max(dtypes, key=lambda i: np.dtype(i).itemsize)
 
     @cached_property
     def dspace(self):
@@ -394,11 +397,13 @@ class ClusterGroup(tuple):
     @cached_property
     def dtype(self):
         """
-        The arithmetic data type of this ClusterGroup. If at least one
-        Cluster performs floating point arithmetic, then Clusters performing
-        integer arithmetic are ignored. If two Clusters perform floating
-        point calculations with different precision, the data type with highest
-        precision is returned.
+        The arithmetic data type of this ClusterGroup.
+
+        If at least one Cluster performs floating point arithmetic, then the
+        Clusters performing integer arithmetic are ignored.
+
+        If two Clusters perform calculations with different precision, the
+        data type with highest precision is returned.
         """
         dtypes = {i.dtype for i in self}
         fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
@@ -409,7 +414,8 @@ class ClusterGroup(tuple):
         elif len(dtypes) == 1:
             return dtypes.pop()
         else:
-            raise ValueError("Unsupported ClusterGroup [mixed integer arithmetic ?]")
+            # E.g., mixed integer arithmetic
+            return max(dtypes, key=lambda i: np.dtype(i).itemsize)
 
     @cached_property
     def meta(self):
