@@ -17,7 +17,7 @@ __all__ = ['buffering']
 
 
 @timed_pass()
-def buffering(clusters, callback, sregistry, options):
+def buffering(clusters, callback, sregistry, options, **kwargs):
     """
     Replace written Functions with Arrays. This gives the compiler more control
     over storage layout, data movement (e.g. between host and device), etc.
@@ -48,6 +48,14 @@ def buffering(clusters, callback, sregistry, options):
           ModuloDimensions. This might help relieving the synchronization
           overhead when asynchronous operations are used (these are however
           implemented by other passes).
+    **kwargs
+        Additional compilation options.
+        Accepted: ['buf-mem-local'].
+        * 'buf-mem-local': Allocate the buffer in the local memory space, rather
+        than in the mapped memory space (default). The local memory space is:
+
+            * the host DRAM if platform=CPU
+            * the device DRAM if platform=GPU
 
     Examples
     --------
@@ -84,6 +92,11 @@ def buffering(clusters, callback, sregistry, options):
                 return None
     assert callable(callback)
 
+    options = {
+        'buf-async-degree': options['buf-async-degree'],
+        'buf-mem-local': kwargs.get('buf_mem_local', False)
+    }
+
     return Buffering(callback, sregistry, options).process(clusters)
 
 
@@ -100,8 +113,6 @@ class Buffering(Queue):
         return self._process_fatd(clusters, 1, cache={})
 
     def callback(self, clusters, prefix, cache=None):
-        async_degree = self.options['buf-async-degree']
-
         # Locate all Function accesses within the provided `clusters`
         accessmap = AccessMapper(clusters)
 
@@ -119,7 +130,7 @@ class Buffering(Queue):
             if not all(any([i.dim in d._defines for i in prefix]) for d in dims):
                 continue
 
-            b = cache[f] = buffers.make(f, dims, accessv, async_degree, self.sregistry)
+            b = cache[f] = buffers.make(f, dims, accessv, self.options, self.sregistry)
 
         if not buffers:
             return clusters
@@ -239,8 +250,8 @@ class Buffer(object):
         by ModuloDimensions.
     accessv : AccessValue
         All accesses involving `function`.
-    async_degree : int, optional
-        Enforce a size of `async_degree` along the contracted Dimensions.
+    options : dict, optional
+        The compilation options. See `buffering.__doc__`.
     sregistry : SymbolRegistry
         The symbol registry, to create unique names for buffers and Dimensions.
     bds : dict, optional
@@ -253,8 +264,15 @@ class Buffer(object):
         are created.
     """
 
-    def __init__(self, function, contracted_dims, accessv, async_degree, sregistry,
+    def __init__(self, function, contracted_dims, accessv, options, sregistry,
                  bds=None, mds=None):
+        # Parse compilation options
+        async_degree = options['buf-async-degree']
+        if options['buf-mem-local']:
+            space = 'local'
+        else:
+            space = 'mapped'
+
         self.function = function
         self.accessv = accessv
 
@@ -357,7 +375,7 @@ class Buffer(object):
                             dimensions=dims,
                             dtype=function.dtype,
                             halo=function.halo,
-                            space='mapped')
+                            space=space)
 
     def __repr__(self):
         return "Buffer[%s,<%s>]" % (self.buffer.name,
