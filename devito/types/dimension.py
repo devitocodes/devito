@@ -1304,6 +1304,10 @@ class StencilDimension(BasicDimension):
         return sympy.Number(self._max)
 
     @property
+    def range(self):
+        return range(self._min, self._max + 1)
+
+    @property
     def _arg_names(self):
         return ()
 
