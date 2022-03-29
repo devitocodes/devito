@@ -4,16 +4,17 @@ from subprocess import PIPE, Popen, DEVNULL
 
 from cached_property import cached_property
 import cpuinfo
+import ctypes
 import numpy as np
 import psutil
 import re
-import ctypes
+import os
 
 from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
-           'check_cuda_runtime',
+           'get_cuda_path', 'check_cuda_runtime',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice', 'IntelDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
@@ -353,6 +354,25 @@ def get_nvidia_cc():
     elif (cuda.cuDeviceComputeCapability(ctypes.byref(cc_major),
           ctypes.byref(cc_minor), 0) == 0):
         return 10*cc_major.value + cc_minor.value
+
+
+@memoized_func
+def get_cuda_path():
+    # *** First try: CUDA_HOME
+    cuda_home = os.environ.get('CUDA_HOME')
+    if cuda_home:
+        return cuda_home
+
+    # *** Second try: inspect the LD_LIBRARY_PATH
+    llp = os.environ.get('LD_LIBRARY_PATH', '')
+    for i in llp.split(':'):
+        if re.match('.*/nvidia/hpc_sdk/.*/compilers/lib', i):
+            cuda_home = os.path.join(os.path.dirname(os.path.dirname(i)), 'cuda')
+            # Sanity check
+            if os.path.exists(cuda_home):
+                return cuda_home
+
+    return None
 
 
 @memoized_func
