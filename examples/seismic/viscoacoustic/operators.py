@@ -83,7 +83,7 @@ def sls_1st_order(model, geometry, p, r=None, **kwargs):
     # Density
     rho = 1. / b
 
-    # Attenuation Memory variable.
+    # Attenuation Memory variable
     r = r or TimeFunction(name="r", grid=model.grid, time_order=1,
                           space_order=space_order, save=save_t, staggered=NODE)
 
@@ -93,7 +93,7 @@ def sls_1st_order(model, geometry, p, r=None, **kwargs):
         pde_v = v.dt + b * grad(p)
         u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
 
-        # Attenuation Memory variable.
+        # Attenuation Memory variable
         pde_r = r.dt + (1. / t_s) * (r + tt * rho * div(v.forward))
         u_r = Eq(r.forward, damp * solve(pde_r, r.forward))
 
@@ -105,12 +105,12 @@ def sls_1st_order(model, geometry, p, r=None, **kwargs):
 
     else:
 
-        # Attenuation Memory variable.
+        # Attenuation Memory variable
         pde_r = r.dt.T + (1. / t_s) * r + p
         u_r = Eq(r.backward, damp * solve(pde_r, r.backward))
 
         # Particle velocity
-        # Becaue v is a Vector, `.T` applies a standard matrix transpose
+        # Because v is a Vector, `.T` applies a standard matrix transpose
         # so we need to do the derivative transpose by hand with `-*.dtl`
         pde_v = -v.dtl - grad(rho * (1. + tt) * p) - \
             grad((1. / t_s) * rho * tt * r.backward)
@@ -163,31 +163,32 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     # Density
     rho = 1. / b
 
-    # Attenuation Memory variable.
+    # Attenuation Memory variable
     r = r or TimeFunction(name="r", grid=model.grid, time_order=2,
                           space_order=space_order, save=save_t, staggered=NODE)
 
     if forward:
-        # Attenuation Memory variable.
+        # Attenuation Memory variable
         pde_r = r.dt - (tt / t_s) * rho * div(b * grad(p, shift=.5), shift=-.5) + \
             (1. / t_s) * r
         u_r = Eq(r.forward, damp * solve(pde_r, r.forward))
 
         # Pressure
         pde_p = m * p.dt2 - rho * (1. + tt) * div(b * grad(p, shift=.5), shift=-.5) + \
-            r.forward + q + (1 - damp) * p.dt
+            r.forward - q + (1 - damp) * p.dt
         u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
         return [u_r, u_p]
 
     else:
-        # Attenuation Memory variable.
+        # Attenuation Memory variable
         pde_r = r.dt.T + (tt / t_s) * p + (1. / t_s) * r
         u_r = Eq(r.backward, damp * solve(pde_r, r.backward))
 
         # Pressure
         pde_p = m * p.dt2 - div(b * grad((1. + tt) * rho * p, shift=.5), shift=-.5) - \
-            div(b * grad(rho * r.backward, shift=.5), shift=-.5) + (1 - damp) * p.dt.T
+            div(b * grad(rho * r.backward, shift=.5), shift=-.5) + \
+            (1 - damp) * p.dt.T
         u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
         return [u_r, u_p]
@@ -210,7 +211,7 @@ def kv_1st_order(model, geometry, p, **kwargs):
     """
     forward = kwargs.get('forward', True)
     f0 = geometry._f0
-    vp = model.vp
+    m = model.m
     b = model.b
     qp = model.qp
     damp = model.damp
@@ -223,11 +224,7 @@ def kv_1st_order(model, geometry, p, **kwargs):
 
     # Density
     rho = 1. / b
-
-    eta = vp**2 / (w0 * qp)
-
-    # Bulk modulus
-    bm = rho * vp**2
+    tau = 1 / (w0 * qp)
 
     if forward:
         # Particle velocity
@@ -235,8 +232,8 @@ def kv_1st_order(model, geometry, p, **kwargs):
         u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
 
         # Pressure
-        pde_p = p.dt + bm * div(v.forward) - \
-            eta * rho * div(b * grad(p, shift=.5), shift=-.5)
+        pde_p = m * p.dt + rho * div(v.forward) - \
+            tau * rho * div(b * grad(p, shift=.5), shift=-.5)
         u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
         return [u_v, u_p]
@@ -244,11 +241,11 @@ def kv_1st_order(model, geometry, p, **kwargs):
         # Particle velocity
         # Becaue v is a Vector, `.T` applies a standard matrix transpose
         # so we need to do the derivative transpose by hand with `-*.dtl`
-        pde_v = -v.dtl - grad(bm * p)
+        pde_v = -v.dtl - grad(rho * p)
         u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
 
         # Pressure
-        pde_p = p.dt.T - div(b * grad(rho * eta * p, shift=.5), shift=-.5) - \
+        pde_p = m * p.dt.T - div(b * grad(rho * tau * p, shift=.5), shift=-.5) - \
             div(b * v.backward)
         u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
@@ -287,12 +284,12 @@ def kv_2nd_order(model, geometry, p, **kwargs):
 
     # Density
     rho = 1. / b
-    eta = 1 / (w0 * qp)
+    tau = 1 / (w0 * qp)
 
     if forward:
         # Pressure
         pde_p = m * p.dt2 - rho * div(b * grad(p, shift=.5), shift=-.5) - \
-            eta * rho * div(b * grad(p.dt(x0=t0), shift=.5), shift=-.5) + \
+            tau * rho * div(b * grad(p.dt(x0=t0), shift=.5), shift=-.5) + \
             (1 - damp) * p.dt
 
         u_p = Eq(p.forward, solve(pde_p, p.forward))
@@ -302,7 +299,7 @@ def kv_2nd_order(model, geometry, p, **kwargs):
     else:
         # Pressure
         pde_p = m * p.dt2 - div(b * grad(rho * p, shift=.5), shift=-.5) - \
-            div(b * grad(rho * eta * p.dt(x0=t0).T, shift=.5), shift=-.5) + \
+            div(b * grad(rho * tau * p.dt(x0=t0).T, shift=.5), shift=-.5) + \
             (1 - damp) * p.dt.T
         u_p = Eq(p.backward, solve(pde_p, p.backward))
 
@@ -325,7 +322,7 @@ def maxwell_1st_order(model, geometry, p, **kwargs):
     """
     forward = kwargs.get('forward', True)
     f0 = geometry._f0
-    vp = model.vp
+    m = model.m
     b = model.b
     qp = model.qp
     damp = model.damp
@@ -339,15 +336,12 @@ def maxwell_1st_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    # Bulk modulus
-    bm = rho * vp**2
-
     if forward:
         # Particle velocity
         pde_v = v.dt + b * grad(p)
         u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
         # Pressure
-        pde_p = p.dt + bm * div(v.forward) + (w0 / qp) * p
+        pde_p = m * p.dt + rho * div(v.forward) + (w0 / qp) * p
         u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
         return [u_v, u_p]
@@ -356,10 +350,10 @@ def maxwell_1st_order(model, geometry, p, **kwargs):
         # Particle velocity
         # Becaue v is a Vector, `.T` applies a standard matrix transpose
         # so we need to do the derivative transpose by hand with `-*.dtl`
-        pde_v = -v.dtl - grad(bm * p)
+        pde_v = -v.dtl - grad(rho * p)
         u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
         # Pressure
-        pde_p = p.dt.T - div(b * v.backward) + (w0 / qp) * p
+        pde_p = m * p.dt.T - div(b * v.backward) + (w0 / qp) * p
         u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
         return [u_v, u_p]
@@ -676,7 +670,7 @@ def BornOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **k
 
         q = -dm * p.dt
     else:
-        q = dm * p.dt2
+        q = -dm * p.dt2
 
     eqn2 = eq_kernel(model, geometry, P, r=rP, q=q, **kwargs)
 

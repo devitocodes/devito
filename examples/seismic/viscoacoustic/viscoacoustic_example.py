@@ -42,7 +42,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     ('kv', 2, 678.033, 1e-2),
     ('kv', 1, 40.489, 1e-2),
     ('maxwell', 2, 673.316, 1e-2),
-    ('maxwell', 1, 41.598, 1e-2),
+    ('maxwell', 1, 38.253, 1e-2),
 ])
 def test_viscoacoustic(kernel, time_order, normrec, atol):
     _, _, _, [rec, _, _] = run(kernel=kernel, time_order=time_order)
