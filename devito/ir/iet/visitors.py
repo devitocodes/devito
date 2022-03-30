@@ -18,7 +18,7 @@ from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Basic, IndexedData
-from devito.types import ArrayObject, CompositeObject, Dimension, VoidPointer
+from devito.types import ArrayObject, CompositeObject, Dimension, Pointer
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
@@ -243,7 +243,7 @@ class CGen(Visitor):
 
     def visit_PointerCast(self, o):
         f = o.function
-        if isinstance(o.obj, VoidPointer):
+        if isinstance(o.obj, Pointer):
             obj = o.obj.name
         elif isinstance(o.obj, ArrayObject):
             obj = '%s->%s' % (o.obj.name, f._C_name)

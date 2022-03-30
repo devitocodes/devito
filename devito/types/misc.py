@@ -1,10 +1,10 @@
 from ctypes import c_int, c_double, c_void_p
 
-from devito.types import CompositeObject, LocalObject, Indexed, Symbol
+from devito.types import CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable
 
-__all__ = ['Timer', 'VoidPointer', 'VolatileInt', 'c_volatile_int',
+__all__ = ['Timer', 'Pointer', 'VolatileInt', 'c_volatile_int',
            'c_volatile_int_p', 'FIndexed', 'Wildcard', 'Global', 'Hyperplane']
 
 
@@ -37,11 +37,6 @@ class Timer(CompositeObject):
 
     # Pickling support
     _pickle_args = ['name', 'sections']
-
-
-class VoidPointer(LocalObject):
-
-    dtype = type('void*', (c_void_p,), {})
 
 
 class VolatileInt(Symbol):
@@ -122,6 +117,13 @@ class Hyperplane(tuple):
     @property
     def _defines(self):
         return frozenset().union(*[i._defines for i in self])
+
+
+class Pointer(Symbol):
+
+    @property
+    def _C_typename(self):
+        return '%s*' % super()._C_typename
 
 
 # ctypes subtypes
