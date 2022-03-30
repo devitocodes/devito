@@ -4,10 +4,11 @@ Extended SymPy hierarchy.
 
 import numpy as np
 import sympy
-from sympy import Expr, Integer, Function, Symbol, sympify
+from sympy import Expr, Integer, Function, Number, Tuple, sympify
 
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
+from devito.types import Symbol
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
@@ -128,28 +129,31 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     Symbolic representation of the C notation ``pointer->call(params)``.
     """
 
-    def __new__(cls, call, pointer, params=None):
-        args = []
+    def __new__(cls, call, pointer, params=None, **kwargs):
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
-        args.append(pointer)
-        if isinstance(call, (DefFunction, CallFromPointer)):
-            args.append(call)
-        elif not isinstance(call, str):
-            raise ValueError("`call` must be CallFromPointer or str")
+        if isinstance(call, str):
+            call = Symbol(call)
+        elif not isinstance(call, (CallFromPointer, DefFunction, Symbol)):
+            raise ValueError("`call` must be CallFromPointer, DefFunction, or Symbol")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):
                 _params.append(Symbol(p))
-            elif not isinstance(p, Expr):
-                raise ValueError("`params` must be an iterable of Expr or str")
-            else:
+            elif isinstance(p, Expr):
                 _params.append(p)
-        args.extend(_params)
-        obj = sympy.Expr.__new__(cls, *args)
+            else:
+                try:
+                    _params.append(Number(p))
+                except TypeError:
+                    raise ValueError("`params` must be Expr, numbers or str")
+        params = Tuple(*_params)
+
+        obj = sympy.Expr.__new__(cls, call, pointer, params)
         obj.call = call
         obj.pointer = pointer
-        obj.params = tuple(_params)
+        obj.params = params
+
         return obj
 
     def __str__(self):
@@ -170,6 +174,14 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
         else:
             return self.pointer
 
+    @property
+    def bound_symbols(self):
+        return {self.call}
+
+    @property
+    def free_symbols(self):
+        return super().free_symbols - self.bound_symbols
+
     # Pickling support
     _pickle_args = ['call', 'pointer']
     _pickle_kwargs = ['params']
@@ -182,7 +194,7 @@ class FieldFromPointer(CallFromPointer, Pickable):
     Symbolic representation of the C notation ``pointer->field``.
     """
 
-    def __new__(cls, field, pointer):
+    def __new__(cls, field, pointer, *args, **kwargs):
         return CallFromPointer.__new__(cls, field, pointer)
 
     def __str__(self):
@@ -205,7 +217,7 @@ class FieldFromComposite(CallFromPointer, Pickable):
     where ``composite`` is a struct/union/...
     """
 
-    def __new__(cls, field, composite):
+    def __new__(cls, field, composite, *args, **kwargs):
         return CallFromPointer.__new__(cls, field, composite)
 
     def __str__(self):

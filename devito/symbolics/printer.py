@@ -128,7 +128,7 @@ class CodePrinter(C99CodePrinter):
 
     def _print_CallFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
-        return "%s->%s(%s)" % (expr.pointer, expr.function, ', '.join(indices))
+        return "%s->%s(%s)" % (expr.pointer, expr.call, ', '.join(indices))
 
     def _print_FieldFromPointer(self, expr):
         return "%s->%s" % (expr.pointer, expr.field)

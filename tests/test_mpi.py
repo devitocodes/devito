@@ -1178,7 +1178,7 @@ class TestCodeGeneration(object):
         op = Operator(Eq(f.forward, eval(expr)), opt=('advanced', {'openmp': False}))
 
         calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
-        destinations = {i.arguments[-2].field for i in calls}
+        destinations = {str(i.arguments[-2].field) for i in calls}
         assert destinations == expected
 
     @pytest.mark.parallel(mode=[(1, 'full')])
