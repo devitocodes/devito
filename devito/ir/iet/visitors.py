@@ -368,10 +368,7 @@ class CGen(Visitor):
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect, cast)
         else:
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
-            if retobj.is_AbstractFunction:
-                return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
-            else:
-                return c.Initializer(c.Value(retobj._C_typedata, ccode(retobj)), call)
+            return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
 
     def visit_Conditional(self, o):
         try:
