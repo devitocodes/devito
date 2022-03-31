@@ -7,8 +7,10 @@ from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
 from devito.symbolics.extended_sympy import rfunc
+from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
+from devito.types.basic import Basic
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
@@ -194,7 +196,7 @@ def xreplace_indices(exprs, mapper, key=None):
 
 
 def pow_to_mul(expr):
-    if expr.is_Atom or expr.is_Indexed:
+    if q_leaf(expr) or isinstance(expr, Basic):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
