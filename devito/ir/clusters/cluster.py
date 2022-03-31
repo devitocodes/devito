@@ -224,8 +224,16 @@ class Cluster(object):
         If two expressions perform calculations with different precision, the
         data type with highest precision is returned.
         """
-        dtypes = {i.dtype for i in self.exprs}
+        dtypes = set()
+        for i in self.exprs:
+            try:
+                if np.issubdtype(i.dtype, np.generic):
+                    dtypes.add(i.dtype)
+            except TypeError:
+                # E.g. `i.dtype` is a ctypes pointer, which has no dtype equivalent
+                pass
         fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+
         if len(fdtypes) > 1:
             return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
         elif len(fdtypes) == 1:
@@ -234,7 +242,7 @@ class Cluster(object):
             return dtypes.pop()
         else:
             # E.g., mixed integer arithmetic
-            return max(dtypes, key=lambda i: np.dtype(i).itemsize)
+            return max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
 
     @cached_property
     def dspace(self):
