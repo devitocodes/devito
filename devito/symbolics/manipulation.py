@@ -2,7 +2,7 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import Number, Indexed, Symbol, LM, LC, Pow, Add, Mul, Min, Max
+from sympy import LM, LC, Pow, Add, Mul, Min, Max
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
@@ -14,9 +14,9 @@ from devito.types.basic import Basic
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
-__all__ = ['xreplace_indices', 'pow_to_mul', 'as_symbol', 'indexify',
-           'split_affine', 'subs_op_args', 'uxreplace', 'Uxmapper',
-           'reuse_if_untouched', 'evalrel']
+__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'split_affine',
+           'subs_op_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
+           'evalrel']
 
 
 def uxreplace(expr, rule):
@@ -217,30 +217,6 @@ def pow_to_mul(expr):
             return Pow(posexpr, -1, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
-
-
-def as_symbol(expr):
-    """Cast to sympy.Symbol."""
-    from devito.types import Dimension
-    try:
-        if expr.is_Symbol:
-            return expr
-    except AttributeError:
-        pass
-    try:
-        return Number(expr)
-    except (TypeError, ValueError):
-        pass
-    if isinstance(expr, str):
-        return Symbol(expr)
-    elif isinstance(expr, Dimension):
-        return Symbol(expr.name)
-    elif expr.is_Symbol:
-        return expr
-    elif isinstance(expr, Indexed):
-        return expr.base.label
-    else:
-        raise TypeError("Cannot extract symbol from type %s" % type(expr))
 
 
 AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
