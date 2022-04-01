@@ -520,6 +520,14 @@ class TestTwoStageEvaluation(object):
             # Dimension `i` must appear in `expr`
             IndexSum(u, i)
 
+    def test_stencil_dim_comparison(self):
+        i1 = StencilDimension('i', 0, 1)
+        i2 = StencilDimension('i', 0, 1)
+        i3 = StencilDimension('i', 0, 2)
+        assert i1 is i2  # Due to caching
+        assert i1 == i2  # Obv
+        assert i1 != i3
+
     def test_index_sum_basic(self):
         grid = Grid((10,))
 
