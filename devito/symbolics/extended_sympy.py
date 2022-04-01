@@ -12,9 +12,9 @@ from devito.types import Symbol
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
-           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL', 'FLOOR', 'MAX', 'MIN',
-           'SizeOf', 'rfunc', 'cast_mapper']
+           'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
+           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL',
+           'FLOOR', 'MAX', 'MIN', 'SizeOf', 'rfunc', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -408,6 +408,64 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
+class ReservedWord(sympy.Atom, Pickable):
+
+    """
+    A `ReservedWord` carries a value that has special meaning in the
+    generated code. A ReservedWord, for example, may be a keyword of the
+    underlying language syntax or a special name reserved via typedefs
+    or macros.
+
+    A ReservedWord cannot be used as an identifier and has no underlying
+    symbols associated. Hence, a ReservedWord is an "atomic" object in
+    a SymPy sense.
+    """
+
+    def __new__(cls, value, **kwargs):
+        if not isinstance(value, str):
+            raise TypeError("Expected str, got `%s`" % type(value))
+        obj = sympy.Atom.__new__(cls, **kwargs)
+        obj.value = value
+
+        return obj
+
+    def __str__(self):
+        return self.value
+
+    __repr__ = __str__
+
+    def _hashable_content(self):
+        return (self.value,)
+
+    # Pickling support
+    _pickle_args = ['value']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Keyword(ReservedWord):
+    pass
+
+
+class CustomType(ReservedWord):
+    pass
+
+
+class String(ReservedWord):
+    pass
+
+
+class Macro(ReservedWord):
+    pass
+
+
+class MacroArgument(sympy.Symbol):
+
+    def __str__(self):
+        return "(%s)" % self.name
+
+    __repr__ = __str__
+
+
 class DefFunction(Function, Pickable):
 
     """
@@ -416,11 +474,20 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
-    is_Atom = True
-
-    def __new__(cls, name, arguments=None):
-        arguments = as_tuple(arguments)
-        obj = Function.__new__(cls, name, *arguments)
+    def __new__(cls, name, arguments=None, **kwargs):
+        _arguments = []
+        for i in as_tuple(arguments):
+            if isinstance(i, str):
+                # Make sure there's no cast to sympy.Symbol underneath
+                # We don't know what `i` is exactly, because the caller won't
+                # tell us, but we're just better off with ReservedWord
+                _arguments.append(ReservedWord(i))
+            else:
+                _arguments.append(i)
+        arguments = tuple(_arguments)
+        if isinstance(name, str):
+            name = Keyword(name)
+        obj = Function.__new__(cls, name, Tuple(*arguments))
         obj._name = name
         obj._arguments = arguments
         return obj
@@ -488,34 +555,6 @@ class InlineIf(sympy.Expr, Pickable):
     # Pickling support
     _pickle_args = ['cond', 'true_expr', 'false_expr']
     __reduce_ex__ = Pickable.__reduce_ex__
-
-
-class Macro(sympy.Symbol):
-
-    """
-    Symbolic representation of a C macro.
-    """
-    pass
-
-
-class MacroArgument(sympy.Symbol):
-
-    """
-    Symbolic representation of a C macro.
-    """
-
-    def __str__(self):
-        return "(%s)" % self.name
-
-    __repr__ = __str__
-
-
-class Literal(sympy.Symbol):
-
-    """
-    Symbolic representation of a Literal element.
-    """
-    pass
 
 
 # Shortcuts (mostly for retrocompatibility)

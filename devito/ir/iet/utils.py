@@ -1,5 +1,5 @@
 from devito.ir.iet import IterationTree, FindSections, FindSymbols
-from devito.symbolics import Literal, Macro
+from devito.symbolics import Keyword, Macro
 from devito.tools import as_tuple, filter_ordered, split
 from devito.types import Array, Global, LocalObject
 
@@ -86,7 +86,7 @@ def derive_parameters(iet, drop_locals=False):
     parameters = [s for s in candidates if s.name not in defines]
 
     # Drop globally-visible objects
-    parameters = [p for p in parameters if not isinstance(p, (Global, Literal, Macro))]
+    parameters = [p for p in parameters if not isinstance(p, (Global, Keyword, Macro))]
 
     # Maybe filter out all other compiler-generated objects
     if drop_locals:
