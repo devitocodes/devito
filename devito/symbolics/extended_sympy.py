@@ -134,7 +134,10 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             pointer = Symbol(pointer)
         if isinstance(call, str):
             call = Symbol(call)
-        elif not isinstance(call, (CallFromPointer, DefFunction, Symbol)):
+        elif not isinstance(call, (CallFromPointer, DefFunction, sympy.Symbol)):
+            # NOTE: we need `sympy.Symbol`, rather than just (devito) `Symbol`
+            # because otherwise it breaks upon certain reconstructions on SymPy-1.8,
+            # due to the way `bound_symbols` and `canonical_variables` interact
             raise ValueError("`call` must be CallFromPointer, DefFunction, or Symbol")
         _params = []
         for p in as_tuple(params):
@@ -176,6 +179,9 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
     @property
     def bound_symbols(self):
+        # NOTE: this property requires the prefix '_' in front because
+        # otherwise it will break with SymPy-1.8 upon certain objects
+        # (re-)constructions
         return {self.call}
 
     @property
