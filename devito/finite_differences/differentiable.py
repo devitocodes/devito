@@ -577,12 +577,14 @@ class Weights(Array):
 class IndexDerivative(IndexSum):
 
     def __new__(cls, expr, dimensions, **kwargs):
-        try:
-            weights = expr.find(Weights).pop()
-        except KeyError:
-            raise ValueError("Couldn't find Weights")
         if not (expr.is_Mul and len(expr.args) == 2):
             raise ValueError("Expect expr*weights, got `%s` instead" % str(expr))
+        _, weights = expr.args
+        if not isinstance(weights, Weights):
+            # All of the SymPy versions we support end up placing the Weights
+            # array here, so if something changes we'll get an alarm through
+            # this exception
+            raise ValueError("Couldn't find weights array")
 
         obj = super().__new__(cls, expr, dimensions)
         obj._weights = weights
