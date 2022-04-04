@@ -8,7 +8,7 @@ from devito import (Grid, Function, solve, TimeFunction, Eq, Operator, norm,  # 
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, FieldFromPointer, FieldFromComposite,
-                              MIN, MAX, ccode)
+                              IntDiv, MIN, MAX, ccode)
 from devito.types import Array
 
 
@@ -148,6 +148,35 @@ def test_extended_sympy_arithmetic():
     assert ccode(cfp + 1) == '1 + s->foo()'
     assert ccode(ffp + 1) == '1 + s->foo'
     assert ccode(ffc + 1) == '1 + s.foo'
+
+
+def test_intdiv():
+    a = Symbol('a')
+    b = Symbol('b')
+
+    # IntDiv by 1 automatically simplified
+    v = IntDiv(a, 1)
+    assert v is a
+
+    v = IntDiv(a, 2)
+    assert ccode(v) == 'a / 2'
+
+    # Within larger expressions -> parentheses
+    v = b*IntDiv(a, 2)
+    assert ccode(v) == 'b*(a / 2)'
+    v = 3*IntDiv(a, 2)
+    assert ccode(v) == '3*(a / 2)'
+    v = b*IntDiv(a, 2) + 3
+    assert ccode(v) == 'b*(a / 2) + 3'
+
+    # IntDiv by zero or non-integer fails
+    with pytest.raises(ValueError):
+        IntDiv(a, 0)
+    with pytest.raises(ValueError):
+        IntDiv(a, 3.5)
+
+    v = b*IntDiv(a + b, 2) + 3
+    assert ccode(v) == 'b*((a + b) / 2) + 3'
 
 
 def test_is_on_grid():

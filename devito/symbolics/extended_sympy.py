@@ -71,26 +71,29 @@ class IntDiv(sympy.Expr):
     is_commutative = True
 
     def __new__(cls, lhs, rhs, params=None):
-        try:
-            rhs = Integer(rhs)
-            if rhs == 0:
-                raise ValueError("Cannot divide by 0")
-            elif rhs == 1:
-                return lhs
-        except TypeError:
-            # We must be sure the symbolic RHS is of type int
+        if rhs == 0:
+            raise ValueError("Cannot divide by 0")
+        elif rhs == 1:
+            return lhs
+
+        if not is_integer(rhs):
+            # Perhaps it's a symbolic RHS -- but we wanna be sure it's of type int
             if not hasattr(rhs, 'dtype'):
                 raise ValueError("Symbolic RHS `%s` lacks dtype" % rhs)
             if not issubclass(rhs.dtype, np.integer):
                 raise ValueError("Symbolic RHS `%s` must be of type `int`, found "
                                  "`%s` instead" % (rhs, rhs.dtype))
+        rhs = sympify(rhs)
+
         obj = sympy.Expr.__new__(cls, lhs, rhs)
+
         obj.lhs = lhs
         obj.rhs = rhs
+
         return obj
 
     def __str__(self):
-        return "%s / %s" % (self.lhs, self.rhs)
+        return "IntDiv(%s, %s)" % (self.lhs, self.rhs)
 
     __repr__ = __str__
 

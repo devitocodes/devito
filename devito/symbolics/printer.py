@@ -6,7 +6,7 @@ import numpy as np
 
 from mpmath.libmp import prec_to_dps, to_str
 from sympy.logic.boolalg import BooleanFunction
-from sympy.printing.precedence import precedence
+from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
 
@@ -143,15 +143,22 @@ class CodePrinter(C99CodePrinter):
         return "%s%s" % (expr.base, ''.join('[%s]' % self._print(i) for i in expr.index))
 
     def _print_IntDiv(self, expr):
+        lhs = self._print(expr.lhs)
+        if not expr.lhs.is_Atom:
+            lhs = '(%s)' % (lhs)
+        rhs = self._print(expr.rhs)
+        PREC = precedence(expr)
+        return self.parenthesize("%s / %s" % (lhs, rhs), PREC)
+
+    def _print_UnaryOp(self, expr):
         return expr.__str__()
 
-    _print_UnaryOp = _print_IntDiv
-    _print_DefFunction = _print_IntDiv
-    _print_InlineIf = _print_IntDiv
-    _print_MacroArgument = _print_IntDiv
-    _print_IndexedData = _print_IntDiv
-    _print_IndexSum = _print_IntDiv
-    _print_Keyword = _print_IntDiv
+    _print_DefFunction = _print_UnaryOp
+    _print_InlineIf = _print_UnaryOp
+    _print_MacroArgument = _print_UnaryOp
+    _print_IndexedData = _print_UnaryOp
+    _print_IndexSum = _print_UnaryOp
+    _print_Keyword = _print_UnaryOp
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
@@ -161,6 +168,10 @@ class CodePrinter(C99CodePrinter):
 
     def _print_Basic(self, expr):
         return str(expr)
+
+
+# Always parenthesize IntDiv within expressions
+PRECEDENCE_VALUES['IntDiv'] = 1
 
 
 def ccode(expr, dtype=np.float32, **settings):
