@@ -7,8 +7,8 @@ from devito import (Grid, Function, solve, TimeFunction, Eq, Operator, norm,  # 
                     Le, Ge, Gt, Lt)  # noqa
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
-                              CallFromPointer, FieldFromPointer, FieldFromComposite,
-                              IntDiv, MIN, MAX, ccode)
+                              CallFromPointer, Cast, FieldFromPointer,
+                              FieldFromComposite, IntDiv, MIN, MAX, ccode)
 from devito.types import Array
 
 
@@ -177,6 +177,22 @@ def test_intdiv():
 
     v = b*IntDiv(a + b, 2) + 3
     assert ccode(v) == 'b*((a + b) / 2) + 3'
+
+
+def test_cast():
+    s = Symbol(name='s', dtype=np.float32)
+
+    class BarCast(Cast):
+        _base_typ = 'bar'
+
+    v = BarCast(s, '**')
+    assert ccode(v) == '(bar**)s'
+
+    # Reconstruction
+    assert ccode(v.func(*v.args)) == '(bar**)s'
+
+    v1 = BarCast(s, '****')
+    assert v != v1
 
 
 def test_is_on_grid():

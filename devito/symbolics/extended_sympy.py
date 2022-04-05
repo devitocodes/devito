@@ -352,6 +352,12 @@ class Cast(UnaryOp):
         obj._stars = stars
         return obj
 
+    def _hashable_content(self):
+        return super()._hashable_content() + (self._stars,)
+
+    def func(self, *args, **kwargs):
+        return super().func(*args, stars=self.stars, **kwargs)
+
     @property
     def stars(self):
         return self._stars
