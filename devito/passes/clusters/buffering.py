@@ -50,17 +50,25 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
           implemented by other passes).
     **kwargs
         Additional compilation options.
-        Accepted: ['opt-mem-space', 'opt-dtype'].
-        * 'opt-mem-space': Allocate the buffer in the given memory space, rather
+        Accepted: ['opt-mem-space', 'opt-dtype', 'opt-noinit'].
+        * 'opt_mem_space': Allocate the buffer in the given memory space, rather
         than in the `mapped` memory space (default). For example, one could pass
         `local` for the local memory space (also see Array.__doc__), that is:
 
             * the host DRAM if platform=CPU
             * the device DRAM if platform=GPU
 
-        * 'opt-dtype': A callback that takes a buffering candidate as input
+        * 'opt_dtype': A callback that takes a buffering candidate as input
         and returns the data type of the buffer, which would otherwise default
         to the data type of the buffering candidate itself.
+        * 'opt_noinit': By default, a read buffer always triggers the generation
+        of an initializing Cluster (see example below). When the size of the
+        buffer is 1, the step-through Cluster may suffice, however. In such
+        a case, and with `opt-noinit=True`, the initalizing Cluster is omitted.
+        This creates an implicit contract between the caller and the buffering
+        pass, as the step-through Cluster cannot be further transformed or
+        the buffer might never be initialized with the content of the buffered
+        Function.
 
     Examples
     --------
@@ -100,7 +108,8 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
     options = {
         'buf-async-degree': options['buf-async-degree'],
         'buf-mem-space': kwargs.get('opt_mem_space', 'mapped'),
-        'buf-dtype': kwargs.get('opt_dtype', lambda f: f.dtype)
+        'buf-dtype': kwargs.get('opt_dtype', lambda f: f.dtype),
+        'buf-noinit': kwargs.get('opt_noinit', False)
     }
 
     return Buffering(callback, sregistry, options).process(clusters)
@@ -150,8 +159,14 @@ class Buffering(Queue):
         # only if the buffered Function is read in at least one place or in the case
         # of non-uniform SubDimensions, to avoid uninitialized values to be copied-back
         # into the buffered Function
+        noinit = self.options['buf-noinit']
         processed = []
         for b in buffers:
+            if b.size == 1 and noinit:
+                # Special case: avoid initialization if not strictly necessary
+                # See docstring for more info about what this implies
+                continue
+
             if b.is_read or not b.has_uniform_subdims:
                 dims = b.function.dimensions
                 lhs = b.indexed[[b.initmap.get(d, Map(d, d)).b for d in dims]]
@@ -384,6 +399,10 @@ class Buffer(object):
     def __repr__(self):
         return "Buffer[%s,<%s>]" % (self.buffer.name,
                                     ','.join(str(i) for i in self.contraction_mapper))
+
+    @property
+    def size(self):
+        return np.prod([v.symbolic_size for v in self.contraction_mapper.values()])
 
     @property
     def is_read(self):
