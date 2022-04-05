@@ -5,7 +5,8 @@ import numpy as np
 from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol, Tuple
 
 from devito.logger import warning
-from devito.symbolics.extended_sympy import INT, Cast, DefFunction, ReservedWord
+from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
+                                             DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
 from devito.symbolics.search import search
 from devito.tools import as_tuple
@@ -129,8 +130,12 @@ def _estimate_cost(expr, estimate):
 
 
 @_estimate_cost.register(Tuple)
+@_estimate_cost.register(CallFromPointer)
 def _(expr, estimate):
-    flops, flags = zip(*[_estimate_cost(a, estimate) for a in expr.args])
+    try:
+        flops, flags = zip(*[_estimate_cost(a, estimate) for a in expr.args])
+    except ValueError:
+        flops, flags = [], []
     return sum(flops), all(flags)
 
 
