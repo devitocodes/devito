@@ -377,7 +377,7 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     are not necessarily a Symbol or an IndexedBase, such as a FieldFromPointer.
     """
 
-    def __new__(cls, base, index):
+    def __new__(cls, base, index, **kwargs):
         try:
             # If an AbstractFunction, pull the underlying Symbol
             base = base.indexed.label
