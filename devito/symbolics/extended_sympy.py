@@ -182,9 +182,6 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
     @property
     def bound_symbols(self):
-        # NOTE: this property requires the prefix '_' in front because
-        # otherwise it will break with SymPy-1.8 upon certain objects
-        # (re-)constructions
         return {self.call}
 
     @property
