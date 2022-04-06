@@ -390,7 +390,7 @@ class Buffer(object):
                 self.itintervals_mapper.setdefault(i, (interval.relaxed, (), Forward))
 
         # Finally create the actual buffer
-        self.buffer = Array(name='%sb' % function.name,
+        self.buffer = Array(name=sregistry.make_name(prefix='%sb' % function.name),
                             dimensions=dims,
                             dtype=dtype,
                             halo=function.halo,
