@@ -358,10 +358,11 @@ def get_nvidia_cc():
 
 @memoized_func
 def get_cuda_path():
-    # *** First try: CUDA_HOME
-    cuda_home = os.environ.get('CUDA_HOME')
-    if cuda_home:
-        return cuda_home
+    # *** First try: via commonly used environment variables
+    for i in ['CUDA_HOME', 'CUDA_ROOT']:
+        cuda_home = os.environ.get(i)
+        if cuda_home:
+            return cuda_home
 
     # *** Second try: inspect the LD_LIBRARY_PATH
     llp = os.environ.get('LD_LIBRARY_PATH', '')
