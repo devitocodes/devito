@@ -8,14 +8,16 @@ from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
 from devito.symbolics import evalrel
-from devito.tools import Pickable, dtype_to_cstr, is_integer
+from devito.tools import Pickable, dtype_to_cstr, is_integer, as_tuple
+from devito.types import Array
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
+
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
            'ModuloDimension', 'IncrDimension', 'BlockDimension', 'StencilDimension',
-           'dimensions']
+           'dimensions', 'Weights', 'RIncrDimension']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -1553,3 +1555,28 @@ def dimensions(names):
 
 
 BOTTOM = Dimension(name='⊥')
+
+class Weights(Array):
+
+    """
+    The weights (or coefficients) of a finite-difference expansion.
+    """
+
+    def __init_finalize__(self, *args, **kwargs):
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        weights = kwargs.get('initvalue')
+
+        assert len(dimensions) == 1
+        d = dimensions[0]
+        assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
+        assert isinstance(weights, (list, tuple, np.ndarray))
+
+        kwargs['scope'] = 'static'
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def dimension(self):
+        return self.dimensions[0]
+
+    weights = Array.initvalue

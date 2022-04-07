@@ -4,11 +4,11 @@ from sympy import simplify, diff, Float
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
-from devito.finite_differences import Derivative, Differentiable, Weights
+from devito.finite_differences import Derivative, Differentiable
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative)
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import StencilDimension
+from devito.types import StencilDimension, Weights
 
 _PRECISION = 9
 
