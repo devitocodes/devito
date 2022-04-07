@@ -221,7 +221,7 @@ def get_gpu_info():
 
                     try:
                         line = lines.pop(deviceid)
-                        _, v, unit = re.split('([0-9]+)\s', line)
+                        _, v, unit = re.split(r'([0-9]+)\s', line)
                         assert unit == 'MiB'
                         return int(v)*10**6
                     except:
