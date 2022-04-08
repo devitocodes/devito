@@ -234,11 +234,30 @@ def ctypes_to_cstr(ctype, toarray=None):
         # either the format c_X_p or c_X, where X is the C typename, for instance
         # `int` or `float`.
         if name.endswith('_p'):
-            return '%s *' % name[:-2]
+            name = name[:-2]
+            suffix = '*'
         elif toarray:
-            return '%s %s' % (name, toarray)
+            suffix = toarray
         else:
-            return name
+            suffix = None
+
+        if name.startswith('u'):
+            name = name[1:]
+            prefix = 'unsigned'
+        else:
+            prefix = None
+
+        # Special cases
+        if name == 'byte':
+            name = 'char'
+
+        retval = name
+        if prefix:
+            retval = '%s %s' % (prefix, retval)
+        if suffix:
+            retval = '%s %s' % (retval, suffix)
+
+        return retval
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         return ctype.__name__
