@@ -1,7 +1,7 @@
 from functools import partial
 from hashlib import sha1
 from os import environ, path
-from distutils import version
+from packaging.version import Version
 from subprocess import DEVNULL, PIPE, CalledProcessError, check_output, check_call, run
 import platform
 import warnings
@@ -35,9 +35,9 @@ def sniff_compiler_version(cc):
         res = run([cc, "--version"], stdout=PIPE, stderr=DEVNULL)
         ver = res.stdout.decode("utf-8")
         if not ver:
-            return version.LooseVersion("unknown")
+            return Version("unknown")
     except UnicodeDecodeError:
-        return version.LooseVersion("unknown")
+        return Version("unknown")
     except FileNotFoundError:
         error("The `%s` compiler isn't available on this system" % cc)
         sys.exit(1)
@@ -55,7 +55,7 @@ def sniff_compiler_version(cc):
     else:
         compiler = "unknown"
 
-    ver = version.LooseVersion("unknown")
+    ver = Version("0")
     if compiler in ["gcc", "icc"]:
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
@@ -67,14 +67,14 @@ def sniff_compiler_version(cc):
                 ver = res.stdout.decode("utf-8")
                 ver = '.'.join(ver.strip().split('.')[:3])
                 if not ver:
-                    return version.LooseVersion("unknown")
-            ver = version.StrictVersion(ver)
+                    return Version("0")
+            ver = Version(ver)
         except UnicodeDecodeError:
             pass
 
     # Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling
     try:
-        ver = version.StrictVersion(float(ver))
+        ver = Version(float(ver))
     except TypeError:
         pass
 
@@ -175,9 +175,9 @@ class Compiler(GCCToolchain):
 
         if self.suffix is not None:
             try:
-                self.version = version.StrictVersion(str(float(self.suffix)))
+                self.version = Version(str(float(self.suffix)))
             except (TypeError, ValueError):
-                self.version = version.LooseVersion(self.suffix)
+                self.version = Version(self.suffix)
         else:
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
@@ -363,7 +363,7 @@ class GNUCompiler(Compiler):
 
         language = kwargs.pop('language', configuration['language'])
         try:
-            if self.version >= version.StrictVersion("4.9.0"):
+            if self.version >= Version("4.9.0"):
                 # Append the openmp flag regardless of the `language` value,
                 # since GCC4.9 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`

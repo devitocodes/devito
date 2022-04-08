@@ -206,7 +206,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Distributed-memory parallelism
         mpiize(graph, sregistry=sregistry, options=options)
 
-        # Loop tiling
+        # Lower BlockDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
 
         # GPU parallelism
