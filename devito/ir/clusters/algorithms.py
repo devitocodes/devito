@@ -84,7 +84,7 @@ class Schedule(QueueStateful):
 
     @timed_pass(name='schedule')
     def process(self, clusters):
-        return self._process_fdta(clusters, 1)
+        return self._process_fatd(clusters, 1)
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:

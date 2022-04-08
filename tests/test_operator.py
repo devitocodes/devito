@@ -2,11 +2,12 @@ import numpy as np
 import pytest
 from itertools import permutations
 
-from conftest import skipif
+from conftest import assert_structure, skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
-                    TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction,
+                    div, grad, switchconfig)
 from devito import  Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
@@ -1929,3 +1930,22 @@ class TestLoopScheduling(object):
         assert tree[0].dim is time
         assert tree[1].dim is x
         assert tree[2].dim is y
+
+    def test_issue_1897(self):
+        grid = Grid(shape=(11, 11, 11))
+
+        v = VectorTimeFunction(name='v', grid=grid, time_order=1, space_order=4)
+        tau = TensorTimeFunction(name='tau', grid=grid, time_order=1, space_order=4)
+
+        eqns = [
+            Eq(v.forward, div(tau) + v),
+            Eq(tau.forward, grad(v.forward) + tau)
+        ]
+
+        op = Operator(eqns)
+
+        assert_structure(
+            op,
+            ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
+            't,x0_blk0,y0_blk0,x,y,z,x1_blk0,y1_blk0,x,y,z'
+        )
