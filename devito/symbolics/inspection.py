@@ -2,10 +2,11 @@ from collections import Counter
 from functools import singledispatch
 
 import numpy as np
-from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol
+from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol, Tuple
 
 from devito.logger import warning
-from devito.symbolics.extended_sympy import INT, Cast
+from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
+                                             DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
 from devito.symbolics.search import search
 from devito.tools import as_tuple
@@ -128,12 +129,23 @@ def _estimate_cost(expr, estimate):
         return flops + (len(expr.args) - 1), False
 
 
+@_estimate_cost.register(Tuple)
+@_estimate_cost.register(CallFromPointer)
+def _(expr, estimate):
+    try:
+        flops, flags = zip(*[_estimate_cost(a, estimate) for a in expr.args])
+    except ValueError:
+        flops, flags = [], []
+    return sum(flops), all(flags)
+
+
 @_estimate_cost.register(Integer)
 def _(expr, estimate):
     return 0, True
 
 
 @_estimate_cost.register(Number)
+@_estimate_cost.register(ReservedWord)
 def _(expr, estimate):
     return 0, False
 
@@ -172,7 +184,10 @@ def _(expr, estimate):
     if q_routine(expr):
         flops, _ = zip(*[_estimate_cost(a, estimate) for a in expr.args])
         flops = sum(flops)
-        if estimate:
+        if isinstance(expr, DefFunction):
+            # Bypass user-defined or language-specific functions
+            flops += 0
+        elif estimate:
             flops += estimate_values['elementary']
         else:
             flops += 1

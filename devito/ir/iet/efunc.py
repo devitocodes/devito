@@ -3,6 +3,7 @@ from collections import namedtuple
 from cached_property import cached_property
 from sympy import Or
 import cgen as c
+import numpy as np
 
 from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Dereference,
                                  DummyExpr, Iteration, List, PointerCast, Return, While,
@@ -10,7 +11,7 @@ from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Derefer
 from devito.ir.iet.utils import derive_parameters, diff_parameters
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
 from devito.tools import as_tuple
-from devito.types import PThreadArray, SharedData, Symbol, VoidPointer
+from devito.types import PThreadArray, SharedData, Symbol, Pointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
            'EntryFunction', 'ThreadFunction', 'make_thread_ctx',
@@ -212,7 +213,7 @@ def _make_thread_func(name, iet, root, threads, sregistry):
 
     # pthread functions expect exactly one argument, a void*, and must return void*
     tretval = 'void*'
-    tparameter = VoidPointer('_%s' % sdata.name)
+    tparameter = Pointer(name='_%s' % sdata.name, dtype=np.void)
 
     # Unpack `sdata`
     unpack = [PointerCast(sdata, tparameter), BlankLine]

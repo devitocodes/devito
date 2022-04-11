@@ -1247,6 +1247,24 @@ class TestApplyArguments(object):
         # The h_x that was passed to the C code must be the one `grid2`, not `grid`
         assert u2.data[2, 2] == grid2.spacing[0]
 
+    def test_loose_kwargs(self):
+        grid = Grid(shape=(10, 10))
+
+        x, y = grid.dimensions
+        s = Symbol(name='s', dtype=np.int32)
+
+        eq = Eq(s, x.symbolic_size + y.symbolic_size)
+
+        op = Operator(eq)
+
+        # Exception expected here because a binding for `x_size` and `y_size`
+        # needs to be provided
+        with pytest.raises(ValueError):
+            op.arguments()
+
+        # But the following should work perfectly fine
+        op.arguments(x_size=2, y_size=2)
+
 
 @skipif('device')
 class TestDeclarator(object):

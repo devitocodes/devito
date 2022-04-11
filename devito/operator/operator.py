@@ -504,6 +504,12 @@ class Operator(Callable):
         for o in self.objects:
             args.update(o._arg_values(grid=grid, **kwargs))
 
+        # In some "lower-level" Operators implementing a random piece of C, such as
+        # one or more calls to third-party library functions, there could still be
+        # at this point unprocessed arguments (e.g., scalars)
+        kwargs.pop('args')
+        args.update({k: v for k, v in kwargs.items() if k not in args})
+
         # Sanity check
         for p in self.parameters:
             p._arg_check(args, self._dspace[p])
@@ -546,6 +552,7 @@ class Operator(Callable):
                 pass
         for d in self.dimensions:
             ret.update(d._arg_names)
+        ret.update(p.name for p in self.parameters)
         return frozenset(ret)
 
     def _autotune(self, args, setup):

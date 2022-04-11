@@ -13,7 +13,7 @@ from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitializer,
-                              SizeOf, VOID, Literal, ccode)
+                              SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_tuple, filter_sorted, flatten, prod
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
@@ -143,7 +143,7 @@ class DataManager(object):
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        size = SizeOf(Literal('%s*' % obj._C_typedata))*obj.dim.symbolic_size
+        size = SizeOf(Keyword('%s*' % obj._C_typedata))*obj.dim.symbolic_size
         alloc0 = self.lang['host-alloc'](memptr, alignment, size)
 
         free0 = self.lang['host-free'](obj._C_symbol)

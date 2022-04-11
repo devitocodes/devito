@@ -7,14 +7,14 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 
 import cgen as c
-from sympy import IndexedBase
+from sympy import IndexedBase, sympify
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
-from devito.symbolics import ListInitializer, CallFromPointer, as_symbol, ccode
+from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import (AbstractFunction, AbstractSymbol, Indexed,
                                 LocalObject, Symbol)
@@ -551,19 +551,7 @@ class Iteration(Node):
     @property
     def symbolic_bounds(self):
         """A 2-tuple representing the symbolic bounds [min, max] of the Iteration."""
-        _min = self.limits[0]
-        _max = self.limits[1]
-        try:
-            _min = as_symbol(_min)
-        except TypeError:
-            # A symbolic expression
-            pass
-        try:
-            _max = as_symbol(_max)
-        except TypeError:
-            # A symbolic expression
-            pass
-        return (_min, _max)
+        return (sympify(self.limits[0]), sympify(self.limits[1]))
 
     @property
     def symbolic_size(self):

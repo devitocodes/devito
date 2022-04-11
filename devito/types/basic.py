@@ -1345,7 +1345,7 @@ class LocalObject(AbstractObject):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(sympy.IndexedBase, Pickable, CodeSymbol):
+class IndexedData(sympy.IndexedBase, Basic, Pickable):
 
     """
     Wrapper class that inserts a pointer to the symbolic data object.
@@ -1393,6 +1393,16 @@ class IndexedData(sympy.IndexedBase, Pickable, CodeSymbol):
     @property
     def dtype(self):
         return self.function.dtype
+
+    @cached_property
+    def free_symbols(self):
+        ret = {self}
+        for i in self.shape:
+            try:
+                ret.update(i.free_symbols)
+            except AttributeError:
+                pass
+        return ret
 
     # Pickling support
     _pickle_kwargs = ['label', 'shape', 'function']
