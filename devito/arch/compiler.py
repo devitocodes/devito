@@ -481,7 +481,13 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-std=c++11', '-acc:gpu', '-gpu=pinned', '-mp']
+
+        self.cflags += ['-std=c++11', '-mp']
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        if platform is NVIDIAX:
+            self.cflags += ['-acc:gpu', '-gpu=pinned']
+
         if not configuration['safe-math']:
             self.cflags.append('-fast')
         # Default PGI compile for a target is GPU and single threaded host.
