@@ -5,7 +5,8 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
-                       IterationSpace, PARALLEL, Queue, Vector, lower_exprs, vmax, vmin)
+                       IterationSpace, PARALLEL, Queue, SEQUENTIAL, Vector,
+                       lower_exprs, normalize_properties, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -207,7 +208,16 @@ class Buffering(Queue):
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
 
-                processed.append(c.rebuild(exprs=expr, ispace=ispace))
+                # Buffering creates a storage-related dependence along the
+                # contracted dimensions
+                properties = dict(c.properties)
+                for d in b.contraction_mapper:
+                    d = ispace[d].dim  # E.g., `time_sub -> time`
+                    properties[d] = normalize_properties(properties[d], {SEQUENTIAL})
+
+                processed.append(
+                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                )
 
             # Substitute buffered Functions with the newly created buffers
             exprs = [uxreplace(e, subs) for e in c.exprs]
@@ -233,7 +243,16 @@ class Buffering(Queue):
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
 
-                processed.append(c.rebuild(exprs=expr, ispace=ispace))
+                # Buffering creates a storage-related dependence along the
+                # contracted dimensions
+                properties = dict(c.properties)
+                for d in b.contraction_mapper:
+                    d = ispace[d].dim  # E.g., `time_sub -> time`
+                    properties[d] = normalize_properties(properties[d], {SEQUENTIAL})
+
+                processed.append(
+                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                )
 
         return processed
 

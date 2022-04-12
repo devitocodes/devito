@@ -667,7 +667,7 @@ class TestNodeParallelism(object):
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
-         2, [6, 0, 0]),
+         None, [6, 0, 0]),
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],  # 1695
          2, [0, 1, 2]),
