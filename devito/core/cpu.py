@@ -143,6 +143,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -150,7 +151,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Shared-memory parallelism
         if options['openmp']:
-            parizer = cls._Target.Parizer(sregistry, options, platform)
+            parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
             parizer.make_parallel(graph)
             parizer.initialize(graph)
 
@@ -213,6 +214,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Flush denormal numbers
@@ -225,7 +227,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         relax_incr_dimensions(graph)
 
         # Parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
         parizer.initialize(graph)
@@ -304,9 +306,10 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
 
         return {
             'denormals': avoid_denormals,

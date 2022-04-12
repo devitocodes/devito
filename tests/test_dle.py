@@ -6,10 +6,11 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    Dimension, SubDimension, Eq, Inc, Operator, dimensions, info, cos)
+                    Dimension, SubDimension, Eq, Inc, Operator, configuration,
+                    dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
-from devito.passes.iet.languages.openmp import OmpRegion
+from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
 
@@ -622,8 +623,11 @@ class TestNodeParallelism(object):
             # `z` Iteration gets parallelized, nothing is collapsed, hence no
             # reduction is required
             assert "reduction" not in parallelized.pragmas[0].value
-        else:
+        elif Ompizer._support_array_reduction(configuration['compiler']):
             assert "reduction(+:f[0:f_vec->size[0]])" in parallelized.pragmas[0].value
+        else:
+            # E.g. old GCC's
+            assert "atomic update" in str(iterations[-1])
 
         try:
             op(time_M=1)

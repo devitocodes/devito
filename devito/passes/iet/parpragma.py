@@ -95,7 +95,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     and shared-memory-parallel IETs.
     """
 
-    def __init__(self, sregistry, options, platform):
+    def __init__(self, sregistry, options, platform, compiler):
         """
         Parameters
         ----------
@@ -116,9 +116,11 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                is greater than this threshold.
         platform : Platform
             The underlying platform.
+        compiler : Compiler
+            The underlying JIT compiler.
         """
         key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
-        super().__init__(key, sregistry, platform)
+        super().__init__(key, sregistry, platform, compiler)
 
         self.collapse_ncores = options['par-collapse-ncores']
         self.collapse_work = options['par-collapse-work']
@@ -209,14 +211,22 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         return root, list(collapsable)
 
+    @classmethod
+    def _support_array_reduction(cls, compiler):
+        return True
+
     def _make_reductions(self, partree):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
         exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_Increment]
         reduction = [i.output for i in exprs]
-        if all(i.is_Affine for i in partree.collapsed) or \
-           all(not i.is_Indexed for i in reduction):
+
+        test0 = all(not i.is_Indexed for i in reduction)
+        test1 = (self._support_array_reduction(self.compiler) and
+                 all(i.is_Affine for i in partree.collapsed))
+
+        if test0 or test1:
             # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
         else:
@@ -399,8 +409,8 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
     shared-memory-parallel, and device-parallel IETs.
     """
 
-    def __init__(self, sregistry, options, platform):
-        super().__init__(sregistry, options, platform)
+    def __init__(self, sregistry, options, platform, compiler):
+        super().__init__(sregistry, options, platform, compiler)
 
         self.gpu_fit = options['gpu-fit']
         self.par_tile = options['par-tile']
