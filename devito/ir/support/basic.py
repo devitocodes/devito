@@ -553,7 +553,7 @@ class Dependence(object):
     @memoized_meth
     def is_const(self, dim):
         """
-        True if a constant depedence, that is no Dimensions involved, False otherwise.
+        True if a constant dependence, that is no Dimensions involved, False otherwise.
         """
         return (self.source.aindices[dim] is None and
                 self.sink.aindices[dim] is None and
