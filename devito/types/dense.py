@@ -307,6 +307,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return tuple(retval)
 
     @property
+    def symbolic_shape(self):
+        return tuple(self._C_get_field(FULL, d).size for d in self.dimensions)
+
+    @property
     def size_global(self):
         """
         The global number of elements this object is expected to store in memory.
@@ -1556,7 +1560,8 @@ class TempFunction(DiscreteFunction):
         ret = tuple(sum(i) for i in zip(domain, halo))
         return DimensionTuple(*ret, getters=self.dimensions)
 
-    shape_allocated = DiscreteFunction.symbolic_shape
+    shape_allocated = AbstractFunction.symbolic_shape
+    symbolic_shape = AbstractFunction.symbolic_shape
 
     def make(self, shape=None, initializer=None, allocator=None, **kwargs):
         """
