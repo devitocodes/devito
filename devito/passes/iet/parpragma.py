@@ -592,7 +592,7 @@ class PragmaLangBB(LangBB):
         items = []
         if devicerm is not None:
             items.append(devicerm.name)
-        items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
+        items.extend(['(%s != 0)' % i for i in f.symbolic_shape])
         cond = ' if(%s)' % ' && '.join(items)
         return cls.mapper['map-exit-delete'](f.name, sections, cond)
 
