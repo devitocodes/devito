@@ -6,10 +6,11 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    Dimension, SubDimension, Eq, Inc, Operator, dimensions, info, cos)
+                    Dimension, SubDimension, Eq, Inc, Operator, configuration,
+                    dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
-from devito.passes.iet.languages.openmp import OmpRegion
+from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
 
@@ -622,8 +623,11 @@ class TestNodeParallelism(object):
             # `z` Iteration gets parallelized, nothing is collapsed, hence no
             # reduction is required
             assert "reduction" not in parallelized.pragmas[0].value
-        else:
+        elif Ompizer._support_array_reduction(configuration['compiler']):
             assert "reduction(+:f[0:f_vec->size[0]])" in parallelized.pragmas[0].value
+        else:
+            # E.g. old GCC's
+            assert "atomic update" in str(iterations[-1])
 
         try:
             op(time_M=1)
@@ -667,7 +671,7 @@ class TestNodeParallelism(object):
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
-         2, [6, 0, 0]),
+         None, [6, 0, 0]),
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],  # 1695
          2, [0, 1, 2]),
@@ -727,9 +731,16 @@ class TestNodeParallelism(object):
         op = Operator(exprs, opt=('advanced', {'openmp': True}))
 
         iterations = FindNodes(Iteration).visit(op)
-        assert 'omp for collapse' in iterations[0].pragmas[0].value
-        if simd_level:
-            assert 'omp simd' in iterations[simd_level].pragmas[0].value
+        try:
+            assert 'omp for collapse' in iterations[0].pragmas[0].value
+            if simd_level:
+                assert 'omp simd' in iterations[simd_level].pragmas[0].value
+        except:
+            # E.g. gcc-5 doesn't support array reductions, so the compiler will
+            # generate different legal code
+            assert not Ompizer._support_array_reduction(configuration['compiler'])
+            assert any('omp for collapse' in i.pragmas[0].value
+                       for i in iterations if i.pragmas)
 
         op.apply()
         assert (h1.data == expected).all()

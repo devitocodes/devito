@@ -68,7 +68,7 @@ class Schedule(QueueStateful):
           scheduled to different loop nests.
 
         * If *all* dependences across two Clusters along a given Dimension are
-          backward carried depedences, then the IterationSpaces are _lifted_
+          backward carried dependences, then the IterationSpaces are _lifted_
           such that the two Clusters cannot be fused. This is to maximize
           the number of parallel Dimensions. Essentially, this is what low-level
           compilers call "loop fission" -- only that here it occurs at a much

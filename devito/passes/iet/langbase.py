@@ -185,7 +185,7 @@ class LangTransformer(ABC):
     The constructs of the target language. To be specialized by a subclass.
     """
 
-    def __init__(self, key, sregistry, platform):
+    def __init__(self, key, sregistry, platform, compiler):
         """
         Parameters
         ----------
@@ -195,6 +195,8 @@ class LangTransformer(ABC):
             The symbol registry, to access the symbols appearing in an IET.
         platform : Platform
             The underlying platform.
+        compiler : Compiler
+            The underlying JIT compiler.
         """
         if key is not None:
             self.key = key
@@ -202,6 +204,7 @@ class LangTransformer(ABC):
             self.key = lambda i: False
         self.sregistry = sregistry
         self.platform = platform
+        self.compiler = compiler
 
     @iet_pass
     def make_parallel(self, iet):

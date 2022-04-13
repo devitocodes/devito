@@ -373,7 +373,7 @@ def classify(exprs, ispace):
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
                 else:
-                    v[(d, i.aindices[d])] = NONE
+                    v[(d, i[d])] = NONE
 
             # Does `i` actually require a halo exchange?
             if not any(hl is STENCIL for hl in v.values()):
@@ -426,7 +426,12 @@ def classify(exprs, ispace):
                 func = Max
             candidates = [i for i in aindices if not is_integer(i)]
             candidates = {(i.origin if d.is_Stepping else i) - d: i for i in candidates}
-            loc_indices[d] = candidates[func(*candidates.keys())]
+            try:
+                loc_indices[d] = candidates[func(*candidates.keys())]
+            except KeyError:
+                # E.g., `aindices = [0, 1, d+1]` -- it doesn't really matter
+                # what we put here, so we place 0 as it's the old behaviour
+                loc_indices[d] = 0
 
         mapper[f] = HaloSchemeEntry(frozendict(loc_indices), frozenset(halos))
 

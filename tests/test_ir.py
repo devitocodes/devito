@@ -707,7 +707,7 @@ class TestDependenceAnalysis(object):
         assert len(expected) == 0
 
 
-class TestAnalysis(object):
+class TestParallelismAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
@@ -726,7 +726,10 @@ class TestAnalysis(object):
         (['Eq(v.forward, v[t+1, x, y-1]+v[t, x, y]+v[t, x, y-1])'],
          [], ['x']),
         (['Eq(v.forward, v+1)', 'Inc(u, v)'],
-         [], ['x', 'y'])
+         [], ['x', 'y']),
+        # Test for issue #1902
+        (['Eq(u[0, y], v)', 'Eq(w, u[0, y])'],
+         [], ['y'])
     ])
     def test_iteration_parallelism_2d(self, exprs, atomic, parallel):
         """Tests detection of PARALLEL_* properties."""
@@ -742,6 +745,7 @@ class TestAnalysis(object):
 
         u = Function(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid, save=None)  # noqa
+        w = TimeFunction(name='w', grid=grid, save=None)  # noqa
 
         cx = Function(name='coeff_x', dimensions=(p, rx), shape=(1, 2))  # noqa
         cy = Function(name='coeff_y', dimensions=(p, ry), shape=(1, 2))  # noqa

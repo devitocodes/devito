@@ -100,8 +100,6 @@ class IterationInstance(LabeledVector):
                 retval.append(dims.pop())
             elif isinstance(i, Dimension):
                 retval.append(i)
-            elif q_constant(i):
-                retval.append(fi)
             else:
                 retval.append(None)
         return DimensionTuple(*retval, getters=self.findices)
@@ -262,10 +260,14 @@ class TimedAccess(IterationInstance):
         # space Dimensions
         positions = []
         for d in self.aindices:
-            for n, i in enumerate(self.intervals):
-                if i.dim._defines & d._defines:
-                    positions.append(n)
-                    break
+            try:
+                for n, i in enumerate(self.intervals):
+                    if i.dim._defines & d._defines:
+                        positions.append(n)
+                        break
+            except AttributeError:
+                # `d is None` due to e.g. constant access
+                continue
         return positions == sorted(positions)
 
     def __lt__(self, other):
@@ -549,6 +551,15 @@ class Dependence(object):
         return self.function.is_Symbol
 
     @memoized_meth
+    def is_const(self, dim):
+        """
+        True if a constant dependence, that is no Dimensions involved, False otherwise.
+        """
+        return (self.source.aindices[dim] is None and
+                self.sink.aindices[dim] is None and
+                self.distance_mapper[dim] == 0)
+
+    @memoized_meth
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence, False otherwise."""
         try:
@@ -623,9 +634,10 @@ class Dependence(object):
         cause the access of the same memory location, False otherwise.
         """
         for d in self.findices:
-            if (d._defines & set(as_tuple(dims)) and
-                    any(i.is_NonlinearDerived for i in d._defines)):
-                return True
+            if d._defines & set(as_tuple(dims)):
+                if any(i.is_NonlinearDerived for i in d._defines) or \
+                   self.is_const(d):
+                    return True
         return False
 
 

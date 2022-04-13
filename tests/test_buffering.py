@@ -603,6 +603,25 @@ def test_multi_access():
     assert np.all(w.data == w1.data)
 
 
+def test_issue_1901():
+    grid = Grid(shape=(2, 2))
+    time = grid.time_dim
+    x, y = grid.dimensions
+
+    usave = TimeFunction(name='usave', grid=grid, save=10)
+    v = TimeFunction(name='v', grid=grid)
+
+    eq = [Eq(v[time, x, y], usave)]
+
+    op = Operator(eq, opt='buffering')
+
+    trees = retrieve_iteration_tree(op)
+    assert len(trees) == 2
+    assert trees[1].root.dim is time
+    assert not trees[1].root.is_Parallel
+    assert trees[1].root.is_Sequential  # Obv
+
+
 def test_everything():
     nt = 50
     grid = Grid(shape=(6, 6))

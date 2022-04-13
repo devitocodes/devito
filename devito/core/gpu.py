@@ -130,13 +130,14 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         mpiize(graph, sregistry=sregistry, options=options)
 
         # GPU parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_parallel(graph)
         parizer.initialize(graph)
 
@@ -202,6 +203,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -211,7 +213,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         relax_incr_dimensions(graph)
 
         # GPU parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_parallel(graph)
         parizer.initialize(graph)
 
@@ -282,9 +284,10 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         orchestrator = cls._Target.Orchestrator(sregistry)
 
         return {
