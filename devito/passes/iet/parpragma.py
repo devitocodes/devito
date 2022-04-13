@@ -33,6 +33,10 @@ class PragmaSimdTransformer(PragmaTransformer):
     Abstract base class for PragmaTransformers capable of emitting SIMD-parallel IETs.
     """
 
+    @classmethod
+    def _support_array_reduction(cls, compiler):
+        return True
+
     @property
     def simd_reg_size(self):
         return self.platform.simd_reg_size
@@ -67,6 +71,30 @@ class PragmaSimdTransformer(PragmaTransformer):
             #     ...
             if not IsPerfectIteration(depth=candidates[-2]).visit(candidate):
                 continue
+
+            # If it's an array reduction, we need to be sure the backend compiler
+            # actually supports it. For example, it may be possible to
+            #
+            # #pragma parallel reduction(a[...])
+            # for (i = ...)
+            #   #pragma simd
+            #   for (j = ...)
+            #     a[j] += ...
+            #
+            # While the following could be unsupported
+            #
+            # #pragma parallel  // compiler doesn't support array reduction
+            # for (i = ...)
+            #   #pragma simd
+            #   for (j = ...)
+            #     #pragma atomic  // cannot nest simd and atomic
+            #     a[j] += ...
+            if any(i.is_ParallelAtomic for i in candidates[:-1]) and \
+               not self._support_array_reduction(self.compiler):
+                exprs = FindNodes(Expression).visit(candidate)
+                reductions = [i.output for i in exprs if i.is_Increment]
+                if any(i.is_Indexed for i in reductions):
+                    continue
 
             # Add SIMD pragma
             indexeds = FindSymbols('indexeds').visit(candidate)
@@ -211,24 +239,20 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         return root, list(collapsable)
 
-    @classmethod
-    def _support_array_reduction(cls, compiler):
-        return True
-
     def _make_reductions(self, partree):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
         exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_Increment]
-        reduction = [i.output for i in exprs]
+        reductions = [i.output for i in exprs]
 
-        test0 = all(not i.is_Indexed for i in reduction)
+        test0 = all(not i.is_Indexed for i in reductions)
         test1 = (self._support_array_reduction(self.compiler) and
                  all(i.is_Affine for i in partree.collapsed))
 
         if test0 or test1:
             # Implement reduction
-            mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
+            mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
         else:
             # Make sure the increment is atomic
             mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}

@@ -731,9 +731,16 @@ class TestNodeParallelism(object):
         op = Operator(exprs, opt=('advanced', {'openmp': True}))
 
         iterations = FindNodes(Iteration).visit(op)
-        assert 'omp for collapse' in iterations[0].pragmas[0].value
-        if simd_level:
-            assert 'omp simd' in iterations[simd_level].pragmas[0].value
+        try:
+            assert 'omp for collapse' in iterations[0].pragmas[0].value
+            if simd_level:
+                assert 'omp simd' in iterations[simd_level].pragmas[0].value
+        except:
+            # E.g. gcc-5 doesn't support array reductions, so the compiler will
+            # generate different legal code
+            assert not Ompizer._support_array_reduction(configuration['compiler'])
+            assert any('omp for collapse' in i.pragmas[0].value
+                       for i in iterations if i.pragmas)
 
         op.apply()
         assert (h1.data == expected).all()
