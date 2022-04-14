@@ -1411,6 +1411,10 @@ class TimeFunction(Function):
         return self.shape_allocated[self._time_position]
 
     @property
+    def time_size(self):
+        return self._time_size
+
+    @property
     def _time_buffering(self):
         return not is_integer(self.save)
 
