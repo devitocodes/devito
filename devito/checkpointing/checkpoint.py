@@ -72,7 +72,7 @@ class DevitoCheckpoint(Checkpoint):
     @property
     def size(self):
         """The memory consumption of the data contained in a checkpoint."""
-        return sum([int((o.size_allocated/(o.time_order+1))*o.time_order)
+        return sum([int((o.size_allocated/(o.time_size))*o.time_order)
                    for o in self.objects])
 
     def save(*args):
