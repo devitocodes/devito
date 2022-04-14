@@ -388,6 +388,7 @@ def check_cuda_runtime():
             break
     else:
         warning("Unable to check compatibility of NVidia driver and runtime")
+        return
 
     driver_version = ctypes.c_int()
     runtime_version = ctypes.c_int()
