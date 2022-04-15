@@ -10,7 +10,7 @@ from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
 from devito.logger import debug, info, perf, warning, is_log_enabled_for
-from devito.ir.equations import LoweredEq, lower_exprs, generate_implicit_exprs
+from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
@@ -20,7 +20,7 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, instrument
+from devito.passes import Graph, generate_implicit, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_sorted,
                           split, timed_pass, timed_region)
@@ -265,7 +265,6 @@ class Operator(Callable):
         """
         Expression lowering:
 
-            * Form and gather any required implicit expressions;
             * Apply rewrite rules;
             * Evaluate derivatives;
             * Flatten vectorial equations;
@@ -273,9 +272,6 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
-        # Add in implicit expressions
-        expressions = generate_implicit_exprs(expressions)
-
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
 
@@ -312,6 +308,7 @@ class Operator(Callable):
             * Introduce guards for conditional Clusters;
             * Analyze Clusters to detect computational properties such
               as parallelism.
+            * Optimize Clusters for performance
         """
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions, **kwargs)
@@ -324,6 +321,9 @@ class Operator(Callable):
         # Operation count after specialization
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
         profiler.record_ops_variation(init_ops, final_ops)
+
+        # Generate implicit Clusters from higher level abstractions
+        clusters = generate_implicit(clusters)
 
         return ClusterGroup(clusters)
 

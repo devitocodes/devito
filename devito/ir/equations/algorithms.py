@@ -6,9 +6,9 @@ from sympy import sympify
 from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
                               uxreplace)
 from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
-from devito.types import Dimension, Eq, IgnoreDimSort
+from devito.types import Dimension, IgnoreDimSort
 
-__all__ = ['dimension_sort', 'generate_implicit_exprs', 'lower_exprs']
+__all__ = ['dimension_sort', 'lower_exprs']
 
 
 def dimension_sort(expr):
@@ -71,43 +71,6 @@ def dimension_sort(expr):
     ordering = PartialOrderTuple(extra, relations=(relations | implicit_relations))
 
     return ordering
-
-
-def generate_implicit_exprs(expressions):
-    """
-    Create and add implicit expressions.
-
-    Implicit expressions are those not explicitly defined by the user
-    but instead are requisites of some specified functionality.
-
-    Currently, implicit expressions stem from the following:
-
-        * MultiSubDomains attached to input equations.
-    """
-    found = {}
-    processed = []
-    for e in expressions:
-        if e.subdomain:
-            try:
-                dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
-                sub_dims = [d.root for d in e.subdomain.dimensions]
-                sub_dims.extend(e.subdomain.implicit_dimensions)
-                dims = [d for d in dims if d not in frozenset(sub_dims)]
-                dims.extend(e.subdomain.implicit_dimensions)
-                if e.subdomain not in found:
-                    grid = list(retrieve_functions(e, mode='unique'))[0].grid
-                    found[e.subdomain] = [i.func(*i.args, implicit_dims=dims) for i in
-                                          e.subdomain._create_implicit_exprs(grid)]
-                processed.extend(found[e.subdomain])
-                dims.extend(e.subdomain.dimensions)
-                new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
-                processed.append(new_e)
-            except AttributeError:
-                # Not a MultiSubDomain
-                processed.append(e)
-        else:
-            processed.append(e)
-    return processed
 
 
 def lower_exprs(expressions, **kwargs):

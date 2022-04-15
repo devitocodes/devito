@@ -460,6 +460,10 @@ class TestSubdomains(object):
         """
         Follow-up issue emerged after patching #1761. The thicknesses assigments
         were missing before the third equation.
+
+        Further improvements have enabled fusing the third equation with the first
+        one, since this is perfectly legal (just like what happens without
+        MultiSubDomains in the way).
         """
         n = Dimension(name='n')
         m = Dimension(name='m')
@@ -485,6 +489,47 @@ class TestSubdomains(object):
 
         eqns = [Eq(f.forward, f*sin(phi), subdomain=grid.subdomains['dummydomain']),
                 Eq(g.forward, g*sin(theta), subdomain=grid.subdomains['dummydomain2']),
+                Eq(f.forward, f*tan(phi), subdomain=grid.subdomains['dummydomain'])]
+
+        op = Operator(eqns)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
+        assert_structure(op,
+                         ['x,y', 't,m', 't,m,xi_m,yi_m', 't,n', 't,n,xi_n,yi_n'],
+                         'x,y,t,m,xi_m,yi_m,n,xi_n,yi_n')
+
+    def test_issue_1761_c(self):
+        """
+        Follow-up of test test_issue_1761_b. Now there's a data dependence
+        between eq0 and eq1, hence they can't be fused.
+        """
+        n = Dimension(name='n')
+        m = Dimension(name='m')
+
+        class DummySubdomains(SubDomainSet):
+            name = 'dummydomain'
+            implicit_dimension = m
+
+        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
+
+        class DummySubdomains2(SubDomainSet):
+            name = 'dummydomain2'
+            implicit_dimension = n
+
+        dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(10, 10), subdomains=(dummy, dummy2))
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+        theta = Function(name='theta', grid=grid)
+        phi = Function(name='phi', grid=grid)
+
+        eqns = [Eq(f.forward, f*sin(phi), subdomain=grid.subdomains['dummydomain']),
+                Eq(g.forward, g*sin(theta) + f.forward.dx,
+                   subdomain=grid.subdomains['dummydomain2']),
                 Eq(f.forward, f*tan(phi), subdomain=grid.subdomains['dummydomain'])]
 
         op = Operator(eqns)
