@@ -3,7 +3,8 @@ Passes to gather and form implicit equations from MultiSubDomains.
 """
 
 from devito.ir import Interval, IntervalGroup, IterationSpace, Queue
-from devito.tools import timed_pass
+from devito.symbolics import retrieve_dimensions
+from devito.tools import filter_ordered, timed_pass
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['generate_implicit']
@@ -62,9 +63,14 @@ class LowerMultiSubDimensions(Queue):
         if d is None or msdim(pd):
             return clusters
 
-        # The implicit objects induced by the MultiSubDomain
+        # The implicit expressions introduced by the MultiSubDomain
         exprs = d.msd._implicit_exprs
-        idims = d.msd.implicit_dimensions
+
+        # The implicit Dimensions and iterators induced by the MultiSubDomain
+        dims = filter_ordered(retrieve_dimensions(exprs, deep=True))
+        idims = tuple(i for i in dims if not i.is_SubIterator)
+        intervals = [Interval(i, 0, 0) for i in idims]
+        sub_iterators = {i.root: i for i in dims if i.is_SubIterator}
 
         processed = []
         for c in clusters:
@@ -77,15 +83,17 @@ class LowerMultiSubDimensions(Queue):
             ispace1 = c.ispace[idx:]
 
             # The local IterationSpace of the implicit Dimensions, if any
-            intervals = [Interval(i, 0, 0) for i in idims]
             relations = (ispace0.itdimensions + idims,
                          idims + ispace1.itdimensions)
-            ispaceN = IterationSpace(IntervalGroup(intervals, relations=relations))
+            ispaceN = IterationSpace(
+                IntervalGroup(intervals, relations=relations),
+                sub_iterators
+            )
 
             ispace = IterationSpace.union(ispace0, ispaceN)
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
-            ispace = IterationSpace.union(ispace0, ispaceN, ispace1)
+            ispace = IterationSpace.union(c.ispace, ispaceN)
             processed.append(c.rebuild(ispace=ispace))
 
         return processed

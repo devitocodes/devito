@@ -610,13 +610,6 @@ class MultiSubDomain(AbstractSubDomain):
         """
         raise NotImplementedError
 
-    @property
-    def implicit_dimensions(self):
-        """
-        The Dimensions implicitly defined by the MultiSubDomain.
-        """
-        return ()
-
 
 class SubDomainSet(MultiSubDomain):
     """
@@ -782,10 +775,6 @@ class SubDomainSet(MultiSubDomain):
     @property
     def bounds(self):
         return self._local_bounds
-
-    @property
-    def implicit_dimensions(self):
-        return (self.implicit_dimension,)
 
 
 # Preset SubDomains
