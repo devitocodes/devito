@@ -48,6 +48,9 @@ class LowerMultiSubDimensions(Queue):
         Cluster([Eq(f[t1, xi_n, yi_n], f[t0, xi_n, yi_n] + 1)])
     """
 
+    def _make_key_hook(self, cluster, level):
+        return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
+
     def callback(self, clusters, prefix):
         try:
             dd = prefix[-1].dim

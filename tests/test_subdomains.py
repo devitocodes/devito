@@ -5,8 +5,8 @@ from math import floor
 from sympy import sin, tan
 
 from conftest import opts_tiling, assert_structure
-from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
-                    SubDomainSet, Dimension)
+from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
+                    Eq, solve, Operator, SubDomain, SubDomainSet, Dimension)
 from devito.ir import FindNodes, Expression
 from devito.tools import timed_region
 
@@ -571,6 +571,36 @@ class TestSubDomainSet(object):
 
         assert_structure(op, ['t,n', 't,n,xi_n,yi_n', 't,n,xi_n,yi_n'],
                          't,n,xi_n,yi_n,xi_n,yi_n')
+
+    def test_guarding(self):
+        n = Dimension(name='n')
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+            implicit_dimension = n
+
+        dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+        time = grid.time_dim
+
+        c = Constant(name='c')
+        cond_a = ConditionalDimension(name='cond_a', parent=time, condition=c < 1.)
+        cond_b = ConditionalDimension(name='cond_b', parent=time, condition=c >= 1.)
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        eqns = [Eq(f.forward, f + 1., subdomain=dummy, implicit_dims=[cond_a]),
+                Eq(g.forward, g + 1., subdomain=dummy, implicit_dims=[cond_b])]
+
+        op = Operator(eqns)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
+        assert_structure(op, ['t', 't,n', 't,n,xi_n,yi_n', 't,n', 't,n,xi_n,yi_n'],
+                         't,n,xi_n,yi_n,n,xi_n,yi_n')
 
     def test_3D(self):
 
