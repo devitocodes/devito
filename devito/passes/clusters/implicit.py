@@ -51,14 +51,15 @@ class LowerMultiSubDimensions(Queue):
         if not prefix:
             return clusters
 
-        d = prefix[-1].dim
+        dd = prefix[-1].dim
         try:
             pd = prefix[-2].dim
         except IndexError:
             pd = None
 
         # The bulk of the pass is done by the first MultiSubDimension
-        if not isinstance(d, MultiSubDimension) or isinstance(pd, MultiSubDimension):
+        d = msdim(dd)
+        if d is None or msdim(pd):
             return clusters
 
         # The implicit objects induced by the MultiSubDomain
@@ -71,8 +72,9 @@ class LowerMultiSubDimensions(Queue):
             # between the MultiSubDimensions and the outer Dimensions. We then
             # decouple the IterationSpace into two parts -- before and after the
             # first MultiSubDimension
-            ispace0 = c.ispace.project(lambda i: not isinstance(i, MultiSubDimension))
-            ispace1 = c.ispace.project(lambda i: isinstance(i, MultiSubDimension))
+            idx = c.ispace.index(dd)
+            ispace0 = c.ispace[:idx]
+            ispace1 = c.ispace[idx:]
 
             # The local IterationSpace of the implicit Dimensions, if any
             intervals = [Interval(i, 0, 0) for i in idims]
@@ -87,3 +89,16 @@ class LowerMultiSubDimensions(Queue):
             processed.append(c.rebuild(ispace=ispace))
 
         return processed
+
+
+# Utils
+
+
+def msdim(d):
+    try:
+        for i in d._defines:
+            if isinstance(i, MultiSubDimension):
+                return i
+    except AttributeError:
+        pass
+    return None

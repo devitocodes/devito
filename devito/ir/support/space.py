@@ -730,7 +730,11 @@ class IterationSpace(Space):
                      self.directions))
 
     def __getitem__(self, key):
-        return self.intervals[key]
+        retval = self.intervals[key]
+        if isinstance(key, slice):
+            return self.project(lambda d: d in retval.dimensions)
+        else:
+            return retval
 
     @classmethod
     def union(cls, *others):
@@ -759,6 +763,9 @@ class IterationSpace(Space):
                 ret.extend([d for d in v if d not in ret])
 
         return IterationSpace(intervals, sub_iterators, directions)
+
+    def index(self, key):
+        return self.intervals.index(key)
 
     def add(self, other):
         return IterationSpace(self.intervals.add(other), self.sub_iterators,

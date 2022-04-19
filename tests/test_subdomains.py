@@ -162,6 +162,9 @@ class TestSubdomains(object):
 
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
 
+
+class TestSubDomainSet(object):
+
     @pytest.mark.parametrize('opt', opts_tiling)
     def test_iterate_NDomains(self, opt):
         """
@@ -540,3 +543,24 @@ class TestSubdomains(object):
         assert_structure(op, ['x,y', 't,m', 't,m,xi_m,yi_m',
                               't,n', 't,n,xi_n,yi_n', 't,m', 't,m,xi_m,yi_m'],
                          'x,y,t,m,xi_m,yi_m,n,xi_n,yi_n,m,xi_m,yi_m')
+
+    def test_3D(self):
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+
+        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()])
+
+        grid = Grid(shape=(10, 10, 10), subdomains=(dummy,))
+
+        f = TimeFunction(name='f', grid=grid)
+
+        eqn = Eq(f.forward, f + 1, subdomain=grid.subdomains['dummy'])
+
+        op = Operator(eqn)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
+        assert_structure(op, ['t,n', 't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n'],
+                         't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n')
