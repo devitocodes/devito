@@ -544,6 +544,34 @@ class TestSubDomainSet(object):
                               't,n', 't,n,xi_n,yi_n', 't,m', 't,m,xi_m,yi_m'],
                          'x,y,t,m,xi_m,yi_m,n,xi_n,yi_n,m,xi_m,yi_m')
 
+    def test_issue_1761_d(self):
+        """
+        Follow-up of test test_issue_1761_b. CIRE creates an equation, and the
+        creation of the implicit equations needs to be such that no redundant
+        thickness assignments are generated.
+        """
+        n = Dimension(name='n')
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+            implicit_dimension = n
+
+        dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        eqn = Eq(f.forward, f.dx.dx + 1, subdomain=grid.subdomains['dummy'])
+
+        op = Operator(eqn)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
+        assert_structure(op, ['t,n', 't,n,xi_n,yi_n', 't,n,xi_n,yi_n'],
+                         't,n,xi_n,yi_n,xi_n,yi_n')
+
     def test_3D(self):
 
         class Dummy(SubDomainSet):

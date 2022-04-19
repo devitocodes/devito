@@ -49,38 +49,41 @@ class LowerMultiSubDimensions(Queue):
     """
 
     def callback(self, clusters, prefix):
-        if not prefix:
-            return clusters
-
-        dd = prefix[-1].dim
         try:
-            pd = prefix[-2].dim
+            dd = prefix[-1].dim
         except IndexError:
-            pd = None
+            dd = None
 
-        # The bulk of the pass is done by the first MultiSubDimension
-        d = msdim(dd)
-        if d is None or msdim(pd):
+        # The non-MultiSubDimension closest to a MultiSubDimension triggers
+        # the pass. For example, `t` in an `t, xi_n, yi_n` iteration space
+        if msdim(dd):
             return clusters
 
-        # The implicit expressions introduced by the MultiSubDomain
-        exprs = d.msd._implicit_exprs
-
-        # The implicit Dimensions and iterators induced by the MultiSubDomain
-        dims = filter_ordered(retrieve_dimensions(exprs, deep=True))
-        idims = tuple(i for i in dims if not i.is_SubIterator)
-        intervals = [Interval(i, 0, 0) for i in idims]
-        sub_iterators = {i.root: i for i in dims if i.is_SubIterator}
-
+        tip = None
         processed = []
         for c in clusters:
-            # We ultimately need to inject the implicit Dimensions, if any, in
-            # between the MultiSubDimensions and the outer Dimensions. We then
-            # decouple the IterationSpace into two parts -- before and after the
-            # first MultiSubDimension
+            try:
+                idx = len(prefix)
+                dd = c.ispace[idx].dim
+                d = msdim(dd)
+            except IndexError:
+                d = None
+            if d is None:
+                processed.append(c)
+                continue
+
             idx = c.ispace.index(dd)
             ispace0 = c.ispace[:idx]
             ispace1 = c.ispace[idx:]
+
+            # The implicit expressions introduced by the MultiSubDomain
+            exprs = d.msd._implicit_exprs
+
+            # The implicit Dimensions and iterators induced by the MultiSubDomain
+            dims = filter_ordered(retrieve_dimensions(exprs, deep=True))
+            idims = tuple(i for i in dims if not i.is_SubIterator)
+            intervals = [Interval(i, 0, 0) for i in idims]
+            sub_iterators = {i.root: i for i in dims if i.is_SubIterator}
 
             # The local IterationSpace of the implicit Dimensions, if any
             relations = (ispace0.itdimensions + idims,
@@ -90,8 +93,10 @@ class LowerMultiSubDimensions(Queue):
                 sub_iterators
             )
 
-            ispace = IterationSpace.union(ispace0, ispaceN)
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+            if tip is None or tip != ispaceN:
+                ispace = IterationSpace.union(ispace0, ispaceN)
+                processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+                tip = ispaceN
 
             ispace = IterationSpace.union(c.ispace, ispaceN)
             processed.append(c.rebuild(ispace=ispace))
