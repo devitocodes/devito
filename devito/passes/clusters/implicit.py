@@ -2,7 +2,7 @@
 Passes to gather and form implicit equations from MultiSubDomains.
 """
 
-from devito.ir import Interval, IntervalGroup, IterationSpace, Queue
+from devito.ir import Cluster, Interval, IntervalGroup, IterationSpace, Queue
 from devito.symbolics import retrieve_dimensions
 from devito.tools import filter_ordered, timed_pass
 from devito.types.grid import MultiSubDimension
@@ -48,9 +48,6 @@ class LowerMultiSubDimensions(Queue):
         Cluster([Eq(f[t1, xi_n, yi_n], f[t0, xi_n, yi_n] + 1)])
     """
 
-    def _make_key_hook(self, cluster, level):
-        return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
-
     def callback(self, clusters, prefix):
         try:
             dd = prefix[-1].dim
@@ -62,7 +59,9 @@ class LowerMultiSubDimensions(Queue):
         if msdim(dd):
             return clusters
 
+        seen = set()
         tip = None
+
         processed = []
         for c in clusters:
             try:
@@ -96,15 +95,29 @@ class LowerMultiSubDimensions(Queue):
                 sub_iterators
             )
 
-            if tip is None or tip != ispaceN:
-                ispace = IterationSpace.union(ispace0, ispaceN)
-                processed.append(c.rebuild(exprs=exprs, ispace=ispace))
-                tip = ispaceN
+            ispace = IterationSpace.union(ispace0, ispaceN)
+            if len(ispaceN) == 0:
+                # Special case: we can factorize the thickness assignments
+                # once and for all at the top of the current IterationInterval
+                if ispaceN not in seen:
+                    processed.insert(0, Cluster(exprs, ispace))
+                    seen.add(ispaceN)
+            else:
+                nxt = self._make_tip(c, ispaceN)
+                if tip is None or tip != nxt:
+                    processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+                    tip = nxt
+                else:
+                    # Special case: we're reusing the previously constructed ispaceN
+                    pass
 
             ispace = IterationSpace.union(c.ispace, ispaceN)
             processed.append(c.rebuild(ispace=ispace))
 
         return processed
+
+    def _make_tip(self, c, ispaceN):
+        return (c.guards, c.syncs, ispaceN)
 
 
 # Utils
