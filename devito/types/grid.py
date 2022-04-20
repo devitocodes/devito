@@ -543,6 +543,12 @@ class MultiSubDimension(SubDimension):
     """
 
     def __init_finalize__(self, name, parent, msd):
+        # NOTE: a MultiSubDimension stashes a reference to the originating MultiSubDomain.
+        # This creates a circular pattern as the `msd` itself carries references to
+        # its MultiSubDimensions. This is currently necessary because during compilation
+        # we drop the MultiSubDomain early, but when the MultiSubDimensions are processed
+        # we still need it to create the implicit equations. Untangling this is
+        # definitely possible, but not straightforward
         self.msd = msd
 
         lst, rst = self._symbolic_thickness(name)

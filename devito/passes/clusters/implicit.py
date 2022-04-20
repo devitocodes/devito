@@ -4,7 +4,7 @@ Passes to gather and form implicit equations from MultiSubDomains.
 
 from devito.ir import Cluster, Interval, IntervalGroup, IterationSpace, Queue
 from devito.symbolics import retrieve_dimensions
-from devito.tools import filter_ordered, timed_pass
+from devito.tools import filter_sorted, timed_pass
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['generate_implicit']
@@ -59,13 +59,14 @@ class LowerMultiSubDimensions(Queue):
         if msdim(dd):
             return clusters
 
+        idx = len(prefix)
+
         seen = set()
         tip = None
 
         processed = []
         for c in clusters:
             try:
-                idx = len(prefix)
                 dd = c.ispace[idx].dim
                 d = msdim(dd)
             except IndexError:
@@ -82,7 +83,9 @@ class LowerMultiSubDimensions(Queue):
             exprs = d.msd._implicit_exprs
 
             # The implicit Dimensions and iterators induced by the MultiSubDomain
-            dims = filter_ordered(retrieve_dimensions(exprs, deep=True))
+            # NOTE: `filter_sorted` is for deterministic code generation, should
+            # there ever be a crazy MultiSubDomain with multiple implicit Dimensions
+            dims = filter_sorted(retrieve_dimensions(exprs, deep=True))
             idims = tuple(i for i in dims if not i.is_SubIterator)
             intervals = [Interval(i, 0, 0) for i in idims]
             sub_iterators = {i.root: i for i in dims if i.is_SubIterator}
