@@ -551,12 +551,22 @@ class MultiSubDimension(SubDimension):
 
         super().__init_finalize__(name, parent, left, right, ((lst, 0), (rst, 0)), False)
 
+    def __hash__(self):
+        # There is no possibility for two MultiSubDimensions to ever hash the same, since
+        # a MultiSubDimension carries a reference to a MultiSubDomain, which is unique
+        return id(self)
+
 
 class MultiSubDomain(AbstractSubDomain):
 
     """
     Abstract base class for types representing groups of SubDomains.
     """
+
+    def __hash__(self):
+        # There is no possibility for two MultiSubDomains to ever hash the same since
+        # they are by construction unique and different from each other
+        return id(self)
 
     @classmethod
     def _bounds_glb_to_loc(cls, dec, m, M):
