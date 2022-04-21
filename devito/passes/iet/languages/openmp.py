@@ -148,12 +148,14 @@ class OmpBB(PragmaLangBB):
             c.Pragma('omp target update from(%s%s)' % (i, j)),
         'map-update-device': lambda i, j:
             c.Pragma('omp target update to(%s%s)' % (i, j)),
-        'map-release': lambda i, j, k:
-            c.Pragma('omp target exit data map(release: %s%s)%s'
-                     % (i, j, k)),
-        'map-exit-delete': lambda i, j, k:
-            c.Pragma('omp target exit data map(delete: %s%s)%s'
-                     % (i, j, k)),
+        'map-release': lambda i, j:
+            c.Pragma('omp target exit data map(release: %s%s)' % (i, j)),
+        'map-release-if': lambda i, j, k:
+            c.Pragma('omp target exit data map(release: %s%s) if(%s)' % (i, j, k)),
+        'map-exit-delete': lambda i, j:
+            c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
+        'map-exit-delete-if': lambda i, j, k:
+            c.Pragma('omp target exit data map(delete: %s%s) if(%s)' % (i, j, k)),
         'memcpy-to-device': lambda i, j, k:
             Call('omp_target_memcpy', [i, j, k, 0, 0,
                                        DefFunction('omp_get_device_num'),
