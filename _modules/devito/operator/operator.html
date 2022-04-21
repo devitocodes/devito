@@ -82,7 +82,7 @@
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="kn">import</span> <span class="n">default_allocator</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="kn">import</span> <span class="n">InvalidOperator</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
-<span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span><span class="p">,</span> <span class="n">lower_exprs</span><span class="p">,</span> <span class="n">generate_implicit_exprs</span>
+<span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="kn">import</span> <span class="n">LoweredEq</span><span class="p">,</span> <span class="n">lower_exprs</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="kn">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">clusterize</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">CInterface</span><span class="p">,</span> <span class="n">EntryFunction</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span>
                            <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">)</span>
@@ -92,7 +92,7 @@
 <span class="kn">from</span> <span class="nn">devito.operator.symbols</span> <span class="kn">import</span> <span class="n">SymbolRegistry</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.passes</span> <span class="kn">import</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">instrument</span>
+<span class="kn">from</span> <span class="nn">devito.passes</span> <span class="kn">import</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">generate_implicit</span><span class="p">,</span> <span class="n">instrument</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">estimate_cost</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">DAG</span><span class="p">,</span> <span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span>
                           <span class="n">split</span><span class="p">,</span> <span class="n">timed_pass</span><span class="p">,</span> <span class="n">timed_region</span><span class="p">)</span>
@@ -337,7 +337,6 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Expression lowering:</span>
 
-<span class="sd">            * Form and gather any required implicit expressions;</span>
 <span class="sd">            * Apply rewrite rules;</span>
 <span class="sd">            * Evaluate derivatives;</span>
 <span class="sd">            * Flatten vectorial equations;</span>
@@ -345,9 +344,6 @@
 <span class="sd">            * Apply substitution rules;</span>
 <span class="sd">            * Shift indices for domain alignment.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Add in implicit expressions</span>
-        <span class="n">expressions</span> <span class="o">=</span> <span class="n">generate_implicit_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
-
         <span class="c1"># Specialization is performed on unevaluated expressions</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_specialize_dsl</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
@@ -384,6 +380,7 @@
 <span class="sd">            * Introduce guards for conditional Clusters;</span>
 <span class="sd">            * Analyze Clusters to detect computational properties such</span>
 <span class="sd">              as parallelism.</span>
+<span class="sd">            * Optimize Clusters for performance</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Build a sequence of Clusters from a sequence of Eqs</span>
         <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -396,6 +393,9 @@
         <span class="c1"># Operation count after specialization</span>
         <span class="n">final_ops</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">estimate_cost</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">is_dense</span><span class="p">)</span>
         <span class="n">profiler</span><span class="o">.</span><span class="n">record_ops_variation</span><span class="p">(</span><span class="n">init_ops</span><span class="p">,</span> <span class="n">final_ops</span><span class="p">)</span>
+
+        <span class="c1"># Generate implicit Clusters from higher level abstractions</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="n">generate_implicit</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 

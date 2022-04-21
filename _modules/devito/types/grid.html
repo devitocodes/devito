@@ -614,12 +614,25 @@
 <span class="sd">    A special SubDimension for graceful lowering of MultiSubDomains.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">msd</span><span class="p">):</span>
+        <span class="c1"># NOTE: a MultiSubDimension stashes a reference to the originating MultiSubDomain.</span>
+        <span class="c1"># This creates a circular pattern as the `msd` itself carries references to</span>
+        <span class="c1"># its MultiSubDimensions. This is currently necessary because during compilation</span>
+        <span class="c1"># we drop the MultiSubDomain early, but when the MultiSubDimensions are processed</span>
+        <span class="c1"># we still need it to create the implicit equations. Untangling this is</span>
+        <span class="c1"># definitely possible, but not straightforward</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">msd</span> <span class="o">=</span> <span class="n">msd</span>
+
         <span class="n">lst</span><span class="p">,</span> <span class="n">rst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_symbolic_thickness</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="n">left</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">+</span> <span class="n">lst</span>
         <span class="n">right</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="n">rst</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># There is no possibility for two MultiSubDimensions to ever hash the same, since</span>
+        <span class="c1"># a MultiSubDimension carries a reference to a MultiSubDomain, which is unique</span>
+        <span class="k">return</span> <span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
 
 <span class="k">class</span> <span class="nc">MultiSubDomain</span><span class="p">(</span><span class="n">AbstractSubDomain</span><span class="p">):</span>
@@ -627,6 +640,11 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Abstract base class for types representing groups of SubDomains.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># There is no possibility for two MultiSubDomains to ever hash the same since</span>
+        <span class="c1"># they are by construction unique and different from each other</span>
+        <span class="k">return</span> <span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_bounds_glb_to_loc</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">M</span><span class="p">):</span>
@@ -673,18 +691,12 @@
 
         <span class="k">return</span> <span class="n">bounds_m</span><span class="p">,</span> <span class="n">bounds_M</span>
 
-    <span class="k">def</span> <span class="nf">_create_implicit_exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_implicit_exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Must be overridden by subclasses.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">implicit_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The Dimensions implicitly defined by the MultiSubDomain.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">()</span>
 
 
 <span class="k">class</span> <span class="nc">SubDomainSet</span><span class="p">(</span><span class="n">MultiSubDomain</span><span class="p">):</span>
@@ -774,11 +786,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_global_bounds</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;bounds&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__subdomain_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="n">grid</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dtype</span>
 
         <span class="c1"># Create the SubDomainSet SubDimensions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
-            <span class="n">MultiSubDimension</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">i_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">d</span><span class="p">)</span>
+            <span class="n">MultiSubDimension</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">i_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">d</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
         <span class="p">)</span>
 
@@ -811,12 +824,15 @@
             <span class="c1"># equivalent.</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_local_bounds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_global_bounds</span>
 
-    <span class="k">def</span> <span class="nf">_create_implicit_exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_implicit_exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_bounds</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Left and right bounds must be supplied for each dimension&quot;</span><span class="p">)</span>
+
         <span class="n">n_domains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_domains</span>
         <span class="n">i_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span>
         <span class="n">dat</span> <span class="o">=</span> <span class="p">[]</span>
+
         <span class="c1"># Organise the data contained in &#39;bounds&#39; into a form such that the</span>
         <span class="c1"># associated implicit equations can easily be created.</span>
         <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_bounds</span><span class="p">)):</span>
@@ -826,15 +842,18 @@
                 <span class="n">fname</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">min_name</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">fname</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">max_name</span>
-            <span class="n">func</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">fname</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_domains</span><span class="p">,</span> <span class="p">),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i_dim</span><span class="p">,</span> <span class="p">),</span>
-                            <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">fname</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_domains</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i_dim</span><span class="p">,),</span>
+                            <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
             <span class="c1"># Check if shorthand notation has been provided:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_bounds</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="nb">int</span><span class="p">):</span>
                 <span class="n">bounds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_domains</span><span class="p">,),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_bounds</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
                 <span class="n">func</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">bounds</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">func</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_bounds</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+
             <span class="n">dat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">thickness</span><span class="p">[</span><span class="n">j</span> <span class="o">%</span> <span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">func</span><span class="p">[</span><span class="n">i_dim</span><span class="p">]))</span>
+
         <span class="k">return</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span>
 
     <span class="nd">@property</span>
@@ -844,10 +863,6 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_bounds</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">implicit_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span><span class="p">,)</span>
 
 
 <span class="c1"># Preset SubDomains</span>
