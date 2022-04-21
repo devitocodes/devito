@@ -5,9 +5,8 @@ import numpy as np
 
 from devito.data import FULL
 from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
-                       PragmaTransfer, FindNodes, FindSymbols, Transformer, Uxreplace)
+                       Transfer, FindNodes, FindSymbols, Transformer, Uxreplace)
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.parpragma import PragmaLangBB
 from devito.symbolics import DefFunction, MacroArgument, ccode
 from devito.tools import Bunch, DefaultOrderedDict, filter_ordered, flatten, prod
 from devito.types import Array, Symbol, FIndexed, Indexed, Wildcard
@@ -241,14 +240,11 @@ def linearize_transfers(iet, sregistry):
     candidates = {i.function for i in casts if i.flat is not None}
 
     mapper = {}
-    for n in FindNodes(PragmaTransfer).visit(iet):
+    for n in FindNodes(Transfer).visit(iet):
         if n.function not in candidates:
             continue
 
-        try:
-            imask0 = n.kwargs['imask']
-        except KeyError:
-            imask0 = []
+        imask0 = n.imask or []
 
         try:
             index = imask0.index(FULL)
@@ -276,8 +272,7 @@ def linearize_transfers(iet, sregistry):
                 name = sregistry.make_name(prefix='%s_ofs' % n.function.name)
                 wildcard = Wildcard(name=name, dtype=np.int32, is_const=True)
 
-                symsect = PragmaLangBB._make_symbolic_sections_from_imask(n.function,
-                                                                          imask)
+                symsect = n._rebuild(imask=imask).sections
                 assert len(symsect) == 1
                 start, _ = symsect[0]
                 exprs.append(DummyExpr(wildcard, start, init=True))

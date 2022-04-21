@@ -16,16 +16,16 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import (AbstractFunction, AbstractSymbol, Indexed,
-                                LocalObject, Symbol)
+from devito.types.basic import AbstractFunction, AbstractSymbol
+from devito.types import Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree', 'Definition',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return',
            'While', 'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
-           'SyncSpot', 'Pragma', 'PragmaTransfer', 'DummyExpr', 'BlankLine',
-           'ParallelTree', 'BusyWait', 'CallableBody']
+           'SyncSpot', 'Pragma', 'DummyExpr', 'BlankLine', 'ParallelTree',
+           'BusyWait', 'CallableBody', 'Transfer']
 
 # First-class IET nodes
 
@@ -1069,51 +1069,36 @@ class Prodder(Call):
 class Pragma(Node):
 
     """
-    One or more pragmas floating in the IET.
+    One or more pragmas floating in the IET constructed through a callback.
     """
 
-    def __init__(self, pragmas):
+    def __init__(self, callback, arguments=None):
         super().__init__()
-        self.pragmas = as_tuple(pragmas)
+
+        self.callback = callback
+        self.arguments = as_tuple(arguments)
 
     def __repr__(self):
         return '<Pragmas>'
+
+    @cached_property
+    def pragmas(self):
+        return as_tuple(self.callback(*self.arguments))
 
 
 class Transfer(object):
 
     """
-    A mixin for nodes representing data transfers.
+    An interface for Nodes that represent host-device data transfers.
     """
-
-    pass
-
-
-class PragmaTransfer(Pragma, Transfer):
-
-    """
-    A data transfer between host and device expressed by means of one or more pragmas.
-    """
-
-    def __init__(self, callback, function, **kwargs):
-        super().__init__(callback(function, **kwargs))
-        self.callback = callback
-        self.function = function
-        self.kwargs = kwargs
 
     @property
-    def functions(self):
-        return (self.function,)
+    def function(self):
+        raise NotImplementedError
 
-    @cached_property
-    def expr_symbols(self):
-        retval = [self.function.indexed]
-        for i in flatten(self.kwargs.items()):
-            try:
-                retval.extend(i.free_symbols)
-            except AttributeError:
-                pass
-        return tuple(retval)
+    @property
+    def imask(self):
+        raise NotImplementedError
 
 
 class ParallelIteration(Iteration):
