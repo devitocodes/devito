@@ -542,12 +542,25 @@ class MultiSubDimension(SubDimension):
     A special SubDimension for graceful lowering of MultiSubDomains.
     """
 
-    def __init_finalize__(self, name, parent):
+    def __init_finalize__(self, name, parent, msd):
+        # NOTE: a MultiSubDimension stashes a reference to the originating MultiSubDomain.
+        # This creates a circular pattern as the `msd` itself carries references to
+        # its MultiSubDimensions. This is currently necessary because during compilation
+        # we drop the MultiSubDomain early, but when the MultiSubDimensions are processed
+        # we still need it to create the implicit equations. Untangling this is
+        # definitely possible, but not straightforward
+        self.msd = msd
+
         lst, rst = self._symbolic_thickness(name)
         left = parent.symbolic_min + lst
         right = parent.symbolic_max - rst
 
         super().__init_finalize__(name, parent, left, right, ((lst, 0), (rst, 0)), False)
+
+    def __hash__(self):
+        # There is no possibility for two MultiSubDimensions to ever hash the same, since
+        # a MultiSubDimension carries a reference to a MultiSubDomain, which is unique
+        return id(self)
 
 
 class MultiSubDomain(AbstractSubDomain):
@@ -555,6 +568,11 @@ class MultiSubDomain(AbstractSubDomain):
     """
     Abstract base class for types representing groups of SubDomains.
     """
+
+    def __hash__(self):
+        # There is no possibility for two MultiSubDomains to ever hash the same since
+        # they are by construction unique and different from each other
+        return id(self)
 
     @classmethod
     def _bounds_glb_to_loc(cls, dec, m, M):
@@ -601,18 +619,12 @@ class MultiSubDomain(AbstractSubDomain):
 
         return bounds_m, bounds_M
 
-    def _create_implicit_exprs(self, grid):
+    @property
+    def _implicit_exprs(self):
         """
         Must be overridden by subclasses.
         """
         raise NotImplementedError
-
-    @property
-    def implicit_dimensions(self):
-        """
-        The Dimensions implicitly defined by the MultiSubDomain.
-        """
-        return ()
 
 
 class SubDomainSet(MultiSubDomain):
@@ -702,11 +714,12 @@ class SubDomainSet(MultiSubDomain):
         self._global_bounds = kwargs.get('bounds', None)
 
     def __subdomain_finalize__(self, grid, **kwargs):
+        self._grid = grid
         self._dtype = grid.dtype
 
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si_%s' % (d.name, self.implicit_dimension.name), d)
+            MultiSubDimension('%si_%s' % (d.name, self.implicit_dimension.name), d, self)
             for d in grid.dimensions
         )
 
@@ -739,12 +752,15 @@ class SubDomainSet(MultiSubDomain):
             # equivalent.
             self._local_bounds = self._global_bounds
 
-    def _create_implicit_exprs(self, grid):
+    @cached_property
+    def _implicit_exprs(self):
         if not len(self._local_bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
+
         n_domains = self.n_domains
         i_dim = self.implicit_dimension
         dat = []
+
         # Organise the data contained in 'bounds' into a form such that the
         # associated implicit equations can easily be created.
         for j in range(len(self._local_bounds)):
@@ -754,15 +770,18 @@ class SubDomainSet(MultiSubDomain):
                 fname = d.min_name
             else:
                 fname = d.max_name
-            func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ),
-                            grid=grid, dtype=np.int32)
+            func = Function(name=fname, shape=(n_domains,), dimensions=(i_dim,),
+                            grid=self._grid, dtype=np.int32)
+
             # Check if shorthand notation has been provided:
             if isinstance(self._local_bounds[j], int):
                 bounds = np.full((n_domains,), self._local_bounds[j], dtype=np.int32)
                 func.data[:] = bounds
             else:
                 func.data[:] = self._local_bounds[j]
+
             dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
+
         return as_tuple(dat)
 
     @property
@@ -772,10 +791,6 @@ class SubDomainSet(MultiSubDomain):
     @property
     def bounds(self):
         return self._local_bounds
-
-    @property
-    def implicit_dimensions(self):
-        return (self.implicit_dimension,)
 
 
 # Preset SubDomains

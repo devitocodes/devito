@@ -4,6 +4,8 @@ import weakref
 import sympy
 from sympy.core import cache
 
+from devito.tools import safe_dict_copy
+
 
 __all__ = ['Cached', '_SymbolCache', 'CacheManager']
 
@@ -161,11 +163,7 @@ class CacheManager(object):
 
         # Take a copy of the dictionary so we can safely iterate over it
         # even if another thread is making changes
-
-        # mydict.copy() is safer than list(mydict) for getting an unchanging list
-        # See https://bugs.python.org/issue40327 for terrifying discussion
-        # on this issue.
-        cache_copied = _SymbolCache.copy()
+        cache_copied = safe_dict_copy(_SymbolCache)
 
         # Maybe trigger garbage collection
         if force is False:
