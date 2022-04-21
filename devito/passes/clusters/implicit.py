@@ -103,7 +103,13 @@ class LowerMultiSubDimensions(Queue):
                 # Special case: we can factorize the thickness assignments
                 # once and for all at the top of the current IterationInterval
                 if ispaceN not in seen:
-                    processed.insert(0, Cluster(exprs, ispace))
+                    # Retain the guards and the syncs along the outer Dimensions
+                    guards = dict(c.guards)
+                    syncs = dict(c.syncs)
+                    for i in c.ispace[idx-1:]:
+                        guards.pop(i.dim, None)
+                        syncs.pop(i.dim, None)
+                    processed.insert(0, Cluster(exprs, ispace, guards, syncs=syncs))
                     seen.add(ispaceN)
             else:
                 nxt = self._make_tip(c, ispaceN)
