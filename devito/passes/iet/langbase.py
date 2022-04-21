@@ -48,10 +48,10 @@ class LangBB(object, metaclass=LangMeta):
 
     @classmethod
     def _make_symbolic_sections_from_imask(cls, f, imask):
-        datashape = infer_transfer_datashape(f)
-
         if imask is None:
-            imask = [FULL]*len(datashape)
+            imask = [FULL]*f.ndim
+
+        datashape = infer_transfer_datashape(f, imask)
 
         sections = []
         for i, j in zip(imask, datashape):
