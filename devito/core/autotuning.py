@@ -127,6 +127,9 @@ def autotune(operator, args, level, mode):
             run = [(k, v) for k, v in bs + nt if k in at_args]
             at_args.update(dict(run))
 
+            if run[0][0] == 'time0_blk0_size' and (run[0][1] < 63 or run[0][1] > 65):
+                continue
+
             # Drop run if not at least one block per thread
             if not configuration['develop-mode'] and nblocks_per_thread.subs(at_args) < 1:
                 continue
@@ -144,7 +147,7 @@ def autotune(operator, args, level, mode):
             update_time_bounds(stepper, at_args, timesteps, mode)
             timer.reset()
 
-    # The best variant is the one that for a given number of threads had the minium
+    # The best variant is the one that for a given number of threads had the minimum
     # turnaround time
     try:
         runs = 0
@@ -377,8 +380,8 @@ def generate_nthreads(nthreads, args, level):
 
 options = {
     'squeezer': 4,
-    'blocksize-l0': (8, 16, 24, 32, 64, 96, 128),
-    'blocksize-l1': (8, 16, 32),
+    'blocksize-l0': (8, 16, 24, 32, 64),
+    'blocksize-l1': (4, 8, 16, 32),
 }
 """Autotuning options."""
 

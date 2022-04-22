@@ -12,9 +12,9 @@ parser.add_argument("-d", "--shape", default=(11, 11, 11), type=int, nargs="+",
                     help="Number of grid points along each axis")
 parser.add_argument("-so", "--space_order", default=4,
                     type=int, help="Space order of the simulation")
-parser.add_argument("-to", "--time_order", default=1,
+parser.add_argument("-to", "--time_order", default=2,
                     type=int, help="Time order of the simulation")
-parser.add_argument("-nt", "--nt", default=40,
+parser.add_argument("-tn", "--tn", default=64,
                     type=int, help="Simulation time in millisecond")
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
@@ -22,7 +22,7 @@ args = parser.parse_args()
 
 
 nx, ny, nz = args.shape
-nt = args.nt
+tn = args.tn
 nu = .5
 dx = 2. / (nx - 1)
 dy = 2. / (ny - 1)
@@ -50,14 +50,14 @@ eq0 = Eq(u.forward, stencil)
 
 # List comprehension would need explicit locals/globals mappings to eval
 op0 = Operator(eq0, opt=('advanced'))
-op0.apply(time_M=nt, dt=dt)
+op0.apply(time_M=tn, dt=dt)
 norm_u = norm(u)
 u.data[:] = init_value
 
 op1 = Operator(eq0, opt=('advanced', {'skewing': True,
-                         'blocklevels': 2}))
+                         'blocklevels': args.blevels}))
 
-op1.apply(time_M=nt, dt=dt)
+op1.apply(time_M=tn, dt=dt)
 print(norm_u)
 print(norm(u))
 assert np.isclose(norm(u), norm_u, atol=1e-4, rtol=0)
