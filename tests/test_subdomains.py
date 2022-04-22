@@ -163,7 +163,7 @@ class TestSubdomains(object):
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
 
 
-class TestSubDomainSet(object):
+class TestMultiSubDomain(object):
 
     @pytest.mark.parametrize('opt', opts_tiling)
     def test_iterate_NDomains(self, opt):
@@ -625,9 +625,10 @@ class TestSubDomainSet(object):
 
     def test_sequential_implicit(self):
         """
-        Make sure implicit dimensions define sequential iteration spaces. This is for
-        performance and potentially for correctness too (e.g., canonical openmp loops
-        forbid subiterators, which could potentially be required by a MultiSubDomain).
+        Make sure the implicit dimensions of the MultiSubDomain define a sequential
+        iteration space. This is for performance and potentially for correctness too
+        (e.g., canonical openmp loops forbid subiterators, which could potentially be
+        required by a MultiSubDomain).
         """
 
         class Dummy(SubDomainSet):
@@ -644,7 +645,6 @@ class TestSubDomainSet(object):
         op = Operator(eqn)
 
         iterations = FindNodes(Iteration).visit(op)
-        assert len(iterations) == 5
         time, n, x, y, z = iterations
         assert time.is_Sequential
         assert n.is_Sequential
