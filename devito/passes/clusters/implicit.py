@@ -1,8 +1,9 @@
 """
-Passes to gather and form implicit equations from MultiSubDomains.
+Passes to gather and form implicit equations from DSL abstractions.
 """
 
-from devito.ir import Cluster, Interval, IntervalGroup, IterationSpace, Queue
+from devito.ir import (Cluster, Interval, IntervalGroup, IterationSpace, Queue,
+                       SEQUENTIAL)
 from devito.symbolics import retrieve_dimensions
 from devito.tools import filter_sorted, timed_pass
 from devito.types.grid import MultiSubDimension
@@ -75,9 +76,9 @@ class LowerMultiSubDimensions(Queue):
                 processed.append(c)
                 continue
 
-            idx = c.ispace.index(dd)
-            ispace0 = c.ispace[:idx]
-            ispace1 = c.ispace[idx:]
+            n = c.ispace.index(dd)
+            ispace0 = c.ispace[:n]
+            ispace1 = c.ispace[n:]
 
             # The implicit expressions introduced by the MultiSubDomain
             exprs = d.msd._implicit_exprs
@@ -99,20 +100,27 @@ class LowerMultiSubDimensions(Queue):
             )
 
             ispace = IterationSpace.union(ispace0, ispaceN)
+            properties = {i.dim: {SEQUENTIAL} for i in ispace}
             if len(ispaceN) == 0:
                 # Special case: we can factorize the thickness assignments
                 # once and for all at the top of the current IterationInterval
                 if ispaceN not in seen:
-                    processed.insert(0, Cluster(exprs, ispace))
+                    # Retain the guards and the syncs along the outer Dimensions
+                    retained = c.ispace[:n-1].dimensions
+                    guards = {d: v for d, v in c.guards.items() if d in retained}
+                    syncs = {d: v for d, v in c.syncs.items() if d in retained}
+
+                    processed.insert(
+                        0, Cluster(exprs, ispace, guards, properties, syncs)
+                    )
                     seen.add(ispaceN)
             else:
                 nxt = self._make_tip(c, ispaceN)
                 if tip is None or tip != nxt:
-                    processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+                    processed.append(
+                        c.rebuild(exprs=exprs, ispace=ispace, properties=properties)
+                    )
                     tip = nxt
-                else:
-                    # Special case: we're reusing the previously constructed ispaceN
-                    pass
 
             ispace = IterationSpace.union(c.ispace, ispaceN)
             processed.append(c.rebuild(ispace=ispace))
