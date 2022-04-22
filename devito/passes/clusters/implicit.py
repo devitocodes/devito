@@ -76,9 +76,9 @@ class LowerMultiSubDimensions(Queue):
                 processed.append(c)
                 continue
 
-            idx = c.ispace.index(dd)
-            ispace0 = c.ispace[:idx]
-            ispace1 = c.ispace[idx:]
+            n = c.ispace.index(dd)
+            ispace0 = c.ispace[:n]
+            ispace1 = c.ispace[n:]
 
             # The implicit expressions introduced by the MultiSubDomain
             exprs = d.msd._implicit_exprs
@@ -106,11 +106,9 @@ class LowerMultiSubDimensions(Queue):
                 # once and for all at the top of the current IterationInterval
                 if ispaceN not in seen:
                     # Retain the guards and the syncs along the outer Dimensions
-                    guards = dict(c.guards)
-                    syncs = dict(c.syncs)
-                    for i in c.ispace[idx-1:]:
-                        guards.pop(i.dim, None)
-                        syncs.pop(i.dim, None)
+                    retained = c.ispace[:n-1].dimensions
+                    guards = {d: v for d, v in c.guards.items() if d in retained}
+                    syncs = {d: v for d, v in c.syncs.items() if d in retained}
 
                     processed.insert(
                         0, Cluster(exprs, ispace, guards, properties, syncs)
