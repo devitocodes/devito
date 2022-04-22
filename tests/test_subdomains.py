@@ -7,7 +7,7 @@ from sympy import sin, tan
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
                     Eq, solve, Operator, SubDomain, SubDomainSet, Dimension)
-from devito.ir import FindNodes, Expression
+from devito.ir import FindNodes, Expression, Iteration
 from devito.tools import timed_region
 
 
@@ -622,3 +622,32 @@ class TestSubDomainSet(object):
 
         assert_structure(op, ['t,n', 't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n'],
                          't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n')
+
+    def test_sequential_implicit(self):
+        """
+        Make sure implicit dimensions define sequential iteration spaces. This is for
+        performance and potentially for correctness too (e.g., canonical openmp loops
+        forbid subiterators, which could potentially be required by a MultiSubDomain).
+        """
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+
+        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()])
+
+        grid = Grid(shape=(10, 10, 10), subdomains=(dummy,))
+
+        f = TimeFunction(name='f', grid=grid, save=10)
+
+        eqn = Eq(f, 1., subdomain=grid.subdomains['dummy'])
+
+        op = Operator(eqn)
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 5
+        time, n, x, y, z = iterations
+        assert time.is_Sequential
+        assert n.is_Sequential
+        assert x.is_Parallel
+        assert y.is_Parallel
+        assert z.is_Parallel

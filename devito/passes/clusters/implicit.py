@@ -1,8 +1,9 @@
 """
-Passes to gather and form implicit equations from MultiSubDomains.
+Passes to gather and form implicit equations from DSL abstractions.
 """
 
-from devito.ir import Cluster, Interval, IntervalGroup, IterationSpace, Queue
+from devito.ir import (Cluster, Interval, IntervalGroup, IterationSpace, Queue,
+                       SEQUENTIAL)
 from devito.symbolics import retrieve_dimensions
 from devito.tools import filter_sorted, timed_pass
 from devito.types.grid import MultiSubDimension
@@ -99,6 +100,7 @@ class LowerMultiSubDimensions(Queue):
             )
 
             ispace = IterationSpace.union(ispace0, ispaceN)
+            properties = {i.dim: {SEQUENTIAL} for i in ispace}
             if len(ispaceN) == 0:
                 # Special case: we can factorize the thickness assignments
                 # once and for all at the top of the current IterationInterval
@@ -109,16 +111,18 @@ class LowerMultiSubDimensions(Queue):
                     for i in c.ispace[idx-1:]:
                         guards.pop(i.dim, None)
                         syncs.pop(i.dim, None)
-                    processed.insert(0, Cluster(exprs, ispace, guards, syncs=syncs))
+
+                    processed.insert(
+                        0, Cluster(exprs, ispace, guards, properties, syncs)
+                    )
                     seen.add(ispaceN)
             else:
                 nxt = self._make_tip(c, ispaceN)
                 if tip is None or tip != nxt:
-                    processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+                    processed.append(
+                        c.rebuild(exprs=exprs, ispace=ispace, properties=properties)
+                    )
                     tip = nxt
-                else:
-                    # Special case: we're reusing the previously constructed ispaceN
-                    pass
 
             ispace = IterationSpace.union(c.ispace, ispaceN)
             processed.append(c.rebuild(ispace=ispace))
