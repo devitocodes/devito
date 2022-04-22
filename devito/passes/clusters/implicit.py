@@ -106,7 +106,7 @@ class LowerMultiSubDimensions(Queue):
                 # once and for all at the top of the current IterationInterval
                 if ispaceN not in seen:
                     # Retain the guards and the syncs along the outer Dimensions
-                    retained = c.ispace[:n-1].dimensions
+                    retained = {None} | set(c.ispace[:n-1].dimensions)
                     guards = {d: v for d, v in c.guards.items() if d in retained}
                     syncs = {d: v for d, v in c.syncs.items() if d in retained}
 
