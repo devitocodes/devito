@@ -310,6 +310,8 @@ class Operator(Callable):
               as parallelism.
             * Optimize Clusters for performance
         """
+        sregistry = kwargs['sregistry']
+
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions, **kwargs)
 
@@ -323,7 +325,7 @@ class Operator(Callable):
         profiler.record_ops_variation(init_ops, final_ops)
 
         # Generate implicit Clusters from higher level abstractions
-        clusters = generate_implicit(clusters)
+        clusters = generate_implicit(clusters, sregistry=sregistry)
 
         return ClusterGroup(clusters)
 

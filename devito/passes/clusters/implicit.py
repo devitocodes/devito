@@ -2,17 +2,22 @@
 Passes to gather and form implicit equations from DSL abstractions.
 """
 
+from functools import singledispatch
+from math import floor
+
+import numpy as np
+
 from devito.ir import (Cluster, Interval, IntervalGroup, IterationSpace, Queue,
                        SEQUENTIAL)
-from devito.symbolics import retrieve_dimensions
-from devito.tools import filter_sorted, timed_pass
-from devito.types.grid import MultiSubDimension
+from devito.tools import as_tuple, timed_pass
+from devito.types import Dimension, Eq, Function
+from devito.types.grid import MultiSubDimension, SubDomainSet
 
 __all__ = ['generate_implicit']
 
 
 @timed_pass()
-def generate_implicit(clusters):
+def generate_implicit(clusters, sregistry):
     """
     Create and add implicit expressions from high-level abstractions.
 
@@ -23,7 +28,7 @@ def generate_implicit(clusters):
 
         * MultiSubDomains attached to input equations.
     """
-    clusters = LowerMultiSubDimensions().process(clusters)
+    clusters = LowerMultiSubDimensions(sregistry).process(clusters)
 
     return clusters
 
@@ -49,6 +54,11 @@ class LowerMultiSubDimensions(Queue):
         Cluster([Eq(f[t1, xi_n, yi_n], f[t0, xi_n, yi_n] + 1)])
     """
 
+    def __init__(self, sregistry):
+        super().__init__()
+
+        self.sregistry = sregistry
+
     def callback(self, clusters, prefix):
         try:
             dd = prefix[-1].dim
@@ -65,6 +75,7 @@ class LowerMultiSubDimensions(Queue):
         seen = set()
         tip = None
 
+        mapper = {}
         processed = []
         for c in clusters:
             try:
@@ -80,20 +91,16 @@ class LowerMultiSubDimensions(Queue):
             ispace0 = c.ispace[:n]
             ispace1 = c.ispace[n:]
 
-            # The implicit expressions introduced by the MultiSubDomain
-            exprs = d.msd._implicit_exprs
+            # The "implicit expressions" created for the MultiSubDomain
+            try:
+                v = mapper[d.msd]
+            except KeyError:
+                v = mapper[d.msd] = make_implicit_exprs(d.msd, ispace0, self.sregistry)
+            exprs, dims, sub_iterators = v
 
-            # The implicit Dimensions and iterators induced by the MultiSubDomain
-            # NOTE: `filter_sorted` is for deterministic code generation, should
-            # there ever be a crazy MultiSubDomain with multiple implicit Dimensions
-            dims = filter_sorted(retrieve_dimensions(exprs, deep=True))
-            idims = tuple(i for i in dims if not i.is_SubIterator)
-            intervals = [Interval(i, 0, 0) for i in idims]
-            sub_iterators = {i.root: i for i in dims if i.is_SubIterator}
-
-            # The local IterationSpace of the implicit Dimensions, if any
-            relations = (ispace0.itdimensions + idims,
-                         idims + ispace1.itdimensions)
+            # The IterationSpace induced by the MultiSubDomain
+            intervals = [Interval(i, 0, 0) for i in dims]
+            relations = (ispace0.itdimensions + dims, dims + ispace1.itdimensions)
             ispaceN = IterationSpace(
                 IntervalGroup(intervals, relations=relations),
                 sub_iterators
@@ -131,9 +138,6 @@ class LowerMultiSubDimensions(Queue):
         return (c.guards, c.syncs, ispaceN)
 
 
-# Utils
-
-
 def msdim(d):
     try:
         for i in d._defines:
@@ -142,3 +146,39 @@ def msdim(d):
     except AttributeError:
         pass
     return None
+
+
+@singledispatch
+def make_implicit_exprs(msd, ispace, sregistry):
+    # Retval: (exprs, iteration dimensions, subiterators)
+    return (), (), {}
+
+
+@make_implicit_exprs.register(SubDomainSet)
+def _(msd, ispace, sregistry):
+    n_domains = msd.n_domains
+    i_dim = Dimension(name=sregistry.make_name(prefix='n'))
+
+    # Organise the data contained in 'bounds' into a form such that the
+    # associated implicit equations can easily be created.
+    ret = []
+    for j in range(len(msd._local_bounds)):
+        index = floor(j/2)
+        d = msd.dimensions[index]
+        if j % 2 == 0:
+            fname = "%s_%s" % (msd.name, d.min_name)
+        else:
+            fname = "%s_%s" % (msd.name, d.max_name)
+        f = Function(name=fname, shape=(n_domains,), dimensions=(i_dim,),
+                     grid=msd._grid, dtype=np.int32)
+
+        # Check if shorthand notation has been provided:
+        if isinstance(msd._local_bounds[j], int):
+            bounds = np.full((n_domains,), msd._local_bounds[j], dtype=np.int32)
+            f.data[:] = bounds
+        else:
+            f.data[:] = msd._local_bounds[j]
+
+        ret.append(Eq(d.thickness[j % 2][0], f[i_dim]))
+
+    return as_tuple(ret), (i_dim,), {}
