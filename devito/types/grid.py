@@ -1,5 +1,6 @@
 from abc import ABC
 from collections import namedtuple
+from math import floor
 
 import numpy as np
 from sympy import prod
@@ -11,6 +12,7 @@ from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
+from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
 
@@ -582,7 +584,7 @@ class MultiSubDomain(AbstractSubDomain):
         # of an MPI-decomposed local subdomain to 0 iterations, meaning that after
         # domain decomposition and for the given thicknesses there are 0 iterations
         # left to execute. However, due to issue #1766, we only have one choice, or
-        # SubDomainSets might break on GPUs
+        # MultiSubDomains might break on GPUs
         NOITER = (dec.loc_abs_max, 1)
 
         bounds_m = np.zeros(m.shape, dtype=m.dtype)
@@ -705,7 +707,7 @@ class SubDomainSet(MultiSubDomain):
         except AttributeError:
             pass
 
-    def __subdomain_finalize__(self, grid, **kwargs):
+    def __subdomain_finalize__(self, grid, counter=0, **kwargs):
         self._grid = grid
         self._dtype = grid.dtype
 
@@ -747,6 +749,32 @@ class SubDomainSet(MultiSubDomain):
         if len(self._local_bounds) != 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
 
+        # Associate the `_local_bounds` to suitable symbolic objects that the
+        # compiler can use to generate code
+        n = counter - npresets
+        assert n >= 0
+        self._implicit_dimension = i_dim = Dimension(name='n%d' % n)
+        functions = []
+        for j in range(len(self._local_bounds)):
+            index = floor(j/2)
+            d = self.dimensions[index]
+            if j % 2 == 0:
+                fname = "%s_%s" % (self.name, d.min_name)
+            else:
+                fname = "%s_%s" % (self.name, d.max_name)
+            f = Function(name=fname, grid=self._grid, shape=(self._n_domains,),
+                         dimensions=(i_dim,), dtype=np.int32)
+
+            # Check if shorthand notation has been provided:
+            if isinstance(self._local_bounds[j], int):
+                f.data[:] = np.full((self._n_domains,), self._local_bounds[j],
+                                    dtype=np.int32)
+            else:
+                f.data[:] = self._local_bounds[j]
+
+            functions.append(f)
+        self._functions = as_tuple(functions)
+
     @property
     def n_domains(self):
         return self._n_domains
@@ -781,3 +809,7 @@ class Interior(SubDomain):
 
     def define(self, dimensions):
         return {d: ('middle', 1, 1) for d in dimensions}
+
+
+preset_subdomains = [Domain, Interior]
+npresets = len(preset_subdomains)
