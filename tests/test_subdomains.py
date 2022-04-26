@@ -6,7 +6,7 @@ from sympy import sin, tan
 
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
-                    Eq, solve, Operator, SubDomain, SubDomainSet, Dimension)
+                    Eq, solve, Operator, SubDomain, SubDomainSet)
 from devito.ir import FindNodes, Expression, Iteration
 from devito.tools import timed_region
 
@@ -275,16 +275,11 @@ class TestMultiSubDomain(object):
         Ny = Nx
         n_domains = 2
 
-        n = Dimension(name='n')
-        m = Dimension(name='m')
-
         class MySubdomains1(SubDomainSet):
             name = 'mydomains1'
-            implicit_dimension = n
 
         class MySubdomains2(SubDomainSet):
             name = 'mydomains2'
-            implicit_dimension = m
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
@@ -381,16 +376,11 @@ class TestMultiSubDomain(object):
         Ny = Nx
         n_domains = 2
 
-        n = Dimension(name='n')
-        m = Dimension(name='m')
-
         class MySubdomains1(SubDomainSet):
             name = 'mydomains1'
-            implicit_dimension = n
 
         class MySubdomains2(SubDomainSet):
             name = 'mydomains2'
-            implicit_dimension = m
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
@@ -457,7 +447,7 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n', 't,n,xi_n,yi_n'], 'x,y,t,n,xi_n,yi_n')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,xi,yi'], 'x,y,t,n0,xi,yi')
 
     def test_issue_1761_b(self):
         """
@@ -468,18 +458,14 @@ class TestMultiSubDomain(object):
         one, since this is perfectly legal (just like what happens without
         MultiSubDomains in the way).
         """
-        n = Dimension(name='n')
-        m = Dimension(name='m')
 
         class DummySubdomains(SubDomainSet):
             name = 'dummydomain'
-            implicit_dimension = m
 
         dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
 
         class DummySubdomains2(SubDomainSet):
             name = 'dummydomain2'
-            implicit_dimension = n
 
         dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1))
 
@@ -500,26 +486,22 @@ class TestMultiSubDomain(object):
         op.cfunction
 
         assert_structure(op,
-                         ['x,y', 't,m', 't,m,xi_m,yi_m', 't,n', 't,n,xi_n,yi_n'],
-                         'x,y,t,m,xi_m,yi_m,n,xi_n,yi_n')
+                         ['x,y', 't,n0', 't,n0,xi,yi', 't,n1', 't,n1,xi,yi'],
+                         'x,y,t,n0,xi,yi,n1,xi,yi')
 
     def test_issue_1761_c(self):
         """
         Follow-up of test test_issue_1761_b. Now there's a data dependence
         between eq0 and eq1, hence they can't be fused.
         """
-        n = Dimension(name='n')
-        m = Dimension(name='m')
 
         class DummySubdomains(SubDomainSet):
             name = 'dummydomain'
-            implicit_dimension = m
 
         dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
 
         class DummySubdomains2(SubDomainSet):
             name = 'dummydomain2'
-            implicit_dimension = n
 
         dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1))
 
@@ -540,9 +522,9 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,m', 't,m,xi_m,yi_m',
-                              't,n', 't,n,xi_n,yi_n', 't,m', 't,m,xi_m,yi_m'],
-                         'x,y,t,m,xi_m,yi_m,n,xi_n,yi_n,m,xi_m,yi_m')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,xi,yi',
+                              't,n1', 't,n1,xi,yi', 't,n0', 't,n0,xi,yi'],
+                         'x,y,t,n0,xi,yi,n1,xi,yi,n0,xi,yi')
 
     def test_issue_1761_d(self):
         """
@@ -550,11 +532,9 @@ class TestMultiSubDomain(object):
         creation of the implicit equations needs to be such that no redundant
         thickness assignments are generated.
         """
-        n = Dimension(name='n')
 
         class Dummy(SubDomainSet):
             name = 'dummy'
-            implicit_dimension = n
 
         dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
 
@@ -569,15 +549,12 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n', 't,n,xi_n,yi_n', 't,n,xi_n,yi_n'],
-                         't,n,xi_n,yi_n,xi_n,yi_n')
+        assert_structure(op, ['t,n0', 't,n0,xi,yi', 't,n0,xi,yi'], 't,n0,xi,yi,xi,yi')
 
     def test_guarding(self):
-        n = Dimension(name='n')
 
         class Dummy(SubDomainSet):
             name = 'dummy'
-            implicit_dimension = n
 
         dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
 
@@ -599,8 +576,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t', 't,n', 't,n,xi_n,yi_n', 't,n', 't,n,xi_n,yi_n'],
-                         't,n,xi_n,yi_n,n,xi_n,yi_n')
+        assert_structure(op, ['t', 't,n0', 't,n0,xi,yi', 't,n0', 't,n0,xi,yi'],
+                         't,n0,xi,yi,n0,xi,yi')
 
     def test_3D(self):
 
@@ -620,8 +597,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n', 't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n'],
-                         't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n')
+        assert_structure(op, ['t,n0', 't,n0,xi0_blk0,yi0_blk0,xi,yi,zi'],
+                         't,n0,xi0_blk0,yi0_blk0,xi,yi,zi')
 
     def test_sequential_implicit(self):
         """
