@@ -104,9 +104,7 @@ class LowerMultiSubDimensions(Queue):
             ispace1 = c.ispace[n:]
 
             # The "implicit expressions" created for the MultiSubDomain
-            exprs, dims, sub_iterators = make_implicit_exprs(
-                d.msd, ispace0, self.sregistry
-            )
+            exprs, dims, sub_iterators = make_implicit_exprs(d.msd, c)
 
             # The IterationSpace induced by the MultiSubDomain
             intervals = [Interval(i, 0, 0) for i in dims]
@@ -165,13 +163,13 @@ def msdim(d):
 
 
 @singledispatch
-def make_implicit_exprs(msd, ispace, sregistry):
+def make_implicit_exprs(msd, cluster):
     # Retval: (exprs, iteration dimensions, subiterators)
     return (), (), {}
 
 
 @make_implicit_exprs.register(SubDomainSet)
-def _(msd, ispace, sregistry):
+def _(msd, *args):
     ret = []
     for j in range(len(msd._local_bounds)):
         index = floor(j/2)
