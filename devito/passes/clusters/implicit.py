@@ -57,15 +57,30 @@ class LowerMultiSubDimensions(Queue):
 
         self.sregistry = sregistry
 
+    def _hook_syncs(self, cluster, level):
+        """
+        The *Prefetch SyncOps may require their own suitably adjusted
+        thickness assigments. This method pulls such SyncOps.
+        """
+        syncs = []
+        for i in cluster.ispace[:level]:
+            for s in cluster.syncs.get(i.dim, ()):
+                if s.is_Fetch:
+                    syncs.append(s)
+        return tuple(syncs)
+
+    def _make_key_hook(self, cluster, level):
+        return (self._hook_syncs(cluster, level),)
+
     def callback(self, clusters, prefix):
         try:
-            dd = prefix[-1].dim
+            dim = prefix[-1].dim
         except IndexError:
-            dd = None
+            dim = None
 
         # The non-MultiSubDimension closest to a MultiSubDimension triggers
         # the pass. For example, `t` in an `t, xi_n, yi_n` iteration space
-        if msdim(dd):
+        if msdim(dim):
             return clusters
 
         idx = len(prefix)
@@ -104,10 +119,17 @@ class LowerMultiSubDimensions(Queue):
             properties = {i.dim: {SEQUENTIAL} for i in ispace}
             if len(ispaceN) == 0:
                 # Special case: we can factorize the thickness assignments
-                # once and for all at the top of the current IterationInterval
+                # once and for all at the top of the current IterationInterval,
+                # and reuse them for one or more (potentially non-consecutive)
+                # `clusters`
                 if ispaceN not in seen:
                     # Retain the guards and the syncs along the outer Dimensions
                     retained = {None} | set(c.ispace[:n-1].dimensions)
+
+                    # A fetch SyncOp along `dim` binds the thickness assignments
+                    if self._hook_syncs(c, n):
+                        retained.add(dim)
+
                     guards = {d: v for d, v in c.guards.items() if d in retained}
                     syncs = {d: v for d, v in c.syncs.items() if d in retained}
 

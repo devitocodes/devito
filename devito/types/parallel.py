@@ -248,6 +248,7 @@ class SyncOp(sympy.Expr, Pickable):
 
     is_WaitLock = False
     is_WithLock = False
+    is_Fetch = False
 
     def __new__(cls, handle):
         obj = sympy.Expr.__new__(cls, handle)
@@ -340,15 +341,15 @@ class WithLock(SyncLock):
 
 
 class FetchPrefetch(SyncData):
-    pass
+    is_Fetch = True
 
 
 class FetchUpdate(SyncData):
-    pass
+    is_Fetch = True
 
 
 class PrefetchUpdate(SyncData):
-    pass
+    is_Fetch = True
 
 
 class WaitPrefetch(SyncData):
