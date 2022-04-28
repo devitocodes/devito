@@ -1483,6 +1483,10 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">time_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_time_buffering</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="n">is_integer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">)</span>
 
