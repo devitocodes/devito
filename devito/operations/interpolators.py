@@ -80,13 +80,14 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __new__(cls, field, expr, offset, interpolator, callback):
+    def __new__(cls, field, expr, offset, increment, interpolator, callback):
         obj = super().__new__(cls, interpolator, callback)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.field = field
         obj.expr = expr
         obj.offset = offset
+        obj.increment = increment
 
         return obj
 
@@ -255,7 +256,7 @@ class LinearInterpolator(GenericInterpolator):
 
         return Interpolation(expr, offset, increment, self_subs, self, callback)
 
-    def inject(self, field, expr, offset=0):
+    def inject(self, field, expr, offset=0, increment=True):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -267,6 +268,8 @@ class LinearInterpolator(GenericInterpolator):
             Injected expression.
         offset : int, optional
             Additional offset from the boundary.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).            
         """
         def callback():
             # Derivatives must be evaluated before the introduction of indirect accesses
@@ -285,13 +288,18 @@ class LinearInterpolator(GenericInterpolator):
                                                           field_offset=field_offset)
 
             # Substitute coordinate base symbols into the interpolation coefficients
-            eqns = [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b,
-                        implicit_dims=self.sfunction.dimensions)
-                    for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
+            if increment:            
+                eqns = [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b,
+                            implicit_dims=self.sfunction.dimensions)
+                        for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
+            else: 
+                eqns = [Eq(field.xreplace(idx_subs[0]), _expr.xreplace(idx_subs[0]),
+                implicit_dims=self.sfunction.dimensions)] 
+
 
             return temps + eqns
 
-        return Injection(field, expr, offset, self, callback)
+        return Injection(field, expr, offset, increment, self, callback)
 
 
 class PrecomputedInterpolator(GenericInterpolator):
@@ -388,3 +396,4 @@ class PrecomputedInterpolator(GenericInterpolator):
             return [Eq(_field, _field + rhs.subs(dim_subs))]
 
         return Injection(field, expr, offset, self, callback)
+
