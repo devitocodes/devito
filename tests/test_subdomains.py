@@ -38,6 +38,21 @@ class TestSubdomains(object):
             expr = Operator._lower_exprs([eq0])[0]
         assert expr.rhs == x1 * f[x1 + 1, y1 + 1] + y1
 
+    def test_subfunctions_dimensions (self):
+        class sd0(SubDomain):
+            name = 'd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 3, 4), y: ('middle', 4, 3)}
+        s_d0 = sd0()
+        grid = Grid(shape=(10, 10), subdomains=(s_d0,))
+        dim = s_d0.shape
+
+        f = Function(name='f', grid=grid.subdomains['d0'], dtype=np.int32)
+
+        assert dim == f.data.shape
+
     def test_multiple_middle(self):
         """
         Test Operator with two basic 'middle' subdomains defined.

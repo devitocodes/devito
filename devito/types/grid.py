@@ -29,10 +29,19 @@ class CartesianDiscretization(ABC):
     physical domains by congruent parallelotopes (e.g., "tiles" or "bricks").
     """
 
-    def __init__(self, shape=None, dimensions=None, dtype=None):
+    def __init__(self, shape=None, dimensions=None, dtype=None, comm=None, topology=None):
         self._shape = as_tuple(shape)
         self._dimensions = as_tuple(dimensions)
         self._dtype = dtype
+
+        # Create a Distributor, used internally to implement domain decomposition
+        # by all Functions defined on this Grid
+        self._distributor = Distributor(shape, dimensions, comm, topology)
+
+    @property
+    def shape_local(self):
+        """Shape of the local (per-process) physical domain."""
+        return self._distributor.shape
 
     @property
     def shape(self):
@@ -55,6 +64,77 @@ class CartesianDiscretization(ABC):
         Data type inherited by all Functions defined on this CartesianDiscretization.
         """
         return self._dtype
+
+    @property
+    def distributor(self):
+        """The Distributor used for MPI-decomposing the CartesianDiscretization."""
+        return self._distributor
+
+    @property
+    def comm(self):
+        """The MPI communicator inherited from the distributor."""
+        return self._distributor.comm
+
+    def is_distributed(self, dim):
+        """
+        True if `dim` is a distributed Dimension for this CartesianDiscretization,
+        False otherwise.
+        """
+        return any(dim is d for d in self.distributor.dimensions)
+
+    @cached_property
+    def _arg_names(self):
+        ret = []
+        ret.append(self.time_dim.spacing.name)
+        ret.extend([i.name for i in self.origin_map])
+        for i in self.spacing_map:
+            try:
+                ret.append(i.name)
+            except AttributeError:
+                # E.g., {n*h_x: v} (the case of ConditionalDimension)
+                ret.extend([a.name for a in i.free_symbols])
+        return tuple(ret)
+
+    def _arg_defaults(self):
+        """A map of default argument values defined by this Grid."""
+        args = ReducerMap()
+
+        # Dimensions size
+        for k, v in self.dimension_map.items():
+            args.update(k._arg_defaults(_min=0, size=v.loc))
+
+        # Dimensions spacing
+        args.update({k.name: v for k, v in self.spacing_map.items()})
+
+        # Grid origin
+        args.update({k.name: v for k, v in self.origin_map.items()})
+
+        # MPI-related objects
+        if self.distributor.is_parallel:
+            distributor = self.distributor
+            args[distributor._obj_comm.name] = distributor._obj_comm.value
+            args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
+
+        return args
+
+    def _arg_values(self, **kwargs):
+        values = dict(self._arg_defaults())
+
+        # Override spacing and origin if necessary
+        values.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
+
+        return values
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # A Distributor wraps an MPI communicator, which can't and shouldn't be pickled
+        state.pop('_distributor')
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+        self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
 class Grid(CartesianDiscretization, ArgProvider):
@@ -161,11 +241,8 @@ class Grid(CartesianDiscretization, ArgProvider):
                                      "of type `%s`" % (d, type(d)))
             dimensions = dimensions
 
-        super().__init__(shape, dimensions, dtype)
 
-        # Create a Distributor, used internally to implement domain decomposition
-        # by all Functions defined on this Grid
-        self._distributor = Distributor(shape, dimensions, comm, topology)
+        super().__init__(shape, dimensions, dtype, comm, topology)
 
         # The physical extent
         self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
@@ -283,10 +360,6 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         return mapper
 
-    @property
-    def shape_local(self):
-        """Shape of the local (per-process) physical domain."""
-        return self._distributor.shape
 
     @property
     def dimension_map(self):
@@ -294,76 +367,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         return {d: GlobalLocal(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
-    @property
-    def distributor(self):
-        """The Distributor used for MPI-decomposing the CartesianDiscretization."""
-        return self._distributor
-
-    @property
-    def comm(self):
-        """The MPI communicator inherited from the distributor."""
-        return self._distributor.comm
-
-    def is_distributed(self, dim):
-        """
-        True if `dim` is a distributed Dimension for this CartesianDiscretization,
-        False otherwise.
-        """
-        return any(dim is d for d in self.distributor.dimensions)
-
-    @cached_property
-    def _arg_names(self):
-        ret = []
-        ret.append(self.time_dim.spacing.name)
-        ret.extend([i.name for i in self.origin_map])
-        for i in self.spacing_map:
-            try:
-                ret.append(i.name)
-            except AttributeError:
-                # E.g., {n*h_x: v} (the case of ConditionalDimension)
-                ret.extend([a.name for a in i.free_symbols])
-        return tuple(ret)
-
-    def _arg_defaults(self):
-        """A map of default argument values defined by this Grid."""
-        args = ReducerMap()
-
-        # Dimensions size
-        for k, v in self.dimension_map.items():
-            args.update(k._arg_defaults(_min=0, size=v.loc))
-
-        # Dimensions spacing
-        args.update({k.name: v for k, v in self.spacing_map.items()})
-
-        # Grid origin
-        args.update({k.name: v for k, v in self.origin_map.items()})
-
-        # MPI-related objects
-        if self.distributor.is_parallel:
-            distributor = self.distributor
-            args[distributor._obj_comm.name] = distributor._obj_comm.value
-            args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
-
-        return args
-
-    def _arg_values(self, **kwargs):
-        values = dict(self._arg_defaults())
-
-        # Override spacing and origin if necessary
-        values.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
-
-        return values
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # A Distributor wraps an MPI communicator, which can't and shouldn't be pickled
-        state.pop('_distributor')
-        return state
-
-    def __setstate__(self, state):
-        for k, v in state.items():
-            setattr(self, k, v)
-        self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
 class AbstractSubDomain(CartesianDiscretization):
@@ -380,7 +383,6 @@ class AbstractSubDomain(CartesianDiscretization):
             self.name = self.__class__.__name__
 
         # All other attributes get initialized upon `__subdomain_finalize__`
-        super().__init__()
 
     def __subdomain_finalize__(self, grid, **kwargs):
         """
@@ -477,7 +479,7 @@ class SubDomain(AbstractSubDomain):
     Interior : An example of preset Subdomain.
     """
 
-    def __subdomain_finalize__(self, grid, **kwargs):
+    def __subdomain_finalize__(self, grid, comm=None, topology=None, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
@@ -523,6 +525,7 @@ class SubDomain(AbstractSubDomain):
         self._shape = tuple(sdshape)
         self._dimensions = tuple(sub_dimensions)
         self._dtype = grid.dtype
+        self._distributor = Distributor(self._shape, self._dimensions, comm, topology)
 
     def define(self, dimensions):
         """
