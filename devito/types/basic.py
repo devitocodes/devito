@@ -14,7 +14,7 @@ from devito.data import default_allocator
 from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
                           dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
-from devito.types.caching import Cached
+from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
@@ -417,43 +417,27 @@ class Symbol(AbstractSymbol, Cached):
     __hash__ = Cached.__hash__
 
 
-class DataSymbol(AbstractSymbol, Cached):
+class DataSymbol(AbstractSymbol, Uncached):
 
     """
-    A scalar symbol, cached by both Devito and SymPy, which carries data.
+    A unique scalar symbol that carries data.
     """
-
-    @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        return cls
 
     def __new__(cls, *args, **kwargs):
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
-
-        if obj is not None:
-            return obj
-
-        # Not in cache. Create a new Symbol via sympy.Symbol
+        # Create a new Symbol via sympy.Symbol
         name = kwargs.get('name') or args[0]
         assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
-        # Create new, unique type instance from cls and the symbol name
-        newcls = type(name, (cls,), dict(cls.__dict__))
-
-        # Create the new Symbol and invoke __init__
-        newobj = sympy.Symbol.__new__(newcls, name, **assumptions)
+        # Note: use __xnew__ to bypass sympy caching
+        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
 
         # Initialization
         newobj._dtype = cls.__dtype_setup__(**kwargs)
         newobj.__init_finalize__(*args, **kwargs)
 
-        # Store new instance in symbol cache
-        Cached.__init__(newobj, newcls)
-
         return newobj
 
-    __hash__ = Cached.__hash__
+    __hash__ = Uncached.__hash__
 
     # Pickling support
 
@@ -1234,7 +1218,7 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class Object(AbstractObject, ArgProvider):
+class Object(AbstractObject, ArgProvider, Uncached):
 
     """
     Pointer to object with derived type, provided by an outer scope.
@@ -1246,8 +1230,7 @@ class Object(AbstractObject, ArgProvider):
         super(Object, self).__init__(name, dtype)
         self.value = value
 
-    def __hash__(self):
-        return id(self)
+    __hash__ = Uncached.__hash__
 
     @property
     def _arg_names(self):
