@@ -439,12 +439,6 @@ class DataSymbol(AbstractSymbol, Uncached):
 
     __hash__ = Uncached.__hash__
 
-    # Pickling support
-
-    @property
-    def _pickle_reconstruct(self):
-        return self.__class__.__base__
-
 
 class Scalar(Symbol, ArgProvider):
 
