@@ -28,8 +28,8 @@ class ViscoacousticWaveSolver(object):
                 1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
                 viscoacoustic equation
                 2nd order - Bai et al. (2014) viscoacoustic equation
-                'ren' - Ren et al. (2014) viscoacoustic equation
-                'deng_mcmechan' - Deng and McMechan (2007) viscoacoustic equation
+                'kv' - Ren et al. (2014) viscoacoustic equation
+                'maxwell' - Deng and McMechan (2007) viscoacoustic equation
                 Defaults to 'sls' 2nd order.
     """
     def __init__(self, model, geometry, space_order=4, kernel='sls', time_order=2,
