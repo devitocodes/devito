@@ -1246,6 +1246,9 @@ class Object(AbstractObject, ArgProvider):
         super(Object, self).__init__(name, dtype)
         self.value = value
 
+    def __hash__(self):
+        return id(self)
+
     @property
     def _arg_names(self):
         return (self.name,)
@@ -1266,7 +1269,8 @@ class Object(AbstractObject, ArgProvider):
             Dictionary of user-provided argument overrides.
         """
         if self.name in kwargs:
-            return {self.name: kwargs.pop(self.name)}
+            obj = kwargs.pop(self.name)
+            return {self.name: obj._arg_defaults()[obj.name]}
         else:
             return self._arg_defaults()
 
@@ -1305,9 +1309,6 @@ class CompositeObject(Object):
     @property
     def fields(self):
         return [i for i, _ in self.pfields]
-
-    def _hashable_content(self):
-        return (self.name, self.pfields)
 
     @cached_property
     def _C_typedecl(self):
