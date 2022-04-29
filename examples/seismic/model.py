@@ -375,9 +375,9 @@ class SeismicModel(GenericModel):
             param = getattr(self, name)
         except AttributeError:
             # No physical parameter with tha name, create it
-            setattr(self, name, self._gen_phys_param(name, value, self.space_order))
+            setattr(self, name, self._gen_phys_param(value, name, self.space_order))
             return
-        # Update the square slowness according to new value
+        # Update the physical parameter according to new value
         if isinstance(value, np.ndarray):
             if value.shape == param.shape:
                 param.data[:] = value[:]
@@ -388,7 +388,7 @@ class SeismicModel(GenericModel):
                                  " %s without or %s with padding" % (self.shape,
                                                                      param.shape))
         else:
-            param.data = value
+            param.data[:] = value
 
     @property
     def m(self):
