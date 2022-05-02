@@ -15,7 +15,7 @@ from devito.types import PThreadArray, SharedData, Symbol, Pointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
            'EntryFunction', 'ThreadFunction', 'make_thread_ctx',
-           'DeviceFunction']
+           'DeviceFunction', 'DeviceCall']
 
 
 # ElementalFunction machinery
@@ -306,3 +306,12 @@ class DeviceFunction(Callable):
 
     def __init__(self, name, body, retval='void', parameters=None, prefix='__global__'):
         super().__init__(name, body, retval, parameters=parameters, prefix=prefix)
+
+
+class DeviceCall(Call):
+
+    """
+    A call to an external function executed asynchronously on a device.
+    """
+
+    pass
