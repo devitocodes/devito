@@ -7,7 +7,7 @@ from collections import OrderedDict, namedtuple
 from functools import singledispatch
 from operator import itemgetter
 
-from devito.ir import (Block, Definition, DeviceFunction, EntryFunction,
+from devito.ir import (Block, Definition, DeviceCall, DeviceFunction, EntryFunction,
                        FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
@@ -392,6 +392,7 @@ class DeviceAwareDataManager(DataManager):
         reads = set()
         for i, v in MapExprStmts().visit(iet).items():
             if not any(isinstance(j, self.lang.DeviceIteration) for j in v) and \
+               not isinstance(i, DeviceCall) and \
                not isinstance(iet, DeviceFunction):
                 # Not an offloaded Iteration tree
                 continue
