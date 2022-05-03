@@ -663,3 +663,24 @@ def test_everything():
     op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
 
     assert np.all(u.data == u1.data)
+
+
+@pytest.mark.parametrize('subdomain', ['domain', 'interior'])
+def test_stencil_issue_1915(subdomain):
+    nt = 5
+    grid = Grid(shape=(6, 6))
+
+    u = TimeFunction(name='u', grid=grid, space_order=4, save=nt)
+    u1 = TimeFunction(name='u', grid=grid, space_order=4, save=nt)
+
+    subdomain = grid.subdomains[subdomain]
+
+    eqn = Eq(u.forward, u.dx + 1, subdomain=subdomain)
+
+    op0 = Operator(eqn, opt='noop')
+    op1 = Operator(eqn, opt='buffering')
+
+    op0.apply(time_M=nt-2)
+    op1.apply(time_M=nt-2, u=u1)
+
+    assert np.all(u.data == u1.data)

@@ -459,9 +459,12 @@ class Buffer(object):
         intervals = []
         sub_iterators = {}
         directions = {}
-        for d in self.buffer.dimensions:
+        for d, h in zip(self.buffer.dimensions, self.buffer._size_halo):
             try:
                 interval, si, direction = self.itintervals_mapper[d]
+                # The initialization must comprise the halo region as well, since
+                # in principle this could be accessed through a stencil
+                interval = interval.translate(v0=-h.left, v1=h.right)
             except KeyError:
                 # E.g., the contraction Dimension `db0`
                 assert d in self.contraction_mapper.values()
