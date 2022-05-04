@@ -14,7 +14,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitializer,
                               SizeOf, VOID, Keyword, ccode)
-from devito.tools import as_mapper, as_tuple, filter_sorted, flatten, prod
+from devito.tools import as_mapper, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
 
@@ -111,8 +111,8 @@ class DataManager(object):
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
-        alloc = self.lang['host-alloc'](memptr, alignment, size)
+        nbytes = SizeOf(obj._C_typedata)*obj.size
+        alloc = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         free = self.lang['host-free'](obj._C_symbol)
 
@@ -143,16 +143,16 @@ class DataManager(object):
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        size = SizeOf(Keyword('%s*' % obj._C_typedata))*obj.dim.symbolic_size
-        alloc0 = self.lang['host-alloc'](memptr, alignment, size)
+        nbytes = SizeOf(Keyword('%s*' % obj._C_typedata))*obj.dim.symbolic_size
+        alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         free0 = self.lang['host-free'](obj._C_symbol)
 
         # The pointee Array
         pobj = IndexedPointer(obj._C_symbol, obj.dim)
         memptr = VOID(Byref(pobj), '**')
-        size = SizeOf(obj._C_typedata)*prod(obj.array.symbolic_shape)
-        alloc1 = self.lang['host-alloc'](memptr, alignment, size)
+        nbytes = SizeOf(obj._C_typedata)*obj.array.size
+        alloc1 = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         free1 = self.lang['host-free'](pobj)
 
@@ -327,8 +327,8 @@ class DeviceAwareDataManager(DataManager):
             doalloc = self.lang['device-alloc']
             dofree = self.lang['device-free']
 
-            size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
-            init = doalloc(size, deviceid, retobj=obj)
+            nbytes = SizeOf(obj._C_typedata)*obj.size
+            init = doalloc(nbytes, deviceid, retobj=obj)
 
             free = dofree(obj._C_name, deviceid)
 
