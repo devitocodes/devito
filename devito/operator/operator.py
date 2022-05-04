@@ -439,7 +439,7 @@ class Operator(Callable):
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():
                 if k not in self._known_arguments:
-                    raise ValueError("Unrecognized argument %s=%s" % (k, v))
+                    raise ValueError("Unrecognized argument %s=%s. It most likely is missing from the expressions passed to the operator." % (k, v))
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
