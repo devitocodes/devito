@@ -367,7 +367,7 @@ class PerformanceSummary(OrderedDict):
         if ops == 0 or traffic == 0:
             return
         # Do not show dynamic Sections (i.e., loop trip counts varies dynamically)
-        if np.isnan(traffic):
+        if traffic is not None and np.isnan(traffic):
             assert np.isnan(points)
             return
 
