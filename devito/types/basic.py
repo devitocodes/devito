@@ -1369,6 +1369,10 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
         return self
 
     @property
+    def indices(self):
+        return ()
+
+    @property
     def dtype(self):
         return self.function.dtype
 
