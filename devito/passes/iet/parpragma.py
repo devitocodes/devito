@@ -8,6 +8,7 @@ from devito.ir import (Conditional, DummyEq, Dereference, Expression, Expression
                        FindSymbols, FindNodes, ParallelTree, Pragma, Prodder, Transfer,
                        List, Transformer, IsPerfectIteration, filter_iterations,
                        retrieve_iteration_tree, VECTORIZED)
+from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
                                         make_sections_from_imask)
@@ -16,7 +17,8 @@ from devito.tools import as_tuple, flatten, prod
 from devito.types import Symbol, NThreadsBase
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
-           'PragmaDeviceAwareTransformer', 'PragmaLangBB', 'PragmaTransfer']
+           'PragmaDeviceAwareTransformer', 'PragmaLangBB', 'PragmaTransfer',
+           'PragmaDeviceAwareDataManager']
 
 
 class PragmaTransformer(LangTransformer):
@@ -568,6 +570,20 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
             return partree
         else:
             return super()._make_nested_partree(partree)
+
+
+class PragmaDeviceAwareDataManager(DeviceAwareDataManager):
+
+    def process(self, graph):
+        super().process(graph)
+        self.place_devptr(graph)
+
+    @iet_pass
+    def place_devptr(self, iet, **kwargs):
+        """
+        DeviceFunctions operate on device pointers. ...
+        """
+        return iet, {}
 
 
 class PragmaLangBB(LangBB):

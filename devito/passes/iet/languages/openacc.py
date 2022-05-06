@@ -2,10 +2,9 @@ import cgen as c
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import Call, List, ParallelIteration, ParallelTree, Pragma, FindSymbols
-from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaTransfer)
+                                         PragmaTransfer, PragmaDeviceAwareDataManager)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
@@ -192,7 +191,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
             return super()._make_partree(candidates, nthreads)
 
 
-class DeviceAccDataManager(DeviceAwareDataManager):
+class DeviceAccDataManager(PragmaDeviceAwareDataManager):
     lang = AccBB
 
 
@@ -232,3 +231,5 @@ def retrieve_devptr(functions, key=None):
     for f in as_tuple(functions):
         mapper[f] = key(f)
     from IPython import embed; embed()
+
+    return iet
