@@ -11,7 +11,8 @@ from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import DefFunction, Macro
-from devito.tools import filter_ordered
+from devito.tools import as_tuple, filter_ordered
+from devito.types import Symbol
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
@@ -197,3 +198,37 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
 class AccOrchestrator(Orchestrator):
     lang = AccBB
+
+
+def retrieve_devptr(functions, key=None):
+    """
+    This function generates an IET to retrieve the device pointer of `f`.
+
+    OpenACC provides multiple mechanisms to this purpose, including the
+    `acc_deviceptr(f)` routine and the `host_data use_device(f)` pragma.
+    However, none of these will work with `nvc` (until at least v22.3) due
+    to a known bug -- see this thread for more info:
+
+        https://forums.developer.nvidia.com/t/acc-deviceptr-does-not-work-in-\
+            openacc-code-dynamically-loaded-from-a-shared-library/211599
+
+    Basically, the issue crops up when OpenACC code is part of a shared library
+    that is dlopen’d by an executable that is not linked against the `nvc`'s
+    OpenACC runtime library. That's our case, since our executable is Python.
+
+    The following work around does the trick:
+
+      .. code-block:: c
+
+        size_t d_f;
+        #pragma acc serial present(f) copyout(d_f)
+        {
+           d_f = (size_t) f;
+        }
+
+    This function creates an IET along the lines of the code snippet above.
+    """
+    mapper = {}
+    for f in as_tuple(functions):
+        mapper[f] = key(f)
+    from IPython import embed; embed()

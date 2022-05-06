@@ -239,22 +239,6 @@ class DataManager(object):
 
         return iet, {}
 
-    @iet_visit
-    def derive_transfers(self, iet):
-        """
-        Collect all symbols that cause host-device data transfer, distinguishing
-        between reads and writes.
-        """
-        return ([], [])
-
-    @iet_pass
-    def place_transfers(self, iet, **kwargs):
-        """
-        Create a new IET with host-device data transfers. This requires mapping
-        symbols to the suitable memory spaces.
-        """
-        return iet, {}
-
     @iet_pass
     def place_casts(self, iet, **kwargs):
         """
@@ -288,10 +272,8 @@ class DataManager(object):
 
     def process(self, graph):
         """
-        Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
+        Apply the `place_definitions` and `place_casts` passes.
         """
-        mapper = self.derive_transfers(graph)
-        self.place_transfers(graph, mapper=mapper)
         self.place_definitions(graph)
         self.place_casts(graph)
 
@@ -382,6 +364,10 @@ class DeviceAwareDataManager(DataManager):
 
     @iet_visit
     def derive_transfers(self, iet):
+        """
+        Collect all symbols that cause host-device data transfer, distinguishing
+        between reads and writes.
+        """
 
         def needs_transfer(f):
             return (isinstance(f, AbstractFunction) and
@@ -405,6 +391,10 @@ class DeviceAwareDataManager(DataManager):
 
     @iet_pass
     def place_transfers(self, iet, **kwargs):
+        """
+        Create a new IET with host-device data transfers. This requires mapping
+        symbols to the suitable memory spaces.
+        """
 
         @singledispatch
         def _place_transfers(iet, mapper):
@@ -439,3 +429,11 @@ class DeviceAwareDataManager(DataManager):
             return iet, {'args': devicerm}
 
         return _place_transfers(iet, mapper=kwargs['mapper'])
+
+    def process(self, graph):
+        """
+        Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
+        """
+        mapper = self.derive_transfers(graph)
+        self.place_transfers(graph, mapper=mapper)
+        super().process(graph)
