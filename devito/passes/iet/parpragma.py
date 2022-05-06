@@ -10,10 +10,10 @@ from devito.ir import (Conditional, DummyEq, Dereference, Expression, Expression
                        retrieve_iteration_tree, VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
-                                        infer_transfer_datashape)
+                                        make_sections_from_imask)
 from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, flatten, prod
-from devito.types import Symbol, NThreadsBase, Wildcard
+from devito.types import Symbol, NThreadsBase
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
            'PragmaDeviceAwareTransformer', 'PragmaLangBB', 'PragmaTransfer']
@@ -450,42 +450,7 @@ class PragmaTransfer(Pragma, Transfer):
 
     @cached_property
     def sections(self):
-        f = self.function
-        if self.imask is None:
-            imask = [FULL]*f.ndim
-        else:
-            imask = self.imask
-
-        datashape = infer_transfer_datashape(f, imask)
-
-        sections = []
-        for i, j in zip(imask, datashape):
-            if i is FULL:
-                start, size = 0, j
-            else:
-                try:
-                    start, size = i
-                except TypeError:
-                    start, size = i, 1
-            sections.append((start, size))
-
-        # Unroll (or "flatten") the remaining Dimensions not captured by `imask`
-        if len(imask) < len(datashape):
-            try:
-                start, size = sections.pop(-1)
-            except IndexError:
-                start, size = (0, 1)
-            remainder_size = prod(datashape[len(imask):])
-            # The reason we may see a Wildcard is detailed in the `linearize_transfer`
-            # pass, take a look there for more info. Basically, a Wildcard here means
-            # that the symbol `start` is actually a temporary whose value already
-            # represents the unrolled size
-            if not isinstance(start, Wildcard):
-                start *= remainder_size
-            size *= remainder_size
-            sections.append((start, size))
-
-        return sections
+        return make_sections_from_imask(self.function, self.imask)
 
     @cached_property
     def pragmas(self):
