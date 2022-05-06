@@ -15,7 +15,7 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
-from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
+from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, AbstractSymbol
 from devito.types import Indexed, LocalObject, Symbol
 
@@ -25,7 +25,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return',
            'While', 'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
            'SyncSpot', 'Pragma', 'DummyExpr', 'BlankLine', 'ParallelTree',
-           'BusyWait', 'CallableBody', 'Transfer']
+           'BusyWait', 'CallableBody', 'Transfer', 'HPtr', 'DPtr']
 
 # First-class IET nodes
 
@@ -249,12 +249,18 @@ class Call(ExprStmt, Node):
         Explicitly tagging these AbstractFunctions is useful in the case of external
         calls, that is whenever the compiler would be unable to retrieve that
         information by analysis of the IET graph.
+    types : tuple, optional
+        An N-tuple of CallArgTypes for an N-arguments Call. It may be used to
+        describe the input arguments types when it's neither implicit in the
+        argument (e.g., a generic SymPy expression, host pointer vs device
+        pointer) nor evident from the context (e.g., the Call represents a call
+        to an external routine rather than to a local Callable).
     """
 
     is_Call = True
 
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
-                 cast=False, writes=None):
+                 cast=False, writes=None, types=None):
         if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
@@ -265,6 +271,10 @@ class Call(ExprStmt, Node):
         self.is_indirect = is_indirect
         self.cast = cast
         self._writes = as_tuple(writes)
+        self.types = as_tuple(types)
+
+        # Sanity check
+        assert not self.types or len(self.types) == len(self.arguments)
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj
@@ -1393,3 +1403,11 @@ Metadata for Callables. ``root`` is a pointer to the callable
 Iteration/Expression tree. ``local`` is a boolean indicating whether the
 definition of the callable is known or not.
 """
+
+
+class CallArgType(Tag):
+    pass
+
+
+HPtr = CallArgType('host pointer')
+DPtr = CallArgType('device pointer')
