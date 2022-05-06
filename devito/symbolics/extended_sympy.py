@@ -577,8 +577,20 @@ class InlineIf(sympy.Expr, Pickable):
 
 # Shortcuts (mostly for retrocompatibility)
 
+class CHAR(Cast):
+    _base_typ = 'char'
+
+
 class INT(Cast):
     _base_typ = 'int'
+
+
+class LONG(Cast):
+    _base_typ = 'long'
+
+
+class ULONG(Cast):
+    _base_typ = 'unsigned long'
 
 
 class FLOAT(Cast):
@@ -599,6 +611,10 @@ class CastStar(object):
 
     def __new__(cls, base=''):
         return cls.base(base, '*')
+
+
+class CHARP(CastStar):
+    base = CHAR
 
 
 class INTP(CastStar):
@@ -647,13 +663,18 @@ def rfunc(func, item, *args):
 
 
 cast_mapper = {
+    np.int8: CHAR,
+    np.uint8: CHAR,
     int: INT,
     np.int32: INT,
-    np.int64: INT,
+    np.int64: LONG,
+    np.uint64: ULONG,
     np.float32: FLOAT,
     float: DOUBLE,
     np.float64: DOUBLE,
 
+    (np.int8, '*'): CHARP,
+    (np.uint8, '*'): CHARP,
     (int, '*'): INTP,
     (np.int32, '*'): INTP,
     (np.int64, '*'): INTP,

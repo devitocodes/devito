@@ -1,7 +1,11 @@
 import cgen as c
+import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import Call, List, ParallelIteration, ParallelTree, Pragma, FindSymbols
+from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List,
+                       Block, ParallelIteration, ParallelTree, Pragma,
+                       FindNodes, FindSymbols, Uxreplace, Transformer)
+from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
                                          PragmaTransfer, PragmaDeviceAwareDataManager)
@@ -9,9 +13,9 @@ from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import DefFunction, Macro
+from devito.symbolics import DefFunction, Macro, cast_mapper
 from devito.tools import as_tuple, filter_ordered
-from devito.types import Symbol
+from devito.types import DevicePointer, Symbol
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
@@ -191,45 +195,86 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
             return super()._make_partree(candidates, nthreads)
 
 
+class DevicePointerFetch(Block):
+
+    def __init__(self, f, devptr, body=None):
+        header = c.Pragma("acc serial present(%s) copyout(%s")
+        #TODO: CREATE THE FETCH HERE!!!
+            body=DummyExpr(i, cast_mapper[i.dtype](i.mapped.indexed))
+        super().__init__(header=c.Pragma("aa"), body=body)
+
+
 class DeviceAccDataManager(PragmaDeviceAwareDataManager):
+
     lang = AccBB
+
+    @iet_pass
+    def place_devptr(self, iet, **kwargs):
+        """
+        Transform `iet` such that device pointers are used in DeviceCalls.
+
+        OpenACC provides multiple mechanisms to this purpose, including the
+        `acc_deviceptr(f)` routine and the `host_data use_device(f)` pragma.
+        However, none of these will work with `nvc` (until at least v22.3) due
+        to a known bug -- see this thread for more info:
+
+            https://forums.developer.nvidia.com/t/acc-deviceptr-does-not-work-in-\
+                openacc-code-dynamically-loaded-from-a-shared-library/211599
+
+        Basically, the issue crops up when OpenACC code is part of a shared library
+        that is dlopen’d by an executable that is not linked against the `nvc`'s
+        OpenACC runtime library. That's our case, since our executable is Python.
+
+        The following work around does the trick:
+
+          .. code-block:: c
+
+            size_t d_f;
+            #pragma acc serial present(f) copyout(d_f)
+            {
+               d_f = (size_t) f;
+            }
+
+        This method creates an IET along the lines of the code snippet above.
+        """
+        mapper = {}
+        subs = {}
+        for n in FindNodes(DeviceCall).visit(iet):
+            for i in n.arguments:
+                f = i.function
+                if not (f.is_Array and f._mem_mapped):
+                    continue
+
+                name = "%s_dev" % f.name
+                devptr = DevicePointer(name=name, dtype=np.uint64, mapped=f)
+                subs[i] = cast_mapper[(f.dtype, '*')](devptr)
+
+            mapper[n] = Uxreplace(subs).visit(n) 
+
+        if mapper:
+            iet = Transformer(mapper).visit(iet)
+
+        args = [i.base for i in subs.values()]
+
+        if not isinstance(iet, EntryFunction):
+            return iet, {'args': args}
+
+        nested = [i for i in FindSymbols('basics').visit(iet)
+                  if isinstance(i, DevicePointer)]
+        fetches = []
+        for i in filter_ordered(args + nested):
+            fetches.extend([
+                DummyExpr(i, 0, init=True),
+                DevicePointerFetch(
+                    body=DummyExpr(i, cast_mapper[i.dtype](i.mapped.indexed))
+                )
+            ])
+
+        iet = iet._rebuild(body=iet.body._rebuild(maps=iet.body.maps + tuple(fetches)))
+        from IPython import embed; embed()
+
+        return iet, {}
 
 
 class AccOrchestrator(Orchestrator):
     lang = AccBB
-
-
-def retrieve_devptr(functions, key=None):
-    """
-    This function generates an IET to retrieve the device pointer of `f`.
-
-    OpenACC provides multiple mechanisms to this purpose, including the
-    `acc_deviceptr(f)` routine and the `host_data use_device(f)` pragma.
-    However, none of these will work with `nvc` (until at least v22.3) due
-    to a known bug -- see this thread for more info:
-
-        https://forums.developer.nvidia.com/t/acc-deviceptr-does-not-work-in-\
-            openacc-code-dynamically-loaded-from-a-shared-library/211599
-
-    Basically, the issue crops up when OpenACC code is part of a shared library
-    that is dlopen’d by an executable that is not linked against the `nvc`'s
-    OpenACC runtime library. That's our case, since our executable is Python.
-
-    The following work around does the trick:
-
-      .. code-block:: c
-
-        size_t d_f;
-        #pragma acc serial present(f) copyout(d_f)
-        {
-           d_f = (size_t) f;
-        }
-
-    This function creates an IET along the lines of the code snippet above.
-    """
-    mapper = {}
-    for f in as_tuple(functions):
-        mapper[f] = key(f)
-    from IPython import embed; embed()
-
-    return iet

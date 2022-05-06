@@ -581,7 +581,7 @@ class PragmaDeviceAwareDataManager(DeviceAwareDataManager):
     @iet_pass
     def place_devptr(self, iet, **kwargs):
         """
-        DeviceFunctions operate on device pointers. ...
+        Transform `iet` such that device pointers are used in DeviceCalls.
         """
         return iet, {}
 

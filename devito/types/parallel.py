@@ -25,7 +25,7 @@ from devito.types.misc import VolatileInt, c_volatile_int_p
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchUpdate',
            'FetchPrefetch', 'PrefetchUpdate', 'WaitPrefetch', 'Delete', 'PThreadArray',
-           'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
+           'SharedData', 'NPThreads', 'DeviceRM', 'DevicePointer', 'normalize_syncs']
 
 
 class NThreadsBase(Scalar):
@@ -422,3 +422,18 @@ class DeviceRM(DeviceSymbol):
             return {self.name: int(bool(kwargs[self.name]))}
         except KeyError:
             return self._arg_defaults()
+
+
+class DevicePointer(Symbol):
+
+    def __init_finalize__(self, *args, mapped=None, **kwargs):
+        self._mapped = mapped
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def mapped(self):
+        return self._mapped
+
+    # Pickling support
+    _pickle_kwargs = Symbol._pickle_kwargs + ['mapped']
