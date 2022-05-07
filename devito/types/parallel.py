@@ -20,7 +20,7 @@ from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_orde
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
-from devito.types.misc import VolatileInt, c_volatile_int_p
+from devito.types.misc import Pointer, VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchUpdate',
@@ -424,7 +424,7 @@ class DeviceRM(DeviceSymbol):
             return self._arg_defaults()
 
 
-class DevicePointer(Symbol):
+class DevicePointer(Pointer):
 
     def __init_finalize__(self, *args, mapped=None, **kwargs):
         self._mapped = mapped
@@ -434,6 +434,10 @@ class DevicePointer(Symbol):
     @property
     def mapped(self):
         return self._mapped
+
+    @property
+    def _C_typename(self):
+        return self.mapped._C_typename
 
     # Pickling support
     _pickle_kwargs = Symbol._pickle_kwargs + ['mapped']

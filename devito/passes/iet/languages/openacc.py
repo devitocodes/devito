@@ -195,13 +195,23 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
             return super()._make_partree(candidates, nthreads)
 
 
-class DevicePointerFetch(Block):
+class DevicePointerFetch(List):
 
-    def __init__(self, f, devptr, body=None):
-        header = c.Pragma("acc serial present(%s) copyout(%s")
-        #TODO: CREATE THE FETCH HERE!!!
-            body=DummyExpr(i, cast_mapper[i.dtype](i.mapped.indexed))
-        super().__init__(header=c.Pragma("aa"), body=body)
+    def __init__(self, dp, **kwargs):
+        hp = dp.mapped.indexed
+
+        tdp = Symbol(name="%s_cpy" % hp.name, dtype=np.uint64)
+        init = DummyExpr(tdp, 0, init=True),
+
+        header = c.Pragma("acc serial present(%s) copyout(%s)" % (hp, tdp))
+        body = DummyExpr(tdp, cast_mapper[tdp.dtype](hp))
+        dpf = Block(header=header, body=body)
+
+        cast = DummyExpr(dp, cast_mapper[(dp.dtype, '*')](tdp), init=True)
+
+        body = [init, dpf, cast]
+
+        super().__init__(body=body)
 
 
 class DeviceAccDataManager(PragmaDeviceAwareDataManager):
@@ -241,13 +251,15 @@ class DeviceAccDataManager(PragmaDeviceAwareDataManager):
         subs = {}
         for n in FindNodes(DeviceCall).visit(iet):
             for i in n.arguments:
-                f = i.function
+                try:
+                    f = i.function
+                except AttributeError:
+                    continue
+
                 if not (f.is_Array and f._mem_mapped):
                     continue
 
-                name = "%s_dev" % f.name
-                devptr = DevicePointer(name=name, dtype=np.uint64, mapped=f)
-                subs[i] = cast_mapper[(f.dtype, '*')](devptr)
+                subs[i] = DevicePointer(name="%s_dev" % f.name, dtype=f.dtype, mapped=f)
 
             mapper[n] = Uxreplace(subs).visit(n) 
 
@@ -261,17 +273,9 @@ class DeviceAccDataManager(PragmaDeviceAwareDataManager):
 
         nested = [i for i in FindSymbols('basics').visit(iet)
                   if isinstance(i, DevicePointer)]
-        fetches = []
-        for i in filter_ordered(args + nested):
-            fetches.extend([
-                DummyExpr(i, 0, init=True),
-                DevicePointerFetch(
-                    body=DummyExpr(i, cast_mapper[i.dtype](i.mapped.indexed))
-                )
-            ])
+        dpfs = [DevicePointerFetch(dp) for dp in filter_ordered(args + nested)]
 
-        iet = iet._rebuild(body=iet.body._rebuild(maps=iet.body.maps + tuple(fetches)))
-        from IPython import embed; embed()
+        iet = iet._rebuild(body=iet.body._rebuild(maps=iet.body.maps + tuple(dpfs)))
 
         return iet, {}
 
