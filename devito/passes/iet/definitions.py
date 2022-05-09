@@ -298,7 +298,7 @@ class DeviceAwareDataManager(DataManager):
         self.gpu_fit = options['gpu-fit']
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
-        if obj._mem_mapped:
+        if obj._mem_mapped or obj._mem_host:
             super()._alloc_array_on_high_bw_mem(site, obj, storage)
         else:
             # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
@@ -322,7 +322,7 @@ class DeviceAwareDataManager(DataManager):
         bandwidth memory.
         """
         # If Array gets allocated directly in the device memory, there's nothing to map
-        if obj._mem_local:
+        if not obj._mem_mapped:
             return
 
         mmap = self.lang._map_alloc(obj)

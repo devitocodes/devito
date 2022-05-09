@@ -78,8 +78,8 @@ class Array(ArrayBasic):
     padding : iterable of 2-tuples, optional
         The padding region of the object.
     space : str, optional
-        The memory space. Allowed values: 'local', 'mapped'.  Defaults to 'local'.
-        Used to override `_mem_local` and `_mem_mapped`.
+        The memory space. Allowed values: 'local', 'mapped', 'host'. Defaults
+        to 'local'. Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack',
         'static'. Defaults to 'heap'. 'static' means a static array in a
@@ -104,7 +104,7 @@ class Array(ArrayBasic):
         super(Array, self).__init_finalize__(*args, **kwargs)
 
         self._space = kwargs.get('space', 'local')
-        assert self._space in ['local', 'remote', 'mapped']
+        assert self._space in ['local', 'mapped', 'host']
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack', 'static']
@@ -168,6 +168,10 @@ class Array(ArrayBasic):
     @property
     def _mem_mapped(self):
         return self._space == 'mapped'
+
+    @property
+    def _mem_host(self):
+        return self._space == 'host'
 
     @property
     def _mem_static(self):
