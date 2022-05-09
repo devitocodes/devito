@@ -4,7 +4,6 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered, as_tuple
-from devito.symbolics.search import retrieve_dimensions
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -229,6 +228,8 @@ class Substitutions(object):
 
 
 def default_rules(obj, functions):
+
+    from devito.symbolics.search import retrieve_dimensions
 
     def generate_subs(deriv_order, function, index):
         dim = retrieve_dimensions(index)[0]

@@ -75,7 +75,7 @@ class Parallelism(Detector):
 
     def _callback(self, clusters, d, prefix):
         # Rule out if non-unitary increment Dimension (e.g., `t0=(time+1)%2`)
-        if any(c.sub_iterators.get(d) for c in clusters):
+        if any(c.sub_iterators[d] for c in clusters):
             return SEQUENTIAL
 
         # All Dimensions up to and including `i-1`
@@ -134,7 +134,12 @@ class Rounding(Detector):
         # Note: autopadding guarantees that the padding size along the
         # Fastest Varying Dimension is a multiple of the SIMD vector length
         functions = [f for f in scope.functions if f.is_AbstractFunction]
-        if any(not f._honors_autopadding for f in functions):
+        try:
+            if any(not f._honors_autopadding for f in functions):
+                return
+        except ValueError:
+            # E.g., lazily allocated Functions don't have an accessible
+            # `.shape` until after the first call to `f._arg_values`
             return
 
         # Mixed data types (e.g., float and double) is unsupported

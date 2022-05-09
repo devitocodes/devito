@@ -40,9 +40,13 @@ def src_rec(p, model, geometry, **kwargs):
 
 def sls_1st_order(model, geometry, p, r=None, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation
-    from Blanch and Symes (1995) / Dutta and Schuster (2014).
+    Implementation of the 1st order viscoacoustic wave-equation based on SLS model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Blanch and Symes (1995)
+    3 - Dutta and Schuster (2014)
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.1822695
     https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
 
@@ -120,8 +124,12 @@ def sls_1st_order(model, geometry, p, r=None, **kwargs):
 
 def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     """
-    Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
+    Implementation of the 2nd order viscoacoustic wave-equation based on SLS model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Bai (2014).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/10.1190/geo2013-0030.1
 
     Parameters
@@ -188,11 +196,15 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
         return [u_r, u_p]
 
 
-def ren_1st_order(model, geometry, p, **kwargs):
+def kv_1st_order(model, geometry, p, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation from Ren et al. (2014).
+    Implementation of the 1st order viscoacoustic wave-equation
+    based on Kelvin-Voigt model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
 
-    https://academic.oup.com/gji/article/197/2/948/616510
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
+
 
     Parameters
     ----------
@@ -245,11 +257,17 @@ def ren_1st_order(model, geometry, p, **kwargs):
         return [u_v, u_p]
 
 
-def ren_2nd_order(model, geometry, p, **kwargs):
+def kv_2nd_order(model, geometry, p, **kwargs):
     """
-    Implementation of the 2nd order viscoacoustic wave-equation from Ren et al. (2014).
+    Implementation of the 2nd order viscoacoustic wave-equation
+    based on Kelvin-Voigt model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Ren et al. (2014).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.2714334
+
 
     Parameters
     ----------
@@ -296,12 +314,14 @@ def ren_2nd_order(model, geometry, p, **kwargs):
         return [u_p]
 
 
-def deng_1st_order(model, geometry, p, **kwargs):
+def maxwell_1st_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
-    from Deng and McMechan (2007).
+    based on Maxwell model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
 
-    https://library.seg.org/doi/pdf/10.1190/1.2714334
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-
 
     Parameters
     ----------
@@ -350,11 +370,15 @@ def deng_1st_order(model, geometry, p, **kwargs):
         return [u_v, u_p]
 
 
-def deng_2nd_order(model, geometry, p, **kwargs):
+def maxwell_2nd_order(model, geometry, p, **kwargs):
     """
-    Implementation of the 2nd order viscoacoustic wave-equation
-    from Deng and McMechan (2007).
+    Implementation of the 1st order viscoacoustic wave-equation
+    based on Maxwell model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Deng and McMechan (2007).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
     Parameters
@@ -398,10 +422,13 @@ def deng_2nd_order(model, geometry, p, **kwargs):
 
 def sls(model, geometry, p, forward=True, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation
-    from Blanch and Symes (1995) / Dutta and Schuster (2014) and
-    Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
+    Implementation of the viscoacoustic wave-equation from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Blanch and Symes (1995) / Dutta and Schuster (2014) and
+    3 - Bai (2014).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.1822695
     https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
     https://library.seg.org/doi/10.1190/geo2013-0030.1
@@ -419,11 +446,14 @@ def sls(model, geometry, p, forward=True, **kwargs):
     return eqn
 
 
-def ren(model, geometry, p, forward=True, **kwargs):
+def kv(model, geometry, p, forward=True, **kwargs):
     """
-    Implementation of the 1st and 2nd order viscoacoustic wave-equation from
-    Ren et al. (2014).
+    Implementation of the 1st and 2nd order viscoacoustic wave-equation from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Ren et al. (2014).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://academic.oup.com/gji/article/197/2/948/616510
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
@@ -434,17 +464,20 @@ def ren(model, geometry, p, forward=True, **kwargs):
     """
     time_order = p.time_order
 
-    eq_stencil = stencils[('ren', time_order)]
+    eq_stencil = stencils[('kv', time_order)]
     eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
 
-def deng_mcmechan(model, geometry, p, forward=True, **kwargs):
+def maxwell(model, geometry, p, forward=True, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation and 2nd order
-    viscoacoustic wave-equation from Deng and McMechan (2007).
+    Implementation of the 1st and 2nd order viscoacoustic wave-equation from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Deng and McMechan (2007).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
     Parameters
@@ -454,7 +487,7 @@ def deng_mcmechan(model, geometry, p, forward=True, **kwargs):
     """
     time_order = p.time_order
 
-    eq_stencil = stencils[('deng_mcmechan', time_order)]
+    eq_stencil = stencils[('maxwell', time_order)]
     eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
@@ -476,12 +509,12 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         Space discretization order.
     kernel : string, optional
         selects a viscoacoustic equation from the options below:
-        sls (Standard Linear Solid) :
+        SLS (Standard Linear Solid) :
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        ren - Ren et al. (2014) viscoacoustic equation
-        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     save : int or Buffer
         Saving flag, True saves all time steps, False saves three buffered
@@ -509,7 +542,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
                     name='Forward', **kwargs)
 
 
-def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **kwargs):
+def AdjointOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, **kwargs):
     """
     Construct an adjoint modelling operator in a viscoacoustic medium.
 
@@ -527,8 +560,8 @@ def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, 
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        ren - Ren et al. (2014) viscoacoustic equation
-        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
     if time_order == 1:
@@ -571,8 +604,8 @@ def GradientOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        ren - Ren et al. (2014) viscoacoustic equation
-        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
     # Gradient symbol and wavefield symbols
@@ -666,8 +699,8 @@ def BornOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **k
                     name='Born', **kwargs)
 
 
-kernels = {'sls': sls, 'ren': ren, 'deng_mcmechan': deng_mcmechan}
+kernels = {'sls': sls, 'kv': kv, 'maxwell': maxwell}
 stencils = {('sls', 1): sls_1st_order, ('sls', 2): sls_2nd_order,
-            ('deng_mcmechan', 1): deng_1st_order,
-            ('deng_mcmechan', 2): deng_2nd_order,
-            ('ren', 1): ren_1st_order, ('ren', 2): ren_2nd_order}
+            ('maxwell', 1): maxwell_1st_order,
+            ('maxwell', 2): maxwell_2nd_order,
+            ('kv', 1): kv_1st_order, ('kv', 2): kv_2nd_order}

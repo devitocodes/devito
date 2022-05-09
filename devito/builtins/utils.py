@@ -9,7 +9,7 @@ class MPIReduction(object):
     A context manager to build MPI-aware reduction Operators.
     """
 
-    def __init__(self, *functions, op=dv.mpi.MPI.SUM):
+    def __init__(self, *functions, op=dv.mpi.MPI.SUM, dtype=None):
         grids = {f.grid for f in functions}
         if len(grids) == 0:
             self.grid = None
@@ -17,11 +17,14 @@ class MPIReduction(object):
             self.grid = grids.pop()
         else:
             raise ValueError("Multiple Grids found")
-        dtype = {f.dtype for f in functions}
-        if len(dtype) == 1:
-            self.dtype = dtype.pop()
+        if dtype is not None:
+            self.dtype = dtype
         else:
-            raise ValueError("Illegal mixed data types")
+            dtype = {f.dtype for f in functions}
+            if len(dtype) == 1:
+                self.dtype = dtype.pop()
+            else:
+                raise ValueError("Illegal mixed data types")
         self.v = None
         self.op = op
 

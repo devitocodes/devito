@@ -208,7 +208,7 @@ def test_two_homogeneous_buffers():
     op2 = Operator(eqns, opt=('buffering', 'fuse'))
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 2
     assert len(retrieve_iteration_tree(op2)) == 2
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 2
@@ -603,6 +603,25 @@ def test_multi_access():
     assert np.all(w.data == w1.data)
 
 
+def test_issue_1901():
+    grid = Grid(shape=(2, 2))
+    time = grid.time_dim
+    x, y = grid.dimensions
+
+    usave = TimeFunction(name='usave', grid=grid, save=10)
+    v = TimeFunction(name='v', grid=grid)
+
+    eq = [Eq(v[time, x, y], usave)]
+
+    op = Operator(eq, opt='buffering')
+
+    trees = retrieve_iteration_tree(op)
+    assert len(trees) == 2
+    assert trees[1].root.dim is time
+    assert not trees[1].root.is_Parallel
+    assert trees[1].root.is_Sequential  # Obv
+
+
 def test_everything():
     nt = 50
     grid = Grid(shape=(6, 6))
@@ -642,5 +661,26 @@ def test_everything():
 
     op0.apply(time_m=15, time_M=35, save_shift=0)
     op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
+
+    assert np.all(u.data == u1.data)
+
+
+@pytest.mark.parametrize('subdomain', ['domain', 'interior'])
+def test_stencil_issue_1915(subdomain):
+    nt = 5
+    grid = Grid(shape=(6, 6))
+
+    u = TimeFunction(name='u', grid=grid, space_order=4, save=nt)
+    u1 = TimeFunction(name='u', grid=grid, space_order=4, save=nt)
+
+    subdomain = grid.subdomains[subdomain]
+
+    eqn = Eq(u.forward, u.dx + 1, subdomain=subdomain)
+
+    op0 = Operator(eqn, opt='noop')
+    op1 = Operator(eqn, opt='buffering')
+
+    op0.apply(time_M=nt-2)
+    op1.apply(time_M=nt-2, u=u1)
 
     assert np.all(u.data == u1.data)

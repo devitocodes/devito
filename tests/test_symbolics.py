@@ -6,8 +6,10 @@ from sympy import Symbol
 from devito import (Grid, Function, solve, TimeFunction, Eq, Operator, norm,  # noqa
                     Le, Ge, Gt, Lt)  # noqa
 from devito.ir import Expression, FindNodes
-from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel, # noqa
-                              MIN, MAX) # noqa
+from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
+                              CallFromPointer, Cast, FieldFromPointer,
+                              FieldFromComposite, IntDiv, MIN, MAX, ccode)
+from devito.types import Array
 
 
 def test_float_indices():
@@ -47,6 +49,150 @@ def test_floatification_issue_1627(dtype, expected):
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 2
     assert str(exprs[0]) == expected
+
+
+def test_indexed_free_symbols():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid)
+
+    assert u.free_symbols == {x, y}
+    assert u.indexed.free_symbols == {u.indexed}
+
+    ub = Array(name='ub', dtype=u.dtype, dimensions=u.dimensions)
+
+    assert ub.free_symbols == {x, y}
+    assert ub.indexed.free_symbols == {ub.indexed, x.symbolic_size, y.symbolic_size}
+
+
+def test_call_from_pointer():
+    s = Symbol('s')
+
+    # Test construction
+    cfp0 = CallFromPointer('foo', 's')
+    cfp1 = CallFromPointer('foo', s)
+    assert str(cfp0) == str(cfp1) == 's->foo()'
+    assert cfp0 != cfp1  # As `cfc0`'s underlying Symbol is a types.Symbol
+    cfp2 = CallFromPointer('foo', s, [0])
+    assert str(cfp2) == 's->foo(0)'
+    cfp3 = CallFromPointer('foo', s, [0, 'a'])
+    assert str(cfp3) == 's->foo(0, a)'
+
+    # Test hashing
+    assert hash(cfp0) != hash(cfp1)  # Same reason as above
+    assert hash(cfp0) != hash(cfp2)
+    assert hash(cfp2) != hash(cfp3)
+
+    # Test reconstruction
+    cfp4 = cfp3.func(*cfp3.args)
+    assert cfp3 == cfp4
+
+    # Free symbols
+    a = cfp3.args[2][1]
+    assert str(a) == 'a'
+    assert cfp3.free_symbols == {s, a}
+
+
+def test_field_from_pointer():
+    s = Symbol('s')
+
+    # Test construction
+    ffp0 = FieldFromPointer('foo', 's')
+    ffp1 = FieldFromPointer('foo', s)
+    assert str(ffp0) == str(ffp1) == 's->foo'
+    assert ffp0 != ffp1  # As `ffc0`'s underlying Symbol is a types.Symbol
+    ffp2 = FieldFromPointer('bar', 's')
+    assert ffp0 != ffp2
+
+    # Test hashing
+    assert hash(ffp0) != hash(ffp1)  # Same reason as above
+    assert hash(ffp0) != hash(ffp2)
+
+    # Test reconstruction
+    ffp3 = ffp0.func(*ffp0.args)
+    assert ffp0 == ffp3
+
+    # Free symbols
+    assert ffp1.free_symbols == {s}
+
+
+def test_field_from_composite():
+    s = Symbol('s')
+
+    # Test construction
+    ffc0 = FieldFromComposite('foo', 's')
+    ffc1 = FieldFromComposite('foo', s)
+    assert str(ffc0) == str(ffc1) == 's.foo'
+    assert ffc0 != ffc1  # As `ffc0`'s underlying Symbol is a types.Symbol
+    ffc2 = FieldFromComposite('bar', 's')
+    assert ffc0 != ffc2
+
+    # Test hashing
+    assert hash(ffc0) != hash(ffc1)  # Same reason as above
+    assert hash(ffc0) != hash(ffc2)
+
+    # Test reconstruction
+    ffc3 = ffc0.func(*ffc0.args)
+    assert ffc0 == ffc3
+
+    # Free symbols
+    assert ffc1.free_symbols == {s}
+
+
+def test_extended_sympy_arithmetic():
+    cfp = CallFromPointer('foo', 's')
+    ffp = FieldFromPointer('foo', 's')
+    ffc = FieldFromComposite('foo', 's')
+
+    assert ccode(cfp + 1) == '1 + s->foo()'
+    assert ccode(ffp + 1) == '1 + s->foo'
+    assert ccode(ffc + 1) == '1 + s.foo'
+
+
+def test_intdiv():
+    a = Symbol('a')
+    b = Symbol('b')
+
+    # IntDiv by 1 automatically simplified
+    v = IntDiv(a, 1)
+    assert v is a
+
+    v = IntDiv(a, 2)
+    assert ccode(v) == 'a / 2'
+
+    # Within larger expressions -> parentheses
+    v = b*IntDiv(a, 2)
+    assert ccode(v) == 'b*(a / 2)'
+    v = 3*IntDiv(a, 2)
+    assert ccode(v) == '3*(a / 2)'
+    v = b*IntDiv(a, 2) + 3
+    assert ccode(v) == 'b*(a / 2) + 3'
+
+    # IntDiv by zero or non-integer fails
+    with pytest.raises(ValueError):
+        IntDiv(a, 0)
+    with pytest.raises(ValueError):
+        IntDiv(a, 3.5)
+
+    v = b*IntDiv(a + b, 2) + 3
+    assert ccode(v) == 'b*((a + b) / 2) + 3'
+
+
+def test_cast():
+    s = Symbol(name='s', dtype=np.float32)
+
+    class BarCast(Cast):
+        _base_typ = 'bar'
+
+    v = BarCast(s, '**')
+    assert ccode(v) == '(bar**)s'
+
+    # Reconstruction
+    assert ccode(v.func(*v.args)) == '(bar**)s'
+
+    v1 = BarCast(s, '****')
+    assert v != v1
 
 
 def test_is_on_grid():

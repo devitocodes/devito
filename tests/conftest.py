@@ -132,7 +132,7 @@ def parallel(item):
         # OpenMPI requires an explicit flag for oversubscription. We need it as some
         # of the MPI tests will spawn lots of processes
         if mpi_distro == 'OpenMPI':
-            call = [mpi_exec, '--oversubscribe'] + args
+            call = [mpi_exec, '--oversubscribe', '--timeout', '150'] + args
         else:
             call = [mpi_exec] + args
 
@@ -162,11 +162,14 @@ def pytest_runtest_setup(item):
         # Blow away function arg in "master" process, to ensure
         # this test isn't run on only one process
         dummy_test = lambda *args, **kwargs: True
+        # For pytest <7
         if item.cls is not None:
             attr = item.originalname or item.name
             setattr(item.cls, attr, dummy_test)
         else:
             item.obj = dummy_test
+        # For pytest >= 7
+        setattr(item, '_obj', dummy_test)
 
 
 def pytest_runtest_call(item):

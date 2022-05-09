@@ -49,6 +49,7 @@ jobs:
           tags: |
             devitocodes/devito:cpu-latest
             devitocodes/devito:cpu-${{ github.event.release.tag_name }}
+            devitocodes/devito:latest
 
   deploy-docker-gpu:
     runs-on: [self-hosted, gpu, docker]

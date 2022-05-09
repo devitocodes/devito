@@ -11,7 +11,6 @@ from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.data import default_allocator
-from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
                           dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
@@ -849,7 +848,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     @property
     def indices(self):
-        """The indices (aka dimensions) of the object."""
+        """The indices of the object."""
         return DimensionTuple(*self.args, getters=self.dimensions)
 
     @property
@@ -882,22 +881,22 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         For example, if the original non-staggered function is f(x)
         then f(x) is on the grid and f(x + h_x/2) is off the grid.
         """
-        return self._check_indices(inds=self.indices)
-
-    @memoized_meth
-    def _check_indices(self, inds=None):
-        """
-        Check if the function indices are aligned with the dimensions.
-        """
-        inds = inds or self.indices
-        return all([aligned_indices(i, j, d.spacing) for i, j, d in
-                    zip(inds, self.indices_ref, self.dimensions)])
+        for i, j, d in zip(self.indices, self.indices_ref, self.dimensions):
+            # Two indices are aligned if they differ by an Integer*spacing.
+            v = i - j
+            try:
+                if int(v/d.spacing) != v/d.spacing:
+                    return False
+            except TypeError:
+                return False
+        return True
 
     @property
     def evaluate(self):
         # Average values if at a location not on the Function's grid
         if self._is_on_grid:
             return self
+
         weight = 1.0
         avg_list = [self]
         is_averaged = False
@@ -1346,7 +1345,7 @@ class LocalObject(AbstractObject):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(sympy.IndexedBase, Pickable, CodeSymbol):
+class IndexedData(sympy.IndexedBase, Basic, Pickable):
 
     """
     Wrapper class that inserts a pointer to the symbolic data object.
@@ -1395,6 +1394,16 @@ class IndexedData(sympy.IndexedBase, Pickable, CodeSymbol):
     def dtype(self):
         return self.function.dtype
 
+    @cached_property
+    def free_symbols(self):
+        ret = {self}
+        for i in self.shape:
+            try:
+                ret.update(i.free_symbols)
+            except AttributeError:
+                pass
+        return ret
+
     # Pickling support
     _pickle_kwargs = ['label', 'shape', 'function']
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -1423,6 +1432,9 @@ class BoundSymbol(AbstractSymbol):
     @property
     def function(self):
         return self._function
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.function,)
 
 
 class Indexed(sympy.Indexed):

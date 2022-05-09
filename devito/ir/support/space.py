@@ -311,7 +311,7 @@ class IntervalGroup(PartialOrderTuple):
 
     @cached_property
     def dimensions(self):
-        return filter_ordered([i.dim for i in self])
+        return tuple(filter_ordered([i.dim for i in self]))
 
     @property
     def size(self):
@@ -602,7 +602,7 @@ class Space(object):
 
     @cached_property
     def dimensions(self):
-        return filter_ordered(self.intervals.dimensions)
+        return tuple(filter_ordered(self.intervals.dimensions))
 
     @property
     def size(self):
@@ -730,7 +730,11 @@ class IterationSpace(Space):
                      self.directions))
 
     def __getitem__(self, key):
-        return self.intervals[key]
+        retval = self.intervals[key]
+        if isinstance(key, slice):
+            return self.project(lambda d: d in retval.dimensions)
+        else:
+            return retval
 
     @classmethod
     def union(cls, *others):
@@ -759,6 +763,9 @@ class IterationSpace(Space):
                 ret.extend([d for d in v if d not in ret])
 
         return IterationSpace(intervals, sub_iterators, directions)
+
+    def index(self, key):
+        return self.intervals.index(key)
 
     def add(self, other):
         return IterationSpace(self.intervals.add(other), self.sub_iterators,
@@ -845,9 +852,9 @@ class IterationSpace(Space):
 
     def promote(self, cond):
         intervals = self.intervals.promote(cond)
-        sub_iterators = {i.promote(cond).dim: self.sub_iterators.get(i.dim, ())
+        sub_iterators = {i.promote(cond).dim: self.sub_iterators[i.dim]
                          for i in self.intervals}
-        directions = {i.promote(cond).dim: self.directions.get(i.dim, ())
+        directions = {i.promote(cond).dim: self.directions[i.dim]
                       for i in self.intervals}
 
         return IterationSpace(intervals, sub_iterators, directions)
@@ -891,7 +898,7 @@ class IterationSpace(Space):
     @cached_property
     def dimensions(self):
         sub_dims = flatten(i._defines for v in self.sub_iterators.values() for i in v)
-        return filter_ordered(self.itdimensions + sub_dims)
+        return tuple(filter_ordered(self.itdimensions + tuple(sub_dims)))
 
     @cached_property
     def nonderived_directions(self):

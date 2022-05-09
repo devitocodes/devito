@@ -6,6 +6,21 @@ from devito.builtins.utils import MPIReduction
 
 __all__ = ['norm', 'sumall', 'inner', 'mmin', 'mmax']
 
+accumulator_mapper = {
+    # Integer accumulates on Float64
+    np.int8: np.float64, np.uint8: np.float64,
+    np.int16: np.float64, np.uint16: np.float64,
+    np.int32: np.float64, np.uint32: np.float64,
+    np.int64: np.float64, np.uint64: np.float64,
+    # FloatX accumulates on Float2X
+    np.float16: np.float32,
+    np.float32: np.float64,
+    # NOTE: np.float128 isn't really a thing, see for example
+    # https://github.com/numpy/numpy/issues/10288
+    # https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html#1070
+    np.float64: np.float64
+}
+
 
 @dv.switchconfig(log_level='ERROR')
 def norm(f, order=2):
@@ -28,9 +43,10 @@ def norm(f, order=2):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
-    s = dv.types.Symbol(name='sum', dtype=f.dtype)
+    dtype = accumulator_mapper[f.dtype]
+    s = dv.types.Symbol(name='sum', dtype=dtype)
 
-    with MPIReduction(f) as mr:
+    with MPIReduction(f, dtype=dtype) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] +
                          eqns +
                          [dv.Inc(s, dv.Abs(Pow(p, order))), dv.Eq(mr.n[0], s)],
@@ -59,9 +75,10 @@ def sumall(f):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
-    s = dv.types.Symbol(name='sum', dtype=f.dtype)
+    dtype = accumulator_mapper[f.dtype]
+    s = dv.types.Symbol(name='sum', dtype=dtype)
 
-    with MPIReduction(f) as mr:
+    with MPIReduction(f, dtype=dtype) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] +
                          eqns +
                          [dv.Inc(s, p), dv.Eq(mr.n[0], s)],
@@ -113,9 +130,10 @@ def inner(f, g):
     # otherwise we would eventually be summing more than expected
     rhs, eqns = f.guard(f*g) if f.is_SparseFunction else (f*g, [])
 
-    s = dv.types.Symbol(name='sum', dtype=f.dtype)
+    dtype = accumulator_mapper[f.dtype]
+    s = dv.types.Symbol(name='sum', dtype=dtype)
 
-    with MPIReduction(f, g) as mr:
+    with MPIReduction(f, g, dtype=dtype) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] +
                          eqns +
                          [dv.Inc(s, rhs), dv.Eq(mr.n[0], s)],

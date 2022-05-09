@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from devito import Function, info, TimeFunction, Operator, Eq
+from devito import Function, info, TimeFunction, Operator, Eq, smooth
 from devito.parameters import switchconfig
-from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
+from examples.seismic.acoustic import acoustic_setup as iso_setup
 from examples.seismic.acoustic.operators import iso_stencil
 from examples.seismic import Receiver, demo_model, setup_geometry
 from examples.seismic.tti import tti_setup
@@ -20,7 +20,7 @@ class TestGradient(object):
                                       {'openmp': True})])
     @pytest.mark.parametrize('space_order', [4, 16])
     @pytest.mark.parametrize('kernel, shape, spacing, setup_func, time_order', [
-        ('OT2', (70, 80), (10., 10.), setup, 2),
+        ('OT2', (70, 80), (10., 10.), iso_setup, 2),
         ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 2),
         ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 1),
     ])
@@ -148,8 +148,8 @@ class TestGradient(object):
         assert(np.allclose(grad_u.data, grad_uv.data, rtol=tolerance, atol=tolerance))
 
     @pytest.mark.parametrize('kernel, shape, ckp, setup_func, time_order', [
-        ('OT2', (50, 60), True, setup, 2),
-        ('OT2', (50, 60), False, setup, 2),
+        ('OT2', (50, 60), True, iso_setup, 2),
+        ('OT2', (50, 60), False, iso_setup, 2),
         ('centered', (50, 60), True, tti_setup, 2),
         ('centered', (50, 60), False, tti_setup, 2),
         ('sls', (50, 60), True, viscoacoustic_setup, 2),
@@ -239,7 +239,7 @@ class TestGradient(object):
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
     @pytest.mark.parametrize('kernel, shape, spacing, setup_func, time_order', [
-        ('OT2', (70, 80), (15., 15.), setup, 2),
+        ('OT2', (70, 80), (15., 15.), iso_setup, 2),
         ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 2),
         ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 1),
         ('centered', (70, 80), (15., 15.), tti_setup, 2),

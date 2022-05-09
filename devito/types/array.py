@@ -81,8 +81,10 @@ class Array(ArrayBasic):
         The memory space. Allowed values: 'local', 'mapped'.  Defaults to 'local'.
         Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
-        The scope in the given memory space. Allowed values: 'heap', 'stack'.
-        Defaults to 'heap'. This may not have an impact on certain platforms.
+        The scope in the given memory space. Allowed values: 'heap', 'stack',
+        'static'. Defaults to 'heap'. 'static' means a static array in a
+        C/C++ sense and, therefore, implies 'stack'.
+        Note: not all scopes make sense for a given space.
     initvalue : array-like, optional
         The initial content of the Array. Must be None if `scope='heap'`.
 
@@ -105,7 +107,7 @@ class Array(ArrayBasic):
         assert self._space in ['local', 'remote', 'mapped']
 
         self._scope = kwargs.get('scope', 'heap')
-        assert self._scope in ['heap', 'stack']
+        assert self._scope in ['heap', 'stack', 'static']
 
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
@@ -166,6 +168,10 @@ class Array(ArrayBasic):
     @property
     def _mem_mapped(self):
         return self._space == 'mapped'
+
+    @property
+    def _mem_static(self):
+        return self._scope == 'static'
 
     @property
     def _mem_stack(self):

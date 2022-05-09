@@ -5,9 +5,8 @@ from devito.finite_differences.tools import (numeric_weights, symbolic_weights, 
                                              right, generate_indices, centered, direct,
                                              transpose, check_input, check_symbolic)
 
-__all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
-           'generic_derivative', 'left', 'right', 'centered', 'transpose',
-           'generate_indices']
+__all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
+           'left', 'right', 'centered', 'transpose', 'generate_indices']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
@@ -16,8 +15,8 @@ _PRECISION = 9
 
 @check_input
 @check_symbolic
-def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
-                     symbolic=False, x0=None):
+def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=None,
+                     symbolic=False):
     """
     First-order derivative of a given expression.
 
@@ -29,13 +28,15 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
         The Dimension w.r.t. which to differentiate.
     fd_order : int, optional
         Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil. Defaults to ``expr.space_order``
+        the resulting stencil. Defaults to `expr.space_order`.
     side : Side, optional
         Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1). Defaults to ``centered``.
+        or right (at x +1). Defaults to `centered`.
     matvec : Transpose, optional
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to ``direct``.
+        finite difference. Defaults to `direct`.
+    symbolic : bool, optional
+        Use default or custom coefficients (weights). Defaults to False.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
 
@@ -81,76 +82,10 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     >>> first_derivative(f, dim=x, x0={x: 1})
     -f(1, y)/h_x + f(h_x + 1, y)/h_x
     """
-    side = side
-    order = fd_order or expr.space_order
+    fd_order = fd_order or expr.space_order
+    deriv_order = 1
 
-    # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind = generate_indices(expr, dim, order, side=side, x0=x0)[0]
-
-    # Finite difference weights from Taylor approximation with these positions
-    if symbolic:
-        c = symbolic_weights(expr, 1, ind, dim)
-    else:
-        c = numeric_weights(1, ind, dim)
-
-    return indices_weights_to_fd(expr, dim, ind, c, matvec=matvec.val)
-
-
-@check_input
-@check_symbolic
-def second_derivative(expr, dim, fd_order, **kwargs):
-    """
-    Second-order derivative of a given expression.
-
-    Parameters
-    ----------
-    expr : expr-like
-        Expression for which the derivative is produced.
-    dim : Dimension
-        The Dimension w.r.t. which to differentiate.
-    fd_order : int
-        Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil.
-    stagger : Side, optional
-        Shift of the finite-difference approximation.
-    x0 : dict, optional
-        Origin of the finite-difference scheme as a map dim: origin_dim.
-
-    Returns
-    -------
-    expr-like
-        Second-order derivative of ``expr``.
-
-    Examples
-    --------
-    >>> from devito import Function, Grid, second_derivative
-    >>> grid = Grid(shape=(4, 4))
-    >>> x, _ = grid.dimensions
-    >>> f = Function(name='f', grid=grid, space_order=2)
-    >>> g = Function(name='g', grid=grid, space_order=2)
-    >>> second_derivative(f*g, dim=x, fd_order=2)
-    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
- f(x + h_x, y)*g(x + h_x, y)/h_x**2
-
-    Semantically, this is equivalent to
-
-    >>> (f*g).dx2
-    Derivative(f(x, y)*g(x, y), (x, 2))
-
-    The only difference is that in the latter case derivatives remain unevaluated.
-    The expanded form is obtained via ``evaluate``
-
-    >>> (f*g).dx2.evaluate
-    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
- f(x + h_x, y)*g(x + h_x, y)/h_x**2
-
-    Finally the x0 argument allows to choose the origin of the finite-difference
-
-    >>> second_derivative(f, dim=x, fd_order=2, x0={x: 1})
-    -2.0*f(1, y)/h_x**2 + f(1 - h_x, y)/h_x**2 + f(h_x + 1, y)/h_x**2
-    """
-
-    return generic_derivative(expr, dim, fd_order, 2, **kwargs)
+    return make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic)
 
 
 @check_input
@@ -170,8 +105,11 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
         the resulting stencil.
     deriv_order : tuple of ints
         Derivative order, e.g. 2 for a second-order derivative.
-    stagger : tuple of Side, optional
-        Shift of the finite-difference approximation.
+    matvec : Transpose, optional
+        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
+        finite difference. Defaults to `direct`.
+    symbolic : bool, optional
+        Use default or custom coefficients (weights). Defaults to False.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
 
@@ -182,7 +120,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
 
     Examples
     --------
-    >>> from devito import Function, Grid, second_derivative
+    >>> from devito import Function, Grid
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
@@ -219,8 +157,8 @@ g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
 
 @check_input
 @check_symbolic
-def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
-                       matvec=direct, x0=None):
+def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
+                       symbolic=False):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -235,52 +173,69 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
         the resulting stencil.
     deriv_order : int
         Derivative order, e.g. 2 for a second-order derivative.
-    stagger : Side, optional
-        Shift of the finite-difference approximation.
+    matvec : Transpose, optional
+        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
+        finite difference. Defaults to `direct`.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
+    symbolic : bool, optional
+        Use default or custom coefficients (weights). Defaults to False.
 
     Returns
     -------
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
+    side = None
     # First order derivative with 2nd order FD is highly non-recommended so taking
     # first order fd that is a lot better
     if deriv_order == 1 and fd_order == 2 and not symbolic:
         fd_order = 1
-    # Stencil positions
-    indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
+
+    return make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic)
+
+
+def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic):
+    # The stencil positions
+    indices, x0 = generate_indices(expr, dim, fd_order, side=side, x0=x0)
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:
-        c = symbolic_weights(expr, deriv_order, indices, x0)
+        weights = symbolic_weights(expr, deriv_order, indices, x0)
     else:
-        c = numeric_weights(deriv_order, indices, x0)
+        weights = numeric_weights(deriv_order, indices, x0)
 
-    return indices_weights_to_fd(expr, dim, indices, c, matvec=matvec.val)
+    return indices_weights_to_fd(expr, dim, indices, weights, matvec=matvec.val)
 
 
-def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
+def indices_weights_to_fd(expr, dim, indices, weights, matvec=1):
     """Expression from lists of indices and weights."""
-    diff = dim.spacing
-
-    d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
-
-    mapper = {dim: d0, diff: matvec*diff}
-
-    # Loop through weights
+    mapper = {dim.spacing: matvec*dim.spacing}
     terms = []
-    for i, c in zip(inds, weights):
-        # Apply replacements to indices. Needs to be sympified in case
-        # the indices are pure numbers
+    for i, c in zip(indices, weights):
+        # Transpose FD if necessary through `mapper`
         try:
             iloc = i.xreplace(mapper)
         except AttributeError:
+            # Pure number -> sympify
             iloc = sympify(i).xreplace(mapper)
+        # Shift index due to staggering, if any
+        iloc -= expr.indices_ref[dim] - dim
+
         # Enforce fixed precision FD coefficients to avoid variations in results
-        c = sympify(c).evalf(_PRECISION)
-        terms.append(expr._subs(dim, iloc - (expr.indices_ref[dim] - dim)) * c)
+        v = sympify(c).evalf(_PRECISION)
+
+        # The FD term
+        term = expr._subs(dim, iloc) * v
+
+        # Re-evaluate any off-the-grid Functions potentially impacted by the FD
+        try:
+            term = term.evaluate
+        except AttributeError:
+            # Pure number
+            pass
+
+        terms.append(term)
 
     deriv = EvalDerivative(*terms, base=expr)
 

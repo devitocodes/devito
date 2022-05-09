@@ -2,11 +2,12 @@ import numpy as np
 import pytest
 from itertools import permutations
 
-from conftest import skipif
+from conftest import assert_structure, skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
-                    TensorTimeFunction, VectorFunction, VectorTimeFunction, switchconfig)
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction,
+                    div, grad, switchconfig)
 from devito import  Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
@@ -274,7 +275,7 @@ class TestCodeGen(object):
 
         u = TimeFunction(name='u', grid=grid, save=3)
 
-        op = Operator(Eq(u, u + 1))
+        op = Operator(Eq(u, u + 1), platform='intel64')
 
         assert op.body.body[1].body[0].is_Section
         assert isinstance(op.body.body[1].body[0].body[0], TimedList)
@@ -821,7 +822,7 @@ class TestApplyArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        mask = np.ones((5, 6, 7), dtype=np.bool)
+        mask = np.ones((5, 6, 7), dtype=bool)
         mask[1:4, 2:5, 3:6] = False
         assert (g.data[mask] == 0.).all()
         assert (g.data[1:4, 2:5, 3:6] == 1.).all()
@@ -852,7 +853,7 @@ class TestApplyArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        mask = np.ones((1, 5, 6, 7), dtype=np.bool)
+        mask = np.ones((1, 5, 6, 7), dtype=bool)
         mask[:, 1:4, 2:5, 3:6] = False
         assert (f.data[mask] == 0.).all()
         assert (f.data[:, 1:4, 2:5, 3:6] == 1.).all()
@@ -1246,6 +1247,24 @@ class TestApplyArguments(object):
         # The h_x that was passed to the C code must be the one `grid2`, not `grid`
         assert u2.data[2, 2] == grid2.spacing[0]
 
+    def test_loose_kwargs(self):
+        grid = Grid(shape=(10, 10))
+
+        x, y = grid.dimensions
+        s = Symbol(name='s', dtype=np.int32)
+
+        eq = Eq(s, x.symbolic_size + y.symbolic_size)
+
+        op = Operator(eq)
+
+        # Exception expected here because a binding for `x_size` and `y_size`
+        # needs to be provided
+        with pytest.raises(ValueError):
+            op.arguments()
+
+        # But the following should work perfectly fine
+        op.arguments(x_size=2, y_size=2)
+
 
 @skipif('device')
 class TestDeclarator(object):
@@ -1330,7 +1349,7 @@ class TestDeclarator(object):
         op = Operator([Eq(t0, 1.),
                        Eq(t1, 2.),
                        Eq(a[i], t0*t1*3.),
-                       Eq(f, a[j])])
+                       Eq(f, a[j])], platform='intel64')
 
         assert op.body.casts[1].is_PointerCast
         assert str(op.body.casts[1]) ==\
@@ -1929,3 +1948,22 @@ class TestLoopScheduling(object):
         assert tree[0].dim is time
         assert tree[1].dim is x
         assert tree[2].dim is y
+
+    def test_issue_1897(self):
+        grid = Grid(shape=(11, 11, 11))
+
+        v = VectorTimeFunction(name='v', grid=grid, time_order=1, space_order=4)
+        tau = TensorTimeFunction(name='tau', grid=grid, time_order=1, space_order=4)
+
+        eqns = [
+            Eq(v.forward, div(tau) + v),
+            Eq(tau.forward, grad(v.forward) + tau)
+        ]
+
+        op = Operator(eqns)
+
+        assert_structure(
+            op,
+            ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
+            't,x0_blk0,y0_blk0,x,y,z,x1_blk0,y1_blk0,x,y,z'
+        )

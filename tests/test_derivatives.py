@@ -4,9 +4,11 @@ from sympy import simplify, diff, Float
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
-from devito.finite_differences import Derivative, Differentiable
-from devito.finite_differences.differentiable import Add, EvalDerivative
+from devito.finite_differences import Derivative, Differentiable, Weights
+from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
+                                                      IndexDerivative)
 from devito.symbolics import indexify, retrieve_indexed
+from devito.types import StencilDimension
 
 _PRECISION = 9
 
@@ -488,6 +490,122 @@ class TestFD(object):
             x0 = (None if shift is None else d + shift[i] * d.spacing if
                   type(shift) is tuple else d + shift * d.spacing)
             assert gi == getattr(f, 'd%s' % d.name)(x0=x0).evaluate
+
+
+class TestPartialEvalBuildingBlocks(object):
+
+    def test_exceptions(self):
+        grid = Grid((10,))
+
+        x, = grid.dimensions
+
+        with pytest.raises(TypeError):
+            # Missing 1 required positional argument: '_max'
+            StencilDimension('i', 3)
+        with pytest.raises(ValueError):
+            # Spacing must be an integer
+            StencilDimension('i', 3, 5, spacing=0.6)
+        i = StencilDimension('i', 0, 1)
+        assert i.symbolic_size == 2
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        with pytest.raises(ValueError):
+            # Expected Dimension with numeric size, got `1` instead
+            IndexSum(u, 1)
+        with pytest.raises(ValueError):
+            # Expected Dimension with numeric size, got `x` instead
+            IndexSum(u, x)
+        with pytest.raises(ValueError):
+            # Dimension `i` must appear in `expr`
+            IndexSum(u, i)
+
+    def test_index_sum_basic(self):
+        grid = Grid((10,))
+
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        # Build `u(x + h_x)`
+        term0 = u.subs(x, x + x.spacing)
+
+        # `u(x + h_x)` -> `u(x + i*h_x)`
+        term = term0.subs(x + x.spacing, x + i*x.spacing)
+
+        # Sum `term` over `i`
+        idxsum = IndexSum(term, i)
+
+        # == u(x) + u(x + h_x)
+        assert idxsum.evaluate == u + term0
+
+    def test_index_sum_2d(self):
+        grid = Grid((10, 10))
+
+        x, y = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+        j = StencilDimension('j', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        # Build `u(x + h_x, y + y_h)`
+        term0 = u.xreplace({x: x + x.spacing, y: y + y.spacing})
+        term = term0.xreplace({x + x.spacing: x + i*x.spacing,
+                               y + y.spacing: y + j*y.spacing})
+
+        # Sum `term` over `i`
+        idxsum = IndexSum(term, (i, j))
+
+        # == u(x, y) + u(x, y + h_y) + u(x + h_x, y) + u(x + h_x, y + h_y)
+        assert idxsum.evaluate == (u +
+                                   u.subs(x, x + x.spacing) +
+                                   u.subs(y, y + y.spacing) +
+                                   term0)
+
+    def test_index_sum_free_symbols(self):
+        grid = Grid((10,))
+
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+
+        u = Function(name="u", grid=grid)
+
+        idxsum = IndexSum(u.subs(x, x*i), i)
+
+        assert idxsum.free_symbols == {x}
+
+    def test_dot_like(self):
+        grid = Grid((10, 10))
+
+        x, y = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+        v = Function(name="v", grid=grid, space_order=2)
+
+        ui = u.subs(x, x + i*x.spacing)
+        vi = v.subs(y, y + i*y.spacing)
+
+        # Sum `term` over `i`
+        idxsum = IndexSum(ui*vi, i)
+
+        assert idxsum.evaluate == u*v + u.subs(x, x + x.spacing)*v.subs(y, y + y.spacing)
+
+    def test_index_derivative_like(self):
+        grid = Grid((10,))
+        x, = grid.dimensions
+
+        i = StencilDimension('i', 0, 2)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        ui = u.subs(x, x + i*x.spacing)
+        w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
+
+        idxder = IndexDerivative(ui, w)
+
+        assert idxder.evaluate == -0.5*u + 0.5*ui.subs(i, 2)
 
 
 def bypass_uneval(expr):

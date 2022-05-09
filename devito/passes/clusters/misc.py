@@ -2,15 +2,14 @@ from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue
-from devito.ir.support import SEQUENTIAL, Scope
+from devito.ir.support import SEQUENTIAL, SEPARABLE, Scope
 from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
-from devito.types import Symbol
-from devito.types.grid import MultiSubDimension
+from devito.types import Hyperplane, Symbol
 
 __all__ = ['Lift', 'fuse', 'optimize_pows', 'extract_increments',
-           'fission', 'optimize_msds']
+           'fission', 'optimize_hyperplanes']
 
 
 class Lift(Queue):
@@ -369,66 +368,15 @@ def fission(clusters):
     return Fission().process(clusters)
 
 
-class MSDOptimizer(Queue):
-
-    """
-    Implement MultiSubDomains optimization.
-
-    Currently, the following optimizations are performed:
-
-        * Removal of redundant thicknesses assignments. These stem from Eqs
-          defined over the same MultiSubDomain in the very same loop nest.
-          The redundant assignments obviously do not impact correctness,
-          but they may affect other optimizations, such as fusion.
-    """
-
-    def callback(self, clusters, prefix):
-        if not prefix or any(isinstance(i.dim, MultiSubDimension) for i in prefix):
-            return clusters
-
-        msds = {d for d in set().union(*[c.dimensions for c in clusters])
-                if isinstance(d, MultiSubDimension)}
-        if not msds:
-            return clusters
-
-        # Remove redundant thicknesses assignments
-
-        thicknesses = set().union(*[list(i._thickness_map) for i in msds])
-        candidates = [c for c in clusters if set(c.scope.writes) & thicknesses]
-
-        # First of all, make sure we analyze all and only the thicknesses assignments
-        # at the same depth
-        d = prefix[-1].dim
-        if any(c.itintervals[-1].dim is not d for c in candidates):
-            return clusters
-
-        # Then, attempt extirpation of redundancies
-        schedulable = set(thicknesses)
-        processed = []
-        for c in clusters:
-            if c in candidates:
-                exprs = []
-                for e in c.exprs:
-                    try:
-                        schedulable.remove(e.lhs)
-                        exprs.append(e)
-                    except KeyError:
-                        # Already scheduled, no-op
-                        pass
-                if exprs:
-                    processed.append(c.rebuild(exprs=exprs))
-            else:
-                processed.append(c)
-
-        # Sanity check
-        assert len(schedulable) == 0
-
-        return processed
-
-
 @timed_pass()
-def optimize_msds(clusters):
+def optimize_hyperplanes(clusters):
     """
-    Optimize clusters defined over MultiSubDomains.
+    At the moment this is just a dummy no-op pass that we only use
+    for testing purposes.
     """
-    return MSDOptimizer().process(clusters)
+    for c in clusters:
+        for k, v in c.properties.items():
+            if isinstance(k, Hyperplane) and SEPARABLE in v:
+                raise NotImplementedError
+
+    return clusters

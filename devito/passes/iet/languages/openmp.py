@@ -1,7 +1,10 @@
+from distutils import version
+
 import cgen as c
 from sympy import Not
 
 from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
+from devito.arch.compiler import GNUCompiler
 from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration,
                        ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
@@ -186,7 +189,17 @@ class SimdOmpizer(PragmaSimdTransformer):
 
 
 class Ompizer(PragmaShmTransformer):
+
     lang = OmpBB
+
+    @classmethod
+    def _support_array_reduction(cls, compiler):
+        # Not all backend compilers support array reduction!
+        # Here are the known unsupported ones:
+        if isinstance(compiler, GNUCompiler) and \
+           compiler.version < version.StrictVersion("6.0"):
+            return False
+        return True
 
 
 class DeviceOmpizer(PragmaDeviceAwareTransformer):

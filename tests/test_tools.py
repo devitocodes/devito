@@ -3,7 +3,8 @@ import pytest
 from sympy.abc import a, b, c, d, e
 import time
 
-from devito.tools import toposort, filter_ordered, transitive_closure
+from devito.tools import (ctypes_to_cstr, toposort, filter_ordered,
+                          transitive_closure)
 from devito.types.basic import Symbol
 
 
@@ -84,3 +85,17 @@ def test_sympy_subs_symmetric(mapper, expected):
     input = [a, b, c, d, e]
     input = [i.subs(mapper) for i in input]
     assert input == expected
+
+
+@pytest.mark.parametrize('dtype, expected', [
+    (np.float32, 'float'),
+    (np.float64, 'double'),
+    (np.int32, 'int'),
+    (np.int64, 'long'),
+    (np.uint64, 'unsigned long'),
+    (np.int8, 'char'),
+    (np.uint8, 'unsigned char'),
+])
+def test_ctypes_to_cstr(dtype, expected):
+    a = Symbol(name='a', dtype=dtype)
+    assert ctypes_to_cstr(a._C_ctype) == expected

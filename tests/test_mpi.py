@@ -228,8 +228,14 @@ class TestFunction(object):
         assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
         assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
 
+    @pytest.mark.parametrize("paddings", [
+        (None, None),
+        ((0, 0), (0, 0)),
+        ((0, 0), (0, 1)),
+        ((1, 0), (0, 1)),
+    ])
     @pytest.mark.parallel(mode=2)
-    def test_halo_exchange_bilateral_asymmetric(self):
+    def test_halo_exchange_bilateral_asymmetric(self, paddings):
         """
         Test halo exchange between two processes organised in a 2x1 cartesian grid.
 
@@ -258,8 +264,9 @@ class TestFunction(object):
         """
         grid = Grid(shape=(12, 12))
         x, y = grid.dimensions
+        padding = paddings[grid.distributor.comm.rank]
 
-        f = Function(name='f', grid=grid, space_order=(1, 1, 2))
+        f = Function(name='f', grid=grid, space_order=(1, 1, 2), padding=padding)
         f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
@@ -1171,7 +1178,7 @@ class TestCodeGeneration(object):
         op = Operator(Eq(f.forward, eval(expr)), opt=('advanced', {'openmp': False}))
 
         calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
-        destinations = {i.arguments[-2].field for i in calls}
+        destinations = {str(i.arguments[-2].field) for i in calls}
         assert destinations == expected
 
     @pytest.mark.parallel(mode=[(1, 'full')])

@@ -15,7 +15,8 @@ from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import Temp, _cse
 from devito.passes.iet.parpragma import VExpanded
-from devito.symbolics import INT, FLOAT, estimate_cost, pow_to_mul, indexify  # noqa
+from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
+                              Keyword, SizeOf, estimate_cost, pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
 from devito.types import Scalar, Array
 
@@ -148,6 +149,8 @@ def test_pow_to_mul(expr, expected):
 
 
 @pytest.mark.parametrize('expr,expected,estimate', [
+    ('Eq(t0, 3)', 0, False),
+    ('Eq(t0, 4.5)', 0, False),
     ('Eq(t0, t1)', 0, False),
     ('Eq(t0, -t1)', 0, False),
     ('Eq(t0, -t1)', 0, True),
@@ -187,6 +190,16 @@ def test_pow_to_mul(expr, expected):
     ('Eq(t0, 2*t3)', 0, True),
     ('Eq(t0, 2*t1)', 1, True),
     ('Eq(t0, -4 + INT(t3*t4 + t3))', 0, True),
+    # Custom routines and types
+    ('Eq(t0, SizeOf("int"))', 0, True),
+    ('Eq(t0, SizeOf("int"))', 0, False),
+    ('Eq(t0, foo(k, 9))', 0, False),
+    ('Eq(t0, foo(k, 9))', 0, True),
+    ('Eq(t0, foo(k, t0 + 9))', 1, True),
+    ('Eq(t0, foo(k, cos(t0 + 9)))', 101, True),
+    ('Eq(t0, ffp)', 0, True),
+    ('Eq(t0, ffp + 1.)', 1, True),
+    ('Eq(t0, ffp + ffp)', 1, True),
 ])
 def test_estimate_cost(expr, expected, estimate):
     # Note: integer arithmetic isn't counted
@@ -203,6 +216,9 @@ def test_estimate_cost(expr, expected, estimate):
     fa = Function(name='fa', grid=grid, shape=(4,), dimensions=(x,))  # noqa
     fb = Function(name='fb', grid=grid, shape=(4,), dimensions=(x,))  # noqa
     fc = Function(name='fc', grid=grid)  # noqa
+    foo = lambda *args: DefFunction('foo', tuple(args))  # noqa
+    k = Keyword('k')  # noqa
+    ffp = FieldFromPointer('size', fa._C_symbol)  # noqa
 
     assert estimate_cost(eval(expr), estimate) == expected
 
@@ -2492,6 +2508,24 @@ class TestAliases(object):
         op = Operator(eqn)
 
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 0
+
+    @pytest.mark.parametrize('expr,expected', [
+        ('u.dy.dy', False),  # No SEPARABLE as hyperplane degenerates to 1D space
+        ('u.dx.dx + u.dy.dy', True),
+        ('u.dx.dx + u.dx.dy', True)
+    ])
+    def test_separable_property(self, expr, expected):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eq = Eq(u.forward, eval(expr))
+
+        if expected:
+            with pytest.raises(NotImplementedError):
+                Operator(eq, opt=('cire-sops', 'opt-hyperplanes'))
+        else:
+            Operator(eq, opt=('cire-sops', 'opt-hyperplanes'))
 
 
 class TestIsoAcoustic(object):

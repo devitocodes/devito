@@ -299,8 +299,20 @@ def make_mpi(iet, **kwargs):
         mapper[hs] = heb.make(hs)
 
     efuncs = sync_heb.efuncs + user_heb.efuncs
-    objs = filter_sorted(sync_heb.objs + user_heb.objs)
+    args = filter_sorted(sync_heb.objs + user_heb.objs)
     iet = Transformer(mapper, nested=True).visit(iet)
+
+    # If MPI code is to be generated but it turns out `iet` requires no halo
+    # exchanges, we still try to add MPIComm as it may be used by subsequent
+    # compilation passes (e.g., device backends initialization would require
+    # MPIComm to assign different MPI ranks to different devices)
+    if not args:
+        for i in iet.parameters:
+            try:
+                args.append(i.grid.distributor._obj_comm)
+                break
+            except AttributeError:
+                pass
 
     # Must drop the PARALLEL tag from the Iterations within which halo
     # exchanges are performed
@@ -316,7 +328,7 @@ def make_mpi(iet, **kwargs):
                 break
     iet = Transformer(mapper, nested=True).visit(iet)
 
-    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}
+    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': args}
 
 
 def mpiize(graph, sregistry=None, options=None):

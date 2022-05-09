@@ -12,7 +12,7 @@ from devito.ir.clusters.queue import Queue, QueueStateful
 from devito.symbolics import uxreplace, xreplace_indices
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer,
                           timed_pass)
-from devito.types import ModuloDimension
+from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
 
@@ -68,7 +68,7 @@ class Schedule(QueueStateful):
           scheduled to different loop nests.
 
         * If *all* dependences across two Clusters along a given Dimension are
-          backward carried depedences, then the IterationSpaces are _lifted_
+          backward carried dependences, then the IterationSpaces are _lifted_
           such that the two Clusters cannot be fused. This is to maximize
           the number of parallel Dimensions. Essentially, this is what low-level
           compilers call "loop fission" -- only that here it occurs at a much
@@ -84,7 +84,7 @@ class Schedule(QueueStateful):
 
     @timed_pass(name='schedule')
     def process(self, clusters):
-        return self._process_fdta(clusters, 1)
+        return self._process_fatd(clusters, 1)
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:
@@ -186,8 +186,15 @@ def guard(clusters):
             # Chain together all `cds` conditions from all expressions in `c`
             guards = {}
             for cd in cds:
+                # `BOTTOM` parent implies a guard that lives outside of
+                # any iteration space, which corresponds to the placeholder None
+                if cd.parent is BOTTOM:
+                    d = None
+                else:
+                    d = cd.parent
+
                 # Pull `cd` from any expr
-                condition = guards.setdefault(cd.parent, [])
+                condition = guards.setdefault(d, [])
                 for e in exprs:
                     try:
                         condition.append(e.conditionals[cd])
@@ -226,7 +233,7 @@ class Stepper(Queue):
 
         d = prefix[-1].dim
 
-        subiters = flatten([c.ispace.sub_iterators.get(d, []) for c in clusters])
+        subiters = flatten([c.ispace.sub_iterators[d] for c in clusters])
         subiters = {i for i in subiters if i.is_Stepping}
         if not subiters:
             return clusters
@@ -276,7 +283,7 @@ class Stepper(Queue):
         def rule(size, e):
             try:
                 return e.function.shape_allocated[d] == size
-            except (AttributeError, KeyError):
+            except (AttributeError, KeyError, ValueError):
                 return False
 
         # Reconstruct the Clusters

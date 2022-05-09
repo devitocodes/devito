@@ -1,6 +1,6 @@
 import numpy as np
 import cgen as c
-from sympy import And, Max
+from sympy import And, Max, true
 
 from devito.data import FULL
 from devito.ir import (Conditional, DummyEq, Dereference, Expression, ExpressionBundle,
@@ -32,6 +32,10 @@ class PragmaSimdTransformer(PragmaTransformer):
     """
     Abstract base class for PragmaTransformers capable of emitting SIMD-parallel IETs.
     """
+
+    @classmethod
+    def _support_array_reduction(cls, compiler):
+        return True
 
     @property
     def simd_reg_size(self):
@@ -68,6 +72,30 @@ class PragmaSimdTransformer(PragmaTransformer):
             if not IsPerfectIteration(depth=candidates[-2]).visit(candidate):
                 continue
 
+            # If it's an array reduction, we need to be sure the backend compiler
+            # actually supports it. For example, it may be possible to
+            #
+            # #pragma parallel reduction(a[...])
+            # for (i = ...)
+            #   #pragma simd
+            #   for (j = ...)
+            #     a[j] += ...
+            #
+            # While the following could be unsupported
+            #
+            # #pragma parallel  // compiler doesn't support array reduction
+            # for (i = ...)
+            #   #pragma simd
+            #   for (j = ...)
+            #     #pragma atomic  // cannot nest simd and atomic
+            #     a[j] += ...
+            if any(i.is_ParallelAtomic for i in candidates[:-1]) and \
+               not self._support_array_reduction(self.compiler):
+                exprs = FindNodes(Expression).visit(candidate)
+                reductions = [i.output for i in exprs if i.is_Increment]
+                if any(i.is_Indexed for i in reductions):
+                    continue
+
             # Add SIMD pragma
             indexeds = FindSymbols('indexeds').visit(candidate)
             aligned = {i.name for i in indexeds if i.function.is_DiscreteFunction}
@@ -95,7 +123,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     and shared-memory-parallel IETs.
     """
 
-    def __init__(self, sregistry, options, platform):
+    def __init__(self, sregistry, options, platform, compiler):
         """
         Parameters
         ----------
@@ -116,9 +144,11 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                is greater than this threshold.
         platform : Platform
             The underlying platform.
+        compiler : Compiler
+            The underlying JIT compiler.
         """
         key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
-        super().__init__(key, sregistry, platform)
+        super().__init__(key, sregistry, platform, compiler)
 
         self.collapse_ncores = options['par-collapse-ncores']
         self.collapse_work = options['par-collapse-work']
@@ -214,11 +244,15 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             return partree
 
         exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_Increment]
-        reduction = [i.output for i in exprs]
-        if all(i.is_Affine for i in partree.collapsed) or \
-           all(not i.is_Indexed for i in reduction):
+        reductions = [i.output for i in exprs]
+
+        test0 = all(not i.is_Indexed for i in reductions)
+        test1 = (self._support_array_reduction(self.compiler) and
+                 all(i.is_Affine for i in partree.collapsed))
+
+        if test0 or test1:
             # Implement reduction
-            mapper = {partree.root: partree.root._rebuild(reduction=reduction)}
+            mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
         else:
             # Make sure the increment is atomic
             mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
@@ -399,8 +433,8 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
     shared-memory-parallel, and device-parallel IETs.
     """
 
-    def __init__(self, sregistry, options, platform):
-        super().__init__(sregistry, options, platform)
+    def __init__(self, sregistry, options, platform, compiler):
+        super().__init__(sregistry, options, platform, compiler)
 
         self.gpu_fit = options['gpu-fit']
         self.par_tile = options['par-tile']
@@ -469,6 +503,11 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         if sfs:
             size = [prod(f._C_get_field(FULL, d).size for d in f.dimensions) for f in sfs]
             cond.extend([i > 0 for i in size])
+
+        # Drop dynamically evaluated conditions (e.g. because the `symbolic_size`
+        # is an integer value rather than a symbol). This avoids ugly and
+        # unnecessary conditionals such as `if (true) { ...}`
+        cond = [i for i in cond if i != true]
 
         # Combine all cond elements
         if cond:

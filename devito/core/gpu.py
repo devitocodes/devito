@@ -7,7 +7,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
                                     cire, cse, extract_increments, factorize,
-                                    fission, fuse, optimize_pows, optimize_msds)
+                                    fission, fuse, optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize, hoist_prodders,
                                is_on_device, linearize, relax_incr_dimensions)
 from devito.tools import as_tuple, timed_pass
@@ -130,13 +130,14 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         mpiize(graph, sregistry=sregistry, options=options)
 
         # GPU parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_parallel(graph)
         parizer.initialize(graph)
 
@@ -161,9 +162,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
-
-        # Optimize MultiSubDomains
-        clusters = optimize_msds(clusters)
 
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True, options=options)
@@ -202,6 +200,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -211,7 +210,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         relax_incr_dimensions(graph)
 
         # GPU parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_parallel(graph)
         parizer.initialize(graph)
 
@@ -282,9 +281,10 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         orchestrator = cls._Target.Orchestrator(sregistry)
 
         return {

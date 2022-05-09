@@ -481,7 +481,13 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-std=c++11', '-acc:gpu', '-gpu=pinned', '-mp']
+
+        self.cflags += ['-std=c++11', '-mp']
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        if platform is NVIDIAX:
+            self.cflags += ['-acc:gpu', '-gpu=pinned']
+
         if not configuration['safe-math']:
             self.cflags.append('-fast')
         # Default PGI compile for a target is GPU and single threaded host.
@@ -512,7 +518,7 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC']
+        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC', '-lineinfo']
 
         self.src_ext = 'cu'
 
@@ -612,7 +618,7 @@ class CustomCompiler(Compiler):
         platform = kwargs.pop('platform', configuration['platform'])
 
         if any(i in environ for i in ['CC', 'CXX', 'CFLAGS', 'LDFLAGS']):
-            obj = super().__new__(cls, *args, **kwargs)
+            obj = super().__new__(cls)
             obj.__init__(*args, **kwargs)
             return obj
         elif platform is M1:

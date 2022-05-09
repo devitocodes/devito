@@ -5,9 +5,9 @@ from math import floor
 from sympy import sin, tan
 
 from conftest import opts_tiling, assert_structure
-from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomain,
-                    SubDomainSet, Dimension)
-from devito.ir import FindNodes, Expression
+from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
+                    Eq, solve, Operator, SubDomain, SubDomainSet, Dimension)
+from devito.ir import FindNodes, Expression, Iteration
 from devito.tools import timed_region
 
 
@@ -161,6 +161,9 @@ class TestSubdomains(object):
         Operator([eq0, eq1, eq2, eq3])()
 
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
+
+
+class TestSubDomainSet(object):
 
     @pytest.mark.parametrize('opt', opts_tiling)
     def test_iterate_NDomains(self, opt):
@@ -460,6 +463,10 @@ class TestSubdomains(object):
         """
         Follow-up issue emerged after patching #1761. The thicknesses assigments
         were missing before the third equation.
+
+        Further improvements have enabled fusing the third equation with the first
+        one, since this is perfectly legal (just like what happens without
+        MultiSubDomains in the way).
         """
         n = Dimension(name='n')
         m = Dimension(name='m')
@@ -492,6 +499,155 @@ class TestSubdomains(object):
         # Make sure it jit-compiles
         op.cfunction
 
+        assert_structure(op,
+                         ['x,y', 't,m', 't,m,xi_m,yi_m', 't,n', 't,n,xi_n,yi_n'],
+                         'x,y,t,m,xi_m,yi_m,n,xi_n,yi_n')
+
+    def test_issue_1761_c(self):
+        """
+        Follow-up of test test_issue_1761_b. Now there's a data dependence
+        between eq0 and eq1, hence they can't be fused.
+        """
+        n = Dimension(name='n')
+        m = Dimension(name='m')
+
+        class DummySubdomains(SubDomainSet):
+            name = 'dummydomain'
+            implicit_dimension = m
+
+        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
+
+        class DummySubdomains2(SubDomainSet):
+            name = 'dummydomain2'
+            implicit_dimension = n
+
+        dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(10, 10), subdomains=(dummy, dummy2))
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+        theta = Function(name='theta', grid=grid)
+        phi = Function(name='phi', grid=grid)
+
+        eqns = [Eq(f.forward, f*sin(phi), subdomain=grid.subdomains['dummydomain']),
+                Eq(g.forward, g*sin(theta) + f.forward.dx,
+                   subdomain=grid.subdomains['dummydomain2']),
+                Eq(f.forward, f*tan(phi), subdomain=grid.subdomains['dummydomain'])]
+
+        op = Operator(eqns)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
         assert_structure(op, ['x,y', 't,m', 't,m,xi_m,yi_m',
                               't,n', 't,n,xi_n,yi_n', 't,m', 't,m,xi_m,yi_m'],
                          'x,y,t,m,xi_m,yi_m,n,xi_n,yi_n,m,xi_m,yi_m')
+
+    def test_issue_1761_d(self):
+        """
+        Follow-up of test test_issue_1761_b. CIRE creates an equation, and the
+        creation of the implicit equations needs to be such that no redundant
+        thickness assignments are generated.
+        """
+        n = Dimension(name='n')
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+            implicit_dimension = n
+
+        dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        eqn = Eq(f.forward, f.dx.dx + 1, subdomain=grid.subdomains['dummy'])
+
+        op = Operator(eqn)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
+        assert_structure(op, ['t,n', 't,n,xi_n,yi_n', 't,n,xi_n,yi_n'],
+                         't,n,xi_n,yi_n,xi_n,yi_n')
+
+    def test_guarding(self):
+        n = Dimension(name='n')
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+            implicit_dimension = n
+
+        dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+        time = grid.time_dim
+
+        c = Constant(name='c')
+        cond_a = ConditionalDimension(name='cond_a', parent=time, condition=c < 1.)
+        cond_b = ConditionalDimension(name='cond_b', parent=time, condition=c >= 1.)
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        eqns = [Eq(f.forward, f + 1., subdomain=dummy, implicit_dims=[cond_a]),
+                Eq(g.forward, g + 1., subdomain=dummy, implicit_dims=[cond_b])]
+
+        op = Operator(eqns)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
+        assert_structure(op, ['t', 't,n', 't,n,xi_n,yi_n', 't,n', 't,n,xi_n,yi_n'],
+                         't,n,xi_n,yi_n,n,xi_n,yi_n')
+
+    def test_3D(self):
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+
+        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()])
+
+        grid = Grid(shape=(10, 10, 10), subdomains=(dummy,))
+
+        f = TimeFunction(name='f', grid=grid)
+
+        eqn = Eq(f.forward, f + 1, subdomain=grid.subdomains['dummy'])
+
+        op = Operator(eqn)
+
+        # Make sure it jit-compiles
+        op.cfunction
+
+        assert_structure(op, ['t,n', 't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n'],
+                         't,n,xi_n0_blk0,yi_n0_blk0,xi_n,yi_n,zi_n')
+
+    def test_sequential_implicit(self):
+        """
+        Make sure implicit dimensions define sequential iteration spaces. This is for
+        performance and potentially for correctness too (e.g., canonical openmp loops
+        forbid subiterators, which could potentially be required by a MultiSubDomain).
+        """
+
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+
+        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()])
+
+        grid = Grid(shape=(10, 10, 10), subdomains=(dummy,))
+
+        f = TimeFunction(name='f', grid=grid, save=10)
+
+        eqn = Eq(f, 1., subdomain=grid.subdomains['dummy'])
+
+        op = Operator(eqn)
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 5
+        time, n, x, y, z = iterations
+        assert time.is_Sequential
+        assert n.is_Sequential
+        assert x.is_Parallel
+        assert y.is_Parallel
+        assert z.is_Parallel

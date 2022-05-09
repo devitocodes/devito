@@ -7,7 +7,7 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import EvalDerivative
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, Forward,
+from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationInstance, IterationSpace, Interval, Cluster,
                        Queue, IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties)
@@ -17,7 +17,7 @@ from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
                           split)
 from devito.types import (Array, TempFunction, Eq, Symbol, ModuloDimension,
-                          CustomDimension, IncrDimension, Indexed)
+                          CustomDimension, IncrDimension, Indexed, Hyperplane)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -711,7 +711,7 @@ def lower_aliases(aliases, meta, maxpar):
     # deterministic code generation
     processed = sorted(processed, key=lambda i: cit(meta.ispace, i.ispace))
 
-    return Schedule(*processed, dmapper=dmapper)
+    return Schedule(*processed, dmapper=dmapper, is_frame=aliases.is_frame)
 
 
 def optimize_schedule_rotations(schedule, sregistry):
@@ -792,7 +792,7 @@ def optimize_schedule_rotations(schedule, sregistry):
         # Update the rotations mapper
         rmapper[d].extend(list(mapper.values()))
 
-    return Schedule(*processed, dmapper=schedule.dmapper, rmapper=rmapper)
+    return schedule.rebuild(*processed, rmapper=rmapper)
 
 
 def optimize_schedule_padding(schedule, meta, platform):
@@ -815,7 +815,7 @@ def optimize_schedule_padding(schedule, meta, platform):
         except (TypeError, KeyError, IndexError):
             processed.append(i)
 
-    return Schedule(*processed, dmapper=schedule.dmapper, rmapper=schedule.rmapper)
+    return schedule.rebuild(*processed)
 
 
 def lower_schedule(schedule, meta, sregistry, ftemps):
@@ -848,7 +848,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
             # (e.g., MPI's comp/comm overlap does that)
             dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
 
-            # The halo must be set according to the size of writeto space
+            # The halo must be set according to the size of `writeto`
             halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
 
             # The indices used to write into the Array
@@ -880,13 +880,18 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         subs.update({aliased: callback(indices)
                      for aliased, indices in zip(aliaseds, indicess)})
 
-        # Drop or weaken parallelism if necessary
         properties = dict(meta.properties)
+
+        # Drop or weaken parallelism if necessary
         for d, v in meta.properties.items():
             if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                 properties[d] = normalize_properties(v, {SEQUENTIAL})
             elif d not in writeto.itdimensions:
                 properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
+
+        # Track star-shaped stencils for potential future optimization
+        if len(writeto) > 1 and schedule.is_frame:
+            properties[Hyperplane(writeto.itdimensions)] = {SEPARABLE}
 
         # Finally, build the alias Cluster
         clusters.append(Cluster(expression, ispace, meta.guards, properties))
@@ -1188,8 +1193,28 @@ class Alias(object):
         return self.pivot.free_symbols
 
     @property
-    def naliases(self):
-        return len(self.aliaseds)
+    def is_frame(self):
+        """
+        An Alias is said to be a "frame" if the `distances` of the `aliaseds`
+        expressions from the `pivot` form a frame in the linear algebra sense.
+        In essence, any two distances are either orthogonal or one is a multiple
+        of the other by a scalar constant (i.e., a "redundant" vector w.r.t. a basis).
+        """
+        # NOTE: derivative => frame
+        # but: frame NOT => derivative (e.g., `(1, 0, 1)`, `(0, 1, 0)`, `(2, 0, 2)` is
+        # a frame, but clearly it doesn't stem from a derivative, at least not a classic
+        # one. Unless perhaps one uses rotated derivatives -- but this is another story,
+        # and our DSL doesn't support them yet)
+
+        # NOTE: invariants are generally not frames. They could stem from nested
+        # derivatives, thus having a non-centered access in multiple dimensions
+        # E.g., `sqrt(delta[x + 5, y + 5, z + 4])` and `sqrt(delta[x + 5, y + 3, z + 4])`
+        # with one possible pivot being `sqrt(delta[x + 4, y + 4, z + 4])`
+
+        # NOTE: below is a sufficient but not necessary condition to be a frame. In
+        # particular, it is a sufficient condition to be a derivative
+
+        return all(len([e for e in i if e != 0]) <= 1 for i in self.distances)
 
 
 class AliasList(object):
@@ -1229,17 +1254,33 @@ class AliasList(object):
     def aliaseds(self):
         return flatten(i.aliaseds for i in self._list)
 
+    @property
+    def is_frame(self):
+        """
+        An AliasList is said to be a "frame" if all of its Aliases are frames.
+        """
+        return all(i.is_frame for i in self._list)
+
 
 ScheduledAlias = namedtuple('SchedAlias', 'pivot writeto ispace aliaseds indicess score')
 
 
 class Schedule(tuple):
 
-    def __new__(cls, *items, dmapper=None, rmapper=None):
+    def __new__(cls, *items, dmapper=None, rmapper=None, is_frame=False):
         obj = super(Schedule, cls).__new__(cls, items)
         obj.dmapper = dmapper or {}
         obj.rmapper = rmapper or {}
+        obj.is_frame = is_frame
         return obj
+
+    def rebuild(self, *items, dmapper=None, rmapper=None, is_frame=False):
+        return Schedule(
+            *items,
+            dmapper=dmapper or self.dmapper,
+            rmapper=rmapper or self.rmapper,
+            is_frame=is_frame or self.is_frame
+        )
 
 
 def make_rotations_table(d, v):

@@ -12,6 +12,9 @@ from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, REGULAR, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
+from devito.ir.support.guards import GuardOverflow
+from devito.symbolics import ccode
+from devito.tools import prod
 from devito.types import Scalar, Array
 
 
@@ -704,7 +707,7 @@ class TestDependenceAnalysis(object):
         assert len(expected) == 0
 
 
-class TestAnalysis(object):
+class TestParallelismAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
@@ -723,7 +726,10 @@ class TestAnalysis(object):
         (['Eq(v.forward, v[t+1, x, y-1]+v[t, x, y]+v[t, x, y-1])'],
          [], ['x']),
         (['Eq(v.forward, v+1)', 'Inc(u, v)'],
-         [], ['x', 'y'])
+         [], ['x', 'y']),
+        # Test for issue #1902
+        (['Eq(u[0, y], v)', 'Eq(w, u[0, y])'],
+         [], ['y'])
     ])
     def test_iteration_parallelism_2d(self, exprs, atomic, parallel):
         """Tests detection of PARALLEL_* properties."""
@@ -739,6 +745,7 @@ class TestAnalysis(object):
 
         u = Function(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid, save=None)  # noqa
+        w = TimeFunction(name='w', grid=grid, save=None)  # noqa
 
         cx = Function(name='coeff_x', dimensions=(p, rx), shape=(1, 2))  # noqa
         cy = Function(name='coeff_y', dimensions=(p, ry), shape=(1, 2))  # noqa
@@ -849,3 +856,22 @@ class TestEquationAlgorithms(object):
         expr = eval(expr)
 
         assert list(dimension_sort(expr)) == eval(expected)
+
+
+class TestGuards(object):
+
+    def test_guard_overflow(self):
+        """
+        A toy test showing how to create a Guard to prevent writes to buffers
+        with not enough space to fit another snapshot.
+        """
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+
+        freespace = Scalar(name='freespace')
+        size = prod(f.symbolic_shape)
+
+        guard = GuardOverflow(freespace, size)
+
+        assert ccode(guard) == 'freespace >= (x_size + 2)*(y_size + 2)'

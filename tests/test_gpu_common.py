@@ -147,7 +147,8 @@ class TestStreaming(object):
         assert str(sections[0].body[0].body[0].body[0].body[0]) == 'while(lock0[0] == 0);'
         body = sections[2].body[0].body[0]
         assert (str(body.body[1].condition) ==
-                'Ne(lock0[0], 2) | Ne(FieldFromComposite(sdata0[wi0]), 1)')
+                'Ne(lock0[0], 2) | '
+                'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')
         assert str(body.body[2]) == 'sdata0[wi0].time = time;'
         assert str(body.body[3]) == 'lock0[0] = 0;'
         assert str(body.body[4]) == 'sdata0[wi0].flag = 2;'
@@ -222,7 +223,8 @@ class TestStreaming(object):
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         body = sections[2].body[0].body[0]
         assert (str(body.body[1].condition) ==
-                'Ne(lock0[0], 2) | Ne(FieldFromComposite(sdata0[wi0]), 1)')  # Wait-thread
+                'Ne(lock0[0], 2) | '
+                'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')  # Wait-thread
         assert (str(body.body[1].body[0]) ==
                 'wi0 = (wi0 + 1)%(npthreads0);')
         assert str(body.body[2]) == 'sdata0[wi0].time = time;'
@@ -230,7 +232,8 @@ class TestStreaming(object):
         assert str(body.body[4]) == 'sdata0[wi0].flag = 2;'
         body = sections[3].body[0].body[0]
         assert (str(body.body[1].condition) ==
-                'Ne(lock1[0], 2) | Ne(FieldFromComposite(sdata1[wi1]), 1)')  # Wait-thread
+                'Ne(lock1[0], 2) | '
+                'Ne(FieldFromComposite(flag, sdata1[wi1], ()), 1)')  # Wait-thread
         assert (str(body.body[1].body[0]) ==
                 'wi1 = (wi1 + 1)%(npthreads1);')
         assert str(body.body[2]) == 'sdata1[wi1].time = time;'
@@ -280,7 +283,7 @@ class TestStreaming(object):
         assert (str(body.body[1].condition) ==
                 'Ne(lock0[0], 2) | '
                 'Ne(lock1[0], 2) | '
-                'Ne(FieldFromComposite(sdata0[wi0]), 1)')  # Wait-thread
+                'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')  # Wait-thread
         assert (str(body.body[1].body[0]) ==
                 'wi0 = (wi0 + 1)%(npthreads0);')
         assert str(body.body[2]) == 'sdata0[wi0].time = time;'

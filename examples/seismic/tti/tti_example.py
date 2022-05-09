@@ -34,7 +34,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     # with 'save=True' if we compute the gradient without checkpointing, if we use
     # checkpointing, PyRevolve will take care of the time history
     save = full_run and not checkpointing
-    # Define receiver geometry (spread across x, just below surface)
+    # Define receiver geometry (spread across `x, y`` just below surface)
     rec, u, v, summary = solver.forward(save=save, autotune=autotune)
 
     if preset == 'constant':

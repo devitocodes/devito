@@ -13,7 +13,8 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
-           'dimensions', 'ModuloDimension', 'IncrDimension', 'BlockDimension']
+           'ModuloDimension', 'IncrDimension', 'BlockDimension', 'StencilDimension',
+           'dimensions']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -688,7 +689,7 @@ class ConditionalDimension(DerivedDimension):
     ----------
     name : str
         Name of the dimension.
-    parent : Dimension
+    parent : Dimension, optional
         The parent Dimension.
     factor : int, optional
         The number of iterations between two executions of the if-branch. If None
@@ -753,9 +754,15 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
-    def __init_finalize__(self, name, parent, factor=None, condition=None,
+    def __init_finalize__(self, name, parent=None, factor=None, condition=None,
                           indirect=False):
+        # `parent=None` degenerates to a ConditionalDimension outside of
+        # any iteration space
+        if parent is None:
+            parent = BOTTOM
+
         super().__init_finalize__(name, parent)
+
         self._factor = factor
         self._condition = condition
         self._indirect = indirect
@@ -908,16 +915,9 @@ class ModuloDimension(DerivedDimension):
             return incr
 
     def _arg_defaults(self, **kwargs):
-        """
-        A ModuloDimension provides no arguments, so this method returns an empty dict.
-        """
         return {}
 
     def _arg_values(self, *args, **kwargs):
-        """
-        A ModuloDimension provides no arguments, so there are no argument values
-        to be derived.
-        """
         return {}
 
     # Override SymPy arithmetic operators to exploit properties of modular arithmetic
@@ -1058,6 +1058,80 @@ class IncrDimension(AbstractIncrDimension):
     is_SubIterator = True
 
 
+class BlockDimension(AbstractIncrDimension):
+
+    """
+    Dimension symbol for lowering TILABLE Dimensions.
+    """
+
+    is_Block = True
+    is_PerfKnob = True
+
+    @cached_property
+    def _arg_names(self):
+        try:
+            return (self.step.name,)
+        except AttributeError:
+            # `step` not a Symbol
+            return ()
+
+    def _arg_defaults(self, **kwargs):
+        # TODO: need a heuristic to pick a default incr size
+        # TODO: move default value to __new__
+        try:
+            return {self.step.name: 8}
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+
+    def _arg_values(self, interval, grid, args=None, **kwargs):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+
+        if name in kwargs:
+            return {name: kwargs.pop(name)}
+        elif isinstance(self.parent, BlockDimension):
+            # `self` is a BlockDimension within an outer BlockDimension, but
+            # no value supplied -> the sub-block will span the entire block
+            return {name: args[self.parent.step.name]}
+        else:
+            value = self._arg_defaults()[name]
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
+                return {name: value}
+            else:
+                # Avoid OOB (will end up here only in case of tiny iteration spaces)
+                return {name: 1}
+
+    def _arg_check(self, args, *_args):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return
+
+        value = args[name]
+        if isinstance(self.parent, BlockDimension):
+            # sub-BlockDimensions must be perfect divisors of their parent
+            parent_value = args[self.parent.step.name]
+            if parent_value % value > 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
+                                      "must divide the parent block size evenly (`%s=%d`)"
+                                      % (name, value, self.parent.step.name,
+                                         parent_value))
+        else:
+            if value < 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
+                                      % (name, value))
+            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
+                # Avoid OOB
+                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
+                                      "iteration range and it will cause an OOB access"
+                                      % (name, value))
+
+
 class CustomDimension(BasicDimension):
 
     """
@@ -1187,6 +1261,67 @@ class DynamicSubDimension(DynamicDimensionMixin, SubDimension):
                 Scalar(name="%s_rtkn" % name, dtype=np.int32, nonnegative=True))
 
 
+class StencilDimension(BasicDimension):
+
+    """
+    Dimension symbol representing the points of a stencil.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    _min : expr-like
+        The minimum point of the stencil.
+    _max : expr-like
+        The maximum point of the stencil.
+    spacing : expr-like, optional
+        The space between two stencil points.
+    """
+
+    def __init_finalize__(self, name, _min, _max, spacing=None):
+        self._spacing = sympy.sympify(spacing) or sympy.S.One
+
+        if not is_integer(_min):
+            raise ValueError("Expected integer `min` (got %s)" % _min)
+        if not is_integer(_max):
+            raise ValueError("Expected integer `max` (got %s)" % _max)
+        if not is_integer(self._spacing):
+            raise ValueError("Expected integer `spacing` (got %s)" % self._spacing)
+
+        self._min = _min
+        self._max = _max
+        self._size = _max - _min + 1
+
+        if self._size < 1:
+            raise ValueError("Expected size greater than 0 (got %s)" % self._size)
+
+    @cached_property
+    def symbolic_size(self):
+        return sympy.Number(self._size)
+
+    @cached_property
+    def symbolic_min(self):
+        return sympy.Number(self._min)
+
+    @cached_property
+    def symbolic_max(self):
+        return sympy.Number(self._max)
+
+    @property
+    def range(self):
+        return range(self._min, self._max + 1)
+
+    @property
+    def _arg_names(self):
+        return ()
+
+    def _arg_defaults(self, **kwargs):
+        return {}
+
+    def _arg_values(self, *args, **kwargs):
+        return {}
+
+
 # ***
 # The Dimensions below are created by Devito and may eventually be
 # accessed in user code to e.g. construct or manipulate Eqs
@@ -1262,80 +1397,13 @@ class SteppingDimension(DerivedDimension):
         return values
 
 
-class BlockDimension(AbstractIncrDimension):
-
-    """
-    Dimension symbol for lowering TILABLE Dimensions.
-    """
-
-    is_Block = True
-    is_PerfKnob = True
-
-    @cached_property
-    def _arg_names(self):
-        try:
-            return (self.step.name,)
-        except AttributeError:
-            # `step` not a Symbol
-            return ()
-
-    def _arg_defaults(self, **kwargs):
-        # TODO: need a heuristic to pick a default incr size
-        # TODO: move default value to __new__
-        try:
-            return {self.step.name: 8}
-        except AttributeError:
-            # `step` not a Symbol
-            return {}
-
-    def _arg_values(self, interval, grid, args=None, **kwargs):
-        try:
-            name = self.step.name
-        except AttributeError:
-            # `step` not a Symbol
-            return {}
-
-        if name in kwargs:
-            return {name: kwargs.pop(name)}
-        elif isinstance(self.parent, BlockDimension):
-            # `self` is a BlockDimension within an outer BlockDimension, but
-            # no value supplied -> the sub-block will span the entire block
-            return {name: args[self.parent.step.name]}
-        else:
-            value = self._arg_defaults()[name]
-            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
-                return {name: value}
-            else:
-                # Avoid OOB (will end up here only in case of tiny iteration spaces)
-                return {name: 1}
-
-    def _arg_check(self, args, *_args):
-        try:
-            name = self.step.name
-        except AttributeError:
-            # `step` not a Symbol
-            return
-
-        value = args[name]
-        if isinstance(self.parent, BlockDimension):
-            # sub-BlockDimensions must be perfect divisors of their parent
-            parent_value = args[self.parent.step.name]
-            if parent_value % value > 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
-                                      "must divide the parent block size evenly (`%s=%d`)"
-                                      % (name, value, self.parent.step.name,
-                                         parent_value))
-        else:
-            if value < 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
-                                      % (name, value))
-            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
-                # Avoid OOB
-                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
-                                      "iteration range and it will cause an OOB access"
-                                      % (name, value))
+# ***
+# Utils
 
 
 def dimensions(names):
     assert type(names) == str
     return tuple(Dimension(i) for i in names.split())
+
+
+BOTTOM = Dimension(name='⊥')

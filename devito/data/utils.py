@@ -108,7 +108,7 @@ def index_handle_oob(idx):
     elif isinstance(idx, (tuple, list)):
         return [i for i in idx if i is not None]
     elif isinstance(idx, np.ndarray):
-        if idx.dtype == np.bool_:
+        if idx.dtype == bool:
             # A boolean mask, nothing to do
             return idx
         elif idx.ndim == 1:

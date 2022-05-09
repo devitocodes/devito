@@ -2,6 +2,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 
 from cached_property import cached_property
+import numpy as np
 import sympy
 
 from devito.finite_differences.finite_difference import (generic_derivative,
@@ -10,9 +11,11 @@ from devito.finite_differences.finite_difference import (generic_derivative,
 from devito.finite_differences.differentiable import Differentiable
 from devito.finite_differences.tools import direct, transpose
 from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
+from devito.types.array import Array
+from devito.types.dimension import StencilDimension
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Derivative']
+__all__ = ['Derivative', 'Weights']
 
 
 class Derivative(sympy.Derivative, Differentiable):
@@ -314,8 +317,8 @@ class Derivative(sympy.Derivative, Differentiable):
     @property
     def evaluate(self):
         # Evaluate finite-difference.
-        # Note: evaluate and _eval_fd splitted for potential future different
-        # types of discretizations.
+        # NOTE: `evaluate` and `_eval_fd` split for potential future different
+        # types of discretizations
         return self._eval_fd(self.expr)
 
     @property
@@ -324,18 +327,22 @@ class Derivative(sympy.Derivative, Differentiable):
 
     def _eval_fd(self, expr):
         """
-        Evaluate finite difference approximation of the Derivative.
-        Evaluation is carried out via the following four steps:
+        Evaluate the finite-difference approximation of the Derivative.
+        Evaluation is carried out via the following three steps:
 
         - 1: Evaluate derivatives within the expression. For example given
             `f.dx * g`, `f.dx` will be evaluated first.
         - 2: Evaluate the finite difference for the (new) expression.
-        - 3: Evaluate remaining terms (as `g` may need to be evaluated
-        at a different point).
-        - 4: Apply substitutions.
+             This in turn is a two-step procedure, for Functions that may
+             may need to be evaluated at a different point due to e.g. a
+             shited derivative.
+        - 3: Apply substitutions.
         """
         # Step 1: Evaluate derivatives within expression
-        expr = getattr(expr, '_eval_deriv', expr)
+        try:
+            expr = expr._eval_deriv
+        except AttributeError:
+            pass
 
         # Step 2: Evaluate FD of the new expression
         if self.side is not None and self.deriv_order == 1:
@@ -349,11 +356,34 @@ class Derivative(sympy.Derivative, Differentiable):
             res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
                                      matvec=self.transpose, x0=self.x0)
 
-        # Step 3: Evaluate remaining part of expression
-        res = res.evaluate
-
-        # Step 4: Apply substitution
+        # Step 3: Apply substitutions
         for e in self._ppsubs:
             res = res.xreplace(e)
 
         return res
+
+
+class Weights(Array):
+
+    """
+    The weights (or coefficients) of a finite-difference expansion.
+    """
+
+    def __init_finalize__(self, *args, **kwargs):
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        weights = kwargs.get('initvalue')
+
+        assert len(dimensions) == 1
+        d = dimensions[0]
+        assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
+        assert isinstance(weights, (list, tuple, np.ndarray))
+
+        kwargs['scope'] = 'static'
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def dimension(self):
+        return self.dimensions[0]
+
+    weights = Array.initvalue

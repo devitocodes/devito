@@ -91,7 +91,7 @@ class Tasker(Asynchronous):
                         else:
                             # Functions over non-stepping Dimensions need no lock
                             continue
-                    except KeyError:
+                    except (AttributeError, KeyError):
                         # Would degenerate to a scalar, but we rather use a lock
                         # of size 1 for simplicity
                         ld = CustomDimension(name='ld', symbolic_size=1)

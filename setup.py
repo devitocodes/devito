@@ -9,6 +9,12 @@ with open('requirements.txt') as f:
 with open('requirements-optional.txt') as f:
     optionals = f.read().splitlines()
 
+with open('requirements-mpi.txt') as f:
+    mpis = f.read().splitlines()
+
+with open('requirements-nvidia.txt') as f:
+    nvidias = f.read().splitlines()
+
 reqs = []
 for ir in required:
     if ir[0:3] == 'git':
@@ -17,20 +23,21 @@ for ir in required:
     else:
         reqs += [ir]
 
-opt_reqs = []
 extras_require = {}
-for ir in optionals:
-    # For conditionals like pytest=2.1; python == 3.6
-    if ';' in ir:
-        entries = ir.split(';')
-        extras_require[entries[1]] = entries[0]
-    # Git repos, install master
-    if ir[0:3] == 'git':
-        name = ir.split('/')[-1]
-        opt_reqs += ['%s @ %s@master' % (name, ir)]
-    else:
-        opt_reqs += [ir]
-extras_require['extras'] = opt_reqs
+for mreqs, mode in zip([optionals, mpis, nvidias], ['extras', 'mpi', 'nvidia']):
+    opt_reqs = []
+    for ir in mreqs:
+        # For conditionals like pytest=2.1; python == 3.6
+        if ';' in ir:
+            entries = ir.split(';')
+            extras_require[entries[1]] = entries[0]
+        # Git repos, install master
+        if ir[0:3] == 'git':
+            name = ir.split('/')[-1]
+            opt_reqs += ['%s @ %s@master' % (name, ir)]
+        else:
+            opt_reqs += [ir]
+    extras_require[mode] = opt_reqs
 
 # If interested in benchmarking devito, we need the `examples` too
 exclude = ['docs', 'tests']

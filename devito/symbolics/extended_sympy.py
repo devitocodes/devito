@@ -4,16 +4,17 @@ Extended SymPy hierarchy.
 
 import numpy as np
 import sympy
-from sympy import Expr, Integer, Function, Symbol, sympify
+from sympy import Expr, Integer, Function, Number, Tuple, sympify
 
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
+from devito.types import Symbol
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
-           'DefFunction', 'InlineIf', 'Macro', 'MacroArgument', 'Literal', 'Deref',
-           'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL', 'FLOOR', 'MAX', 'MIN',
-           'SizeOf', 'rfunc', 'cast_mapper']
+           'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
+           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL',
+           'FLOOR', 'MAX', 'MIN', 'SizeOf', 'rfunc', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -70,26 +71,29 @@ class IntDiv(sympy.Expr):
     is_commutative = True
 
     def __new__(cls, lhs, rhs, params=None):
-        try:
-            rhs = Integer(rhs)
-            if rhs == 0:
-                raise ValueError("Cannot divide by 0")
-            elif rhs == 1:
-                return lhs
-        except TypeError:
-            # We must be sure the symbolic RHS is of type int
+        if rhs == 0:
+            raise ValueError("Cannot divide by 0")
+        elif rhs == 1:
+            return lhs
+
+        if not is_integer(rhs):
+            # Perhaps it's a symbolic RHS -- but we wanna be sure it's of type int
             if not hasattr(rhs, 'dtype'):
                 raise ValueError("Symbolic RHS `%s` lacks dtype" % rhs)
             if not issubclass(rhs.dtype, np.integer):
                 raise ValueError("Symbolic RHS `%s` must be of type `int`, found "
                                  "`%s` instead" % (rhs, rhs.dtype))
+        rhs = sympify(rhs)
+
         obj = sympy.Expr.__new__(cls, lhs, rhs)
+
         obj.lhs = lhs
         obj.rhs = rhs
+
         return obj
 
     def __str__(self):
-        return "%s / %s" % (self.lhs, self.rhs)
+        return "IntDiv(%s, %s)" % (self.lhs, self.rhs)
 
     __repr__ = __str__
 
@@ -128,28 +132,34 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     Symbolic representation of the C notation ``pointer->call(params)``.
     """
 
-    def __new__(cls, call, pointer, params=None):
-        args = []
+    def __new__(cls, call, pointer, params=None, **kwargs):
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
-        args.append(pointer)
-        if isinstance(call, (DefFunction, CallFromPointer)):
-            args.append(call)
-        elif not isinstance(call, str):
-            raise ValueError("`call` must be CallFromPointer or str")
+        if isinstance(call, str):
+            call = Symbol(call)
+        elif not isinstance(call, (CallFromPointer, DefFunction, sympy.Symbol)):
+            # NOTE: we need `sympy.Symbol`, rather than just (devito) `Symbol`
+            # because otherwise it breaks upon certain reconstructions on SymPy-1.8,
+            # due to the way `bound_symbols` and `canonical_variables` interact
+            raise ValueError("`call` must be CallFromPointer, DefFunction, or Symbol")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):
                 _params.append(Symbol(p))
-            elif not isinstance(p, Expr):
-                raise ValueError("`params` must be an iterable of Expr or str")
-            else:
+            elif isinstance(p, Expr):
                 _params.append(p)
-        args.extend(_params)
-        obj = sympy.Expr.__new__(cls, *args)
+            else:
+                try:
+                    _params.append(Number(p))
+                except TypeError:
+                    raise ValueError("`params` must be Expr, numbers or str")
+        params = Tuple(*_params)
+
+        obj = sympy.Expr.__new__(cls, call, pointer, params)
         obj.call = call
         obj.pointer = pointer
-        obj.params = tuple(_params)
+        obj.params = params
+
         return obj
 
     def __str__(self):
@@ -170,6 +180,14 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
         else:
             return self.pointer
 
+    @property
+    def bound_symbols(self):
+        return {self.call}
+
+    @property
+    def free_symbols(self):
+        return super().free_symbols - self.bound_symbols
+
     # Pickling support
     _pickle_args = ['call', 'pointer']
     _pickle_kwargs = ['params']
@@ -182,7 +200,7 @@ class FieldFromPointer(CallFromPointer, Pickable):
     Symbolic representation of the C notation ``pointer->field``.
     """
 
-    def __new__(cls, field, pointer):
+    def __new__(cls, field, pointer, *args, **kwargs):
         return CallFromPointer.__new__(cls, field, pointer)
 
     def __str__(self):
@@ -205,7 +223,7 @@ class FieldFromComposite(CallFromPointer, Pickable):
     where ``composite`` is a struct/union/...
     """
 
-    def __new__(cls, field, composite):
+    def __new__(cls, field, composite, *args, **kwargs):
         return CallFromPointer.__new__(cls, field, composite)
 
     def __str__(self):
@@ -331,6 +349,12 @@ class Cast(UnaryOp):
         obj._stars = stars
         return obj
 
+    def _hashable_content(self):
+        return super()._hashable_content() + (self._stars,)
+
+    def func(self, *args, **kwargs):
+        return super().func(*args, stars=self.stars, **kwargs)
+
     @property
     def stars(self):
         return self._stars
@@ -356,7 +380,7 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     are not necessarily a Symbol or an IndexedBase, such as a FieldFromPointer.
     """
 
-    def __new__(cls, base, index):
+    def __new__(cls, base, index, **kwargs):
         try:
             # If an AbstractFunction, pull the underlying Symbol
             base = base.indexed.label
@@ -390,6 +414,64 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
+class ReservedWord(sympy.Atom, Pickable):
+
+    """
+    A `ReservedWord` carries a value that has special meaning in the
+    generated code. A ReservedWord, for example, may be a keyword of the
+    underlying language syntax or a special name reserved via typedefs
+    or macros.
+
+    A ReservedWord cannot be used as an identifier and has no underlying
+    symbols associated. Hence, a ReservedWord is an "atomic" object in
+    a SymPy sense.
+    """
+
+    def __new__(cls, value, **kwargs):
+        if not isinstance(value, str):
+            raise TypeError("Expected str, got `%s`" % type(value))
+        obj = sympy.Atom.__new__(cls, **kwargs)
+        obj.value = value
+
+        return obj
+
+    def __str__(self):
+        return self.value
+
+    __repr__ = __str__
+
+    def _hashable_content(self):
+        return (self.value,)
+
+    # Pickling support
+    _pickle_args = ['value']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Keyword(ReservedWord):
+    pass
+
+
+class CustomType(ReservedWord):
+    pass
+
+
+class String(ReservedWord):
+    pass
+
+
+class Macro(ReservedWord):
+    pass
+
+
+class MacroArgument(sympy.Symbol):
+
+    def __str__(self):
+        return "(%s)" % self.name
+
+    __repr__ = __str__
+
+
 class DefFunction(Function, Pickable):
 
     """
@@ -398,11 +480,20 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
-    is_Atom = True
-
-    def __new__(cls, name, arguments=None):
-        arguments = as_tuple(arguments)
-        obj = Function.__new__(cls, name, *arguments)
+    def __new__(cls, name, arguments=None, **kwargs):
+        _arguments = []
+        for i in as_tuple(arguments):
+            if isinstance(i, str):
+                # Make sure there's no cast to sympy.Symbol underneath
+                # We don't know what `i` is exactly, because the caller won't
+                # tell us, but we're just better off with ReservedWord
+                _arguments.append(ReservedWord(i))
+            else:
+                _arguments.append(i)
+        arguments = tuple(_arguments)
+        if isinstance(name, str):
+            name = Keyword(name)
+        obj = Function.__new__(cls, name, Tuple(*arguments))
         obj._name = name
         obj._arguments = arguments
         return obj
@@ -470,34 +561,6 @@ class InlineIf(sympy.Expr, Pickable):
     # Pickling support
     _pickle_args = ['cond', 'true_expr', 'false_expr']
     __reduce_ex__ = Pickable.__reduce_ex__
-
-
-class Macro(sympy.Symbol):
-
-    """
-    Symbolic representation of a C macro.
-    """
-    pass
-
-
-class MacroArgument(sympy.Symbol):
-
-    """
-    Symbolic representation of a C macro.
-    """
-
-    def __str__(self):
-        return "(%s)" % self.name
-
-    __repr__ = __str__
-
-
-class Literal(sympy.Symbol):
-
-    """
-    Symbolic representation of a Literal element.
-    """
-    pass
 
 
 # Shortcuts (mostly for retrocompatibility)

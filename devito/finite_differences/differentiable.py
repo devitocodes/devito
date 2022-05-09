@@ -1,4 +1,5 @@
 from collections import ChainMap
+from itertools import product
 from functools import singledispatch
 
 import sympy
@@ -10,11 +11,11 @@ from sympy.core.evalf import evalf_table
 from cached_property import cached_property
 from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
-from devito.tools import filter_ordered, flatten, split
+from devito.tools import as_tuple, filter_ordered, flatten, is_integer, split
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Differentiable', 'EvalDerivative']
+__all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative']
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -277,19 +278,36 @@ class Differentiable(sympy.Expr, Evaluable):
         from devito.finite_differences.derivative import Derivative
         return Derivative(self, *symbols, **assumptions)
 
-    def _has(self, pattern):
+    def has(self, *pattern):
         """
-        Unlike generic SymPy use cases, in Devito the majority of calls to `_has`
+        Unlike generic SymPy use cases, in Devito the majority of calls to `has`
         occur through the finite difference routines passing `sympy.core.symbol.Symbol`
         as `pattern`. Since the generic `_has` can be prohibitively expensive,
-        we here quickly handle this special case, while using the superclass' `_has`
+        we here quickly handle this special case, while using the superclass' `has`
         as fallback.
         """
-        if isinstance(pattern, type) and issubclass(pattern, sympy.Symbol):
-            # Symbols (and subclasses) are the leaves of an expression, and they
-            # are promptly available via `free_symbols`. So this is super quick
-            return any(isinstance(i, pattern) for i in self.free_symbols)
-        return super(Differentiable, self)._has(pattern)
+        for p in pattern:
+            # Following sympy convention, return True if any is found
+            if isinstance(p, type) and issubclass(p, sympy.Symbol):
+                # Symbols (and subclasses) are the leaves of an expression, and they
+                # are promptly available via `free_symbols`. So this is super quick
+                if any(isinstance(i, p) for i in self.free_symbols):
+                    return True
+        return super().has(*pattern)
+
+    def has_free(self, *patterns):
+        """
+        Return True if self has object(s) `patterns` as a free expression,
+        False otherwise.
+
+        Notes
+        -----
+        This is overridden in SymPy 1.10, but not in previous versions.
+        """
+        try:
+            return super().has_free(*patterns)
+        except AttributeError:
+            return all(i in self.free_symbols for i in patterns)
 
 
 def highest_priority(DiffOp):
@@ -466,6 +484,94 @@ class Mod(DifferentiableOp, sympy.Mod):
     __sympy_class__ = sympy.Mod
 
 
+class IndexSum(DifferentiableOp):
+
+    """
+    Represent the summation over a multiindex, that is a collection of
+    Dimensions, of an indexed expression.
+    """
+
+    is_commutative = True
+
+    def __new__(cls, expr, dimensions, **kwargs):
+        dimensions = as_tuple(dimensions)
+        if not dimensions:
+            return expr
+        for d in dimensions:
+            try:
+                if d.is_Dimension and is_integer(d.symbolic_size):
+                    continue
+            except AttributeError:
+                pass
+            raise ValueError("Expected Dimension with numeric size, "
+                             "got `%s` instead" % d)
+        if not expr.has_free(*dimensions):
+            raise ValueError("All Dimensions `%s` must appear in `expr` "
+                             "as free variables" % str(dimensions))
+        for i in expr.find(IndexSum):
+            for d in dimensions:
+                if d in i.dimensions:
+                    raise ValueError("Dimension `%s` already appears in a "
+                                     "nested tensor contraction" % d)
+
+        obj = sympy.Expr.__new__(cls, expr, *dimensions)
+        obj._expr = expr
+        obj._dimensions = dimensions
+
+        return obj
+
+    def __repr__(self):
+        return "IndexSum(%s, (%s))" % (self.expr,
+                                       ', '.join(d.name for d in self.dimensions))
+
+    __str__ = __repr__
+
+    @property
+    def expr(self):
+        return self._expr
+
+    @property
+    def dimensions(self):
+        return self._dimensions
+
+    @property
+    def evaluate(self):
+        values = product(*[list(d.range) for d in self.dimensions])
+        terms = []
+        for i in values:
+            mapper = dict(zip(self.dimensions, i))
+            terms.append(self.expr.xreplace(mapper))
+        return sum(terms)
+
+    @property
+    def free_symbols(self):
+        return super().free_symbols - set(self.dimensions)
+
+
+class IndexDerivative(IndexSum):
+
+    def __new__(cls, expr, weights, **kwargs):
+        obj = super().__new__(cls, expr*weights, weights.dimension)
+        obj._weights = weights
+
+        return obj
+
+    @property
+    def weights(self):
+        return self._weights
+
+    @property
+    def evaluate(self):
+        expr = super().evaluate
+
+        w = self.weights
+        d = w.dimension
+        mapper = {w.subs(d, i): w.weights[n] for n, i in enumerate(d.range)}
+        expr = expr.xreplace(mapper)
+
+        return expr
+
+
 class EvalDerivative(DifferentiableOp, sympy.Add):
 
     is_commutative = True
@@ -584,7 +690,12 @@ def diff2sympy(expr):
             # Won't lower (e.g., EvalDerivative)
             pass
         if flag:
-            return obj.func(*args, evaluate=False), True
+            try:
+                return obj.func(*args, evaluate=False), True
+            except TypeError:
+                # In case of indices using other Function, evaluate
+                # may not be a supported argument.
+                return obj.func(*args), True
         else:
             return obj, False
 
