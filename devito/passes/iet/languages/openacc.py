@@ -2,7 +2,7 @@ import cgen as c
 import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List,
+from devito.ir import (Call, DeviceCall, DummyExpr, DPtr, EntryFunction, List,
                        Block, ParallelIteration, ParallelTree, Pragma,
                        FindNodes, FindSymbols, Uxreplace, Transformer)
 from devito.passes.iet.engine import iet_pass
@@ -250,16 +250,16 @@ class DeviceAccDataManager(PragmaDeviceAwareDataManager):
         mapper = {}
         subs = {}
         for n in FindNodes(DeviceCall).visit(iet):
-            for i in n.arguments:
+            for i, t in zip(n.arguments, n.types):
                 try:
                     f = i.function
                 except AttributeError:
                     continue
 
-                if not (f.is_Array and f._mem_mapped):
-                    continue
-
-                subs[i] = DevicePointer(name="%s_dev" % f.name, dtype=f.dtype, mapped=f)
+                if f.is_Array and f._mem_mapped and t is DPtr:
+                    subs[i] = DevicePointer(
+                        name="%s_dev" % f.name, dtype=f.dtype, mapped=f
+                    )
 
             mapper[n] = Uxreplace(subs).visit(n) 
 
