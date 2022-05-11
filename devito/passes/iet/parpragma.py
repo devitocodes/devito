@@ -6,7 +6,7 @@ from sympy import And, Max, true
 from devito.data import FULL
 from devito.ir import (Conditional, DummyEq, Dereference, Expression, ExpressionBundle,
                        FindSymbols, FindNodes, ParallelTree, Pragma, Prodder, Transfer,
-                       List, Transformer, IsPerfectIteration, filter_iterations,
+                       List, Transformer, IsPerfectIteration, OpInc, filter_iterations,
                        retrieve_iteration_tree, VECTORIZED)
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
@@ -96,7 +96,7 @@ class PragmaSimdTransformer(PragmaTransformer):
             if any(i.is_ParallelAtomic for i in candidates[:-1]) and \
                not self._support_array_reduction(self.compiler):
                 exprs = FindNodes(Expression).visit(candidate)
-                reductions = [i.output for i in exprs if i.is_Increment]
+                reductions = [i.output for i in exprs if i.is_reduction]
                 if any(i.is_Indexed for i in reductions):
                     continue
 
@@ -247,19 +247,21 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
-        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_Increment]
-        reductions = [i.output for i in exprs]
+        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
+        reductions = [(i.output, i.operation) for i in exprs]
 
-        test0 = all(not i.is_Indexed for i in reductions)
+        test0 = all(not i.is_Indexed for i, _ in reductions)
         test1 = (self._support_array_reduction(self.compiler) and
                  all(i.is_Affine for i in partree.collapsed))
 
         if test0 or test1:
             # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
-        else:
-            # Make sure the increment is atomic
+        elif all(i is OpInc for _, i in reductions):
+            # Use atomic increments
             mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
+        else:
+            raise NotImplementedError
 
         partree = Transformer(mapper).visit(partree)
 

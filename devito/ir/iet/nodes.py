@@ -10,7 +10,7 @@ import cgen as c
 from sympy import IndexedBase, sympify
 
 from devito.data import FULL
-from devito.ir.equations import DummyEq
+from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
@@ -38,7 +38,6 @@ class Node(Signer):
     is_Iteration = False
     is_While = False
     is_Expression = False
-    is_Increment = False
     is_Callable = False
     is_CallableBody = False
     is_Conditional = False
@@ -358,14 +357,17 @@ class Expression(ExprStmt, Node):
         A bag of pragmas attached to this Expression.
     init : bool, optional
         True if an initialization, False otherwise (default).
+    operation : Operation, optional
+        Special operation performed by the Expression (e.g., a reduction).
     """
 
     is_Expression = True
 
-    def __init__(self, expr, pragmas=None, init=False):
+    def __init__(self, expr, pragmas=None, init=False, operation=None):
         self.expr = expr
         self.pragmas = as_tuple(pragmas)
         self.init = init
+        self.operation = operation
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -406,11 +408,16 @@ class Expression(ExprStmt, Node):
         return self.expr.lhs.is_Indexed
 
     @property
+    def is_reduction(self):
+        """True if the RHS performs a reduction operation, False otherwise."""
+        return self.operation in (OpInc, OpMin, OpMax)
+
+    @property
     def is_initializable(self):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return ((self.is_scalar and not self.is_Increment) or
+        return ((self.is_scalar and not self.is_reduction) or
                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
@@ -437,11 +444,21 @@ class AugmentedExpression(Expression):
 
     """A node representing an augmented assignment, such as +=, -=, &=, ...."""
 
-    is_Increment = True
+    def __init__(self, expr, pragmas=None, operation=None):
+        super().__init__(expr, pragmas=pragmas, operation=operation)
 
-    def __init__(self, expr, op, pragmas=None):
-        super(AugmentedExpression, self).__init__(expr, pragmas=pragmas)
-        self.op = op
+    @property
+    def is_initializable(self):
+        return False
+
+    @property
+    def op(self):
+        try:
+            return self.operation.name
+        except AttributeError:
+            # Not an ir.Operation
+            assert not self.is_reduction
+            return self.operation
 
 
 class Increment(AugmentedExpression):
@@ -449,7 +466,7 @@ class Increment(AugmentedExpression):
     """Shortcut for ``AugmentedExpression(expr, '+'), since it's so widely used."""
 
     def __init__(self, expr, pragmas=None):
-        super(Increment, self).__init__(expr, '+', pragmas=pragmas)
+        super().__init__(expr, pragmas=pragmas, operation=OpInc)
 
 
 class Iteration(Node):
