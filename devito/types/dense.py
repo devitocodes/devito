@@ -20,7 +20,8 @@ from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
-                          ctypes_to_cstr, memoized_meth, dtype_to_ctype)
+                          ctypes_to_cstr, memoized_meth, dtype_to_ctype,
+                          humanbytes)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
@@ -116,7 +117,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         @wraps(func)
         def wrapper(self):
             if self._data is None:
-                debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
+                debug("Allocating memory for %s%s [%s]"
+                      % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
 
                 # Clear up both SymPy and Devito caches to drop unreachable data
                 CacheManager.clear(force=False)

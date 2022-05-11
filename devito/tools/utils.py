@@ -14,7 +14,8 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'r
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
            'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list',
-           'indices_to_slices', 'indices_to_sections', 'transitive_closure']
+           'indices_to_slices', 'indices_to_sections', 'transitive_closure',
+           'humanbytes']
 
 
 def prod(iterable, initial=1):
@@ -356,3 +357,29 @@ def transitive_closure(R):
         visited = []
         ans[k] = reachable_items(R, k, visited)
     return ans
+
+
+def humanbytes(B):
+    """
+    Return the given bytes as a human friendly KB, MB, GB, or TB string.
+
+    Extracted and then readapted from:
+        https://stackoverflow.com/questions/12523586/python-format-size-\
+                application-converting-b-to-kb-mb-gb-tb
+    """
+    B = float(B)
+    KB = float(1024)
+    MB = float(KB ** 2)  # 1,048,576
+    GB = float(KB ** 3)  # 1,073,741,824
+    TB = float(KB ** 4)  # 1,099,511,627,776
+
+    if B < KB:
+        return '%d %s' % (int(B), 'B')
+    elif KB <= B < MB:
+        return '%d KB' % round(B / KB)
+    elif MB <= B < GB:
+        return '%d MB' % round(B / MB)
+    elif GB <= B < TB:
+        return '%d GB' % round(B / GB)
+    elif TB <= B:
+        return '%d TB' % round(B / TB)
