@@ -1,5 +1,5 @@
 from collections import namedtuple
-from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
+from ctypes import POINTER, Structure, c_void_p, c_int, c_ulong, cast, byref
 from functools import wraps, reduce
 from math import ceil
 from operator import mul
@@ -672,18 +672,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     _C_typedecl = Struct(_C_structname,
                          [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_nopad_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_domain_size),
+                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_size),
+                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_nopad_size),
+                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_domain_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs)])
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_void_p),
-                                          (_C_field_size, POINTER(c_int)),
-                                          (_C_field_nopad_size, POINTER(c_int)),
-                                          (_C_field_domain_size, POINTER(c_int)),
+                                          (_C_field_size, POINTER(c_ulong)),
+                                          (_C_field_nopad_size, POINTER(c_ulong)),
+                                          (_C_field_domain_size, POINTER(c_ulong)),
                                           (_C_field_halo_size, POINTER(c_int)),
                                           (_C_field_halo_ofs, POINTER(c_int)),
                                           (_C_field_owned_ofs, POINTER(c_int))]}))
@@ -695,11 +695,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_void_p)
-        dataobj._obj.size = (c_int*self.ndim)(*data.shape)
+        dataobj._obj.size = (c_ulong*self.ndim)(*data.shape)
         # MPI-related fields
-        dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
-                                                  zip(data.shape, self._size_padding)])
-        dataobj._obj.dsize = (c_int*self.ndim)(*self._size_domain)
+        dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in
+                                                    zip(data.shape, self._size_padding)])
+        dataobj._obj.dsize = (c_ulong*self.ndim)(*self._size_domain)
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
