@@ -6,8 +6,8 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    Dimension, SubDimension, Eq, Inc, Operator, configuration,
-                    dimensions, info, cos)
+                    Dimension, SubDimension, Eq, Inc, ReduceMax, Operator,
+                    configuration, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
@@ -603,9 +603,9 @@ class TestNodeParallelism(object):
 
     @pytest.mark.parametrize('so', [0, 1, 2])
     @pytest.mark.parametrize('dim', [0, 1, 2])
-    def test_array_reduction(self, so, dim):
+    def test_array_sum_reduction(self, so, dim):
         """
-        Test generation of OpenMP reduction clauses involving Function's.
+        Test generation of OpenMP sum-reduction clauses involving Function's.
         """
         grid = Grid(shape=(3, 3, 3))
         d = grid.dimensions[dim]
@@ -638,6 +638,28 @@ class TestNodeParallelism(object):
             return
 
         assert np.allclose(f.data, 18)
+
+    def test_array_max_reduction(self):
+        """
+        Test generation of OpenMP sum-reduction clauses involving Function's.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        i = Dimension(name='i')
+
+        f = Function(name='f', grid=grid)
+        n = Function(name='n', grid=grid, shape=(1,), dimensions=(i,))
+
+        f.data[:] = np.arange(0, 27).reshape((3, 3, 3))
+
+        eqn = ReduceMax(n[0], f)
+
+        op = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert "reduction(max:n[0])" in iterations[0].pragmas[0].value
+
+        op()
+        assert n.data[0] == 26
 
     def test_incs_no_atomic(self):
         """

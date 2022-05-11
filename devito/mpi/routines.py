@@ -916,7 +916,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
             testsend = Call('MPI_Test', [rsend, Byref(lflag), Macro('MPI_STATUS_IGNORE')])
 
-            update = AugmentedExpression(DummyEq(gflag, lflag), '&')
+            update = AugmentedExpression(DummyEq(gflag, lflag), operation='&')
 
             body.append(Iteration([testsend, update, testrecv, update],
                                   dim, msg.npeers - 1))

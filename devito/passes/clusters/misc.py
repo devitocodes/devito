@@ -285,7 +285,7 @@ def extract_increments(cluster, sregistry, *args):
                 extracted = e.rhs
             else:
                 extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-            processed.extend([e.func(handle, extracted, is_Increment=False),
+            processed.extend([e.func(handle, extracted, operation=None),
                               e.func(e.lhs, handle)])
         else:
             processed.append(e)

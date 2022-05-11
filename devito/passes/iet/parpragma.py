@@ -96,7 +96,7 @@ class PragmaSimdTransformer(PragmaTransformer):
             if any(i.is_ParallelAtomic for i in candidates[:-1]) and \
                not self._support_array_reduction(self.compiler):
                 exprs = FindNodes(Expression).visit(candidate)
-                reductions = [i.output for i in exprs if i.is_Increment]
+                reductions = [i.output for i in exprs if i.is_reduction]
                 if any(i.is_Indexed for i in reductions):
                     continue
 
@@ -247,10 +247,10 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
-        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_Increment]
-        reductions = [i.output for i in exprs]
+        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
+        reductions = [(i.output, i.operation) for i in exprs]
 
-        test0 = all(not i.is_Indexed for i in reductions)
+        test0 = all(not i.is_Indexed for i, _ in reductions)
         test1 = (self._support_array_reduction(self.compiler) and
                  all(i.is_Affine for i in partree.collapsed))
 
