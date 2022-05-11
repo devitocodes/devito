@@ -4,6 +4,7 @@ from operator import mul
 import mmap
 import os
 import sys
+from tempfile import mkdtemp
 
 import numpy as np
 import ctypes
@@ -431,3 +432,45 @@ def default_allocator(name=None):
             return ALLOC_NUMA_LOCAL
     else:
         return ALLOC_FLAT
+
+class MmapAllocator(MemoryAllocator):
+
+    """
+    Memory allocator based on mmap, munmap functions to map or
+    unmap files or devices into memory
+    """
+
+    is_Posix = True
+
+    @classmethod
+    def initialize(cls):
+        checkpoint_dir = None
+        if configuration['checkpoint-dir']:
+            if os.path.isdir(configuration['checkpoint-dir']):
+                checkpoint_dir = configuration['checkpoint-dir']
+            else:
+                raise RuntimeError("User specified checkpoint directory does not exist.")
+
+        self._dir = mkdtemp(dir=checkpoint_dir)
+        self._filename = path.join(self._dir, 'checkpoint.dat')
+
+    def _alloc_C_libcall(self, size, ctype):
+        buff_size = size * ctypes.sizeof(ctype)
+
+        self._file = open(self._filename, "r+b")
+        self._file.seek(0)
+        self._file.write(b'\0'*buff_size)
+        self._mmap = mmap.mmap(self._file.fileno(), buff_size)
+
+        c_pointer = ctypes.c_void_p.from_buffer(self._mmap)
+
+        if ret == 0:
+            return c_pointer, (c_pointer, )
+        else:
+            return None, None
+
+    def free(self, c_pointer):
+        self._mmap.close()
+        self._file.close()
+        os.remove(self._filename)
+        os.rmdir(self._dir)

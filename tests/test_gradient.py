@@ -4,6 +4,8 @@ from numpy import linalg
 
 from devito import Function, info, TimeFunction, Operator, Eq, smooth
 from devito.parameters import switchconfig
+from devito.data.allocators import MmapAllocator
+
 from examples.seismic.acoustic import acoustic_setup as iso_setup
 from examples.seismic.acoustic.operators import iso_stencil
 from examples.seismic import Receiver, demo_model, setup_geometry
@@ -94,7 +96,7 @@ class TestGradient(object):
         rec0 = geometry.rec
         s = model.grid.stepping_dim.spacing
         u = TimeFunction(name='u', grid=model.grid, time_order=2, space_order=space_order,
-                         save=geometry.nt)
+                         save=geometry.nt, allocator=MmapAllocator)
 
         eqn_fwd = iso_stencil(u, model, kernel)
         src_term = src.inject(field=u.forward, expr=src * s**2 / m)
@@ -111,7 +113,7 @@ class TestGradient(object):
         grad_v = Function(name='gradv', grid=model.grid)
         grad_uv = Function(name='graduv', grid=model.grid)
         v = TimeFunction(name='v', grid=model.grid, save=None, time_order=2,
-                         space_order=space_order)
+                         space_order=space_order, allocator=MmapAllocator)
         s = model.grid.stepping_dim.spacing
 
         eqn_adj = iso_stencil(v, model, kernel, forward=False)
