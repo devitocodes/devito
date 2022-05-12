@@ -1,10 +1,12 @@
 from collections import defaultdict
+from collections.abc import Iterable
+
 from itertools import groupby
 
 from devito.ir.support import Scope
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple, flatten, timed_pass
 
-__all__ = ['Queue', 'QueueStateful']
+__all__ = ['Queue', 'QueueStateful', 'cluster_pass']
 
 
 class Queue(object):
@@ -117,3 +119,51 @@ class QueueStateful(Queue):
             for i in prefix:
                 properties[i.dim].update(v.get(i.dim, set()))
         return properties
+
+
+class cluster_pass(object):
+
+    def __new__(cls, *args, mode='dense'):
+        if args:
+            if len(args) == 1:
+                func, = args
+            elif len(args) == 2:
+                func, mode = args
+            else:
+                assert False
+            obj = object.__new__(cls)
+            obj.__init__(func, mode)
+            return obj
+        else:
+            def wrapper(func):
+                return cluster_pass(func, mode)
+            return wrapper
+
+    def __init__(self, func, mode='dense'):
+        self.func = func
+
+        if mode == 'dense':
+            self.cond = lambda c: c.is_dense
+        elif mode == 'sparse':
+            self.cond = lambda c: not c.is_dense
+        else:
+            self.cond = lambda c: True
+
+    def __call__(self, *args):
+        if timed_pass.is_enabled():
+            maybe_timed = lambda *_args: timed_pass(self.func, self.func.__name__)(*_args)
+        else:
+            maybe_timed = lambda *_args: self.func(*_args)
+        args = list(args)
+        maybe_clusters = args.pop(0)
+        if isinstance(maybe_clusters, Iterable):
+            # Instance method
+            processed = [maybe_timed(c, *args) if self.cond(c) else c
+                         for c in maybe_clusters]
+        else:
+            # Pure function
+            self = maybe_clusters
+            clusters = args.pop(0)
+            processed = [maybe_timed(self, c, *args) if self.cond(c) else c
+                         for c in clusters]
+        return flatten(processed)
