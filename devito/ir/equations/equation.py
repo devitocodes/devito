@@ -193,7 +193,6 @@ class LoweredEq(IREq):
         expr._conditionals = conditionals
         expr._reads, expr._writes = detect_io(expr)
         expr._implicit_dims = input_expr.implicit_dims
-
         expr._operation = Operation.detect(input_expr)
 
         return expr
@@ -224,9 +223,10 @@ class ClusterizedEq(IREq, Pickable):
     There are two main differences between a LoweredEq and a
     ClusterizedEq:
 
-    * In a ClusterizedEq, the IterationSpace must *always* be provided
-      by the caller.
-    * A ClusterizedEq is "frozen", meaning that any call to ``xreplace``
+    * To construct a ClusterizedEq, the IterationSpace must be provided
+      by the caller, whie in a LoweredEq the IterationSpace is derived
+      by analysis of the input.
+    * A ClusterizedEq is "frozen", meaning that any call to e.g. `xreplace`
       will not trigger re-evaluation (e.g., mathematical simplification)
       of the expression.
 
@@ -238,9 +238,18 @@ class ClusterizedEq(IREq, Pickable):
             # origin: ClusterizedEq(expr, **kwargs)
             input_expr = args[0]
             expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
-            for i in cls._state:
-                v = kwargs[i] if i in kwargs else getattr(input_expr, i, None)
-                setattr(expr, '_%s' % i, v)
+            if isinstance(input_expr, IREq):
+                for i in cls._state:
+                    try:
+                        v = kwargs[i]
+                    except KeyError:
+                        v = getattr(input_expr, i, None)
+                    setattr(expr, '_%s' % i, v)
+            else:
+                expr._ispace = kwargs['ispace']
+                expr._conditionals = kwargs.get('conditionals', frozendict())
+                expr._implicit_dims = input_expr.implicit_dims
+                expr._operation = Operation.detect(input_expr)
         elif len(args) == 2:
             # origin: ClusterizedEq(lhs, rhs, **kwargs)
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)

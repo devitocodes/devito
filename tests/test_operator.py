@@ -1387,7 +1387,7 @@ class TestDeclarator(object):
         x = Dimension(name="x")
         a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
         init_value = ListInitializer([0, 0])
-        list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value)))
+        list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value), ispace=None))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
         iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
