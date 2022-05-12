@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from sympy import Add, Mul, S, collect
 
-from devito.passes.clusters.utils import cluster_pass
+from devito.ir import cluster_pass
 from devito.symbolics import estimate_cost, retrieve_symbols
 from devito.tools import ReducerMap
 

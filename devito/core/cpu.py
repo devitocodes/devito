@@ -4,8 +4,8 @@ from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
-                                    extract_increments, factorize, fission, fuse,
-                                    optimize_pows, optimize_hyperplanes)
+                                    factorize, fission, fuse, optimize_pows,
+                                    optimize_hyperplanes)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
                                hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
@@ -189,7 +189,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
             clusters = blocking(clusters, sregistry, options)
 
         # Reduce flops
-        clusters = extract_increments(clusters, sregistry)
         clusters = cire(clusters, 'sops', sregistry, options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
