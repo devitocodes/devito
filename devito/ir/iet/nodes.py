@@ -721,10 +721,10 @@ class CallableBody(Node):
         Statements unpacking data from composite types.
     allocs : list of Nodes, optional
         Data definitions and allocations for `body`.
-    objs : list of Definitions, optional
-        Object definitions for `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
+    objs : list of Definitions, optional
+        Object definitions for `body`.
     maps : Transfer or list of Transfer, optional
         Data maps for `body` (a data map may e.g. trigger a data transfer from
         host to device).
@@ -736,11 +736,11 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['init', 'unpacks', 'allocs', 'objs', 'casts', 'maps',
+    _traversable = ['init', 'unpacks', 'allocs', 'casts', 'objs', 'maps',
                     'body', 'unmaps', 'frees']
 
-    def __init__(self, body, init=None, unpacks=None, allocs=None, objs=None,
-                 casts=None, maps=None, unmaps=None, frees=None):
+    def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
+                 objs=None, maps=None, unmaps=None, frees=None):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -748,17 +748,17 @@ class CallableBody(Node):
         self.init = as_tuple(init)
         self.unpacks = as_tuple(unpacks)
         self.allocs = as_tuple(allocs)
-        self.objs = as_tuple(objs)
         self.casts = as_tuple(casts)
+        self.objs = as_tuple(objs)
         self.maps = as_tuple(maps)
         self.unmaps = as_tuple(unmaps)
         self.frees = as_tuple(frees)
 
     def __repr__(self):
-        return ("<CallableBody <unpacks=%d, allocs=%d, objs=%d, casts=%d, "
+        return ("<CallableBody <unpacks=%d, allocs=%d, casts=%d, objs=%d, "
                 "maps=%d> <unmaps=%d, frees=%d>>" %
-                (len(self.unpacks), len(self.allocs), len(self.objs),
-                 len(self.casts), len(self.maps), len(self.unmaps),
+                (len(self.unpacks), len(self.allocs), len(self.casts),
+                 len(self.objs), len(self.maps), len(self.unmaps),
                  len(self.frees)))
 
 
