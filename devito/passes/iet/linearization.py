@@ -44,13 +44,13 @@ def linearization(iet, **kwargs):
     if not mode:
         return iet, {}
     elif callable(mode):
-        key = mode
+        key = lambda f: mode(f) and f.ndim > 1
     else:
         # Default
-        key = lambda f: f.is_DiscreteFunction or f.is_Array
+        key = lambda f: (f.is_DiscreteFunction or f.is_Array) and f.ndim > 1
 
     iet, headers, args = linearize_accesses(iet, key, cache, sregistry)
-    iet = linearize_pointers(iet)
+    iet = linearize_pointers(iet, key)
     iet = linearize_transfers(iet, sregistry)
 
     return iet, {'headers': headers, 'args': args}
@@ -61,7 +61,7 @@ def linearize_accesses(iet, key, cache, sregistry):
     Turn Indexeds into FIndexeds and create the necessary access Macros.
     """
     # `functions` are all Functions that `iet` may need to linearize
-    functions = [f for f in FindSymbols().visit(iet) if key(f) and f.ndim > 1]
+    functions = [f for f in FindSymbols().visit(iet) if key(f)]
     functions = sorted(functions, key=lambda f: len(f.dimensions), reverse=True)
 
     # `functions_unseen` are all Functions that `iet` may need to linearize
@@ -211,12 +211,11 @@ def _(f, szs, sregistry):
     return header, cbk
 
 
-def linearize_pointers(iet):
+def linearize_pointers(iet, key):
     """
     Flatten n-dimensional PointerCasts/Dereferences.
     """
-    indexeds = [i for i in FindSymbols('indexeds').visit(iet)]
-    candidates = {i.function for i in indexeds if isinstance(i, FIndexed)}
+    candidates = {f for f in FindSymbols().visit(iet) if key(f)}
 
     mapper = {}
 
