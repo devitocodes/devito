@@ -11,7 +11,7 @@ from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
-from devito.tools import (DAG, DefaultOrderedDict, Stamp, as_mapper, flatten,
+from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, timed_pass)
 from devito.types import Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
@@ -331,6 +331,44 @@ def normalize(clusters, **kwargs):
 
 
 @cluster_pass(mode='all')
+def normalize_nested_indexeds(cluster, sregistry):
+    """
+    Recursively extract nested Indexeds in to temporaries.
+    """
+
+    def pull_indexeds(expr, subs, mapper, parent=None):
+        for i in retrieve_indexed(expr):
+            if i in mapper:
+                continue
+
+            for e in i.indices:
+                pull_indexeds(e, subs, mapper, parent=i)
+
+            if parent is not None:
+                # Nested Indexed, requires a temporary
+                k = i.xreplace(mapper)
+                v = Symbol(name=sregistry.make_name(), dtype=i.function.dtype)
+                subs[k] = v
+
+                # Update substitution status
+                mapper[i] = v
+
+    processed = []
+    for e in cluster.exprs:
+        subs = OrderedDict()
+        pull_indexeds(e, subs, {})
+
+        # Construct temporaries and apply substitution to `e`, in cascade
+        pe = e
+        for k, v in subs.items():
+            processed.append(Eq(v, k))
+            pe = pe.xreplace({k: v})
+        processed.append(pe)
+
+    return cluster.rebuild(processed)
+
+
+@cluster_pass(mode='all')
 def normalize_reductions(cluster, sregistry):
     """
     Extract the right-hand sides of reduction Eq's in to temporaries.
@@ -350,48 +388,5 @@ def normalize_reductions(cluster, sregistry):
                               e.func(e.lhs, handle)])
         else:
             processed.append(e)
-
-    return cluster.rebuild(processed)
-
-
-@cluster_pass(mode='all')
-def normalize_nested_indexeds(cluster, sregistry):
-    """
-    Recursively extract nested Indexeds in to temporaries.
-    """
-
-    def pull_indexeds(expr, dag, parent=None):
-        for i in retrieve_indexed(expr):
-            if parent is not None:
-                dag.add_edge(parent, i, force_add=True)
-            for e in i.indices:
-                pull_indexeds(e, dag, parent=i)
-
-    processed = []
-    for e in cluster.exprs:
-        dag = DAG()
-        pull_indexeds(e, dag)
-
-        mapper = {}
-        subs = OrderedDict()
-        nodes = list(dag.topological_sort())
-        while nodes:
-            n = nodes.pop()
-
-            if dag.predecessors(n):
-                # Nested Indexed, requires a temporary
-                k = mapper.get(n, n).xreplace(subs)
-                v = Symbol(name=sregistry.make_name(), dtype=n.function.dtype)
-                subs[k] = v
-
-                # Update substitution status
-                mapper = {n: n.xreplace(subs) for n in nodes}
-
-        # Apply substitution to `e`, in cascade
-        pe = e
-        for k, v in subs.items():
-            processed.append(Eq(v, k))
-            pe = pe.xreplace({k: v})
-        processed.append(pe)
 
     return cluster.rebuild(processed)
