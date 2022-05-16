@@ -117,7 +117,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         @wraps(func)
         def wrapper(self):
             if self._data is None:
-                debug("Allocating memory for %s%s [%s]"
+                debug("Allocating host memory for %s%s [%s]"
                       % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
 
                 # Clear up both SymPy and Devito caches to drop unreachable data
