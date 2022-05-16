@@ -1,14 +1,13 @@
-from collections import defaultdict
 from functools import singledispatch
 
 import numpy as np
 
 from devito.data import FULL
-from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
+from devito.ir import (BlankLine, DummyExpr, Dereference, List, PointerCast,
                        Transfer, FindNodes, FindSymbols, Transformer, Uxreplace)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import DefFunction, MacroArgument, ccode
-from devito.tools import Bunch, DefaultOrderedDict, filter_ordered, flatten, prod
+from devito.tools import Bunch, DefaultOrderedDict, filter_ordered, prod
 from devito.types import Array, Symbol, FIndexed, Indexed, Wildcard
 from devito.types.basic import IndexedData
 from devito.types.dense import DiscreteFunction
@@ -24,9 +23,12 @@ def linearize(graph, **kwargs):
     of the underlying Function objects is honored.
     """
     # Simple data structure to avoid generation of duplicated code
-    cache = defaultdict(lambda: Bunch(stmts0=[], stmts1=[], cbk=None))
+    track = DefaultOrderedDict(lambda: Bunch(stmts0=[], stmts1=[], onhold=True, cbk=None))
 
-    linearization(graph, cache=cache, **kwargs)
+    linearization(graph, track=track, **kwargs)
+
+    # Sanity check
+    assert all(not v.onhold for v in track.values())
 
 
 @iet_pass
@@ -36,7 +38,7 @@ def linearization(iet, **kwargs):
     """
     mode = kwargs['mode']
     sregistry = kwargs['sregistry']
-    cache = kwargs['cache']
+    track = kwargs['track']
 
     # Pre-process the `mode` opt option
     # `mode` may be a callback describing what Function types, and under what
@@ -49,28 +51,29 @@ def linearization(iet, **kwargs):
         # Default
         key = lambda f: (f.is_DiscreteFunction or f.is_Array) and f.ndim > 1
 
-    iet, headers, args = linearize_accesses(iet, key, cache, sregistry)
+    iet, headers, args = linearize_accesses(iet, key, track, sregistry)
     iet = linearize_pointers(iet, key)
     iet = linearize_transfers(iet, sregistry)
 
     return iet, {'headers': headers, 'args': args}
 
 
-def linearize_accesses(iet, key, cache, sregistry):
+def linearize_accesses(iet, key, track, sregistry):
     """
     Turn Indexeds into FIndexeds and create the necessary access Macros.
     """
-    # `functions` are all Functions that `iet` may need to linearize
-    functions = [f for f in FindSymbols().visit(iet) if key(f)]
-    functions = sorted(functions, key=lambda f: len(f.dimensions), reverse=True)
+    # The `candidates` are all Functions that may be linearized inside `iet`
+    indexeds = FindSymbols('indexeds').visit(iet)
+    candidates = {i.function for i in indexeds if key(i.function)}
+    candidates = sorted(candidates, key=lambda f: len(f.dimensions), reverse=True)
 
-    # `functions_unseen` are all Functions that `iet` may need to linearize
-    # and have not been seen while processing other IETs
-    functions_unseen = [f for f in functions if f not in cache]
+    # For some of these candidates, a linearization may have already been
+    # produced in another IET
+    selected = [f for f in candidates if f not in track]
 
     # Find unique sizes (unique -> minimize necessary registers)
     mapper = DefaultOrderedDict(list)
-    for f in functions:
+    for f in selected:
         # NOTE: the outermost dimension is unnecessary
         for d in f.dimensions[1:]:
             # TODO: same grid + same halo => same padding, however this is
@@ -83,14 +86,11 @@ def linearize_accesses(iet, key, cache, sregistry):
     # `x_fsz0 = u_vec->size[1]`
     imapper = DefaultOrderedDict(dict)
     for (d, halo, _), v in mapper.items():
-        v_unseen = [f for f in v if f in functions_unseen]
-        if not v_unseen:
-            continue
-        expr = _generate_fsz(v_unseen[0], d, sregistry)
+        expr = _generate_fsz(v[0], d, sregistry)
         if expr:
-            for f in v_unseen:
+            for f in v:
                 imapper[f][d] = expr.write
-                cache[f].stmts0.append(expr)
+                track[f].stmts0.append(expr)
 
     # For all unseen Functions, build the stride exprs. For example:
     # `y_stride0 = y_fsz0*z_fsz0`
@@ -107,56 +107,37 @@ def linearize_accesses(iet, key, cache, sregistry):
                 s = Symbol(name=name, dtype=np.int64, is_const=True)
                 stmt = built[expr] = DummyExpr(s, expr, init=True)
             mapper[f][d] = stmt.write
-            cache[f].stmts1.append(stmt)
-    mapper.update([(f, {}) for f in functions_unseen if f not in mapper])
+            track[f].stmts1.append(stmt)
 
-    # For all unseen Functions, build defines. For example:
+    # For all unseen Functions, build the access macros. For example:
     # `#define uL(t, x, y, z) u[(t)*t_stride0 + (x)*x_stride0 + (y)*y_stride0 + (z)]`
     headers = []
-    findexeds = {}
-    for f in functions:
-        if cache[f].cbk is None:
-            header, cbk = _generate_macro(f, mapper[f], sregistry)
+    for f in selected:
+        if track[f].cbk is None:
+            header, track[f].cbk = _generate_macro(f, mapper[f], sregistry)
             headers.append(header)
-            cache[f].cbk = findexeds[f] = cbk
-        else:
-            findexeds[f] = cache[f].cbk
 
-    # Build "functional" Indexeds. For example:
+    # Turn all Indexeds into "functional" Indexeds. For example:
     # `u[t2, x+8, y+9, z+7] => uL(t2, x+8, y+9, z+7)`
-    mapper = {}
-    indexeds = FindSymbols('indexeds').visit(iet)
-    for i in indexeds:
-        try:
-            mapper[i] = findexeds[i.function](i)
-        except KeyError:
-            pass
-
-    # Introduce the linearized expressions
+    mapper = {i: track[i.function].cbk(i) for i in indexeds if i.function in track}
     iet = Uxreplace(mapper).visit(iet)
 
-    # All Functions that actually require linearization in `iet`
-    candidates = []
-
-    candidates.extend(filter_ordered(i.function for i in indexeds))
-
-    calls = FindNodes(Call).visit(iet)
-    cfuncs = filter_ordered(flatten(i.functions for i in calls))
-    candidates.extend(i for i in cfuncs if i.function.is_DiscreteFunction)
-
-    # All Functions that can be linearized in `iet`
+    # All Functions that can actually be linearized in `iet`
     defines = FindSymbols('defines-aliases').visit(iet)
 
     # Place the linearization expressions or delegate to ancestor efunc
     stmts0 = []
     stmts1 = []
     args = []
-    for f in candidates:
-        if f in defines:
-            stmts0.extend(cache[f].stmts0)
-            stmts1.extend(cache[f].stmts1)
+    for f, v in track.items():
+        if not (f in candidates or v.onhold):
+            continue
+        elif f in defines:
+            stmts0.extend(v.stmts0)
+            stmts1.extend(v.stmts1)
+            v.onhold = False
         else:
-            args.extend([e.write for e in cache[f].stmts1])
+            args.extend([e.write for e in track[f].stmts1])
     if stmts0:
         assert len(stmts1) > 0
         stmts0 = filter_ordered(stmts0) + [BlankLine]
@@ -164,7 +145,7 @@ def linearize_accesses(iet, key, cache, sregistry):
         body = iet.body._rebuild(body=tuple(stmts0) + tuple(stmts1) + iet.body.body)
         iet = iet._rebuild(body=body)
     else:
-        assert len(stmts0) == 0
+        assert len(stmts1) == 0
 
     return iet, headers, args
 
