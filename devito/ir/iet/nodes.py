@@ -723,11 +723,11 @@ class CallableBody(Node):
         Data definitions and allocations for `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
-    objs : list of Definitions, optional
-        Object definitions for `body`.
     maps : Transfer or list of Transfer, optional
         Data maps for `body` (a data map may e.g. trigger a data transfer from
         host to device).
+    objs : list of Definitions, optional
+        Object definitions for `body`.
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
     frees : list of Calls, optional
@@ -736,7 +736,7 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['init', 'unpacks', 'allocs', 'casts', 'objs', 'maps',
+    _traversable = ['init', 'unpacks', 'allocs', 'casts', 'maps', 'objs',
                     'body', 'unmaps', 'frees']
 
     def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
@@ -749,16 +749,16 @@ class CallableBody(Node):
         self.unpacks = as_tuple(unpacks)
         self.allocs = as_tuple(allocs)
         self.casts = as_tuple(casts)
-        self.objs = as_tuple(objs)
         self.maps = as_tuple(maps)
+        self.objs = as_tuple(objs)
         self.unmaps = as_tuple(unmaps)
         self.frees = as_tuple(frees)
 
     def __repr__(self):
-        return ("<CallableBody <unpacks=%d, allocs=%d, casts=%d, objs=%d, "
-                "maps=%d> <unmaps=%d, frees=%d>>" %
+        return ("<CallableBody <unpacks=%d, allocs=%d, casts=%d, maps=%d, "
+                "objs=%d> <unmaps=%d, frees=%d>>" %
                 (len(self.unpacks), len(self.allocs), len(self.casts),
-                 len(self.objs), len(self.maps), len(self.unmaps),
+                 len(self.maps), len(self.objs), len(self.unmaps),
                  len(self.frees)))
 
 
