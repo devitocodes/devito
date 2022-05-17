@@ -39,7 +39,7 @@ def test_sorting():
         sort_nokey = filter_ordered(array)
     t2 = time.time()
 
-    assert t2 - t1 < 0.5 * (t1 - t0)
+    assert t2 - t1 < 0.8 * (t1 - t0)
     assert sort_key == sort_nokey
 
 
