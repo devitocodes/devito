@@ -113,6 +113,10 @@ class CodeSymbol(object):
         """
         return (self,)
 
+    @property
+    def bound_symbols(self):
+        return set()
+
 
 class Basic(CodeSymbol):
 
@@ -908,6 +912,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         ret = tuple(sympy.Add(i, j, k)
                     for i, j, k in zip(domain, halo, padding))
         return DimensionTuple(*ret, getters=self.dimensions)
+
+    @cached_property
+    def bound_symbols(self):
+        return ({self._C_symbol, self.indexed} |
+                set().union(*[d.bound_symbols for d in self.dimensions]))
 
     @cached_property
     def indexed(self):

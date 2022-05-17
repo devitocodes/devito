@@ -184,6 +184,10 @@ class Dimension(ArgProvider):
     def root(self):
         return self
 
+    @cached_property
+    def bound_symbols(self):
+        return {self.symbolic_min, self.symbolic_max, self.symbolic_size}
+
     @property
     def _maybe_distributed(self):
         """Could it be a distributed Dimension?"""
@@ -574,6 +578,11 @@ class SubDimension(DerivedDimension):
     @property
     def thickness(self):
         return self._thickness
+
+    @cached_property
+    def bound_symbols(self):
+        v = super().bound_symbols
+        return set().union(*[i.free_symbols for i in v])
 
     @property
     def _maybe_distributed(self):
