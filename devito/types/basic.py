@@ -150,7 +150,6 @@ class Basic(CodeSymbol):
 
     # Top hierarchy
     is_AbstractFunction = False
-    is_AbstractSymbol = False
     is_AbstractObject = False
 
     # Symbolic objects created internally by Devito
@@ -176,18 +175,9 @@ class Basic(CodeSymbol):
     is_TempFunction = False
     is_SparseTimeFunction = False
     is_SparseFunction = False
-    is_PrecomputedSparseFunction = False
-    is_PrecomputedSparseTimeFunction = False
 
     # Time dependence
     is_TimeDependent = False
-
-    # Tensor and Vector valued objects
-    is_VectorValued = False
-    is_TensorValued = False
-
-    # Basic symbolic object properties
-    is_Scalar = False
 
     # Some other properties
     is_PerfKnob = False  # Does it impact the Operator performance?
@@ -459,8 +449,6 @@ class Scalar(Symbol, ArgProvider):
         Any SymPy assumptions, such as ``nonnegative=True``. Refer to the
         SymPy documentation for more information.
     """
-
-    is_Scalar = True
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
