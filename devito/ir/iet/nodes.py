@@ -327,7 +327,7 @@ class Call(ExprStmt, Node):
         if self.base is not None:
             retval.append(self.base)
         if self.retobj is not None:
-            retval.extend(self.retobj.free_symbols)
+            retval.append(self.retobj)
         return tuple(filter_ordered(retval))
 
     @property
@@ -852,6 +852,10 @@ class TimedList(List):
     def timer(self):
         return self._timer
 
+    @property
+    def functions(self):
+        return (self.timer,)
+
 
 class Definition(ExprStmt, Node):
 
@@ -960,17 +964,19 @@ class Dereference(ExprStmt, Node):
 
     @property
     def expr_symbols(self):
-        return ((self.pointee.indexed.label, self.pointer.indexed.label) +
-                (self.pointer.indexify(),) +
-                tuple(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:])) +
-                tuple(self.pointer.free_symbols))
+        ret = [self.pointee.indexed, self.pointer.indexed, self.pointer.indexify()]
+        if self.pointer.is_PointerArray or \
+           self.pointer.is_TempFunction:
+            ret.extend(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:]))
+            ret.extend(self.pointer.free_symbols)
+        return tuple(filter_ordered(ret))
 
     @property
     def defines(self):
         if self.pointer.is_PointerArray or \
            self.pointer.is_TempFunction or \
            self.pointee._mem_stack:
-            return (self.pointee.indexed,)
+            return (self.pointee.indexed, self.pointee)
         else:
             return (self.pointee,)
 

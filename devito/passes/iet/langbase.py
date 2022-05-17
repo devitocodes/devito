@@ -179,7 +179,7 @@ class LangTransformer(ABC):
         return iet, {}
 
     @iet_pass
-    def initialize(self, iet):
+    def initialize(self, iet, options=None):
         """
         An `iet_pass` which transforms an IET such that the target language
         runtime is initialized.
@@ -210,7 +210,7 @@ class DeviceAwareMixin(object):
         return self.sregistry.deviceid
 
     @iet_pass
-    def initialize(self, iet):
+    def initialize(self, iet, options=None):
         """
         An `iet_pass` which transforms an IET such that the target language
         runtime is initialized.
@@ -245,6 +245,17 @@ class DeviceAwareMixin(object):
                 if isinstance(i, MPICommObject):
                     objcomm = i
                     break
+            if objcomm is None and options['mpi']:
+                # Time to inject `objcomm`. If it's not here, it simply means
+                # there's no halo exchanges in the Operator, but we now need it
+                # nonetheless to perform the rank-GPU assignment
+                for i in iet.parameters:
+                    try:
+                        objcomm = i.grid.distributor._obj_comm
+                        break
+                    except AttributeError:
+                        pass
+                assert objcomm is not None
 
             devicetype = as_list(self.lang[self.platform])
             deviceid = self.deviceid
@@ -287,7 +298,7 @@ class DeviceAwareMixin(object):
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
 
-            return iet, {'args': deviceid}
+            return iet, {}
 
         @_initialize.register(ThreadFunction)
         def _(iet):

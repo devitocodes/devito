@@ -311,7 +311,6 @@ class Orchestrator(object):
         return iet, {
             'efuncs': pieces.funcs,
             'includes': ['pthread.h'],
-            'args': [i.size for i in pieces.objs.threads if not is_integer(i.size)]
         }
 
 

@@ -426,7 +426,7 @@ class DeviceAwareDataManager(DataManager):
 
             iet = self._dump_transfers(iet, storage)
 
-            return iet, {'args': devicerm}
+            return iet, {}
 
         return _place_transfers(iet, mapper=kwargs['mapper'])
 

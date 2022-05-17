@@ -1,10 +1,10 @@
 from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
-from sympy.tensor.indexed import IndexException
-
-from devito.ir.iet import Call, FindNodes, MetaCall, Transformer
+from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
+                           ThreadFunction, derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
+from devito.types.args import ArgProvider
 
 __all__ = ['Graph', 'iet_pass', 'Jitting']
 
@@ -94,36 +94,42 @@ class Graph(object):
             except KeyError:
                 pass
 
-            # If there's a change to the `args` and the `iet` is an efunc, then
-            # we must update the call sites as well, as the arguments dropped down
-            # to the efunc have just increased
-            args = as_tuple(metadata.get('args'))
-            if not args:
+            if isinstance(self.efuncs[i], ThreadFunction):
+                continue
+
+            # The parameters/arguments lists may have changed since a pass may have:
+            # 1) introduced a new symbol
+            new_args = derive_parameters(self.efuncs[i])
+            new_args = [a for a in new_args if not a._mem_internal_eager]
+
+            # 2) defined a symbol for which no definition was available yet (e.g.
+            # via a malloc, or a Dereference)
+            defines = FindSymbols('defines').visit(self.efuncs[i].body)
+            drop_args = [a for a in self.efuncs[i].parameters if a in defines]
+
+            if not (new_args or drop_args):
                 continue
 
             def filter_args(v, efunc=None):
                 processed = list(v)
-                for _a in args:
-                    try:
-                        # Should the arg actually be dropped?
-                        a, drop = _a
-                        if drop:
-                            if a in processed:
-                                processed.remove(a)
-                            continue
-                    except (TypeError, ValueError, IndexException):
-                        a = _a
-
+                for a in new_args:
                     if a in processed:
                         # A child efunc trying to add a symbol alredy added by a
                         # sibling efunc
                         continue
 
-                    if efunc is self.root and not (a.is_Input or a.is_Object):
-                        # Temporaries (ie, Symbol, Arrays) *cannot* be args in `root`
+                    if efunc is self.root and not isinstance(a, ArgProvider):
+                        # Temporaries (e.g., Arrays) *cannot* be args in `root`.
+                        # So if we end up here, `a` keeps being undefined
+                        # inside the efunc (that means we count on a later pass
+                        # to define it)
                         continue
 
                     processed.append(a)
+
+                for a in drop_args:
+                    if a in processed:
+                        processed.remove(a)
 
                 return processed
 

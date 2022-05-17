@@ -51,11 +51,11 @@ def linearization(iet, **kwargs):
         # Default
         key = lambda f: (f.is_DiscreteFunction or f.is_Array) and f.ndim > 1
 
-    iet, headers, args = linearize_accesses(iet, key, track, sregistry)
+    iet, headers = linearize_accesses(iet, key, track, sregistry)
     iet = linearize_pointers(iet, key)
     iet = linearize_transfers(iet, sregistry)
 
-    return iet, {'headers': headers, 'args': args}
+    return iet, {'headers': headers}
 
 
 def linearize_accesses(iet, key, track, sregistry):
@@ -128,7 +128,6 @@ def linearize_accesses(iet, key, track, sregistry):
     # Place the linearization expressions or delegate to ancestor efunc
     stmts0 = []
     stmts1 = []
-    args = []
     for f, v in track.items():
         if not (f in candidates or v.onhold):
             continue
@@ -136,8 +135,6 @@ def linearize_accesses(iet, key, track, sregistry):
             stmts0.extend(v.stmts0)
             stmts1.extend(v.stmts1)
             v.onhold = False
-        else:
-            args.extend([e.write for e in track[f].stmts1])
     if stmts0:
         assert len(stmts1) > 0
         stmts0 = filter_ordered(stmts0) + [BlankLine]
@@ -147,7 +144,7 @@ def linearize_accesses(iet, key, track, sregistry):
     else:
         assert len(stmts1) == 0
 
-    return iet, headers, args
+    return iet, headers
 
 
 @singledispatch
@@ -180,7 +177,7 @@ def _(f, szs, sregistry):
     assert len(szs) == len(f.dimensions) - 1
 
     pname = sregistry.make_name(prefix='%sL' % f.name)
-    cbk = lambda i, pname=pname: FIndexed(i, pname)
+    cbk = lambda i, pname=pname: FIndexed(i, pname, strides=tuple(szs.values()))
 
     expr = sum([MacroArgument(d0.name)*szs[d1]
                 for d0, d1 in zip(f.dimensions, f.dimensions[1:])])
