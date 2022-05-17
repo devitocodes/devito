@@ -8,7 +8,7 @@ from functools import singledispatch
 from operator import itemgetter
 
 from devito.ir import (Block, Definition, DeviceCall, DeviceFunction, EntryFunction,
-                       FindSymbols, MapExprStmts, Transformer)
+                       FindSymbols, MapExprStmts, Transformer, derive_parameters)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
@@ -426,7 +426,7 @@ class DeviceAwareDataManager(DataManager):
 
             iet = self._dump_transfers(iet, storage)
 
-            return iet, {'args': devicerm}
+            return iet, {}
 
         return _place_transfers(iet, mapper=kwargs['mapper'])
 

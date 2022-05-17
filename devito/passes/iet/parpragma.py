@@ -418,12 +418,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         iet = Transformer(mapper).visit(iet)
 
-        # The new arguments introduced by this pass
-        args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsBase))]
-        for n in FindNodes(VExpanded).visit(iet):
-            args.extend([(n.pointee, True), n.pointer])
-
-        return iet, {'args': args, 'includes': [self.lang['header']]}
+        return iet, {'includes': [self.lang['header']]}
 
     @iet_pass
     def make_parallel(self, iet):
@@ -624,8 +619,7 @@ class PragmaLangBB(LangBB):
     @classmethod
     def _map_release(cls, f, imask=None, devicerm=None):
         if devicerm:
-            return PragmaTransfer(cls.mapper['map-release-if'], f, imask,
-                                  devicerm.name)
+            return PragmaTransfer(cls.mapper['map-release-if'], f, imask, devicerm)
         else:
             return PragmaTransfer(cls.mapper['map-release'], f, imask)
 
@@ -636,7 +630,7 @@ class PragmaLangBB(LangBB):
         # would cause a crash
         items = []
         if devicerm is not None:
-            items.append(devicerm.name)
+            items.append(devicerm)
         items.extend(['(%s != 0)' % i for i in f.symbolic_shape])
         return PragmaTransfer(cls.mapper['map-exit-delete-if'], f, imask,
                               ' && '.join(items))

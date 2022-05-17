@@ -287,7 +287,7 @@ class DeviceAwareMixin(object):
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
 
-            return iet, {'args': deviceid}
+            return iet, {}
 
         @_initialize.register(ThreadFunction)
         def _(iet):
