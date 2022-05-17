@@ -378,7 +378,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert trees[0][2] is not trees[1][2]
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
-    assert op2.parameters[6] is trees[0].root.step
+    assert op2.parameters[4] is trees[0].root.step
     # No blocking expected in `op3` because the blocking heuristics prevent it
     # when there would be only one TILABLE Dimension
     _, _ = assert_blocking(op3, {})

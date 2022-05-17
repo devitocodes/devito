@@ -119,14 +119,14 @@ def detect_io(exprs, relax=False):
     exprs : expr-like or list of expr-like
         The searched expressions.
     relax : bool, optional
-        If False, as by default, collect only Constants and Functions.
-        Otherwise, collect any Basic object.
+        If False, as by default, collect all Input objects, such as
+        Constants and Functions. Otherwise, also collect AbstractFunctions.
     """
     exprs = as_tuple(exprs)
     if relax is False:
         rule = lambda i: i.is_Input
     else:
-        rule = lambda i: i.is_Scalar or i.is_AbstractFunction
+        rule = lambda i: i.is_Input or i.is_AbstractFunction
 
     # Don't forget the nasty case with indirections on the LHS:
     # >>> u[t, a[x]] = f[x]  -> (reads={a, f}, writes={u})
