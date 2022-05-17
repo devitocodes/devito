@@ -109,7 +109,9 @@ def diff_parameters(iet, root, indirectly_provided=None):
     required = derive_parameters(iet)
     required = [i for i in required if i not in as_tuple(indirectly_provided)]
 
-    known = set(root.parameters) | set(i for i in required if i.is_Array)
+    known = set(root.parameters)
+    known.update({i for i in required if i.is_AbstractFunction and not i._mem_external})
+    known.update(set().union(*[i.bound_symbols for i in known]))
 
     parameters, dynamic_parameters = split(required, lambda i: i in known)
 
