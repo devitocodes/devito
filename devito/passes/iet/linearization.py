@@ -64,7 +64,7 @@ def linearize_accesses(iet, key, track, sregistry):
     """
     # The `candidates` are all Functions that may be linearized inside `iet`
     indexeds = FindSymbols('indexeds').visit(iet)
-    candidates = {i.function for i in indexeds if key(i.function)}
+    candidates = filter_ordered(i.function for i in indexeds if key(i.function))
     candidates = sorted(candidates, key=lambda f: len(f.dimensions), reverse=True)
 
     # For some of these candidates, a linearization may have already been
