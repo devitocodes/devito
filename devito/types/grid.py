@@ -562,6 +562,13 @@ class MultiSubDimension(SubDimension):
         # a MultiSubDimension carries a reference to a MultiSubDomain, which is unique
         return id(self)
 
+    @cached_property
+    def bound_symbols(self):
+        # Unlike a SubDimension, a MultiSubDimension does *not* bind its thickness,
+        # which is rather bound by an Operation (which can alter its value
+        # dynamically so as to implement a MultiSubDomain)
+        return self.parent.bound_symbols
+
 
 class MultiSubDomain(AbstractSubDomain):
 
