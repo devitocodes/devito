@@ -177,7 +177,7 @@ def _(f, szs, sregistry):
     assert len(szs) == len(f.dimensions) - 1
 
     pname = sregistry.make_name(prefix='%sL' % f.name)
-    cbk = lambda i, pname=pname: FIndexed(i, pname)
+    cbk = lambda i, pname=pname: FIndexed(i, pname, strides=tuple(szs.values()))
 
     expr = sum([MacroArgument(d0.name)*szs[d1]
                 for d0, d1 in zip(f.dimensions, f.dimensions[1:])])
