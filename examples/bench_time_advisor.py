@@ -49,28 +49,21 @@ stencil = solve(eq, u.forward)
 eq0 = Eq(u.forward, stencil)
 
 # List comprehension would need explicit locals/globals mappings to eval
+# op0 = Operator(eq0, opt=('openmp', 'simd', 'blocking'))
+# op0.apply(time_M=tn, dt=dt)
+
 # op0 = Operator(eq0, opt=('advanced'))
 # op0.apply(time_M=tn, dt=dt, **{'x0_blk0_size': 32, 'y0_blk0_size': 16})
-# op0.apply(time_M=tn, dt=dt, **{'x0_blk0_size': 64, 'y0_blk0_size': 32})
-# op0.apply(time_M=tn, dt=dt)
+
 # norm_u = norm(u)
 # u.data[:] = init_value
 
-op1 = Operator(eq0, opt=('advanced', {'skewing': True,
-                         'blocklevels': args.blevels}))
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 32, 'y0_blk1_size': 4})   # Large problem 1024^3 - 256
+# op1 = Operator(eq0, opt=('openmp', 'simd', 'blocking'))
+op1 = Operator(eq0, opt=('openmp', 'simd', 'blocking', 'skewing', {'skewing': True, 'blocklevels': args.blevels}))
+# op1 = Operator(eq0, opt=('advanced', {'skewing': True, 'blocklevels': args.blevels}))
 
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 4, 'y0_blk0_size': 32, 'y0_blk1_size': 4})   # Large problem 1024^3 - 256
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 16, 'y0_blk0_size': 32, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 16, 'y0_blk0_size': 32, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
-
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 4, 'y0_blk0_size': 32, 'y0_blk1_size': 4})  # Medium problem 512^3 - 512 gcc
-
-op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 4, 'y0_blk0_size': 64, 'y0_blk1_size': 4})  # Medium problem 512^3 - 512 gcc
-
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 64, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 256, 'x0_blk0_size': 32, 'x0_blk1_size': 4, 'y0_blk0_size': 32, 'y0_blk1_size': 4})  # Medium problem 512^3 - 256
-# op1.apply(time_M=tn, dt=dt)
+op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 16, 'y0_blk0_size': 32, 'y0_blk1_size': 8})
+# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 16, 'y0_blk0_size': 32, 'y0_blk1_size': 16})
 # print(norm_u)
 # print(norm(u))
 # assert np.isclose(norm(u), norm_u, atol=1e-4, rtol=0)
