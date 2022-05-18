@@ -322,7 +322,14 @@ class Fission(Queue):
         for (it, guards), g in groupby(clusters, key=lambda c: self._key(c, prefix)):
             group = list(g)
 
-            if any(SEQUENTIAL in c.properties[it.dim] for c in group) or guards:
+            try:
+                test0 = any(SEQUENTIAL in c.properties[it.dim] for c in group)
+            except AttributeError:
+                # `it` is None because `c`'s IterationSpace has no `d` Dimension,
+                # hence `key = (it, guards) = (None, guards)`
+                test0 = True
+
+            if test0 or guards:
                 # Heuristic: no gain from fissioning if unable to ultimately
                 # increase the number of collapsable iteration spaces, hence give up
                 processed.extend(group)
