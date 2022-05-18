@@ -9,7 +9,7 @@ from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Derefer
                                  DummyExpr, Iteration, List, PointerCast, Return, While,
                                  CallableBody)
 from devito.ir.iet.utils import derive_parameters, diff_parameters
-from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
+from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Keyword
 from devito.tools import as_tuple
 from devito.types import Pointer, PThreadArray, SharedData, ThreadArray, Symbol
 
@@ -115,10 +115,14 @@ class ThreadFunction(Callable):
     A Callable executed asynchronously by a separate thread.
     """
 
-    def __init__(self, name, iet, sdata, **kwargs):
+    def __init__(self, name, body, sdata, **kwargs):
         sid = SharedData._symbolic_id
         sdeviceid = SharedData._symbolic_deviceid
         sbase = sdata.indexed
+
+        # If we got it from a reconstruction, we need to remove the `unpacks` first,
+        # as we're going to reconstruct the whole list from scratch
+        body = body._rebuild(unpacks=None)
 
         # The pthread entry point expects exactly one argument -- of type void* --
         # and must return a void*
@@ -129,13 +133,16 @@ class ThreadFunction(Callable):
         unpack = [
             PointerCast(sdata, parameter),
             BlankLine,
-            DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase)),
-            DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase)),
+            DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase), init=True),
+            DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase),
+                      init=True),
         ]
 
         # Derive all "static parameters", that is the parameters that must be
         # passed to the pthread, via `sdata`, from the caller
-        parameters = derive_parameters((unpack, iet))
+        parameters = derive_parameters((unpack, body))
+        if len(parameters) == 6:
+            from IPython import embed; embed()
 
         #TODO: DROP???
         parameters = sorted(parameters, key=lambda i: i.is_Function)
@@ -156,11 +163,13 @@ class ThreadFunction(Callable):
             if i.is_AbstractFunction:
                 unpack.append(Dereference(i, idata))
             else:
-                unpack.append(DummyExpr(i, FieldFromPointer(i.name, idata.indexed)))
+                unpack.append(
+                    DummyExpr(i, FieldFromPointer(i.name, idata.indexed), init=True)
+                )
 
-        iet = CallableBody([iet, Return(Macro('NULL'))], unpacks=unpack)
+        body = body._rebuild(unpacks=unpack)
 
-        super().__init__(name, iet, retval, parameter, 'static')
+        super().__init__(name, body, retval, parameter, 'static')
 
         self.ssparameters = parameters
         self.sdata = sdata
@@ -240,7 +249,7 @@ def _make_thread_init(threads, tfunc, ifunc, sregistry):
 
     # Create pthreads
     call1 = Call('pthread_create', (threads.indexed + d,
-                                    Macro('NULL'),
+                                    Keyword('NULL'),
                                     Call(tfunc.name, [], is_indirect=True),
                                     tfunc.sdata.indexed + d))
 
@@ -285,6 +294,7 @@ def _make_thread_func(name, iet, root, threads, sregistry):
     iet = While(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), iet)
 
     # Finally, wrap everything within a ThreadFunction
+    iet = CallableBody([iet, Return(Keyword('NULL'))])
     tfunc = ThreadFunction(name, iet, sdata)
 
     # Create a Callable to initialize `sdata` with the static fields
@@ -334,7 +344,7 @@ def _make_thread_finalize(threads, sdata):
         body=callback([
             While(CondEq(FieldFromComposite(sdata._field_flag, sdata[d]), 2)),
             DummyExpr(FieldFromComposite(sdata._field_flag, sdata[d]), 0),
-            Call('pthread_join', (threads[d], Macro('NULL')))
+            Call('pthread_join', (threads[d], Keyword('NULL')))
         ])
     )
 
