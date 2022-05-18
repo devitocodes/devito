@@ -1,5 +1,7 @@
 from ctypes import c_int, c_double, c_void_p
 
+import numpy as np
+
 from devito.types import CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
@@ -137,6 +139,15 @@ class Pointer(Symbol):
     @property
     def _C_typename(self):
         return '%s*' % super()._C_typename
+
+    @property
+    def _C_ctype(self):
+        # Treat `np.void` as a special case since numpy, which doesn't manage
+        # pointers, wouldn't know how to translate it into a ctype with its
+        # internal dtype-to-ctype machinery
+        if self.dtype is np.void:
+            return c_void_p
+        return super()._C_ctype
 
 
 # ctypes subtypes

@@ -97,11 +97,8 @@ def derive_parameters(iet, drop_locals=False):
 
 def diff_parameters(iet, root, indirectly_provided=None):
     """
-    Derive the parameters of a sub-IET, `iet`, within a Callable, `root`, and
-    split them into two groups:
-
-        * the "read-only" parameters, and
-        * the "dynamic" parameters, whose value changes at some point in `root`.
+    Derive the non-constant parameters of `iet`, a sub-IET within `root`, that is
+    the parameters whose value changes at some point in `root`.
 
     The `indirectly_provided` are the parameters that are provided indirectly to
     `iet`, for example via a composite type (e.g., a C struct).
@@ -113,6 +110,6 @@ def diff_parameters(iet, root, indirectly_provided=None):
     known.update({i for i in required if i.is_AbstractFunction and not i._mem_external})
     known.update(set().union(*[i.bound_symbols for i in known]))
 
-    parameters, dynamic_parameters = split(required, lambda i: i in known)
+    dynamic_parameters = [i for i in required if i not in known]
 
-    return required, parameters, dynamic_parameters
+    return dynamic_parameters

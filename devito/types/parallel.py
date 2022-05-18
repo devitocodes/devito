@@ -24,8 +24,9 @@ from devito.types.misc import Pointer, VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchUpdate',
-           'FetchPrefetch', 'PrefetchUpdate', 'WaitPrefetch', 'Delete', 'PThreadArray',
-           'SharedData', 'NPThreads', 'DeviceRM', 'DevicePointer', 'normalize_syncs']
+           'FetchPrefetch', 'PrefetchUpdate', 'WaitPrefetch', 'Delete',
+           'ThreadArray', 'PThreadArray', 'SharedData', 'NPThreads', 'DeviceRM',
+           'DevicePointer', 'normalize_syncs']
 
 
 class NThreadsBase(Scalar):
@@ -134,10 +135,6 @@ class ThreadArray(ArrayObject):
         else:
             return self.dim
 
-    @cached_property
-    def symbolic_base(self):
-        return Symbol(name=self.name, dtype=None)
-
 
 class PThreadArray(ThreadArray):
 
@@ -163,11 +160,15 @@ class SharedData(ThreadArray):
     one consumer thread.
     """
 
-    # Mandatory, or "static", fields
+    # Static fields, stashed indirectly via a pointer to another struct
+    _field_static = 'ssd'
+
+    # Known fields
     _field_id = 'id'
     _field_deviceid = 'deviceid'
     _field_flag = 'flag'
 
+    _symbolic_static = Pointer(name=_field_static, dtype=np.void)
     _symbolic_id = Symbol(name=_field_id, dtype=np.int32)
     _symbolic_deviceid = Symbol(name=_field_deviceid, dtype=np.int32)
     _symbolic_flag = VolatileInt(name=_field_flag)
@@ -179,8 +180,13 @@ class SharedData(ThreadArray):
 
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        fields = as_list(kwargs.get('fields'))
-        fields.extend([cls._symbolic_id, cls._symbolic_deviceid, cls._symbolic_flag])
+        fields = [
+            cls._symbolic_static,
+            cls._symbolic_id,
+            cls._symbolic_deviceid,
+            cls._symbolic_flag
+        ]
+        fields.extend(as_list(kwargs.get('dynamic_fields')))
         return [(i._C_name, i._C_ctype) for i in fields]
 
     @cached_property

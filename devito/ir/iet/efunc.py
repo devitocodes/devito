@@ -11,7 +11,7 @@ from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Derefer
 from devito.ir.iet.utils import derive_parameters, diff_parameters
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
 from devito.tools import as_tuple
-from devito.types import PThreadArray, SharedData, Symbol, Pointer
+from devito.types import Pointer, PThreadArray, SharedData, ThreadArray, Symbol
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
            'EntryFunction', 'ThreadFunction', 'make_thread_ctx',
@@ -115,7 +115,92 @@ class ThreadFunction(Callable):
     A Callable executed asynchronously by a separate thread.
     """
 
-    pass
+    def __init__(self, name, iet, sdata, **kwargs):
+        sid = SharedData._symbolic_id
+        sdeviceid = SharedData._symbolic_deviceid
+        sbase = sdata.indexed
+
+        # The pthread entry point expects exactly one argument -- of type void* --
+        # and must return a void*
+        retval = 'void*'
+        parameter = Pointer(name='_%s' % sdata.name, dtype=np.void)
+
+        # Unpack `sdata`'s known fields
+        unpack = [
+            PointerCast(sdata, parameter),
+            BlankLine,
+            DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase)),
+            DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase)),
+        ]
+
+        # Derive all "static parameters", that is the parameters that must be
+        # passed to the pthread, via `sdata`, from the caller
+        parameters = derive_parameters((unpack, iet))
+
+        #TODO: DROP???
+        parameters = sorted(parameters, key=lambda i: i.is_Function)
+
+        # A struct for the static fields
+        idata = ThreadArray(
+            name=sdata._field_static,
+            npthreads=sdata.size,
+            fields=parameters
+        )
+
+        # Unpack `sdata`'s static fields
+        ibase = idata.indexed
+        unpack.extend([
+            PointerCast(idata, FieldFromPointer(sdata._field_static, sbase)),
+            BlankLine
+        ])
+        for i in parameters:
+            if i.is_AbstractFunction:
+                unpack.append(Dereference(i, ibase))
+            else:
+                unpack.append(DummyExpr(i, FieldFromPointer(i.name, ibase)))
+
+        iet = CallableBody([iet, Return(Macro('NULL'))], unpacks=unpack)
+
+        super().__init__(name, iet, retval, parameter, 'static')
+
+        self.ssparameters = parameters
+        self.sdata = sdata
+        self.idata = idata
+
+    @cached_property
+    def idata_function(self):
+        return SharedDataInitFunction(self.sdata, self.idata, self.ssparameters)
+
+
+class SharedDataInitFunction(Callable):
+
+    """
+    A callable to initialize the SharedData object created by an Operator
+    and plumbed down to a ThreadFunction.
+    """
+
+    def __init__(self, sdata, idata, parameters, **kwargs):
+        sid = SharedData._symbolic_id
+        sdeviceid = SharedData._symbolic_deviceid
+
+        sbase = sdata.indexed
+        ibase = idata.indexed
+
+        name = 'init_%s' % sdata.dtype._type_.__name__
+
+        iet = [DummyExpr(FieldFromPointer(i._C_name, ibase), i._C_symbol)
+               for i in parameters]
+        iet.extend([
+            BlankLine,
+            DummyExpr(FieldFromPointer(sdata._field_static, sbase), ibase),
+            DummyExpr(FieldFromPointer(sdata._field_id, sbase), sid),
+            DummyExpr(FieldFromPointer(sdata._field_deviceid, sbase), sdeviceid),
+            DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
+        ])
+
+        parameters = parameters + [sdata, idata, sid, sdeviceid]
+
+        super().__init__(name, iet, 'void', parameters, 'static')
 
 
 def _make_threads(value, sregistry):
@@ -136,7 +221,7 @@ def _make_threads(value, sregistry):
     return threads
 
 
-def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
+def _make_thread_init(threads, tfunc, ifunc, sregistry):
     d = threads.index
     if threads.size == 1:
         callback = lambda body: body
@@ -147,17 +232,18 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
     pthreadid = d + threads.base_id
 
     # Initialize `sdata`
-    arguments = list(isdata.parameters)
-    arguments[-3] = sdata.symbolic_base + d
+    arguments = list(ifunc.parameters)
+    arguments[-4] = tfunc.sdata.indexed + d
+    arguments[-3] = tfunc.idata.indexed + d
     arguments[-2] = pthreadid
     arguments[-1] = sregistry.deviceid
-    call0 = Call(isdata.name, arguments)
+    call0 = Call(ifunc.name, arguments)
 
     # Create pthreads
-    call1 = Call('pthread_create', (threads.symbolic_base + d,
+    call1 = Call('pthread_create', (threads.indexed + d,
                                     Macro('NULL'),
                                     Call(tfunc.name, [], is_indirect=True),
-                                    sdata.symbolic_base + d))
+                                    tfunc.sdata.indexed + d))
 
     threadsinit = List(
         header=c.Comment("Fire up and initialize `%s`" % threads.name),
@@ -169,30 +255,18 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 
 def _make_thread_func(name, iet, root, threads, sregistry):
     sid = SharedData._symbolic_id
-    sdeviceid = SharedData._symbolic_deviceid
 
     # Create the SharedData, that is the data structure that will be used by the
-    # main thread to pass information dows to the child thread(s)
-    required, parameters, dynamic_parameters = diff_parameters(iet, root, [sid])
-    parameters = sorted(parameters, key=lambda i: i.is_Function)  # Allow casting
-    sdata = SharedData(name=sregistry.make_name(prefix='sdata'), npthreads=threads.size,
-                       fields=required, dynamic_fields=dynamic_parameters)
+    # main thread to pass information down to the child thread(s)
+    dynamic_parameters = diff_parameters(iet, root, [sid])
+    sdata = SharedData(
+        name=sregistry.make_name(prefix='sdata'),
+        npthreads=threads.size,
+        dynamic_fields=dynamic_parameters
+    )
+    sbase = sdata.indexed
 
-    # Create a Callable to initialize `sdata` with the known const values
-    sbase = sdata.symbolic_base
-    iname = 'init_%s' % sdata.dtype._type_.__name__
-    ibody = [DummyExpr(FieldFromPointer(i._C_name, sbase), i._C_symbol)
-             for i in parameters]
-    ibody.extend([
-        BlankLine,
-        DummyExpr(FieldFromPointer(sdata._field_id, sbase), sid),
-        DummyExpr(FieldFromPointer(sdata._field_deviceid, sbase), sdeviceid),
-        DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
-    ])
-    iparameters = parameters + [sdata, sid, sdeviceid]
-    isdata = Callable(iname, ibody, 'void', iparameters, 'static')
-
-    # Prepend the SharedData fields available upon thread activation
+    # Prepend the `sdata` dynamic fields
     preactions = [DummyExpr(i, FieldFromPointer(i.name, sbase))
                   for i in dynamic_parameters]
 
@@ -211,25 +285,13 @@ def _make_thread_func(name, iet, root, threads, sregistry):
     # The thread keeps spinning until the alive flag is set to 0 by the main thread
     iet = While(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), iet)
 
-    # pthread functions expect exactly one argument, a void*, and must return void*
-    tretval = 'void*'
-    tparameter = Pointer(name='_%s' % sdata.name, dtype=np.void)
+    # Finally, wrap everything within a ThreadFunction
+    tfunc = ThreadFunction(name, iet, sdata)
 
-    # Unpack `sdata`
-    unpack = [PointerCast(sdata, tparameter), BlankLine]
-    for i in parameters:
-        if i.is_AbstractFunction:
-            unpack.append(Dereference(i, sdata))
-        else:
-            unpack.append(DummyExpr(i, FieldFromPointer(i.name, sbase)))
-    unpack.append(DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase)))
-    unpack.append(DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase)))
+    # Create a Callable to initialize `sdata` with the static fields
+    ifunc = tfunc.idata_function
 
-    iet = CallableBody([iet, Return(Macro('NULL'))], unpacks=unpack)
-
-    tfunc = ThreadFunction(name, iet, tretval, tparameter, 'static')
-
-    return tfunc, isdata, sdata
+    return tfunc, ifunc, sdata
 
 
 def _make_thread_activate(threads, sdata, sync_ops, sregistry):
@@ -287,12 +349,12 @@ def make_thread_ctx(name, iet, root, npthreads, sync_ops, sregistry):
     threads executing the ThreadFunction.
     """
     threads = _make_threads(npthreads, sregistry)
-    tfunc, isdata, sdata = _make_thread_func(name, iet, root, threads, sregistry)
-    init = _make_thread_init(threads, tfunc, isdata, sdata, sregistry)
+    tfunc, ifunc, sdata = _make_thread_func(name, iet, root, threads, sregistry)
+    init = _make_thread_init(threads, tfunc, ifunc, sregistry)
     activate = _make_thread_activate(threads, sdata, sync_ops, sregistry)
     finalize = _make_thread_finalize(threads, sdata)
 
-    return ThreadCtx(threads, sdata, [tfunc, isdata], init, activate, finalize)
+    return ThreadCtx(threads, sdata, [tfunc, ifunc], init, activate, finalize)
 
 
 # DeviceFunction machinery

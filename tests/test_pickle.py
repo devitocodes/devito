@@ -225,7 +225,7 @@ def test_shared_data():
     assert sdata.pfields == new_sdata.pfields
     assert sdata.dynamic_fields == new_sdata.dynamic_fields
 
-    ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
+    ffp = FieldFromPointer(sdata._field_flag, sdata.indexed)
 
     pkl_ffp = pickle.dumps(ffp)
     new_ffp = pickle.loads(pkl_ffp)
