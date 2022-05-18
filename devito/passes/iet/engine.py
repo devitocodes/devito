@@ -1,8 +1,6 @@
 from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
-from sympy.tensor.indexed import IndexException
-
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
@@ -99,9 +97,10 @@ class Graph(object):
             # The parameters/arguments lists may have changed since a pass may have:
             # 1) introduced a new symbol
             new_args = derive_parameters(self.efuncs[i])
+            new_args = [a for a in new_args if not a._mem_internal_eager]
 
             # 2) defined a symbol for which no definition was available yet (e.g.
-            #    via a malloc)
+            # via a malloc, or a Dereference)
             defines = FindSymbols('defines').visit(self.efuncs[i].body)
             drop_args = [a for a in self.efuncs[i].parameters if a in defines]
 

@@ -342,9 +342,11 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
                     if d not in hse.loc_indices]
         bufg = Array(name=self.sregistry.make_name(prefix='bufg'),
-                     dimensions=buf_dims, dtype=f.dtype, padding=0)
+                     dimensions=buf_dims, dtype=f.dtype, padding=0,
+                     liveness='eager')
         bufs = Array(name=self.sregistry.make_name(prefix='bufs'),
-                     dimensions=buf_dims, dtype=f.dtype, padding=0)
+                     dimensions=buf_dims, dtype=f.dtype, padding=0,
+                     liveness='eager')
 
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
@@ -362,8 +364,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         count = reduce(mul, bufs.shape, 1)
-        rrecv = MPIRequestObject(name='rrecv')
-        rsend = MPIRequestObject(name='rsend')
+        rrecv = MPIRequestObject(name='rrecv', liveness='eager')
+        rsend = MPIRequestObject(name='rsend', liveness='eager')
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
                          fromrank, Integer(13), comm, Byref(rrecv)])
         send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),

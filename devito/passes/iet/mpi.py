@@ -8,7 +8,7 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.routines import HaloExchangeBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.tools import as_mapper, filter_sorted, generator
+from devito.tools import as_mapper, generator
 
 __all__ = ['mpiize']
 
