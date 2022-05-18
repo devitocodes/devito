@@ -148,16 +148,15 @@ class ThreadFunction(Callable):
         )
 
         # Unpack `sdata`'s static fields
-        ibase = idata.indexed
         unpack.extend([
             PointerCast(idata, FieldFromPointer(sdata._field_static, sbase)),
             BlankLine
         ])
         for i in parameters:
             if i.is_AbstractFunction:
-                unpack.append(Dereference(i, ibase))
+                unpack.append(Dereference(i, idata))
             else:
-                unpack.append(DummyExpr(i, FieldFromPointer(i.name, ibase)))
+                unpack.append(DummyExpr(i, FieldFromPointer(i.name, idata.indexed)))
 
         iet = CallableBody([iet, Return(Macro('NULL'))], unpacks=unpack)
 

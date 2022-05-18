@@ -247,6 +247,8 @@ class CGen(Visitor):
             obj = o.obj.name
         elif isinstance(o.obj, ArrayObject):
             obj = '%s->%s' % (o.obj.name, f._C_name)
+        elif o.obj is not None:
+            obj = o.obj
         else:
             obj = f._C_name
         if f.is_PointerArray:

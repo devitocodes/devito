@@ -160,10 +160,8 @@ class SharedData(ThreadArray):
     one consumer thread.
     """
 
-    # Static fields, stashed indirectly via a pointer to another struct
-    _field_static = 'ssd'
-
     # Known fields
+    _field_static = 'ssd'
     _field_id = 'id'
     _field_deviceid = 'deviceid'
     _field_flag = 'flag'
@@ -173,21 +171,23 @@ class SharedData(ThreadArray):
     _symbolic_deviceid = Symbol(name=_field_deviceid, dtype=np.int32)
     _symbolic_flag = VolatileInt(name=_field_flag)
 
+    _known_fields = (_symbolic_static, _symbolic_id, _symbolic_deviceid, _symbolic_flag)
+
     def __init_finalize__(self, *args, **kwargs):
         self.dynamic_fields = tuple(kwargs.pop('dynamic_fields', ()))
 
         super().__init_finalize__(*args, **kwargs)
 
+
     @classmethod
     def __pfields_setup__(cls, **kwargs):
-        fields = [
-            cls._symbolic_static,
-            cls._symbolic_id,
-            cls._symbolic_deviceid,
-            cls._symbolic_flag
-        ]
+        fields = list(cls._known_fields)
         fields.extend(as_list(kwargs.get('dynamic_fields')))
         return [(i._C_name, i._C_ctype) for i in fields]
+
+    @cached_property
+    def fields(self):
+        return self._fields + self._known_fields + self.dynamic_fields
 
     @cached_property
     def symbolic_id(self):
