@@ -77,6 +77,9 @@ class Array(ArrayBasic):
         The halo region of the object.
     padding : iterable of 2-tuples, optional
         The padding region of the object.
+    liveness : str, optional
+        The liveness of the object. Allowed values: 'eager', 'lazy'. Defaults
+        to 'lazy'. Used to override `_mem_internal_eager` and `_mem_internal_lazy`.
     space : str, optional
         The memory space. Allowed values: 'local', 'mapped', 'host'. Defaults
         to 'local'. Used to override `_mem_local` and `_mem_mapped`.
@@ -102,6 +105,9 @@ class Array(ArrayBasic):
 
     def __init_finalize__(self, *args, **kwargs):
         super(Array, self).__init_finalize__(*args, **kwargs)
+
+        self._liveness = kwargs.get('liveness', 'lazy')
+        assert self._liveness in ['eager', 'lazy']
 
         self._space = kwargs.get('space', 'local')
         assert self._space in ['local', 'mapped', 'host']
@@ -154,12 +160,24 @@ class Array(ArrayBasic):
         return ctypes_to_cstr(self._C_ctype)
 
     @property
+    def liveness(self):
+        return self._liveness
+
+    @property
     def space(self):
         return self._space
 
     @property
     def scope(self):
         return self._scope
+
+    @property
+    def _mem_internal_eager(self):
+        return self._liveness == 'eager'
+
+    @property
+    def _mem_internal_lazy(self):
+        return self._liveness == 'lazy'
 
     @property
     def _mem_local(self):
@@ -172,10 +190,6 @@ class Array(ArrayBasic):
     @property
     def _mem_host(self):
         return self._space == 'host'
-
-    @property
-    def _mem_static(self):
-        return self._scope == 'static'
 
     @property
     def _mem_stack(self):
@@ -197,7 +211,8 @@ class Array(ArrayBasic):
         return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
 
     # Pickling support
-    _pickle_kwargs = AbstractFunction._pickle_kwargs + ['dimensions', 'space', 'scope']
+    _pickle_kwargs = (AbstractFunction._pickle_kwargs +
+                      ['dimensions', 'liveness', 'space', 'scope'])
 
 
 class ArrayObject(ArrayBasic):
