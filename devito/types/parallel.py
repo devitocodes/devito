@@ -163,15 +163,13 @@ class SharedData(ThreadArray):
     # Known fields
     _field_static = 'ssd'
     _field_id = 'id'
-    _field_deviceid = 'deviceid'
     _field_flag = 'flag'
 
     _symbolic_static = Pointer(name=_field_static, dtype=np.void)
     _symbolic_id = Symbol(name=_field_id, dtype=np.int32)
-    _symbolic_deviceid = Symbol(name=_field_deviceid, dtype=np.int32)
     _symbolic_flag = VolatileInt(name=_field_flag)
 
-    _known_fields = (_symbolic_static, _symbolic_id, _symbolic_deviceid, _symbolic_flag)
+    _known_fields = (_symbolic_static, _symbolic_id, _symbolic_flag)
 
     def __init_finalize__(self, *args, **kwargs):
         self.dynamic_fields = tuple(kwargs.pop('dynamic_fields', ()))
@@ -192,10 +190,6 @@ class SharedData(ThreadArray):
     @cached_property
     def symbolic_id(self):
         return self._symbolic_id
-
-    @cached_property
-    def symbolic_deviceid(self):
-        return self._symbolic_deviceid
 
     @cached_property
     def symbolic_flag(self):

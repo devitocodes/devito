@@ -14,7 +14,7 @@ from devito.tools import as_tuple
 from devito.types import Pointer, PThreadArray, SharedData, ThreadArray, Symbol
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
-           'EntryFunction', 'ThreadFunction', 'make_thread_ctx',
+           'EntryFunction', 'ThreadFunction', 'SharedDataInitFunction', 'make_thread_ctx',
            'DeviceFunction', 'DeviceCall']
 
 
@@ -117,7 +117,6 @@ class ThreadFunction(Callable):
 
     def __init__(self, name, body, sdata, **kwargs):
         sid = SharedData._symbolic_id
-        sdeviceid = SharedData._symbolic_deviceid
         sbase = sdata.indexed
 
         # If we got it from a reconstruction, we need to remove the `unpacks` first,
@@ -134,15 +133,12 @@ class ThreadFunction(Callable):
             PointerCast(sdata, parameter),
             BlankLine,
             DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase), init=True),
-            DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase),
-                      init=True),
         ]
 
         # Derive all "static parameters", that is the parameters that must be
         # passed to the pthread, via `sdata`, from the caller
         parameters = derive_parameters((unpack, body))
-        if len(parameters) == 6:
-            from IPython import embed; embed()
+        parameters.remove(sdata)
 
         #TODO: DROP???
         parameters = sorted(parameters, key=lambda i: i.is_Function)
@@ -177,7 +173,7 @@ class ThreadFunction(Callable):
 
     @cached_property
     def idata_function(self):
-        return SharedDataInitFunction(self.sdata, self.idata, self.ssparameters)
+        return SharedDataInitFunction(self)
 
 
 class SharedDataInitFunction(Callable):
@@ -187,9 +183,12 @@ class SharedDataInitFunction(Callable):
     and plumbed down to a ThreadFunction.
     """
 
-    def __init__(self, sdata, idata, parameters, **kwargs):
+    def __init__(self, tfunc, **kwargs):
         sid = SharedData._symbolic_id
-        sdeviceid = SharedData._symbolic_deviceid
+
+        sdata = tfunc.sdata
+        idata = tfunc.idata
+        parameters = tfunc.ssparameters
 
         sbase = sdata.indexed
         ibase = idata.indexed
@@ -202,13 +201,14 @@ class SharedDataInitFunction(Callable):
             BlankLine,
             DummyExpr(FieldFromPointer(sdata._field_static, sbase), ibase),
             DummyExpr(FieldFromPointer(sdata._field_id, sbase), sid),
-            DummyExpr(FieldFromPointer(sdata._field_deviceid, sbase), sdeviceid),
             DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
         ])
 
-        parameters = parameters + [sdata, idata, sid, sdeviceid]
+        parameters = parameters + [sdata, idata, sid]
 
         super().__init__(name, iet, 'void', parameters, 'static')
+
+        self.caller = tfunc.name
 
 
 def _make_threads(value, sregistry):
@@ -241,10 +241,9 @@ def _make_thread_init(threads, tfunc, ifunc, sregistry):
 
     # Initialize `sdata`
     arguments = list(ifunc.parameters)
-    arguments[-4] = tfunc.sdata.indexed + d
-    arguments[-3] = tfunc.idata.indexed + d
-    arguments[-2] = pthreadid
-    arguments[-1] = sregistry.deviceid
+    arguments[-3] = tfunc.sdata.indexed + d
+    arguments[-2] = tfunc.idata.indexed + d
+    arguments[-1] = pthreadid
     call0 = Call(ifunc.name, arguments)
 
     # Create pthreads

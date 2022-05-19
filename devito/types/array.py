@@ -279,6 +279,9 @@ class ArrayObject(ArrayBasic):
         else:
             return None
 
+    def _hashable_content(self):
+        return super()._hashable_content() + tuple(self.fields)
+
     @property
     def _is_composite_dtype(self):
         return len(self.fields) > 0

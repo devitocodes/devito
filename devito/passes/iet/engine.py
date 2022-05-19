@@ -2,6 +2,7 @@ from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
+                           EntryFunction, SharedDataInitFunction, ThreadFunction,
                            derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types.args import ArgProvider
@@ -25,8 +26,10 @@ class Graph(object):
     """
 
     def __init__(self, iet):
+        self.rname = iet.name
+
         # Internal "known" functions
-        self.efuncs = OrderedDict([('root', iet)])
+        self.efuncs = OrderedDict([(self.rname, iet)])
 
         # Foreign functions
         self.ffuncs = []
@@ -36,29 +39,40 @@ class Graph(object):
 
     @property
     def root(self):
-        return self.efuncs['root']
+        return self.efuncs[self.rname]
 
     @property
     def funcs(self):
-        retval = [MetaCall(v, True) for k, v in self.efuncs.items() if k != 'root']
+        retval = [MetaCall(v, True) for k, v in self.efuncs.items() if k != self.rname]
         retval.extend([MetaCall(i, False) for i in self.ffuncs])
         return tuple(retval)
 
     def _create_call_graph(self):
-        dag = DAG(nodes=['root'])
-        queue = ['root']
+        dag = DAG(nodes=[self.rname])
+        queue = [self.rname]
         while queue:
             caller = queue.pop(0)
             callees = FindNodes(Call).visit(self.efuncs[caller])
             for callee in filter_ordered([i.name for i in callees]):
-                if callee in self.efuncs:  # Exclude foreign Calls, e.g., MPI calls
-                    try:
-                        dag.add_node(callee)
-                        queue.append(callee)
-                    except KeyError:
-                        # `callee` already in `dag`
-                        pass
-                    dag.add_edge(callee, caller)
+                try:
+                    n = self.efuncs[callee]
+                except KeyError:
+                    # E.g., foreign Calls such as MPI calls
+                    continue
+
+                if isinstance(n, ThreadFunction):
+                    # ThreadFunctions aren't called directly via a Call
+                    dag.add_edge(callee, n.idata_function.name, force_add=True)
+                    queue.append(callee)
+                    continue
+
+                try:
+                    dag.add_node(callee)
+                    queue.append(callee)
+                except KeyError:
+                    # `callee` already in `dag`
+                    pass
+                dag.add_edge(callee, caller)
 
         # Sanity check
         assert dag.size == len(self.efuncs)
@@ -73,7 +87,7 @@ class Graph(object):
 
         # Apply `func`
         for i in dag.topological_sort():
-            self.efuncs[i], metadata = func(self.efuncs[i], **kwargs)
+            efunc, metadata = func(self.efuncs[i], **kwargs)
 
             # Track all objects introduced by `func`
             self.includes.extend(as_tuple(metadata.get('includes')))
@@ -94,57 +108,70 @@ class Graph(object):
             except KeyError:
                 pass
 
-            # The parameters/arguments lists may have changed since a pass may have:
-            # 1) introduced a new symbol
-            new_args = derive_parameters(self.efuncs[i])
-            new_args = [a for a in new_args if not a._mem_internal_eager]
-
-            # 2) defined a symbol for which no definition was available yet (e.g.
-            # via a malloc, or a Dereference)
-            defines = FindSymbols('defines').visit(self.efuncs[i].body)
-            drop_args = [a for a in self.efuncs[i].parameters if a in defines]
-
-            if not (new_args or drop_args):
+            # ThreadFunctions are a special beast. They don't need an
+            # explicit reconstruction of the parameters list (this is
+            # carried out by the __init__ directly)
+            if isinstance(efunc, ThreadFunction):
+                self.efuncs[i] = efunc
                 continue
 
-            def filter_args(v, efunc=None):
-                processed = list(v)
-                for a in new_args:
-                    if a in processed:
-                        # A child efunc trying to add a symbol alredy added by a
-                        # sibling efunc
-                        continue
+            if isinstance(efunc, SharedDataInitFunction):
+                # SharedDataInitFunctions are reconstructed automatically by
+                # ThreadFunctions, so they're also treated specially
+                efunc = self.efuncs[efunc.caller].idata_function
+            else:
+                # The still undefined symbols that a pass may have introduced
+                new_params = derive_parameters(efunc)
+                new_params = [a for a in new_params if not a._mem_internal_eager]
+                if isinstance(efunc, EntryFunction):
+                    new_params = [a for a in new_params if isinstance(a, ArgProvider)]
 
-                    if efunc is self.root and not isinstance(a, ArgProvider):
-                        # Temporaries (e.g., Arrays) *cannot* be args in `root`.
-                        # So if we end up here, `a` keeps being undefined
-                        # inside the efunc (that means we count on a later pass
-                        # to define it)
-                        continue
+                # The parameters that have obtained a definition inside the Callable
+                defines = FindSymbols('defines').visit(efunc.body)
+                drop_params = [a for a in efunc.parameters if a in defines]
 
-                    processed.append(a)
-
-                for a in drop_args:
-                    if a in processed:
-                        processed.remove(a)
-
-                return processed
-
-            stack = [i] + dag.all_downstreams(i)
-            for n in stack:
-                efunc = self.efuncs[n]
-
-                mapper = {}
-                for c in FindNodes(Call).visit(efunc):
-                    if c.name not in stack:
-                        continue
-                    mapper[c] = c._rebuild(arguments=filter_args(c.arguments))
-
-                parameters = filter_args(efunc.parameters, efunc)
-                efunc = Transformer(mapper).visit(efunc)
+                # Update the `efunc` parameters list
+                parameters = [a for a in efunc.parameters if a not in drop_params]
+                parameters.extend(new_params)
                 efunc = efunc._rebuild(parameters=parameters)
 
-                self.efuncs[n] = efunc
+            # No IET-level transformations, no-op
+            if efunc is self.efuncs[i]:
+                continue
+
+            # Stash old and new signature
+            old_params = self.efuncs[i].parameters
+            new_params = efunc.parameters
+
+            self.efuncs[i] = efunc
+            if old_params == new_params:
+                continue
+
+            # Update all the Calls to `efunc`
+            for n in dag.downstream(i):
+                try:
+                    v = self.efuncs[n]
+                except KeyError:
+                    continue
+
+                mapper = {}
+                for c in FindNodes(Call).visit(v):
+                    if c.name != efunc.name:
+                        continue
+
+                    assert len(old_params) == len(c.arguments)
+                    binding = dict(zip(old_params, c.arguments))
+
+                    arguments = []
+                    for a in new_params:
+                        try:
+                            arguments.append(binding[a])
+                        except KeyError:
+                            arguments.append(a)
+
+                    mapper[c] = c._rebuild(arguments=arguments)
+
+                self.efuncs[n] = Transformer(mapper).visit(v)
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)
@@ -168,6 +195,9 @@ class Graph(object):
         mapper = OrderedDict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
 
         return mapper
+
+
+# API to define compiler passes
 
 
 def iet_pass(func):
@@ -197,6 +227,9 @@ def iet_pass(func):
 
 def iet_visit(func):
     return iet_pass((iet_visit, func))
+
+
+# Misc
 
 
 Jitting = namedtuple('Jitting', 'includes include_dirs libs lib_dirs')
