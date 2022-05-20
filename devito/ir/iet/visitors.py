@@ -938,9 +938,11 @@ class Uxreplace(Transformer):
     """
 
     def visit_Definition(self, o):
-        if o.function.name == 'sdata0_ind':
-            from IPython import embed; embed()
-        return super().visit_Definition(o)
+        try:
+            v = self.mapper[o.function]
+            return o._rebuild(function=v)
+        except KeyError:
+            return o
 
     def visit_Expression(self, o):
         return o._rebuild(expr=uxreplace(o.expr, self.mapper))

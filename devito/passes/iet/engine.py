@@ -172,18 +172,23 @@ class Graph(object):
 
                         # If `old is not new`, it may still be, logically, the
                         # same parameter (e.g., same name), so a substitution
-                        # of all bound symbols must be performed
+                        # of all bound symbols will be performed
                         try:
                             a0 = weakmap[a.name]
-                            subs = map_bound_symbols(a0, a)
-                            arguments.append(binding[a0].xreplace(subs))
+                            mapper.update(make_symbols_map(a0, a))
+                            arguments.append(binding[a0])
                         except (KeyError, ValueError):
                             # Totally new parameter, we just add it
                             arguments.append(a)
 
                     mapper[c] = c._rebuild(arguments=arguments)
 
-                self.efuncs[n] = Transformer(mapper).visit(v)
+                # Replace Calls
+                v = Transformer(mapper).visit(v)
+                # Replace old->new symbols throughout the IET
+                v = Uxreplace(mapper).visit(v)
+
+                self.efuncs[n] = v
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)
@@ -244,7 +249,7 @@ def iet_visit(func):
 # Misc
 
 
-def map_bound_symbols(a0, a1):
+def make_symbols_map(a0, a1):
     if len(a0.bound_symbols) != len(a1.bound_symbols):
         raise ValueError
 
@@ -254,6 +259,8 @@ def map_bound_symbols(a0, a1):
 
     if any(k.name != v.name for k, v in mapper.items()):
         raise ValueError
+
+    mapper[a0.function] = a1.function
 
     return mapper
 
