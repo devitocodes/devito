@@ -1,6 +1,6 @@
 from devito.ir.iet import IterationTree, FindSections, FindSymbols
 from devito.symbolics import Keyword, Macro
-from devito.tools import as_tuple, filter_ordered, split
+from devito.tools import as_tuple, filter_ordered
 from devito.types import Array, Global, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters',

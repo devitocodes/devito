@@ -171,7 +171,7 @@ class ThreadFunction(Callable):
         self.idata = idata
 
     @cached_property
-    def idata_function(self):
+    def ifunc(self):
         return SharedDataInitFunction(self)
 
 
@@ -296,7 +296,7 @@ def _make_thread_func(name, iet, root, threads, sregistry):
     tfunc = ThreadFunction(name, iet, sdata)
 
     # Create a Callable to initialize `sdata` with the static fields
-    ifunc = tfunc.idata_function
+    ifunc = tfunc.ifunc
 
     return tfunc, ifunc, sdata
 

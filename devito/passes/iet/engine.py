@@ -62,7 +62,7 @@ class Graph(object):
 
                 if isinstance(n, ThreadFunction):
                     # ThreadFunctions aren't called directly via a Call
-                    dag.add_edge(callee, n.idata_function.name, force_add=True)
+                    dag.add_edge(callee, n.ifunc.name, force_add=True)
                     queue.append(callee)
                     continue
 
@@ -118,7 +118,7 @@ class Graph(object):
             if isinstance(efunc, SharedDataInitFunction):
                 # SharedDataInitFunctions are reconstructed automatically by
                 # ThreadFunctions, so they're also treated specially
-                efunc = self.efuncs[efunc.caller].idata_function
+                efunc = self.efuncs[efunc.caller].ifunc
             else:
                 # The still undefined symbols that a pass may have introduced
                 new_params = derive_parameters(efunc)
@@ -126,6 +126,7 @@ class Graph(object):
                 if isinstance(efunc, EntryFunction):
                     new_params = [a for a in new_params if isinstance(a, ArgProvider)]
                 if isinstance(efunc, DeviceFunction):
+                    # TODO: We still can't pass C structs to DeviceFunctions
                     new_params = [a for a in new_params if not a.is_AbstractFunction]
 
                 # The parameters that have obtained a definition inside the Callable
@@ -137,15 +138,13 @@ class Graph(object):
                 parameters.extend(new_params)
                 efunc = efunc._rebuild(parameters=parameters)
 
-            # No IET-level transformations, no-op
-            if efunc is self.efuncs[i]:
-                continue
-
-            # Stash old and new signature
+            # Stash old and new signatures
             old_params = self.efuncs[i].parameters
             new_params = efunc.parameters
 
             self.efuncs[i] = efunc
+
+            # Avoid useless reconstructions if possible
             if old_params == new_params:
                 continue
 
@@ -180,7 +179,7 @@ class Graph(object):
                             mapper.update(make_symbols_map(a0, a))
                             arguments.append(binding[a0])
                         except (KeyError, ValueError):
-                            # Totally new parameter, we just add it
+                            # Brand-new parameter, we just add it
                             arguments.append(a)
 
                     mapper[c] = c._rebuild(arguments=arguments)
@@ -257,7 +256,7 @@ def make_symbols_map(a0, a1):
 
     bs0 = sorted(a0.bound_symbols, key=lambda i: i.name)
     bs1 = sorted(a1.bound_symbols, key=lambda i: i.name)
-    mapper = dict(zip(bs0, bs1))
+    mapper = {k: v for k, v in zip(bs0, bs1) if k is not v}
 
     if any(k.name != v.name for k, v in mapper.items()):
         raise ValueError

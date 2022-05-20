@@ -44,7 +44,7 @@ class Orchestrator(object):
         return iet
 
     def _make_withlock(self, iet, sync_ops, pieces, root):
-        fid = SharedData._field_id
+        fid = SharedData._symbolic_id
 
         # Sorting for deterministic code gen
         locks = sorted({s.lock for s in sync_ops}, key=lambda i: i.name)
@@ -119,7 +119,7 @@ class Orchestrator(object):
         return iet
 
     def _make_prefetchupdate(self, iet, sync_ops, pieces, root):
-        fid = SharedData._field_id
+        fid = SharedData._symbolic_id
 
         postactions = [BlankLine]
         for s in sync_ops:
@@ -170,7 +170,7 @@ class Orchestrator(object):
         return iet
 
     def _make_fetchprefetch(self, iet, sync_ops, pieces, root):
-        fid = SharedData._field_id
+        fid = SharedData._symbolic_id
 
         fetches = []
         prefetches = []
