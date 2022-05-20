@@ -10,7 +10,7 @@ from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, FindNode
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite
-from devito.tools import as_mapper, filter_ordered, filter_sorted, flatten, is_integer
+from devito.tools import as_mapper, filter_ordered, filter_sorted, flatten
 from devito.types import (WaitLock, WithLock, FetchUpdate, FetchPrefetch,
                           PrefetchUpdate, WaitPrefetch, Delete, SharedData)
 

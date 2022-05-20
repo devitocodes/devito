@@ -85,14 +85,6 @@ def derive_parameters(iet, drop_locals=False):
     defines = [i._C_name for i in FindSymbols('defines').visit(iet)]
     parameters = [i for i in candidates if i._C_name not in defines]
 
-    # Due to long-standing issue X, that is the presence of aliasing symbols in the
-    # generated code (e.g., `ii_rec_0` being both a ConditionalDimension and a Symbol),
-    # we also look at the name for symbols
-    #weak_defines = [s.name for s in defines if s.is_Symbol]
-    #from IPython import embed; embed()
-    #parameters = [i for i in parameters
-    #              if not (i.is_Symbol and i.name in weak_defines)]
-
     # Drop globally-visible objects
     parameters = [p for p in parameters if not isinstance(p, (Global, Keyword, Macro))]
 

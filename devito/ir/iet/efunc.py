@@ -139,9 +139,6 @@ class ThreadFunction(Callable):
         # passed to the pthread, via `sdata`, from the caller
         parameters = derive_parameters((unpack, body))
 
-        #TODO: DROP???
-        parameters = sorted(parameters, key=lambda i: i.is_Function)
-
         # A struct for the static fields
         idata = ThreadArray(
             name='%s_%s' % (sdata.name, sdata._field_constant),

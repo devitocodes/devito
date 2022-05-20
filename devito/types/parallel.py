@@ -176,7 +176,6 @@ class SharedData(ThreadArray):
 
         super().__init_finalize__(*args, **kwargs)
 
-
     @classmethod
     def __pfields_setup__(cls, **kwargs):
         fields = list(cls._known_fields)
