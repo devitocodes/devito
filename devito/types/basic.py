@@ -1398,6 +1398,9 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
 
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.function,)
+
     @property
     def _C_name(self):
         return self.name
