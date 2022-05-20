@@ -2,8 +2,8 @@ from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
-                           EntryFunction, SharedDataInitFunction, ThreadFunction,
-                           Uxreplace, derive_parameters)
+                           DeviceFunction, EntryFunction, SharedDataInitFunction,
+                           ThreadFunction, Uxreplace, derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types.args import ArgProvider
 
@@ -125,6 +125,8 @@ class Graph(object):
                 new_params = [a for a in new_params if not a._mem_internal_eager]
                 if isinstance(efunc, EntryFunction):
                     new_params = [a for a in new_params if isinstance(a, ArgProvider)]
+                if isinstance(efunc, DeviceFunction):
+                    new_params = [a for a in new_params if not a.is_AbstractFunction]
 
                 # The parameters that have obtained a definition inside the Callable
                 defines = FindSymbols('defines').visit(efunc.body)

@@ -183,9 +183,11 @@ class SharedData(ThreadArray):
         fields.extend(as_list(kwargs.get('dynamic_fields')))
         return [(i._C_name, i._C_ctype) for i in fields]
 
-    @cached_property
-    def fields(self):
-        return self._fields + self._known_fields + self.dynamic_fields
+    @property
+    def _is_composite_dtype(self):
+        # `self._fields` may be empty, but there still are implicit fields
+        # in `self._known_fields` and potentially also in `self._dynamic_fields`
+        return True
 
     @cached_property
     def symbolic_id(self):

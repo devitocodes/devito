@@ -230,7 +230,8 @@ def test_shared_data():
     pkl_ffp = pickle.dumps(ffp)
     new_ffp = pickle.loads(pkl_ffp)
 
-    assert ffp == new_ffp
+    assert ffp.field == new_ffp.field
+    assert str(ffp) == str(new_ffp)
 
     indexed = sdata[0]
 

@@ -4,7 +4,7 @@ import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
                     MatrixSparseTimeFunction, sin)
-from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes
+from devito.ir import Call, Callable, DeviceFunction, DummyExpr, Expression, FindNodes
 from devito.operator import SymbolRegistry
 from devito.passes import Graph, linearize
 from devito.types import Array
@@ -282,9 +282,9 @@ def test_strides_forwarding0():
 
     f = Function(name='f', grid=grid)
 
-    bar = Callable('bar', DummyExpr(f[0, 0], 0), 'void', parameters=[f.indexed])
+    bar = DeviceFunction('bar', DummyExpr(f[0, 0], 0), 'void', parameters=[f.indexed])
     call = Call(bar.name, [f.indexed])
-    foo = Callable('foo', call, 'void', parameters=[f])
+    foo = DeviceFunction('foo', call, 'void', parameters=[f])
 
     # Emulate what the compiler would do
     graph = Graph(foo)
@@ -311,9 +311,9 @@ def test_strides_forwarding1():
 
     a = Array(name='a', dimensions=grid.dimensions, shape=grid.shape)
 
-    bar = Callable('bar', DummyExpr(a[0, 0], 0), 'void', parameters=[a.indexed])
+    bar = DeviceFunction('bar', DummyExpr(a[0, 0], 0), 'void', parameters=[a.indexed])
     call = Call(bar.name, [a.indexed])
-    foo = Callable('foo', call, 'void', parameters=[a])
+    foo = DeviceFunction('foo', call, 'void', parameters=[a])
 
     # Emulate what the compiler would do
     graph = Graph(foo)
