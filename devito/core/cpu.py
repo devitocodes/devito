@@ -153,7 +153,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
         if options['openmp']:
             parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
             parizer.make_parallel(graph)
-            parizer.initialize(graph)
+            parizer.initialize(graph, options=options)
 
         # Symbol definitions
         cls._Target.DataManager(sregistry).process(graph)
@@ -226,7 +226,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
-        parizer.initialize(graph)
+        parizer.initialize(graph, options=options)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -317,7 +317,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
                                  sregistry=sregistry),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
-            'init': parizer.initialize
+            'init': partial(parizer.initialize, options=options)
         }
 
     _known_passes = (

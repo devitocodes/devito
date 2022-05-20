@@ -139,7 +139,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_parallel(graph)
-        parizer.initialize(graph)
+        parizer.initialize(graph, options=options)
 
         # Symbol definitions
         cls._Target.DataManager(sregistry, options).process(graph)
@@ -211,7 +211,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_parallel(graph)
-        parizer.initialize(graph)
+        parizer.initialize(graph, options=options)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -293,7 +293,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'linearize': partial(linearize, mode=options['linearize'],
                                  sregistry=sregistry),
             'prodders': partial(hoist_prodders),
-            'init': parizer.initialize
+            'init': partial(parizer.initialize, options=options)
         }
 
     _known_passes = (
