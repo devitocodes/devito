@@ -3,7 +3,7 @@ from functools import partial, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, SharedDataInitFunction, ThreadFunction,
-                           derive_parameters)
+                           Uxreplace, derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types.args import ArgProvider
 
@@ -161,12 +161,24 @@ class Graph(object):
 
                     assert len(old_params) == len(c.arguments)
                     binding = dict(zip(old_params, c.arguments))
+                    weakmap = {i.name: i for i in binding}
 
                     arguments = []
                     for a in new_params:
-                        try:
+                        # If `old is new`, reuse same argument
+                        if a in binding:
                             arguments.append(binding[a])
-                        except KeyError:
+                            continue
+
+                        # If `old is not new`, it may still be, logically, the
+                        # same parameter (e.g., same name), so a substitution
+                        # of all bound symbols must be performed
+                        try:
+                            a0 = weakmap[a.name]
+                            subs = map_bound_symbols(a0, a)
+                            arguments.append(binding[a0].xreplace(subs))
+                        except (KeyError, ValueError):
+                            # Totally new parameter, we just add it
                             arguments.append(a)
 
                     mapper[c] = c._rebuild(arguments=arguments)
@@ -230,6 +242,20 @@ def iet_visit(func):
 
 
 # Misc
+
+
+def map_bound_symbols(a0, a1):
+    if len(a0.bound_symbols) != len(a1.bound_symbols):
+        raise ValueError
+
+    bs0 = sorted(a0.bound_symbols, key=lambda i: i.name)
+    bs1 = sorted(a1.bound_symbols, key=lambda i: i.name)
+    mapper = dict(zip(bs0, bs1))
+
+    if any(k.name != v.name for k, v in mapper.items()):
+        raise ValueError
+
+    return mapper
 
 
 Jitting = namedtuple('Jitting', 'includes include_dirs libs lib_dirs')

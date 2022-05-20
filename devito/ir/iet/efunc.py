@@ -138,21 +138,20 @@ class ThreadFunction(Callable):
         # Derive all "static parameters", that is the parameters that must be
         # passed to the pthread, via `sdata`, from the caller
         parameters = derive_parameters((unpack, body))
-        parameters.remove(sdata)
 
         #TODO: DROP???
         parameters = sorted(parameters, key=lambda i: i.is_Function)
 
         # A struct for the static fields
         idata = ThreadArray(
-            name=sdata._field_static,
+            name='%s_%s' % (sdata.name, sdata._field_constant),
             npthreads=sdata.size,
             fields=parameters
         )
 
         # Unpack `sdata`'s static fields
         unpack.extend([
-            PointerCast(idata, FieldFromPointer(sdata._field_static, sbase)),
+            PointerCast(idata, FieldFromPointer(sdata._field_constant, sbase)),
             BlankLine
         ])
         for i in parameters:
@@ -199,7 +198,7 @@ class SharedDataInitFunction(Callable):
                for i in parameters]
         iet.extend([
             BlankLine,
-            DummyExpr(FieldFromPointer(sdata._field_static, sbase), ibase),
+            DummyExpr(FieldFromPointer(sdata._field_constant, sbase), ibase),
             DummyExpr(FieldFromPointer(sdata._field_id, sbase), sid),
             DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
         ])

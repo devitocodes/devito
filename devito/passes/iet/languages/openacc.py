@@ -149,8 +149,7 @@ class AccBB(PragmaLangBB):
     @classmethod
     def _map_delete(cls, f, imask=None, devicerm=None):
         if devicerm:
-            return PragmaTransfer(cls.mapper['map-exit-delete-if'], f, imask,
-                                  devicerm.name)
+            return PragmaTransfer(cls.mapper['map-exit-delete-if'], f, imask, devicerm)
         else:
             return PragmaTransfer(cls.mapper['map-exit-delete'], f, imask)
 

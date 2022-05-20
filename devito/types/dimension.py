@@ -184,10 +184,6 @@ class Dimension(ArgProvider):
     def root(self):
         return self
 
-    @cached_property
-    def bound_symbols(self):
-        return {self.symbolic_min, self.symbolic_max, self.symbolic_size}
-
     @property
     def _maybe_distributed(self):
         """Could it be a distributed Dimension?"""
@@ -206,6 +202,8 @@ class Dimension(ArgProvider):
         candidates = [self.symbolic_min, self.symbolic_max, self.symbolic_size,
                       self.symbolic_incr]
         return frozenset(i for i in candidates if not i.is_Number)
+
+    bound_symbols = _defines_symbols
 
     @property
     def _arg_names(self):

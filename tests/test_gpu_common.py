@@ -181,8 +181,7 @@ class TestStreaming(object):
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
         assert len(exprs) == 20
-        assert str(exprs[12]) == 'int id = sdata0->id;'
-        assert str(exprs[13]) == 'int deviceid = sdata0->deviceid;'
+        assert str(exprs[0]) == 'int id = sdata0->id;'
         assert str(exprs[14]) == 'const int time = sdata0->time;'
         assert str(exprs[15]) == 'lock0[0] = 1;'
         assert exprs[16].write is u

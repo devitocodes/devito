@@ -299,7 +299,6 @@ def test_strides_forwarding0():
 
     assert foo.body.body[0].write.name == 'y_fsz0'
     assert foo.body.body[2].write.name == 'y_stride0'
-    from IPython import embed; embed()
     assert len(foo.body.body[4].arguments) == 2
 
     assert len(bar.parameters) == 2
