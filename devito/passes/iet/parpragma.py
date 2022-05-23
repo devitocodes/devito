@@ -14,7 +14,7 @@ from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixi
                                         make_sections_from_imask)
 from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, flatten, prod
-from devito.types import Symbol, NThreadsBase
+from devito.types import Symbol
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
            'PragmaDeviceAwareTransformer', 'PragmaLangBB', 'PragmaTransfer',

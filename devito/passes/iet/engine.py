@@ -73,7 +73,7 @@ class Graph(object):
 
         # Apply `func`
         for i in dag.topological_sort():
-            self.efuncs[i], metadata = func(self.efuncs[i], **kwargs)
+            efunc, metadata = func(self.efuncs[i], **kwargs)
 
             # Track all objects introduced by `func`
             self.includes.extend(as_tuple(metadata.get('includes')))
@@ -94,23 +94,27 @@ class Graph(object):
             except KeyError:
                 pass
 
-            if isinstance(self.efuncs[i], ThreadFunction):
+            if efunc is self.efuncs[i]:
+                continue
+            self.efuncs[i] = efunc
+
+            if isinstance(efunc, ThreadFunction):
                 continue
 
             # The parameters/arguments lists may have changed since a pass may have:
             # 1) introduced a new symbol
-            new_args = derive_parameters(self.efuncs[i])
+            new_args = derive_parameters(efunc)
             new_args = [a for a in new_args if not a._mem_internal_eager]
 
             # 2) defined a symbol for which no definition was available yet (e.g.
-            # via a malloc, or a Dereference)
-            defines = FindSymbols('defines').visit(self.efuncs[i].body)
-            drop_args = [a for a in self.efuncs[i].parameters if a in defines]
+            # via a malloc, or a Dereference)
+            defines = FindSymbols('defines').visit(efunc.body)
+            drop_args = [a for a in efunc.parameters if a in defines]
 
             if not (new_args or drop_args):
                 continue
 
-            def filter_args(v, efunc=None):
+            def _filter(v, ef=None):
                 processed = list(v)
                 for a in new_args:
                     if a in processed:
@@ -118,35 +122,30 @@ class Graph(object):
                         # sibling efunc
                         continue
 
-                    if efunc is self.root and not isinstance(a, ArgProvider):
+                    if ef is self.root and not isinstance(a, ArgProvider):
                         # Temporaries (e.g., Arrays) *cannot* be args in `root`.
                         # So if we end up here, `a` keeps being undefined
-                        # inside the efunc (that means we count on a later pass
-                        # to define it)
+                        # inside it, and we rely on a later pass to define it
                         continue
 
                     processed.append(a)
 
-                for a in drop_args:
-                    if a in processed:
-                        processed.remove(a)
+                processed = [a for a in processed if a not in drop_args]
 
                 return processed
 
-            stack = [i] + dag.all_downstreams(i)
-            for n in stack:
+            # Update to use the new signature
+            parameters = _filter(efunc.parameters, efunc)
+            self.efuncs[i] = efunc._rebuild(parameters=parameters)
+
+            # Update all call sites to use the new signature
+            for n in dag.downstream(i):
                 efunc = self.efuncs[n]
 
-                mapper = {}
-                for c in FindNodes(Call).visit(efunc):
-                    if c.name not in stack:
-                        continue
-                    mapper[c] = c._rebuild(arguments=filter_args(c.arguments))
-
-                parameters = filter_args(efunc.parameters, efunc)
+                mapper = {c: c._rebuild(arguments=_filter(c.arguments))
+                          for c in FindNodes(Call).visit(efunc)
+                          if c.name == self.efuncs[i].name}
                 efunc = Transformer(mapper).visit(efunc)
-                efunc = efunc._rebuild(parameters=parameters)
-
                 self.efuncs[n] = efunc
 
         # Uniqueness
