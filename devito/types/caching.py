@@ -7,7 +7,7 @@ from sympy.core import cache
 from devito.tools import safe_dict_copy
 
 
-__all__ = ['Cached', '_SymbolCache', 'CacheManager']
+__all__ = ['Cached', 'Uncached', '_SymbolCache', 'CacheManager']
 
 _SymbolCache = {}
 """The symbol cache."""
@@ -19,6 +19,17 @@ class AugmentedWeakRef(weakref.ref):
         obj = super().__new__(cls, obj)
         obj.nbytes = meta.get('nbytes', 0)
         return obj
+
+
+class Uncached(object):
+
+    """
+    Mixin class for unique, and therefore uncached, symbolic objects
+    (e.g., data carriers).
+    """
+
+    def __hash__(self):
+        return id(self)
 
 
 class Cached(object):
