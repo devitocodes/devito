@@ -220,7 +220,7 @@ class Operator(Callable):
                                            for i in profiler._ext_calls]))
         op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
 
-        # Internal mutablstate to store information about previous runs, autotuning
+        # Internal mutable state to store information about previous runs, autotuning
         # reports, etc
         op._state = cls._initialize_state(**kwargs)
 

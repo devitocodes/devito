@@ -364,7 +364,7 @@ def infer_transfer_datashape(f, *args):
     First of all, we observe that the minimum shape is not necessarily the
     best shape, because data contiguity plays a role.
 
-    So even in the most simple case, we transfer *both* the DOMAIN and the
+    So even in the simplest case, we transfer *both* the DOMAIN and the
     HALO region. Consider the following:
 
       .. code-block:: C

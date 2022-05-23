@@ -30,7 +30,7 @@ class Guard(object):
         try:
             return negations[self.__class__](*self._args_rebuild)
         except TypeError:
-            # Some complex relations involving custom sympy subtypes (e.g.
+            # Some complex relations involving custom SymPy subtypes (e.g.
             # FieldFromPointer, IndexedPointer) mystically end up here
             return negations[self.__class__](*self._args_rebuild, evaluate=False)
 
