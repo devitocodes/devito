@@ -455,7 +455,8 @@ class PragmaTransfer(Pragma, Transfer):
     def pragmas(self):
         # Stringify sections
         sections = ''.join(['[%s:%s]' % (ccode(i), ccode(j)) for i, j in self.sections])
-        return as_tuple(self.callback(self.function.name, sections, *self.arguments))
+        arguments = [ccode(i) for i in self.arguments]
+        return as_tuple(self.callback(self.function.name, sections, *arguments))
 
     @property
     def functions(self):
@@ -624,18 +625,6 @@ class PragmaLangBB(LangBB):
             return PragmaTransfer(cls.mapper['map-release-if'], f, imask, devicerm)
         else:
             return PragmaTransfer(cls.mapper['map-release'], f, imask)
-
-    @classmethod
-    def _map_delete(cls, f, imask=None, devicerm=None):
-        # This ugly condition is to avoid a copy-back when, due to
-        # domain decomposition, the local size of a Function is 0, which
-        # would cause a crash
-        items = []
-        if devicerm is not None:
-            items.append(devicerm)
-        items.extend(['(%s != 0)' % i for i in f.symbolic_shape])
-        return PragmaTransfer(cls.mapper['map-exit-delete-if'], f, imask,
-                              ' && '.join(items))
 
 
 # Utils

@@ -196,8 +196,8 @@ class TestCodeGeneration(object):
         assert op.body.unmaps[6].pragmas[0].value ==\
             ('omp target exit data map(delete: g[0:g_vec->size[0]]'
              '[0:g_vec->size[1]][0:g_vec->size[2]])'
-             ' if(devicerm && (g_vec->size[0] != 0) && (g_vec->size[1] != 0)'
-             ' && (g_vec->size[2] != 0))')
+             ' if(devicerm && g_vec->size[0] != 0 && g_vec->size[1] != 0'
+             ' && g_vec->size[2] != 0)')
 
     def test_array_rw(self):
         grid = Grid(shape=(3, 3, 3))

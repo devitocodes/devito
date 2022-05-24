@@ -1,7 +1,7 @@
 from distutils import version
 
 import cgen as c
-from sympy import Not
+from sympy import And, Ne, Not
 
 from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
 from devito.arch.compiler import GNUCompiler
@@ -11,7 +11,7 @@ from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaDeviceAwareDataManager)
+                                         PragmaTransfer, PragmaDeviceAwareDataManager)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import CondEq, DefFunction
@@ -185,6 +185,17 @@ class DeviceOmpBB(OmpBB):
     # NOTE: Work around clang>=10 issue concerning offloading arrays declared
     # with an `__attribute__(aligned(...))` qualifier
     PointerCast = lambda *a, **kw: PointerCast(*a, alignment=False, **kw)
+
+    @classmethod
+    def _map_delete(cls, f, imask=None, devicerm=None):
+        # This ugly condition is to avoid a copy-back when, due to
+        # domain decomposition, the local size of a Function is 0, which
+        # would cause a crash with some OpenMP-offloading implementations
+        items = [Ne(i, 0, evaluate=False) for i in f.symbolic_shape]
+        if devicerm is not None:
+            items.append(devicerm)
+        argument = And(*items)
+        return PragmaTransfer(cls.mapper['map-exit-delete-if'], f, imask, argument)
 
 
 class SimdOmpizer(PragmaSimdTransformer):
