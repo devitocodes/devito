@@ -15,6 +15,7 @@ from devito.types import PThreadArray, SharedData, Symbol, Pointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
            'EntryFunction', 'ThreadFunction', 'make_thread_ctx',
+           'AsyncCallable', 'AsyncCall',
            'DeviceFunction', 'DeviceCall']
 
 
@@ -96,6 +97,24 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
     """
     return ElementalFunction(name, iet, retval, derive_parameters(iet), prefix,
                              dynamic_parameters)
+
+
+# AsyncCallables machinery
+
+class AsyncCallable(Callable):
+
+    """
+    An async-hronizable Callable (but still synchronous).
+    """
+
+    def __init__(self, name, body, retval, parameters=None, prefix='static',
+                 sync_ops=None):
+        super().__init__(name, body, retval, parameters=parameters, prefix=prefix)
+        self.sync_ops = sync_ops
+
+
+class AsyncCall(Call):
+    pass
 
 
 # EntryFunction machinery
