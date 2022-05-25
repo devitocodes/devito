@@ -276,6 +276,7 @@ https://img.shields.io/travis/com/python-versioneer/python-versioneer.svg
 """
 
 from __future__ import print_function
+from msilib.schema import Error
 try:
     import configparser
 except ImportError:
@@ -1515,7 +1516,7 @@ def get_cmdclass():
     if "setuptools" in sys.modules:
         from setuptools.command.build_py import build_py as _build_py
     else:
-        pass
+        raise 
 
     class cmd_build_py(_build_py):
         def run(self):
@@ -1536,7 +1537,7 @@ def get_cmdclass():
     if "setuptools" in sys.modules:
         from setuptools.command.sdist import sdist as _sdist
     else:
-        pass
+        raise ValueError("No setuptools in sys.modules")
 
     class cmd_sdist(_sdist):
         def run(self):
