@@ -35,9 +35,9 @@ def sniff_compiler_version(cc):
         res = run([cc, "--version"], stdout=PIPE, stderr=DEVNULL)
         ver = res.stdout.decode("utf-8")
         if not ver:
-            return Version("unknown")
+            return Version("0")
     except UnicodeDecodeError:
-        return Version("unknown")
+        return Version("0")
     except FileNotFoundError:
         error("The `%s` compiler isn't available on this system" % cc)
         sys.exit(1)
@@ -550,7 +550,7 @@ class IntelCompiler(Compiler):
             self.cflags += ["-qopt-zmm-usage=high"]
 
         try:
-            if self.version >= version.StrictVersion("15.0.0"):
+            if self.version >= Version("15.0.0"):
                 # Append the OpenMP flag regardless of configuration['language'],
                 # since icc15 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
