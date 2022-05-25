@@ -1,4 +1,4 @@
-from distutils import version
+from packaging.version import Version
 
 import cgen as c
 from sympy import Not
@@ -197,7 +197,7 @@ class Ompizer(PragmaShmTransformer):
         # Not all backend compilers support array reduction!
         # Here are the known unsupported ones:
         if isinstance(compiler, GNUCompiler) and \
-           compiler.version < version.StrictVersion("6.0"):
+           compiler.version < Version("6.0"):
             return False
         return True
 

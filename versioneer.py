@@ -1,5 +1,5 @@
 
-# Version: 0.18
+# Version: 0.22
 
 """The Versioneer - like a rocketeer, but for versions.
 
@@ -7,19 +7,15 @@ The Versioneer
 ==============
 
 * like a rocketeer, but for versions!
-* https://github.com/warner/python-versioneer
+* https://github.com/python-versioneer/python-versioneer
 * Brian Warner
-* License: Public Domain
-* Compatible With: python2.6, 2.7, 3.2, 3.3, 3.4, 3.5, 3.6, and pypy
-* [![Latest Version]
-(https://pypip.in/version/versioneer/badge.svg?style=flat)
-](https://pypi.python.org/pypi/versioneer/)
-* [![Build Status]
-(https://travis-ci.org/warner/python-versioneer.png?branch=master)
-](https://travis-ci.org/warner/python-versioneer)
+* License: Public Domain (CC0-1.0)
+* Compatible with: Python 3.7, 3.8, 3.9, 3.10 and pypy3
+* [![Latest Version][pypi-image]][pypi-url]
+* [![Build Status][travis-image]][travis-url]
 
-This is a tool for managing a recorded version number in distutils-based
-Python projects. The goal is to remove the tedious and error-prone "update
+This is a tool for managing a recorded version number in distutils/setuptools-based
+python projects. The goal is to remove the tedious and error-prone "update
 the embedded version string" step from your release process. Making a new
 release should be as easy as recording a new tag in your version-control
 system, and maybe making new tarballs.
@@ -27,9 +23,10 @@ system, and maybe making new tarballs.
 
 ## Quick Install
 
-* `pip install versioneer` to somewhere to your $PATH
-* add a `[versioneer]` section to your setup.cfg (see below)
+* `pip install versioneer` to somewhere in your $PATH
+* add a `[versioneer]` section to your setup.cfg (see [Install](INSTALL.md))
 * run `versioneer install` in your source tree, commit the results
+* Verify version information with `python setup.py version`
 
 ## Version Identifiers
 
@@ -61,7 +58,7 @@ version 1.3). Many VCS systems can report a description that captures this,
 for example `git describe --tags --dirty --always` reports things like
 "0.7-1-g574ab98-dirty" to indicate that the checkout is one revision past the
 0.7 tag, has a unique revision id of "574ab98", and is "dirty" (it has
-uncommitted changes.
+uncommitted changes).
 
 The version identifier is used for multiple purposes:
 
@@ -166,7 +163,7 @@ which may help identify what went wrong).
 
 Some situations are known to cause problems for Versioneer. This details the
 most significant ones. More can be found on Github
-[issues page](https://github.com/warner/python-versioneer/issues).
+[issues page](https://github.com/python-versioneer/python-versioneer/issues).
 
 ### Subprojects
 
@@ -180,7 +177,7 @@ two common reasons why `setup.py` might not be in the root:
   `setup.cfg`, and `tox.ini`. Projects like these produce multiple PyPI
   distributions (and upload multiple independently-installable tarballs).
 * Source trees whose main purpose is to contain a C library, but which also
-  provide bindings to Python (and perhaps other langauges) in subdirectories.
+  provide bindings to Python (and perhaps other languages) in subdirectories.
 
 Versioneer will look for `.git` in parent directories, and most operations
 should get the right version string. However `pip` and `setuptools` have bugs
@@ -194,9 +191,9 @@ work too.
 Pip-8.1.1 is known to have this problem, but hopefully it will get fixed in
 some later version.
 
-[Bug #38](https://github.com/warner/python-versioneer/issues/38) is tracking
+[Bug #38](https://github.com/python-versioneer/python-versioneer/issues/38) is tracking
 this issue. The discussion in
-[PR #61](https://github.com/warner/python-versioneer/pull/61) describes the
+[PR #61](https://github.com/python-versioneer/python-versioneer/pull/61) describes the
 issue from the Versioneer side in more detail.
 [pip PR#3176](https://github.com/pypa/pip/pull/3176) and
 [pip PR#3615](https://github.com/pypa/pip/pull/3615) contain work to improve
@@ -224,21 +221,9 @@ regenerated while a different version is checked out. Many setup.py commands
 cause egg_info to be rebuilt (including `sdist`, `wheel`, and installing into
 a different virtualenv), so this can be surprising.
 
-[Bug #83](https://github.com/warner/python-versioneer/issues/83) describes
+[Bug #83](https://github.com/python-versioneer/python-versioneer/issues/83) describes
 this one, but upgrading to a newer version of setuptools should probably
 resolve it.
-
-### Unicode version strings
-
-While Versioneer works (and is continually tested) with both Python 2 and
-Python 3, it is not entirely consistent with bytes-vs-unicode distinctions.
-Newer releases probably generate unicode version strings on py2. It's not
-clear that this is wrong, but it may be surprising for applications when then
-write these strings to a network connection or include them in bytes-oriented
-APIs like cryptographic checksums.
-
-[Bug #71](https://github.com/warner/python-versioneer/issues/71) investigates
-this question.
 
 
 ## Updating Versioneer
@@ -265,6 +250,14 @@ installation by editing setup.py . Alternatively, it might go the other
 direction and include code from all supported VCS systems, reducing the
 number of intermediate scripts.
 
+## Similar projects
+
+* [setuptools_scm](https://github.com/pypa/setuptools_scm/) - a non-vendored build-time
+  dependency
+* [minver](https://github.com/jbweston/miniver) - a lightweight reimplementation of
+  versioneer
+* [versioningit](https://github.com/jwodder/versioningit) - a PEP 518-based setuptools
+  plugin
 
 ## License
 
@@ -273,6 +266,12 @@ domain. The `_version.py` that it creates is also in the public domain.
 Specifically, both are released under the Creative Commons "Public Domain
 Dedication" license (CC0-1.0), as described in
 https://creativecommons.org/publicdomain/zero/1.0/ .
+
+[pypi-image]: https://img.shields.io/pypi/v/versioneer.svg
+[pypi-url]: https://pypi.python.org/pypi/versioneer/
+[travis-image]:
+https://img.shields.io/travis/com/python-versioneer/python-versioneer.svg
+[travis-url]: https://travis-ci.com/github/python-versioneer/python-versioneer
 
 """
 
@@ -1481,7 +1480,7 @@ def get_version():
 
 
 def get_cmdclass():
-    """Get the custom setuptools/distutils subclasses used by Versioneer."""
+    """Get the custom setuptools subclasses used by Versioneer."""
     if "versioneer" in sys.modules:
         del sys.modules["versioneer"]
         # this fixes the "python setup.py develop" case (also 'install' and
@@ -1499,35 +1498,9 @@ def get_cmdclass():
 
     cmds = {}
 
-    # we add "version" to both distutils and setuptools
-    from distutils.core import Command
-
-    class cmd_version(Command):
-        description = "report generated version string"
-        user_options = []
-        boolean_options = []
-
-        def initialize_options(self):
-            pass
-
-        def finalize_options(self):
-            pass
-
-        def run(self):
-            vers = get_versions(verbose=True)
-            print("Version: %s" % vers["version"])
-            print(" full-revisionid: %s" % vers.get("full-revisionid"))
-            print(" dirty: %s" % vers.get("dirty"))
-            print(" date: %s" % vers.get("date"))
-            if vers["error"]:
-                print(" error: %s" % vers["error"])
-    cmds["version"] = cmd_version
-
     # we override "build_py" in both distutils and setuptools
     #
     # most invocation pathways end up running build_py:
-    #  distutils/build -> build_py
-    #  distutils/install -> distutils/build ->..
     #  setuptools/bdist_wheel -> distutils/install ->..
     #  setuptools/bdist_egg -> distutils/install_lib -> build_py
     #  setuptools/install -> bdist_egg ->..
@@ -1542,7 +1515,7 @@ def get_cmdclass():
     if "setuptools" in sys.modules:
         from setuptools.command.build_py import build_py as _build_py
     else:
-        from distutils.command.build_py import build_py as _build_py
+        pass
 
     class cmd_build_py(_build_py):
         def run(self):
@@ -1559,71 +1532,11 @@ def get_cmdclass():
                 write_to_version_file(target_versionfile, versions)
     cmds["build_py"] = cmd_build_py
 
-    if "cx_Freeze" in sys.modules:  # cx_freeze enabled?
-        from cx_Freeze.dist import build_exe as _build_exe
-        # nczeczulin reports that py2exe won't like the pep440-style string
-        # as FILEVERSION, but it can be used for PRODUCTVERSION, e.g.
-        # setup(console=[{
-        #   "version": versioneer.get_version().split("+", 1)[0], # FILEVERSION
-        #   "product_version": versioneer.get_version(),
-        #   ...
-
-        class cmd_build_exe(_build_exe):
-            def run(self):
-                root = get_root()
-                cfg = get_config_from_root(root)
-                versions = get_versions()
-                target_versionfile = cfg.versionfile_source
-                print("UPDATING %s" % target_versionfile)
-                write_to_version_file(target_versionfile, versions)
-
-                _build_exe.run(self)
-                os.unlink(target_versionfile)
-                with open(cfg.versionfile_source, "w") as f:
-                    LONG = LONG_VERSION_PY[cfg.VCS]
-                    f.write(LONG %
-                            {"DOLLAR": "$",
-                             "STYLE": cfg.style,
-                             "TAG_PREFIX": cfg.tag_prefix,
-                             "PARENTDIR_PREFIX": cfg.parentdir_prefix,
-                             "VERSIONFILE_SOURCE": cfg.versionfile_source,
-                             })
-        cmds["build_exe"] = cmd_build_exe
-        del cmds["build_py"]
-
-    if 'py2exe' in sys.modules:  # py2exe enabled?
-        try:
-            from py2exe.distutils_buildexe import py2exe as _py2exe  # py3
-        except ImportError:
-            from py2exe.build_exe import py2exe as _py2exe  # py2
-
-        class cmd_py2exe(_py2exe):
-            def run(self):
-                root = get_root()
-                cfg = get_config_from_root(root)
-                versions = get_versions()
-                target_versionfile = cfg.versionfile_source
-                print("UPDATING %s" % target_versionfile)
-                write_to_version_file(target_versionfile, versions)
-
-                _py2exe.run(self)
-                os.unlink(target_versionfile)
-                with open(cfg.versionfile_source, "w") as f:
-                    LONG = LONG_VERSION_PY[cfg.VCS]
-                    f.write(LONG %
-                            {"DOLLAR": "$",
-                             "STYLE": cfg.style,
-                             "TAG_PREFIX": cfg.tag_prefix,
-                             "PARENTDIR_PREFIX": cfg.parentdir_prefix,
-                             "VERSIONFILE_SOURCE": cfg.versionfile_source,
-                             })
-        cmds["py2exe"] = cmd_py2exe
-
     # we override different "sdist" commands for both environments
     if "setuptools" in sys.modules:
         from setuptools.command.sdist import sdist as _sdist
     else:
-        from distutils.command.sdist import sdist as _sdist
+        pass
 
     class cmd_sdist(_sdist):
         def run(self):
