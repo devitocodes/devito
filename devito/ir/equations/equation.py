@@ -101,7 +101,6 @@ class Operation(Tag):
 OpInc = Operation('+')
 OpMax = Operation('max')
 OpMin = Operation('min')
-OpMemcpy = Operation('memcpy')
 
 
 class LoweredEq(IREq):
