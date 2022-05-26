@@ -3,6 +3,12 @@
 # Default directory where IPython stores config files
 IPYTHONDIR=~/.ipython
 
+# Try to stop any cluster that may be active from previous (failed) runs
+ipcluster stop --profile=mpi || echo "No active profile_mpi"
+
+# Remove any existing configuration
+rm $IPYTHONDIR/profile_mpi/ipcluster_config.py
+
 # Create a new profile, called "mpi"
 ipython profile create --parallel --profile=mpi
 
