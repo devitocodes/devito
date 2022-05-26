@@ -7,12 +7,13 @@ from devito.data import FULL
 from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, FindNodes,
                            Transformer, BlankLine, BusyWait, DummyExpr,
                            derive_parameters, make_thread_ctx)
+from devito.ir.support import (WaitLock, WithLock, FetchUpdate, FetchPrefetch,
+                               PrefetchUpdate, WaitPrefetch, Delete)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite
 from devito.tools import as_mapper, filter_ordered, filter_sorted, flatten
-from devito.types import (WaitLock, WithLock, FetchUpdate, FetchPrefetch,
-                          PrefetchUpdate, WaitPrefetch, Delete, SharedData)
+from devito.types import SharedData
 
 __init__ = ['Orchestrator']
 

@@ -6,10 +6,10 @@ from cached_property import cached_property
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward,
                                Interval, IntervalGroup, IterationSpace, DataSpace, Scope,
-                               detect_accesses, detect_io, normalize_properties)
+                               detect_accesses, detect_io, normalize_properties,
+                               normalize_syncs)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
-from devito.types import normalize_syncs
 
 __all__ = ["Cluster", "ClusterGroup"]
 

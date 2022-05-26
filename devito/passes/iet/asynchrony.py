@@ -1,7 +1,7 @@
 from devito.ir.iet import (AsyncCallable, AsyncCall, FindNodes, SyncSpot,
                            Transformer, derive_parameters)
+from devito.ir.support import WithLock, FetchPrefetch, PrefetchUpdate
 from devito.passes.iet.engine import iet_pass
-from devito.types import WithLock, FetchPrefetch, PrefetchUpdate
 
 __all__ = ['split_async_compute']
 

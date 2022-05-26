@@ -3,13 +3,13 @@ from collections import OrderedDict, defaultdict
 import numpy as np
 from sympy import And
 
-from devito.ir import Forward, GuardBound, GuardBoundNext, Queue, Vector, SEQUENTIAL
+from devito.ir import (Forward, GuardBound, GuardBoundNext, Queue, Vector,
+                       SEQUENTIAL, WaitLock, WithLock, FetchUpdate, FetchPrefetch,
+                       PrefetchUpdate, WaitPrefetch, Delete, normalize_syncs)
 from devito.symbolics import uxreplace
 from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
                           indices_to_sections, timed_pass)
-from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
-                          FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete,
-                          normalize_syncs)
+from devito.types import CustomDimension, Lock
 
 __all__ = ['Tasker', 'Streaming']
 
