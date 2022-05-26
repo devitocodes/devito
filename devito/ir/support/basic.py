@@ -734,10 +734,9 @@ class Scope(object):
         # The iteration symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
         for d in dimensions:
-            for i in d._defines_symbols:
-                for j in i.free_symbols:
-                    v = self.reads.setdefault(j.function, [])
-                    v.append(TimedAccess(j, 'R', -1))
+            for i in d.bound_symbols:
+                v = self.reads.setdefault(i.function, [])
+                v.append(TimedAccess(i, 'R', -1))
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)

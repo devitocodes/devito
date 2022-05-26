@@ -186,7 +186,9 @@ class Dimension(ArgProvider):
 
     @cached_property
     def bound_symbols(self):
-        return {self.symbolic_min, self.symbolic_max, self.symbolic_size}
+        candidates = [self.symbolic_min, self.symbolic_max, self.symbolic_size,
+                      self.symbolic_incr]
+        return frozenset(i for i in candidates if not i.is_Number)
 
     @property
     def _maybe_distributed(self):
@@ -200,12 +202,6 @@ class Dimension(ArgProvider):
     @cached_property
     def _defines(self):
         return frozenset({self})
-
-    @cached_property
-    def _defines_symbols(self):
-        candidates = [self.symbolic_min, self.symbolic_max, self.symbolic_size,
-                      self.symbolic_incr]
-        return frozenset(i for i in candidates if not i.is_Number)
 
     @property
     def _arg_names(self):
@@ -581,8 +577,8 @@ class SubDimension(DerivedDimension):
 
     @cached_property
     def bound_symbols(self):
-        v = super().bound_symbols
-        return set().union(*[i.free_symbols for i in v])
+        # Add thickness symbols
+        return frozenset().union(*[i.free_symbols for i in super().bound_symbols])
 
     @property
     def _maybe_distributed(self):
@@ -591,10 +587,6 @@ class SubDimension(DerivedDimension):
     @cached_property
     def _thickness_map(self):
         return dict(self.thickness)
-
-    @cached_property
-    def _defines_symbols(self):
-        return super()._defines_symbols | frozenset(self._thickness_map)
 
     @cached_property
     def _offset_left(self):
@@ -923,6 +915,10 @@ class ModuloDimension(DerivedDimension):
         except (TypeError, ValueError):
             return incr
 
+    @cached_property
+    def bound_symbols(self):
+        return set(self.parent.bound_symbols)
+
     def _arg_defaults(self, **kwargs):
         return {}
 
@@ -1048,6 +1044,13 @@ class AbstractIncrDimension(DerivedDimension):
             return sympy.Number(self.step)
         except (TypeError, ValueError):
             return self.step
+
+    @cached_property
+    def bound_symbols(self):
+        ret = set(self.parent.bound_symbols)
+        if self.symbolic_incr.is_Symbol:
+            ret.add(self.symbolic_incr)
+        return frozenset(ret)
 
     # Pickling support
     _pickle_args = ['name', 'parent', 'symbolic_min', 'symbolic_max']
@@ -1184,6 +1187,13 @@ class CustomDimension(BasicDimension):
             return self.parent.spacing
         else:
             return self._spacing
+
+    @property
+    def bound_symbols(self):
+        if self.is_Derived:
+            return self.parent.bound_symbols
+        else:
+            return frozenset()
 
     @cached_property
     def _defines(self):
