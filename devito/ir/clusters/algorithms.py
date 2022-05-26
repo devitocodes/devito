@@ -378,14 +378,10 @@ def normalize_reductions(cluster, sregistry):
 
     processed = []
     for e in cluster.exprs:
-        if e.is_Increment and e.lhs.function.is_Input:
-            handle = Symbol(name=sregistry.make_name(), dtype=e.dtype).indexify()
-            if e.rhs.is_Number or e.rhs.is_Symbol:
-                extracted = e.rhs
-            else:
-                extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-            processed.extend([e.func(handle, extracted, operation=None),
-                              e.func(e.lhs, handle)])
+        if e.is_Increment and e.lhs.function.is_AbstractFunction:
+            v = Symbol(name=sregistry.make_name(), dtype=e.dtype)
+            processed.extend([e.func(v, e.rhs, operation=None),
+                              e.func(e.lhs, v)])
         else:
             processed.append(e)
 
