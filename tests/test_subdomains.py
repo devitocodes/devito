@@ -50,8 +50,10 @@ class TestSubdomains(object):
         dim = s_d0.shape
 
         f = Function(name='f', grid=grid.subdomains['d0'], dtype=np.int32)
+        g = TimeFunction(name='g', grid=grid.subdomains['d0'], dtype=np.int32)
 
         assert dim == f.data.shape
+        assert dim == g.data.shape[1:]
 
     def test_multiple_middle(self):
         """

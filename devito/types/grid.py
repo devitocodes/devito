@@ -136,6 +136,28 @@ class CartesianDiscretization(ABC):
             setattr(self, k, v)
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
+    @property
+    def time_dim(self):
+        """Time dimension associated with this Grid."""
+        return self._time_dim
+
+    @property
+    def stepping_dim(self):
+        """Stepping dimension associated with this Grid."""
+        return self._stepping_dim
+
+    def time_dimension_handle (self, time_dimension, dtype):
+        # Store or create default symbols for time and stepping dimensions
+        if time_dimension is None:
+            spacing = Scalar(name='dt', dtype=dtype, is_const=True)
+            self._time_dim = TimeDimension(name='time', spacing=spacing)
+            self._stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
+        elif isinstance(time_dimension, TimeDimension):
+            self._time_dim = time_dimension
+            self._stepping_dim = SteppingDimension(name='%s_s' % self.time_dim.name,
+                                                   parent=self.time_dim)
+        else:
+            raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
 class Grid(CartesianDiscretization, ArgProvider):
 
@@ -258,20 +280,11 @@ class Grid(CartesianDiscretization, ArgProvider):
                                             is_const=True)
                                      for d in self.dimensions)
 
+        self.time_dimension_handle(time_dimension, dtype)
+
         # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
 
-        # Store or create default symbols for time and stepping dimensions
-        if time_dimension is None:
-            spacing = Scalar(name='dt', dtype=dtype, is_const=True)
-            self._time_dim = TimeDimension(name='time', spacing=spacing)
-            self._stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
-        elif isinstance(time_dimension, TimeDimension):
-            self._time_dim = time_dimension
-            self._stepping_dim = SteppingDimension(name='%s_s' % self.time_dim.name,
-                                                   parent=self.time_dim)
-        else:
-            raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -304,16 +317,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
         return tuple(i*h for i, h in zip(grid_origin, self.spacing))
-
-    @property
-    def time_dim(self):
-        """Time dimension associated with this Grid."""
-        return self._time_dim
-
-    @property
-    def stepping_dim(self):
-        """Stepping dimension associated with this Grid."""
-        return self._stepping_dim
 
     @property
     def subdomains(self):
@@ -479,7 +482,7 @@ class SubDomain(AbstractSubDomain):
     Interior : An example of preset Subdomain.
     """
 
-    def __subdomain_finalize__(self, grid, comm=None, topology=None, **kwargs):
+    def __subdomain_finalize__(self, grid, comm=None, topology=None, time_dimension=None, **kwargs):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
@@ -526,6 +529,7 @@ class SubDomain(AbstractSubDomain):
         self._dimensions = tuple(sub_dimensions)
         self._dtype = grid.dtype
         self._distributor = Distributor(self._shape, self._dimensions, comm, topology)
+        self.time_dimension_handle(time_dimension, self._dtype)
 
     def define(self, dimensions):
         """
