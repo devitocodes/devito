@@ -16,9 +16,11 @@ __all__ = ['Tasker', 'Streaming']
 
 class Asynchronous(Queue):
 
-    def __init__(self, key):
+    def __init__(self, key, sregistry):
         assert callable(key)
         self.key = key
+        self.sregistry = sregistry
+
         super().__init__()
 
 
@@ -95,10 +97,12 @@ class Tasker(Asynchronous):
                         # Would degenerate to a scalar, but we rather use a lock
                         # of size 1 for simplicity
                         ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
-                    lock = locks.setdefault(f, Lock(
-                        name='lock%d' % len(locks), dimensions=ld, target=f,
-                        initvalue=np.full(ld.symbolic_size, 2, dtype=np.int32)
-                    ))
+
+                    try:
+                        lock = locks[f]
+                    except KeyError:
+                        name = self.sregistry.make_name(prefix='lock')
+                        lock = locks[f] = Lock(name=name, dimensions=ld, target=f)
 
                     for w in writes:
                         try:

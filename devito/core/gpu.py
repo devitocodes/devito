@@ -264,8 +264,8 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         return {
             'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
-            'tasking': Tasker(runs_on_host).process,
-            'streaming': Streaming(reads_if_on_host).process,
+            'tasking': Tasker(runs_on_host, sregistry).process,
+            'streaming': Streaming(reads_if_on_host, sregistry).process,
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),

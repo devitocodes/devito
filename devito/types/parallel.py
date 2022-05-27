@@ -14,7 +14,7 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
-from devito.tools import as_list, as_tuple, dtype_to_cstr
+from devito.tools import as_list, as_tuple, dtype_to_cstr, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
@@ -199,14 +199,42 @@ class SharedData(ThreadArray):
 class Lock(Array):
 
     """
-    An integer Array to synchronize accesses to a given object
-    in a multithreaded context.
+    A synchronization object to coordinate accesses to shared data in a
+    multi-threaded context with *one* producer thread and one or more
+    consumer threads.
+
+    A Lock `lock(i)` is an integer array of size N used to synchronize the
+    accesses to the N different entries of an AbstractFunction `f(i, ...)`,
+    namely `f(0, ...)`, `f(1, ...)`, ..., `f(N-1, ...)`. Such AbstractFunction
+    is called the "target" of the Lock.
+
+    `lock(i)` has four special values that implement a special kind of
+    spin-locking:
+
+        * 0: the producer thread waits, the consumer thread(s) runs;
+        * 1: the producer thread runs over a critical section with a "privilege"
+             value equal to 1, while the consumer thread(s) runs;
+        * 2: the producer thread runs, the consumer thread(s) wait;
+        * 3: the producer and consumer threads should terminate.
+
+    Note that this is generalisable to K values rather than just four -- should
+    one need to define critical sections with multiple privilege values -- but
+    we don't need it here.
     """
 
     def __init_finalize__(self, *args, **kwargs):
         self._target = kwargs.pop('target', None)
 
-        kwargs['scope'] = 'stack'
+        kwargs.setdefault('scope', 'stack')
+
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        if len(dimensions) != 1:
+            raise ValueError("Expected exactly one Dimension, got `%d`" % len(dimensions))
+        d, = dimensions
+        if not is_integer(d.symbolic_size):
+            raise ValueError("`%s` must have fixed size" % d)
+        kwargs.setdefault('initvalue', np.full(d.symbolic_size, 2, dtype=np.int32))
+
         super().__init_finalize__(*args, **kwargs)
 
     def __padding_setup__(self, **kwargs):
